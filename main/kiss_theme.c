@@ -246,6 +246,41 @@ void wt_cut_set_sink(wt_cut_sink_t fn) { s_cut_sink = fn; }
 // `ls` is the label's letter spacing, and it is not optional: a row LABEL is
 // drawn at ls 2 and a sub-line at 0, so measuring both at 0 under-reports every
 // label by two pixels a character -- which is most of a word on a 250px lane.
+// ---- reading level (see the sink's `kind` note in kiss_theme.h) ------------
+// Two cheap measures, both of them about the same thing: whether a sentence
+// can be read once. Words per sentence is the honest one -- it is what every
+// readability formula is mostly measuring -- and syllables catch the word
+// that is short to write and hard to read.
+//
+// Vowel GROUPS, not vowels: "queue" is one, "coordinator" is five. A trailing
+// silent e does not count, "le" after a consonant does ("table"). It is a
+// heuristic and it is allowed to be: it only has to separate "keys" from
+// "deterministic", and it never fires on a TECHNICAL line, where the real
+// terms are as long as the standard made them.
+static int wt_syllables(const char *w, int n)
+{
+    int syl = 0;
+    bool prev_vowel = false;
+    for (int i = 0; i < n; i++) {
+        const char c = (w[i] >= 'A' && w[i] <= 'Z') ? (char)(w[i] + 32) : w[i];
+        const bool v = c == 'a' || c == 'e' || c == 'i' || c == 'o' ||
+                       c == 'u' || c == 'y';
+        if (v && !prev_vowel) syl++;
+        prev_vowel = v;
+    }
+    // A silent trailing e, unless it is the only vowel ("the") or follows a
+    // consonant as "le" ("table", "little").
+    if (n >= 2 && (w[n - 1] == 'e' || w[n - 1] == 'E') && syl > 1) {
+        const char p2 = (w[n - 2] >= 'A' && w[n - 2] <= 'Z')
+                            ? (char)(w[n - 2] + 32) : w[n - 2];
+        if (p2 != 'l') syl--;
+    }
+    return syl < 1 ? 1 : syl;
+}
+
+static void wt_read_measure(const char *txt);
+static void wt_term_report(const char *body, int want, int floor_y);
+
 static void wt_sub_measure(const char *kind, const char *txt,
                            const lv_font_t *f, int ls, int lane)
 {
@@ -254,9 +289,70 @@ static void wt_sub_measure(const char *kind, const char *txt,
     lv_text_get_size(&sz, txt, f, ls, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
     if (sz.x > lane) s_cut_sink(kind, txt, (int)sz.x, lane);
 }
+
+static void wt_term_report(const char *body, int want, int floor_y)
+{
+    if (s_cut_sink) s_cut_sink("term", body, want, floor_y);
+}
+
+// One pass over a body: the longest sentence, and the longest word. Sentences
+// break on . ! ? and on a newline, because a paragraph break ends one too.
+static void wt_read_measure(const char *txt)
+{
+    if (!s_cut_sink || !txt || !*txt) return;
+    int words = 0, worst_words = 0;
+    const char *p = txt;
+    while (*p) {
+        // A WORD is a run containing at least one ASCII letter, so a mark, a
+        // figure and a bare "#0" are all worth nothing.
+        const char *w = p;
+        bool has_alpha = false;
+        while (*p && *p != ' ' && *p != '\n') {
+            if ((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z'))
+                has_alpha = true;
+            p++;
+        }
+        int n = (int)(p - w);
+        // Trailing punctuation belongs to the sentence, not to the word.
+        int core = n;
+        while (core > 0 && !((w[core-1] >= 'a' && w[core-1] <= 'z') ||
+                             (w[core-1] >= 'A' && w[core-1] <= 'Z')))
+            core--;
+        if (has_alpha) {
+            words++;
+            const int syl = wt_syllables(w, core);
+            if (syl > WT_READ_MAX_SYLL) {
+                char one[48];
+                int k = core < (int)sizeof one - 1 ? core : (int)sizeof one - 1;
+                lv_memcpy(one, w, (size_t)k);
+                one[k] = 0;
+                s_cut_sink("long", one, syl, WT_READ_MAX_SYLL);
+            }
+        }
+        // Did this word end a sentence?
+        bool ends = false;
+        for (int i = core; i < n; i++)
+            if (w[i] == '.' || w[i] == '!' || w[i] == '?') ends = true;
+        if (*p == '\n') ends = true;
+        if (ends) {
+            if (words > worst_words) worst_words = words;
+            words = 0;
+        }
+        while (*p == ' ' || *p == '\n') p++;
+    }
+    if (words > worst_words) worst_words = words;
+    if (worst_words > WT_READ_MAX_WORDS)
+        s_cut_sink("words", txt, worst_words, WT_READ_MAX_WORDS);
+}
 #else
 #define WT_FIT_GAVE_UP(kind_, txt_, w_, h_) ((void)0)
 #define wt_sub_measure(kind_, txt_, f_, ls_, lane_) ((void)0)
+// The reading level and the term line measure the same way and report through
+// the same sink, so they compile out with it. This block is the OUTER else --
+// nesting a second ESP guard inside the host-only half is how the two of them
+// reached the device build undeclared, which only the device compiler saw.
+#define wt_read_measure(txt_) ((void)0)
+#define wt_term_report(b_, w_, f_) ((void)0)
 #endif
 
 // The ladder, without the report. For text that is the OWNER'S and not the
@@ -824,7 +920,11 @@ static lv_obj_t *round_chip(lv_obj_t *parent, const char *symbol,
     lv_label_set_text(label, symbol);
     lv_obj_set_style_text_color(label, color, 0);
     if (acc) lv_obj_add_flag(label, WT_FLAG_ACCENT);
-    lv_obj_set_style_text_font(label, wt_font14(), 0);
+    // font21 in a 30px ring, not font14. The LADDER gate found this one: a
+    // "?" four rungs under the NEVER CHECKED it sits beside is a speck with a
+    // circle drawn round it, and the circle was doing all the work. 21 still
+    // clears the rim by 4px each side.
+    lv_obj_set_style_text_font(label, wt_font_mono21(), 0);
     lv_obj_center(label);
     return chip;
 }
@@ -3609,6 +3709,8 @@ void wt_explain_hi(lv_obj_t *scr, const char *headline, const char *para,
     // 28 now because 28 is what a SENTENCE is set in on this device -- the
     // ladder is four rungs with one job each and a [ ? ] page's paragraph is
     // the same kind of thing as a definition's.
+    wt_read_measure(headline);
+    wt_read_measure(para);
     const lv_font_t *pf = explain_para_font(para, 690, 2);
     const char *at = hi && *hi ? strstr(para, hi) : NULL;
     if (at) {
@@ -4174,13 +4276,22 @@ static lv_obj_t *def_list_build(lv_obj_t *scr, const wt_def_t *defs, int n,
             lv_point_t ps;
             lv_text_get_size(&ps, defs[k].plain, pf, 0, 0, 646,
                              LV_TEXT_FLAG_NONE);
+            wt_read_measure(defs[k].plain);
             if (defs[k].term && *defs[k].term) {
+                const int ty2 = hy + ps.y + 14;
                 r->term = wt_term_line(row, defs[k].term_label, defs[k].term,
-                                       WT_LINE_PAD, hy + ps.y + 14,
-                                       646);
-                if (r->term) lv_obj_add_flag(r->term, LV_OBJ_FLAG_HIDDEN);
+                                       WT_LINE_PAD, ty2, 646);
+                if (r->term) {
+                    lv_obj_update_layout(r->term);
+                    // Against the ROW'S FLOOR, not against the card. A three
+                    // line definition still fits a 216px row and lands on the
+                    // term line -- nothing overlaps until the row is OPEN and
+                    // settled, which is the state no sweep had ever measured.
+                    const int bottom = ty2 + lv_obj_get_height(r->term);
+                    if (bottom > oh) wt_term_report(defs[k].plain, bottom, oh);
+                    lv_obj_add_flag(r->term, LV_OBJ_FLAG_HIDDEN);
+                }
             }
-            (void)oh;
         }
 
         // The rule under the row, aligned to its bottom so the height
@@ -5495,6 +5606,11 @@ const lv_font_t *wt_body_font2_head(const char *h1, const char *b1,
                                     const char *h2, const char *b2,
                                     int w, int max_h)
 {
+    // The pair's own bodies read the same way every other body does: this is
+    // where both halves of a claim pair are measured, so it is where both get
+    // asked whether an owner can read them once.
+    wt_read_measure(b1);
+    wt_read_measure(b2);
     const bool mono = mono_can(b1) && mono_can(b2);
     const lv_font_t *rung[3];
     rung[0] = wt_font28();

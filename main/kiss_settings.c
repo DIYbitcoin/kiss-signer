@@ -1578,9 +1578,14 @@ static void terms_build_page(void)
     lv_obj_remove_flag(s_terms_body, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_remove_flag(s_terms_body, LV_OBJ_FLAG_CLICKABLE);
 
-    const int first = s_terms_page * 5;
+    // FOUR to a page, not five. At n=5 the open row is 148px and a two line
+    // definition with its TECHNICAL line under it needs 153 -- the term line
+    // was being drawn five pixels past the row's own floor on every card, and
+    // nothing overlapped until the row was open, which is the state no sweep
+    // had ever measured. The TERM gate says so now; n=4 opens to 182.
+    const int first = s_terms_page * KISS_TERMS_PER_PAGE;
     int n = KISS_TERM_N - first;
-    if (n > 5) n = 5;
+    if (n > KISS_TERMS_PER_PAGE) n = KISS_TERMS_PER_PAGE;
     kiss_terms_list(s_terms_body, &KISS_TERMS_ALL[first], n);
     kiss_terms_hint(s_scr);
 
@@ -1589,7 +1594,7 @@ static void terms_build_page(void)
     // under it is printed across the fifth row -- which is what the first
     // frame of this screen showed. The count is on the SETTINGS row that
     // opens this page and does not need saying twice.
-    wt_sheet_dots(s_scr, 2, s_terms_page);
+    wt_sheet_dots(s_scr, KISS_TERMS_PAGES, s_terms_page);
 }
 
 static void terms_gesture_cb(lv_event_t *e)
@@ -1598,7 +1603,7 @@ static void terms_gesture_cb(lv_event_t *e)
     if (step == 0) return;
     if (step < 0 && s_terms_page == 0) { terms_back_cb(NULL); return; }
     const int next = s_terms_page + (step > 0 ? 1 : -1);
-    if (next < 0 || next > 1) return;
+    if (next < 0 || next >= KISS_TERMS_PAGES) return;
     // The page turn ends the reading of whatever was open on the page being
     // left, exactly as walking out of the screen does.
     kiss_terms_leaving();

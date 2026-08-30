@@ -1007,6 +1007,30 @@ static void oc_cut_sink(const char *kind, const char *txt, int want, int lane)
 __attribute__((constructor))
 static void oc_cut_install(void) { wt_cut_set_sink(oc_cut_sink); }
 
+// Words this device is RIGHT to use at four syllables, and why. Both of them
+// are vocabulary the reader will meet outside this box: "coordinator" is what
+// every signing device calls the app on the other side of the QR, and
+// inventing a shorter word for it would be the house term the glossary exists
+// to forbid. "compatible" is the owner's own correction -- "BIP39 signer" is
+// not a thing, and "BIP39 compatible signer" is.
+//
+// This list SHRINKS. A new entry is a word somebody chose to keep, and needs
+// saying so here.
+static const char *const OC_READ_BACKLOG[] = {
+    "coordinator",
+    "compatible",
+    NULL,
+};
+static bool s_read_hit[sizeof OC_READ_BACKLOG / sizeof OC_READ_BACKLOG[0]];
+
+static bool oc_read_excused(const char *w)
+{
+    for (unsigned i = 0; i < sizeof OC_READ_BACKLOG / sizeof OC_READ_BACKLOG[0]; i++)
+        if (OC_READ_BACKLOG[i] && strcmp(OC_READ_BACKLOG[i], w) == 0)
+            { s_read_hit[i] = true; return true; }
+    return false;
+}
+
 static void oc_check_cut(const char *tag)
 {
     char sig[192], detail[320];
@@ -1015,6 +1039,41 @@ static void oc_check_cut(const char *tag)
         // pinned to one line, which is the whole class: LVGL rewrites the
         // text to insert the dots, so nothing downstream can tell an
         // ellipsised string from one that fits exactly.
+        // Three of the kinds are not about a lane. They arrive through this
+        // sink because they are the same SHAPE of finding -- measured in the
+        // kit as the thing is built, invisible to any walk of the finished
+        // tree, fixed by cutting copy -- and each says what it measured.
+        if (strcmp(s_cut_kind[i], "term") == 0) {
+            snprintf(sig, sizeof sig, "TERM|%s", s_cut_txt[i]);
+            snprintf(detail, sizeof detail,
+                     "TERM     the definition and its TECHNICAL line reach "
+                     "y %d in a row that ends at %d -- \"%s\" is a line too "
+                     "long for an open row",
+                     s_cut_want[i], s_cut_lane[i], s_cut_txt[i]);
+            oc_report_one(tag, sig, detail);
+            continue;
+        }
+        if (strcmp(s_cut_kind[i], "words") == 0) {
+            snprintf(sig, sizeof sig, "READ|words|%s", s_cut_txt[i]);
+            snprintf(detail, sizeof detail,
+                     "READ     a %d word sentence in \"%s\" -- the limit is "
+                     "%d, and a sentence somebody has to re-read is one that "
+                     "failed",
+                     s_cut_want[i], s_cut_txt[i], s_cut_lane[i]);
+            oc_report_one(tag, sig, detail);
+            continue;
+        }
+        if (strcmp(s_cut_kind[i], "long") == 0) {
+            if (oc_read_excused(s_cut_txt[i])) continue;
+            snprintf(sig, sizeof sig, "READ|long|%s", s_cut_txt[i]);
+            snprintf(detail, sizeof detail,
+                     "READ     \"%s\" is %d syllables -- the limit is %d "
+                     "outside a TECHNICAL line, where the real terms are as "
+                     "long as the standard made them",
+                     s_cut_txt[i], s_cut_want[i], s_cut_lane[i]);
+            oc_report_one(tag, sig, detail);
+            continue;
+        }
         const char *what = strcmp(s_cut_kind[i], "label") == 0 ? "row label"
                          : strcmp(s_cut_kind[i], "cap")   == 0 ? "fact caption"
                          : strcmp(s_cut_kind[i], "fact")  == 0 ? "fact value"
@@ -1272,6 +1331,90 @@ static void oc_check_colour_roles(const char *tag)
 //
 // Run: OVERLAPCHECK_SELFTEST=1 /tmp/kissoverlap
 int oc_selftest(void);
+
+// ---- 15. LADDER: a mark set rungs below the words it belongs to ------------
+//
+// The device has five faces and they are a LADDER: 14 for marks, then 21, 23,
+// 28 and 34 for things people read. A mark is allowed to be smaller than the
+// line it leads -- that is what makes it a mark -- but a font14 glyph beside
+// a font34 sentence is not a mark, it is a speck, and no check on this file's
+// list could see it: every one of those labels fits its box perfectly and
+// nothing overlaps.
+//
+// So this compares SIBLINGS. A label with no ASCII letters is a mark; the
+// tallest label sharing its parent is the line it belongs to; three rungs
+// between them is the fault. Two is the ordinary case -- a font23 mark beside
+// a font34 headline is the explainer's own shape -- and one is everywhere.
+#define OC_LADDER_GAP 4
+// How close a mark has to be to count as leading a line. A caption lane is
+// 38px from its glyph, so 44 covers every mark the kit places and nothing on
+// the other side of a column.
+#define OC_LADDER_NEAR 44
+
+static int oc_rung(const lv_font_t *f)
+{
+    if (f == wt_font14()      || f == wt_font_mono14()) return 0;
+    if (f == wt_font_mono18())                         return 1;
+    if (f == wt_font_mono21())                         return 2;
+    if (f == wt_font23()      || f == wt_font_mono23()) return 3;
+    if (f == wt_font28()      || f == wt_font_mono28()) return 4;
+    if (f == wt_font34()      || f == wt_font_mono34()) return 5;
+    return -1;                       // off the ladder: not this check's job
+}
+
+// A MARK carries no ASCII letter -- an icon glyph, an arrow, a bullet. The
+// same test TINY uses for the opposite purpose, and for the same reason: it
+// is the cheapest honest line between a picture and a word.
+static bool oc_is_mark(const char *t)
+{
+    for (const char *p = t; *p; p++)
+        if ((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z')) return false;
+    return t[0] != 0;
+}
+
+static void oc_check_ladder(const char *tag)
+{
+    char t[80], u[80], sig[224], detail[420];
+
+    for (int i = 0; i < s_n; i++) {
+        const oc_node_t *n = &s_node[i];
+        if (n->buried || !n->is_label) continue;
+        oc_text(n->obj, t, sizeof t);
+        if (!oc_is_mark(t)) continue;
+        const int mr = oc_rung(lv_obj_get_style_text_font(n->obj, LV_PART_MAIN));
+        if (mr < 0) continue;
+
+        // The line the mark BELONGS to, which is not "anything under the same
+        // parent": on a screen every label shares the screen, so that test
+        // measured a corner glyph against the page title. It is the label
+        // this one leads -- vertically overlapping it, and within a mark's
+        // own width of its edge.
+        int best = -1;
+        int bi = -1;
+        for (int j = 0; j < s_n; j++) {
+            if (j == i || s_node[j].buried || !s_node[j].is_label) continue;
+            const oc_node_t *m = &s_node[j];
+            if (m->vis.y2 < n->vis.y1 || m->vis.y1 > n->vis.y2) continue;
+            const int gap = m->vis.x1 >= n->vis.x2 ? m->vis.x1 - n->vis.x2
+                          : n->vis.x1 >= m->vis.x2 ? n->vis.x1 - m->vis.x2
+                                                   : 0;
+            if (gap > OC_LADDER_NEAR) continue;
+            oc_text(m->obj, u, sizeof u);
+            if (oc_is_mark(u)) continue;
+            const int r =
+                oc_rung(lv_obj_get_style_text_font(m->obj, LV_PART_MAIN));
+            if (r > best) { best = r; bi = j; }
+        }
+        if (bi < 0 || best - mr < OC_LADDER_GAP) continue;
+        oc_text(s_node[bi].obj, u, sizeof u);
+        snprintf(sig, sizeof sig, "LADDER|%s|%s", t, u);
+        snprintf(detail, sizeof detail,
+                 "LADDER   a mark %d rungs under \"%s\" -- a glyph that small "
+                 "beside words that big is a speck, not a mark",
+                 best - mr, u);
+        oc_report_one(tag, sig, detail);
+    }
+}
 
 // ---- 12. RAGGED: sibling rows whose sub-lines disagree about size ----------
 //
@@ -1570,6 +1713,55 @@ static int oc_selftest_amber(const char *name, const char *txt,
     return got == want_finding ? 0 : 1;
 }
 
+// LADDER and the two reading-level checks all fire on shapes the product no
+// longer contains, so a clean sweep proves nothing about them until they have
+// been shown to report at all.
+//
+// LADDER builds the shape directly -- a font14 glyph beside a font34 line --
+// because the defect is a RELATIONSHIP between two labels and there is no
+// kit call that produces it on purpose any more.
+static int oc_selftest_ladder(const char *name, const lv_font_t *mark_f,
+                              bool want_finding)
+{
+    lv_obj_t *scr = wt_screen(NULL, "SELFTEST", NULL);
+    lv_screen_load(scr);
+    lv_obj_t *box = lv_obj_create(scr);
+    lv_obj_remove_style_all(box);
+    lv_obj_set_pos(box, 48, 118);
+    lv_obj_set_size(box, 600, 60);
+    wt_lbl(box, LV_SYMBOL_WARNING, 0, 12, mark_f, WT_WARN);
+    wt_lbl(box, "NEVER CHECKED", 34, 0, wt_font34(), WT_INK);
+    lv_refr_now(NULL);
+
+    s_n = 0; s_findings = 0; s_seen_n = 0;
+    lv_area_t full = { 0, 0, LV_HOR_RES - 1, LV_VER_RES - 1 };
+    oc_collect(scr, full, false);
+    oc_mark_buried();
+    oc_check_ladder("selftest");
+
+    bool got = s_findings > 0;
+    printf("  %-46s %s (%d finding%s)\n", name,
+           got == want_finding ? "ok" : "FAILED", s_findings,
+           s_findings == 1 ? "" : "s");
+    return got == want_finding ? 0 : 1;
+}
+
+// The two reading-level cases go through the SINK, not through a screen: the
+// measure is a pure function of a string and the sink is what carries it, so
+// driving the string is driving the whole check.
+static int oc_selftest_read(const char *name, const char *kind,
+                            const char *txt, int want, bool want_finding)
+{
+    s_cut_n = 0; s_findings = 0; s_seen_n = 0;
+    oc_cut_sink(kind, txt, want, 0);
+    oc_check_cut("selftest");
+    bool got = s_findings > 0;
+    printf("  %-46s %s (%d finding%s)\n", name,
+           got == want_finding ? "ok" : "FAILED", s_findings,
+           s_findings == 1 ? "" : "s");
+    return got == want_finding ? 0 : 1;
+}
+
 int oc_selftest(void)
 {
     lv_color_t stop = WT_STOP, ok = WT_OK, ink = WT_INK, key = WT_KEY;
@@ -1590,6 +1782,43 @@ int oc_selftest(void)
     bad += oc_selftest_cut("a label that fits, clear", "STORAGE", NULL, false);
     if (bad) printf("CUT self test: %d case(s) wrong\n", bad);
     else     printf("CUT self test: 4 cases, all as expected\n");
+    printf("\n");
+
+    // Each block reports its OWN verdict, because the marker the run script
+    // greps for is what makes a clean sweep mean anything -- a block that
+    // prints "all as expected" whatever happened is a marker that says only
+    // that the binary got this far.
+    int was = bad;
+    printf("LADDER check self test\n");
+    bad += oc_selftest_ladder("a font14 mark beside a font34 line, fires",
+                              wt_font14(), true);
+    bad += oc_selftest_ladder("a font23 mark beside the same line, clear",
+                              wt_font23(), false);
+    if (bad != was) printf("LADDER self test: %d case(s) wrong\n", bad - was);
+    else            printf("LADDER self test: 2 cases, all as expected\n");
+    printf("\n");
+
+    was = bad;
+    printf("READ check self test\n");
+    bad += oc_selftest_read("a 16 word sentence, fires", "words",
+                            "one two three four five six seven eight nine ten "
+                            "eleven twelve thirteen fourteen fifteen sixteen",
+                            16, true);
+    bad += oc_selftest_read("a five syllable word, fires", "long",
+                            "deterministic", 5, true);
+    bad += oc_selftest_read("a word on the backlog, clear", "long",
+                            "coordinator", 4, false);
+    if (bad != was) printf("READ self test: %d case(s) wrong\n", bad - was);
+    else            printf("READ self test: 3 cases, all as expected\n");
+    printf("\n");
+
+    was = bad;
+    printf("TERM check self test\n");
+    bad += oc_selftest_read("a body past its row's floor, fires", "term",
+                            "a definition whose technical line lands past the "
+                            "row", 153, true);
+    if (bad != was) printf("TERM self test: %d case(s) wrong\n", bad - was);
+    else            printf("TERM self test: 1 case, all as expected\n");
     printf("\n");
 
     printf("AMBER check self test\n");
@@ -1816,6 +2045,7 @@ void oc_check(const char *tag)
 
     oc_check_text_overlap(tag);
     oc_check_content_bottom(tag);
+    oc_check_ladder(tag);
     oc_check_wrap_growth(tag);
     oc_check_clipped(tag);
     oc_check_colour_roles(tag);

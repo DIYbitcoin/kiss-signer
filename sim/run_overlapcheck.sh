@@ -58,7 +58,10 @@ if [ $? -ne 0 ] ||
     ! printf '%s\n' "$st" | grep -q 'AMBER self test: 2 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'WALL self test: 2 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'LAYER self test: 3 cases, all as expected' ||
-    ! printf '%s\n' "$st" | grep -q 'ROLE self test: 4 cases, all as expected'; then
+    ! printf '%s\n' "$st" | grep -q 'ROLE self test: 4 cases, all as expected' ||
+    ! printf '%s\n' "$st" | grep -q 'LADDER self test: 2 cases, all as expected' ||
+    ! printf '%s\n' "$st" | grep -q 'READ self test: 3 cases, all as expected' ||
+    ! printf '%s\n' "$st" | grep -q 'TERM self test: 1 case, all as expected'; then
     echo
     echo "FAILED: the self test no longer reports its expected markers, so a"
     echo "clean run means nothing."
@@ -200,7 +203,7 @@ for l in "${langs[@]}"; do
 
     if [ "$n" -gt 0 ]; then
         printf '%-8s %3d findings\n' "$l" "$n"
-        printf '%s\n' "$out" | grep -E '^  (TEXT|CONTENT|GROWTH|CLIPPED|ROLE|BARE|WALL|FIT|CUT)' | sed 's/^/  /'
+        printf '%s\n' "$out" | grep -E '^  (TEXT|CONTENT|GROWTH|CLIPPED|ROLE|BARE|WALL|FIT|CUT|TINY|AMBER|RAGGED|LAYER|TERM|READ|LADDER|PATH)' | sed 's/^/  /'
         echo
     else
         printf '%-8s clean\n' "$l"

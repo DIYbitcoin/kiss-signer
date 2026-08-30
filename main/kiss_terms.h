@@ -85,5 +85,12 @@ extern const int KISS_TERMS_RECV[1];      // ACCOUNT
 // All ten, for the SETTINGS reference. THE DECOY is in this list, which is
 // why the row that opens it is absent in a decoy session.
 extern const int KISS_TERMS_ALL[KISS_TERM_N];
+// FOUR to a page. A definition row at n=5 opens to 148px and a two line
+// definition with its TECHNICAL line under it needs 153, so the technical
+// name lands past the row's own floor -- invisible until the row is open, and
+// the TERM gate is what found it. n=4 opens to 182.
+#define KISS_TERMS_PER_PAGE 4
+#define KISS_TERMS_PAGES    ((KISS_TERM_N + KISS_TERMS_PER_PAGE - 1) / \
+                             KISS_TERMS_PER_PAGE)
 
 #endif

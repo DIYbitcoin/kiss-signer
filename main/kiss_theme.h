@@ -388,9 +388,28 @@ void wt_fit_set_sink(wt_fit_sink_t fn);
 // `kind` is "sub" or "label": a sub-line and a row label are pinned the same
 // way and cut for the same reason, but they are cut by DIFFERENT lanes, and a
 // finding that does not say which one sends the reader to the wrong string.
+// `kind` also carries the two checks that are not about a lane at all but
+// report through the same sink, because they are the same SHAPE of finding:
+// measured in the kit as the thing is built, invisible to any walk of the
+// finished tree, and fixed by cutting copy.
+//
+//   "term"  a definition body and the TECHNICAL line under it do not both fit
+//           the row. `want` is the body's bottom, `lane` the row's floor. A
+//           three line definition still fits a 216px row and lands ON the term
+//           line -- two clean sweeps missed exactly that on the CHANGE card,
+//           because nothing overlaps until the row is OPEN and settled.
+//   "words" a sentence over WT_READ_MAX_WORDS words in a body an owner has to
+//           read. `want` is the count, `lane` the limit. This device explains
+//           bitcoin to somebody who has just been handed one; a sentence they
+//           have to re-read is a sentence that failed.
+//   "long"  a word over three syllables in the same place, outside a
+//           TECHNICAL line, where the real terms are allowed to be as long as
+//           the standard made them. `want` is the syllable count.
 typedef void (*wt_cut_sink_t)(const char *kind, const char *txt,
                               int want, int lane);
 void wt_cut_set_sink(wt_cut_sink_t fn);
+#define WT_READ_MAX_WORDS 14
+#define WT_READ_MAX_SYLL   3
 #endif
 lv_obj_t *wt_section(lv_obj_t *scr, const char *txt, int x, int y);  // column caption
 
@@ -1483,6 +1502,7 @@ lv_obj_t *wt_why_block(lv_obj_t *scr, const char *head, const char *body,
 // measures it against whatever is under it, and hides it in one call.
 lv_obj_t *wt_term_line(lv_obj_t *par, const char *label, const char *term,
                        int x, int y, int w);
+
 
 // THE FLOOR IS 21, and 23 where the body cannot be set in mono. There is no
 // font14 rung: a body is what an owner READS and 14 is what this device sets

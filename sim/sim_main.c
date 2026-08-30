@@ -3981,10 +3981,16 @@ int main(void) {
   must_not_show("terms/page one has no page two", tr(STR_T_DECOY_CAP));
   // A left stroke turns the page. Not a scroll: wt_screen is deliberately
   // not scrollable, and a scrolling list eats every stroke a few pixels in.
+  // FOUR to a page, so ten terms are three pages and THE DECOY is on the
+  // last one.
   for (int i = 0; i <= 8; i++) { touch(500 - i * 14, 250); pump(3); }
   release(); pump(40);
-  save("/tmp/sim_terms_p2.ppm");                     // THE FEE .. THE DECOY
-  must_show("terms/page two", tr(STR_T_DECOY_CAP));
+  save("/tmp/sim_terms_p2.ppm");                     // CHANGE .. ACCOUNT
+  must_show("terms/page two", tr(STR_T_CHANGE_VAL));
+  for (int i = 0; i <= 8; i++) { touch(500 - i * 14, 250); pump(3); }
+  release(); pump(40);
+  save("/tmp/sim_terms_p3.ppm");                     // ENTROPY, THE DECOY
+  must_show("terms/page three", tr(STR_T_DECOY_CAP));
   tap_str(STR_C_BACK, 3, 20);                        // -> Settings, DEVICE tab
   set_tab(SET_DEVICE);
   def_row(4, 2);                                     // This device -> the facts
