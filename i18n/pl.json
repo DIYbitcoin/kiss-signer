@@ -496,7 +496,7 @@
   "R_PATH_B": "Numerowana gałąź, na której rosną twoje klucze. Twój koordynator idzie tą samą, by znaleźć te same adresy. m/84h to native segwit, 1h to sieć testowa, a 0h to twoje pierwsze konto.",
   "R_PATH_H": "Ścieżka wyprowadzania",
   "R_RECV_FMT": "adres odbiorczy nr %u, bezpieczny do udostępniania",
-  "R_S": "ufaj temu, co widzisz tutaj, nie ekranowi komputera.",
+  "R_S": "ufaj temu tutaj, nie ekranowi komputera.",
   "R_SCAN_ANOTHER": "SKANUJ KOLEJNY",
   "R_SP_ADDR_CAP": "CICHY ADRES",
   "R_SP_BTN": "CICHA PŁATNOŚĆ",

@@ -503,7 +503,7 @@
   "R_SP_EXPORT": "导出到协调器",
   "R_SP_EXPORT_NOTE": "协调器\n会找到发往你\n静默地址的付款。",
   "R_SP_EXPORT_S": "只读观察：只能找到付款，不能花费",
-  "R_SP_FACT_FIND": "查找付款",
+  "R_SP_FACT_FIND": "找到发给你的付款",
   "R_SP_FACT_FOREVER": "永久可见",
   "R_SP_FACT_NO_SPEND": "不能花费",
   "R_SP_FRESH": "每笔支付都落在一个新地址上",
