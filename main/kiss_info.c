@@ -1330,10 +1330,11 @@ static void kef_warn_screen(lv_event_t *e)
     // TWO facts, not three. The band is 344 here because of the slide, so the
     // lane ends at 336: a third row lands at 338.
     const wt_fact_t facts[2] = {
-        { tr(pp ? STR_I_KEF_F1_C : STR_I_KEF_F1_C_NP),
-          tr(pp ? STR_I_KEF_F1_V : STR_I_KEF_F1_V_NP),
-          pp ? WT_ICON_SECRET : WT_ICON_LOCK },
-        { tr(STR_G_TECHNICAL), tr(STR_I_KEF_TERM), LV_SYMBOL_LIST },
+        { .cap = tr(pp ? STR_I_KEF_F1_C : STR_I_KEF_F1_C_NP),
+          .val = tr(pp ? STR_I_KEF_F1_V : STR_I_KEF_F1_V_NP),
+          .icon = pp ? WT_ICON_SECRET : WT_ICON_LOCK },
+        { .cap = tr(STR_G_TECHNICAL), .val = tr(STR_I_KEF_TERM),
+          .icon = LV_SYMBOL_LIST },
     };
     // With a passphrase the paragraph has one more thing to say and it is the
     // one that matters: the envelope holds the WORDS, and the words alone are
@@ -1494,9 +1495,12 @@ static void info_tab_build(void)
         // The [ ? ] content: the lane replaced, not a card and not an
         // overlay. Nothing on it is interactive; the strip is the way back.
         wt_fact_t facts[3] = {
-            { tr(STR_K_HELP_F1C), tr(STR_K_HELP_F1V), WT_ICON_KEY },
-            { tr(STR_K_HELP_F2C), tr(STR_K_HELP_F2V), WT_ICON_QR },
-            { tr(STR_K_HELP_F3C), tr(STR_K_HELP_F3V), LV_SYMBOL_EYE_OPEN },
+            { .cap = tr(STR_K_HELP_F1C), .val = tr(STR_K_HELP_F1V),
+              .icon = WT_ICON_KEY },
+            { .cap = tr(STR_K_HELP_F2C), .val = tr(STR_K_HELP_F2V),
+              .icon = WT_ICON_QR },
+            { .cap = tr(STR_K_HELP_F3C), .val = tr(STR_K_HELP_F3V),
+              .icon = LV_SYMBOL_EYE_OPEN },
         };
         wt_explain(p, tr(STR_K_HELP_HEAD), tr(STR_K_HELP_BODY), facts, 3);
         return;

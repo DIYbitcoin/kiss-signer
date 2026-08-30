@@ -55,14 +55,13 @@ static const slot_t SLOTS[] = {
     // width; the sliced no-passphrase pair is covered by the walk's three
     // rendered states instead.
     { "login/warn",       STR_L_WARN_B,     690, 160 },
-    // The passphrase intro and the backup check both went from one 704px
-    // paragraph to a PAIR of wt_why_blocks, so each body is measured in the
-    // narrower box it actually renders in: 344 wide less the block's own 14px
-    // inset, and 166 tall less the font14 heading above it (HEAD_ROOM 46) and
-    // the 8px wt_why_block costs for its own metrics. A body that only fits at
-    // 704 wide is exactly the regression this row exists to catch.
-    { "setup/verify-w1",  STR_W_VINTRO_W1_B,  330, 112 },
-    { "setup/verify-w2",  STR_W_VINTRO_W2_B,  330, 112 },
+    // The why-block PAIRS that used to be measured here are gone: the
+    // passphrase intro, the backup check, both blind draw screens, the dice
+    // verdict and the checksum page all say their two claims as fact ROWS
+    // now. A row's caption and value are pinned to one line each and
+    // ellipsise rather than shrink, so the check that sees them is CUT in the
+    // walk (wt_sub_measure, measured as the label is built), not a body
+    // budget here. Slots for them would measure a box no screen draws.
     // kiss_setup.c — wizard explainers
     { "setup/checksum",   STR_W_CHECK_B,    704, 256 },
     { "setup/verify-ok",  STR_W_VOK_B,      704, 190 },
@@ -190,33 +189,24 @@ static const slot_t SLOTS[] = {
     { "rng/src-sub",      STR_W_RNG_SRC_SUB,     480,  46, 1 },
     // 330, not 344: the block's rule bar eats 14px of body width. Height is
     // the pair budget (194) minus a measured one-line heading (35).
-    { "rng/why1",         STR_W_RNG_WHY1_B,      330, 155 },
-    { "rng/why2",         STR_W_RNG_WHY2_B,      330, 155 },
-    { "rng/nosrc",        STR_W_RNG_NOSRC_B,     330, 155 },
     { "rng/retry",        STR_W_RNG_RETRY,       704,  34, 0 },
     { "rng/pass-note",    STR_W_RNG_PASS_NOTE,   704,  34, 0 },
     // dice screens: never registered before the quality check landed, which is
     // how the samey nudge shipped unmeasured. The verdict subtitles are one
-    // line on wt_screen; the verify note gets two card lines; the two why
-    // blocks share rule 2's 330x112 body budget.
+    // line on wt_screen and the verify note gets two card lines; the two
+    // claims are fact rows and belong to CUT.
     { "sub/dice",         STR_W_DICE_S,           704, 30, 0 },
     { "sub/dice-uneven",  STR_W_DICE_UNEVEN_S,    704, 30, 0 },
     { "sub/dice-pattern", STR_W_DICE_PATTERN_S,   704, 30, 0 },
     { "setup/dice-verify",STR_W_DICE_VERIFY_NOTE, 564, 36, 1 },
-    { "setup/dice-w1",    STR_W_DICE_W1_B,        330, 112 },
-    { "setup/dice-w2",    STR_W_DICE_W2_B,        330, 112 },
     { "sub/restore",      STR_W_RESTORE_S,    704, 30, 0 },
-    // cards mode (BLIND DRAW): subtitles, the method-row note, both why
-    // pairs and the checksum page's one number line. The candidate word
-    // actions are dynamic English BIP39 words and are deliberately not rows here.
+    // cards mode (BLIND DRAW): subtitles, the method-row note and the
+    // checksum page's one number line. The candidate word actions are dynamic
+    // English BIP39 words and are deliberately not rows here.
     { "sub/cards",        STR_W_CARDS_S,      704, 30, 0 },
     { "sub/cksum",        STR_W_CKSUM_S,      704, 30, 0 },
     { "sub/cards-pick",   STR_W_CARDS_PICK_S, 704, 30, 0 },
     { "setup/cards-note", STR_W_CARDS_NOTE,   420, 87 },
-    { "setup/cards-w1",   STR_W_CARDS_W1_B,   330, 112 },
-    { "setup/cards-w2",   STR_W_CARDS_W2_B,   330, 112 },
-    { "setup/cksum-w1",   STR_W_CKSUM_W1_B,   330, 112 },
-    { "setup/cksum-w2",   STR_W_CKSUM_W2_B,   330, 112 },
     { "setup/cksum-fit",  STR_W_CKSUM_FIT_FMT, 704, 20, 1 },
     // cards_help_cb() -- THE 2048 WORD LIST, three definitions in an icon grid.
     // Measured at the REAL cell lane, not the page: explain_grid deals two
@@ -230,19 +220,13 @@ static const slot_t SLOTS[] = {
     // reason. This is still the first setup wizard explainer with ANY fit
     // coverage -- the dice and entropy ones have none.
     { "setup/cards-help", STR_W_CARDS_HELP_B,  300, 399 },
-    // the two verdict screens: five subtitles (one per rule) and five bodies.
-    // No may_be_small on the bodies -- the why-block pair shares one font, so a
-    // fall to font14 here is a gate failure, not a graceful degrade.
+    // the two verdict screens: five subtitles, one per rule. The five bodies
+    // they used to pair with are single line fact values now.
     { "sub/cards-same",   STR_W_CARDS_SAME_S,   704, 30, 0 },
     { "sub/cards-period", STR_W_CARDS_PERIOD_S, 704, 30, 0 },
     { "sub/cards-clust",  STR_W_CARDS_CLUST_S,  704, 30, 0 },
     { "sub/cards-sorted", STR_W_CARDS_SORTED_S, 704, 30, 0 },
     { "sub/cards-dup",    STR_W_CARDS_DUP_S,    704, 30, 0 },
-    { "setup/cards-block",  STR_W_CARDS_BLOCK_B,  330, 112 },
-    { "setup/cards-clustb", STR_W_CARDS_CLUST_B,  330, 112 },
-    { "setup/cards-sortb",  STR_W_CARDS_SORTED_B, 330, 112 },
-    { "setup/cards-dupb",   STR_W_CARDS_DUP_B,    330, 112 },
-    { "setup/cards-fix",    STR_W_CARDS_FIX_B,    330, 112 },
     { "sub/vfy-backup",   STR_W_VERIFY_S,     704, 30, 0 },
     { "sub/qr-warn",      STR_L_SCAN_WARN_S,  704, 30, 0 },
     // and the signing flow's own subtitles. The chooser, the file list and
@@ -279,8 +263,6 @@ static const slot_t SLOTS[] = {
     { "login/cap-nomatch",STR_L_NO_MATCH,       486,  58 },
     { "login/cap-badpass",STR_L_BACKUP_PASS_BAD,486,  58 },
     { "login/cap-verify", STR_L_VERIFY_PASS,    486,  58 },
-    { "login/fp-note",    STR_L_FP_NOTE,        700,  58 },
-    { "login/fp-note2",   STR_L_FP_NOTE2,       700,  58 },
     // The scan page's right column: the safety sentence wraps freely in the
     // 356 lane above the band, so its budget is the room down to 398.
     // may_be_small for the same reason as sign/point-cam: it renders at a

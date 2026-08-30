@@ -1312,6 +1312,15 @@ static void setup_warn_screen(void) {
   const char *fp_intro = np >= 2 ? para[np - 1] : NULL;
   int nclaims = np >= 2 ? np - 1 : np;
 
+  // THE ONE PAIR THAT STAYS A PAIR, and the reason is the translation sweep,
+  // not the shape. Every other claim pair on the device is fact rows now; this
+  // screen's two claims are PARAGRAPHS OF ONE KEY, split at their blank lines
+  // at runtime, and a row's value is a single line. Cutting the English to fit
+  // changes the paragraph count, which gen_i18n.py refuses -- a newline shape
+  // that differs from the other twenty locales is how it catches a translation
+  // following an older English, and it caught exactly this key doing it once
+  // already. Shortened here alone, the same values would ellipsise in twenty
+  // languages. It converts with the sweep, not before it.
   if (nclaims >= 2) {
     // The proven pair: what these keys are on the accent rule, where they go
     // wrong on the amber one. 160px keeps both clear of the card row at 300
@@ -1554,19 +1563,25 @@ static void show_fingerprint(void) {
   // they land on different rungs and the block that matters more is whichever
   // happened to be shorter.
   {
-    const char *b1 = tr(nopass ? STR_L_FP_NOTE_NOPASS  : STR_L_FP_NOTE);
-    const char *b2 = tr(nopass ? STR_L_FP_NOTE2_NOPASS : STR_L_FP_NOTE2);
-    // 232, not the 204 its siblings moved to: the FP reveal's code box is 190,96 118 tall, so it ends at 214,
-    // so there is nothing to reclaim above this pair.
-    const int BW = 344, BY = 232, BH = WT_CONTENT_BOTTOM - BY;
-    // Measured against BH - 8, not BH. wt_body_font answers for the text alone
-    // and wt_why_block wraps it in a box whose own metrics cost a couple of
-    // pixels, so a translation that fits "exactly" overhangs: Czech ran 4px
-    // past WT_CONTENT_BOTTOM at the size this said was fine.
-    const lv_font_t *f = wt_body_font(strlen(b1) >= strlen(b2) ? b1 : b2,
-                                      BW - 14, BH - 8);
-    wt_why_block(s_fpscr, NULL, b1,  48, BY, BW, BH, f, wt_accent());
-    wt_why_block(s_fpscr, NULL, b2, 408, BY, BW, BH, f, WT_WARN);
+    // 232: the code box ends at 214 and there is nothing to reclaim above.
+    //
+    // Two ROWS, and they finally have captions. The pair here was the one
+    // place on the device that drew wt_why_block with a NULL head -- two
+    // unlabelled grey columns, which is the arrangement people skip, on the
+    // screen that shows an owner the name of their keys for the first time.
+    // A caption says which of the two an owner is reading before they read
+    // it, and the second one is the branch where something has gone wrong:
+    // every passphrase is valid, so a code that does not match the paper is
+    // the ONLY signal a typo ever gets.
+    wt_fact_t facts[2] = {
+      { .cap = tr(nopass ? STR_L_NO_PASSPHRASE : STR_D_PASSPHRASE),
+        .val = tr(nopass ? STR_L_FP_NOTE_NOPASS : STR_L_FP_NOTE),
+        .icon = nopass ? WT_ICON_KEY : WT_ICON_LOCK },
+      { .cap = tr(nopass ? STR_L_PASSPHRASE_CAP : STR_W_VBAD_T),
+        .val = tr(nopass ? STR_L_FP_NOTE2_NOPASS : STR_L_FP_NOTE2),
+        .icon = LV_SYMBOL_WARNING, .icon_col = WT_WARN },
+    };
+    wt_facts(s_fpscr, 232, facts, 2);
   }
 
   // The action bar every other screen has. This one holds the screen's real
@@ -2122,9 +2137,12 @@ void kiss_login_open_setup(void (*unlocked_cb)(void)) {
   // what the headline says. Both wt_why_blocks and the wt_body_font2_head
   // measurement go with them.
   wt_fact_t facts[3] = {
-      { tr(STR_L_PPINTRO_F1_C), tr(STR_L_PPINTRO_F1_V), WT_ICON_LOCK },
-      { tr(STR_L_PPINTRO_F2_C), tr(STR_L_PPINTRO_F2_V), WT_ICON_SECRET },
-      { tr(STR_G_TECHNICAL),    tr(STR_T_PASS_TERM),    LV_SYMBOL_LIST },
+      { .cap = tr(STR_L_PPINTRO_F1_C), .val = tr(STR_L_PPINTRO_F1_V),
+        .icon = WT_ICON_LOCK },
+      { .cap = tr(STR_L_PPINTRO_F2_C), .val = tr(STR_L_PPINTRO_F2_V),
+        .icon = WT_ICON_SECRET },
+      { .cap = tr(STR_G_TECHNICAL), .val = tr(STR_T_PASS_TERM),
+        .icon = LV_SYMBOL_LIST },
   };
   wt_explain(scr, tr(STR_L_PPINTRO_HEAD), tr(STR_L_PPINTRO_B), facts, 3);
 

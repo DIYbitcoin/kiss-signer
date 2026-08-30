@@ -486,9 +486,12 @@ static void verify_intro_screen(void)
     // says, so it goes with the blocks and with the wt_body_font2_head
     // measurement that sized them.
     wt_fact_t facts[3] = {
-        { tr(STR_W_VINTRO_W1_H), tr(STR_W_VINTRO_W2_B), WT_ICON_KEY },
-        { tr(STR_W_VINTRO_W2_H), tr(STR_I_KEF_WARN_S),  WT_ICON_SECRET },
-        { tr(STR_G_TECHNICAL),   tr(STR_T_SEED_TERM),   LV_SYMBOL_LIST },
+        { .cap = tr(STR_W_VINTRO_W1_H), .val = tr(STR_W_VINTRO_W2_B),
+          .icon = WT_ICON_KEY },
+        { .cap = tr(STR_W_VINTRO_W2_H), .val = tr(STR_I_KEF_WARN_S),
+          .icon = WT_ICON_SECRET },
+        { .cap = tr(STR_G_TECHNICAL), .val = tr(STR_T_SEED_TERM),
+          .icon = LV_SYMBOL_LIST },
     };
     wt_explain(s_scr, tr(STR_W_VINTRO_S), tr(STR_W_VINTRO_W1_B), facts, 3);
 
@@ -2097,20 +2100,22 @@ static void dice_warn_screen(int verdict)
                     dice_need(), &q);
     dice_bars_set(&q);
 
-    // wt_body_font2_HEAD: it measures the two headings instead of a flat
-    // constant. The number here used to be the 166px budget minus 54 for a
-    // heading that MIGHT wrap to two lines, in every locale whether it did or
-    // not -- a third of the budget given away, which is what drops a pair to
-    // font14. docs/house-rules.md rule 2 names it; these were the call sites
-    // still doing it.
-    const lv_font_t *f = wt_body_font2_head(
-        tr(STR_W_DICE_W1_H), tr(STR_W_DICE_W1_B),
-        tr(STR_W_DICE_W2_H), tr(STR_W_DICE_W2_B),
-        330, WT_CONTENT_BOTTOM - 232);
-    wt_why_block(s_scr, tr(STR_W_DICE_W1_H), tr(STR_W_DICE_W1_B),
-                 48, 232, 344, WT_CONTENT_BOTTOM - 232, f, WT_WARN);
-    wt_why_block(s_scr, tr(STR_W_DICE_W2_H), tr(STR_W_DICE_W2_B),
-                 408, 232, 344, WT_CONTENT_BOTTOM - 232, f, wt_accent());
+    // The two claims as ROWS, under the evidence they are about. They were a
+    // pair of wt_why_blocks -- two columns of grey with a rule down the side
+    // of each -- which is the shape the whole device has now moved off. The
+    // subtitle above already names WHAT the judge found, so a claim is one
+    // line: the consequence, and the way out of it.
+    //
+    // The amber is on the MARK and nowhere else, which is wt_gate's own rule
+    // for a screen an owner can still walk back from.
+    wt_fact_t facts[2] = {
+        { .cap = tr(STR_W_DICE_W1_H), .val = tr(STR_W_DICE_W1_B),
+          .icon = LV_SYMBOL_WARNING,
+          .icon_col = WT_WARN },
+        { .cap = tr(STR_W_DICE_W2_H), .val = tr(STR_W_DICE_W2_B),
+          .icon = LV_SYMBOL_LOOP },
+    };
+    wt_facts(s_scr, 232, facts, 2);
 
     // No USE ANYWAY. KEEP GOING keeps the right hand slot it already had, so
     // the muscle memory survives, and it is primary because it is the way
@@ -2694,14 +2699,19 @@ static void cards_intro_screen(void)
     // from here.
     wt_help_chip(card, 704 - 44, 12, MUT_COL, cards_help_cb, NULL);
 
+    // How the draw is made, and the one way it stops being a draw -- as rows
+    // under the equation, the same shape every explainer on the device wears
+    // now. The third row is the standard's own word for what a draw produces.
     {
-        const char *b1 = tr(STR_W_CARDS_W1_B), *b2 = tr(STR_W_CARDS_W2_B);
-        const int BW = 344, BY = 204, BH = WT_CONTENT_BOTTOM - BY;
-        const lv_font_t *f = wt_body_font2_head(tr(STR_W_CARDS_W1_H), b1,
-                                               tr(STR_W_CARDS_W2_H), b2,
-                                               BW - 14, BH);
-        wt_why_block(s_scr, tr(STR_W_CARDS_W1_H), b1,  48, BY, BW, BH, f, wt_accent());
-        wt_why_block(s_scr, tr(STR_W_CARDS_W2_H), b2, 408, BY, BW, BH, f, WARN_COL);
+        wt_fact_t facts[3] = {
+            { .cap = tr(STR_W_CARDS_W1_H), .val = tr(STR_W_CARDS_W1_B),
+              .icon = LV_SYMBOL_SHUFFLE },
+            { .cap = tr(STR_W_CARDS_W2_H), .val = tr(STR_W_CARDS_W2_B),
+              .icon = LV_SYMBOL_WARNING, .icon_col = WT_WARN },
+            { .cap = tr(STR_G_TECHNICAL), .val = tr(STR_T_RNG_TERM),
+              .icon = LV_SYMBOL_LIST },
+        };
+        wt_facts(s_scr, 220, facts, 3);
     }
 
     // Back to the METHOD chooser, not the count screen: cards makes 12 and no
@@ -2801,21 +2811,16 @@ static void cards_verdict_screen(int title, lv_color_t col)
     lv_obj_t *card = wt_card(s_scr, 48, 104, 704, 92);
     cards_bars_make(card, col);
 
-    const char *b1 = tr(cards_why_key()), *b2 = tr(STR_W_CARDS_FIX_B);
-    const int BW = 344, BY = 204, BH = WT_CONTENT_BOTTOM - BY;
-    // wt_body_font2_HEAD: it measures the two headings instead of a flat
-    // constant. The number here used to be the 166px budget minus 54 for a
-    // heading that MIGHT wrap to two lines, in every locale whether it did or
-    // not -- a third of the budget given away, which is what drops a pair to
-    // font14. docs/house-rules.md rule 2 names it; these were the call sites
-    // still doing it.
-    const lv_font_t *f = wt_body_font2_head(tr(STR_W_DICE_W1_H), b1,
-                                            tr(STR_W_DICE_W2_H), b2, BW - 14, BH);
-    // Reusing the dice pair's headings: already parallel, already translated,
+    // Reusing the dice pair's captions: already parallel, already translated,
     // and kiss_info.c reuses a dice title off the dice path for the same
-    // reason. The rule colour is the verdict's, the fix is always the accent.
-    wt_why_block(s_scr, tr(STR_W_DICE_W1_H), b1,  48, BY, BW, BH, f, col);
-    wt_why_block(s_scr, tr(STR_W_DICE_W2_H), b2, 408, BY, BW, BH, f, wt_accent());
+    // reason. The MARK carries the verdict's colour; the fix keeps the accent.
+    wt_fact_t facts[2] = {
+        { .cap = tr(STR_W_DICE_W1_H), .val = tr(cards_why_key()),
+          .icon = LV_SYMBOL_WARNING, .icon_col = col },
+        { .cap = tr(STR_W_DICE_W2_H), .val = tr(STR_W_CARDS_FIX_B),
+          .icon = LV_SYMBOL_SHUFFLE },
+    };
+    wt_facts(s_scr, 224, facts, 2);
 
     // CANCEL leaves, START OVER is the way through and takes the corner.
     wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, 48, WT_ACTION_Y,
@@ -2918,16 +2923,18 @@ static void cards_cksum_screen(void)
     lv_obj_set_width(fl, 704);
     lv_obj_set_style_text_align(fl, LV_TEXT_ALIGN_CENTER, 0);
 
+    // What the last word is and what it catches, as rows under the count.
+    // They were two columns of grey; the count line is why these start at 252
+    // rather than the 220 the blind draw's do.
     {
-        const char *b1 = tr(STR_W_CKSUM_W1_B), *b2 = tr(STR_W_CKSUM_W2_B);
-        // 232, not the 204 its siblings moved to: the checksum screen hangs a centred fit line under its card,
-        // so there is nothing to reclaim above this pair.
-        const int BW = 344, BY = 232, BH = WT_CONTENT_BOTTOM - BY;
-        const lv_font_t *f = wt_body_font2_head(tr(STR_W_CKSUM_W1_H), b1,
-                                               tr(STR_W_CKSUM_W2_H), b2,
-                                               BW - 14, BH);
-        wt_why_block(s_scr, tr(STR_W_CKSUM_W1_H), b1,  48, BY, BW, BH, f, wt_accent());
-        wt_why_block(s_scr, tr(STR_W_CKSUM_W2_H), b2, 408, BY, BW, BH, f, WARN_COL);
+        wt_fact_t facts[2] = {
+            { .cap = tr(STR_W_CKSUM_W1_H), .val = tr(STR_W_CKSUM_W1_B),
+              .icon = WT_ICON_KEY },
+            { .cap = tr(STR_W_CKSUM_W2_H), .val = tr(STR_W_CKSUM_W2_B),
+              .icon = LV_SYMBOL_WARNING,
+              .icon_col = WT_WARN },
+        };
+        wt_facts(s_scr, 252, facts, 2);
     }
 
     // 48, not the corner: cards_cancel_cb discards the typed words on one tap.
@@ -3291,9 +3298,12 @@ static void whatseed_open(void (*ret)(void))
     // the equation did -- the equation could not say WRITE BOTH DOWN or that
     // the words alone open the decoy.
     wt_fact_t facts[3] = {
-        { tr(STR_W_WHATSEED_F1_C), tr(STR_W_WHATSEED_F1_V), LV_SYMBOL_EDIT },
-        { tr(STR_W_WHATSEED_F2_C), tr(STR_W_WHATSEED_F2_V), WT_ICON_SECRET },
-        { tr(STR_G_TECHNICAL),     tr(STR_T_SEED_TERM),     LV_SYMBOL_LIST },
+        { .cap = tr(STR_W_WHATSEED_F1_C), .val = tr(STR_W_WHATSEED_F1_V),
+          .icon = LV_SYMBOL_EDIT },
+        { .cap = tr(STR_W_WHATSEED_F2_C), .val = tr(STR_W_WHATSEED_F2_V),
+          .icon = WT_ICON_SECRET },
+        { .cap = tr(STR_G_TECHNICAL), .val = tr(STR_T_SEED_TERM),
+          .icon = LV_SYMBOL_LIST },
     };
     wt_explain(s_scr, tr(STR_W_WHATSEED_HEAD), tr(STR_W_WHATSEED_B), facts, 3);
 

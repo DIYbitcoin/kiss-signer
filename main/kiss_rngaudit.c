@@ -107,23 +107,18 @@ static void intro_screen(void)
              WT_CHOICE_X, WT_CHOICE_Y(0), WT_CHOICE_W, WT_CHOICE_H,
              NULL, NULL);
 
-    // The proven pair geometry, raised to y=204: the provenance row ends at
-    // 192, and the 40px the usual 232 would leave dead above the blocks is
-    // exactly the room the bodies need to hold font23 (rule 2: count the
-    // empty band first). With no source the right block carries the refusal
-    // instead of the usual caution: a formula still passes, so there is
-    // nothing here to audit -- the same reason key material refuses.
-    const char *h1 = tr(STR_W_RNG_WHY1_H), *b1 = tr(STR_W_RNG_WHY1_B);
-    const char *h2 = tr(STR_W_RNG_WHY2_H);
-    const char *b2 = live ? tr(STR_W_RNG_WHY2_B) : tr(STR_W_RNG_NOSRC_B);
-    // 344 - 14: the block's rule bar eats 14px of the body's width, and a
-    // sizer fed the full width picks a font the block then overflows with.
-    const lv_font_t *f = wt_body_font2_head(h1, b1, h2, b2, 344 - 14,
-                                            WT_CONTENT_BOTTOM - 204);
-    wt_why_block(s_scr, h1, b1, 48, 204, 344, WT_CONTENT_BOTTOM - 204,
-                 f, wt_accent());
-    wt_why_block(s_scr, h2, b2, 408, 204, 344, WT_CONTENT_BOTTOM - 204,
-                 f, WT_WARN);
+    // What the test scores and what it cannot see, as rows under the row that
+    // says where the numbers come from. With no source the second one carries
+    // the refusal instead of the caution: a formula passes this test too, so
+    // there is nothing here to audit -- the same reason key material refuses.
+    wt_fact_t facts[2] = {
+        { .cap = tr(STR_W_RNG_WHY1_H), .val = tr(STR_W_RNG_WHY1_B),
+          .icon = LV_SYMBOL_SHUFFLE },
+        { .cap = tr(STR_W_RNG_WHY2_H),
+          .val = live ? tr(STR_W_RNG_WHY2_B) : tr(STR_W_RNG_NOSRC_B),
+          .icon = LV_SYMBOL_WARNING, .icon_col = WT_WARN },
+    };
+    wt_facts(s_scr, 204, facts, 2);
 
     lv_obj_t *back = wt_arrow_action(s_scr, tr(STR_C_BACK), true, false,
                                      WT_BACK_X, WT_ACTION_Y, 140, true,

@@ -1188,6 +1188,11 @@ typedef struct {
 // 344px column, which is a wall with a rule down the side of it. Returns the
 // y it finished at.
 int wt_facts(lv_obj_t *scr, int y, const wt_fact_t *facts, int n);
+// The same rows inside something that is not the page: a card, a pane. (x, w)
+// replace the content lane, and the caption keeps its 214px because a caption
+// lane that moved from screen to screen would stop being one lane.
+int wt_facts_in(lv_obj_t *par, int x, int y, int w,
+                const wt_fact_t *facts, int n);
 void wt_explain(lv_obj_t *scr, const char *headline, const char *para,
                 const wt_fact_t *facts, int n);
 // The same page with ONE term of the paragraph emphasized -- rendered in INK

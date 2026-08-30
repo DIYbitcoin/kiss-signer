@@ -1236,9 +1236,12 @@ static void recv_tab_build(void) {
     // The [ ? ] content: the lane replaced, not a card and not an overlay.
     // Nothing on it is interactive; the strip is the way back.
     wt_fact_t facts[3] = {
-        { tr(STR_R_HELP_F1C), tr(STR_R_HELP_F1V), LV_SYMBOL_PLUS },
-        { tr(STR_R_HELP_F2C), tr(STR_R_HELP_F2V), LV_SYMBOL_EYE_OPEN },
-        { tr(STR_R_HELP_F3C), tr(STR_R_HELP_F3V), WT_ICON_SECRET },
+        { .cap = tr(STR_R_HELP_F1C), .val = tr(STR_R_HELP_F1V),
+          .icon = LV_SYMBOL_PLUS },
+        { .cap = tr(STR_R_HELP_F2C), .val = tr(STR_R_HELP_F2V),
+          .icon = LV_SYMBOL_EYE_OPEN },
+        { .cap = tr(STR_R_HELP_F3C), .val = tr(STR_R_HELP_F3V),
+          .icon = WT_ICON_SECRET },
     };
     wt_explain(p, tr(STR_R_HELP_HEAD), tr(STR_R_HELP_BODY), facts, 3);
     return;

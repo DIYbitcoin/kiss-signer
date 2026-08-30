@@ -396,15 +396,19 @@ static void stage_build(int stage)
         wt_diagram_op(row, LV_SYMBOL_RIGHT);
         chip_icon(row, WT_ICON_KEY, tr(STR_D_REAL), true);
 
-        const int BY = 208, BW = 344, BH = WT_CONTENT_BOTTOM - BY;
-        const char *b1 = tr(STR_L_FP_NOTE_NOPASS);   // seed words alone
-        const char *b2 = tr(STR_W_WRITE_S);          // seed words + passphrase
-        // _head, never a hand-subtracted budget: this screen has headings, and
-        // measuring them is the difference between font23 and font14 here.
-        const lv_font_t *f = wt_body_font2_head(tr(STR_D_SPARE), b1,
-                                                tr(STR_D_REAL),  b2, BW - 14, BH);
-        wt_why_block(s_scr, tr(STR_D_SPARE), b1,  48, BY, BW, BH, f, WT_WARN);
-        wt_why_block(s_scr, tr(STR_D_REAL),  b2, 408, BY, BW, BH, f, wt_accent());
+        // The two halves of the rule as rows under the chips that draw it:
+        // what the words alone open, and what the words plus the passphrase
+        // open. Both values already ship -- the fingerprint reveal says the
+        // first and the BACKUP tab says the second -- so the screen teaches
+        // one rule in the device's own words rather than a second copy of it.
+        wt_fact_t facts[2] = {
+            { .cap = tr(STR_D_SPARE), .val = tr(STR_L_FP_NOTE_NOPASS),
+              .icon = WT_ICON_SECRET,
+              .icon_col = WT_WARN },
+            { .cap = tr(STR_D_REAL), .val = tr(STR_I_RESTORE_VAL),
+              .icon = WT_ICON_KEY },
+        };
+        wt_facts(s_scr, 208, facts, 2);
 
         // The same resolve the sign flow's cautions wear: a tick and the
         // words, nothing drawn around them. SKIP leaves, so it points back.

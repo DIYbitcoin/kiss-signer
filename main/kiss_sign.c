@@ -2632,9 +2632,9 @@ static void sign_term_more(int id)
     snprintf(prod, sizeof prod, "%s %s", sats, wt_denom_unit());
 
     const wt_fact_t facts[3] = {
-        { tr(STR_T_FEE2_C1), vb,   LV_SYMBOL_FILE },
-        { tr(STR_T_FEE2_C2), rate, WT_ICON_QR },
-        { tr(STR_T_FEE2_C3), prod, LV_SYMBOL_CUT },
+        { .cap = tr(STR_T_FEE2_C1), .val = vb,   .icon = LV_SYMBOL_FILE },
+        { .cap = tr(STR_T_FEE2_C2), .val = rate, .icon = WT_ICON_QR },
+        { .cap = tr(STR_T_FEE2_C3), .val = prod, .icon = LV_SYMBOL_CUT },
     };
     wt_explain(s_scr, tr(STR_T_FEE2_HEAD), tr(STR_T_FEE2_B), facts, 3);
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_BACK_X,
@@ -3778,9 +3778,12 @@ static void sign_tab_build(void)
             // these three are already there. The gear is a machine
             // assembling, the signature glyph is the signature, and WIFI is
             // the only mark in the set that means "out to the network".
-            { tr(STR_S_HELP_F1C), tr(STR_S_HELP_F1V), LV_SYMBOL_SETTINGS },
-            { tr(STR_S_HELP_F2C), tr(STR_S_HELP_F2V), WT_ICON_SIGN },
-            { tr(STR_S_HELP_F3C), tr(STR_S_HELP_F3V), LV_SYMBOL_WIFI },
+            { .cap = tr(STR_S_HELP_F1C), .val = tr(STR_S_HELP_F1V),
+              .icon = LV_SYMBOL_SETTINGS },
+            { .cap = tr(STR_S_HELP_F2C), .val = tr(STR_S_HELP_F2V),
+              .icon = WT_ICON_SIGN },
+            { .cap = tr(STR_S_HELP_F3C), .val = tr(STR_S_HELP_F3V),
+              .icon = LV_SYMBOL_WIFI },
         };
         // "PSBT" carries the emphasis: it is the one word this page exists
         // to teach, and the bench asked for it to stand out of the sentence.

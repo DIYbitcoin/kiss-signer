@@ -3801,12 +3801,20 @@ void wt_explain_hi(lv_obj_t *scr, const char *headline, const char *para,
 // draw the identical ones under it. See the header.
 int wt_facts(lv_obj_t *scr, int y, const wt_fact_t *facts, int n)
 {
+    return wt_facts_in(scr, WT_LANE_X, y, WT_LANE_W, facts, n);
+}
+
+int wt_facts_in(lv_obj_t *par, int x, int y, int w,
+                const wt_fact_t *facts, int n)
+{
+    lv_obj_t *scr = par;               /* the rows' parent, page or card */
+    const int right = x + w;
     // A fact with a mark indents every caption, so the column stays a column
     // whether one row carries an icon or all of them do.
     bool marks = false;
     for (int i = 0; i < n && facts; i++)
         if (facts[i].icon) marks = true;
-    const int cap_x = marks ? WT_LANE_X + 38 : WT_LANE_X;
+    const int cap_x = marks ? x + 38 : x;
 
     for (int i = 0; i < n && facts; i++) {
         const lv_font_t *cf = chrome23(facts[i].cap);
@@ -3815,7 +3823,7 @@ int wt_facts(lv_obj_t *scr, int y, const wt_fact_t *facts, int n)
             // chrome string falls out of the mono face and drags the whole
             // label down a rung.
             const lv_color_t mc = col_or(facts[i].icon_col, wt_accent());
-            lv_obj_t *ic = wt_lbl(scr, facts[i].icon, WT_LANE_X, y - 1,
+            lv_obj_t *ic = wt_lbl(scr, facts[i].icon, x, y - 1,
                                   wt_font23(), mc);
             // Only an accent mark repaints with the theme. A caution's amber
             // is a severity and never becomes the accent's colour.
@@ -3845,10 +3853,10 @@ int wt_facts(lv_obj_t *scr, int y, const wt_fact_t *facts, int n)
         // value started where the caption's box ended, so a caption using its
         // whole lane touched the value beside it.
         const int vx = cap_x + 214 + 14;
-        wt_sub_measure("fact", facts[i].val, vf, 0, 752 - vx);
+        wt_sub_measure("fact", facts[i].val, vf, 0, right - vx);
         lv_obj_t *val = wt_lbl(scr, facts[i].val, vx, y - 2, vf,
                                WT_MUT);
-        lv_obj_set_width(val, 752 - vx);
+        lv_obj_set_width(val, right - vx);
         lv_obj_set_height(val, lv_font_get_line_height(vf));
         lv_label_set_long_mode(val, LV_LABEL_LONG_DOT);
         // The pitch follows the VALUE, which is now the tallest thing in the

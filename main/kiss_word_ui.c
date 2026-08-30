@@ -372,25 +372,24 @@ static void confirm_screen(void)
         wt_chip(r2, buf, true);
     }
 
+    // 208: the card above ends at 192 and nothing else wants this band. Two
+    // rows, and they end at 300 -- clear of the slide, which grows the action
+    // band to WT_SLIDE_BOTTOM and would otherwise sit on a third line.
+    //
+    // They were two wt_why_blocks, and this was the call site that proved the
+    // shape does not work: a flat 54px of a 166px budget handed to a heading
+    // that might wrap, in all 21 locales, so a screen with a confirm slide on
+    // it explained itself at font14. A row cannot do that -- a caption and a
+    // value are one line each at a fixed rung, and copy too long for the lane
+    // is reported by CUT rather than quietly shrunk.
     {
-        const char *b1 = tr(STR_GD_WORD_C_W1_B), *b2 = tr(STR_GD_WORD_C_W2_B);
-        // 208, not 232: the card above ends at 192 and nothing else wants this
-        // band. WT_SLIDE_BOTTOM, because the slide below grew the band to 344
-        // -- a pair measured against 398 puts its last line under the bar.
-        const int BW = 344, BY = 208, BH = WT_SLIDE_BOTTOM - BY;
-        // wt_body_font2_HEAD, which measures the two headings. The plain
-        // wt_body_font2 that was here took a flat 46 for a heading that MIGHT
-        // wrap, plus 8, and handed back 54px of a 166px budget in all 21
-        // locales -- which is how a screen with a 2000ms hold on it ended up
-        // explaining itself at font14. docs/house-rules.md rule 2 names this
-        // exact mistake and this call site was the one still making it.
-        const lv_font_t *f = wt_body_font2_head(tr(STR_GD_WORD_C_W1_H), b1,
-                                                tr(STR_GD_WORD_C_W2_H), b2,
-                                                BW - 14, BH);
-        wt_why_block(s_scr, tr(STR_GD_WORD_C_W1_H), b1,  48, BY, BW, BH, f,
-                     wt_accent());
-        wt_why_block(s_scr, tr(STR_GD_WORD_C_W2_H), b2, 408, BY, BW, BH, f,
-                     WT_WARN);
+        wt_fact_t facts[2] = {
+            { .cap = tr(STR_GD_WORD_C_W1_H), .val = tr(STR_GD_WORD_C_W1_B),
+              .icon = LV_SYMBOL_EDIT },
+            { .cap = tr(STR_GD_WORD_C_W2_H), .val = tr(STR_GD_WORD_C_W2_B),
+              .icon = LV_SYMBOL_WARNING, .icon_col = WT_WARN },
+        };
+        wt_facts(s_scr, 208, facts, 2);
     }
     wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, WT_EXIT_X,
                     WT_ACTION_Y, 140, true, cancel_cb, NULL);

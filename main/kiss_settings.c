@@ -554,14 +554,28 @@ static void sdinfo_screen(void)
         s_scr = wt_screen(s_parent, tr(STR_W_SD_BTN), NULL);
         wt_chrome_head(s_scr);
         wt_trail(s_scr, WT_ICON_SD, tr(STR_I_DEVICE_T), false);
-        const char *lh = tr(STR_G_FW_NOCARD_H), *lb = tr(STR_G_FW_NOCARD_B);
-        const char *rh = tr(STR_G_SD_ABOUT_H), *rb = tr(STR_G_SD_ABOUT_B);
-        const lv_font_t *f = wt_body_font2_head(lh, lb, rh, rb, 344 - 14,
-                                                WT_CONTENT_BOTTOM - 232);
-        wt_why_block(s_scr, lh, lb, 48, 232, 344, WT_CONTENT_BOTTOM - 232,
-                     f, WT_WARN);
-        wt_why_block(s_scr, rh, rb, 408, 232, 344, WT_CONTENT_BOTTOM - 232,
-                     f, wt_accent());
+        // An EMPTY STATE, not a pair of claims: the firmware page's six of
+        // these are a mark, a headline and a line of what to do, and an
+        // empty slot on this page is the same thing. The pair that was here
+        // put "no card" in a coloured column beside a column describing a
+        // screen that is not on the glass.
+        lv_obj_t *g = wt_lbl(s_scr, LV_SYMBOL_WARNING, WT_LANE_X, 124,
+                             wt_font23(), WT_WARN);
+        lv_obj_update_layout(g);
+        lv_obj_t *h = wt_lbl(s_scr, tr(STR_G_FW_NOCARD_H),
+                             WT_LANE_X + lv_obj_get_width(g) + 14, 118,
+                             wt_font28(), wt_ink_for(WT_WARN));
+        lv_obj_add_flag(h, WT_FLAG_ACCENT);
+        lv_obj_t *b = wt_note(s_scr, tr(STR_G_FW_NOCARD_B), WT_LANE_X, 176,
+                              WT_LANE_W, 60);
+        lv_obj_set_style_text_color(b, WT_MUT, 0);
+        // ...and one row saying what the screen behind the empty slot is for,
+        // so an owner who opened it by mistake knows what they were after.
+        wt_fact_t facts[1] = {
+            { .cap = tr(STR_G_SD_ABOUT_H), .val = tr(STR_G_SD_ABOUT_B),
+              .icon = WT_ICON_SD },
+        };
+        wt_facts(s_scr, 260, facts, 1);
         wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, sdinfo_back_cb, NULL);
         return;
     }
@@ -1153,24 +1167,24 @@ static void duress_cb(lv_event_t *e)
 
     // The rule in words, under the chips that state it as a picture. The chips
     // alone read as a STATUS -- "drawing set, swipe set" -- so an owner who has
-    // just set a drawing goes looking for where the swipe is chosen. That
-    // control now exists and HOW IT WORKS below reaches it. The left block says
-    // what the swipe does (yours opens the real keys, anything else the spare),
-    // the right says what it is not (the secret; the passphrase is).
+    // just set a drawing goes looking for where the swipe is chosen.
     //
-    // No headings. Both are sentences lifted whole from screens that already
-    // teach this, and a heading over either would be a new key in 21 locales
-    // for decoration. Accent on how it works, WARN on where it goes wrong --
-    // the proven pair geometry.
+    // Three rows, every value already shipping: what the spare is for, what
+    // the swipe does, and the thing neither of them is. The swipe PICKS a
+    // signer; the passphrase is what OPENS one, and an owner who reads the
+    // chips as a lock has to meet that here.
     {
-        const char *b1 = tr(STR_GD_PICK_REAL_S);
-        const char *b2 = tr(STR_GD_DONE_B);
-        const lv_font_t *f = wt_body_font2(b1, b2, 330,
-                                           WT_CONTENT_BOTTOM - 232);
-        wt_why_block(s_scr, NULL, b1, 48, 232, 344,
-                     WT_CONTENT_BOTTOM - 232, f, wt_accent());
-        wt_why_block(s_scr, NULL, b2, 408, 232, 344,
-                     WT_CONTENT_BOTTOM - 232, f, WT_WARN);
+        wt_fact_t facts[3] = {
+            { .cap = tr(STR_D_SPARE),          .val = tr(STR_GD_SET_SUB),
+              .icon = WT_ICON_SECRET },
+            { .cap = tr(STR_GD_PICK_REAL_T),   .val = tr(STR_I_WAYSIN_SHORT),
+              .icon = LV_SYMBOL_EDIT },
+            { .cap = tr(STR_L_PASSPHRASE_CAP), .val = tr(STR_T_PASS_VAL),
+              .icon = WT_ICON_LOCK },
+        };
+        // 200: the chips end at 155 and the usual 232 left 75px of nothing
+        // between the picture and the words about it.
+        wt_facts(s_scr, 200, facts, 3);
     }
 
     // BACK leftmost, the two actions right aligned to 752. 140 + 270 + 270 with
@@ -2104,23 +2118,22 @@ static void tab_noundo(void)
     // next screen does ask again and does need a held press, and an owner
     // reaches it in one tap -- saying so in advance was the card explaining a
     // screen instead of its own decision.
+    // Two ROWS inside the card, 24 in from its edge, which leaves exactly the
+    // 704 the content lane gets -- so the captions and values line up with
+    // every other pair of claims on the device. The marks carry the split:
+    // the bin on what goes, the page on what stays, and STOP on the bin
+    // because this card is the one place a group is irreversible.
     const int by = 22 + lv_font_get_line_height(wt_font28()) + 8;
-    const int bh = 270 - by - 20 - WT_ACTION_H - 14;
-    const int cw = (WT_WIDE_W - 24 - 24 - 24) / 2;
-    // Each head leads with its mark -- what goes (the bin) and what stays
-    // (the paper). Composed here, sized here: the heads are measured with
-    // their icons in, or the shared body rung would be picked against
-    // narrower heads than the ones drawn.
-    char h1[WT_ICON_TEXT_MAX], h2[WT_ICON_TEXT_MAX];
-    wt_icon_text(h1, sizeof h1, WT_ICON_ERASE, tr(STR_I_ERASE_H1));
-    wt_icon_text(h2, sizeof h2, LV_SYMBOL_FILE, tr(STR_I_ERASE_H2));
-    const lv_font_t *bf = wt_body_font2_head(
-        h1, tr(STR_I_ERASE_B1),
-        h2, tr(STR_I_ERASE_B2), cw, bh);
-    wt_why_block(card, h1, tr(STR_I_ERASE_B1),
-                 24, by, cw, bh, bf, wt_accent());
-    wt_why_block(card, h2, tr(STR_I_ERASE_B2),
-                 24 + cw + 24, by, cw, bh, bf, WT_WARN);
+    {
+        wt_fact_t facts[2] = {
+            { .cap = tr(STR_I_ERASE_H1), .val = tr(STR_I_ERASE_B1),
+              .icon = WT_ICON_ERASE,
+              .icon_col = WT_STOP_INK },
+            { .cap = tr(STR_I_ERASE_H2), .val = tr(STR_I_ERASE_B2),
+              .icon = LV_SYMBOL_FILE },
+        };
+        wt_facts_in(card, 24, by, 704, facts, 2);
+    }
 
     // The action, and NO HOLD on it. The hold stays where it already is, on
     // the confirmation behind it: two gates in a row teaches an owner to grind
@@ -2151,9 +2164,12 @@ static void build_tab(void)
         wt_fact_t facts[3] = {
             // The loop, not the key: SAFE TO TRY is the page's own loop mark
             // making its promise in words -- every pick can be picked back.
-            { tr(STR_G_HELP_F1C), tr(STR_G_HELP_F1V), LV_SYMBOL_LOOP },
-            { tr(STR_G_HELP_F2C), tr(STR_G_HELP_F2V), LV_SYMBOL_BELL },
-            { tr(STR_G_HELP_F3C), tr(STR_G_HELP_F3V), LV_SYMBOL_TRASH },
+            { .cap = tr(STR_G_HELP_F1C), .val = tr(STR_G_HELP_F1V),
+              .icon = LV_SYMBOL_LOOP },
+            { .cap = tr(STR_G_HELP_F2C), .val = tr(STR_G_HELP_F2V),
+              .icon = LV_SYMBOL_BELL },
+            { .cap = tr(STR_G_HELP_F3C), .val = tr(STR_G_HELP_F3V),
+              .icon = LV_SYMBOL_TRASH },
         };
         wt_explain(s_pane, tr(STR_G_HELP_HEAD), tr(STR_G_HELP_BODY), facts,
                    3);
