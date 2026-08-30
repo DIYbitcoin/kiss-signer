@@ -1970,11 +1970,22 @@ static void tab_backup(void)
           .lamp = warn, .lamp_col = WT_WARN, .lamp_pulse = warn,
           .go = store_open_cb },
         // The third row is the one backup fact that matters, as a definition
-        // that opens where it stands: this signer can die and the paper
-        // rebuilds the keys. It replaces the fingerprint card -- the bench:
+        // that opens where it stands: the paper rebuilds these keys with or
+        // without this device. It replaces the fingerprint card -- the bench:
         // "no need to show fingerprint there, it doesnt help".
+        //
+        // RECOVERY, not RESTORE. RESTORE is a real action three screens away
+        // (W_CHOOSE_RESTORE, W_RESTORE_T -- type your words in and get your
+        // keys back), so a row wearing it on the BACKUP tab promised to do
+        // that and delivered a sentence. It came back from the bench as
+        // exactly that question. A caption here is a NOUN.
+        //
+        // And it carries the standard's own name, like every other definition
+        // on this device: what the owner is holding is a BIP39 mnemonic, and
+        // that is the word they will meet on whatever signer they rebuild on.
         { .cap = tr(STR_I_RESTORE_CAP), .val = tr(STR_I_RESTORE_VAL),
-          .plain = tr(STR_I_RESTORE_PLAIN) },
+          .plain = tr(STR_I_RESTORE_PLAIN),
+          .term = tr(STR_T_SEED_TERM), .term_label = tr(STR_G_TECHNICAL) },
     };
     lv_obj_t *list = def_list(defs, 3);
     // A "?" beside SEED WORDS, opening what a seed actually IS. The bench
