@@ -3171,10 +3171,47 @@ lv_obj_t *wt_help_tab(lv_obj_t *scr, const char *hint,
     return b;
 }
 
+// The headline rung. 34 is "the answer, once" and it is the only place on the
+// device that face is spent, so it is worth a measurement rather than a
+// LONG_DOT: a headline that elides has lost the sentence the page exists to
+// say. It drops ONE rung and reports, which says the copy is 34 characters
+// too long -- there is no lane to widen, the lane is the screen.
+// The headline's own line box is 38 at mono34 and it starts at 118, so the
+// paragraph cannot sit at 152 any more -- it did, and the two overlapped by
+// 4px on all three [ ? ] pages the moment the rung went up.
+#define WT_EXPLAIN_PARA_Y 168
+
+static const lv_font_t *explain_head_font(const char *s, int w)
+{
+    if (s && *s && mono_can(s)) {
+        lv_point_t sz;
+        lv_text_get_size(&sz, s, wt_font_mono34(), 0, 0, LV_COORD_MAX,
+                         LV_TEXT_FLAG_NONE);
+        if (sz.x <= w) return wt_font_mono34();
+        WT_FIT_GAVE_UP("head", s, w,
+                       lv_font_get_line_height(wt_font_mono34()));
+    }
+    return chrome28(s);
+}
+
+// The paragraph rung: 28, two lines at 690, one rung down if it needs three.
+// Two lines is not a layout preference -- the facts under it are pinned at
+// 200 and a third line is what walks into them.
+static const lv_font_t *explain_para_font(const char *s, int w, int lines)
+{
+    if (!s || !*s) return chrome28(s);
+    const lv_font_t *f = chrome28(s);
+    lv_point_t sz;
+    lv_text_get_size(&sz, s, f, 0, 0, w, LV_TEXT_FLAG_NONE);
+    if (sz.y <= lines * lv_font_get_line_height(f)) return f;
+    WT_FIT_GAVE_UP("para", s, w, lines * lv_font_get_line_height(f));
+    return chrome23(s);
+}
+
 void wt_explain_hi(lv_obj_t *scr, const char *headline, const char *para,
                    const char *hi, const wt_fact_t *facts, int n)
 {
-    const lv_font_t *hf = chrome28(headline);
+    const lv_font_t *hf = explain_head_font(headline, WT_LANE_W);
     lv_obj_t *h = wt_lbl(scr, headline, WT_LANE_X, 118, hf, WT_INK);
     lv_obj_set_width(h, WT_LANE_W);
     // HEIGHT TOO. LONG_DOT only elides once the box stops growing, so a
@@ -3185,9 +3222,11 @@ void wt_explain_hi(lv_obj_t *scr, const char *headline, const char *para,
     lv_obj_set_height(h, lv_font_get_line_height(hf));
     lv_label_set_long_mode(h, LV_LABEL_LONG_DOT);
 
-    // mono23, the reading rung. This was chrome18, which put every [ ? ]
-    // page's body two rungs under the def rows it sits beside.
-    const lv_font_t *pf = chrome23(para);
+    // mono28, the reading rung. This was chrome18, then chrome23, and it is
+    // 28 now because 28 is what a SENTENCE is set in on this device -- the
+    // ladder is four rungs with one job each and a [ ? ] page's paragraph is
+    // the same kind of thing as a definition's.
+    const lv_font_t *pf = explain_para_font(para, 690, 2);
     const char *at = hi && *hi ? strstr(para, hi) : NULL;
     if (at) {
         // The term the page exists to teach, in INK against the MUT sentence
@@ -3196,7 +3235,7 @@ void wt_explain_hi(lv_obj_t *scr, const char *headline, const char *para,
         char head[256];
         snprintf(head, sizeof head, "%.*s", (int)(at - para), para);
         lv_obj_t *sg = lv_spangroup_create(scr);
-        lv_obj_set_pos(sg, WT_LANE_X, 152);
+        lv_obj_set_pos(sg, WT_LANE_X, WT_EXPLAIN_PARA_Y);
         lv_obj_set_width(sg, 690);
         lv_spangroup_set_mode(sg, LV_SPAN_MODE_BREAK);
         lv_obj_set_style_text_font(sg, pf, 0);
@@ -3212,7 +3251,8 @@ void wt_explain_hi(lv_obj_t *scr, const char *headline, const char *para,
         lv_span_set_text(s3, at + strlen(hi));
         lv_style_set_text_color(lv_span_get_style(s3), WT_MUT);
     } else {
-        lv_obj_t *p = wt_lbl(scr, para, WT_LANE_X, 152, pf, WT_MUT);
+        lv_obj_t *p = wt_lbl(scr, para, WT_LANE_X, WT_EXPLAIN_PARA_Y, pf,
+                             WT_MUT);
         lv_obj_set_width(p, 690);
         lv_label_set_long_mode(p, LV_LABEL_LONG_WRAP);
     }
@@ -3226,13 +3266,26 @@ void wt_explain_hi(lv_obj_t *scr, const char *headline, const char *para,
         if (facts[i].icon) marks = true;
     const int cap_x = marks ? WT_LANE_X + 38 : WT_LANE_X;
 
-    // The facts start where the paragraph ends, never above 200: the drawing
-    // gives the paragraph two lines of air and the caption lane holds still
-    // whether it used one or both.
-    int y = 152 + ps.y + 14;
-    if (y < 200) y = 200;
+    // The facts start where the paragraph ends, and never above the line TWO
+    // paragraph lines would reach: the caption lane holds still whether this
+    // page's paragraph used one line or both, so the three [ ? ] pages an
+    // owner meets do not each put their facts somewhere different.
+    //
+    // The floor is computed from the paragraph's OWN face, not written down.
+    // It was 200, which was two chrome23 lines plus the pad; the paragraph is
+    // 28 now and 200 became a number that meant nothing, with the headline's
+    // 38px line box landing on top of it.
+    //
+    // THREE facts is what this fits at 28. 246 + 3 * 46 + 32 = 416, so a
+    // fourth crosses WT_CONTENT_BOTTOM and the CONTENT check says so. Every
+    // page in the pass carries three.
+    const int para_lines = 2;
+    int y = WT_EXPLAIN_PARA_Y + ps.y + 14;
+    const int floor_y = WT_EXPLAIN_PARA_Y +
+                        para_lines * lv_font_get_line_height(pf) + 14;
+    if (y < floor_y) y = floor_y;
     for (int i = 0; i < n && facts; i++) {
-        const lv_font_t *cf = chrome21(facts[i].cap);
+        const lv_font_t *cf = chrome23(facts[i].cap);
         if (facts[i].icon) {
             // Its own label, never composed into the caption: an icon in a
             // chrome string falls out of the mono face and drags the whole
@@ -3248,16 +3301,32 @@ void wt_explain_hi(lv_obj_t *scr, const char *headline, const char *para,
         // 214 wide, ONE line, no wrapping: a caption that would wrap gets
         // shorter copy for that locale. The lane never widens, and the
         // height is what makes LONG_DOT elide instead of stacking.
+        //
+        // MEASURED FIRST, through the same sink CUT uses. LVGL rewrites the
+        // label's own text to insert the dots, so a gate walking the finished
+        // tree finds a string exactly one lane wide and no evidence at all.
+        // The caption went from mono21 to mono23 in this pass and the lane
+        // did not, which took WHAT IT SHARES from fitting to "WHAT IT SH..."
+        // with nothing anywhere saying so.
+        wt_sub_measure("cap", facts[i].cap, cf, 2, 214 - 4);
         lv_obj_set_width(cap, 214);
         lv_obj_set_height(cap, lv_font_get_line_height(cf));
         lv_label_set_long_mode(cap, LV_LABEL_LONG_DOT);
-        const lv_font_t *vf = chrome23(facts[i].val);
-        lv_obj_t *val = wt_lbl(scr, facts[i].val, cap_x + 214, y, vf,
+        const lv_font_t *vf = chrome28(facts[i].val);
+        // 14 of gutter, the pad every other pair on this device sits on. The
+        // value started where the caption's box ended, so a caption using its
+        // whole lane touched the value beside it.
+        const int vx = cap_x + 214 + 14;
+        wt_sub_measure("fact", facts[i].val, vf, 0, 752 - vx);
+        lv_obj_t *val = wt_lbl(scr, facts[i].val, vx, y - 2, vf,
                                WT_MUT);
-        lv_obj_set_width(val, 752 - (cap_x + 214));
+        lv_obj_set_width(val, 752 - vx);
         lv_obj_set_height(val, lv_font_get_line_height(vf));
         lv_label_set_long_mode(val, LV_LABEL_LONG_DOT);
-        y += lv_font_get_line_height(wt_font23()) + 14;
+        // The pitch follows the VALUE, which is now the tallest thing in the
+        // row. Pinning it to the caption's face is how a row count that fits
+        // at 23 stops fitting the moment the value goes up a rung.
+        y += lv_font_get_line_height(vf) + 14;
     }
 }
 

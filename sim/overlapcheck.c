@@ -989,13 +989,19 @@ static void oc_check_cut(const char *tag)
 {
     char sig[192], detail[320];
     for (int i = 0; i < s_cut_n; i++) {
-        const bool lab = strcmp(s_cut_kind[i], "label") == 0;
+        // The kit names what it measured. Every one of these is a label
+        // pinned to one line, which is the whole class: LVGL rewrites the
+        // text to insert the dots, so nothing downstream can tell an
+        // ellipsised string from one that fits exactly.
+        const char *what = strcmp(s_cut_kind[i], "label") == 0 ? "row label"
+                         : strcmp(s_cut_kind[i], "cap")   == 0 ? "fact caption"
+                         : strcmp(s_cut_kind[i], "fact")  == 0 ? "fact value"
+                                                               : "sub-line";
         snprintf(sig, sizeof sig, "CUT|%s|%s", s_cut_kind[i], s_cut_txt[i]);
         snprintf(detail, sizeof detail,
                  "CUT      %s \"%s\" wants %dpx of a %dpx lane, so it "
                  "ships ellipsised -- cut the copy, the lane cannot grow",
-                 lab ? "row label" : "sub-line",
-                 s_cut_txt[i], s_cut_want[i], s_cut_lane[i]);
+                 what, s_cut_txt[i], s_cut_want[i], s_cut_lane[i]);
         oc_report_one(tag, sig, detail);
     }
     s_cut_n = 0;
