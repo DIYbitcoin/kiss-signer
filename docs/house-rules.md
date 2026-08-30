@@ -161,12 +161,25 @@ your seed words live". If a mainstream signer has a word for it, use that word.
 
 Run before claiming anything works. None of them can see a hardware problem.
 
+**`SIM_LANG=en` on the ones that sweep locales**, written into the commands
+rather than left as a rule to remember. Without it `kissosd` is RED on an
+Italian string at font28 that is 1037px wide against its 1000px comparison
+canvas, and `kissfit` on five screen titles -- translations waiting for the
+sweep, on copy no current pass has touched. `sim/osdcheck.c` says as much
+beside its own SIM_LANG filter, and `.github/workflows/desktop-tests.yml` runs
+them the same way. A gate that is red for a reason nobody is acting on is a
+gate nobody reads.
+
+`.git/hooks/pre-push` runs this whole list bar the device compiler, in order
+and for exit codes, so a push is the same set. `bash tools/install_hooks.sh`
+installs it with the attribution hook; a fresh clone has neither.
+
 ```bash
 bash sim/build_test.sh && /tmp/kisstest            # unit tests
-bash sim/build_fitcheck.sh && /tmp/kissfit         # 21-locale text fit
+bash sim/build_fitcheck.sh && SIM_LANG=en /tmp/kissfit   # text fit
 bash sim/build_themecheck.sh && /tmp/kisstheme     # accent vs status colour
-bash sim/build_osdcheck.sh && /tmp/kissosd         # on-video overlay text
-bash sim/build_sim.sh && bash sim/run_overlapcheck.sh   # screen walk, 21 locales
+bash sim/build_osdcheck.sh && SIM_LANG=en /tmp/kissosd  # on-video overlay text
+bash sim/build_sim.sh && OVERLAPCHECK_LANGS=en bash sim/run_overlapcheck.sh   # screen walk
 python3 tools/check_screen_coverage.py             # screens no gate sees (builds its own)
 bash sim/build_sim.sh && /tmp/fruitsim && python3 tools/check_sim_taps.py  # taps that hit nothing
 python3 tools/gen_docs_shots.py --check            # the frames the docs publish
