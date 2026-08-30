@@ -771,7 +771,13 @@ static void action_bar_ensure_at(lv_obj_t *scr, int top)
         lv_obj_t *c = lv_obj_get_child(scr, i);
         const void *tag = lv_obj_get_user_data(c);
         if (tag != (void *)WT_BAR_TAG && tag != (void *)WT_BARCAP_TAG) continue;
-        if (lv_obj_get_y(c) <= top) return;         // already at least this tall
+        // THE STYLE PROPERTY. lv_obj_get_y reads obj->coords, which no layout
+        // pass has filled yet on a bar this same build just created -- it
+        // answered 0, "0 <= top" is true for every top, and the band never
+        // grew for anyone. A zero falling through an if, which is the class
+        // check_layout_reads.py exists for and the reason it now watches x
+        // and y as well.
+        if (lv_obj_get_style_y(c, LV_PART_MAIN) <= top) return;
         lv_obj_set_y(c, top);
         if (tag == (void *)WT_BAR_TAG) lv_obj_set_height(c, 471 - top);
     }
@@ -2853,8 +2859,17 @@ lv_obj_t *wt_title_cursor(lv_obj_t *scr)
     // carries descender room no capital reaches into, so centring on the box
     // sits the block visibly low against KEYS and RECEIVE, which have no
     // descenders at all.
-    lv_obj_set_pos(cur, lv_obj_get_x(t) + ts.x + 12,
-                   lv_obj_get_y(t) + (ts.y - 22) / 2 - 2);
+    //
+    // THE STYLE PROPERTY, not lv_obj_get_x. Dropping the layout above took
+    // the title's COORDS with it: lv_obj_set_pos only writes LV_STYLE_X and
+    // marks the tree dirty, and lv_obj_get_x reads obj->coords, which the
+    // next layout pass fills. On a title positioned three lines earlier both
+    // reads are 0, so the block landed 48 left and 14 high -- a clipped
+    // sliver against the top bezel, on every page that has a head. The style
+    // getter reads back exactly what wt_chrome_head wrote and needs nothing
+    // laid out, which is the whole point of measuring instead.
+    lv_obj_set_pos(cur, lv_obj_get_style_x(t, LV_PART_MAIN) + ts.x + 12,
+                   lv_obj_get_style_y(t, LV_PART_MAIN) + (ts.y - 22) / 2 - 2);
     lv_obj_set_style_bg_color(cur, wt_accent(), 0);
     lv_obj_set_style_bg_opa(cur, LV_OPA_COVER, 0);
     lv_obj_add_flag(cur, WT_FLAG_ACCENT_FILL);

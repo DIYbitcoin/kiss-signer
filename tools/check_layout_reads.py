@@ -18,9 +18,19 @@ chip before anything reported it.
 The guard is what makes this class invisible: a zero that falls through an
 `if` looks exactly like a case that did not need handling.
 
-WIDTH and HEIGHT only. lv_obj_get_x/y on an absolutely positioned object read
-back what lv_obj_set_pos wrote and need no layout, and this codebase positions
-almost everything absolutely -- including them turns the report into noise.
+X AND Y TOO, and the paragraph that used to be here said the opposite: that
+lv_obj_get_x/y "read back what lv_obj_set_pos wrote and need no layout". They
+do not. lv_obj_set_pos writes LV_STYLE_X/Y and marks the tree dirty;
+lv_obj_get_x reads obj->coords, which only the next layout pass fills. On an
+object positioned a few lines earlier both return 0, exactly as the width
+reads do.
+
+That sentence licensed a real regression: wt_title_cursor dropped its
+lv_obj_update_layout (it was looping forever on a Korean title) and kept
+reading lv_obj_get_x/y on the title beside it, so the blinking block landed 48
+left and 14 high -- a clipped sliver at the top edge of every page with a
+head, for four commits, with every gate green. The fix is the style getter,
+lv_obj_get_style_x/y, which reads back what was written without a layout.
 
 A function that CREATES objects is a build-time function and is what this
 looks at. An event callback reading geometry is reading a settled frame.
@@ -28,7 +38,7 @@ looks at. An event callback reading geometry is reading a settled frame.
 import re, sys, glob
 
 CREATES = re.compile(r'lv_(?:label|obj|line|arc|image|bar|spangroup|canvas)_create|wt_lbl\s*\(|wt_card\s*\(|wt_chip\s*\(')
-READ    = re.compile(r'lv_obj_get_(?:width|height|content_width|content_height)\s*\(\s*([^,)]+?)\s*\)')
+READ    = re.compile(r'lv_obj_get_(?:width|height|content_width|content_height|x|y)\s*\(\s*([^,)]+?)\s*\)')
 SETTLE  = re.compile(r'lv_obj_update_layout|lv_refr_now|lv_obj_get_coords|lv_timer_handler')
 
 # Reads that are correct as they stand, each with the reason it is correct.
