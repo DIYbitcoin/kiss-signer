@@ -122,6 +122,21 @@ jobs:
       - name: simulator taps still hit something
         run: python3 tools/check_sim_taps.py
 
+      # The PUBLISHED simulator is the first link a visitor clicks, and the
+      # README says its screenshots come from the real firmware sources. That
+      # claim can only be kept by a machine, and it was not: the committed
+      # bundle drew SETTINGS as four sans pill rows months after the page had
+      # been building five ruled rows with lamps.
+      #
+      # Not a hash compare against a rebuild. tools/build_wasm.sh is byte
+      # reproducible for ONE compiler -- that is what its -g0 is for -- and a
+      # laptop and a runner do not share an emsdk, so a hash gate goes red
+      # forever the day either one moves. This asks whether the committed
+      # binary contains the strings this tree ships, which needs no toolchain
+      # at all and catches the failure that actually happened.
+      - name: the published simulator is from this tree
+        run: python3 tools/check_sim_fresh.py
+
       # The step above asks whether a tap changed the screen. This asks the
       # question none of the others can: which screens has nothing ever looked
       # at. overlapcheck puts seven questions to every STOP, so a screen with no
