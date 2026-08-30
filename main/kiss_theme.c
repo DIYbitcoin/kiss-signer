@@ -895,6 +895,9 @@ typedef struct {
     // the only thing on the control that has moved, so it is the only thing
     // whose change the eye is already on.
     lv_obj_t *mark;
+    // The first leg's fill, left behind under the second one at 40% so the
+    // track says how much of a two leg gesture has been spent.
+    lv_obj_t *spent;
     lv_obj_t *lbl;
     int w;                // the control's width
     int travel;           // w - WT_SLIDE_KNOB: the knob ends flush, not past
@@ -905,6 +908,9 @@ typedef struct {
     bool armed;           // snapped home; further PRESSING is ignored
     bool saying_held;     // the KEEP SLIDING swap, made once, not per event
     bool band;            // the tall shape: a word over a 44px knob
+    bool twice;           // two legs, out and back: the erase gate only
+    int  pass;            // 0 = out, 1 = back
+    const char *again;    // the word between the legs
     bool live;            // this press was accepted; PRESSING may drive
     const char *txt, *held;
     int release_ms;
@@ -928,8 +934,20 @@ static void an_w(void *v, int32_t w) { lv_obj_set_width(v, w); }
 static void an_slide(void *v, int32_t at)
 {
     wt_hold_t *h = v;
-    if (h->fill) lv_obj_set_width(h->fill, at + WT_SLIDE_KNOB / 2);
-    if (h->knob) lv_obj_set_x(h->knob, at);
+    const int len = (int)at + WT_SLIDE_KNOB / 2;
+    if (h->pass == 0) {
+        if (h->fill) { lv_obj_set_x(h->fill, 0); lv_obj_set_width(h->fill, len); }
+        if (h->knob) lv_obj_set_x(h->knob, (int)at);
+    } else {
+        // The return leg. Same number, mirrored: the knob comes back from the
+        // far end and the fill grows inward from the right edge, so the track
+        // reads as being closed from both sides.
+        if (h->fill) {
+            lv_obj_set_width(h->fill, len);
+            lv_obj_set_x(h->fill, h->w - len);
+        }
+        if (h->knob) lv_obj_set_x(h->knob, h->travel - (int)at);
+    }
     // Reported from HERE and not from the press handler, so the run back and
     // the snap carry whatever the caller hung off the travel just as the drag
     // does. A graph that only follows the finger forward is a graph that stays
@@ -959,6 +977,18 @@ static void hold_pause_close(wt_hold_t *h)
 // screen is being replaced under it -- DELETE, and the tick that fires done().
 // Starting an animation on either is the use-after-free this whole idiom has
 // to avoid, and neither would ever be seen.
+// The end of a run back. Only now is the pass reset: the retraction animates
+// along the leg it is undoing, and flipping the mapping halfway would teleport
+// the knob across the track.
+static void hold_home(wt_hold_t *h)
+{
+    h->pass = 0;
+    if (h->spent) lv_obj_add_flag(h->spent, LV_OBJ_FLAG_HIDDEN);
+    an_slide(h, 0);
+}
+
+static void hold_home_cb(lv_anim_t *a) { hold_home(a->var); }
+
 static void hold_reset(wt_hold_t *h, bool animate)
 {
     hold_pause_close(h);
@@ -970,9 +1000,12 @@ static void hold_reset(wt_hold_t *h, bool animate)
     if (h->mark) lv_obj_add_flag(h->mark, LV_OBJ_FLAG_HIDDEN);
     if (!h->fill) return;
     lv_anim_delete(h, an_slide);
-    int32_t at = lv_obj_get_x(h->knob);
+    // How far along the CURRENT leg, which on the return leg is the knob's
+    // distance from the far end rather than from zero.
+    const int kx = lv_obj_get_x(h->knob);
+    int32_t at = h->pass == 0 ? kx : h->travel - kx;
     if (!animate || h->release_ms <= 0 || at <= 0) {
-        an_slide(h, 0);
+        hold_home(h);
         return;
     }
     lv_anim_t a;
@@ -982,6 +1015,7 @@ static void hold_reset(wt_hold_t *h, bool animate)
     lv_anim_set_values(&a, at, 0);
     lv_anim_set_duration(&a, h->release_ms);
     lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+    lv_anim_set_completed_cb(&a, hold_home_cb);
     lv_anim_start(&a);
 }
 
@@ -1047,7 +1081,9 @@ static void hold_press_cb(lv_event_t *e)
         // retract. Past it the travel counts from the edge of the band rather
         // than from the press, so the knob starts moving smoothly instead of
         // jumping the 8px it owed.
-        int raw = pt.x - h->x0;
+        // Out on the first leg, BACK on the second. One number either way:
+        // the travel is always how far this finger has come along its own leg.
+        int raw = h->pass == 0 ? pt.x - h->x0 : h->x0 - pt.x;
         if (raw > WT_SLIDE_DEAD)       raw -= WT_SLIDE_DEAD;
         else if (raw < -WT_SLIDE_DEAD) raw += WT_SLIDE_DEAD;
         else                           raw = 0;
@@ -1073,6 +1109,25 @@ static void hold_press_cb(lv_event_t *e)
         // press -- so the drag's tail pressed whatever the new screen put
         // there, on the glass exactly as in the walk. PRESS_LOST never
         // fires: a press the system took away is not a decision.
+        // The first leg ARRIVES rather than fires. The knob stays at the far
+        // end, its fill goes dim and stays on the track as the record of what
+        // has been spent, and the word asks for the other half.
+        if (c == LV_EVENT_RELEASED && !h->fired && h->armed &&
+            h->twice && h->pass == 0) {
+            // The snap that armed this leg is still animating, and its last
+            // tick would be re-read through the RETURN leg's mapping -- which
+            // put the knob back at zero, the one place it must not be.
+            lv_anim_delete(h, an_slide);
+            h->pass = 1;
+            h->armed = false;
+            h->at = h->base = 0;
+            h->saying_held = false;
+            if (h->spent) lv_obj_remove_flag(h->spent, LV_OBJ_FLAG_HIDDEN);
+            if (h->mark)  lv_obj_add_flag(h->mark, LV_OBJ_FLAG_HIDDEN);
+            hold_rule_say(h, h->again ? h->again : h->txt);
+            an_slide(h, 0);
+            return;
+        }
         if (c == LV_EVENT_RELEASED && !h->fired && h->armed) {
             h->fired = true;
             void (*done)(void *) = h->done;
@@ -1164,6 +1219,8 @@ lv_obj_t *wt_slide(lv_obj_t *scr, const wt_slide_t *cfg)
     h->born = lv_tick_get();
     h->deaf_ms = cfg->deaf_ms;
     h->move = cfg->move;
+    h->twice = cfg->twice;
+    h->again = cfg->again;
     h->done = cfg->done;
     h->ud = cfg->ud;
 
@@ -1210,6 +1267,25 @@ lv_obj_t *wt_slide(lv_obj_t *scr, const wt_slide_t *cfg)
     if (flagged) lv_obj_add_flag(f, WT_FLAG_ACCENT_FILL);
     lv_obj_remove_flag(f, LV_OBJ_FLAG_CLICKABLE);
     h->fill = f;
+
+    // The first leg's fill, drawn under the live one and hidden until there
+    // IS a first leg to remember. Full width, 40%: spent, not active.
+    if (cfg->twice) {
+        lv_obj_t *sp = lv_obj_create(p);
+        lv_obj_remove_style_all(sp);
+        // As long as the LEG, not as long as the control: the fill never
+        // reaches the last half knob of the track, so a full width bar would
+        // claim travel the first leg did not have.
+        lv_obj_set_size(sp, h->travel + WT_SLIDE_KNOB / 2, WT_SLIDE_TRACK);
+        lv_obj_set_pos(sp, 0, ty);
+        lv_obj_set_style_radius(sp, WT_SLIDE_TRACK / 2, 0);
+        lv_obj_set_style_bg_color(sp, fillc, 0);
+        lv_obj_set_style_bg_opa(sp, LV_OPA_40, 0);
+        if (flagged) lv_obj_add_flag(sp, WT_FLAG_ACCENT_FILL);
+        lv_obj_remove_flag(sp, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_flag(sp, LV_OBJ_FLAG_HIDDEN);
+        h->spent = sp;
+    }
 
     // The knob. Square with a 6px radius -- a circle would read as a lamp, and
     // every other round filled thing on this device is one. It is a SIBLING of

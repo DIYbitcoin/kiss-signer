@@ -1360,13 +1360,27 @@ static void erase_screen(void)
     };
     wt_gate(s_scr, &g);
 
-    // The hold keeps its 2000ms: the spec's 1200 is the floor an accidental
-    // brush cannot cross, and the one erase on the device stays above it for
-    // the reason the old comment gave -- this one has no undo. The track
-    // fills in full WT_STOP; the label reads in the tint.
-    wt_slide_rule_c(s_scr, tr(STR_G_HOLD_WIPE), tr(STR_G_FW_KEEP_HOLDING),
-                    WT_ACT_X, WT_ACTION_Y_SLIDE, 330,
-                    WT_STOP_INK, WT_STOP, do_wipe, NULL);
+    // DOUBLE TRAVEL, and it is what a timed hold used to be for. The erase is
+    // the one action on this device with no undo, so it wanted a gesture no
+    // pocket and no accident produces -- which used to be "hold still for
+    // 2000ms", a length that punished a steady hand and stopped nothing a
+    // resting thumb could not do. Two opposite strokes cannot happen by
+    // accident and cost a deliberate owner about a second.
+    //
+    // ONCE MORE is the word between the legs, and it already ships in 21
+    // locales as the unlock stroke's own "draw it again" title -- the same
+    // sentence to the same person.
+    const lv_color_t wipe_ink = WT_STOP_INK, wipe_fill = WT_STOP;
+    wt_slide_t wipe = {
+        .txt   = tr(STR_G_HOLD_WIPE),
+        .held  = tr(STR_G_FW_KEEP_HOLDING),
+        .again = tr(STR_GD_DRAW_AGAIN_T),
+        .x = WT_ACT_X, .y = WT_ACTION_Y_SLIDE, .w = 330,
+        .ink = &wipe_ink, .fill = &wipe_fill,
+        .done = do_wipe,
+        .twice = true,
+    };
+    wt_slide(s_scr, &wipe);
     wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, 592, WT_ACTION_Y,
                     160, true, erase_back_cb, NULL);
 }

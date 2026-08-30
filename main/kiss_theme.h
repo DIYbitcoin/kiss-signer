@@ -1591,6 +1591,13 @@ typedef struct {
     // while inert -- the accent means "press this one", and wearing it dead
     // is a lie.
     bool inert;
+    // DOUBLE TRAVEL, for the one action with no undo. The first leg runs left
+    // to right and the knob stays where it landed; the second comes BACK, with
+    // its fill growing from the right edge over the spent first one. Two
+    // opposite strokes is a thing a pocket cannot do and a hand cannot do by
+    // accident, and it is what the erase gate takes in place of a timed hold.
+    bool twice;
+    const char *again;   // the word between the legs; NULL keeps `txt`
 } wt_slide_t;
 lv_obj_t *wt_slide(lv_obj_t *scr, const wt_slide_t *s);
 // The word on a band slide, for a caller that renames it when the gesture

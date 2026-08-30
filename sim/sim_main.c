@@ -1643,6 +1643,19 @@ static void slide_fire(int key)
     slide_go(340);
     release(); pump(8);
 }
+// The return leg of a DOUBLE TRAVEL slide. The first leg only arrives -- the
+// knob parks at the far end and the word becomes ONCE MORE -- so the gesture
+// is no longer findable by its own label and the grip is by coordinate.
+//
+// It starts at the RIGHT end of the control and not at its centre, for the
+// reason a real thumb would: leftward travel from the centre of a 310px bar
+// runs out of panel at 208px, which is 78% of the 266 this needs, and a leg
+// that cannot reach its own end simply opens the pause window instead.
+static void slide_back(int x, int y, int px)
+{
+    touch(x, y); pump(3);
+    for (int i = 1; i <= 6; i++) { touch(x - px * i / 6, y); pump(3); }
+}
 
 // The unlock word as used throughout the scripted walk. Kept as a helper for
 // storage hot-plug coverage added at the end, so that test does not invent a
@@ -5502,18 +5515,25 @@ int main(void) {
   // amber lamp and keeps "do not sell or give it away" whole, and BACK
   // returns to the gate for the retry the headline names.
   s_sim_wipe_fail = 1;
-  slide_at(208, 430, 340); release(); pump(10);     // the full slide -> refusal
+  // OUT and BACK. The erase gate takes double travel in place of the 2000ms
+  // hold it used to take, so one full stroke arrives at ONCE MORE and commits
+  // nothing.
+  slide_at(208, 430, 340); release(); pump(8);
+  must_show("erase/once more", tr(STR_GD_DRAW_AGAIN_T));
+  save("/tmp/sim_wipe_once_more.ppm");              // knob parked, fill spent
+  slide_back(348, 430, 340); release(); pump(10);    // the return leg -> refusal
   save("/tmp/sim_wipe_fail.ppm");
   must_show("erase/fail headline", tr(STR_G_NOERASE_NEXT));
   tap_str(STR_C_BACK, 3, 10);                       // -> the gate again
-  // hold it: 2000ms at 16ms/frame is 125 frames, give it margin. The slide rule sits
-  // on the action row now (48..368 x WT_ACTION_Y), not on an overlay at 372:
-  // the confirmation IS the screen, so it uses the same row every other screen
-  // puts its actions on.
+  // The slide sits on the action band (48..378 x WT_ACTION_Y_SLIDE), not on an
+  // overlay at 372: the confirmation IS the screen, so it uses the band every
+  // other screen puts its actions on. There is no time in this gesture at all
+  // any more -- only distance, twice.
   slide_at(208, 430, 165);                          // ~half way: the fill sweeps
   lv_refr_now(NULL);
   save("/tmp/sim_wipe_holding.ppm");                // partial red fill, not fired
-  slide_go(340); release(); pump(6);                // slide through -> erased
+  slide_go(340); release(); pump(8);                // leg one arrives
+  slide_back(348, 430, 340); release(); pump(6);     // leg two -> erased
   save("/tmp/sim_wiped.ppm");                       // SEED WORDS ERASED + two ways off
   must_show("erased", tr(STR_G_ERASED_T));
   // NEW SEED WORDS sits beside OK: erasing in order to make new ones is one
