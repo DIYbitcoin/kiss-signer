@@ -1,5 +1,6 @@
 #include "kiss_terms.h"
 #include "i18n.h"
+#include <stdio.h>
 
 // The table, in kiss_term_t order. A card is four strings: the CAPTION is the
 // real term an owner will meet in their coordinator (PSBT, DESCRIPTOR,
@@ -85,6 +86,10 @@ static int       s_ids[KISS_TERM_N];
 static int       s_n;
 static int       s_open = -1;
 
+static lv_obj_t *s_band_scr;
+static lv_obj_t *s_band;
+static void terms_band_draw(void);
+
 // A term is READ when its row is CLOSED. Opening one proves curiosity;
 // closing it is the only moment this device can honestly observe somebody
 // finishing, and it is the moment the dot goes out under their own finger.
@@ -98,6 +103,15 @@ static void terms_changed_cb(int open_idx, void *ud)
         wt_def_row_read(s_list, s_open);
     }
     s_open = open_idx;
+    terms_band_draw();
+}
+
+void kiss_terms_turned(void)
+{
+    if (s_open >= 0 && s_open < s_n) kiss_term_mark_read(s_ids[s_open]);
+    s_open = -1;
+    s_list = NULL;
+    s_n = 0;
 }
 
 void kiss_terms_leaving(void)
@@ -110,15 +124,79 @@ void kiss_terms_leaving(void)
     s_open = -1;
     s_list = NULL;
     s_n = 0;
+    s_band = NULL;
+    s_band_scr = NULL;
+}
+
+static bool (*s_more_has)(int);
+static void (*s_more_open)(int);
+
+// The band's left lane on a terms page, and the one object in it. It changes
+// with the open row -- a term with a second page puts MORE there -- so the
+// module owns it rather than the caller drawing once and forgetting.
+static void more_cb(lv_event_t *e)
+{
+    (void)e;
+    const int id = kiss_terms_open_id();
+    if (id >= 0 && s_more_open) s_more_open(id);
+}
+
+static void terms_band_draw(void)
+{
+    if (s_band) { lv_obj_delete(s_band); s_band = NULL; }
+    if (!s_band_scr) return;
+    const int id = kiss_terms_open_id();
+    if (id >= 0 && s_more_has && s_more_has(id)) {
+        // A direction, so the arrow trails the word: page two is a page.
+        s_band = wt_word_action(s_band_scr, LV_SYMBOL_RIGHT, tr(STR_H_MORE),
+                                false, wt_accent(), true, more_cb, NULL);
+        lv_obj_align(s_band, LV_ALIGN_BOTTOM_LEFT, WT_ACT_X,
+                     -(LV_VER_RES - WT_ACTION_Y - WT_ACTION_H) - 8);
+        return;
+    }
+    // ONE line, by rank. The hint is an instruction and outranks a report:
+    // somebody who does not know the mark opens can do nothing with a count
+    // of what they have not read.
+    if (!wt_row_seen() && wt_help_seen()) {
+        s_band = wt_standing(s_band_scr, tr(STR_H_HINT_ROW), WT_DIM, false);
+        return;
+    }
+    const int unread = kiss_terms_unread(KISS_TERMS_ALL, KISS_TERM_N);
+    if (unread <= 0) return;
+    char band[64];
+    snprintf(band, sizeof band, tr(STR_H_UNREAD_FMT), unread);
+    s_band = wt_standing(s_band_scr, band, WT_DIM, false);
 }
 
 void kiss_terms_hint(lv_obj_t *scr)
 {
-    if (!scr || wt_row_seen() || !wt_help_seen()) return;
-    wt_standing(scr, tr(STR_H_HINT_ROW), WT_DIM, false);
+    // A NEW screen means the old band went with the old screen, so the
+    // pointer is dropped rather than deleted. The SAME screen means a page
+    // turn, and then the old band is still there and has to go -- nulling it
+    // and drawing another is how two of them ended up printed on top of each
+    // other, which is what the TEXT gate reported.
+    if (scr != s_band_scr) s_band = NULL;
+    s_band_scr = scr;
+    terms_band_draw();
+}
+
+void kiss_terms_more_hook(bool (*has)(int id), void (*open)(int id))
+{
+    s_more_has = has;
+    s_more_open = open;
+}
+
+int kiss_terms_open_id(void)
+{
+    return (s_open >= 0 && s_open < s_n) ? s_ids[s_open] : -1;
 }
 
 lv_obj_t *kiss_terms_list(lv_obj_t *scr, const int *ids, int n)
+{
+    return kiss_terms_list_at(scr, ids, n, -1);
+}
+
+lv_obj_t *kiss_terms_list_at(lv_obj_t *scr, const int *ids, int n, int open_id)
 {
     if (!scr || !ids || n <= 0) return NULL;
     if (n > KISS_TERM_N) n = KISS_TERM_N;
@@ -142,5 +220,8 @@ lv_obj_t *kiss_terms_list(lv_obj_t *scr, const int *ids, int n)
     s_open = -1;
     s_list = wt_def_list(scr, defs, n);
     wt_def_list_on_change(s_list, terms_changed_cb, NULL);
+    if (open_id >= 0)
+        for (int i = 0; i < n; i++)
+            if (ids[i] == open_id) { wt_def_list_open(s_list, i); break; }
     return s_list;
 }

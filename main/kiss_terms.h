@@ -66,15 +66,39 @@ void kiss_terms_persist_hook(void (*persist)(uint16_t mask));
 // kiss_terms_leaving() on every way out, or the last term read on the page
 // does not count.
 lv_obj_t *kiss_terms_list(lv_obj_t *scr, const int *ids, int n);
+// The same, landing with one term ALREADY OPEN. A caution that names a term
+// links straight into it: an owner who taps "high fee" is asking what a fee
+// is, and a list of three closed rows makes them ask again.
+lv_obj_t *kiss_terms_list_at(lv_obj_t *scr, const int *ids, int n, int open_id);
 
-// The + hint, in the band's left lane, once ever. The CALLER decides whether
-// to draw it, because the kit cannot see whether that lane already carries an
-// action, a caution or a standing statement -- and a lane holding two
-// instructions holds none. It draws nothing once a row has been opened, and
-// nothing while the [ ? ] hint is still owed: two new marks arrived in one
+// Whatever the band's left lane is owed, in rank order: the + hint first
+// (once ever), then the count of terms nobody has read. The CALLER decides
+// whether to call this at all, because the kit cannot see whether that lane
+// already carries an action, a caution or a standing statement -- and a lane
+// holding two lines holds none.
+//
+// The + hint waits until the [ ? ] hint is spent: two new marks arrived in one
 // pass and only one of them is taught at a time.
 void kiss_terms_hint(lv_obj_t *scr);
+
+// PAGE TWO, the one addition the def-row idiom needed. A term whose value is
+// an artefact (a descriptor, 150 characters) or a figure with arithmetic
+// behind it (the fee) has nowhere to put that inside a row, so the page it is
+// on says which of its terms have a second page and builds them.
+//
+// `has` answers for a term id; `open` builds the page and owns everything on
+// it, including the way back. Both NULL is the ordinary case -- the SETTINGS
+// reference is a reference and has no transaction to do arithmetic on.
+void kiss_terms_more_hook(bool (*has)(int id), void (*open)(int id));
+// Which term is open right now, or -1. What a MORE control acts on.
+int  kiss_terms_open_id(void);
 void kiss_terms_leaving(void);
+// A PAGE TURN inside the same screen: the open row is finished with, exactly
+// as it is when the page is left, but the band's left lane is not -- it lives
+// on the screen, which is still there. Calling kiss_terms_leaving here drops
+// the band's pointer without deleting the object, and the next draw prints a
+// second one over it.
+void kiss_terms_turned(void);
 
 // The four sets that have a tab today. Each is `const int[]` plus its count,
 // so a page passes one pair and nothing else knows the order.

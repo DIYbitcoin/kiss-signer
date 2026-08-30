@@ -396,6 +396,44 @@ static void sp_key_warn_cb(lv_event_t *e);   // scan-key export, warning first
 // with it; that claim belongs to a page about coins, not to a QR.
 static void pair_screen(void);
 
+// PAGE TWO for DESCRIPTOR: the artefact itself. A descriptor is 150 odd
+// characters and a definition row has one line for a value, so the row says
+// what it IS and this page is where the thing lives.
+//
+// Through wt_addr_spans, the same idiom every other long value on this device
+// gets, so it reads in blocks rather than as a wall -- and never truncated: a
+// descriptor cut short that looks complete is the worst outcome available.
+static bool pair_term_has_more(int id)
+{
+    char txt[512];
+    return id == KISS_TERM_DESC && kiss_session_descriptor(txt, sizeof txt) == 0;
+}
+
+static void pair_terms_cb(lv_event_t *e);
+static void desc2_back_cb(lv_event_t *e) { (void)e; pair_terms_cb(NULL); }
+
+static void pair_term_more(int id)
+{
+    char txt[512];
+    if (id != KISS_TERM_DESC || kiss_session_descriptor(txt, sizeof txt) != 0)
+        return;
+    kiss_terms_leaving();
+    swap_screen();
+    s_scr = wt_screen(s_parent, tr(STR_T_WATCH_CAP), NULL);
+    wt_chrome_head(s_scr);
+    wt_trail(s_scr, WT_ICON_WHAT, tr(STR_S_GLOSSARY_T), false);
+
+    wt_lbl(s_scr, tr(STR_T_WATCH_P2_HEAD), WT_LANE_X, 118, wt_font_mono28(),
+           WT_INK);
+    wt_lbl(s_scr, tr(STR_T_WATCH_P2_B), WT_LANE_X, 158,
+           wt_font_mono23(), WT_MUT);
+    lv_obj_t *d = wt_addr_spans(s_scr, txt, WT_LANE_W, wt_font_mono23());
+    lv_obj_set_pos(d, WT_LANE_X, 200);
+
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_BACK_X,
+                    WT_ACTION_Y, 140, true, desc2_back_cb, NULL);
+}
+
 static void pair_terms_back_cb(lv_event_t *e)
 {
     (void)e;
@@ -410,6 +448,7 @@ static void pair_terms_cb(lv_event_t *e)
     s_scr = wt_screen(s_parent, tr(STR_S_GLOSSARY_T), NULL);
     wt_chrome_head(s_scr);
     wt_trail(s_scr, WT_ICON_WHAT, tr(STR_I_PAIR_T), false);
+    kiss_terms_more_hook(pair_term_has_more, pair_term_more);
     kiss_terms_list(s_scr, KISS_TERMS_PAIR, 2);
     kiss_terms_hint(s_scr);
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_BACK_X,

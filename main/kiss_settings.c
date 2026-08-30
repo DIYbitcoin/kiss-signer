@@ -1605,8 +1605,9 @@ static void terms_gesture_cb(lv_event_t *e)
     const int next = s_terms_page + (step > 0 ? 1 : -1);
     if (next < 0 || next >= KISS_TERMS_PAGES) return;
     // The page turn ends the reading of whatever was open on the page being
-    // left, exactly as walking out of the screen does.
-    kiss_terms_leaving();
+    // left, exactly as walking out of the screen does -- but the SCREEN is
+    // still here, and so is its band.
+    kiss_terms_turned();
     s_terms_page = next;
     terms_build_page();
 }

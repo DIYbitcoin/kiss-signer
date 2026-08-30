@@ -2799,6 +2799,13 @@ int main(void) {
   // By the VALUE: DESCRIPTOR is also the KEYS explainer's third caption
   // now, and a needle two keys share passes on whichever shows either.
   must_show("pair/terms", tr(STR_T_WATCH_VAL));
+  // DESCRIPTOR's page two: the artefact itself, in blocks. Its row is the
+  // first, so it centres on 170 at n=2, and opening it puts MORE in the band.
+  touch(400, 170); pump(3); release(); pump(30);
+  tap_str(STR_H_MORE, 3, 25);
+  save("/tmp/sim_pair_desc2.ppm");                  // the whole descriptor
+  must_show("pair/descriptor page two", tr(STR_T_WATCH_P2_HEAD));
+  tap_str(STR_C_BACK, 3, 25);                       // BACK -> the term list
   tap_str(STR_C_BACK, 3, 20);                       // BACK -> the QR page
   // Page two: the import steps plus the address proof. It is the page the
   // owner actually follows, so it gets walked and rendered like any other.
@@ -2973,6 +2980,13 @@ int main(void) {
   touch(400, 255); pump(3); release(); pump(30);
   save("/tmp/sim_sign_terms_open.ppm");
   must_show("sign/terms open", tr(STR_T_FEE_TERM));
+  // PAGE TWO. THE FEE is the one term with arithmetic behind it, so its open
+  // row puts MORE in the band's left lane -- the same lane that carried the
+  // hint a moment ago, because a lane holding two lines holds none.
+  tap_str(STR_H_MORE, 3, 20);
+  save("/tmp/sim_sign_fee2.ppm");                   // size x rate = the fee
+  must_show("sign/fee page two", tr(STR_T_FEE2_C3));
+  tap_str(STR_C_BACK, 3, 20);                       // BACK -> the term list
   tap_str(STR_C_BACK, 3, 30);    // BACK -> DETAILS, INPUTS again
   // ...and the tab counts DOWN. Leaving with a row open is finishing with
   // it, so THE FEE is read now and the mark reads [ ? 2 ]. This is the whole
@@ -3281,6 +3295,14 @@ int main(void) {
   // action-row position at (364,430), which the redraw deleted.
   // The bar dropped to y=344 under the bundle graph, and its action went with it:
   // bar-relative (543,2) 170x40 is now 567..737 x 346..386. This is its centre.
+  // The caution SENTENCE is a link into the word it is about: a high fee
+  // lands on THE FEE, already open. wt_note_fit sizes the label to its TEXT,
+  // so the target is the words themselves at x=110 -- not the lane they sit
+  // in -- and well clear of the ack control at 652.
+  touch(110, 312); pump(3); release(); pump(30);
+  save("/tmp/sim_sign_caution_term.ppm");           // THE FEE, open on arrival
+  must_show("sign/caution links to its term", tr(STR_T_FEE_TERM));
+  tap_str(STR_C_BACK, 3, 30);                       // BACK -> the verify screen
   // 312, not 366: the caution bar moved up to 290..334 when the slide grew
   // the action band to 344. All three taps on it are this same centre.
   touch(652, 312); pump(3); release(); pump(6);     // I UNDERSTAND -> row goes green

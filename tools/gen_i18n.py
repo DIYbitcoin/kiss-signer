@@ -132,6 +132,11 @@ def pick_order():
 # names other wallets print in English too. Anything added here needs a reason
 # on its line; "we did not get round to it" is not one.
 UNTRANSLATED_OK = {
+    # The band's unread count, and the second page a term card can have. Born
+    # under the English-only rule; English in the other twenty until the sweep.
+    "H_UNREAD_FMT", "H_MORE", "T_FEE2_HEAD", "T_FEE2_C1", "T_FEE2_C2",
+    "T_FEE2_C3", "T_FEE2_B", "T_FEE2_VB", "T_FEE2_SPV",
+    "T_WATCH_P2_HEAD", "T_WATCH_P2_B",
     # The second first-run hint, for the row that grows. Born under the
     # English-only rule; English in the other twenty until the sweep.
     "H_HINT_ROW",

@@ -1127,6 +1127,14 @@ static void slide_complete(void)
     lv_timer_create(do_sign_cb, 30, NULL);            // let the label paint first
 }
 
+static int caution_term(uint16_t bits);
+static void caution_term_cb(lv_event_t *e);
+static void repaint_verify(void);
+// Where BACK goes from the terms page. It is reached two ways -- the [ ? ] on
+// DETAILS, and a caution's own sentence on VERIFY -- and a page that always
+// returns to DETAILS drops an owner who came from the graph somewhere they
+// were not.
+static bool s_terms_from_verify;
 static void details_cb(lv_event_t *e);
 static void details_open_cb(lv_event_t *e);   // fresh entry: lands on INPUTS
 static void verify_screen(lv_obj_t *parent);
@@ -2030,6 +2038,16 @@ static void verify_screen(lv_obj_t *parent)
         lv_obj_set_pos(t, 52, 13);
         lv_obj_set_style_text_color(t, all_done ? MUT_COL : INK_COL, 0);
         wt_note_fit(t, buf, 491 - 16, 24);
+        // The sentence is the LINK, not the bar: the bar carries the ack
+        // control too, and a tap that could either explain a word or approve
+        // a caution is a tap nobody should have to aim.
+        const int cterm = caution_term(bits[0]);
+        if (cterm >= 0) {
+            lv_obj_add_flag(t, LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_set_ext_click_area(t, 8);
+            lv_obj_add_event_cb(t, caution_term_cb, LV_EVENT_CLICKED,
+                                (void *)(intptr_t)cterm);
+        }
 
         lv_obj_t *ctl;
         if (np == 1 && !all_done) {
@@ -2484,11 +2502,92 @@ static void details_back_cb(lv_event_t *e)
     repaint_verify();
 }
 
-static void gloss_back_cb(lv_event_t *e) { kiss_terms_leaving(); details_cb(e); }
+static void gloss_back_cb(lv_event_t *e)
+{
+    kiss_terms_leaving();
+    if (s_terms_from_verify) { s_terms_from_verify = false; repaint_verify(); }
+    else                     details_cb(e);
+}
 
 static void gloss_gesture_cb(lv_event_t *e)
 {
     if (wt_swipe_step(e) < 0) gloss_back_cb(NULL);
+}
+
+// ---- page two, for the one term that has arithmetic behind it -------------
+// THE FEE is a figure, and a figure with no working shown is a number an
+// owner has to trust. Size times rate is the whole of it, and this screen is
+// the only place on the device that says so.
+//
+// Only on THIS page. The SETTINGS reference is a reference and has no
+// transaction to multiply, so its MORE never appears -- which is why the hook
+// asks per term rather than the card declaring it once.
+static bool sign_term_has_more(int id)
+{
+    return id == KISS_TERM_FEE && s_sum.est_vsize > 0 &&
+           s_sum.fee_rate_x10 > 0;
+}
+
+static void glossary_cb(lv_event_t *e);
+static void fee2_back_cb(lv_event_t *e) { (void)e; glossary_cb(NULL); }
+
+static void sign_term_more(int id)
+{
+    if (!sign_term_has_more(id)) return;
+    kiss_terms_leaving();
+
+    lv_obj_t *parent = lv_obj_get_parent(s_scr);
+    lv_obj_delete(s_scr); s_scr = NULL; s_sign_lbl = NULL;
+    s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
+    s_inert[0] = NULL; s_page_lbl = NULL;
+    mk_screen(parent, tr(STR_T_FEE_CAP), NULL);
+    wt_trail(s_scr, WT_ICON_WHAT, tr(STR_S_GLOSSARY_T), false);
+
+    char vb[48], rate[48], prod[64], sats[32];
+    snprintf(vb, sizeof vb, "%u %s", (unsigned)s_sum.est_vsize,
+             tr(STR_T_FEE2_VB));
+    // One decimal, no floats: fee_rate_x10 is sat/vB times ten because this
+    // arithmetic also runs on a device with no FPU worth using.
+    snprintf(rate, sizeof rate, "%u.%u %s",
+             (unsigned)(s_sum.fee_rate_x10 / 10),
+             (unsigned)(s_sum.fee_rate_x10 % 10), tr(STR_T_FEE2_SPV));
+    fmt_sats(s_sum.fee_sats, sats, sizeof sats);
+    snprintf(prod, sizeof prod, "%s %s", sats, wt_denom_unit());
+
+    const wt_fact_t facts[3] = {
+        { tr(STR_T_FEE2_C1), vb,   LV_SYMBOL_FILE },
+        { tr(STR_T_FEE2_C2), rate, WT_ICON_QR },
+        { tr(STR_T_FEE2_C3), prod, LV_SYMBOL_CUT },
+    };
+    wt_explain(s_scr, tr(STR_T_FEE2_HEAD), tr(STR_T_FEE2_B), facts, 3);
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_BACK_X,
+                    WT_ACTION_Y, 140, true, fee2_back_cb, NULL);
+}
+
+// Which term a caution is ASKING about. An owner who taps "high fee" wants to
+// know what a fee is, and the caution flags already say which word that is --
+// so the row opens on arrival rather than making them ask a second time.
+//
+// Only the two that map. MERGE_INS and the dust cautions are about this
+// transaction's shape rather than about a word, and a link that lands on a
+// term nobody asked for is worse than no link.
+static int caution_term(uint16_t bits)
+{
+    if (bits & WPSBT_C_HIGHFEE) return KISS_TERM_FEE;
+    if (bits & (WPSBT_C_SMALL_CHANGE | WPSBT_C_DUST_CHANGE |
+                WPSBT_C_GAP_CHANGE)) return KISS_TERM_CHANGE;
+    return -1;
+}
+
+// The term the [ ? ] lane should land on, set by a caution's own tap and
+// cleared by the page reading it. -1 is the ordinary entry through the mark.
+static int s_terms_land = -1;
+
+static void caution_term_cb(lv_event_t *e)
+{
+    s_terms_land = (int)(intptr_t)lv_event_get_user_data(e);
+    s_terms_from_verify = true;
+    glossary_cb(NULL);
 }
 
 static void glossary_cb(lv_event_t *e)
@@ -2518,7 +2617,10 @@ static void glossary_cb(lv_event_t *e)
     // exists to cut.
     wt_trail(s_scr, WT_ICON_WHAT, tr(STR_S_T), false);
 
-    kiss_terms_list(s_scr, KISS_TERMS_SIGN, 3);
+    kiss_terms_more_hook(sign_term_has_more, sign_term_more);
+    const int land = s_terms_land;
+    s_terms_land = -1;
+    kiss_terms_list_at(s_scr, KISS_TERMS_SIGN, 3, land);
     // The band here holds only BACK, in the right corner, so the left lane
     // is free for the one hint the plus is owed.
     kiss_terms_hint(s_scr);
