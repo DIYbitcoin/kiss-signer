@@ -1130,6 +1130,15 @@ bool wt_help_seen(void);
 void wt_help_seen_set(bool seen);
 void wt_help_seen_hook(void (*persist)(void));
 
+// The same, for the OTHER new idiom: a row that grows. Two marks were added to
+// this device in one pass and neither teaches itself, so each gets one hint,
+// once ever -- and only ONE of them is ever on screen, because a band lane
+// holding two instructions is a band lane holding none.
+bool wt_row_seen(void);
+void wt_row_seen_set(bool seen);
+void wt_row_seen_hook(void (*persist)(void));
+void wt_row_seen_mark(void);
+
 // What the tab shows: the content lane, replaced -- not a card, not an
 // overlay. One headline sentence at mono28, one paragraph at mono23, then
 // 2-4 labelled facts on a 200px caption lane that never wraps and never

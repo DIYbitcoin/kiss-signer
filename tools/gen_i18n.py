@@ -132,6 +132,9 @@ def pick_order():
 # names other wallets print in English too. Anything added here needs a reason
 # on its line; "we did not get round to it" is not one.
 UNTRANSLATED_OK = {
+    # The second first-run hint, for the row that grows. Born under the
+    # English-only rule; English in the other twenty until the sweep.
+    "H_HINT_ROW",
     # The SETTINGS row that opens all ten term cards, and its screen. Born
     # under the English-only rule; English in the other twenty until the sweep.
     "I_ROW_TERMS", "I_ROW_TERMS_SUB", "I_TERMS_UNREAD_FMT",

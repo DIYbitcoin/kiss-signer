@@ -2519,6 +2519,9 @@ static void glossary_cb(lv_event_t *e)
     wt_trail(s_scr, WT_ICON_WHAT, tr(STR_S_T), false);
 
     kiss_terms_list(s_scr, KISS_TERMS_SIGN, 3);
+    // The band here holds only BACK, in the right corner, so the left lane
+    // is free for the one hint the plus is owed.
+    kiss_terms_hint(s_scr);
 
     // The stroke that opened this page closes it: a right swipe lands back
     // on the DETAILS tab it left, the same promise every deck's [ ? ] keeps.

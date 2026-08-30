@@ -21,6 +21,7 @@
 #include "kiss_kef.h"     // the encrypted backup envelope
 #include "kiss_seed.h"
 #include "kiss_setup.h"   // kiss_setup_open_verify: check the paper backup
+#include "kiss_terms.h"   // the ten cards, and this page's two of them
 #include "kiss_theme.h"
 #include "kiss_usage.h"   // has a coordinator ever spoken: the 5c empty state
 #include "kiss_wipe.h"
@@ -208,19 +209,6 @@ static int aside_pair(lv_obj_t *p, int x, int y, int w)
 static int aside_scan(lv_obj_t *p, int x, int y, int w)
 { return aside_col(p, x, y, w, sp_permission_model); }
 
-// Three entries, and the mark for each. A body written `TERM: definition` per
-// line is a LIST, and passing icons here is what says so: wt_explain_open then
-// draws badges and headings instead of a grey paragraph the reader has to
-// finish before finding the half that applies to them.
-static const char *const PAIR_ICONS[] = {
-    LV_SYMBOL_EYE_OPEN,
-    WT_ICON_LOCK,
-    LV_SYMBOL_GPS,       // the bitcoin is on the network, not in either device
-};
-
-_Static_assert(sizeof PAIR_ICONS / sizeof PAIR_ICONS[0] == 3,
-               "the pairing explainer supplies three semantic badges");
-
 static lv_obj_t *help_open_on(lv_obj_t *parent, const char *title,
                               const char *body, int diagram, bool fp_exit_hint,
                               const char *icon, const char *const *icons,
@@ -252,13 +240,6 @@ static lv_obj_t *help_open_on(lv_obj_t *parent, const char *title,
                 : diagram == DIAG_SCAN   ? aside_scan : NULL,
     };
     return wt_explain_open(parent, &e);
-}
-
-static lv_obj_t *help_open_d(const char *title, const char *body, int diagram,
-                             const char *const *icons, size_t icons_count)
-{
-    return help_open_on(s_scr, title, body, diagram, false, NULL, icons,
-                        icons_count);
 }
 
 lv_obj_t *kiss_info_fp_card_open(lv_obj_t *parent, const char *fingerprint,
@@ -299,32 +280,13 @@ lv_obj_t *kiss_info_help_card_open(lv_obj_t *parent, const char *title,
     return help_open_on(parent, title, body, DIAG_NONE, false, icon, NULL, 0);
 }
 
-// The fingerprint row's explainer, opened WITH the code so the card draws the
-// wallet's picture. This screen is the one place where the rule about never
-// showing a picture without its number is met by the PAGE rather than by the
-// card: the fingerprint row behind this overlay is already showing the eight
-// characters in mono, and that row is what the reader tapped to get here.
-static void help_cb(lv_event_t *e)
-{
-    const char *key = (const char *)lv_event_get_user_data(e);
-    // "fp" and "type" are gone with the rows that carried them: both facts
-    // open their definitions IN PLACE on THIS SIGNER now, so the cards were
-    // a second copy of a lesson one tap closer to the fact it teaches. The
-    // fingerprint card itself lives on -- the reveal screen and the home
-    // chip still open it through kiss_info_fp_card_open.
-    if (!strcmp(key, "pair"))
-        help_open_d(tr(STR_I_H_PAIR_T), tr(STR_I_H_PAIR_B), DIAG_PAIR,
-                    PAIR_ICONS, sizeof PAIR_ICONS / sizeof PAIR_ICONS[0]);
-    // "scan" is gone with the card that carried its "?", and "addr" went with
-    // the explainer the FIRST ADDRESS rows used to open -- those rows GO to
-    // RECEIVE now, where the address itself is the explanation.
-    (void)key;
-}
-
-static lv_obj_t *mk_help_chip(int x, int y, const char *key)
-{
-    return wt_help_chip(s_scr, x, y, WT_MUT, help_cb, (void *)key);
-}
+// The section "?" chips on this screen are all gone now. "fp" and "type" went
+// when both facts started opening their definitions IN PLACE; "scan" and
+// "addr" went with the cards that carried them; and "pair" was the last, a
+// PAGE level explanation hanging off a section mark, which the page's own
+// [ ? n ] carries properly. The fingerprint card itself lives on -- the
+// reveal screen and the home chip still open it through
+// kiss_info_fp_card_open.
 
 // ---- PAIR COORDINATOR ----
 static void pair_refresh(void)
@@ -422,6 +384,38 @@ static void pair_instructions_cb(lv_event_t *e)
 
 static void sp_key_warn_cb(lv_event_t *e);   // scan-key export, warning first
 
+// PAIRING's own two words. The section chip beside SHOW TO used to open a
+// card titled THE COORDINATOR, which was a PAGE level explanation hanging off
+// a SECTION level mark -- and it explained the descriptor in its own words
+// rather than naming it, so a reader left knowing what this device calls the
+// thing and not what Sparrow calls it.
+//
+// What it said is what these two cards say: DESCRIPTOR is what your app sees
+// with and cannot spend from, FINGERPRINT is what your keys are called. Its
+// third line -- that the bitcoin is on the network and in neither one -- goes
+// with it; that claim belongs to a page about coins, not to a QR.
+static void pair_screen(void);
+
+static void pair_terms_back_cb(lv_event_t *e)
+{
+    (void)e;
+    kiss_terms_leaving();
+    pair_screen();
+}
+
+static void pair_terms_cb(lv_event_t *e)
+{
+    (void)e;
+    swap_screen();
+    s_scr = wt_screen(s_parent, tr(STR_S_GLOSSARY_T), NULL);
+    wt_chrome_head(s_scr);
+    wt_trail(s_scr, WT_ICON_WHAT, tr(STR_I_PAIR_T), false);
+    kiss_terms_list(s_scr, KISS_TERMS_PAIR, 2);
+    kiss_terms_hint(s_scr);
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_BACK_X,
+                    WT_ACTION_Y, 140, true, pair_terms_back_cb, NULL);
+}
+
 static void pair_screen(void)
 {
     swap_screen();
@@ -430,12 +424,14 @@ static void pair_screen(void)
     // instruction, and the note lane below the format chooser says the rest.
     s_scr = wt_screen(s_parent, tr(STR_I_PAIR_T), NULL);
     wt_chrome_head(s_scr);
-    {
-        char trail[96];
-        snprintf(trail, sizeof trail, "%s / %s", tr(STR_I_T),
-                 tr(STR_D_ONLINE_APP));
-        wt_trail(s_scr, WT_ICON_QR, trail, false);
-    }
+    // The TAB FIRST, so the trail beside it knows where to stop: they share
+    // one 30px strip and the trail's box runs to 752 unless something is
+    // already there.
+    wt_help_tab_n(s_scr, NULL, kiss_terms_unread(KISS_TERMS_PAIR, 2),
+                  pair_terms_cb, NULL);
+    // ONE segment. It was "KEYS / COORDINATOR" and the second half restates
+    // the title this page already carries.
+    wt_trail(s_scr, WT_ICON_QR, tr(STR_I_T), false);
     if (kiss_testnet()) {
         lv_obj_t *net = wt_lbl(s_scr, kiss_net_name(), 672, 30, wt_font14(),
                                wt_ink_for(WT_WARN));
@@ -455,9 +451,9 @@ static void pair_screen(void)
     // The chip goes after the caption's MEASURED width, the way every other
     // one on this screen does. Pinned at 526 it assumed the caption was 126px,
     // which "GÖSTERİLECEK YER" is not.
-    lv_obj_t *show_sec = wt_section(s_scr, tr(STR_I_SHOW_TO), 400, 96);
-    lv_obj_update_layout(show_sec);
-    mk_help_chip(400 + lv_obj_get_width(show_sec) + 12, 90, "pair");
+    // The page's own [ ? n ] took the section chip's job, up on the chrome
+    // strip where a page level explanation belongs.
+    wt_section(s_scr, tr(STR_I_SHOW_TO), 400, 96);
     const char *CAT[2] = {tr(STR_I_DESKTOP), tr(STR_I_MOBILE)};
     const char *APP[2] = {tr(STR_I_APP_DESKTOP), tr(STR_I_APP_MOBILE)};
     for (int i = 0; i < 2; i++) {

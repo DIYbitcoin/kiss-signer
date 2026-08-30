@@ -91,6 +91,8 @@ static int       s_open = -1;
 static void terms_changed_cb(int open_idx, void *ud)
 {
     (void)ud;
+    // Pressing one is what teaches the plus, so the hint is owed no longer.
+    if (open_idx >= 0) wt_row_seen_mark();
     if (s_open >= 0 && s_open < s_n && s_open != open_idx) {
         kiss_term_mark_read(s_ids[s_open]);
         wt_def_row_read(s_list, s_open);
@@ -108,6 +110,12 @@ void kiss_terms_leaving(void)
     s_open = -1;
     s_list = NULL;
     s_n = 0;
+}
+
+void kiss_terms_hint(lv_obj_t *scr)
+{
+    if (!scr || wt_row_seen() || !wt_help_seen()) return;
+    wt_standing(scr, tr(STR_H_HINT_ROW), WT_DIM, false);
 }
 
 lv_obj_t *kiss_terms_list(lv_obj_t *scr, const int *ids, int n)

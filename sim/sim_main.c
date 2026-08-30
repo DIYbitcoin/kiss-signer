@@ -2791,9 +2791,15 @@ int main(void) {
   touch(763, 35); pump(3); release(); pump(6);      // close zoom
   touch(672, 150); pump(3); release(); pump(4);     // MOBILE / BlueWallet segment
   save("/tmp/sim_pair_bw.ppm");
-  touch(541, 105); pump(3); release(); pump(30);    // "?" chip -> coordinator card
+  // The page's own [ ? 2 ], where the section chip beside SHOW TO used to be:
+  // DESCRIPTOR and FINGERPRINT, the two words this page is about, as rows
+  // that open. Pinned by its RIGHT edge to 752 on the chrome strip.
+  touch(720, 85); pump(3); release(); pump(30);
   save("/tmp/sim_pair_help.ppm");
-  touch(400, 414); pump(3); release(); pump(6);     // OK closes the card
+  // By the VALUE: DESCRIPTOR is also the KEYS explainer's third caption
+  // now, and a needle two keys share passes on whichever shows either.
+  must_show("pair/terms", tr(STR_T_WATCH_VAL));
+  tap_str(STR_C_BACK, 3, 20);                       // BACK -> the QR page
   // Page two: the import steps plus the address proof. It is the page the
   // owner actually follows, so it gets walked and rendered like any other.
   tap_str(STR_R_NEXT, 3, 6);     // NEXT -> HOW TO PAIR

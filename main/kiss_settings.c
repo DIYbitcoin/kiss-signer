@@ -140,6 +140,7 @@ static void store_u8(const char *key, uint8_t v);
 // is also what keeps every walk starting from the first-run state.
 #ifndef SIMULATOR
 static void help_seen_persist(void) { store_u8("hlps", 1); }
+static void row_seen_persist(void)  { store_u8("rows", 1); }
 #endif
 
 // The unit amounts are shown in. Changed by tapping the total on the sign
@@ -298,6 +299,7 @@ kiss_settings_load_status_t kiss_settings_load(void)
     uint8_t dn = WT_DENOM_SATS;   // sats unless a previous run said otherwise
     uint8_t ps = 1;               // the signer saves what it saves, unless told not
     uint8_t hs = 0;               // [ ? ] never opened until a byte says it was
+    uint8_t rs = 0;               // ...and the same for a row that grows
     err = nvs_open("kiss", NVS_READONLY, &h);
     if (err == ESP_ERR_NVS_NOT_FOUND) {
         // A genuinely blank partition has no namespace yet. That is the one
@@ -312,7 +314,8 @@ kiss_settings_load_status_t kiss_settings_load(void)
                   get_optional_u8(h, "denom", &dn) &&
                   get_optional_u8(h, "lang", &lg) &&
                   get_optional_u8(h, "prst", &ps) &&
-                  get_optional_u8(h, "hlps", &hs);
+                  get_optional_u8(h, "hlps", &hs) &&
+                  get_optional_u8(h, "rows", &rs);
         nvs_close(h);
         if (!ok)
             return WSETTINGS_LOAD_NVS_READ_FAILED;
@@ -329,6 +332,8 @@ kiss_settings_load_status_t kiss_settings_load(void)
     kiss_persist_set_enabled(ps);   // raw setter: a load is not the switch
     wt_help_seen_set(hs != 0);
     wt_help_seen_hook(help_seen_persist);
+    wt_row_seen_set(rs != 0);
+    wt_row_seen_hook(row_seen_persist);
     kiss_terms_set_mask(kiss_terms_read_load());
     kiss_terms_persist_hook(kiss_terms_read_store);
     return WSETTINGS_LOAD_OK;
@@ -1577,6 +1582,7 @@ static void terms_build_page(void)
     int n = KISS_TERM_N - first;
     if (n > 5) n = 5;
     kiss_terms_list(s_terms_body, &KISS_TERMS_ALL[first], n);
+    kiss_terms_hint(s_scr);
 
     // DOTS IN THE TRAIL, not a pager line at the lane's foot. A definition
     // list at n=5 fills the whole 284px lane by construction, so a pager

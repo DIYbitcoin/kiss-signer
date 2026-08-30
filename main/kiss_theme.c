@@ -24,6 +24,8 @@ static const char WT_BARCAP_TAG[] = "wt_action_bar_cap";
 // content line by itself, and it is not always on a wt_screen -- the receive
 // gate builds its own -- so the ANSWER cannot come from the bar alone.
 static const char WT_SLIDEBAND_TAG[] = "wt_slide_band";
+// The [ ? ] tab, so a trail sharing its strip can stop before it.
+static const char WT_HELPTAB_TAG[] = "wt_help_tab";
 // The word on a band slide, so a caller can change it on arrival without
 // counting children -- the sign screen turns SLIDE TO SIGN into SIGNING.
 static const char WT_SLIDELBL_TAG[] = "wt_slide_label";
@@ -3295,9 +3297,21 @@ lv_obj_t *wt_trail(lv_obj_t *scr, const char *icon, const char *path,
     lv_obj_set_style_text_letter_space(l, 2, 0);
     lv_obj_set_y(l, WT_CHROME_STRIP_Y +
                     (WT_BR_H - lv_font_get_line_height(f)) / 2);
-    // One line, pinned: a trail that wrapped would walk into the hairline,
-    // and a trail is a place name, not a sentence.
-    lv_obj_set_width(l, 752 - x);
+    // 752 unless a [ ? ] is already on this strip, in which case the trail
+    // stops 12 short of it. They share one 30px row and the mark is pinned by
+    // its RIGHT edge, so a trail running the full lane overlaps the brackets
+    // whatever its text says -- the box is what collides, not the words. A
+    // page that wants both builds the TAB FIRST.
+    int right = 752;
+    const uint32_t n = lv_obj_get_child_count(scr);
+    for (uint32_t i = 0; i < n; i++) {
+        lv_obj_t *c = lv_obj_get_child(scr, i);
+        if (lv_obj_get_user_data(c) != (void *)WT_HELPTAB_TAG) continue;
+        right = lv_obj_get_x(c) - 12;
+        break;
+    }
+    if (right < x + 40) right = x + 40;
+    lv_obj_set_width(l, right - x);
     lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
     return l;
 }
@@ -3399,6 +3413,21 @@ bool wt_help_seen(void)               { return s_help_seen; }
 void wt_help_seen_set(bool seen)      { s_help_seen = seen; }
 void wt_help_seen_hook(void (*persist)(void)) { s_help_persist = persist; }
 
+// The SECOND first-run bit: has a row that GROWS ever been opened. Same shape
+// as the one above and for the same reason -- the plus is a new idiom on this
+// device and a mark nobody has pressed teaches nothing.
+static bool s_row_seen;
+static void (*s_row_persist)(void);
+bool wt_row_seen(void)                { return s_row_seen; }
+void wt_row_seen_set(bool seen)       { s_row_seen = seen; }
+void wt_row_seen_hook(void (*persist)(void)) { s_row_persist = persist; }
+void wt_row_seen_mark(void)
+{
+    if (s_row_seen) return;
+    s_row_seen = true;
+    if (s_row_persist) s_row_persist();
+}
+
 typedef struct {
     lv_obj_t *tab;    // what breathes
     lv_obj_t *hint;   // the band line, or NULL
@@ -3466,6 +3495,7 @@ lv_obj_t *wt_help_tab_n(lv_obj_t *scr, const char *hint, int unread,
     // Pinned by the RIGHT edge: the mark's rendered width moves with the
     // accent's glyph metrics, and a computed left edge drifts.
     lv_obj_set_pos(b, 752 - w, WT_CHROME_STRIP_Y);
+    lv_obj_set_user_data(b, (void *)WT_HELPTAB_TAG);
     lv_obj_set_size(b, w, WT_BR_H);
     lv_obj_remove_flag(b, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(b, LV_OBJ_FLAG_CLICKABLE);

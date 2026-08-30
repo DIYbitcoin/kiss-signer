@@ -66,6 +66,14 @@ void kiss_terms_persist_hook(void (*persist)(uint16_t mask));
 // kiss_terms_leaving() on every way out, or the last term read on the page
 // does not count.
 lv_obj_t *kiss_terms_list(lv_obj_t *scr, const int *ids, int n);
+
+// The + hint, in the band's left lane, once ever. The CALLER decides whether
+// to draw it, because the kit cannot see whether that lane already carries an
+// action, a caution or a standing statement -- and a lane holding two
+// instructions holds none. It draws nothing once a row has been opened, and
+// nothing while the [ ? ] hint is still owed: two new marks arrived in one
+// pass and only one of them is taught at a time.
+void kiss_terms_hint(lv_obj_t *scr);
 void kiss_terms_leaving(void);
 
 // The four sets that have a tab today. Each is `const int[]` plus its count,
