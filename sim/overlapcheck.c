@@ -1023,6 +1023,13 @@ static const char *const OC_READ_BACKLOG[] = {
 };
 static bool s_read_hit[sizeof OC_READ_BACKLOG / sizeof OC_READ_BACKLOG[0]];
 
+// English-only checks ask this. SIM_LANG is the only language input the
+// simulator has (main/i18n.c reads no NVS here), so unset means English.
+static bool oc_lang_is_en(void)
+{
+    const char *l = getenv("SIM_LANG");
+    return !l || !*l || strncmp(l, "en", 2) == 0;
+}
 static bool oc_read_excused(const char *w)
 {
     for (unsigned i = 0; i < sizeof OC_READ_BACKLOG / sizeof OC_READ_BACKLOG[0]; i++)
@@ -1053,6 +1060,21 @@ static void oc_check_cut(const char *tag)
             oc_report_one(tag, sig, detail);
             continue;
         }
+        // READ IS AN ENGLISH CHECK, and it has to say so or it is noise.
+        // Both halves of it are shaped by English: the syllable limit calls
+        // "koordinatora" a failure when it is simply the Czech word, and the
+        // word limit counts a language that needs more words for the same
+        // sentence as worse writing. Neither is fixable by cutting copy,
+        // which is the only fix this gate offers, and a gate whose findings
+        // nobody can act on is a gate nobody reads.
+        //
+        // What is lost is nothing: reading level is a property of the SOURCE
+        // copy, and the source copy is English. It is checked where it is
+        // written.
+        if (!oc_lang_is_en() &&
+            (strcmp(s_cut_kind[i], "words") == 0 ||
+             strcmp(s_cut_kind[i], "long") == 0))
+            continue;
         if (strcmp(s_cut_kind[i], "words") == 0) {
             snprintf(sig, sizeof sig, "READ|words|%s", s_cut_txt[i]);
             snprintf(detail, sizeof detail,
