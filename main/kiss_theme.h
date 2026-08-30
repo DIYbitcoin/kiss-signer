@@ -1170,7 +1170,24 @@ typedef struct {
     const char *cap;   // upper case, mono21 ls2, the accent
     const char *val;   // mono23, WT_MUT
     const char *icon;  // optional SYMS glyph; NULL for no mark
+    // The MARK's colour, and only the mark's: a caution keeps its captions
+    // and values in the page's own inks and lets the glyph carry the
+    // severity. Zero takes the accent, so every existing three field
+    // initialiser is unchanged. Same rule wt_gate states at length -- one
+    // amber thing on a screen an owner can still walk back from.
+    lv_color_t  icon_col;
 } wt_fact_t;
+// The fact ROWS on their own, at a y the caller picks: a caption on a 214px
+// lane that never wraps, its mark, and the value beside it. wt_explain draws
+// its own headline and paragraph and then calls this; a screen whose top band
+// is already a card -- a histogram, an equation, a fingerprint -- calls it
+// directly under the card and gets the identical rows.
+//
+// It is what replaced the two wt_why_blocks. That pair was the device's way
+// of saying two things for a year and it was two paragraphs of grey in a
+// 344px column, which is a wall with a rule down the side of it. Returns the
+// y it finished at.
+int wt_facts(lv_obj_t *scr, int y, const wt_fact_t *facts, int n);
 void wt_explain(lv_obj_t *scr, const char *headline, const char *para,
                 const wt_fact_t *facts, int n);
 // The same page with ONE term of the paragraph emphasized -- rendered in INK

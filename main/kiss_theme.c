@@ -3776,13 +3776,6 @@ void wt_explain_hi(lv_obj_t *scr, const char *headline, const char *para,
     lv_point_t ps;
     lv_text_get_size(&ps, para, pf, 0, 0, 690, LV_TEXT_FLAG_NONE);
 
-    // A fact with a mark indents every caption, so the column stays a column
-    // whether one row carries an icon or all of them do.
-    bool marks = false;
-    for (int i = 0; i < n && facts; i++)
-        if (facts[i].icon) marks = true;
-    const int cap_x = marks ? WT_LANE_X + 38 : WT_LANE_X;
-
     // The facts start where the paragraph ends, and never above the line TWO
     // paragraph lines would reach: the caption lane holds still whether this
     // page's paragraph used one line or both, so the three [ ? ] pages an
@@ -3801,15 +3794,33 @@ void wt_explain_hi(lv_obj_t *scr, const char *headline, const char *para,
     const int floor_y = WT_EXPLAIN_PARA_Y +
                         para_lines * lv_font_get_line_height(pf) + 14;
     if (y < floor_y) y = floor_y;
+    wt_facts(scr, y, facts, n);
+}
+
+// The rows themselves, so a screen whose top band is already a card can
+// draw the identical ones under it. See the header.
+int wt_facts(lv_obj_t *scr, int y, const wt_fact_t *facts, int n)
+{
+    // A fact with a mark indents every caption, so the column stays a column
+    // whether one row carries an icon or all of them do.
+    bool marks = false;
+    for (int i = 0; i < n && facts; i++)
+        if (facts[i].icon) marks = true;
+    const int cap_x = marks ? WT_LANE_X + 38 : WT_LANE_X;
+
     for (int i = 0; i < n && facts; i++) {
         const lv_font_t *cf = chrome23(facts[i].cap);
         if (facts[i].icon) {
             // Its own label, never composed into the caption: an icon in a
             // chrome string falls out of the mono face and drags the whole
             // label down a rung.
+            const lv_color_t mc = col_or(facts[i].icon_col, wt_accent());
             lv_obj_t *ic = wt_lbl(scr, facts[i].icon, WT_LANE_X, y - 1,
-                                  wt_font23(), wt_accent());
-            lv_obj_add_flag(ic, WT_FLAG_ACCENT);
+                                  wt_font23(), mc);
+            // Only an accent mark repaints with the theme. A caution's amber
+            // is a severity and never becomes the accent's colour.
+            if (lv_color_eq(mc, wt_accent()))
+                lv_obj_add_flag(ic, WT_FLAG_ACCENT);
         }
         lv_obj_t *cap = wt_lbl(scr, facts[i].cap, cap_x, y, cf,
                                wt_accent());
@@ -3845,6 +3856,7 @@ void wt_explain_hi(lv_obj_t *scr, const char *headline, const char *para,
         // at 23 stops fitting the moment the value goes up a rung.
         y += lv_font_get_line_height(vf) + 14;
     }
+    return y;
 }
 
 void wt_explain(lv_obj_t *scr, const char *headline, const char *para,
