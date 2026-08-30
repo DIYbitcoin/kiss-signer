@@ -319,12 +319,20 @@ static int storage_erase(int mode_after)
     nvs_handle_t h;
     uint8_t keep[N_KEEP];
     bool have[N_KEEP];
+    uint16_t terms = 0;
+    bool have_terms = false;
 
     for (size_t i = 0; i < N_KEEP; i++)
         have[i] = false;
     if (nvs_open("kiss", NVS_READONLY, &h) == ESP_OK) {
         for (size_t i = 0; i < N_KEEP; i++)
             have[i] = nvs_get_u8(h, KEEP_KEYS[i], &keep[i]) == ESP_OK;
+        // The terms this owner has read, carried across the wipe. Not a
+        // preference and not a secret: it is what they have LEARNED, and
+        // making somebody read all ten again because they erased a seed is a
+        // worse outcome than the leak of "this device has been used", which
+        // the home page implies anyway. u16, so it cannot ride KEEP_KEYS.
+        have_terms = nvs_get_u16(h, "trms", &terms) == ESP_OK;
         nvs_close(h);
     }
 
@@ -346,6 +354,8 @@ static int storage_erase(int mode_after)
     for (size_t i = 0; i < N_KEEP; i++)
         if (have[i] && nvs_set_u8(h, KEEP_KEYS[i], keep[i]) != ESP_OK)
             rc = -1;
+    if (have_terms && nvs_set_u16(h, "trms", terms) != ESP_OK)
+        rc = -1;
     if (rc == 0 &&
         nvs_set_u8(h, "smode", (uint8_t)mode_after) != ESP_OK)
         rc = -1;

@@ -3424,6 +3424,12 @@ static void help_first_cb(lv_event_t *e)
 lv_obj_t *wt_help_tab(lv_obj_t *scr, const char *hint,
                       lv_event_cb_t cb, void *ud)
 {
+    return wt_help_tab_n(scr, hint, 0, cb, ud);
+}
+
+lv_obj_t *wt_help_tab_n(lv_obj_t *scr, const char *hint, int unread,
+                        lv_event_cb_t cb, void *ud)
+{
     // The divider that holds the mark off the real tabs: it is not a third
     // section and the 1px line is what says so.
     lv_obj_t *dv = lv_obj_create(scr);
@@ -3444,8 +3450,16 @@ lv_obj_t *wt_help_tab(lv_obj_t *scr, const char *hint,
     lv_text_get_size(&bs, "[", bf, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
     lv_text_get_size(&ms, WT_ICON_WHAT, mf, 0, 0, LV_COORD_MAX,
                      LV_TEXT_FLAG_NONE);
+    // The count, when there is one. Its own label at the brackets' rung, so
+    // it reads as part of the mark rather than a number parked beside it.
+    char cnt[8] = {0};
+    lv_point_t cs = {0, 0};
+    if (unread > 0) {
+        snprintf(cnt, sizeof cnt, "%d", unread > 99 ? 99 : unread);
+        lv_text_get_size(&cs, cnt, bf, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    }
     const int gap = 6, pad = 8;
-    int w = 2 * pad + 2 * bs.x + 2 * gap + ms.x;
+    int w = 2 * pad + 2 * bs.x + 2 * gap + ms.x + (cs.x ? cs.x + gap : 0);
 
     lv_obj_t *b = lv_obj_create(scr);
     lv_obj_remove_style_all(b);
@@ -3465,9 +3479,16 @@ lv_obj_t *wt_help_tab(lv_obj_t *scr, const char *hint,
     lv_obj_t *mk = wt_lbl(b, WT_ICON_WHAT, 0, 0, mf, wt_accent());
     lv_obj_add_flag(mk, WT_FLAG_ACCENT);
     lv_obj_align(mk, LV_ALIGN_LEFT_MID, pad + bs.x + gap, 0);
+    int rx = pad + bs.x + gap + ms.x + gap;
+    if (cs.x) {
+        lv_obj_t *nb = wt_lbl(b, cnt, 0, 0, bf, wt_accent());
+        lv_obj_add_flag(nb, WT_FLAG_ACCENT);
+        lv_obj_align(nb, LV_ALIGN_LEFT_MID, rx, 0);
+        rx += cs.x + gap;
+    }
     lv_obj_t *rb = wt_lbl(b, "]", 0, 0, bf, wt_accent());
     lv_obj_add_flag(rb, WT_FLAG_ACCENT);
-    lv_obj_align(rb, LV_ALIGN_LEFT_MID, pad + bs.x + gap + ms.x + gap, 0);
+    lv_obj_align(rb, LV_ALIGN_LEFT_MID, rx, 0);
 
     wt_help_ctx_t *c = lv_calloc(1, sizeof *c);
     if (c) {
@@ -4177,6 +4198,14 @@ lv_obj_t *wt_def_list(lv_obj_t *scr, const wt_def_t *defs, int n)
 lv_obj_t *wt_def_list_still(lv_obj_t *scr, const wt_def_t *defs, int n)
 {
     return def_list_build(scr, defs, n, true);
+}
+
+void wt_def_row_read(lv_obj_t *list, int idx)
+{
+    wt_defs_t *d = list ? lv_obj_get_user_data(list) : NULL;
+    if (!d || idx < 0 || idx >= d->n) return;
+    lv_obj_t *lamp = d->r[idx].lamp;
+    if (lamp) lv_obj_add_flag(lamp, LV_OBJ_FLAG_HIDDEN);
 }
 
 void wt_def_list_on_change(lv_obj_t *list, void (*cb)(int, void *), void *ud)

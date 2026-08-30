@@ -1617,6 +1617,11 @@ static void tap_str(int key, int hold, int settle)
 // down so a stop can photograph a partial fill and keep dragging;
 // slide_fire drags far enough to complete any bar on the device (the widest
 // track is 330) and lets go.
+// The three SIGN terms, in the order kiss_sign.c lists them. The walk owns a
+// copy rather than reaching into that file: it is asserting on the CONTRACT
+// -- reading one of these counts one down -- not on a symbol.
+static const int SIGN_TERMS_W[3] = { KISS_TERM_PSBT, KISS_TERM_FEE,
+                                     KISS_TERM_CHANGE };
 static int s_slide_x, s_slide_y;
 static void slide_grip(int key)
 {
@@ -2961,6 +2966,15 @@ int main(void) {
   save("/tmp/sim_sign_terms_open.ppm");
   must_show("sign/terms open", tr(STR_T_FEE_TERM));
   tap_str(STR_C_BACK, 3, 30);    // BACK -> DETAILS, INPUTS again
+  // ...and the tab counts DOWN. Leaving with a row open is finishing with
+  // it, so THE FEE is read now and the mark reads [ ? 2 ]. This is the whole
+  // point of the count: a page that says how much of itself is still new.
+  save("/tmp/sim_sign_terms_counted.ppm");
+  if (kiss_terms_unread(SIGN_TERMS_W, 3) != 2) {
+    printf("FAIL: reading a term did not count down: %d unread\n",
+           kiss_terms_unread(SIGN_TERMS_W, 3));
+    return 1;
+  }
   // OUTPUTS: an output ROW opens the whole address. The fold drops the middle
   // of a destination somebody else chose, and the characters it drops have to
   // stay reachable from where they were dropped -- two taps from the graph to

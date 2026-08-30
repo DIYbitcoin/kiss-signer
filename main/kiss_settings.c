@@ -207,6 +207,63 @@ void kiss_game_best_store(uint16_t best)
 #endif
 }
 
+// ---- the terms an owner has read (see kiss_settings.h) --------------------
+// RAM is the truth during a session and NVS is where it comes back from, the
+// same split the accent id and help_seen already use. The host build keeps
+// the RAM half only, which is what the walk needs and all it can have.
+static uint16_t s_terms_read;
+
+uint16_t kiss_terms_read_load(void)
+{
+#ifndef SIMULATOR
+    nvs_handle_t h;
+    uint16_t v = 0;
+    if (nvs_open("kiss", NVS_READONLY, &h) == ESP_OK) {
+        if (nvs_get_u16(h, "trms", &v) != ESP_OK) v = 0;
+        nvs_close(h);
+    }
+    return v;
+#else
+    return s_terms_read;
+#endif
+}
+
+void kiss_terms_read_store(uint16_t mask)
+{
+    s_terms_read = mask;
+#ifndef SIMULATOR
+    if (!kiss_persist_enabled()) return;
+    nvs_handle_t h;
+    if (nvs_open("kiss", NVS_READWRITE, &h) == ESP_OK) {
+        nvs_set_u16(h, "trms", mask);
+        nvs_commit(h);
+        nvs_close(h);
+    }
+#endif
+}
+
+bool kiss_term_read(int id)
+{
+    if (id < 0 || id >= KISS_TERM_N) return false;
+    return (s_terms_read >> id) & 1u;
+}
+
+void kiss_term_mark_read(int id)
+{
+    if (id < 0 || id >= KISS_TERM_N) return;
+    const uint16_t next = (uint16_t)(s_terms_read | (1u << id));
+    if (next == s_terms_read) return;          // already read: no write
+    kiss_terms_read_store(next);
+}
+
+int kiss_terms_unread(const int *ids, int n)
+{
+    int u = 0;
+    for (int i = 0; i < n; i++)
+        if (!kiss_term_read(ids[i])) u++;
+    return u;
+}
+
 const char *kiss_settings_load_status_name(kiss_settings_load_status_t status)
 {
     switch (status) {
@@ -293,6 +350,10 @@ kiss_settings_load_status_t kiss_settings_load(void)
     kiss_persist_set_enabled(ps);   // raw setter: a load is not the switch
     wt_help_seen_set(hs != 0);
     wt_help_seen_hook(help_seen_persist);
+    // Outside the gate, like the game score: a mask that will not read costs
+    // an owner a second reading of a word, and must never be the reason a
+    // boot lands on STORAGE LOCKED.
+    s_terms_read = kiss_terms_read_load();
     return WSETTINGS_LOAD_OK;
 #endif
 }

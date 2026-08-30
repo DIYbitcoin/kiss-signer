@@ -1114,6 +1114,14 @@ lv_obj_t *wt_standing(lv_obj_t *scr, const char *txt, lv_color_t col,
 // page swap its lane for the explainer.
 lv_obj_t *wt_help_tab(lv_obj_t *scr, const char *hint,
                       lv_event_cb_t cb, void *ud);
+// The same tab with a COUNT: [ ? 3 ] means three of this page's terms have
+// never been read. Zero falls back to the plain mark -- a badge that says
+// nothing is a badge that has to be looked at anyway. The count is its own
+// label between the mark and the closing bracket, because the brackets are
+// pinned by the tab's RIGHT edge (a computed left edge drifts with the
+// accent's glyph metrics) and the whole tab simply gets wider.
+lv_obj_t *wt_help_tab_n(lv_obj_t *scr, const char *hint, int unread,
+                        lv_event_cb_t cb, void *ud);
 // Whether [ ? ] has ever been opened. RAM here, one NVS byte in settings:
 // kiss_settings_load restores it at boot via _set, and the hook (registered
 // once, at boot) is how the first open reaches the store without the theme
@@ -1208,6 +1216,10 @@ void wt_def_list_open(lv_obj_t *list, int idx);
 // page that keeps something outside the list in step with it.
 void wt_def_list_on_change(lv_obj_t *list, void (*cb)(int open_idx, void *ud),
                            void *ud);
+// Clear row `idx`'s unread dot. The page decides what "read" means -- for a
+// term list it is the CLOSE, which is the only moment this device can
+// honestly observe somebody finishing -- and says so here.
+void wt_def_row_read(lv_obj_t *list, int idx);
 
 // ---- shape 4: the gate (frame 7d) ---------------------------------------
 // One danger sentence under the mark, one paragraph, then the two lines that
