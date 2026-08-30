@@ -1312,25 +1312,31 @@ static void setup_warn_screen(void) {
   const char *fp_intro = np >= 2 ? para[np - 1] : NULL;
   int nclaims = np >= 2 ? np - 1 : np;
 
-  // THE ONE PAIR THAT STAYS A PAIR, and the reason is the translation sweep,
-  // not the shape. Every other claim pair on the device is fact rows now; this
-  // screen's two claims are PARAGRAPHS OF ONE KEY, split at their blank lines
-  // at runtime, and a row's value is a single line. Cutting the English to fit
-  // changes the paragraph count, which gen_i18n.py refuses -- a newline shape
-  // that differs from the other twenty locales is how it catches a translation
-  // following an older English, and it caught exactly this key doing it once
-  // already. Shortened here alone, the same values would ellipsise in twenty
-  // languages. It converts with the sweep, not before it.
-  if (nclaims >= 2) {
-    // The proven pair: what these keys are on the accent rule, where they go
-    // wrong on the amber one. 160px keeps both clear of the card row at 300
-    // with the intro line between.
-    const lv_font_t *f = wt_body_font2(para[0], para[1], 330, 160);
-    wt_why_block(s_warnscr, NULL, para[0], 48, 92, 344, 160, f, wt_accent());
-    wt_why_block(s_warnscr, NULL, para[1], 408, 92, 344, 160, f, WT_WARN);
-  } else {
-    wt_why_block(s_warnscr, NULL, para[0], 48, 92, 704, 160,
-                 wt_body_font(para[0], 690, 160), WT_WARN);
+  // ROWS, captioned. This was the last why-block pair on the device and the
+  // only one drawn with NO heading over either column: two anonymous grey
+  // blocks, on the screen that tells an owner what they have just made. A
+  // caption says which danger is being read before it is read, and both
+  // captions are nouns this screen is already about.
+  //
+  // The claims are one line each now, which is why the two strings behind
+  // them carry newlines that render as spaces. The paragraph SHAPE of these
+  // keys is pinned to the twenty translations still holding the old long
+  // wording: gen_i18n.py fails a locale whose newline count differs from
+  // English, and that check exists because this exact key went stale in
+  // twenty locales once already. So the count stays and the words shrink. The
+  // lone newlines were the old 740px label's hand wrapping anyway, and the
+  // split below has turned them into spaces since the blocks arrived.
+  {
+    wt_fact_t facts[2] = {
+      { .cap  = tr(nclaims >= 2 ? STR_D_WORDS : STR_L_PASSPHRASE_CAP),
+        .val  = para[0],
+        .icon = nclaims >= 2 ? WT_ICON_SECRET : WT_ICON_LOCK,
+        .icon_col = WT_WARN },
+      { .cap  = tr(STR_L_PASSPHRASE_CAP),
+        .val  = nclaims >= 2 ? para[1] : NULL,
+        .icon = LV_SYMBOL_WARNING, .icon_col = WT_WARN },
+    };
+    wt_facts(s_warnscr, 110, facts, nclaims >= 2 ? 2 : 1);
   }
 
   if (fp_known && fp_intro) {
@@ -1338,7 +1344,7 @@ static void setup_warn_screen(void) {
     lv_label_set_text(n, fp_intro);
     lv_obj_set_style_text_color(n, MUT_COL, 0);
     lv_obj_set_style_text_font(n, wt_font23(), 0);
-    lv_obj_align(n, LV_ALIGN_TOP_MID, 0, 264);
+    lv_obj_align(n, LV_ALIGN_TOP_MID, 0, 232);
   }
 
   // The fingerprint in a value card, and the backup state as a real chip beside
@@ -1360,7 +1366,7 @@ static void setup_warn_screen(void) {
   // pair is one card tall, which the band from the body's floor to 398 can hold
   // in every locale.
   lv_obj_t *card = fp_known
-      ? wt_value_card(s_warnscr, tr(STR_D_FINGERPRINT), fpbuf, 110, 300, 300, true)
+      ? wt_value_card(s_warnscr, tr(STR_D_FINGERPRINT), fpbuf, 110, 268, 300, true)
       : NULL;
   lv_obj_t *state = wt_state_chip(s_warnscr,
                                   s_backup_verified ? tr(STR_L_BACKUP_VERIFIED)
@@ -1370,11 +1376,11 @@ static void setup_warn_screen(void) {
   if (card) {
     lv_obj_update_layout(card);
     lv_obj_set_pos(state, 440,
-                   300 + (lv_obj_get_height(card) - lv_obj_get_height(state)) / 2);
+                   268 + (lv_obj_get_height(card) - lv_obj_get_height(state)) / 2);
   } else {
     // Alone, the chip takes the card's lane instead of sitting where a card
     // used to be beside it.
-    lv_obj_set_pos(state, 110, 300);
+    lv_obj_set_pos(state, 110, 268);
   }
 
   // I UNDERSTAND's tick answers in green or red for whether skipping is

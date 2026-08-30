@@ -319,7 +319,21 @@ static void stage_build(int stage)
         s_scr = wt_screen(s_parent, tr(STR_GD_INTRO_T), tr(STR_GD_INTRO_S));
         wt_chrome_head(s_scr);
         diagram_two_ways();
-        wt_why_body(s_scr, tr(STR_GD_INTRO_B), 250, wt_primary(), false);
+        // The claim under the picture, as rows: what the spare is, what the
+        // swipe does, and the word for the whole idea. It was one wide grey
+        // paragraph -- the last of them on this flow -- and two of its three
+        // sentences are said by the diagram directly above it.
+        {
+            wt_fact_t facts[3] = {
+                { .cap = tr(STR_D_SPARE), .val = tr(STR_GD_INTRO_B),
+                  .icon = WT_ICON_SECRET },
+                { .cap = tr(STR_GD_PICK_REAL_T),
+                  .val = tr(STR_I_WAYSIN_SHORT), .icon = LV_SYMBOL_EDIT },
+                { .cap = tr(STR_G_TECHNICAL), .val = tr(STR_T_DECOY_TERM),
+                  .icon = LV_SYMBOL_LIST },
+            };
+            wt_facts(s_scr, 232, facts, 3);
+        }
         // Three controls on the standard row. The TALL row and the group fit
         // existed for pill boxes whose labels had to wrap inside fixed widths;
         // the arrow actions are content-sized single lines at chrome23, so
