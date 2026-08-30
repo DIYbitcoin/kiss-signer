@@ -2,6 +2,7 @@
 // The network flips instantly (the master key is network-free) and persists
 // across power cycles via NVS on the device.
 #include "kiss_settings.h"
+#include "kiss_terms.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -207,12 +208,11 @@ void kiss_game_best_store(uint16_t best)
 #endif
 }
 
-// ---- the terms an owner has read (see kiss_settings.h) --------------------
-// RAM is the truth during a session and NVS is where it comes back from, the
-// same split the accent id and help_seen already use. The host build keeps
-// the RAM half only, which is what the walk needs and all it can have.
-static uint16_t s_terms_read;
-
+// ---- the terms an owner has read: the STORE half --------------------------
+// The mask lives in kiss_terms.c; this is the u16 it comes back from. Read
+// opportunistically and outside the boot gate, like the game score: a mask
+// that will not read costs an owner a second reading of a word, and must
+// never be the reason a boot lands on STORAGE LOCKED.
 uint16_t kiss_terms_read_load(void)
 {
 #ifndef SIMULATOR
@@ -224,13 +224,12 @@ uint16_t kiss_terms_read_load(void)
     }
     return v;
 #else
-    return s_terms_read;
+    return 0;
 #endif
 }
 
 void kiss_terms_read_store(uint16_t mask)
 {
-    s_terms_read = mask;
 #ifndef SIMULATOR
     if (!kiss_persist_enabled()) return;
     nvs_handle_t h;
@@ -239,29 +238,9 @@ void kiss_terms_read_store(uint16_t mask)
         nvs_commit(h);
         nvs_close(h);
     }
+#else
+    (void)mask;
 #endif
-}
-
-bool kiss_term_read(int id)
-{
-    if (id < 0 || id >= KISS_TERM_N) return false;
-    return (s_terms_read >> id) & 1u;
-}
-
-void kiss_term_mark_read(int id)
-{
-    if (id < 0 || id >= KISS_TERM_N) return;
-    const uint16_t next = (uint16_t)(s_terms_read | (1u << id));
-    if (next == s_terms_read) return;          // already read: no write
-    kiss_terms_read_store(next);
-}
-
-int kiss_terms_unread(const int *ids, int n)
-{
-    int u = 0;
-    for (int i = 0; i < n; i++)
-        if (!kiss_term_read(ids[i])) u++;
-    return u;
 }
 
 const char *kiss_settings_load_status_name(kiss_settings_load_status_t status)
@@ -350,10 +329,8 @@ kiss_settings_load_status_t kiss_settings_load(void)
     kiss_persist_set_enabled(ps);   // raw setter: a load is not the switch
     wt_help_seen_set(hs != 0);
     wt_help_seen_hook(help_seen_persist);
-    // Outside the gate, like the game score: a mask that will not read costs
-    // an owner a second reading of a word, and must never be the reason a
-    // boot lands on STORAGE LOCKED.
-    s_terms_read = kiss_terms_read_load();
+    kiss_terms_set_mask(kiss_terms_read_load());
+    kiss_terms_persist_hook(kiss_terms_read_store);
     return WSETTINGS_LOAD_OK;
 #endif
 }
@@ -1558,6 +1535,92 @@ void kiss_lang_picker_open(lv_obj_t *parent, void (*picked_cb)(void))
 // on it belong with the build id and the radio, not behind a storage picker.
 static void device_back_cb(lv_event_t *e) { (void)e; settings_reopen(); }
 
+// ---- the ten terms, as a reference (Part 19) ------------------------------
+// Every word this device teaches, in one place, for the owner who wants to
+// read them rather than meet them. Five to a page, because a definition row
+// at n=5 still opens to 148px and that is the point of the idiom -- ten rows
+// squeezed into one lane would be the eight cell glossary again with more
+// cells.
+//
+// A PANE FLIP, not a scroll. wt_screen is deliberately not scrollable: LVGL
+// hands a press to the nearest scrollable ancestor once the finger moves, so
+// a scrolling list eats every stroke a few pixels in, which is the bug that
+// comment exists to prevent.
+static int s_terms_page;
+static lv_obj_t *s_terms_body;      // the list and the pager, in one holder
+
+static void terms_back_cb(lv_event_t *e)
+{
+    (void)e;
+    kiss_terms_leaving();
+    s_terms_page = 0;
+    s_terms_body = NULL;
+    settings_reopen();
+}
+
+// Only the LIST and the pager are rebuilt on a page turn, never the screen.
+// Rebuilding the screen under a finger that is still down is the hazard the
+// sign slide's own comment spells out -- the indev re-targets a live press,
+// so the stroke's tail lands on whatever the new screen put there -- and here
+// it also left the settings page's pane pointer naming a deleted object.
+static void terms_build_page(void)
+{
+    if (s_terms_body) lv_obj_delete(s_terms_body);
+    s_terms_body = lv_obj_create(s_scr);
+    lv_obj_remove_style_all(s_terms_body);
+    lv_obj_set_pos(s_terms_body, 0, 0);
+    lv_obj_set_size(s_terms_body, LV_HOR_RES, WT_CONTENT_BOTTOM);
+    lv_obj_remove_flag(s_terms_body, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_remove_flag(s_terms_body, LV_OBJ_FLAG_CLICKABLE);
+
+    const int first = s_terms_page * 5;
+    int n = KISS_TERM_N - first;
+    if (n > 5) n = 5;
+    kiss_terms_list(s_terms_body, &KISS_TERMS_ALL[first], n);
+
+    // DOTS IN THE TRAIL, not a pager line at the lane's foot. A definition
+    // list at n=5 fills the whole 284px lane by construction, so a pager
+    // under it is printed across the fifth row -- which is what the first
+    // frame of this screen showed. The count is on the SETTINGS row that
+    // opens this page and does not need saying twice.
+    wt_sheet_dots(s_scr, 2, s_terms_page);
+}
+
+static void terms_gesture_cb(lv_event_t *e)
+{
+    const int step = wt_swipe_step(e);
+    if (step == 0) return;
+    if (step < 0 && s_terms_page == 0) { terms_back_cb(NULL); return; }
+    const int next = s_terms_page + (step > 0 ? 1 : -1);
+    if (next < 0 || next > 1) return;
+    // The page turn ends the reading of whatever was open on the page being
+    // left, exactly as walking out of the screen does.
+    kiss_terms_leaving();
+    s_terms_page = next;
+    terms_build_page();
+}
+
+static void terms_screen(void)
+{
+    if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+    s_terms_body = NULL;
+    s_scr = wt_screen(s_parent, tr(STR_I_TERMS_T), NULL);
+    wt_chrome_head(s_scr);
+    {
+        char trail[96];
+        snprintf(trail, sizeof trail, "%s / %s", tr(STR_G_T),
+                 tr(STR_I_TAB_DEVICE));
+        wt_trail(s_scr, WT_ICON_WHAT, trail, false);
+    }
+    terms_build_page();
+    wt_swipe_watch(s_scr, terms_gesture_cb);
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_BACK_X,
+                    WT_ACTION_Y, 140, true, terms_back_cb, NULL);
+}
+
+static void terms_open_cb(lv_event_t *e) { (void)e; s_terms_page = 0;
+                                           terms_screen(); }
+
 static void device_open_cb(lv_event_t *e) { (void)e; device_screen(); }
 
 static void device_screen(void)
@@ -1914,7 +1977,16 @@ static void tab_device(void)
         unit[ui] = (u[ui] >= 'a' && u[ui] <= 'z') ? (char)(u[ui] - 32) : u[ui];
     unit[ui] = 0;
 
-    wt_def_t defs[3] = {
+    char terms_count[64];
+    const int tunread = kiss_terms_unread(KISS_TERMS_ALL, KISS_TERM_N);
+    if (tunread > 0)
+        snprintf(terms_count, sizeof terms_count,
+                 tr(STR_I_TERMS_UNREAD_FMT), tunread);
+    else
+        snprintf(terms_count, sizeof terms_count, "%s",
+                 tr(STR_I_TERMS_ALL_READ));
+
+    wt_def_t defs[4] = {
         // From SIGNER, where it outranked itself. The sub TEACHES the faster
         // control instead of restating the value: an owner who learns to tap
         // the amount never comes back to this row, which is the point.
@@ -1931,8 +2003,18 @@ static void tab_device(void)
         // already printed by kiss_build_id_make on the screen behind it.
         { .cap = tr(STR_I_ROW_DEVICE), .val = "",
           .sub = tr(STR_I_ROW_DEVICE_SUB), .go = device_open_cb },
+        // TERMS. A CHEVRON, not a plus: it leaves the page, so it takes the
+        // glyph that means leaves the page. The value is a count because a
+        // reference nobody has read and one they have finished are different
+        // things and the row is where that is worth saying.
+        //
+        // ABSENT IN A DECOY SESSION, for the same reason WAYS IN is: the list
+        // contains THE DECOY, and a screen that explains the decoy to whoever
+        // is holding the device is the one thing the decoy cannot survive.
+        { .cap = tr(STR_I_ROW_TERMS), .val = terms_count,
+          .sub = tr(STR_I_ROW_TERMS_SUB), .go = terms_open_cb },
     };
-    def_list(defs, 3);
+    def_list(defs, kiss_session_decoy() ? 3 : 4);
 }
 
 static void tab_noundo(void)

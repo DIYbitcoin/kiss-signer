@@ -132,6 +132,19 @@ def pick_order():
 # names other wallets print in English too. Anything added here needs a reason
 # on its line; "we did not get round to it" is not one.
 UNTRANSLATED_OK = {
+    # The SETTINGS row that opens all ten term cards, and its screen. Born
+    # under the English-only rule; English in the other twenty until the sweep.
+    "I_ROW_TERMS", "I_ROW_TERMS_SUB", "I_TERMS_UNREAD_FMT",
+    "I_TERMS_ALL_READ", "I_TERMS_T",
+    # The ten term cards. Born under the English-only rule; English in the
+    # other twenty until the sweep.
+    "T_SEED_CAP", "T_SEED_VAL", "T_SEED_PLAIN",
+    "T_PASS_CAP", "T_PASS_VAL", "T_PASS_PLAIN",
+    "T_FP_CAP", "T_FP_VAL", "T_FP_PLAIN", "T_FP_TERM",
+    "T_WATCH_CAP", "T_WATCH_VAL", "T_WATCH_PLAIN", "T_WATCH_TERM",
+    "T_PATH_CAP", "T_PATH_VAL", "T_PATH_PLAIN",
+    "T_RNG_CAP", "T_RNG_VAL", "T_RNG_PLAIN", "T_RNG_TERM",
+    "T_DECOY_CAP", "T_DECOY_VAL", "T_DECOY_PLAIN", "T_DECOY_TERM",
     # The locked backup screen, moved onto the explainer shape. Born under the
     # English-only rule; English in the other twenty until the sweep.
     "I_KEF_HEAD", "I_KEF_EXP_B", "I_KEF_EXP_B_NP", "I_KEF_F1_C",

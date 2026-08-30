@@ -28,6 +28,7 @@ void kiss_begin_setup(void);  // main.c: the REPLACE WALLET door into the wizard
 #include "kiss_info.h"
 #include "kiss_recv.h"    // sim-only hook for the derivation path "?"
 #include "kiss_settings.h"
+#include "kiss_terms.h"
 #include "kiss_word_ui.h"
 #include "kiss_theme.h"   // SIM_ACCENT picks the theme the walk renders in
 #include "kiss_ui.h"
@@ -1617,11 +1618,6 @@ static void tap_str(int key, int hold, int settle)
 // down so a stop can photograph a partial fill and keep dragging;
 // slide_fire drags far enough to complete any bar on the device (the widest
 // track is 330) and lets go.
-// The three SIGN terms, in the order kiss_sign.c lists them. The walk owns a
-// copy rather than reaching into that file: it is asserting on the CONTRACT
-// -- reading one of these counts one down -- not on a symbol.
-static const int SIGN_TERMS_W[3] = { KISS_TERM_PSBT, KISS_TERM_FEE,
-                                     KISS_TERM_CHANGE };
 static int s_slide_x, s_slide_y;
 static void slide_grip(int key)
 {
@@ -1843,7 +1839,13 @@ static void type_restore_prefix(const char *prefix)
 static void restore_word(const char *prefix)
 {
   type_restore_prefix(prefix);
-  touch(55, 182); pump(3); release(); pump(3);    // first suggestion (a bare word at 48,162 now)
+  // pump(8) after the release, not pump(3). The indev reads a press about
+  // every 30ms, so at three frames the lift is seen but the NEXT press folds
+  // into it -- and this helper is called eleven and twenty three times in a
+  // row, so the error accumulates until a whole word goes missing and every
+  // assertion after it is about a different screen. The same number, for the
+  // same reason, as the nine-key passphrase loop below.
+  touch(55, 182); pump(3); release(); pump(8);    // first suggestion (a bare word at 48,162 now)
 }
 
 // The wallet's passphrase, nine of one letter. pass_bits() wants 40 to get past
@@ -2970,9 +2972,9 @@ int main(void) {
   // it, so THE FEE is read now and the mark reads [ ? 2 ]. This is the whole
   // point of the count: a page that says how much of itself is still new.
   save("/tmp/sim_sign_terms_counted.ppm");
-  if (kiss_terms_unread(SIGN_TERMS_W, 3) != 2) {
+  if (kiss_terms_unread(KISS_TERMS_SIGN, 3) != 2) {
     printf("FAIL: reading a term did not count down: %d unread\n",
-           kiss_terms_unread(SIGN_TERMS_W, 3));
+           kiss_terms_unread(KISS_TERMS_SIGN, 3));
     return 1;
   }
   // OUTPUTS: an output ROW opens the whole address. The fold drops the middle
@@ -3959,7 +3961,27 @@ int main(void) {
   // which is gone; capacity and what is on the card belong with the build id
   // and the radio rather than behind a picker for where the words live.
   set_tab(SET_DEVICE);
-  def_row(3, 2);                                     // This device -> the facts
+  // FOUR rows on this tab now: TERMS joined it, so the pitch changed and a
+  // coordinate computed for three lands on the wrong one.
+  //
+  // TERMS first -- all ten cards, five to a page, the reference for an owner
+  // who wants to READ the words rather than meet them one screen at a time.
+  def_row(4, 3);
+  pump(30);
+  save("/tmp/sim_terms_p1.ppm");                     // SEED WORDS .. CHANGE
+  // By the VALUE: "SEED WORDS" is a caption several screens carry, and a
+  // needle two keys share passes on whichever shows either.
+  must_show("terms/page one", tr(STR_T_SEED_VAL));
+  must_not_show("terms/page one has no page two", tr(STR_T_DECOY_CAP));
+  // A left stroke turns the page. Not a scroll: wt_screen is deliberately
+  // not scrollable, and a scrolling list eats every stroke a few pixels in.
+  for (int i = 0; i <= 8; i++) { touch(500 - i * 14, 250); pump(3); }
+  release(); pump(40);
+  save("/tmp/sim_terms_p2.ppm");                     // THE FEE .. THE DECOY
+  must_show("terms/page two", tr(STR_T_DECOY_CAP));
+  tap_str(STR_C_BACK, 3, 20);                        // -> Settings, DEVICE tab
+  set_tab(SET_DEVICE);
+  def_row(4, 2);                                     // This device -> the facts
   // The five rows enter on a 42ms stagger, so the frame has to wait for the
   // last one: saving straight after the tap photographed two rows and three
   // ghosts, which is a picture of the animation rather than of the page.
@@ -3997,7 +4019,7 @@ int main(void) {
   touch(670, 240); pump(3); release(); pump(6);     // Settings tile -> Settings
   // CARD INFO while the words live on the card: the sealed row, green tick.
   set_tab(SET_DEVICE);
-  def_row(3, 2);
+  def_row(4, 2);
   touch(SET_LABEL_X, SET_DEV_CARD_Y); pump(3); release(); pump(8);
   save("/tmp/sim_sdinfo_sealed.ppm");               // kiss-seed.enc, present
   must_show("sdinfo/sealed", SDSEED_FILENAME);
@@ -4723,7 +4745,7 @@ int main(void) {
   touch(723, 155); pump(3); release(); pump(40);
   save("/tmp/sim_setup_cards_why.ppm");             // THE 2048 WORD LIST, icon grid
   tap_str(STR_C_OK, 3, 6);     // OK dismisses the explainer
-  tap_str(STR_W_TYPE_MY_WORDS, 3, 4);     // TYPE MY WORDS
+  tap_str(STR_W_TYPE_MY_WORDS, 3, 8);     // TYPE MY WORDS
   save("/tmp/sim_setup_cards_entry.ppm");           // "1/11 _" over the keyboard
   // Eleven DISTINCT, non monotone words. The cards judge links real, so the old
   // "a" eleven times is now the block screen -- see CARDS_BLOCK below, where
@@ -4733,12 +4755,12 @@ int main(void) {
       "g", "v", "n", "z", "fem", "c", "a", "o", "s", "e", "sy" };
   for (int i = 0; i < 11; i++) restore_word(CARDS_OK11[i]);
   save("/tmp/sim_setup_cards_cksum.ppm");           // THE BUILT IN CHECK, tick chip
-  tap_str(STR_W_CKSUM_GO, 3, 4);     // SHOW THE WORDS
+  tap_str(STR_W_CKSUM_GO, 3, 8);     // SHOW THE WORDS
   save("/tmp/sim_setup_cards_pick.ppm");            // page 1 of 8: 16 word actions, NEXT
-  tap_str(STR_R_NEXT, 3, 4);     // NEXT -> page 2
+  tap_str(STR_R_NEXT, 3, 8);     // NEXT -> page 2
   save("/tmp/sim_setup_cards_pick2.ppm");           // BACK owns the left slot now
-  tap_str(STR_C_BACK, 3, 4);     // BACK -> page 1
-  tap_str(STR_C_CANCEL, 3, 4);     // CANCEL -> chooser
+  tap_str(STR_C_BACK, 3, 8);     // BACK -> page 1
+  tap_str(STR_C_CANCEL, 3, 8);     // CANCEL -> chooser
   if (s_sim_pending_mode != -1) {
     fprintf(stderr, "cards cancel left storage mode staged\n");
     return 1;
@@ -4754,16 +4776,24 @@ int main(void) {
   // times IS the block, rendered rather than described -- the same argument the
   // dice ramp below makes, and the only way any gate ever sees this screen.
   // Two-action row: CANCEL 48..378 (centre 213), START OVER 422..752 (centre 587).
-  touch(218, 176); pump(3); release(); pump(4);     // CREATE SEED
-  touch(174, 144); pump(3); release(); pump(4);     // FLASH -> method choice
-  touch(394, 346); pump(3); release(); pump(4);     // BLIND DRAW
-  tap_str(STR_W_TYPE_MY_WORDS, 3, 4);     // TYPE MY WORDS
+  // pump(8) after each release, not pump(4). Four frames is 64ms and the
+  // indev reads a press about every 30ms, so whether the lift is seen before
+  // the next press depends on the SAMPLING PHASE -- which is set by how many
+  // frames the whole walk has pumped before arriving here. Adding a stop
+  // anywhere earlier moved it, this run landed on the wrong side, and the
+  // walk photographed the BLIND DRAW intro eleven times over while calling it
+  // the refusal screen. 8 is the number docs/house-rules.md measured.
+  touch(218, 176); pump(3); release(); pump(8);     // CREATE SEED
+  touch(174, 144); pump(3); release(); pump(8);     // FLASH -> method choice
+  touch(394, 346); pump(3); release(); pump(8);     // BLIND DRAW
+  tap_str(STR_W_TYPE_MY_WORDS, 3, 10);    // TYPE MY WORDS
+  must_not_show("cards/left the intro", tr(STR_W_TYPE_MY_WORDS));
   for (int i = 0; i < 11; i++) restore_word("g");   // the same word, eleven times
   save("/tmp/sim_setup_cards_block.ppm");           // NOT A DRAW, flat bars, 2 actions
-  tap_str(STR_W_START_OVER, 3, 4);     // START OVER -> empty keyboard
+  tap_str(STR_W_START_OVER, 3, 8);     // START OVER -> empty keyboard
   save("/tmp/sim_setup_cards_retype.ppm");          // "1/11 _": the draw really is gone
   for (int i = 0; i < 11; i++) restore_word("g");   // back to the block
-  tap_str(STR_C_CANCEL, 3, 4);     // CANCEL -> chooser
+  tap_str(STR_C_CANCEL, 3, 8);     // CANCEL -> chooser
   if (s_sim_pending_mode != -1) {
     fprintf(stderr, "cards block cancel left storage mode staged\n");
     return 1;

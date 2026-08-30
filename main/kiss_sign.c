@@ -21,6 +21,7 @@
 #include "kiss_theme.h"
 #include "kiss_wipe.h"
 #include "kiss_settings.h"   // the unit preference, written where it is changed
+#include "kiss_terms.h"      // the ten cards, and this page's three of them
 #include "kiss_ui.h"   // kiss_ui_last_fp: the SIGNING AS fingerprint
 #include "kiss_usage.h"   // reuse guard: mark receive indexes used on sign
 #include "kiss_payee.h"   // ...and the destinations this wallet has paid
@@ -2483,42 +2484,11 @@ static void details_back_cb(lv_event_t *e)
     repaint_verify();
 }
 
-static void term_page_leaving(void);
-static void gloss_back_cb(lv_event_t *e) { term_page_leaving(); details_cb(e); }
+static void gloss_back_cb(lv_event_t *e) { kiss_terms_leaving(); details_cb(e); }
 
 static void gloss_gesture_cb(lv_event_t *e)
 {
     if (wt_swipe_step(e) < 0) gloss_back_cb(NULL);
-}
-
-// The three words this screen owes a reader, in the order they are listed.
-static const int SIGN_TERMS[3] = { KISS_TERM_PSBT, KISS_TERM_FEE,
-                                   KISS_TERM_CHANGE };
-static lv_obj_t *s_terms;
-static int s_term_open;
-
-// A term is READ when its row is CLOSED. Opening one proves curiosity;
-// closing it is the only moment this device can honestly observe somebody
-// finishing, and it is the moment the dot goes out under their own finger.
-static void term_closed_cb(int open_idx, void *ud)
-{
-    (void)ud;
-    if (s_term_open >= 0 && s_term_open != open_idx) {
-        kiss_term_mark_read(SIGN_TERMS[s_term_open]);
-        wt_def_row_read(s_terms, s_term_open);
-    }
-    s_term_open = open_idx;
-}
-
-// LEAVING the page counts too. Somebody who opens a term, reads it and taps
-// BACK has finished with it exactly as much as somebody who taps the row
-// again -- and only the second of those produces a close event, so without
-// this the commonest way to read a term was the one that never marked it.
-static void term_page_leaving(void)
-{
-    if (s_term_open >= 0) kiss_term_mark_read(SIGN_TERMS[s_term_open]);
-    s_term_open = -1;
-    s_terms = NULL;
 }
 
 static void glossary_cb(lv_event_t *e)
@@ -2548,26 +2518,7 @@ static void glossary_cb(lv_event_t *e)
     // exists to cut.
     wt_trail(s_scr, WT_ICON_WHAT, tr(STR_S_T), false);
 
-    // The unread DOT, on the same 8px lamp a state row uses. A term nobody
-    // has opened leads its value with one; a term they have closed once does
-    // not. At rest, no pulse: it is a fact about this owner, not an alarm.
-    const wt_def_t defs[3] = {
-        { .cap = tr(STR_T_PSBT_CAP),   .val = tr(STR_T_PSBT_VAL),
-          .plain = tr(STR_T_PSBT_PLAIN), .term = tr(STR_T_PSBT_TERM),
-          .term_label = tr(STR_G_TECHNICAL),
-          .lamp = !kiss_term_read(SIGN_TERMS[0]), .lamp_col = wt_accent() },
-        { .cap = tr(STR_T_FEE_CAP),    .val = tr(STR_T_FEE_VAL),
-          .plain = tr(STR_T_FEE_PLAIN),  .term = tr(STR_T_FEE_TERM),
-          .term_label = tr(STR_G_TECHNICAL),
-          .lamp = !kiss_term_read(SIGN_TERMS[1]), .lamp_col = wt_accent() },
-        { .cap = tr(STR_T_CHANGE_CAP), .val = tr(STR_T_CHANGE_VAL),
-          .plain = tr(STR_T_CHANGE_PLAIN), .term = tr(STR_T_CHANGE_TERM),
-          .term_label = tr(STR_G_TECHNICAL),
-          .lamp = !kiss_term_read(SIGN_TERMS[2]), .lamp_col = wt_accent() },
-    };
-    s_terms = wt_def_list(s_scr, defs, 3);
-    s_term_open = -1;
-    wt_def_list_on_change(s_terms, term_closed_cb, NULL);
+    kiss_terms_list(s_scr, KISS_TERMS_SIGN, 3);
 
     // The stroke that opened this page closes it: a right swipe lands back
     // on the DETAILS tab it left, the same promise every deck's [ ? ] keeps.
@@ -2942,7 +2893,7 @@ static void details_cb(lv_event_t *e)
     // The corner [ ? ] is the way into SIMPLE EXPLAINERS now -- the pill box
     // it replaces was the last box on the page. The stroke past TRANSACTION
     // lands there too, and the glossary's own right stroke comes back.
-    wt_help_tab_n(s_scr, NULL, kiss_terms_unread(SIGN_TERMS, 3),
+    wt_help_tab_n(s_scr, NULL, kiss_terms_unread(KISS_TERMS_SIGN, 3),
                   glossary_cb, NULL);
 
     s_dctx.pane = wt_pane_new(&s_dctx);

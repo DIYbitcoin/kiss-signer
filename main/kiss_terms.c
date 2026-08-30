@@ -1,0 +1,138 @@
+#include "kiss_terms.h"
+#include "i18n.h"
+
+// The table, in kiss_term_t order. A card is four strings: the CAPTION is the
+// real term an owner will meet in their coordinator (PSBT, DESCRIPTOR,
+// ENTROPY -- never a plain-words substitute invented here), the value is what
+// it is FOR in four words, the plain sentence is what it means, and the
+// technical line under that is its full name.
+//
+// The plain words live in the SENTENCE. That is the whole shape: a caption
+// that says "the file" teaches a reader a word this device made up, and the
+// first time they open Sparrow it is worth nothing.
+typedef struct {
+    int cap, val, plain, term;   // i18n keys; `term` may be -1
+} term_card_t;
+
+static const term_card_t CARDS[KISS_TERM_N] = {
+    [KISS_TERM_SEED]    = { STR_T_SEED_CAP,   STR_T_SEED_VAL,
+                            STR_T_SEED_PLAIN, STR_T_SEED_TERM },
+    [KISS_TERM_PASS]    = { STR_T_PASS_CAP,   STR_T_PASS_VAL,
+                            STR_T_PASS_PLAIN, STR_T_PASS_TERM },
+    [KISS_TERM_FP]      = { STR_T_FP_CAP,     STR_T_FP_VAL,
+                            STR_T_FP_PLAIN,   STR_T_FP_TERM },
+    [KISS_TERM_PSBT]    = { STR_T_PSBT_CAP,   STR_T_PSBT_VAL,
+                            STR_T_PSBT_PLAIN, STR_T_PSBT_TERM },
+    [KISS_TERM_CHANGE]  = { STR_T_CHANGE_CAP, STR_T_CHANGE_VAL,
+                            STR_T_CHANGE_PLAIN, STR_T_CHANGE_TERM },
+    [KISS_TERM_FEE]     = { STR_T_FEE_CAP,    STR_T_FEE_VAL,
+                            STR_T_FEE_PLAIN,  STR_T_FEE_TERM },
+    [KISS_TERM_DESC]    = { STR_T_WATCH_CAP,  STR_T_WATCH_VAL,
+                            STR_T_WATCH_PLAIN, STR_T_WATCH_TERM },
+    [KISS_TERM_ACCOUNT] = { STR_T_PATH_CAP,   STR_T_PATH_VAL,
+                            STR_T_PATH_PLAIN, STR_T_PATH_TERM },
+    [KISS_TERM_ENTROPY] = { STR_T_RNG_CAP,    STR_T_RNG_VAL,
+                            STR_T_RNG_PLAIN,  STR_T_RNG_TERM },
+    [KISS_TERM_DECOY]   = { STR_T_DECOY_CAP,  STR_T_DECOY_VAL,
+                            STR_T_DECOY_PLAIN, STR_T_DECOY_TERM },
+};
+
+const int KISS_TERMS_SIGN[3] = { KISS_TERM_PSBT, KISS_TERM_FEE,
+                                 KISS_TERM_CHANGE };
+const int KISS_TERMS_KEYS[2] = { KISS_TERM_FP, KISS_TERM_ACCOUNT };
+const int KISS_TERMS_PAIR[2] = { KISS_TERM_DESC, KISS_TERM_FP };
+const int KISS_TERMS_RECV[1] = { KISS_TERM_ACCOUNT };
+const int KISS_TERMS_ALL[KISS_TERM_N] = {
+    KISS_TERM_SEED, KISS_TERM_PASS, KISS_TERM_FP, KISS_TERM_PSBT,
+    KISS_TERM_CHANGE, KISS_TERM_FEE, KISS_TERM_DESC, KISS_TERM_ACCOUNT,
+    KISS_TERM_ENTROPY, KISS_TERM_DECOY,
+};
+
+static uint16_t s_mask;
+static void (*s_persist)(uint16_t);
+
+void kiss_terms_set_mask(uint16_t mask) { s_mask = mask; }
+void kiss_terms_persist_hook(void (*persist)(uint16_t)) { s_persist = persist; }
+
+bool kiss_term_read(int id)
+{
+    if (id < 0 || id >= KISS_TERM_N) return false;
+    return (s_mask >> id) & 1u;
+}
+
+void kiss_term_mark_read(int id)
+{
+    if (id < 0 || id >= KISS_TERM_N) return;
+    const uint16_t next = (uint16_t)(s_mask | (1u << id));
+    if (next == s_mask) return;                // already read: no write
+    s_mask = next;
+    if (s_persist) s_persist(next);
+}
+
+int kiss_terms_unread(const int *ids, int n)
+{
+    int u = 0;
+    for (int i = 0; i < n; i++)
+        if (!kiss_term_read(ids[i])) u++;
+    return u;
+}
+
+// The list on screen right now, and which of its rows is open. One page at a
+// time carries terms, so one of each is enough -- and a stale pointer cannot
+// outlive its screen, because every exit runs kiss_terms_leaving().
+static lv_obj_t *s_list;
+static int       s_ids[KISS_TERM_N];
+static int       s_n;
+static int       s_open = -1;
+
+// A term is READ when its row is CLOSED. Opening one proves curiosity;
+// closing it is the only moment this device can honestly observe somebody
+// finishing, and it is the moment the dot goes out under their own finger.
+static void terms_changed_cb(int open_idx, void *ud)
+{
+    (void)ud;
+    if (s_open >= 0 && s_open < s_n && s_open != open_idx) {
+        kiss_term_mark_read(s_ids[s_open]);
+        wt_def_row_read(s_list, s_open);
+    }
+    s_open = open_idx;
+}
+
+void kiss_terms_leaving(void)
+{
+    // LEAVING with a row open counts too. Somebody who opens a term, reads it
+    // and taps BACK has finished with it exactly as much as somebody who taps
+    // the row again -- and only the second of those produces a close event,
+    // so without this the commonest way to read a term never marked it.
+    if (s_open >= 0 && s_open < s_n) kiss_term_mark_read(s_ids[s_open]);
+    s_open = -1;
+    s_list = NULL;
+    s_n = 0;
+}
+
+lv_obj_t *kiss_terms_list(lv_obj_t *scr, const int *ids, int n)
+{
+    if (!scr || !ids || n <= 0) return NULL;
+    if (n > KISS_TERM_N) n = KISS_TERM_N;
+
+    wt_def_t defs[KISS_TERM_N];
+    lv_memzero(defs, sizeof defs);
+    for (int i = 0; i < n; i++) {
+        const term_card_t *c = &CARDS[ids[i]];
+        defs[i].cap        = tr(c->cap);
+        defs[i].val        = tr(c->val);
+        defs[i].plain      = tr(c->plain);
+        defs[i].term       = tr(c->term);
+        defs[i].term_label = tr(STR_G_TECHNICAL);
+        // The unread DOT, on the same 8px lamp a state row uses. At rest and
+        // with no pulse: it is a fact about this owner, not an alarm.
+        defs[i].lamp       = !kiss_term_read(ids[i]);
+        defs[i].lamp_col   = wt_accent();
+        s_ids[i] = ids[i];
+    }
+    s_n = n;
+    s_open = -1;
+    s_list = wt_def_list(scr, defs, n);
+    wt_def_list_on_change(s_list, terms_changed_cb, NULL);
+    return s_list;
+}

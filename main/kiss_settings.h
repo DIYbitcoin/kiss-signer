@@ -35,39 +35,9 @@ void kiss_settings_set_denom(int d);
 uint16_t kiss_game_best_load(void);
 void kiss_game_best_store(uint16_t best);
 
-// ---- the terms an owner has read -----------------------------------------
-// One bit per term, set when an OPEN definition row is CLOSED -- closing is
-// the moment somebody is done reading, and it is the only moment this device
-// can honestly observe.
-//
-// The order below is the STORAGE order and must never be reshuffled: a bit
-// means whichever term stood in its slot when it was set, so moving one
-// silently marks a different word as read.
-//
-// It SURVIVES AN ERASE, deliberately. Learning is not a secret, and
-// re-teaching an owner who already read all ten is a worse outcome than the
-// leak of "this device has been used before" -- which the home page implies
-// anyway. kiss_seed.c's storage_erase carries the key across the partition
-// wipe beside the display preferences.
-typedef enum {
-    KISS_TERM_SEED = 0,
-    KISS_TERM_PASS,
-    KISS_TERM_FP,
-    KISS_TERM_PSBT,
-    KISS_TERM_CHANGE,
-    KISS_TERM_FEE,
-    KISS_TERM_DESC,
-    KISS_TERM_ACCOUNT,
-    KISS_TERM_ENTROPY,
-    KISS_TERM_DECOY,
-    KISS_TERM_N
-} kiss_term_t;
-bool kiss_term_read(int id);
-void kiss_term_mark_read(int id);
-// How many of `ids` this owner has not read yet -- what a page's [ ? n ]
-// counts, and what the SETTINGS row reports for all ten.
-int  kiss_terms_unread(const int *ids, int n);
-// The whole mask, for the boot restore and the tests.
+// The terms an owner has read: this half is the STORE, one u16 in NVS. The
+// mask itself, and what its bits mean, live in kiss_terms.h -- the gates that
+// build the kit without the settings module still need to ask.
 uint16_t kiss_terms_read_load(void);
 void kiss_terms_read_store(uint16_t mask);
 

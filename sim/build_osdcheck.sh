@@ -22,7 +22,7 @@ SRCS=$(find "$LVGL/src" -name '*.c' \
   ! -path '*test*' ! -path '*demos*' ! -path '*examples*')
 clang -O1 -Wall -Wextra -Wno-unused-parameter -Wno-implicit-const-int-float-conversion -Wno-missing-field-initializers -Wno-deprecated-declarations -DSIMULATOR -DLV_CONF_INCLUDE_SIMPLE -DLV_LVGL_H_INCLUDE_SIMPLE \
   -I"$LVGL" -Isim -Imain \
-  $SRCS main/osd_text.c main/osd_strips.c main/kiss_theme.c main/i18n.c main/i18n_tables.c main/font_kiss_*.c \
+  $SRCS main/osd_text.c main/osd_strips.c main/kiss_theme.c main/kiss_terms.c main/i18n.c main/i18n_tables.c main/font_kiss_*.c \
   sim/osdcheck.c \
   -lm -o "$KISS_SIM_TMP/kissosd"
 echo "built $KISS_SIM_TMP/kissosd"
