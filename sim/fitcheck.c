@@ -59,8 +59,6 @@ static const slot_t SLOTS[] = {
     // inset, and 166 tall less the font14 heading above it (HEAD_ROOM 46) and
     // the 8px wt_why_block costs for its own metrics. A body that only fits at
     // 704 wide is exactly the regression this row exists to catch.
-    { "login/pp-w1",      STR_L_PPINTRO_W1_B, 330, 112 },
-    { "login/pp-w2",      STR_L_PPINTRO_W2_B, 330, 112 },
     { "setup/verify-w1",  STR_W_VINTRO_W1_B,  330, 112 },
     { "setup/verify-w2",  STR_W_VINTRO_W2_B,  330, 112 },
     // kiss_setup.c — wizard explainers
@@ -245,7 +243,6 @@ static const slot_t SLOTS[] = {
     { "setup/cards-fix",    STR_W_CARDS_FIX_B,    330, 112 },
     { "sub/vfy-backup",   STR_W_VERIFY_S,     704, 30, 0 },
     { "sub/qr-warn",      STR_L_SCAN_WARN_S,  704, 30, 0 },
-    { "sub/ppintro",      STR_L_PPINTRO_S,    704, 30, 0 },
     // and the signing flow's own subtitles. The chooser, the file list and
     // the SD empty states swapped theirs for the trail, so only the signed
     // pages still carry one.

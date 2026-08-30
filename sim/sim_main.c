@@ -4520,10 +4520,16 @@ int main(void) {
   for (size_t i = 1; i < sizeof SIM_12_PREFIXES / sizeof SIM_12_PREFIXES[0]; i++)
     restore_word(SIM_12_PREFIXES[i]);
   pump(30);                                         // words -> passphrase intro
-  must_show("setup/restore-ppintro", tr(STR_L_PPINTRO_T));
-  if (!act_for(STR_L_PASSPHRASE_CAP, "setup restore offers")) { /* counted */ }
+  // The headline, not the title: PASSPHRASE is the English value of more than
+  // one key and would pass on whichever screen shows either.
+  must_show("setup/restore-ppintro", tr(STR_L_PPINTRO_HEAD));
+  if (!act_for(STR_L_PP_TYPE_IT, "setup restore offers")) { /* counted */ }
+  // The screen has ONE way forward now, so this is a claim about the whole
+  // band rather than about which of two buttons won: nothing here tells
+  // someone whose passphrase already exists to invent one.
   must_not_show("setup/restore-no-create-verb", tr(STR_L_CREATE_PASS_BTN));
-  tap_str(STR_L_PASSPHRASE_CAP, 3, 8);              // existing passphrase -> keyboard
+  must_not_show("setup/restore-no-peer-choice", tr(STR_L_NO_PASSPHRASE));
+  tap_str(STR_L_PP_TYPE_IT, 3, 8);                  // TYPE IT -> keyboard
 
   // A restore asks for an EXISTING passphrase. Let one typed byte expire and
   // prove the reset did not turn that instruction into CREATE YOUR PASSPHRASE,
@@ -4833,14 +4839,16 @@ int main(void) {
   touch(60, 234); pump(3); release(); pump(4);      // round 1: choice 0 correct
   touch(435, 234); pump(3); release(); pump(4);     // round 2: choice 1
   touch(60, 314); pump(3); release(); pump(6);      // round 3: choice 2 -> stored
-  save("/tmp/sim_setup_ppintro.ppm");               // ONE MORE LAYER, now a two-action row
-  // The NO PASSPHRASE branch, taken as an excursion rather than a commit: it
-  // renders the fingerprint screen wearing its no-passphrase notes, which no
-  // stop had ever shown, and then BACK returns to the keyboard the walk was
-  // heading for anyway. That BACK is the claim being tested -- the action hands
-  // the owner a wallet with no passphrase, and one tap has to be enough to
-  // change their mind before anything is committed.
-  tap_str(STR_L_NO_PASSPHRASE, 3, 8);     // NO PASSPHRASE -> fingerprint
+  save("/tmp/sim_setup_ppintro.ppm");               // PASSPHRASE, one way forward
+  // The empty branch, taken as an excursion rather than a commit. It used to
+  // be a peer button on the screen above; it is the keyboard's own OK on an
+  // empty field now, which is the claim Part 3 makes and the thing that had
+  // to still be true before the button could go. It renders the fingerprint
+  // screen wearing its no-passphrase notes, and BACK returns to the keyboard
+  // the walk was heading for anyway -- one tap has to be enough to change
+  // your mind before anything is committed.
+  tap_str(STR_L_PP_TYPE_IT, 3, 8);        // TYPE IT -> the keyboard
+  touch(725, 430); pump(3); release(); pump(25);    // OK on an EMPTY field
   save("/tmp/sim_setup_fp_nopass.ppm");             // no passphrase: your words alone open it
   tap_str(STR_C_BACK, 3, 6);     // BACK (48..188) -> the keyboard
   save("/tmp/sim_setup_pass.ppm");                  // CREATE YOUR PASSPHRASE
@@ -6125,14 +6133,12 @@ int main(void) {
     restore_word(SIM_12_PREFIXES[i]);
   pump(30);
   save("/tmp/sim_restore_ppintro.ppm");
-  must_show("restore/ppintro", tr(STR_L_PPINTRO_T));
-  // The button must not tell someone with a passphrase to invent one. PASSPHRASE
-  // pairs with the NO PASSPHRASE beside it; CREATE PASSPHRASE is the new-seed
-  // wording and on this path is an instruction into a different wallet.
-  // Also an action, and "PASSPHRASE" is shared with D_PASSPHRASE, the diagram
-  // chip sitting on this very screen -- so the needle passed off the chip and
-  // proved nothing about the action.
-  if (!act_for(STR_L_PASSPHRASE_CAP, "restore offers")) { /* counted */ }
+  must_show("restore/ppintro", tr(STR_L_PPINTRO_HEAD));
+  // The action must not tell someone whose passphrase already exists to
+  // invent one. CREATE PASSPHRASE is the new-seed wording and on this path is
+  // an instruction into a different set of keys; TYPE IT is right for both,
+  // which is what retired the branch.
+  if (!act_for(STR_L_PP_TYPE_IT, "restore offers")) { /* counted */ }
   must_not_show("restore/no create verb", tr(STR_L_CREATE_PASS_BTN));
 
   // This TAIL entry stops here deliberately. The keyboard past this action needs

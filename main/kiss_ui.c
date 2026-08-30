@@ -683,7 +683,9 @@ static void weak_back_cb(lv_event_t *e) {
 // that passphrase already exist.
 //
 // It is not the warning for an EMPTY passphrase either. That is a legitimate
-// choice with its own screens, and it has its own action (pp_intro_nopass_cb).
+// choice with its own screens, reached by leaving the field empty and pressing
+// OK -- the s_plen == 0 arm below, which wipes and goes straight to the
+// fingerprint.
 static void show_weak_confirm(void) {
   if (s_weak_ovl) return;
   s_weak_ack = true;
@@ -1850,12 +1852,15 @@ static void kb_cb(lv_event_t *e) {
       kiss_wipe(s_first, sizeof s_first);
       show_fingerprint();
     }
-    // Empty, in setup: the same place the NO PASSPHRASE action goes, and for its
-    // reason. There is no secret here to call weak, and the card now refuses
-    // rather than asking -- so leaving empty on this arm would have made OK a
-    // dead key on a screen where a dead key reads as a missed touch. BACK from
-    // the fingerprint uncovers this keyboard, so an accidental empty costs one
-    // tap to undo.
+    // Empty, in setup: THE decoy path, and the only one now that the intro
+    // screen's NO PASSPHRASE button is gone. Empty is the whole point, so
+    // state the emptiness rather than inheriting it -- show_fingerprint
+    // derives from s_plen, and a buffer this arm never wrote is not a
+    // promise. There is no secret here to call weak, and the weak card
+    // refuses rather than asking, so leaving empty on this arm would have
+    // made OK a dead key on a screen where a dead key reads as a missed
+    // touch. BACK from the fingerprint uncovers this keyboard, so an
+    // accidental empty costs one tap to undo.
     else if (s_setup_mode && !s_first_done && s_plen == 0) {
       kiss_wipe(s_pass, sizeof s_pass);
       s_plen = 0;
@@ -2059,27 +2064,6 @@ static void pp_intro_go_cb(lv_event_t *e) {
 //
 // CREATE PASSPHRASE keeps the primary slot, so the default still steers the way
 // it always did. This action only stops the device lying about the alternative.
-static void pp_intro_nopass_cb(lv_event_t *e) {
-  (void)e;
-  lv_obj_delete_async(s_pp_intro);
-  s_pp_intro = NULL;
-  kiss_login_open(s_setup_next_cb);
-  // Empty is the whole point, so state the emptiness rather than inheriting it:
-  // every other entry to this screen has been through wipe_and_close, but a
-  // buffer this one never wrote is not a promise, and show_fingerprint derives
-  // from s_plen.
-  kiss_wipe(s_pass, sizeof s_pass);
-  s_plen = 0;
-  s_caret = 0;
-  // No weak card on the way past: that card exists to question a guessable
-  // secret and there is no secret here to question. The accurate warning is
-  // setup_warn_screen's, and it still runs before the wallet opens.
-  //
-  // The keyboard is built and then hidden by show_fingerprint, which is what
-  // makes BACK work: it uncovers a keyboard that is already there, so "actually,
-  // set one" costs a single tap rather than restarting setup.
-  show_fingerprint();
-}
 
 void kiss_login_open_restore(void (*unlocked_cb)(void)) {
   s_restore_mode = true;
@@ -2097,67 +2081,52 @@ void kiss_login_open_setup(void (*unlocked_cb)(void)) {
   s_first[0] = 0;
   ensure_indev();
   s_setup_next_cb = unlocked_cb;
-  lv_obj_t *scr = wt_screen(lv_screen_active(), tr(STR_L_PPINTRO_T),
-                            tr(STR_L_PPINTRO_S));
+  // No subtitle: the trail owns that row. The subtitle read "last step: with
+  // a passphrase, or without", which is the choice this screen no longer
+  // offers.
+  lv_obj_t *scr = wt_screen(lv_screen_active(), tr(STR_L_PPINTRO_T), NULL);
+  // The mono title and its cursor block, like every other page on the system.
+  // Without it this screen sat beside the seed explainer wearing a different
+  // head, which is the pair reading as two products all over again.
+  wt_chrome_head(scr);
   s_pp_intro = scr;
-
-  // This screen was a title, one 704px grey paragraph and a button. Three
-  // paragraphs stacked down the page is the arrangement people skip, and it is
-  // the exact shape wt_why_block was written to replace -- on the one screen
-  // that has to land, because everything it says is irreversible.
-  //
-  // Band one: the equation, framed. words + passphrase -> fingerprint is not
-  // decoration here, it IS the subject: the sentence "your passphrase chooses
-  // which wallet you get" drawn instead of written. Each chip carries its own
-  // mark, so the claim arrives before the labels are read.
-  //
-  // 128..212, the same rhythm the fingerprint reveal uses (card ends 214, blocks
-  // start 232), so the two setup screens share a skeleton.
-  lv_obj_t *card = wt_card(scr, 48, 128, 704, 64);
-  lv_obj_t *col = lv_obj_create(card);
-  lv_obj_remove_style_all(col);
-  lv_obj_set_pos(col, 0, 0);
-  lv_obj_set_size(col, 704, 84);
-  lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
-  lv_obj_set_flex_align(col, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
-                        LV_FLEX_ALIGN_CENTER);
-  lv_obj_remove_flag(col, LV_OBJ_FLAG_CLICKABLE);
-  lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
-  wt_diagram_fp(col);
-
-  // Band two: the two claims, side by side, on the reveal screen's geometry.
-  // Accent on how it works, WT_WARN on the branch where it goes wrong -- the
-  // same colour argument the reveal screen makes, so a reader who has seen one
-  // already knows which side is the warning.
   {
-    const char *b1 = tr(STR_L_PPINTRO_W1_B), *b2 = tr(STR_L_PPINTRO_W2_B);
-    const int BW = 344, BY = 204, BH = WT_CONTENT_BOTTOM - BY;
-    // The shared font is measured against the room LEFT BY THE HEADING, which
-    // wt_why_block adds above the body at font14. Budgeting for two heading
-    // lines costs a rung in the locales whose heading fits on one, and that is
-    // the safe direction: the alternative is a heading that wraps in Norwegian
-    // and pushes the body through WT_CONTENT_BOTTOM into the action row.
-    const lv_font_t *f = wt_body_font2_head(tr(STR_L_PPINTRO_W1_H), b1,
-                                           tr(STR_L_PPINTRO_W2_H), b2,
-                                           BW - 14, BH);
-    wt_why_block(scr, tr(STR_L_PPINTRO_W1_H), b1,  48, BY, BW, BH, f, wt_accent());
-    wt_why_block(scr, tr(STR_L_PPINTRO_W2_H), b2, 408, BY, BW, BH, f, WT_WARN);
+    char trail[96];
+    snprintf(trail, sizeof trail, "%s / %s", tr(STR_G_TRAIL_SETUP),
+             tr(STR_H_TRAIL_TERMS));
+    wt_trail(scr, WT_ICON_WHAT, trail, false);
   }
 
-  // Both ways forward, in the row's usual arrangement: the plainer choice
-  // leftmost, the one the product steers toward primary in the corner. The
-  // arrow actions size to their words, so KEINE PASSPHRASE and БЕЗ КОДОВОЙ
-  // ФРАЗЫ cost nothing but width they actually use.
-  wt_arrow_action(scr, tr(STR_L_NO_PASSPHRASE), false, false, 48, WT_ACTION_Y,
-                  330, false, pp_intro_nopass_cb, NULL);
-  // CREATE PASSPHRASE is an instruction to invent one, which is wrong for words
-  // being restored: theirs already exists and inventing a second opens a
-  // different wallet. PASSPHRASE / NO PASSPHRASE is the parallel pair, and both
-  // halves already ship.
-  wt_arrow_action(scr, tr(s_restore_mode ? STR_L_PASSPHRASE_CAP
-                                         : STR_L_CREATE_PASS_BTN),
-                  false, true, 422, WT_ACTION_Y, 330, true,
-                  pp_intro_go_cb, NULL);
+  // THE WITH-OR-WITHOUT CHOICE IS GONE. Since the decoy release an empty
+  // passphrase IS the decoy signer -- its own fingerprint, pairs with a
+  // coordinator, signs real transactions -- so a screen offering NO
+  // PASSPHRASE as a peer button was offering the decoy as though it were a
+  // mode of the real signer. It states the fact instead, in a row, and has
+  // one way forward.
+  //
+  // Nothing is lost. Leaving the field empty and pressing OK lands in exactly
+  // the same place as the button did (the s_plen == 0 arm in the keyboard's
+  // OK, which wipes and goes straight to the fingerprint), and BACK from the
+  // fingerprint uncovers the keyboard, so "actually, set one" is still one
+  // tap. What goes is the framing.
+  //
+  // The card and its wt_diagram_fp go for the same reason they went from the
+  // seed explainer: the equation drew "words + passphrase -> keys", which is
+  // what the headline says. Both wt_why_blocks and the wt_body_font2_head
+  // measurement go with them.
+  wt_fact_t facts[3] = {
+      { tr(STR_L_PPINTRO_F1_C), tr(STR_L_PPINTRO_F1_V), WT_ICON_LOCK },
+      { tr(STR_L_PPINTRO_F2_C), tr(STR_L_PPINTRO_F2_V), WT_ICON_SECRET },
+      { tr(STR_G_TECHNICAL),    tr(STR_T_PASS_TERM),    LV_SYMBOL_LIST },
+  };
+  wt_explain(scr, tr(STR_L_PPINTRO_HEAD), tr(STR_L_PPINTRO_B), facts, 3);
+
+  // One action, in the corner where the primary lives. TYPE IT also retires
+  // the s_restore_mode branch: CREATE PASSPHRASE was an instruction to invent
+  // one, which is wrong for words being restored, and PASSPHRASE alone read
+  // as a label rather than an action.
+  wt_arrow_action(scr, tr(STR_L_PP_TYPE_IT), false, true, 552, WT_ACTION_Y,
+                  200, true, pp_intro_go_cb, NULL);
 }
 
 // A label whose text swaps at runtime (SHOW <-> HIDE) has to be sized for BOTH

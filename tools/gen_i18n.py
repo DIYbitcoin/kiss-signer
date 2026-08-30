@@ -166,6 +166,10 @@ UNTRANSLATED_OK = {
     # string -- and the newline-count gate is right to say so. Seeded with
     # the English, like any string born under the English-only rule.
     "W_WHATSEED_B",
+    # The passphrase explainer, rebuilt on wt_explain. Born under the
+    # English-only rule.
+    "L_PPINTRO_HEAD", "L_PPINTRO_B", "L_PPINTRO_F1_C", "L_PPINTRO_F1_V",
+    "L_PPINTRO_F2_C", "L_PPINTRO_F2_V", "L_PP_TYPE_IT", "T_PASS_TERM",
     # THIS DEVICE's four fact rows. Born under the English-only rule.
     "I_DEV_BUILD", "I_DEV_RADIO", "I_DEV_RANDOM", "I_DEV_ENC",
     "I_DEV_RADIO_ON", "I_DEV_RADIO_OFF",
