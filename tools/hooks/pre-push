@@ -1,0 +1,76 @@
+#!/bin/sh
+# Run the gates CI runs, before the push rather than four minutes after it.
+#
+# WHY THIS EXISTS. desktop-tests sat red on develop for four days and nobody
+# noticed, because the only thing that reads a red run is somebody who goes and
+# looks. Two of the breaks were one line each -- an assertion flipped in one of
+# the two harnesses that make it, and a string deleted out from under
+# sim/fitcheck.c's slot table -- and both would have failed here in under a
+# minute.
+#
+# It also fixes the failure mode that HID them locally. Every one of these is
+# run for its EXIT CODE, one per line, with `set -e`: the shape that missed
+# them was `bash build.sh >/dev/null 2>&1; ./binary; echo $?`, where the
+# semicolon lets a broken build through and the stale binary from last time
+# passes. A summary line that says "0 findings" is not a verdict either --
+# overlapcheck prints that for a locale whose walk died on stop three.
+#
+# WHAT IT DOES NOT RUN, and why. The sanitized walk is a second full clang pass
+# over 463 LVGL sources with no object cache, and the firmware build wants
+# Docker. Both stay in CI. Everything here is host-native and the whole set is
+# a few minutes.
+#
+# ENGLISH ONLY, like the gates themselves, for the reason CLAUDE.md gives.
+#
+# The escape hatch is KISS_SKIP_HOOK=1, and it is for a push you already know
+# is broken -- a WIP branch, a bisect. Using it to get past a red gate is the
+# thing this file exists to stop.
+set -e
+
+[ -n "$KISS_SKIP_HOOK" ] && { echo "pre-push: skipped (KISS_SKIP_HOOK)"; exit 0; }
+
+cd "$(git rev-parse --show-toplevel)"
+
+# Its own scratch, so a hook firing while a walk is open in another terminal
+# does not fight it over /tmp/simsd. See the KISS_SIM_TMP note in CLAUDE.md.
+KISS_SIM_TMP=$(mktemp -d "/tmp/kiss-prepush-XXXXXX")
+export KISS_SIM_TMP
+trap 'rm -rf "$KISS_SIM_TMP"' EXIT INT TERM
+
+step() {
+    printf 'pre-push: %s ... ' "$1"
+    shift
+    if out=$("$@" 2>&1); then
+        echo ok
+    else
+        echo FAILED
+        echo "$out" | tail -30
+        echo ""
+        echo "pre-push: the push is refused. Fix it, or KISS_SKIP_HOOK=1 if you"
+        echo "          already know and mean it."
+        exit 1
+    fi
+}
+
+# The generated tables first: everything below reads them, so a stale one turns
+# every later failure into a story about the wrong thing.
+step "i18n tables"        python3 tools/gen_i18n.py
+step "i18n orphans"       python3 tools/check_i18n_orphans.py
+# && between build and run, never a semicolon: every one of these builders
+# honours KISS_SIM_TMP, so the binary is in this hook's own scratch and a
+# failed build cannot leave a stale one behind to pass in its place. That
+# exact shape -- a semicolon and a stale /tmp binary -- is what hid a
+# fitcheck that would not COMPILE.
+step "unit tests"         sh -c 'bash sim/build_test.sh && "$KISS_SIM_TMP/kisstest"'
+step "parser fuzz"        sh -c 'bash sim/build_fuzz.sh && "$KISS_SIM_TMP/kissfuzz" | grep -q "ALL FUZZ PASS"'
+step "text fit"           sh -c 'bash sim/build_fitcheck.sh && SIM_LANG=en "$KISS_SIM_TMP/kissfit"'
+step "accent roles"       sh -c 'bash sim/build_themecheck.sh && "$KISS_SIM_TMP/kisstheme"'
+step "on-video overlay"   sh -c 'bash sim/build_osdcheck.sh && SIM_LANG=en "$KISS_SIM_TMP/kissosd"'
+step "screen walk (en)"   sh -c 'bash sim/build_sim.sh && SIM_LANG=en "$KISS_SIM_TMP/fruitsim"'
+step "screen coverage"    python3 tools/check_screen_coverage.py
+step "layout reads"       python3 tools/check_layout_reads.py
+step "published simulator" python3 tools/check_sim_fresh.py
+# Last, and in its own scratch: it walks 168 stops and is the slowest of these.
+step "overlap gate (en)"  sh -c 'OVERLAPCHECK_LANGS=en OVERLAPCHECK_STRICT=1 bash sim/run_overlapcheck.sh'
+
+echo "pre-push: all gates green"

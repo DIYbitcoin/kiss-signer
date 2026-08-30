@@ -157,6 +157,10 @@ UNTRANSLATED_OK = {
     # English-only rule; English in the other twenty until the sweep.
     "I_KEF_HEAD", "I_KEF_EXP_B", "I_KEF_EXP_B_NP", "I_KEF_F1_C",
     "I_KEF_F1_V", "I_KEF_F1_C_NP", "I_KEF_F1_V_NP", "I_KEF_TERM",
+    # What the sign screen says about a refusal it can actually answer: the
+    # ownership mismatch and the wrong network. Born under the English-only
+    # rule; English in the other twenty until the sweep.
+    "S_STOP_ASKS", "S_STOP_FP_B", "S_STOP_NOFP_B", "S_STOP_NET_B",
     # The SIGN term cards. Born under the English-only rule; English in the
     # other twenty until the sweep.
     "T_PSBT_CAP", "T_PSBT_VAL", "T_PSBT_PLAIN", "T_PSBT_TERM",

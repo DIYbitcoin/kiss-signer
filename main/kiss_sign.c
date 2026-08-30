@@ -534,17 +534,37 @@ static const char *tr_reason(const char *r)
 }
 
 // What the owner can DO about a refusal, when there is anything. Almost never:
-// a malformed PSBT, a coin that is not this wallet's, a sighash this signer
-// does not sign -- none of those is fixable from the device, and inventing an
-// instruction for them would be worse than the silence.
+// a malformed PSBT, a sighash this signer does not sign, a script it cannot
+// read -- none of those is fixable from the device, and inventing an
+// instruction for them would be worse than the silence. So this is a lookup
+// rather than a second field on all thirty reasons; the asymmetry is real and
+// worth showing.
 //
-// Exactly one refusal is different. A coordinator that stripped the previous
-// transactions can be told to put them back, it costs it nothing, and it is the
-// only STOP an honest one can trip. So this is a lookup rather than a second
-// field on all thirty reasons -- the asymmetry is real and worth showing.
+// Four refusals are different, and they group into two things an owner can
+// actually go and do.
+//
+// A coordinator that stripped the previous transactions can be told to put
+// them back, and it costs it nothing. Three reasons are that same fault caught
+// at three depths -- the amounts cannot be proven, a legacy input has no
+// previous transaction at all, one input's amount will not verify -- and the
+// remedy is one sentence for all three. It was written for the first of them
+// and the other two dead-ended beside it.
+//
+// A transaction for the other network is the other: it is not the coordinator
+// misbehaving, it is the two sides set to different chains, and the row that
+// fixes it is two taps away.
+//
+// The ownership refusal is NOT here. It has both fingerprints to show and it
+// draws them, so verify_screen answers that one itself.
 static const char *stop_body(const char *r)
 {
-    if (strcmp(r, "input amounts not proven") == 0) return tr(STR_S_WHY_UNPROVEN);
+    if (strcmp(r, "input amounts not proven") == 0 ||
+        strcmp(r, "legacy input needs its full previous transaction") == 0 ||
+        strcmp(r, "input amount unverifiable") == 0)
+        return tr(STR_S_WHY_UNPROVEN);
+    if (strcmp(r, "wrong network: mainnet transaction") == 0 ||
+        strcmp(r, "wrong network: testnet transaction") == 0)
+        return tr(STR_S_STOP_NET_B);
     return NULL;
 }
 
@@ -1788,12 +1808,18 @@ static void verify_screen(lv_obj_t *parent)
     // replaces the fingerprint at the same x, y, w and h, so nothing new can
     // ever appear here and collide with the title or the filename. That is
     // defect 01 from the review, closed by deletion rather than by relocation.
+    //
+    // Held, because ONE screen below takes it away: the ownership STOP frames
+    // this same fingerprint beside the one the transaction asks for, at a size
+    // the two can be compared at, and a font14 copy of the left half in the
+    // corner is the value-beside-a-value the copy rule cuts.
+    lv_obj_t *hdr_chip = NULL;
     {
         // Bare labels in the corner now, not a bordered badge: the box drew a
         // button where nothing is tappable, and the bench asked the page's
         // boxes gone. Same slot, same two states, right-aligned to the 776
         // lane the exits use.
-        lv_obj_t *chip = lv_obj_create(s_scr);
+        lv_obj_t *chip = hdr_chip = lv_obj_create(s_scr);
         lv_obj_remove_style_all(chip);
         lv_obj_set_pos(chip, 540, 14);
         lv_obj_set_size(chip, 236, 36);
@@ -1885,8 +1911,59 @@ static void verify_screen(lv_obj_t *parent)
         lv_obj_set_size(vr, 4, rh < 40 ? 40 : rh);
         lv_obj_set_style_bg_color(vr, STOP_COL, 0);
         lv_obj_set_style_bg_opa(vr, LV_OPA_COVER, 0);
-        if (body) wt_why_body(s_scr, body, 96 + (rh < 40 ? 40 : rh) + 24,
-                              STOP_COL, true);
+        int by = 96 + (rh < 40 ? 40 : rh) + 20;
+
+        // The one refusal an ordinary owner trips, and the one this screen can
+        // answer without inventing anything: both halves of the failed compare
+        // are already in the summary (kiss_psbt.h), and until now they went to
+        // the serial log and nowhere else.
+        //
+        // On a signer where EVERY passphrase is valid and a spare lives behind
+        // the same words, "input is not this wallet's" nearly always means the
+        // owner is standing in the wrong keys -- and the screen that says so is
+        // the first place a typo three screens back can possibly surface.
+        //
+        // It is not the only cause, and the header this reads from says why: a
+        // coordinator imported from a bare key rather than the full descriptor
+        // has no true origin to write and invents one, which is byte for byte
+        // what a stranger's coin looks like. So the two codes are stated as a
+        // FACT -- the compare that failed -- and the body carries both readings
+        // rather than picking one. Neither is guessed at.
+        //
+        // The silent-payment variant maps to the same translated verdict and is
+        // deliberately NOT drawn here: a received SP coin carries no keypath by
+        // design, so in0_fp is not what failed and two fingerprints would be
+        // answering a question nobody asked.
+        if (strcmp(s_sum.reason, "input is not this wallet's") == 0) {
+            char ours[9], asks[9];
+            snprintf(ours, sizeof ours, "%02X%02X%02X%02X",
+                     s_sum.our_fp[0], s_sum.our_fp[1],
+                     s_sum.our_fp[2], s_sum.our_fp[3]);
+            // The corner copy of this code goes: it is the same eight
+            // characters at font14, beside the card that frames them at 28.
+            if (hdr_chip) { lv_obj_delete(hdr_chip); hdr_chip = NULL; }
+            lv_obj_t *card;
+            if (s_sum.in0_keypaths == 0) {
+                // Nothing arrived to compare against, so there is no second
+                // card and no mismatch to state. One centred figure, and a
+                // body that says what is missing instead of what differs.
+                card = wt_value_card(s_scr, tr(STR_S_SIGNING_AS), ours,
+                                     228, by, 344, true);
+                body = tr(STR_S_STOP_NOFP_B);
+            } else {
+                snprintf(asks, sizeof asks, "%02X%02X%02X%02X",
+                         s_sum.in0_fp[0], s_sum.in0_fp[1],
+                         s_sum.in0_fp[2], s_sum.in0_fp[3]);
+                card = wt_value_card(s_scr, tr(STR_S_SIGNING_AS), ours,
+                                     48, by, 344, true);
+                wt_value_card(s_scr, tr(STR_S_STOP_ASKS), asks,
+                              408, by, 344, true);
+                body = tr(STR_S_STOP_FP_B);
+            }
+            lv_obj_update_layout(card);
+            by += lv_obj_get_height(card) + 20;
+        }
+        if (body) wt_why_body(s_scr, body, by, STOP_COL, true);
         // Same 776 lane, so the same exit as verify.
         wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, SG_BACK_X140,
                         WT_ACTION_Y, 140, true,
