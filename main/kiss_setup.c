@@ -3280,36 +3280,34 @@ static void whatseed_back_cb(lv_event_t *e)
 static void whatseed_open(void (*ret)(void))
 {
     s_whatseed_ret = ret;
-    mk_screen(tr(STR_W_WHATSEED_T), tr(STR_W_WHATSEED_S));
+    // No subtitle: the trail owns that row now. This was a title, a subtitle,
+    // a 704x64 card holding wt_diagram_fp and a three paragraph body -- the
+    // last screen on the device still built from the shape the redesign
+    // replaced, on the one page a newcomer opens to find out what any of this
+    // is.
+    mk_screen(tr(STR_W_WHATSEED_T), NULL);
+    {
+        char trail[96];
+        snprintf(trail, sizeof trail, "%s / %s", tr(STR_G_TRAIL_SETUP),
+                 tr(STR_H_TRAIL_TERMS));
+        wt_trail(s_scr, WT_ICON_WHAT, trail, false);
+    }
 
-    // This was a title, a subtitle and one 704x232 paragraph -- the exact shape
-    // rule 1 forbids, on the one screen a newcomer opens to find out what any
-    // of this is. It survived because no walk had ever rendered it; the moment
-    // the count screen gave it a second door and a stop, BARE fired in all 21
-    // locales.
+    // The diagram is CUT, not restyled. It drew "words + passphrase -> keys",
+    // which is what the headline now says in words, and a picture that
+    // repeats the headline is decoration. The test that separates it from the
+    // airgap diagram, which stays: if the headline already says it, the
+    // picture is not carrying anything.
     //
-    // The diagram is not decoration here, it is the first sentence: "those
-    // words plus your passphrase are what make your wallet, not this device" IS
-    // wt_diagram_fp. Same card geometry as the passphrase intro (128..212, then
-    // the body from 232), because that screen makes the same claim and the two
-    // should share a skeleton rather than invent a third.
-    lv_obj_t *card = wt_card(s_scr, 48, 128, 704, 64);
-    lv_obj_t *col = lv_obj_create(card);
-    lv_obj_remove_style_all(col);
-    lv_obj_set_pos(col, 0, 0);
-    lv_obj_set_size(col, 704, 84);
-    lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(col, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
-                          LV_FLEX_ALIGN_CENTER);
-    lv_obj_remove_flag(col, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
-    wt_diagram_fp(col);
-
-    // The body is three paragraphs in every locale, so it deals into two
-    // columns and picks its own font, exactly as every other multi paragraph
-    // screen on the device does. No new string, and the sentence the diagram
-    // already draws still reads underneath it as the words it is made of.
-    wt_why_body(s_scr, tr(STR_W_WHATSEED_B), 204, wt_accent(), true);
+    // The fact block is what satisfies rule 1 instead, and it says more than
+    // the equation did -- the equation could not say WRITE BOTH DOWN or that
+    // the words alone open the decoy.
+    wt_fact_t facts[3] = {
+        { tr(STR_W_WHATSEED_F1_C), tr(STR_W_WHATSEED_F1_V), LV_SYMBOL_EDIT },
+        { tr(STR_W_WHATSEED_F2_C), tr(STR_W_WHATSEED_F2_V), WT_ICON_SECRET },
+        { tr(STR_G_TECHNICAL),     tr(STR_T_SEED_TERM),     LV_SYMBOL_LIST },
+    };
+    wt_explain(s_scr, tr(STR_W_WHATSEED_HEAD), tr(STR_W_WHATSEED_B), facts, 3);
 
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_BACK_X,
                     WT_ACTION_Y, 140, true, whatseed_back_cb, NULL);

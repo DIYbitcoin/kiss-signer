@@ -155,7 +155,17 @@ UNTRANSLATED_OK = {
     # Every one is a standard's own name -- BIP numbers, PSBT, zpub -- which
     # is what every other coordinator shows and what a reader will meet
     # again outside this device. Born under the English-only rule.
-    "G_TECHNICAL", "T_PATH_TERM",
+    "G_TECHNICAL", "T_PATH_TERM", "T_SEED_TERM",
+    # The trail's two segments on an explainer page, and the seed card's
+    # facts. Born under the English-only rule.
+    "G_TRAIL_SETUP", "H_TRAIL_TERMS",
+    "W_WHATSEED_HEAD", "W_WHATSEED_F1_C", "W_WHATSEED_F1_V",
+    "W_WHATSEED_F2_C", "W_WHATSEED_F2_V",
+    # W_WHATSEED_B went from three paragraphs to one sentence pair, so the
+    # twenty translations of the old shape are not translations of this
+    # string -- and the newline-count gate is right to say so. Seeded with
+    # the English, like any string born under the English-only rule.
+    "W_WHATSEED_B",
     # THIS DEVICE's four fact rows. Born under the English-only rule.
     "I_DEV_BUILD", "I_DEV_RADIO", "I_DEV_RANDOM", "I_DEV_ENC",
     "I_DEV_RADIO_ON", "I_DEV_RADIO_OFF",
