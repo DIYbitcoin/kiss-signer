@@ -468,41 +468,29 @@ static void verify_start_cb(lv_event_t *e) { (void)e; restore_screen(); }
 
 static void verify_intro_screen(void)
 {
-    mk_screen(tr(STR_W_VINTRO_T),
-              tr(STR_W_VINTRO_S));
+    // No subtitle: the trail owns that row, and W_VINTRO_S is the HEADLINE
+    // now -- it was always the sentence this page is about, and a headline is
+    // where the sentence a page is about goes.
+    mk_screen(tr(STR_W_VINTRO_T), NULL);
+    // One word, because the two ways in disagree about the parent: setup's
+    // rehearsal reaches this, and so does KEYS > PAPER > CHECK MY COPY. BACKUP
+    // is true from both.
+    wt_trail(s_scr, WT_ICON_KEY, tr(STR_I_TAB_BACKUP), false);
 
-    // Band one: what the check claims, framed and drawn. The screen used to open
-    // with three stacked grey paragraphs, which is the arrangement a reader
-    // skips on the way to the button -- and this is the screen whose whole point
-    // is that the reader understands what is about to be proven.
-    //
-    // 128..212, matching the passphrase intro and the fingerprint reveal, so the
-    // setup flow keeps one skeleton from screen to screen.
-    lv_obj_t *vcard = wt_card(s_scr, 48, 128, 704, 64);
-    lv_obj_t *vcol = lv_obj_create(vcard);
-    lv_obj_remove_style_all(vcol);
-    lv_obj_set_pos(vcol, 0, 0);
-    lv_obj_set_size(vcol, 704, 84);
-    lv_obj_set_flex_flow(vcol, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(vcol, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
-                          LV_FLEX_ALIGN_CENTER);
-    lv_obj_remove_flag(vcol, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_remove_flag(vcol, LV_OBJ_FLAG_SCROLLABLE);
-    wt_diagram_verify(vcol);
-
-    // Band two: what it proves, and what it will never do. Accent on the claim,
-    // WT_WARN on the limit, the same colour argument every other paired block on
-    // the device makes. HEAD_ROOM budgets the font14 heading wt_why_block draws
-    // above the body; see the identical note on the passphrase intro.
-    {
-        const char *b1 = tr(STR_W_VINTRO_W1_B), *b2 = tr(STR_W_VINTRO_W2_B);
-        const int BW = 344, BY = 204, BH = WT_CONTENT_BOTTOM - BY;
-        const lv_font_t *f = wt_body_font2_head(tr(STR_W_VINTRO_W1_H), b1,
-                                               tr(STR_W_VINTRO_W2_H), b2,
-                                               BW - 14, BH);
-        wt_why_block(s_scr, tr(STR_W_VINTRO_W1_H), b1,  48, BY, BW, BH, f, wt_accent());
-        wt_why_block(s_scr, tr(STR_W_VINTRO_W2_H), b2, 408, BY, BW, BH, f, WARN_COL);
-    }
+    // THE EXPLAIN CONTRACT, the same one the passphrase intro, the seed
+    // explainer and all three [ ? ] pages wear: headline, paragraph, then
+    // labelled facts. What it replaces is the shape those screens were all
+    // moved off -- a card with a diagram in it and two wt_why_blocks under it,
+    // which is the last thing on the device still reading as a different
+    // product. The diagram drew WORDS -> KEYS, which is what the headline
+    // says, so it goes with the blocks and with the wt_body_font2_head
+    // measurement that sized them.
+    wt_fact_t facts[3] = {
+        { tr(STR_W_VINTRO_W1_H), tr(STR_W_VINTRO_W2_B), WT_ICON_KEY },
+        { tr(STR_W_VINTRO_W2_H), tr(STR_I_KEF_WARN_S),  WT_ICON_SECRET },
+        { tr(STR_G_TECHNICAL),   tr(STR_T_SEED_TERM),   LV_SYMBOL_LIST },
+    };
+    wt_explain(s_scr, tr(STR_W_VINTRO_S), tr(STR_W_VINTRO_W1_B), facts, 3);
 
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_EXIT_X,
                     WT_ACTION_Y, 140, true, verify_exit_cb, NULL);

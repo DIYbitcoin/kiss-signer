@@ -888,6 +888,11 @@ static void recover_screen(void)
     recover_close();
 
     s_recovscr = wt_screen(lv_screen_active(), tr(STR_L_RECOVER_T), NULL);
+    // The mono title and its cursor block, like every other page on the
+    // system. Three screens in this file were still wearing wt_screen's own
+    // sans head and read as a different product beside the page they were
+    // reached from.
+    wt_chrome_head(s_recovscr);
 
     // The subject, framed, above the actions: what the device is holding and
     // where it is. WT_ICON_SECRET is the words' own mark everywhere else.
@@ -1453,6 +1458,7 @@ static void show_fingerprint(void) {
   // column down the middle with dead space either side, which is what "the rest
   // looks plain" was pointing at. The big code was never the problem.
   s_fpscr = wt_screen(lv_screen_active(), tr(STR_D_FINGERPRINT), NULL);
+  wt_chrome_head(s_fpscr);              // the head every other page wears
   lv_obj_remove_flag(s_fpscr, LV_OBJ_FLAG_CLICKABLE);  // buttons only, no tap-anywhere
 
   // The "?", top right, same 30px circle and 54px target as every other
@@ -1983,6 +1989,7 @@ static void pp_scan_warn_cb(lv_event_t *e) {
   (void)e;
   lv_obj_t *scr = wt_screen(lv_screen_active(), tr(STR_L_SCAN_WARN_T),
                             tr(STR_L_SCAN_WARN_S));
+  wt_chrome_head(scr);                  // the head every other page wears
   lv_obj_move_foreground(scr);
   wt_why_body(scr, tr(STR_L_SCAN_WARN_B), 122, WT_WARN, true);
   wt_arrow_action(scr, tr(STR_L_SCAN_GO), false, true, WT_ACT_X, WT_ACTION_Y,
