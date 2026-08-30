@@ -31,19 +31,26 @@ VER=$(head -1 VERSION)
 # fuzz harness covers the parsers; this covers the screens.
 SAN=""
 #
-# -fno-sanitize=function, and this is upstream's code rather than ours. LVGL
-# stores its mask callbacks as one generic pointer type and calls them through
-# it (lv_draw_sw_mask.c:102 -> lv_draw_mask_line at :385), which the `function`
-# check flags as a call through a mismatched prototype. It is a real C rule and
-# a real LVGL habit, it is not a bug this repo can fix, and it fires only when
-# something on screen carries a RADIUS -- so the day the slide's track and knob
-# got rounded corners, a sanitizer lane that had been green went red on a
-# finding in a vendored file.
+# TWO UBSAN checks are off, and both of them only ever fired inside LVGL.
+#
+#   function          LVGL stores its mask callbacks as one generic pointer
+#                     type and calls them through it (lv_draw_sw_mask.c:102 ->
+#                     lv_draw_mask_line at :385). A real C rule, a real LVGL
+#                     habit, and not a bug this repo can fix.
+#   pointer-overflow  lv_style.h:543 applies a zero offset to a null pointer,
+#                     which is undefined and is also what half of C does.
+#
+# Both fire on STYLE paths, so they arrived the day the slide's track, fill and
+# knob got rounded corners -- a lane that had been green went red on findings
+# in a vendored file, one per push, which is a gate nobody will read twice.
 #
 # Everything else stays: ASAN, and the rest of UBSAN. What this lane exists for
-# is the UI files' own stack buffers, and none of that is given up here.
+# is the UI files' own stack buffers and static arrays, and none of that is
+# given up here. If a THIRD of these turns up, suppress it here with its file
+# and line rather than reaching for -fsanitize=undefined's off switch.
 if [ -n "$KISS_SAN" ]; then
-  SAN="-fsanitize=address,undefined -fno-sanitize=function -fno-sanitize-recover=undefined -g"
+  SAN="-fsanitize=address,undefined -fno-sanitize=function,pointer-overflow"
+  SAN="$SAN -fno-sanitize-recover=undefined -g"
 fi
 
 clang $SAN -O1 -Wall -Wextra -Wno-unused-parameter -Wno-implicit-const-int-float-conversion -Wno-missing-field-initializers -Wno-deprecated-declarations -DSIMULATOR -DKISS_NO_WALLY -DKISS_SIM_WALK -DLV_CONF_INCLUDE_SIMPLE -DLV_LVGL_H_INCLUDE_SIMPLE -DKISS_VERSION_STR="\"$VER\"" \
