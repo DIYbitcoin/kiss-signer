@@ -5844,7 +5844,10 @@ int main(void) {
   // A bare seed square, which this door used to swallow whole. Twelve words in
   // plain text is exactly what a SeedQR decodes to, so this is the removal
   // itself under test: the scan must land on NOT A BACKUP and stage nothing.
-  touch(218, 290); pump(3); release(); pump(6);     // SCAN LOCKED QR (action at y=264)
+  // BY ITS WORDS. The x here was past the end of the Korean label, so the
+  // tap fell on the row rather than its action and every later stop in this
+  // flow photographed the chooser.
+  tap_str(STR_W_SCAN_KEF_QR, 3, 6);                 // SCAN MY BACKUP
   {
     static const char *SQ =
         "apple bridge candle dragon eagle forest "
@@ -5859,7 +5862,7 @@ int main(void) {
   // An encrypted backup in a mode this signer refuses (CTR, version 15):
   // recognized as KEF and refused BEFORE any password is asked for. The
   // envelope is built with the same kef_emit_header the firmware uses.
-  touch(218, 290); pump(3); release(); pump(6);     // SCAN LOCKED QR
+  tap_str(STR_W_SCAN_KEF_QR, 3, 6);                 // SCAN MY BACKUP
   {
     uint8_t fx[64];
     size_t h = kef_emit_header(fx, sizeof fx, (const uint8_t *)"id", 2, 15, 10);
