@@ -1,0 +1,94 @@
+# The screen walk in every locale, on a schedule rather than on every push.
+#
+# WHY THIS EXISTS, and it is not a style preference. The push lane runs the
+# walk in English only, deliberately: the wording is still moving, and a
+# 21-locale sweep on every commit reports translations that are about to be
+# thrown away. That trade is written down in CLAUDE.md and it is the right one.
+#
+# What it gives up is not theoretical. The day the locales were swept, running
+# the walk in all 21 found two faults the English walk had passed cleanly, on
+# every commit, for as long as they had existed:
+#
+#   * ONE STROKE ERASED THE SEED. The erase gate takes two legs, out and back,
+#     and that is the whole safety mechanism on the only irreversible action
+#     this device has. A FAILED erase draws its refusal as an overlay on the
+#     confirm screen, so dismissing it uncovered the same slide with its first
+#     leg already spent -- and the next single stroke finished the second.
+#     English never saw it because the walk's own second stroke landed on
+#     empty band; Polish put a button under that x.
+#
+#   * KOREAN HUNG THE DEVICE. wt_title_cursor asked for a layout, LVGL loops
+#     that until nothing changes, and a title whose content width lands on a
+#     wrap boundary flips between one line and two forever. 95% CPU, no frame,
+#     no output, on the TERMS page reached from the sign screen.
+#
+# Neither is a translation being long. Both are the walk taking a different
+# PATH because a label rendered to a different width, which is a thing only a
+# locale run can do. So the sweep is not deleted, it is moved off the push
+# lane and onto a clock, where nobody is waiting for it.
+#
+# It does NOT gate anything. It runs nightly, and when it goes red somebody
+# reads it -- the same standing as reproducible-build.yml.
+name: locale walk
+
+on:
+  schedule:
+    # 04:00 UTC daily, well clear of the working day in the owner's timezone.
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+
+jobs:
+  walk:
+    runs-on: ubuntu-latest
+    # The CJK locales render every glyph through a much larger face and take
+    # roughly three times the English walk. Twenty one of them in parallel is
+    # what the matrix below is for; this ceiling is per job.
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        lang: [en, cs-CZ, da-DK, de, es-ES, es-MX, fr, hr-HR, it, ja, ko,
+               nb-NO, nl, pl, pt-BR, pt-PT, ru, sv-SE, tr, vi, zh-CN]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: generated tables match the JSONs
+        run: |
+          python3 tools/gen_i18n.py
+          git diff --exit-code -- main/i18n_keys.h main/i18n_tables.c
+
+      # Its own scratch root, so the matrix legs cannot fight each other over
+      # the fake card, the captured frames or the binary. Unset it is /tmp,
+      # which is what every local command assumes -- see CLAUDE.md.
+      - name: screen walk
+        env:
+          KISS_SIM_TMP: /tmp/walk-${{ matrix.lang }}
+        run: |
+          mkdir -p "$KISS_SIM_TMP"
+          bash sim/build_sim.sh
+          # A HANG is the failure mode this lane exists to catch, and a hang
+          # has no exit code. The timeout is what turns it into one.
+          timeout 900 env SIM_LANG=${{ matrix.lang }} \
+            "$KISS_SIM_TMP/fruitsim" > "$KISS_SIM_TMP/walk.log"
+          echo "--- last lines ---"
+          tail -3 "$KISS_SIM_TMP/walk.log"
+
+      # The exit code is the verdict, but the count is what says how bad it is,
+      # and a walk that dies on stop three still prints a tidy tail. Both.
+      - name: report
+        if: always()
+        env:
+          KISS_SIM_TMP: /tmp/walk-${{ matrix.lang }}
+        run: |
+          n=$(grep -c '^FAIL' "$KISS_SIM_TMP/walk.log" || true)
+          echo "${{ matrix.lang }}: $n failing assertion(s)"
+          grep -m5 '^FAIL' "$KISS_SIM_TMP/walk.log" || true
+
+      - name: keep the frames from a red run
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frames-${{ matrix.lang }}
+          path: /tmp/walk-${{ matrix.lang }}/*.ppm
+          retention-days: 7
+          if-no-files-found: ignore
