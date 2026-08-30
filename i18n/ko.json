@@ -529,6 +529,8 @@
   "H_FINGERPRINT": "핑거프린트",
   "H_FP_CARD_FMT": "핑거프린트  %s",
   "H_EXIT_HINT": "이 화면에서 KISS 로고를 누르면 게임으로 돌아갑니다.",
+  "H_NEXT_BACKUP": "check your paper against these keys",
+  "H_NEXT_PAIR": "pair a coordinator, then verify an address",
   "W_STORE_T": "단어를 어디에 둘까요?",
   "W_STORE_S": "나중에 설정에서 바꿀 수 있습니다",
   "W_KEEP_BTN": "플래시",

@@ -529,6 +529,8 @@
   "H_FINGERPRINT": "parmak izi",
   "H_FP_CARD_FMT": "PARMAK İZİ  %s",
   "H_EXIT_HINT": "oyuna dönmek için bu ekranda KISS logosuna dokunun.",
+  "H_NEXT_BACKUP": "check your paper against these keys",
+  "H_NEXT_PAIR": "pair a coordinator, then verify an address",
   "W_STORE_T": "KELİMELERİNİZ NEREDE DURSUN?",
   "W_STORE_S": "bunu sonra ayarlardan değiştirebilirsin",
   "W_KEEP_BTN": "FLASH",

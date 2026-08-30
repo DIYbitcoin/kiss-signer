@@ -50,35 +50,35 @@ REVIEW = os.path.join(ROOT, "docs", "review")
 # (heading, intro, [(output name, sim frame, caption)])
 SECTIONS = [
     ("Returning from Fruit Island",
-     "The wallet has no icon and no launcher. You get back to it by drawing "
+     "The signer has no icon and no launcher. You get back to it by drawing "
      "the letters K, I, S, S on the game menu with a fingertip. Nothing on "
      "the screen invites you to, and a wrong gesture does nothing at all.",
      [
          ("01-island-menu", "sim_menu_back",
-          "This is everything an onlooker sees: a fruit game. No wallet "
-          "button, no lock icon, no hint that anything else is installed."),
+          "This is everything an onlooker sees: a fruit game. No button for "
+          "it, no lock icon, no hint that anything else is installed."),
          ("02-kiss-login", "sim_login",
           "Draw K, I, S, S anywhere on the menu. On a signer with no spare "
           "set up, that opens the passphrase login. Once a spare exists, the "
           "same four letters open that instead, and your own swipe after them "
           "is what asks for the passphrase."),
-         ("03-wallet-home", "sim_wallet",
-          "Your recovery words and your exact passphrase together make this "
-          "wallet. A different passphrase silently opens a different wallet, "
+         ("03-signer-home", "sim_wallet",
+          "Your recovery words and your exact passphrase together make these "
+          "keys. A different passphrase silently opens different keys, "
           "so check the fingerprint is the one you expect.\n\n"
           "This only works if you wrote the fingerprint down. Do it once, on "
           "the same piece of paper as your recovery words: the eight character "
           "code on this screen. Every passphrase is valid, so a typo never "
-          "shows an error, it just opens a different and empty wallet. If the "
+          "shows an error, it just opens a different and empty set of keys. If the "
           "code here ever differs from your paper, you typed the passphrase "
           "wrong. Lock and try again."),
      ]),
 
     ("Choosing where the recovery words live",
-     "Storage is chosen while a wallet is created or restored, and it can be "
-     "changed later from an unlocked wallet. All three modes are offered on "
-     "every build; the passphrase, never stored here, is what guards the real "
-     "wallet whichever mode holds the words.",
+     "Storage is chosen while keys are created or restored, and it can be "
+     "changed later from an unlocked signer. All three modes are offered on "
+     "every build; the passphrase, never stored here, is what guards your real "
+     "keys whichever mode holds the words.",
      [
          ("03a-setup-storage", "sim_setup_storage",
           "Setup asks what remains after you power off, before the recovery "
@@ -106,21 +106,21 @@ SECTIONS = [
 
     # Kept before pairing/receiving/signing: those are done from whichever
     # signer the stroke opened.
-    ("Two ways in: the spare wallet",
+    ("Two ways in: the spare signer",
      "A passphrase field on screen is itself a tell. It proves there is "
      "something to leave out of it, and you can never show that the "
      "passphrase you gave was the last one. So the obvious gesture opens a "
-     "real, working wallet that asks for nothing, and the passphrase lives "
+     "real, working signer that asks for nothing, and the passphrase lives "
      "behind one extra stroke.",
      [
          ("02a-duress-intro", "sim_duress_intro",
-          "Drawing KISS on its own opens a spare wallet: the same recovery "
+          "Drawing KISS on its own opens a spare signer: the same recovery "
           "words with no passphrase. It has its own fingerprint, pairs with a "
-          "coordinator and signs, because a wallet that cannot do those "
+          "coordinator and signs, because a signer that cannot do those "
           "things is not a story anyone would believe."),
          ("02b-duress-fund", "sim_duress_fund",
-          "Put a small amount in it. An empty wallet on a signer looks "
-          "exactly like a wallet with something hidden behind it."),
+          "Put a small amount in it. An empty signer looks exactly like one "
+          "with something hidden behind it."),
          ("02c-duress-pick", "sim_duress_pick",
           "One extra swipe after your drawing asks for your passphrase, and "
           "the passphrase opens your real signer. You choose which swipe is "
@@ -132,11 +132,11 @@ SECTIONS = [
      ]),
 
     ("Pairing with Sparrow",
-     "Pairing hands Sparrow a watch-only map of the wallet so it can find "
+     "Pairing hands Sparrow a watch-only map of your keys so it can find "
      "your addresses and build transactions. It never hands over anything "
      "that can spend.",
      [
-         ("04-wallet-facts", "sim_winfo",
+         ("04-keys-facts", "sim_winfo",
           "KEYS answers which device you are holding: the fingerprint takes "
           "the top third, big enough to check across a desk, and the facts "
           "under it open their plain-words definitions in place. The [ ? ] "
@@ -161,7 +161,7 @@ SECTIONS = [
           "device, never off the computer."),
          ("08-verify-match", "sim_vfy_yes",
           "VERIFY re-derives whatever address you type in. Green means KISS "
-          "found it in this wallet, independently of whatever displayed it."),
+          "found it in these keys, independently of whatever displayed it."),
          ("09-verify-wrong-net", "sim_vfy_wrong_net",
           "A well-formed address from the wrong network fails red. So does "
           "an address that is simply not one of yours."),
@@ -169,7 +169,7 @@ SECTIONS = [
 
     ("Receiving a tiny test payment",
      "Send yourself an amount you would not mind losing, and confirm it "
-     "arrives, before the wallet holds anything real.",
+     "arrives, before your keys hold anything real.",
      [
          ("10-receive-first", "sim_recv1",
           "NEXT ADDRESS steps to the next one this signer has not handed "
@@ -192,10 +192,10 @@ SECTIONS = [
           "over SD card or QR. KISS never builds one itself."),
          ("13-sign-verify", "sim_sign_verify",
           "What you are actually agreeing to: who gets paid, the network fee, "
-          "and the total leaving the wallet. Money coming back to you is "
+          "and the total leaving your keys. Money coming back to you is "
           "labelled change only when KISS re-derived that address itself."),
-         ("14-sign-hold", "sim_sign_hold",
-          "Signing takes a deliberate hold, not a tap, so no single stray "
+         ("14-sign-slide", "sim_sign_hold",
+          "Signing takes a deliberate slide, not a tap, so no single stray "
           "touch can ever sign anything."),
          ("15-sign-done", "sim_sign_done",
           "Signed. The signed file or QR has to go back to Sparrow, and "
@@ -288,7 +288,7 @@ LEGACY = [
     ("docs/readme/use-3-qr.png",          "sim_qr_out1"),
     ("docs/readme/use-4-sd.png",          "sim_sign_done"),
     ("docs/readme/warn-caution.png",      "sim_sign_combo"),
-    # sim_home_fp, not sim_winfo_help: the WALLET screen's "?" chips moved down
+    # sim_home_fp, not sim_winfo_help: the KEYS screen's "?" chips moved down
     # when that column was re-laid out, so the scripted tap behind
     # sim_winfo_help now misses the chip and saves the unchanged screen. This
     # is the same explainer, reached from the home fingerprint chip instead.
@@ -539,7 +539,7 @@ def build_reveal_gif():
     # Where the signer appears, found by looking rather than by counting
     # strokes. detect_cover_word in main/main.c wants four pen lifts and a wide
     # enough shape, and it is deliberately lenient because it opens the decoy
-    # rather than the real wallet, so it fires partway through the last letter.
+    # rather than the real keys, so it fires partway through the last letter.
     # The walk keeps drawing after that, onto a passphrase keyboard, and a trace
     # over those taps would show a gesture being made at a screen that is no
     # longer listening for one. So the GIF ends where the screen changes.
@@ -638,7 +638,7 @@ def write_md():
            "",
            "# Walkthrough",
            "",
-           "The checks to make before this wallet holds anything you care "
+           "The checks to make before this signer holds anything you care "
            "about. Every screenshot here is a frame the simulator rendered "
            "from the current firmware, so what you see is what the device "
            "draws.",

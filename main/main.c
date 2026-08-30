@@ -35,6 +35,7 @@
 #include "tile_lbls.h"   // TILE_LBL_Y (strips replaced by live i18n labels)
 #include "i18n.h"
 #include "kiss_ui.h"
+#include "kiss_usage.h"   // has a coordinator ever spoken: the home's next step
 #include "kiss_recv.h"
 #include "kiss_sign.h"
 #include "kiss_scan.h"
@@ -242,6 +243,11 @@ static lv_obj_t *s_home;         // baked KISS Signer menu (visual shell only, f
 #define N_MOTES 5
 static lv_obj_t *s_mote[N_MOTES];  // ambient idle life: dim dots drifting up
 static lv_obj_t *s_tile_ttl[4];            // live tile labels (settle in on unlock)
+static lv_obj_t *s_next_lbl;               // the one step this signer has not taken
+// One number, two placements: built here and re-aligned after every text
+// change, because the label is content sized and a translation of a different
+// width would otherwise stay centred on the old one.
+#define HOME_NEXT_Y 346
 // tile title string ids, in tile order (sign, receive, keys, settings).
 // STR_H_TILE_WALLET is a legacy KEY NAME whose value has been "Keys" for a
 // while; renaming the key would touch all 21 locale files for nothing.
@@ -1828,8 +1834,41 @@ static void sd_badge_sync(bool present) {
   }
 }
 
+// The step, or nothing. Read on every refresh rather than cached: the paper
+// can be checked and a coordinator can speak inside one unlocked session, and
+// both of those land here through the refresh the screens that change them
+// already call.
+static void next_step_sync(void) {
+  if (!s_next_lbl) return;
+  uint8_t fp[4];
+  kiss_ui_last_fp(fp);
+  const bool have_keys = (fp[0] | fp[1] | fp[2] | fp[3]) != 0;
+  int chigh; uint32_t cheight;
+  const char *step = NULL;
+  if (have_keys) {
+    if (!kiss_ui_backup_checked())
+      step = tr(STR_H_NEXT_BACKUP);
+    else if (!kiss_usage_chain_known(fp, kiss_testnet() ? 1 : 0, kiss_script(),
+                                     &chigh, &cheight))
+      step = tr(STR_H_NEXT_PAIR);
+  }
+  if (!step) { lv_obj_add_flag(s_next_lbl, LV_OBJ_FLAG_HIDDEN); return; }
+  // The font too, not just the text: a language change reaches the home
+  // through this call and CJK wants its own face, the same reason the tile
+  // titles re-set theirs.
+  lv_obj_set_style_text_font(s_next_lbl, wt_font23(), 0);
+  char buf[128];
+  snprintf(buf, sizeof buf, "%s  %s", LV_SYMBOL_RIGHT, step);
+  lv_label_set_text(s_next_lbl, buf);
+  lv_obj_clear_flag(s_next_lbl, LV_OBJ_FLAG_HIDDEN);
+  // Re-align after the text: the label is content sized, so a translation of a
+  // different width would otherwise stay centred on the old one.
+  lv_obj_align(s_next_lbl, LV_ALIGN_TOP_MID, 0, HOME_NEXT_Y);
+}
+
 void kiss_home_refresh(void) {
   kiss_home_restyle();
+  next_step_sync();
   sd_badge_sync(platform_sd_probe() != 0);
   if (!s_net_lbl) return;
   if (kiss_testnet()) {
@@ -3508,6 +3547,55 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   // question at all. The way in belongs in docs/walkthrough.md and in the
   // wizard that configures it, not standing under the tiles of a signer
   // somebody may have been made to open.
+
+  // ONE next step, in the band under the tiles.
+  //
+  // The order that matters is written down in docs/walkthrough.md -- check the
+  // paper, pair a coordinator, verify an address on the device, then move a
+  // little money -- and the device said none of it. Four equal tiles is a menu,
+  // and a menu tells a newcomer what they CAN do without ever saying which of
+  // it comes first. The step this line names is the one that catches a
+  // computer showing an address that is not yours, and it is worth nothing
+  // once the money is already sent.
+  //
+  // Two facts, both already stored and both already read elsewhere on this
+  // device: kiss_ui_backup_checked() is the question SETTINGS asks about the
+  // paper, and kiss_usage_chain_known() is the only honest signal this signer
+  // has for "a coordinator has spoken", which kiss_info.c already treats as
+  // paired-ness. So this adds no state; it reads what two screens read.
+  //
+  // MUTED, and no all-good version. Accent here would be the GREEN that is
+  // byte identical to WT_OK on one theme, which would dress a suggestion up as
+  // something the device has checked -- exactly what task 6 of the UX
+  // acceptance walks the flows looking for. And a badge that is always on
+  // screen is a badge nobody reads, which is why the settings attention chip
+  // has no "all clear" state either: when both steps are done this is hidden
+  // and the band goes back to being empty.
+  //
+  // NOTHING HERE NAMES THE SECOND DOOR. The line the band used to carry did,
+  // and the reasoning that removed it is a few paragraphs up and still holds.
+  // Pairing and paper are not that: every signer of this kind wants both, and
+  // saying so singles nobody out.
+  s_next_lbl = lv_label_create(s_home);
+  lv_label_set_text(s_next_lbl, "");
+  lv_obj_set_style_text_font(s_next_lbl, wt_font23(), 0);
+  lv_obj_set_style_text_color(s_next_lbl, lv_color_hex(0x7A869C), 0);
+  lv_obj_set_style_text_align(s_next_lbl, LV_TEXT_ALIGN_CENTER, 0);
+  // The lane, and WRAP rather than DOT. A one-line label pinned with LONG_DOT
+  // is the CUT fault: it loses its second half and rewrites its own text to
+  // say so, which a walk of the finished tree cannot see. Wrapping instead
+  // means a translation too long for one line pushes past WT_CONTENT_BOTTOM,
+  // where the screen walk reports it as what it is -- copy that needs cutting
+  // at the sweep, not a sentence quietly missing its end.
+  lv_obj_set_width(s_next_lbl, 704);
+  lv_label_set_long_mode(s_next_lbl, LV_LABEL_LONG_WRAP);
+  lv_obj_add_flag(s_next_lbl, LV_OBJ_FLAG_HIDDEN);
+  // 346, measured rather than estimated. The tiles end at 333 and the theme
+  // cluster starts at 408, so the band is real -- but the 23px rung's LINE BOX
+  // is 49px on the Latin face, not the ~31 the glyph height suggests, and 352
+  // put the bottom of it 4px past WT_CONTENT_BOTTOM. The screen walk said so;
+  // no estimate in this file's history has ever been right about a line box.
+  lv_obj_align(s_next_lbl, LV_ALIGN_TOP_MID, 0, HOME_NEXT_Y);
 
   // Tile labels, live + translated. The 23px title carries the whole action;
   // the former 14px subtitle duplicated it and was unreadable at arm's length.

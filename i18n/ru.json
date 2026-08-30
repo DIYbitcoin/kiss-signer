@@ -529,6 +529,8 @@
   "H_FINGERPRINT": "отпечаток",
   "H_FP_CARD_FMT": "ОТПЕЧАТОК  %s",
   "H_EXIT_HINT": "нажмите на логотип KISS на этом экране, чтобы вернуться в игру.",
+  "H_NEXT_BACKUP": "check your paper against these keys",
+  "H_NEXT_PAIR": "pair a coordinator, then verify an address",
   "W_STORE_T": "ГДЕ ХРАНИТЬ ВАШИ СЛОВА?",
   "W_STORE_S": "это можно изменить позже в настройках",
   "W_KEEP_BTN": "ФЛЕШ",

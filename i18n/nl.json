@@ -529,6 +529,8 @@
   "H_FINGERPRINT": "vingerafdruk",
   "H_FP_CARD_FMT": "VINGERAFDRUK  %s",
   "H_EXIT_HINT": "tik op dit scherm op het KISS-logo om terug naar het spel te gaan.",
+  "H_NEXT_BACKUP": "check your paper against these keys",
+  "H_NEXT_PAIR": "pair a coordinator, then verify an address",
   "W_STORE_T": "WAAR MOETEN JE WOORDEN STAAN?",
   "W_STORE_S": "later te wijzigen in instellingen",
   "W_KEEP_BTN": "FLASH",

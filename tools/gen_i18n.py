@@ -137,6 +137,9 @@ UNTRANSLATED_OK = {
     "H_UNREAD_FMT", "H_MORE", "T_FEE2_HEAD", "T_FEE2_C1", "T_FEE2_C2",
     "T_FEE2_C3", "T_FEE2_B", "T_FEE2_VB", "T_FEE2_SPV",
     "T_WATCH_P2_HEAD", "T_WATCH_P2_B",
+    # The home's one next step. Born under the English-only rule; English in
+    # the other twenty until the sweep.
+    "H_NEXT_BACKUP", "H_NEXT_PAIR",
     # The second first-run hint, for the row that grows. Born under the
     # English-only rule; English in the other twenty until the sweep.
     "H_HINT_ROW",

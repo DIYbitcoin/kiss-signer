@@ -529,6 +529,8 @@
   "H_FINGERPRINT": "impronta",
   "H_FP_CARD_FMT": "IMPRONTA  %s",
   "H_EXIT_HINT": "tocca il logo KISS su questa schermata per tornare al gioco.",
+  "H_NEXT_BACKUP": "check your paper against these keys",
+  "H_NEXT_PAIR": "pair a coordinator, then verify an address",
   "W_STORE_T": "DOVE TENERE LE TUE PAROLE?",
   "W_STORE_S": "puoi cambiarlo dopo nelle impostazioni",
   "W_KEEP_BTN": "FLASH",

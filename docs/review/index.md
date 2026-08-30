@@ -16,7 +16,7 @@ GREEN accent, English, mainnet. ADDENDUM-02's axis, the one MONO hides because M
 
 `sim_login`
 
-![green, 03 wallet home](green/03-wallet-home.png)
+![green, 03 signer home](green/03-signer-home.png)
 
 `sim_wallet`
 
@@ -48,7 +48,7 @@ GREEN accent, English, mainnet. ADDENDUM-02's axis, the one MONO hides because M
 
 `sim_duress_draw_again`
 
-![green, 04 wallet facts](green/04-wallet-facts.png)
+![green, 04 keys facts](green/04-keys-facts.png)
 
 `sim_winfo`
 
@@ -78,7 +78,7 @@ GREEN accent, English, mainnet. ADDENDUM-02's axis, the one MONO hides because M
 
 ![green, 11 receive reuse](green/11-receive-reuse.png)
 
-`sim_recv_reminder`
+`sim_recv_used`
 
 ![green, 12 sign choose](green/12-sign-choose.png)
 
@@ -88,7 +88,7 @@ GREEN accent, English, mainnet. ADDENDUM-02's axis, the one MONO hides because M
 
 `sim_sign_verify`
 
-![green, 14 sign hold](green/14-sign-hold.png)
+![green, 14 sign slide](green/14-sign-slide.png)
 
 `sim_sign_hold`
 
@@ -112,7 +112,7 @@ The test networks, MONO, English. The walk already captures these near the end a
 
 `sim_login`
 
-![testnet, 03 wallet home](testnet/03-wallet-home.png)
+![testnet, 03 signer home](testnet/03-signer-home.png)
 
 `sim_wallet`
 
@@ -144,7 +144,7 @@ The test networks, MONO, English. The walk already captures these near the end a
 
 `sim_duress_draw_again`
 
-![testnet, 04 wallet facts](testnet/04-wallet-facts.png)
+![testnet, 04 keys facts](testnet/04-keys-facts.png)
 
 `sim_winfo`
 
@@ -174,7 +174,7 @@ The test networks, MONO, English. The walk already captures these near the end a
 
 ![testnet, 11 receive reuse](testnet/11-receive-reuse.png)
 
-`sim_recv_reminder`
+`sim_recv_used`
 
 ![testnet, 12 sign choose](testnet/12-sign-choose.png)
 
@@ -184,7 +184,7 @@ The test networks, MONO, English. The walk already captures these near the end a
 
 `sim_sign_verify`
 
-![testnet, 14 sign hold](testnet/14-sign-hold.png)
+![testnet, 14 sign slide](testnet/14-sign-slide.png)
 
 `sim_sign_hold`
 

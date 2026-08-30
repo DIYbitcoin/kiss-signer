@@ -529,6 +529,8 @@
   "H_FINGERPRINT": "フィンガープリント",
   "H_FP_CARD_FMT": "フィンガープリント  %s",
   "H_EXIT_HINT": "この画面でKISSロゴをタップすると、ゲームに戻ります。",
+  "H_NEXT_BACKUP": "check your paper against these keys",
+  "H_NEXT_PAIR": "pair a coordinator, then verify an address",
   "W_STORE_T": "単語をどこに保存しますか?",
   "W_STORE_S": "あとから設定で変更できます",
   "W_KEEP_BTN": "フラッシュ",

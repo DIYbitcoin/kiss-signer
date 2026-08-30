@@ -529,6 +529,8 @@
   "H_FINGERPRINT": "otisk",
   "H_FP_CARD_FMT": "OTISK  %s",
   "H_EXIT_HINT": "klepnutím na logo KISS na této obrazovce se vrátíte do hry.",
+  "H_NEXT_BACKUP": "check your paper against these keys",
+  "H_NEXT_PAIR": "pair a coordinator, then verify an address",
   "W_STORE_T": "KDE UCHOVAT VAŠE SLOVA?",
   "W_STORE_S": "později to změníš v nastavení",
   "W_KEEP_BTN": "FLASH",

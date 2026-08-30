@@ -4,29 +4,29 @@
 
 # Walkthrough
 
-The checks to make before this wallet holds anything you care about. Every screenshot here is a frame the simulator rendered from the current firmware, so what you see is what the device draws.
+The checks to make before this signer holds anything you care about. Every screenshot here is a frame the simulator rendered from the current firmware, so what you see is what the device draws.
 
 ## Returning from Fruit Island
 
-The wallet has no icon and no launcher. You get back to it by drawing the letters K, I, S, S on the game menu with a fingertip. Nothing on the screen invites you to, and a wrong gesture does nothing at all.
+The signer has no icon and no launcher. You get back to it by drawing the letters K, I, S, S on the game menu with a fingertip. Nothing on the screen invites you to, and a wrong gesture does nothing at all.
 
 ![KISS screen: island menu](shots/01-island-menu.png)
 
-This is everything an onlooker sees: a fruit game. No wallet button, no lock icon, no hint that anything else is installed.
+This is everything an onlooker sees: a fruit game. No button for it, no lock icon, no hint that anything else is installed.
 
 ![KISS screen: kiss login](shots/02-kiss-login.png)
 
 Draw K, I, S, S anywhere on the menu. On a signer with no spare set up, that opens the passphrase login. Once a spare exists, the same four letters open that instead, and your own swipe after them is what asks for the passphrase.
 
-![KISS screen: wallet home](shots/03-wallet-home.png)
+![KISS screen: signer home](shots/03-signer-home.png)
 
-Your recovery words and your exact passphrase together make this wallet. A different passphrase silently opens a different wallet, so check the fingerprint is the one you expect.
+Your recovery words and your exact passphrase together make these keys. A different passphrase silently opens different keys, so check the fingerprint is the one you expect.
 
-This only works if you wrote the fingerprint down. Do it once, on the same piece of paper as your recovery words: the eight character code on this screen. Every passphrase is valid, so a typo never shows an error, it just opens a different and empty wallet. If the code here ever differs from your paper, you typed the passphrase wrong. Lock and try again.
+This only works if you wrote the fingerprint down. Do it once, on the same piece of paper as your recovery words: the eight character code on this screen. Every passphrase is valid, so a typo never shows an error, it just opens a different and empty set of keys. If the code here ever differs from your paper, you typed the passphrase wrong. Lock and try again.
 
 ## Choosing where the recovery words live
 
-Storage is chosen while a wallet is created or restored, and it can be changed later from an unlocked wallet. All three modes are offered on every build; the passphrase, never stored here, is what guards the real wallet whichever mode holds the words.
+Storage is chosen while keys are created or restored, and it can be changed later from an unlocked signer. All three modes are offered on every build; the passphrase, never stored here, is what guards your real keys whichever mode holds the words.
 
 ![KISS screen: setup storage](shots/03a-setup-storage.png)
 
@@ -40,17 +40,17 @@ SETTINGS → BACKUP states the current mode on the row and opens this to change 
 
 SETTINGS itself, the page both of those are reached from. Five section groups, one on screen at a time; every row states its current value beside its name, so nothing here has to be opened to be checked.
 
-## Two ways in: the spare wallet
+## Two ways in: the spare signer
 
-A passphrase field on screen is itself a tell. It proves there is something to leave out of it, and you can never show that the passphrase you gave was the last one. So the obvious gesture opens a real, working wallet that asks for nothing, and the passphrase lives behind one extra stroke.
+A passphrase field on screen is itself a tell. It proves there is something to leave out of it, and you can never show that the passphrase you gave was the last one. So the obvious gesture opens a real, working signer that asks for nothing, and the passphrase lives behind one extra stroke.
 
 ![KISS screen: duress intro](shots/02a-duress-intro.png)
 
-Drawing KISS on its own opens a spare wallet: the same recovery words with no passphrase. It has its own fingerprint, pairs with a coordinator and signs, because a wallet that cannot do those things is not a story anyone would believe.
+Drawing KISS on its own opens a spare signer: the same recovery words with no passphrase. It has its own fingerprint, pairs with a coordinator and signs, because a signer that cannot do those things is not a story anyone would believe.
 
 ![KISS screen: duress fund](shots/02b-duress-fund.png)
 
-Put a small amount in it. An empty wallet on a signer looks exactly like a wallet with something hidden behind it.
+Put a small amount in it. An empty signer looks exactly like one with something hidden behind it.
 
 ![KISS screen: duress pick](shots/02c-duress-pick.png)
 
@@ -62,9 +62,9 @@ Draw it over the printed word, twice, before anything is saved. Any other swipe 
 
 ## Pairing with Sparrow
 
-Pairing hands Sparrow a watch-only map of the wallet so it can find your addresses and build transactions. It never hands over anything that can spend.
+Pairing hands Sparrow a watch-only map of your keys so it can find your addresses and build transactions. It never hands over anything that can spend.
 
-![KISS screen: wallet facts](shots/04-wallet-facts.png)
+![KISS screen: keys facts](shots/04-keys-facts.png)
 
 KEYS answers which device you are holding: the fingerprint takes the top third, big enough to check across a desk, and the facts under it open their plain-words definitions in place. The [ ? ] mark explains the page; COORDINATOR is the second tab.
 
@@ -86,7 +86,7 @@ RECEIVE opens on the freshest address KISS derived on the device: its QR, the ei
 
 ![KISS screen: verify match](shots/08-verify-match.png)
 
-VERIFY re-derives whatever address you type in. Green means KISS found it in this wallet, independently of whatever displayed it.
+VERIFY re-derives whatever address you type in. Green means KISS found it in these keys, independently of whatever displayed it.
 
 ![KISS screen: verify wrong net](shots/09-verify-wrong-net.png)
 
@@ -94,7 +94,7 @@ A well-formed address from the wrong network fails red. So does an address that 
 
 ## Receiving a tiny test payment
 
-Send yourself an amount you would not mind losing, and confirm it arrives, before the wallet holds anything real.
+Send yourself an amount you would not mind losing, and confirm it arrives, before your keys hold anything real.
 
 ![KISS screen: receive first](shots/10-receive-first.png)
 
@@ -114,11 +114,11 @@ Signing always starts from an unsigned transaction Sparrow made, over SD card or
 
 ![KISS screen: sign verify](shots/13-sign-verify.png)
 
-What you are actually agreeing to: who gets paid, the network fee, and the total leaving the wallet. Money coming back to you is labelled change only when KISS re-derived that address itself.
+What you are actually agreeing to: who gets paid, the network fee, and the total leaving your keys. Money coming back to you is labelled change only when KISS re-derived that address itself.
 
-![KISS screen: sign hold](shots/14-sign-hold.png)
+![KISS screen: sign slide](shots/14-sign-slide.png)
 
-Signing takes a deliberate hold, not a tap, so no single stray touch can ever sign anything.
+Signing takes a deliberate slide, not a tap, so no single stray touch can ever sign anything.
 
 ![KISS screen: sign done](shots/15-sign-done.png)
 

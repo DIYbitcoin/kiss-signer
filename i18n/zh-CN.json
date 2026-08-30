@@ -529,6 +529,8 @@
   "H_FINGERPRINT": "指纹",
   "H_FP_CARD_FMT": "指纹  %s",
   "H_EXIT_HINT": "在此屏幕点击 KISS 标志即可返回游戏。",
+  "H_NEXT_BACKUP": "check your paper against these keys",
+  "H_NEXT_PAIR": "pair a coordinator, then verify an address",
   "W_STORE_T": "你的词放在哪里?",
   "W_STORE_S": "以后可以在设置里更改",
   "W_KEEP_BTN": "闪存",

@@ -651,7 +651,27 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
   snprintf(s->outs[1].addr, sizeof s->outs[1].addr,
            "bc1q8c6fshw2dlwun7ekn9qwf37cu2rn755upcp6el");
   s->outs[1].sats = 39000; s->outs[1].is_change = true;
-  if (len >= 4 && memmem(bytes, len, "STOP", 4)) {
+  if (len >= 7 && memmem(bytes, len, "NOTMINE", 7)) {
+    // The ownership refusal WITH both halves of the compare present: this
+    // signer's own fingerprint against the one the coordinator wrote into
+    // input 0. The screen frames the two and says what a difference can mean,
+    // so the fixture has to make them actually differ -- an in0_fp copied from
+    // our_fp would render two identical codes under a verdict saying they are
+    // not, which is the one frame this stop exists to catch.
+    kiss_ui_last_fp(s->our_fp);
+    memcpy(s->in0_fp, "\xEC\x5A\x45\x95", 4);
+    s->in0_keypaths = 1;
+    s->status = WPSBT_STOP;
+    snprintf(s->reason, sizeof s->reason, "input is not this wallet's");
+  } else if (len >= 6 && memmem(bytes, len, "NOKEYS", 6)) {
+    // The same refusal reached the other way: a coordinator that sent no
+    // derivation at all, so nothing was compared and the screen must not
+    // claim a mismatch. One card, a different sentence.
+    kiss_ui_last_fp(s->our_fp);
+    s->in0_keypaths = 0;
+    s->status = WPSBT_STOP;
+    snprintf(s->reason, sizeof s->reason, "input is not this wallet's");
+  } else if (len >= 4 && memmem(bytes, len, "STOP", 4)) {
     s->status = WPSBT_STOP;
     snprintf(s->reason, sizeof s->reason, "input amount unverifiable");
   } else if (len >= 3 && memmem(bytes, len, "FEE", 3)) {
@@ -3748,6 +3768,45 @@ int main(void) {
   save("/tmp/sim_qr_out_ez.ppm");
   tap_str(STR_C_DONE, 3, 6);     // DONE -> home
   save("/tmp/sim_qr_end.ppm");
+
+  // The ownership refusal, both of its shapes. Delivered by QR and not by a
+  // file on purpose: the whole sign walk taps the SD list by COORDINATE, so
+  // two more fixtures on the card would move every row after them and the
+  // gate would report a dozen screens as changed when nothing about them was.
+  //
+  // This is the STOP an owner standing in the wrong keys arrives at, and until
+  // now it was a verdict with no next step and no figures. It carries both
+  // fingerprints now, so the walk has to see them: that they DIFFER on one
+  // screen and that only one is drawn on the other is the whole point, and a
+  // frame is the only thing that can say so.
+  for (int shape = 0; shape < 2; shape++) {
+    touch(130, 240); pump(3); release(); pump(6);   // Sign tile -> the page
+    tap_str(STR_S_SCAN_QR, 3, 30);                  // the airgap tab
+    tap_str(STR_S_OPEN_CAM, 3, 6);                  // OPEN CAMERA -> scan screen
+    uint8_t body[300];
+    memset(body, 0x5A, sizeof body);
+    memcpy(body, "psbt\xff", 5);
+    memcpy(body + 8, shape == 0 ? "NOTMINE" : "NOKEYS",
+           shape == 0 ? 7 : 6);
+    qrt_encoder_t *enc = qrt_encoder_new(QRT_FMT_UR, body, sizeof body);
+    char part[600];
+    for (int i = 0; i < 32 && enc && kiss_scan_active(); i++) {
+      if (qrt_encoder_next(enc, part, sizeof part) != 0) break;
+      kiss_scan_inject(part, strlen(part));
+      pump(2);
+    }
+    qrt_encoder_free(enc);
+    pump(8);
+    if (shape == 0) {
+      save("/tmp/sim_sign_stop_fp.ppm");            // two codes, and the diff
+      must_show("sign/stop-ownership", tr(STR_S_STOP_ASKS));
+    } else {
+      save("/tmp/sim_sign_stop_nofp.ppm");          // one code, nothing to diff
+      must_show("sign/stop-no-derivation", tr(STR_S_STOP_NOFP_B));
+    }
+    tap_str(STR_C_BACK, 3, 6);                      // -> the sign page
+    tap_str(STR_C_BACK, 3, 6);                      // -> home
+  }
 
   // Receive lands past the highest address used or shown. Every detail keeps
   // the same privacy reminder visible; it does not claim an offline signer

@@ -529,6 +529,8 @@
   "H_FINGERPRINT": "fingeraftryk",
   "H_FP_CARD_FMT": "FINGERAFTRYK  %s",
   "H_EXIT_HINT": "tryk på KISS-logoet på denne skærm for at gå tilbage til spillet.",
+  "H_NEXT_BACKUP": "check your paper against these keys",
+  "H_NEXT_PAIR": "pair a coordinator, then verify an address",
   "W_STORE_T": "HVOR SKAL DINE ORD LIGGE?",
   "W_STORE_S": "kan ændres senere i indstillinger",
   "W_KEEP_BTN": "FLASH",
