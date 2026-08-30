@@ -3402,7 +3402,13 @@ int main(void) {
   // the transaction the device trusted least was the one whose destination it
   // never showed. The bar action keeps the row action's x, so the FEE ack tap above
   // and this REVIEW tap land in the same place.
-  touch(652, 312); pump(3); release(); pump(8);     // REVIEW -> the rows, own page
+  // BY ITS WORDS, not by an x. The action sits at the right of the caution
+  // bar and its left edge comes off the rendered width of its own label, so a
+  // hard coded 652 lands on REVIEW in English and past the end of the shorter
+  // word in most other locales -- the walk then tapped the bar itself, stayed
+  // on verify, and every later stop in the sign flow photographed the wrong
+  // screen. Nothing said so: the taps after it all hit something.
+  tap_str(STR_S_C_REVIEW, 3, 8);                    // REVIEW -> the rows, own page
   save("/tmp/sim_sign_cautions.ppm");
   // Row 0's I UNDERSTAND: rows start at y=88 with the action at local (543,8),
   // so it is 567..737 x 96..136. This is its centre.
