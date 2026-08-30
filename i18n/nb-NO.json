@@ -386,7 +386,7 @@
   "L_FP_NOTE2_NOPASS": "en passordfrase lagt til senere åpner andre nøkler",
   "L_FP_NOTE_NOPASS": "ingen passordfrase: seed-ordene alene åpner disse nøklene",
   "L_HIDE": "SKJUL",
-  "L_KEEP_GOING": "FORTSETT",
+  "L_KEEP_GOING": "HOLD FRAM",
   "L_KEF_BAD": "det åpnet den ikke. sjekk passordet og prøv igjen.",
   "L_KEF_FAIL": "sikkerhetskopien kunne ikke lages. prøv igjen.",
   "L_KEF_LOCKING": "låser sikkerhetskopien",

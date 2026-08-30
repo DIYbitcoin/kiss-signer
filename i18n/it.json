@@ -386,7 +386,7 @@
   "L_FP_NOTE2_NOPASS": "una passphrase aggiunta dopo apre chiavi diverse",
   "L_FP_NOTE_NOPASS": "nessuna passphrase: le tue parole seed da sole aprono queste chiavi",
   "L_HIDE": "NASCONDI",
-  "L_KEEP_GOING": "CONTINUA",
+  "L_KEEP_GOING": "VAI AVANTI",
   "L_KEF_BAD": "non lo ha aperto. controlla la password e riprova.",
   "L_KEF_FAIL": "il backup non è stato creato. riprova.",
   "L_KEF_LOCKING": "blocco del tuo backup",
