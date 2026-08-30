@@ -1424,8 +1424,33 @@ lv_obj_t *wt_why_block(lv_obj_t *scr, const char *head, const char *body,
 // `two_col`: true on a full screen, where 2+ paragraphs should become two
 // columns rather than one wide block; false on the explainer overlay, whose
 // full width arrangement is tuned and approved.
+//
+// The term line under a definition or an explainer body: the LABEL on a fixed
+// 150px lane at chrome23 ls2 WT_MUT, then the real term beside it at ls 0 in
+// the accent. One line, never wrapping -- a term that would wrap gets a
+// shorter term, the same way a caption does.
+//
+// Plain sentence first, real term underneath, never the term alone and never
+// first. That order is the whole shape: a caption has to match the word the
+// owner will meet in their coordinator, and the plain words live in the
+// sentence above it.
+// Returns the LINE, one object holding both labels: a caller places it,
+// measures it against whatever is under it, and hides it in one call.
+lv_obj_t *wt_term_line(lv_obj_t *par, const char *label, const char *term,
+                       int x, int y, int w);
+
+// THE FLOOR IS 21, and 23 where the body cannot be set in mono. There is no
+// font14 rung: a body is what an owner READS and 14 is what this device sets
+// MARKS in. A body too long for its room reports through the fit sink instead
+// of shrinking out of sight, so the copy is what gives.
 void wt_why_body(lv_obj_t *par, const char *body, int y, lv_color_t sev,
                  bool two_col);
+// The same, stopping at `bottom` instead of WT_CONTENT_BOTTOM, for a page
+// that puts something UNDER the body -- a term line, a page-2 rule. Passing
+// the real floor is what keeps the body measuring against the line it will
+// land on rather than against the room it happens to be in.
+void wt_why_body_to(lv_obj_t *par, const char *body, int y, int bottom,
+                    lv_color_t sev, bool two_col);
 
 // ---- the explainer card, behind every "?" on the device ----
 // Title top left like any other page, an optional icon badge on the title's row,
@@ -1464,6 +1489,11 @@ typedef struct {
     const char *cap;      // caption over the value
     const char *val;      // NULL to omit the value card
     const char *body;
+    // The real term for what the body explains in plain words, drawn under it
+    // through wt_term_line. `term_label` is the word TECHNICAL, translated --
+    // the kit reads no strings. NULL term omits the line entirely.
+    const char *term;
+    const char *term_label;
     const char *ok_txt;   // the dismiss action's label, already translated
     int sev;              // WT_SEV_*: colours the title and the first rule
     int mode;             // WT_BODY_PROSE / WT_GRID_ICONS

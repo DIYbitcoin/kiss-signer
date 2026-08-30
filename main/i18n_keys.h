@@ -293,6 +293,8 @@ enum {
     STR_R_ADDR_N_FMT,
     STR_R_PATH_H,
     STR_R_PATH_B,
+    STR_G_TECHNICAL,
+    STR_T_PATH_TERM,
     STR_R_ON_TESTNET,
     STR_R_ON_SIGNET,
     STR_R_ONE_EACH,

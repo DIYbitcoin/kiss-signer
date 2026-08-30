@@ -5267,24 +5267,101 @@ static void exp_join(const exp_paras_t *ps, int a, int b, char *out, size_t len)
 // It costs NOTHING in translation: every one of these bodies is already written
 // as two or three paragraphs separated by a blank line in all 21 locales, so
 // this splits a string that exists rather than asking for one that does not.
-void wt_why_body(lv_obj_t *par, const char *body, int y, lv_color_t sev,
-                 bool two_col)
+// The term line: the real word for what the body just explained in plain
+// ones, under the body and never instead of it. Two labels, not one string --
+// the LABEL is tracked at ls 2 like every other caption on the device and the
+// TERM is not, because tracking a 34 character term is what pushed it onto a
+// second line in the draft that tried.
+//
+// IT NEVER WRAPS. The longest in the set measures 470 of the 496 this leaves,
+// so a term that would wrap gets a shorter term, exactly the way a caption
+// does. Pinning the height is what makes LONG_DOT elide rather than stack: a
+// label with a width and no height grows downward through whatever is under
+// it, which is the same lesson as every other one-liner in this file.
+//
+// The kit stays string-free, so `label` arrives translated. It is the same
+// word on every one of these lines -- one key, and the reason it is a
+// parameter rather than a constant is that the kit does not read i18n.
+// 150 is the LABEL's lane, not the gutter: the word measures 140 at chrome23
+// ls 2, so the term would start 10px after it ends and the two read as one
+// string -- "TECHNICALACCOUNT" was the first frame this drew. 14 more, the
+// same pad every other pair on this device sits on, leaves the longest term
+// in the set 482px against the 470 it needs.
+#define WT_TERM_LABEL_W 150
+#define WT_TERM_GUTTER   14
+// ONE OBJECT, holding two labels. A caller has one thing to place, one thing
+// to measure against the floor under it and one thing to hide -- the def row
+// shows and hides this line on every open and close, and chasing two labels
+// through that is how one of them gets left behind.
+lv_obj_t *wt_term_line(lv_obj_t *par, const char *label, const char *term,
+                       int x, int y, int w)
+{
+    if (!par || !term || !*term) return NULL;
+    const lv_font_t *tf = chrome23(term);
+    const int h = lv_font_get_line_height(tf);
+
+    lv_obj_t *box = lv_obj_create(par);
+    lv_obj_remove_style_all(box);
+    lv_obj_set_pos(box, x, y);
+    lv_obj_set_size(box, w, h);
+    lv_obj_remove_flag(box, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(box, LV_OBJ_FLAG_SCROLLABLE);
+
+    int tx = 0;
+    if (label && *label) {
+        const lv_font_t *lf = chrome23(label);
+        lv_obj_t *l = wt_lbl(box, label, 0, 0, lf, WT_MUT);
+        lv_obj_set_style_text_letter_space(l, 2, 0);
+        lv_obj_set_width(l, WT_TERM_LABEL_W);
+        lv_obj_set_height(l, lv_font_get_line_height(lf));
+        lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+        tx = WT_TERM_LABEL_W + WT_TERM_GUTTER;
+    }
+    lv_obj_t *t = wt_lbl(box, term, tx, 0, tf, wt_accent());
+    lv_obj_add_flag(t, WT_FLAG_ACCENT);
+    lv_obj_set_width(t, w - tx);
+    lv_obj_set_height(t, h);
+    lv_label_set_long_mode(t, LV_LABEL_LONG_DOT);
+    return box;
+}
+
+void wt_why_body_to(lv_obj_t *par, const char *body, int y, int bottom,
+                    lv_color_t sev, bool two_col)
 {
     if (!par || !body || !*body) return;
-    int room = WT_CONTENT_BOTTOM - y;
+    int room = bottom - y;
     if (room < 40) room = 40;
 
 exp_paras_t ps;
     exp_split(body, &ps);
 
+    // The rungs, and the FLOOR. There is no font14 rung any more. A body is
+    // the thing an owner READS, and 14 is the size this device keeps for
+    // MARKS: a body that will not fit at the floor has copy too long for its
+    // room, which is what the report at the bottom of the loop says. The
+    // ladder used to fall 28 -> 23 -> 14, and that last step gave away 40% of
+    // a glyph in one move, so the rung it landed on was never a decision
+    // anybody made -- it came off the bench four separate times before
+    // anything on this device reported it.
+    //
+    // 21 is a rung for a body that CAN be set in mono, and only then.
+    // wt_font21 does not exist: the third rung is the raw mono face, whose
+    // line box is 23 against mono23's 25. A body that failed mono_can is
+    // mostly non-ASCII and belongs on the sans-primary faces, whose 21 is
+    // nat23 at a line box of 29 -- TALLER than the rung above it, which is a
+    // ladder that climbs. So those bodies floor at 23 and this one stops at
+    // two rungs.
     const lv_font_t *ladder[3];
-    ladder[0] = wt_font28(); ladder[1] = wt_font23(); ladder[2] = wt_font14();
+    int rungs = 2;
+    ladder[0] = wt_font28();
+    ladder[1] = wt_font23();
+    if (mono_can(body)) { ladder[2] = wt_font_mono21(); rungs = 3; }
 
-    const lv_font_t *f = wt_font14();
+    const lv_font_t *f = ladder[rungs - 1];
     int split_at = 0;                 // 0 = one full width block
     int used = room;
 
-    for (int r = 0; r < 3; r++) {
+    for (int r = 0; r < rungs; r++) {
         const lv_font_t *cand = ladder[r];
 
         // Full width first. It reads better than two columns and it is the
@@ -5327,13 +5404,19 @@ exp_paras_t ps;
             }
         }
 
-        // Nothing fits at font14 either: keep it, clamp, and let
-        // wt_why_block's own bounds do the rest. Better a full card of the
-        // smallest type than a card that silently drops its second half.
-        if (r == 2) {
+        // Nothing fits at the floor either: keep the floor, clamp, and let
+        // wt_why_block's own bounds do the rest. Better a full card at the
+        // smallest rung a body is allowed than a card that silently drops its
+        // second half -- and SAY SO, because the copy is what has to give.
+        // This path was silent for its whole life: the ladder picked 14, the
+        // string never looked like a bug in the source, and it came off the
+        // bench four separate times before anything reported it.
+        if (r == rungs - 1) {
             f = cand;
             split_at = ps.count >= 2 ? 1 : 0;
             used = room;
+            WT_FIT_GAVE_UP("body", body, split_at ? EXP_COL_TXT : EXP_FULL_TXT,
+                           room);
         }
     }
 
@@ -5352,6 +5435,12 @@ exp_paras_t ps;
     } else {
         wt_why_block(par, NULL, body, 48, y, EXP_FULL_W, room, f, sev);
     }
+}
+
+void wt_why_body(lv_obj_t *par, const char *body, int y, lv_color_t sev,
+                 bool two_col)
+{
+    wt_why_body_to(par, body, y, WT_CONTENT_BOTTOM, sev, two_col);
 }
 
 // ---- WT_GRID_ICONS ----
@@ -5572,15 +5661,35 @@ lv_obj_t *wt_explain_open(lv_obj_t *parent, const wt_explain_t *e)
     // Band two: the body. WT_CONTENT_BOTTOM is the floor and everything is
     // measured against what is left above it, so a long translation drops a font
     // size instead of running under the OK action.
+    // The term line takes its own line off the bottom of the lane BEFORE the
+    // body is measured. Measuring the body against the lane and then drawing
+    // a term line into it is how a three line body lands on top of the term
+    // it is defining -- which a bottom-vs-height check cannot see, because
+    // both of them fit.
+    int bottom = WT_CONTENT_BOTTOM;
+    const bool has_term = e->term && *e->term;
+    if (has_term)
+        bottom -= lv_font_get_line_height(chrome23(e->term)) + 14;
+
     if (e->body && *e->body) {
-        int room = WT_CONTENT_BOTTOM - y;
+        int room = bottom - y;
         if (room < 40) room = 40;
 
         if (e->mode == WT_GRID_ICONS) {
             explain_grid(ovl, e, y, room, sev);
         } else {
-        wt_why_body(ovl, e->body, y, sev, false);
+        wt_why_body_to(ovl, e->body, y, bottom, sev, false);
         }
+    }
+    if (has_term) {
+        // Its BOTTOM on the floor, not its top a line height above it. A
+        // label's rendered box is not its font's line height -- the term line
+        // pinned by arithmetic came out 2px into the action row, which the
+        // CONTENT check saw and nothing else would have.
+        lv_obj_t *tl = wt_term_line(ovl, e->term_label, e->term, 48, bottom + 14,
+                                    704);
+        lv_obj_update_layout(tl);
+        lv_obj_set_y(tl, WT_CONTENT_BOTTOM - lv_obj_get_height(tl));
     }
 
     // 552..752: the corner, like every other way off a screen. It was centred

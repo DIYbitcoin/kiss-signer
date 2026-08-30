@@ -151,6 +151,11 @@ UNTRANSLATED_OK = {
     # the ADDRESS TYPE card, which answers a different question and left the
     # bench asking why. Born under the English-only rule.
     "R_PATH_H", "R_PATH_B",
+    # The term line: the word TECHNICAL, and the real terms it introduces.
+    # Every one is a standard's own name -- BIP numbers, PSBT, zpub -- which
+    # is what every other coordinator shows and what a reader will meet
+    # again outside this device. Born under the English-only rule.
+    "G_TECHNICAL", "T_PATH_TERM",
     # THIS DEVICE's four fact rows. Born under the English-only rule.
     "I_DEV_BUILD", "I_DEV_RADIO", "I_DEV_RANDOM", "I_DEV_ENC",
     "I_DEV_RADIO_ON", "I_DEV_RADIO_OFF",

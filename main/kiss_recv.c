@@ -1150,11 +1150,19 @@ static void path_help_cb(lv_event_t *e) {
   // the "?" beside a derivation path got a page titled ADDRESS TYPE, and the
   // bench asked exactly why: "there is no bitcoin simple explainer, it
   // explains fucking ADDRESS TYPE". Two values, two questions, two cards.
+  //
+  // The term line names what a coordinator calls this. Plain sentence first,
+  // real term underneath: a reader who meets ACCOUNT in Sparrow has to
+  // recognise it as the thing this page just explained, and a card that only
+  // ever says "the numbered branch" teaches a phrase that exists nowhere
+  // else in bitcoin.
   wt_explain_t x = {
-      .title  = tr(STR_R_PATH_H),
-      .icon   = LV_SYMBOL_DIRECTORY,
-      .body   = tr(STR_R_PATH_B),
-      .ok_txt = tr(STR_C_OK),
+      .title      = tr(STR_R_PATH_H),
+      .icon       = LV_SYMBOL_DIRECTORY,
+      .body       = tr(STR_R_PATH_B),
+      .term       = tr(STR_T_PATH_TERM),
+      .term_label = tr(STR_G_TECHNICAL),
+      .ok_txt     = tr(STR_C_OK),
   };
   wt_explain_open(s_scr, &x);
 }

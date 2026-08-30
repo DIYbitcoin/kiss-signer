@@ -290,6 +290,8 @@
   "R_ADDR_N_FMT": "ADDRESS  #%u",
   "R_PATH_H": "Derivation path",
   "R_PATH_B": "The numbered branch your keys grow on. Your coordinator follows the same one to find the same addresses. m/84h is native segwit, 1h is a test network and 0h is your first account.",
+  "G_TECHNICAL": "TECHNICAL",
+  "T_PATH_TERM": "ACCOUNT · DERIVATION PATH · BIP84",
   "R_ON_TESTNET": "on TESTNET",
   "R_ON_SIGNET": "on SIGNET",
   "R_ONE_EACH": "use a new address each time\nreuse links payments",
