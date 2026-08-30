@@ -1192,10 +1192,31 @@ static void sim_fw_done_cb(void) { g_fw_done_fired++; }
 // are English-only while the UI is being rebuilt, so the check has to be too,
 // and this one is better than the accident was: it names the ambiguity instead
 // of waiting for a locale where it happens to bite.
+// CASE is a Latin luxury. Several pairs here are one word written twice --
+// H_TILE_RECV "Receive" beside R_T "RECEIVE", G_FW_NEWER "newer" beside its
+// LAMP "NEWER" -- because a tile is sentence case and a title is not. English
+// keeps them apart by accident of shape; Japanese, Korean and Chinese have no
+// upper case, so the same two keys land on one string and this check called it
+// an ambiguity. It is not one: whichever of them the walk finds, it has found
+// the thing it asked for. So the keys are only ambiguous when their ENGLISH
+// says they are DIFFERENT things.
+static int en_eq_fold(const char *a, const char *b) {
+  for (; *a && *b; a++, b++) {
+    unsigned char x = *a, y = *b;
+    if (x >= 'A' && x <= 'Z') x += 32;
+    if (y >= 'A' && y <= 'Z') y += 32;
+    if (x != y) return 0;
+  }
+  return *a == *b;
+}
 static int needle_shared_by_two_keys(const char *s) {
-  int n = 0;
-  for (int i = 0; i < STR_N; i++)
-    if (strcmp(tr(i), s) == 0 && ++n > 1) return 1;
+  const char *const *en = i18n_tables[I18N_EN];
+  int first = -1;
+  for (int i = 0; i < STR_N; i++) {
+    if (strcmp(tr(i), s) != 0) continue;
+    if (first < 0) { first = i; continue; }
+    if (!en_eq_fold(en[first], en[i])) return 1;
+  }
   return 0;
 }
 
