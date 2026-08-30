@@ -3865,7 +3865,7 @@ int main(void) {
   save("/tmp/sim_settings_swipe.ppm");
   for (int i = 0; i <= 8; i++) { touch(300 + i * 14, 250); pump(3); }
   release(); pump(50);
-  must_show("settings/swipe back to signer", tr(STR_G_MAINNET_NOTE));
+  must_show("settings/swipe back to signer", tr(STR_G_TESTNET_NOTE));
   set_tab(SET_SECURITY);
   save("/tmp/sim_settings_security.ppm");           // duress unset: amber row + dot
   set_tab(SET_BACKUP);
