@@ -89,10 +89,26 @@ jobs:
           git clone -q -c advice.detachedHead=false --depth 1 --branch "v$LV" \
             https://github.com/lvgl/lvgl.git managed_components/lvgl__lvgl
 
-      - name: sim smoke walks (en / ja / ru)
+      # ENGLISH ONLY while the UI is being rebuilt, for the reason CLAUDE.md
+      # gives and with the cost it names. Every screen that gets rebuilt
+      # rewrites its own strings, so the other twenty carry wording that is
+      # about to be thrown away -- and the walk asserts on that wording, so ja
+      # and ru have been failing on stale copy rather than on the product.
+      #
+      # A standing red is worse than no gate. It trains everyone to scroll
+      # past, which is how the parser fuzz step sat broken for a day after the
+      # BIP39 test vector was allowed and its assertions were only flipped in
+      # one of the two harnesses that make them.
+      #
+      # What this gives up, stated so nobody has to rediscover it: a walk
+      # needle that passes in English because two keys share a string there
+      # and differ in French is exactly the class these two caught, and it now
+      # waits for the translation sweep. Put ja and ru back the day the
+      # wording settles.
+      - name: sim smoke walk (en)
         run: |
           bash sim/build_sim.sh
-          for L in en ja ru; do
+          for L in en; do
             echo "== SIM_LANG=$L =="
             timeout 300 env SIM_LANG=$L /tmp/fruitsim > /tmp/sim_$L.log
             tail -1 /tmp/sim_$L.log

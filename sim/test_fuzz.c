@@ -477,8 +477,15 @@ int main(void)
              kiss_seed_from_plaintext(pad, (size_t)pn, so, sizeof so) == 0 &&
              strcmp(so, GOOD) == 0);
 
-        chkb("plaintext: the abandon vector refused as text",
-             kiss_seed_from_plaintext(MN, strlen(MN), so, sizeof so) != 0);
+        // TAKEN, not refused. The degenerate gate has one seed wide hole in
+        // it on purpose: every PSBT sim/mk_sd_psbts.c emits derives from the
+        // BIP39 test vector, so a signer that cannot hold it cannot verify a
+        // single fixture on glass -- and the sign flow is the one flow no
+        // simulator can prove. kiss_seed_is_test_vector compares the STRING,
+        // which is what keeps the hole one seed wide.
+        chkb("plaintext: the abandon vector taken as text",
+             kiss_seed_from_plaintext(MN, strlen(MN), so, sizeof so) == 0 &&
+             strcmp(so, MN) == 0);
 
         // The retired numeric SeedQR shape: 4 digits per wordlist index. This
         // reader used to accept it; it must not now, at either length and
@@ -524,8 +531,12 @@ int main(void)
         // degenerate entropy out of an envelope: all must be refused
         uint8_t ent[32];
         memset(ent, 0x00, 32);
-        chkb("plaintext: all-zero 16B entropy refused",
-             kiss_seed_from_plaintext((const char *)ent, 16, so, sizeof so) != 0);
+        // Sixteen zero BYTES encode to the abandon vector exactly -- these
+        // were never two cases. 32 zero bytes are a DIFFERENT mnemonic and
+        // stay refused below, which is what keeps this one seed wide rather
+        // than "zeros are fine".
+        chkb("plaintext: all-zero 16B entropy is the abandon vector, taken",
+             kiss_seed_from_plaintext((const char *)ent, 16, so, sizeof so) == 0);
         chkb("plaintext: all-zero 32B entropy refused",
              kiss_seed_from_plaintext((const char *)ent, 32, so, sizeof so) != 0);
         memset(ent, 0xFF, 32);
