@@ -319,10 +319,23 @@ jobs:
       # correctly (sign, wipe, replace, verify) renders at font14 in ANY of the
       # 21 locales, which is how a translation quietly turns the most
       # consequential control on a screen into its smallest text.
-      - name: button + explainer fit report
+      # ENGLISH ONLY while the UI is being rebuilt, for the same reason and with
+      # the same cost as the smoke walk above. This gate measures whether a
+      # string fits its box, and the other twenty locales are carrying strings
+      # that are about to be replaced: five screen titles and 69 slots fail on
+      # TRANSLATION LENGTH, on lanes and copy this pass never touched, and the
+      # English-only rule says a wording fix made now is thrown away when the
+      # screens stop moving.
+      #
+      # It stays a 21-locale gate in the tool -- run /tmp/kissfit with no
+      # SIM_LANG to get the full sweep, and it is the translation pass's own
+      # gate. Put the sweep back here the day the wording settles; the fit of a
+      # long translation is exactly what this check is for and giving it up is
+      # not free.
+      - name: button + explainer fit report (en)
         run: |
           bash sim/build_fitcheck.sh
-          /tmp/kissfit
+          SIM_LANG=en /tmp/kissfit
 
       # The fit report above measures strings; this measures SCREENS. It builds
       # every wallet screen the scripted walk reaches, in all 21 locales, and

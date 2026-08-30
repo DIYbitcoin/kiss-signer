@@ -247,7 +247,15 @@ static lv_obj_t *s_next_lbl;               // the one step this signer has not t
 // One number, two placements: built here and re-aligned after every text
 // change, because the label is content sized and a translation of a different
 // width would otherwise stay centred on the old one.
-#define HOME_NEXT_Y 346
+// 340, not 346. "pair a coordinator, then verify an address" is two steps and
+// it WRAPS to two lines, which at 346 put the second one 4px past
+// WT_CONTENT_BOTTOM -- the overlap gate found it the first time the pre-push
+// hook ran in strict mode. The line moved rather than the copy: this is the
+// only place on the device that says what to do next, and both halves of it
+// are things the owner has not done yet. There is room -- the tiles end at
+// 330 and this leaves 16 above the text -- and none below, which is why 340
+// and not 336.
+#define HOME_NEXT_Y 340
 // tile title string ids, in tile order (sign, receive, keys, settings).
 // STR_H_TILE_WALLET is a legacy KEY NAME whose value has been "Keys" for a
 // while; renaming the key would touch all 21 locale files for nothing.
