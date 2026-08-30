@@ -53,9 +53,5 @@ sdkconfig.sdtest
 # before anyone noticed.
 .claude/
 
-# The working copy the local tooling reads. The tracked rules are
-# docs/house-rules.md; this file is a machine local convenience.
-CLAUDE.md
-
 # offline fixture tooling (tools/sign_fixtures/README names the pip install)
 venv/
