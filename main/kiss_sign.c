@@ -125,18 +125,9 @@ static int s_coins_chip_x = 24;   // measured off the caption; see verify_screen
 // so a caption too long would have come back from an abandoned hold cut mid
 // codepoint. The desktop build never said a word.
 static char s_graph_cap_rest[160];
-// The trail behind SLIDE TO SIGN's thumb, filled left to right on the same
-// fraction as the ring.
-static lv_obj_t *s_sweep;
-// The thumb itself: the accent knob the finger drags along the track.
-static lv_obj_t *s_thumb;
 // DETAILS and BACK, NULL terminated, so the signing state can stand them down
 // without knowing what else is on the row.
 static lv_obj_t *s_inert[3];
-// The slide's live state: a drag in progress, and where it started. The
-// finger is the clock now -- there is no timer.
-static bool s_slide_on;
-static int  s_slide_x0;
 static char s_files[MAX_FILES][SD_NAME_LEN];
 static char s_cur[SD_NAME_LEN];
 static wpsbt_summary_t s_sum;
@@ -247,11 +238,6 @@ static const char *signed_name(const char *src)
     return s_done_name;
 }
 
-static void hold_stop(void)
-{
-    s_slide_on = false;
-}
-
 // Every pointer into the screen about to go, and the timers that would call
 // back into it. One function and not two copies, because the two copies had
 // drifted: both nulled the QR group and neither nulled the graph group, which
@@ -266,10 +252,9 @@ static void hold_stop(void)
 // dereferenced a freed entry label because an earlier one nulled only the root.
 static void widgets_drop(void)
 {
-    hold_stop();
     s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
-    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL; s_page_lbl = NULL;
+    s_inert[0] = NULL; s_page_lbl = NULL;
     if (s_qr_tmr) { lv_timer_delete(s_qr_tmr); s_qr_tmr = NULL; }
     if (s_qenc) { qrt_encoder_free(s_qenc); s_qenc = NULL; }
     s_qr_img = NULL; s_part_lbl = NULL; s_ez_act = NULL;
@@ -575,11 +560,7 @@ static const char *stop_body(const char *r)
 #define SG_BACK_X140 636   // 636..776, the standard 140px exit
 #define SG_DETAILS_X 366   // 366..516
 #define SG_HOLD_X     48   // 48..358, off the corner: it signs the transaction
-#define SG_HOLD_W    310   // the track; the knob's travel is measured in it
-// The knob, and the travel that arms the slide: a little square starting at
-// the track's left end, so full travel is the track minus the knob.
-#define SG_THUMB      20
-#define SG_TRAVEL    (SG_HOLD_W - SG_THUMB)
+#define SG_HOLD_W    310   // the track; the kit measures the knob's travel in it
 
 
 // The ? explainer: what the SIGNATURE code is for. Same pattern as the entropy
@@ -611,7 +592,7 @@ static void sig_fp_help_cb(lv_event_t *e)
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
     lv_obj_delete(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
-    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL; s_page_lbl = NULL;
+    s_inert[0] = NULL; s_page_lbl = NULL;
     mk_screen(parent, tr(STR_S_SIG_FP_HELP_T), NULL);
 
     // This device's own code first, real and big: the signed screens no
@@ -765,7 +746,7 @@ static void done_screen(const char *outname)
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
     lv_obj_delete(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
-    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL; s_page_lbl = NULL;
+    s_inert[0] = NULL; s_page_lbl = NULL;
     // Two lines, drawn here rather than by wt_screen: "return this card to
     // Sparrow, load the -signed.psbt file, then broadcast" is the whole point
     // of the screen and does not fit one line at a readable size. Nothing is
@@ -853,7 +834,7 @@ static void fail_screen(const char *why)
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
     lv_obj_delete(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
-    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL; s_page_lbl = NULL;
+    s_inert[0] = NULL; s_page_lbl = NULL;
     mk_chrome(parent, tr(STR_S_FAIL_T));
     char trail[96];
     snprintf(trail, sizeof trail, "%s / %s", tr(STR_S_T),
@@ -937,11 +918,6 @@ static void mark_paid_recipients(void)
 // is legal and it is also the end of the road: nothing in this band may grow
 // after this without moving ay.
 #define ADDR_CARD_H 82
-// The bar holding full while its fill crosses from the stop red to the accent.
-// The sweep measured a finger and there is no longer a finger to measure, but
-// snapping it to zero at the instant it fills takes the answer away in the
-// frame it was earned.
-#define SWEEP_SETTLE_MS 240
 
 static size_t s_signed_len;
 
@@ -1057,35 +1033,15 @@ static void sign_lock_outputs(void)
     }
 }
 
-static void thumb_x_exec(void *v, int32_t x) { lv_obj_set_x(v, x); }
-
-// Let go early and all of it retracts. This is the only place the flow says out
-// loud that a hold can be abandoned, so it puts back everything the press
-// moved rather than merely stopping the motion.
+// Everything the drag moved, put back. The kit owns the knob and the fill and
+// runs both home itself; what belongs to this screen is the GRAPH -- the
+// strands it drew forward on the same fraction, the lock overlay and the
+// caption that named the state.
 //
-// It is deliberately NOT part of hold_stop(). hold_tick calls hold_stop the
-// instant the hold completes, one line before it builds the signing state, so a
-// retract living in there would undo the screen it is about to draw. hold_stop
-// is also called from close_cb, from step_back and from three screen builders,
-// where s_graph belongs to a screen already being torn down.
+// Reached from the move hook at zero travel, so an abandoned slide and one
+// paused past its window both land here without either being timed.
 static void hold_abandon(void)
 {
-    hold_stop();
-    if (s_sweep) lv_obj_set_width(s_sweep, 0);
-    // The thumb RUNS back rather than teleporting: the same 200ms ease-out
-    // every slide bar's fill retracts with, because a knob that jumps home
-    // says the control broke rather than that the slide was abandoned.
-    if (s_thumb) {
-        lv_anim_delete(s_thumb, thumb_x_exec);
-        lv_anim_t a;
-        lv_anim_init(&a);
-        lv_anim_set_var(&a, s_thumb);
-        lv_anim_set_values(&a, lv_obj_get_x(s_thumb), 0);
-        lv_anim_set_duration(&a, 200);
-        lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
-        lv_anim_set_exec_cb(&a, thumb_x_exec);
-        lv_anim_start(&a);
-    }
     if (s_graph) {
         wt_bundle_hold(s_graph, 0);
         wt_bundle_state(s_graph, WT_BUNDLE_LIVE);
@@ -1095,70 +1051,38 @@ static void hold_abandon(void)
         lv_label_set_text(s_graph_cap, s_graph_cap_rest);
 }
 
-// The fill crossing from the hold's red into the track's accent, then leaving.
-// It is width 0 at the end either way, so an abandoned hold and a completed one
-// both finish with the track in its plain fill -- hold_abandon just gets there
-// without the crossing, because nothing was accepted.
-static void sweep_settle_exec(void *var, int32_t v)
+// The kit tells this how far the finger has come, 0..255, on every move --
+// forward under the drag, backward on the run home, and all the way to 255 on
+// the snap. The graph reads the same number the fill does: there is only one
+// thing being measured, and it is how far this finger has travelled.
+// What is left of the arming seam, in ms. Zero once the acknowledging press
+// has had its SIGN_ARM_MS, and zero when there was never one.
+static uint32_t sign_arm_left(void)
 {
-    lv_obj_set_style_bg_color((lv_obj_t *)var,
-                              lv_color_mix(wt_accent(), WT_STOP, (uint8_t)v), 0);
+    if (!s_ack_t0) return 0;
+    const uint32_t el = lv_tick_elaps(s_ack_t0);
+    return el < SIGN_ARM_MS ? SIGN_ARM_MS - el : 0;
 }
 
-static void sweep_settle_done(lv_anim_t *a)
+static void sign_lock_outputs(void);
+static void slide_complete(void);
+static void sign_slide_done(void *ud) { (void)ud; slide_complete(); }
+static void sign_slide_move(int per255, void *ud)
 {
-    lv_obj_set_width((lv_obj_t *)a->var, 0);
-    lv_obj_set_style_bg_color((lv_obj_t *)a->var, WT_STOP, 0);   // ready to sweep again
-}
-
-// How far the current drag has come, for the release test: full travel
-// ARMS the slide, and the LIFT is what signs -- completing under a still
-// down finger would rebuild the screen beneath it and let the drag's tail
-// press whatever lands there.
-static int s_slide_at;
-
-static void slide_drive(int px)
-{
-    if (px < 0) px = 0;
-    if (px > SG_TRAVEL) px = SG_TRAVEL;
-    s_slide_at = px;
-    // The graph, the knob and the trail run on the same fraction, because
-    // there is only one thing being measured: how far this finger has
-    // travelled. Three readings of one number, not three numbers.
-    if (s_graph) wt_bundle_hold(s_graph, (uint8_t)(px * 255 / SG_TRAVEL));
-    if (s_thumb) lv_obj_set_x(s_thumb, px);
-    // The trail ends under the knob's middle, not at its leading edge: a bar
-    // ending short of the knob would read as the knob outrunning its fill.
-    if (s_sweep) lv_obj_set_width(s_sweep, px + SG_THUMB / 2);
+    (void)ud;
+    if (s_graph) wt_bundle_hold(s_graph, (uint8_t)per255);
+    // Zero is the gesture at rest, whichever way it got there.
+    if (per255 == 0) hold_abandon();
+    else             sign_lock_outputs();
 }
 
 static void slide_complete(void)
 {
-    hold_stop();
-    // The sweep SETTLES rather than snapping to zero. It measured a finger
-    // and there is no longer a finger to measure, and a bar sitting full
-    // while libwally works would be read as a progress bar for the signing,
-    // which is a thing nothing here can time -- so it does not sit. It holds
-    // its full width for SWEEP_SETTLE_MS while its fill crosses from the
-    // stop red to the accent the track is already wearing, and then it is
-    // gone into that fill rather than deleted out from under the finger.
-    //
-    // Taking it away in the frame it filled was the complaint from the
-    // bench: the reward for holding the button for 1200ms was the bar
-    // disappearing. The fill still means "a finger was down this long"; the
-    // crossing is what says the measurement is finished and accepted.
-    if (s_sweep) {
-        lv_obj_set_style_bg_color(s_sweep, WT_STOP, 0);
-        lv_anim_t a;
-        lv_anim_init(&a);
-        lv_anim_set_var(&a, s_sweep);
-        lv_anim_set_values(&a, 0, 255);
-        lv_anim_set_duration(&a, SWEEP_SETTLE_MS);
-        lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
-        lv_anim_set_exec_cb(&a, sweep_settle_exec);
-        lv_anim_set_completed_cb(&a, sweep_settle_done);
-        lv_anim_start(&a);
-    }
+    // The fill stays where the gesture left it: full, with the lock in the
+    // knob. It used to be crossfaded away over 240ms, because the
+    // bench's complaint about the old 1200ms hold was that the reward for
+    // holding was the bar disappearing -- and the answer to that is now the
+    // LOCK, which arrives on the thing the finger moved and stays there.
     if (s_sign_lbl) {
         lv_label_set_text(s_sign_lbl, tr(STR_S_SIGNING));
         // The arrow promised travel and the travel is spent: SIGNING is a
@@ -1200,47 +1124,6 @@ static void slide_complete(void)
         lv_obj_remove_flag(s_inert[i], LV_OBJ_FLAG_CLICKABLE);
     }
     lv_timer_create(do_sign_cb, 30, NULL);            // let the label paint first
-}
-
-static void sign_press_cb(lv_event_t *e)
-{
-    lv_event_code_t c = lv_event_get_code(e);
-    if (c == LV_EVENT_PRESSED) {
-        // Not yet armed: this press is the tail of the one that acknowledged
-        // the caution, landing on the button that replaced it. Swallow it.
-        if (s_ack_t0 && lv_tick_elaps(s_ack_t0) < SIGN_ARM_MS) return;
-        lv_indev_t *in = lv_indev_active();
-        lv_point_t pt = { 0, 0 };
-        if (in) lv_indev_get_point(in, &pt);
-        s_slide_x0 = pt.x;
-        s_slide_on = true;
-        // A press mid-runback owns the thumb again; the retreat animation
-        // must not keep writing x underneath the new drag.
-        if (s_thumb) lv_anim_delete(s_thumb, thumb_x_exec);
-        sign_lock_outputs();
-    } else if (c == LV_EVENT_PRESSING) {
-        if (!s_slide_on) return;
-        lv_indev_t *in = lv_indev_active();
-        if (!in) return;
-        lv_point_t pt;
-        lv_indev_get_point(in, &pt);
-        slide_drive(pt.x - s_slide_x0);
-    } else if (c == LV_EVENT_RELEASED || c == LV_EVENT_PRESS_LOST) {
-        // The LIFT at full travel is the signature; a lift short of it (or a
-        // press the system took away) abandons. hold_stop alone covers the
-        // release delivered on the far side of a signature -- kiss_psbt_sign
-        // holds the loop, and retracting the graph there would erase a signed
-        // transaction's reveal.
-        if (c == LV_EVENT_RELEASED && s_slide_on &&
-            s_slide_at >= SG_TRAVEL - 10) {
-            slide_complete();
-        } else if (s_slide_on) {
-            hold_abandon();
-        } else {
-            hold_stop();
-        }
-        s_slide_at = 0;
-    }
 }
 
 static void details_cb(lv_event_t *e);
@@ -1449,10 +1332,9 @@ static void addr_tap_cb(lv_event_t *e)
 // spell it out; the one that forgot a line is what shipped the orphan.
 static void repaint_verify(void)
 {
-    hold_stop();
     lv_obj_delete_async(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
-    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL; s_page_lbl = NULL;
+    s_inert[0] = NULL; s_page_lbl = NULL;
     verify_screen(s_parent);
 }
 
@@ -1528,16 +1410,19 @@ static void verify_gesture_cb(lv_event_t *e)
 // attempt put the strip 12px past the bottom in pt-BR, ru and tr, and the run
 // said so before any of this shipped.
 #define SG_BAR_Y     150
-#define SG_BAR_Y_G   344   // ... and where it sits under the bundle graph
+// 290, not 344: the slide grew the action band to WT_ACTION_Y_SLIDE and the
+// bar has to finish above it. 290 + 44 is 334, two clear of WT_SLIDE_BOTTOM.
+#define SG_BAR_Y_G   290   // ... and where it sits under the bundle graph
 #define SG_BAR_H      44
 // The graph's box. 118 tall on a clean screen; 110 when the caution bar is
 // under it, which is the 8px the bar's band needs back.
 #define SG_GRAPH_Y   172
 #define SG_GRAPH_H   118
 #define SG_GRAPH_H_C 110
-// Several recipients: no address card below, so the graph runs to 366 and the
-// output column shows two more destinations before anything is under the fold.
-#define SG_GRAPH_H_MANY 194
+// Several recipients: no address card below, so the graph takes every pixel
+// down to the band. 164 and not the old 194 -- the band moved up to 344 to
+// hold a knob a thumb can find, and this is the screen that paid most for it.
+#define SG_GRAPH_H_MANY 164
 #define SG_PAN_Y_C   202   // panels, with a bar above them
 #define SG_PAN_H_C   104
 #define SG_RULE_Y_C  314
@@ -1642,10 +1527,9 @@ static bool s_on_cautions;
 static void cautions_screen(void);
 static void repaint_cautions(void)
 {
-    hold_stop();
     lv_obj_delete_async(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
-    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL; s_page_lbl = NULL;
+    s_inert[0] = NULL; s_page_lbl = NULL;
     cautions_screen();
 }
 
@@ -1664,10 +1548,9 @@ static void row_ack_cb(lv_event_t *e)
 static void cautions_open_cb(lv_event_t *e)
 {
     (void)e;
-    hold_stop();
     lv_obj_delete_async(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
-    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL; s_page_lbl = NULL;
+    s_inert[0] = NULL; s_page_lbl = NULL;
     s_on_cautions = true;
     cautions_screen();
 }
@@ -2554,17 +2437,17 @@ static void verify_screen(lv_obj_t *parent)
     // with one page ignores it, so an ordinary transaction gains no gesture.
     wt_swipe_watch(s_scr, verify_gesture_cb);
 
-    // The slide itself: the kit's rule shape -- the word, its arrow, a thin
-    // track under them -- with a square KNOB riding the track. The accent
-    // filled pill and then a boxed groove both came off the bench as "still
-    // a box": what says drag is a bar and a thing to grab, so that is all
-    // there is. sign_press_cb still measures distance from wherever the
-    // press lands, and the lift at full travel is still what signs.
-    lv_obj_t *p = lv_obj_create(s_scr);
-    lv_obj_remove_style_all(p);
-    lv_obj_set_size(p, SG_HOLD_W, WT_ACTION_H);
-    lv_obj_set_pos(p, SG_HOLD_X, WT_ACTION_Y);
-    lv_obj_remove_flag(p, LV_OBJ_FLAG_SCROLLABLE);
+    // The slide itself, and it is THE KIT'S now -- the same 44px knob, the
+    // same 8px deadband, the same 800ms pause window and the same snap past
+    // 85% that every other SLIDE TO * on the device got. This screen carried
+    // its own copy of the gesture for as long as the gesture existed, which is
+    // why the bench's notes about the knob had to be answered twice.
+    //
+    // What is still this screen's is the GRAPH. It reads the travel through
+    // the move hook -- one number, read twice -- so the strands run forward
+    // under the finger and back when it lets go, without a second handler
+    // watching the same press.
+    //
     // One expression, read twice. Writing the condition out again for the test
     // seam let the seam keep reporting "inert" after the gate itself had been
     // deleted -- the self test passed against a build with no gate in it.
@@ -2572,66 +2455,24 @@ static void verify_screen(lv_obj_t *parent)
 #ifndef ESP_PLATFORM
     s_armed = armed;
 #endif
-    // Inert is the same shape with the ink taken out, not a hidden control:
-    // the owner can see what acknowledging the rows above is going to
-    // unlock. No accent while inert -- the accent is this app's "press this
-    // one" marker, and wearing it dead would be a lie.
-    const lv_font_t *sf = wt_chrome23(tr(STR_S_HOLD_TO_SIGN));
-    lv_obj_t *sl = wt_lbl(p, tr(STR_S_HOLD_TO_SIGN), 0, 0, sf,
-                          armed ? wt_accent() : WT_DIM);
-    lv_obj_set_style_text_letter_space(sl, 2, 0);
-    if (armed) lv_obj_add_flag(sl, WT_FLAG_ACCENT);
-    s_sign_lbl = sl;
-    lv_obj_update_layout(sl);
-    // NO ARROW beside the word. The knob below is the direction, it is on the
-    // thing the finger moves, and the kit's own slide rule lost its arrow in
-    // the same edit -- two marks for one action is the shape this pass
-    // removed from the firmware rows and the SIGN explainer too.
-    const int ty = lv_obj_get_height(sl) + 8;
-    lv_obj_t *track = lv_obj_create(p);
-    lv_obj_remove_style_all(track);
-    lv_obj_set_size(track, SG_HOLD_W, 2);
-    lv_obj_set_pos(track, 0, ty);
-    lv_obj_set_style_bg_color(track, WT_DIV, 0);
-    lv_obj_set_style_bg_opa(track, LV_OPA_COVER, 0);
-    lv_obj_remove_flag(track, LV_OBJ_FLAG_CLICKABLE);
-
-    // The knob exists in both states -- inert it stands at the start of the
-    // track in the disabled ink, saying a slide will happen here.
-    lv_obj_t *knob = lv_obj_create(p);
-    lv_obj_remove_style_all(knob);
-    lv_obj_set_size(knob, SG_THUMB, SG_THUMB);
-    lv_obj_set_pos(knob, 0, ty + 1 - SG_THUMB / 2);
-    lv_obj_set_style_radius(knob, 4, 0);
-    lv_obj_set_style_bg_color(knob, armed ? wt_accent() : WT_EDGE, 0);
-    lv_obj_set_style_bg_opa(knob, LV_OPA_COVER, 0);
-    lv_obj_remove_flag(knob, LV_OBJ_FLAG_CLICKABLE);
-
-    if (armed) {
-        lv_obj_add_flag(knob, WT_FLAG_ACCENT_FILL);
-        s_thumb = knob;
-
-        // The trail, the slide's second reading -- the track filling in the
-        // ACCENT up to the knob, and not in WT_STOP. On this device a red
-        // fill under a confirm means a destructive one, wipe or reset, and
-        // signing is neither.
-        lv_obj_t *f = lv_obj_create(p);
-        lv_obj_remove_style_all(f);
-        lv_obj_set_size(f, 0, 2);
-        lv_obj_set_pos(f, 0, ty);
-        lv_obj_set_style_bg_color(f, wt_accent(), 0);
-        lv_obj_set_style_bg_opa(f, LV_OPA_COVER, 0);
-        lv_obj_add_flag(f, WT_FLAG_ACCENT_FILL);
-        lv_obj_remove_flag(f, LV_OBJ_FLAG_CLICKABLE);
-        s_sweep = f;
-        lv_obj_move_foreground(knob);   // the knob rides ON the fill
-
-        lv_obj_add_flag(p, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_add_event_cb(p, sign_press_cb, LV_EVENT_ALL, NULL);
-        // The slide must not bubble a gesture out to any screen watcher --
-        // dragging the confirm is not a page turn.
-        lv_obj_remove_flag(p, LV_OBJ_FLAG_GESTURE_BUBBLE);
-    }
+    wt_slide_t sg = {
+        .txt     = tr(STR_S_HOLD_TO_SIGN),
+        .held    = tr(STR_G_FW_KEEP_HOLDING),
+        .x       = SG_HOLD_X,
+        .y       = WT_ACTION_Y_SLIDE,
+        .w       = SG_HOLD_W,
+        .done    = sign_slide_done,
+        .move    = sign_slide_move,
+        // The press that acknowledged the last caution lands on the control
+        // that replaced it, so the bar ignores what is LEFT of SIGN_ARM_MS
+        // since that press -- not a fresh SIGN_ARM_MS. This screen rebuilds
+        // itself for every state change, and a window measured from the BUILD
+        // would go deaf again every time the owner came back from DETAILS.
+        .deaf_ms = sign_arm_left(),
+        .inert   = !armed,
+    };
+    lv_obj_t *bar = wt_slide(s_scr, &sg);
+    s_sign_lbl = wt_slide_label(bar);
 }
 
 // ---- DETAILS: the second page for people who want the raw facts. One page,
@@ -2665,7 +2506,7 @@ static void glossary_cb(lv_event_t *e)
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
     lv_obj_delete(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
-    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL; s_page_lbl = NULL;
+    s_inert[0] = NULL; s_page_lbl = NULL;
     mk_screen(parent, tr(STR_S_GLOSSARY_T), NULL);
 
     wt_card(s_scr, 24, 88, 752, 290);
@@ -3079,10 +2920,9 @@ static void details_cb(lv_event_t *e)
     wt_denom_on_tap(denom_tap_details);   // a figure tapped here rebuilds here
     if (kiss_psbt_details(&s_det) != 0)
         return;
-    hold_stop();
     lv_obj_delete_async(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
-    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL; s_page_lbl = NULL;
+    s_inert[0] = NULL; s_page_lbl = NULL;
     // No subtitle: the tab strip owns that band now, and the file name is on
     // the verify screen this deck was opened from and returns to.
     mk_screen(s_parent, tr(STR_S_DETAILS), NULL);
@@ -3190,7 +3030,7 @@ static void qr_out_screen(size_t sw)
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
     lv_obj_delete(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
-    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL; s_page_lbl = NULL;
+    s_inert[0] = NULL; s_page_lbl = NULL;
 
     s_qr_ez = false;
     s_out_len = sw;
@@ -3387,10 +3227,9 @@ static void rm_back_cb(lv_event_t *e)
 
 static void rm_repaint(void)
 {
-    hold_stop();
     lv_obj_delete_async(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
-    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL; s_page_lbl = NULL;
+    s_inert[0] = NULL; s_page_lbl = NULL;
     rm_screen();
 }
 
@@ -3518,10 +3357,9 @@ static void rm_open_cb(lv_event_t *e)
 {
     (void)e;
     s_rm_page = 0;                        // a fresh entry lands on page one
-    hold_stop();
     lv_obj_delete_async(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
-    s_inert[0] = NULL; s_sweep = NULL; s_thumb = NULL; s_page_lbl = NULL;
+    s_inert[0] = NULL; s_page_lbl = NULL;
     rm_screen();
 }
 

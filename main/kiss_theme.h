@@ -1569,16 +1569,44 @@ lv_obj_t *wt_slide_rule(lv_obj_t *scr, const char *txt, const char *held,
                         int x, int y, int w,
                         void (*done)(void *), void *ud);
 
-// The top of THIS screen's action band, and so the line its content may not
-// cross: WT_ACTION_Y_SLIDE where a band slide grew the band, WT_CONTENT_BOTTOM
-// everywhere else. The gate asks the screen rather than assuming the constant.
+// The full form, for the one screen that needs more than a word and a
+// callback. The two calls above build one of these and hand it here.
+typedef struct {
+    const char *txt, *held;      // the word at rest, and under the finger
+    int x, y, w;
+    const lv_color_t *ink;       // NULL takes the accent, flagged for restyle
+    const lv_color_t *fill;      // ...and the same for the track's fill
+    void (*done)(void *);
+    void *ud;
+    // Told the travel as 0..255 on every move, including the run back and the
+    // snap. The sign screen's bundle graph rides this: one number, read twice,
+    // rather than a second gesture reading the same finger.
+    void (*move)(int per255, void *ud);
+    // Ignore presses for this long after the bar is built. A slide that
+    // replaces the control the finger just pressed would otherwise take that
+    // press's tail as the start of a gesture.
+    uint32_t deaf_ms;
+    // The same shape with the ink taken out. Not a hidden control: the owner
+    // can see what acknowledging the rows above is going to unlock. No accent
+    // while inert -- the accent means "press this one", and wearing it dead
+    // is a lie.
+    bool inert;
+} wt_slide_t;
+lv_obj_t *wt_slide(lv_obj_t *scr, const wt_slide_t *s);
+// The word on a band slide, for a caller that renames it when the gesture
+// completes. NULL on the row shape, whose word rides inside the knob.
+lv_obj_t *wt_slide_label(lv_obj_t *bar);
+
+// Is this object a band slide's hit box? The gate asks, so it can measure a
+// screen's content against WT_SLIDE_BOTTOM where a slide grew the band and
+// WT_CONTENT_BOTTOM everywhere else -- and so it can ignore a slide BURIED
+// under an overlay, whose own action row is back at the standard 404.
 //
-// For a SETTLED tree only. A page being built has not placed its slide yet,
-// and a page reached by BACK is built while the page it came from is still
-// waiting on lv_obj_delete_async -- so a builder asking this question gets
-// either the constant or the OLD screen's answer. A builder that needs the
-// line names it: WT_SLIDE_BOTTOM or WT_CONTENT_BOTTOM, in the call.
-int wt_action_top(lv_obj_t *scr);
+// A screen BUILDER never asks this. It has not placed its slide yet, and a
+// page reached by BACK is built while the page it came from is still waiting
+// on lv_obj_delete_async, so the tree would answer with the old screen's
+// geometry. A builder that needs the line names it in the call.
+bool wt_is_slide_band(lv_obj_t *o);
 
 // text helpers shared by receive/sign/info
 void wt_group4(const char *in, char *out, size_t out_len);     // addr in blocks of 4

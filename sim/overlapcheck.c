@@ -306,6 +306,8 @@ static void oc_mark_buried(void)
     }
 }
 
+static int oc_bottom(void);
+
 // Does this screen have the standard action row at all?
 //
 // WT_CONTENT_BOTTOM is a promise the wallet kit makes, not a law of the panel.
@@ -319,8 +321,7 @@ static bool oc_has_action_row(void)
         oc_node_t *n = &s_node[i];
         if (n->buried || !n->clickable) continue;
         if (area_is_backdrop(&n->vis)) continue;      // tap-to-dismiss backdrops
-        if (n->vis.y1 >= wt_action_top(lv_screen_active()) &&
-            n->vis.y2 < LV_VER_RES) return true;
+        if (n->vis.y1 >= oc_bottom() && n->vis.y2 < LV_VER_RES) return true;
     }
     return false;
 }
@@ -392,9 +393,16 @@ static void oc_check_text_overlap(const char *tag)
 // upward to hold a 44px knob. Asking the screen rather than assuming the
 // constant is the whole point: the band moved, and a check measuring against
 // the number it used to be would pass a paragraph running under the bar.
+//
+// BURIED slides do not count. An explainer overlay covers the page it opened
+// over, backdrop and all, and its own OK sits on the standard row -- so its
+// content is measured against 398 even though a slide is still down there.
 static int oc_bottom(void)
 {
-    return wt_action_top(lv_screen_active());
+    for (int i = 0; i < s_n; i++)
+        if (!s_node[i].buried && wt_is_slide_band(s_node[i].obj))
+            return WT_ACTION_Y_SLIDE;
+    return WT_CONTENT_BOTTOM;
 }
 
 static void oc_check_content_bottom(const char *tag)

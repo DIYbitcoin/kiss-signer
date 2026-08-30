@@ -24,6 +24,9 @@ static const char WT_BARCAP_TAG[] = "wt_action_bar_cap";
 // content line by itself, and it is not always on a wt_screen -- the receive
 // gate builds its own -- so the ANSWER cannot come from the bar alone.
 static const char WT_SLIDEBAND_TAG[] = "wt_slide_band";
+// The word on a band slide, so a caller can change it on arrival without
+// counting children -- the sign screen turns SLIDE TO SIGN into SIGNING.
+static const char WT_SLIDELBL_TAG[] = "wt_slide_label";
 static const char WT_TITLE_TAG[]  = "wt_title";
 static const char WT_SUB_TAG[]    = "wt_subtitle";
 
@@ -730,31 +733,9 @@ static void action_bar_ensure(lv_obj_t *scr)
     action_bar_ensure_at(scr, WT_CONTENT_BOTTOM);
 }
 
-// Depth first, because a screen's band is not always a child of the screen.
-// wt_chrome hands back a PANE inside the screen and the gates build their
-// whole page on it, slide included -- a one-level walk answered with the
-// constant on exactly the screens that had moved their band.
-static int action_top_walk(lv_obj_t *o, int top)
+bool wt_is_slide_band(lv_obj_t *o)
 {
-    const uint32_t n = lv_obj_get_child_count(o);
-    for (uint32_t i = 0; i < n; i++) {
-        lv_obj_t *c = lv_obj_get_child(o, i);
-        const void *tag = lv_obj_get_user_data(c);
-        // The slide is asked first and wins outright: it is the control that
-        // MOVED the band, and its own geometry is the answer.
-        if (tag == (void *)WT_SLIDEBAND_TAG) return WT_ACTION_Y_SLIDE;
-        if (tag == (void *)WT_BAR_TAG) top = lv_obj_get_y(c);
-        const int deep = action_top_walk(c, top);
-        if (deep == WT_ACTION_Y_SLIDE) return deep;
-        top = deep;
-    }
-    return top;
-}
-
-int wt_action_top(lv_obj_t *scr)
-{
-    if (!scr) return WT_CONTENT_BOTTOM;
-    return action_top_walk(scr, WT_CONTENT_BOTTOM);
+    return o && lv_obj_get_user_data(o) == (void *)WT_SLIDEBAND_TAG;
 }
 
 // ---- tap feedback ----
@@ -924,9 +905,13 @@ typedef struct {
     bool armed;           // snapped home; further PRESSING is ignored
     bool saying_held;     // the KEEP SLIDING swap, made once, not per event
     bool band;            // the tall shape: a word over a 44px knob
+    bool live;            // this press was accepted; PRESSING may drive
     const char *txt, *held;
     int release_ms;
     lv_timer_t *pause;    // the 800ms window a lift opens, NULL when closed
+    uint32_t born;        // when the bar was built, for deaf_ms
+    uint32_t deaf_ms;
+    void (*move)(int per255, void *ud);
     void (*done)(void *);
     void *ud;
 } wt_hold_t;
@@ -945,6 +930,12 @@ static void an_slide(void *v, int32_t at)
     wt_hold_t *h = v;
     if (h->fill) lv_obj_set_width(h->fill, at + WT_SLIDE_KNOB / 2);
     if (h->knob) lv_obj_set_x(h->knob, at);
+    // Reported from HERE and not from the press handler, so the run back and
+    // the snap carry whatever the caller hung off the travel just as the drag
+    // does. A graph that only follows the finger forward is a graph that stays
+    // committed after the gesture was abandoned.
+    if (h->move) h->move((int)(at * 255 / (h->travel > 0 ? h->travel : 1)),
+                         h->ud);
 }
 
 // The label and its arrow are two objects, not one formatted string. The walk
@@ -1029,6 +1020,10 @@ static void hold_press_cb(lv_event_t *e)
     wt_hold_t *h = lv_event_get_user_data(e);
     lv_event_code_t c = lv_event_get_code(e);
     if (c == LV_EVENT_PRESSED) {
+        // Not yet listening: this press is the tail of the one that built the
+        // bar, landing on the control that replaced what it hit.
+        if (h->deaf_ms && lv_tick_elaps(h->born) < h->deaf_ms) return;
+        h->live = true;
         lv_indev_t *in = lv_indev_active();
         lv_point_t pt = { 0, 0 };
         if (in) lv_indev_get_point(in, &pt);
@@ -1042,7 +1037,7 @@ static void hold_press_cb(lv_event_t *e)
         h->fired = false;
         lv_anim_delete(h, an_slide);
     } else if (c == LV_EVENT_PRESSING) {
-        if (h->fired || h->armed) return;
+        if (!h->live || h->fired || h->armed) return;
         lv_indev_t *in = lv_indev_active();
         if (!in) return;
         lv_point_t pt;
@@ -1070,6 +1065,9 @@ static void hold_press_cb(lv_event_t *e)
         }
         if (px >= h->travel * WT_SLIDE_SNAP / 100) hold_snap(h);
     } else {                           // RELEASED, PRESS_LOST, or DELETE
+        const bool was_live = h->live;
+        h->live = false;
+        if (!was_live && c != LV_EVENT_DELETE) return;
         // Full travel ARMS; the LIFT fires. Firing mid-drag replaced the
         // screen under a finger still down, and the indev re-targets a live
         // press -- so the drag's tail pressed whatever the new screen put
@@ -1079,7 +1077,12 @@ static void hold_press_cb(lv_event_t *e)
             h->fired = true;
             void (*done)(void *) = h->done;
             void *ud = h->ud;
-            hold_reset(h, false);
+            // SETTLE, not reset. The control STAYS as the gesture left it --
+            // fill full, lock in the knob -- because that mark is the whole
+            // answer to the bench's complaint that the reward for finishing
+            // was the bar disappearing. Only the pause window is closed.
+            hold_pause_close(h);
+            lv_anim_delete(h, an_slide);
             if (done) done(ud);        // may delete the bar: touch nothing after
             return;
         }
@@ -1121,12 +1124,13 @@ static void hold_press_cb(lv_event_t *e)
 // for neither, so its mark rides inside the knob and the knob is the whole
 // control. Both have the same 44px of thumb and the same travel arithmetic --
 // what changes is where the words go, and the row shape has none.
-static lv_obj_t *slide_rule_build(lv_obj_t *scr, const char *txt,
-                                  const char *held, int x, int y, int w,
-                                  const lv_color_t *ink,
-                                  const lv_color_t *fill,
-                                  void (*done)(void *), void *ud)
+lv_obj_t *wt_slide(lv_obj_t *scr, const wt_slide_t *cfg)
 {
+    const char *txt = cfg->txt, *held = cfg->held;
+    const int x = cfg->x, w = cfg->w;
+    int y = cfg->y;
+    const lv_color_t *ink = cfg->ink, *fill = cfg->fill;
+    const bool inert = cfg->inert;
     // A y anywhere in the action band means the band shape, and the band shape
     // has ONE geometry: 344. The test is against WT_ACTION_Y_SLIDE and not
     // WT_CONTENT_BOTTOM, because 344 is ABOVE 398 -- a call site that already
@@ -1157,8 +1161,11 @@ static lv_obj_t *slide_rule_build(lv_obj_t *scr, const char *txt,
     // the fill RUNS back instead of vanishing -- a fill that disappears reads
     // as a completed action.
     h->release_ms = 200;
-    h->done = done;
-    h->ud = ud;
+    h->born = lv_tick_get();
+    h->deaf_ms = cfg->deaf_ms;
+    h->move = cfg->move;
+    h->done = cfg->done;
+    h->ud = cfg->ud;
 
     // The hit box is the rule's whole width and the band's height. No fill, no
     // border, no radius: the control IS the label, the track and the knob, and
@@ -1168,7 +1175,7 @@ static lv_obj_t *slide_rule_build(lv_obj_t *scr, const char *txt,
     lv_obj_set_size(p, w, bh);
     lv_obj_set_pos(p, x, y);
     lv_obj_remove_flag(p, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_flag(p, LV_OBJ_FLAG_CLICKABLE);
+    if (!inert) lv_obj_add_flag(p, LV_OBJ_FLAG_CLICKABLE);
     // A slide IS a horizontal stroke, and some of these bars live on deck
     // pages whose screen watches for exactly that. The gesture must not
     // bubble out of the bar, or dragging the confirm would turn the page
@@ -1176,8 +1183,11 @@ static lv_obj_t *slide_rule_build(lv_obj_t *scr, const char *txt,
     lv_obj_remove_flag(p, LV_OBJ_FLAG_GESTURE_BUBBLE);
     if (band) lv_obj_set_user_data(p, (void *)WT_SLIDEBAND_TAG);
 
-    const lv_color_t inkc  = ink  ? *ink  : wt_accent();
-    const lv_color_t fillc = fill ? *fill : wt_accent();
+    const lv_color_t inkc  = inert ? WT_DIM  : (ink  ? *ink  : wt_accent());
+    const lv_color_t fillc = inert ? WT_EDGE : (fill ? *fill : wt_accent());
+    // Inert wears no accent flag anywhere, so a theme repaint cannot relight
+    // a control that is not answering.
+    const bool flagged = !inert && !fill;
 
     // The track and the fill first, so the knob draws over them.
     const int ty = band ? WT_SLIDE_TRACK_Y : (bh - WT_SLIDE_TRACK) / 2;
@@ -1197,7 +1207,7 @@ static lv_obj_t *slide_rule_build(lv_obj_t *scr, const char *txt,
     lv_obj_set_style_radius(f, WT_SLIDE_TRACK / 2, 0);
     lv_obj_set_style_bg_color(f, fillc, 0);
     lv_obj_set_style_bg_opa(f, LV_OPA_COVER, 0);
-    if (!fill) lv_obj_add_flag(f, WT_FLAG_ACCENT_FILL);
+    if (flagged) lv_obj_add_flag(f, WT_FLAG_ACCENT_FILL);
     lv_obj_remove_flag(f, LV_OBJ_FLAG_CLICKABLE);
     h->fill = f;
 
@@ -1213,7 +1223,7 @@ static lv_obj_t *slide_rule_build(lv_obj_t *scr, const char *txt,
     lv_obj_set_style_radius(k, 6, 0);
     lv_obj_set_style_bg_color(k, fillc, 0);
     lv_obj_set_style_bg_opa(k, LV_OPA_COVER, 0);
-    if (!fill) lv_obj_add_flag(k, WT_FLAG_ACCENT_FILL);
+    if (flagged) lv_obj_add_flag(k, WT_FLAG_ACCENT_FILL);
     lv_obj_remove_flag(k, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_remove_flag(k, LV_OBJ_FLAG_SCROLLABLE);
     h->knob = k;
@@ -1225,8 +1235,9 @@ static lv_obj_t *slide_rule_build(lv_obj_t *scr, const char *txt,
                                ? wt_font_mono23() : wt_font23();
     if (band) {
         lv_obj_t *l = wt_lbl(p, txt, 0, WT_SLIDE_LBL_Y, lf2, inkc);
+        lv_obj_set_user_data(l, (void *)WT_SLIDELBL_TAG);
         lv_obj_set_style_text_letter_space(l, 2, 0);
-        if (!ink) lv_obj_add_flag(l, WT_FLAG_ACCENT);
+        if (!inert && !ink) lv_obj_add_flag(l, WT_FLAG_ACCENT);
         h->lbl = l;
     } else {
         // No room for a word beside a 44px knob in a 52px row, so the mark
@@ -1244,19 +1255,36 @@ static lv_obj_t *slide_rule_build(lv_obj_t *scr, const char *txt,
     lv_obj_add_flag(mk, LV_OBJ_FLAG_HIDDEN);
     h->mark = mk;
 
-    lv_obj_add_event_cb(p, hold_press_cb, LV_EVENT_PRESSED, h);
-    lv_obj_add_event_cb(p, hold_press_cb, LV_EVENT_PRESSING, h);
-    lv_obj_add_event_cb(p, hold_press_cb, LV_EVENT_RELEASED, h);
-    lv_obj_add_event_cb(p, hold_press_cb, LV_EVENT_PRESS_LOST, h);
+    // DELETE is wired even when inert: the context is malloc'd either way and
+    // a screen torn down must free it.
     lv_obj_add_event_cb(p, hold_press_cb, LV_EVENT_DELETE, h);
+    if (!inert) {
+        lv_obj_add_event_cb(p, hold_press_cb, LV_EVENT_PRESSED, h);
+        lv_obj_add_event_cb(p, hold_press_cb, LV_EVENT_PRESSING, h);
+        lv_obj_add_event_cb(p, hold_press_cb, LV_EVENT_RELEASED, h);
+        lv_obj_add_event_cb(p, hold_press_cb, LV_EVENT_PRESS_LOST, h);
+    }
     return p;
+}
+
+lv_obj_t *wt_slide_label(lv_obj_t *bar)
+{
+    if (!bar) return NULL;
+    const uint32_t n = lv_obj_get_child_count(bar);
+    for (uint32_t i = 0; i < n; i++) {
+        lv_obj_t *c = lv_obj_get_child(bar, i);
+        if (lv_obj_get_user_data(c) == (void *)WT_SLIDELBL_TAG) return c;
+    }
+    return NULL;
 }
 
 lv_obj_t *wt_slide_rule(lv_obj_t *scr, const char *txt, const char *held,
                         int x, int y, int w,
                         void (*done)(void *), void *ud)
 {
-    return slide_rule_build(scr, txt, held, x, y, w, NULL, NULL, done, ud);
+    wt_slide_t s = { .txt = txt, .held = held, .x = x, .y = y, .w = w,
+                     .done = done, .ud = ud };
+    return wt_slide(scr, &s);
 }
 
 lv_obj_t *wt_slide_rule_c(lv_obj_t *scr, const char *txt, const char *held,
@@ -1264,7 +1292,9 @@ lv_obj_t *wt_slide_rule_c(lv_obj_t *scr, const char *txt, const char *held,
                           lv_color_t ink, lv_color_t fill,
                           void (*done)(void *), void *ud)
 {
-    return slide_rule_build(scr, txt, held, x, y, w, &ink, &fill, done, ud);
+    wt_slide_t s = { .txt = txt, .held = held, .x = x, .y = y, .w = w,
+                     .ink = &ink, .fill = &fill, .done = done, .ud = ud };
+    return wt_slide(scr, &s);
 }
 
 lv_obj_t *wt_lbl(lv_obj_t *scr, const char *txt, int x, int y,

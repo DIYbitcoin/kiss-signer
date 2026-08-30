@@ -3092,21 +3092,35 @@ int main(void) {
   // at 25, 50 and 75 percent of the 310 travel are what make the length a
   // function of the finger, and a fill wired to anything else -- a coin
   // index, a signing estimate -- lands the same in all three.
-  slide_grip(STR_S_HOLD_TO_SIGN); slide_go(78);
+  // Travel is the track minus the 44px knob -- 266 of 310 -- and the drags
+  // below are quarters of THAT, plus the 8px deadband the knob does not move
+  // through. 75% is 208 and the snap is at 85%, so the third stop is a frame
+  // the gesture is still holding rather than one it has already finished.
+  slide_grip(STR_S_HOLD_TO_SIGN); slide_go(74);
   save("/tmp/sim_sign_hold_q.ppm");
-  slide_go(155);                                    // sweep ~half across
+  slide_go(141);                                    // sweep ~half across
   save("/tmp/sim_sign_hold.ppm");
-  slide_go(232);
+  slide_go(208);
   save("/tmp/sim_sign_hold_3q.ppm");
   if (!kiss_sign_test_locked()) {
     printf("FAIL: the output side never stood down for the hold\n");
     return 1;
   }
 
-  // Let go early. This is the frame the addendum exists for and the only place
-  // the flow says out loud that a hold can be abandoned: strands retract, the
-  // outputs come back up, the padlock goes and the caption is a count again.
+  // Let go early -- and NOTHING happens for 800ms. The travel is banked, the
+  // strands stay forward, the padlock stays, and the label offers to carry on.
+  // A lift is not a decision any more, and this is the frame that says so.
   release(); pump(8);
+  save("/tmp/sim_sign_paused.ppm");
+  if (!kiss_sign_test_locked()) {
+    printf("FAIL: the pause window let the output side back up\n");
+    return 1;
+  }
+
+  // Past the window, and past the 200ms the fill takes to run home after it:
+  // 70 frames is 1120ms against 1000, and the release itself is not seen until
+  // the indev's next read. 56 was 896 and sat inside the window.
+  pump(70);
   save("/tmp/sim_sign_abandon.ppm");
   if (kiss_sign_test_locked()) {
     printf("FAIL: an abandoned hold left the output side locked down\n");
@@ -3221,7 +3235,9 @@ int main(void) {
   // action-row position at (364,430), which the redraw deleted.
   // The bar dropped to y=344 under the bundle graph, and its action went with it:
   // bar-relative (543,2) 170x40 is now 567..737 x 346..386. This is its centre.
-  touch(652, 366); pump(3); release(); pump(6);     // I UNDERSTAND -> row goes green
+  // 312, not 366: the caution bar moved up to 290..334 when the slide grew
+  // the action band to 344. All three taps on it are this same centre.
+  touch(652, 312); pump(3); release(); pump(6);     // I UNDERSTAND -> row goes green
   save("/tmp/sim_sign_fee_ack.ppm");
   // BACK out of a screen an acknowledgement repainted. The tap above is what
   // makes the orphaned-screen check at the end of this walk mean anything: the
@@ -3276,7 +3292,7 @@ int main(void) {
   // the transaction the device trusted least was the one whose destination it
   // never showed. The bar action keeps the row action's x, so the FEE ack tap above
   // and this REVIEW tap land in the same place.
-  touch(652, 366); pump(3); release(); pump(8);     // REVIEW -> the rows, own page
+  touch(652, 312); pump(3); release(); pump(8);     // REVIEW -> the rows, own page
   save("/tmp/sim_sign_cautions.ppm");
   // Row 0's I UNDERSTAND: rows start at y=88 with the action at local (543,8),
   // so it is 567..737 x 96..136. This is its centre.
@@ -3402,7 +3418,7 @@ int main(void) {
     printf("FAIL: HOLD TO SIGN was live with the coins-linked bar unacknowledged\n");
     return 1;
   }
-  touch(652, 366); pump(3); release(); pump(8);     // I UNDERSTAND -> bar goes green
+  touch(652, 312); pump(3); release(); pump(8);     // I UNDERSTAND -> bar goes green
   save("/tmp/sim_sign_merge_ack.ppm");
   // Then PAGE the output column to its end, because on this transaction
   // whether that is even necessary depends on the locale: "no change, this
@@ -3429,7 +3445,10 @@ int main(void) {
   // through a hold.
   slide_grip(STR_S_HOLD_TO_SIGN); slide_go(155);
   save("/tmp/sim_sign_merge_hold.ppm");
-  release(); pump(8);
+  // 78 frames, not 8: a lift short of the end banks the travel for 800ms and
+  // the fill takes 200 more to run home, so an abandon is only an abandon
+  // once both have passed.
+  release(); pump(78);
   if (kiss_sign_test_locked()) {
     printf("FAIL: an abandoned hold left twenty coins locked down\n");
     return 1;
