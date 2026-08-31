@@ -310,23 +310,31 @@ static void fw_claims(int y, const char *lcap, const char *lval,
     wt_facts(s_scr, y, facts, 2);
 }
 
-// What the signature row's "?" answers: what a signature buys, in the two
-// paragraphs the confirm screen already carries in 21 locales. Composed at
-// runtime so the card costs no new key.
+// What the signature row's "?" answers: what a signature buys.
+//
+// ONE paragraph, and the title is the WORD. This card used to compose the
+// signature claim with the power caution -- two paragraphs from the confirm
+// screen, glued at runtime -- and titled itself "ecdsa + post quantum", which
+// is a heading, not a name. When the caution shrank to a fact row's value the
+// card inherited the fragment: "a minute, keep it plugged", alone, under a
+// lower case title, on a card about cryptography.
+//
+// The caution belongs to the screen where the decision is; the standard's own
+// names belong on the TECHNICAL line, which is where every other definition
+// on this device puts them.
 static void sig_row_help_cb(lv_event_t *e)
 {
     (void)e;
-    char body[512];
-    snprintf(body, sizeof body, "%s\n\n%s",
-             tr(STR_G_FW_WHY_B), tr(STR_G_FW_RISK_B));
     wt_explain_t x = {
-        .title  = tr(STR_G_FW_WHY_H),
-        .icon   = WT_ICON_LOCK,
-        .cap    = tr(STR_G_FW_ON_CARD),
-        .val    = s_img.version,
-        .body   = body,
-        .ok_txt = tr(STR_C_OK),
-        .mode   = WT_BODY_PROSE,
+        .title      = tr(STR_G_FW_ROW_SIG),
+        .icon       = WT_ICON_LOCK,
+        .cap        = tr(STR_G_FW_ON_CARD),
+        .val        = s_img.version,
+        .body       = tr(STR_G_FW_WHY_B),
+        .term       = tr(STR_G_FW_WHY_H),
+        .term_label = tr(STR_G_TECHNICAL),
+        .ok_txt     = tr(STR_C_OK),
+        .mode       = WT_BODY_PROSE,
     };
     wt_explain_open(s_scr, &x);
 }

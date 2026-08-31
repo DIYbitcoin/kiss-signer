@@ -867,6 +867,20 @@ static void meas_report(const char *tag, int frames) {
 static int g_seq_on, g_seq_n;
 static void save_seq(void);
 
+// Every screen on the firmware chain ARRIVES: the trade block, each line and
+// each rule animate in, and the last rule is still drawing at 662ms. 60 frames
+// is 960ms, the first count that photographs a settled page rather than one
+// mid flight -- at 20 the rules were simply absent from the frame, in every
+// locale, and nothing said so.
+//
+// It lives up here because the page is photographed from TWO places and only
+// one of them knew the number. Reached from SETTINGS the frame was taken 128ms
+// in: the headline had arrived, its body was still at opacity zero and the
+// remedy row had not started, so sim_settings_fw shipped a screen with one
+// line on it and the "cannot be checked" state looked like a screen with no
+// explanation. It is the same fault the comment above records at 20 frames.
+#define FW_SETTLE 60
+
 static void pump(int frames) {
   for (int i = 0; i < frames; i++) {
     lv_tick_inc(16);
@@ -4514,6 +4528,7 @@ int main(void) {
   // settings page.
   set_tab(SET_DEVICE);
   def_row(3, 0);                                    // Firmware -> the update screen
+  pump(FW_SETTLE);                                  // the body and the row arrive late
   save("/tmp/sim_settings_fw.ppm");                 // reached from settings, not directly
   touch(WT_EXIT_X + 70, WT_ACTION_Y + 26); pump(3); release(); pump(8);  // BACK -> settings
   save("/tmp/sim_settings_fw_back.ppm");            // one settings page, rebuilt
@@ -6063,13 +6078,6 @@ int main(void) {
     FILE *fw = sd_fopen("kiss-signer-99.0.0.bin", "wb");
     if (fw) { fwrite(img, 1, sizeof img, fw); fclose(fw); }
   }
-
-  // Every screen on this chain arrives: the trade block, each line and each
-  // rule animate in, and the last rule is still drawing at 662ms. 60 frames is
-  // 960ms, which is the first count that photographs a settled page rather
-  // than one mid flight -- at 20 the rules were simply absent from the frame,
-  // in every locale, and nothing said so.
-#define FW_SETTLE 60
 
   // 1. the state a build without the release key reaches: one claim, one line.
   kiss_fw_test_set_available(WFW_ERR_UNSIGNED);
