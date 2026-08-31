@@ -386,6 +386,15 @@ Two harness numbers, both measured, neither about the device: a drag needs
 `release()`. At `pump(4)` the lift is seen but the next press is folded into
 it, so strokes merge and fall through.
 
+**`OVERLAPCHECK_SIZES=1` prints every rendered label with its font**, which is
+the only way to ask "show me everything small" — each check is defined by what
+it EXCUSES, so a clean sweep says nothing about what the exemptions cover. The
+sweep that found the four remaining font14 sentences was
+`OVERLAPCHECK_SIZES=1 SIM_LANG=en /tmp/kissoverlap | grep '^\[size\]'`, sorted
+by font. 745 labels came back at font14 and 143 were distinct; almost all were
+marks, and the four that were not had each been let through by a different
+exemption.
+
 `overlapcheck` asks nine questions per stop: TEXT, CONTENT, GROWTH, CLIPPED,
 ROLE, **BARE**, **WALL**, **FIT** and **CUT**. The first two of those four are
 rule 1 above, enforced; the last two are the font14 rule and what replaced it:

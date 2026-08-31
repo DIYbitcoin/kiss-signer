@@ -559,9 +559,15 @@ static void fw_light_band(int y)
     lv_obj_remove_flag(b, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_remove_flag(b, LV_OBJ_FLAG_CLICKABLE);
 
-    lv_obj_t *l = wt_lbl(b, tr(STR_G_FW_BACKLIGHT), WT_LINE_PAD, 18,
-                         wt_font14(), WT_MUT);
-    lv_obj_set_style_text_letter_space(l, 4, 0);
+    // font23 in a 58px band, which had room for it the whole time. This is a
+    // SENTENCE -- it is the one instruction on a screen that goes dark for a
+    // minute, and it was set at font14 with 4px of letter spacing, which is
+    // the treatment a caption lane gets. Nothing an owner has to read is
+    // font14. Spacing drops to 2 because font23 does not need the width and
+    // the string has to stay inside the band.
+    lv_obj_t *l = wt_lbl(b, tr(STR_G_FW_BACKLIGHT), WT_LINE_PAD, 16,
+                         wt_font23(), WT_MUT);
+    lv_obj_set_style_text_letter_space(l, 2, 0);
 
     lv_anim_t a;
     lv_anim_init(&a);

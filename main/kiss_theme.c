@@ -2244,7 +2244,7 @@ lv_obj_t *wt_row_x(lv_obj_t *scr, const char *icon, const char *label,
     // it is font14, on a tall one it is "measure the box and pick".
     const bool sf_auto = (sf == NULL);
     const int rowh = h > 0 ? h : WT_ROW_H;
-    if (!sf) sf = wt_font14();
+    if (!sf) sf = wt_font23();
     if (!vf) vf = wt_font23();
     lv_obj_t *row = lv_obj_create(scr);
     lv_obj_remove_style_all(row);
@@ -2441,6 +2441,13 @@ lv_obj_t *wt_row_x(lv_obj_t *scr, const char *icon, const char *label,
             lv_label_set_long_mode(s, LV_LABEL_LONG_WRAP);
             lv_obj_set_user_data(s, (void *)WT_SUB_TAG);
         } else {
+            // MEASURED, through the same sink the wide row and the def rows
+            // use. This row is where CUT was NOT wired, and it is the row the
+            // whole device is built out of: the sub is pinned to one line with
+            // LONG_DOT, LVGL rewrites the label's own text to insert the dots,
+            // and a gate reading the finished tree finds a string exactly one
+            // lane wide with no evidence anything was lost.
+            wt_sub_measure("sub", sub, sf, 0, sw);
             lv_obj_t *s = wt_lbl(row, sub, lx, liney, sf, WT_MUT);
             // Declared font14, and it is the BOX deciding rather than the
             // copy: a WT_ROW_H row is 64 tall, its label owns 7..35 at font23

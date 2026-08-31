@@ -1180,6 +1180,10 @@ static void oc_check_cut(const char *tag)
 // group together.
 #define OC_TINY_MIN_WORDS 3
 #define OC_TINY_MIN_CHARS 14
+// An uppercase string this long has stopped being a lane label. Five, because
+// the longest real caption on the device is "SOURCE 1 WHAT YOU POINT AT" at
+// four plus its number, and the shortest thing that got through was six.
+#define OC_TINY_MIN_SHOUT 6
 
 static bool oc_font_is_tiny(const lv_font_t *f)
 {
@@ -1250,7 +1254,13 @@ static void oc_check_tiny(const char *tag)
         // a reader can check it -- a backlog of strings here could not be
         // traced back to a screen by anybody.
         if (lv_obj_has_flag(n->obj, WT_FLAG_TINY_OK)) continue;
-        if (!oc_has_lowercase(txt)) continue;
+        // Uppercase is a CAPTION lane -- scanned, not read -- but only while
+        // it is caption length. "THE BACKLIGHT IS THE PROGRESS BAR" is six
+        // words and an instruction, and it sat at font14 on the screen that
+        // goes dark for a minute because this line skipped every capital
+        // string there was.
+        if (!oc_has_lowercase(txt) && oc_word_count(txt) < OC_TINY_MIN_SHOUT)
+            continue;
         if (oc_word_count(txt) < OC_TINY_MIN_WORDS) continue;
         if ((int)strlen(txt) < OC_TINY_MIN_CHARS) continue;
         if (oc_tiny_excused(txt)) continue;
@@ -2220,6 +2230,32 @@ void oc_check(const char *tag)
                    (int)s_node[i].cut, (int)c.y1, (int)c.y2,
                    (int)s_node[i].vis.y1, (int)s_node[i].vis.y2,
                    (int)s_node[i].vis.x1, (int)s_node[i].vis.x2);
+        }
+    }
+
+    // OVERLAPCHECK_SIZES=1: every rendered label with its font height and the
+    // stop it is on. Not a check -- the answer to "show me everything small",
+    // which the checks cannot give because each one is defined by what it
+    // excuses. Piped through sort/uniq it is the whole device's type ladder.
+    if (getenv("OVERLAPCHECK_SIZES")) {
+        for (int i = 0; i < s_n; i++) {
+            const oc_node_t *n = &s_node[i];
+            if (!n->is_label || n->buried) continue;
+            const char *txt = lv_label_get_text(n->obj);
+            if (!txt || !*txt) continue;
+            char t[96];
+            oc_text(n->obj, t, sizeof t);
+            const lv_font_t *f = lv_obj_get_style_text_font(n->obj, LV_PART_MAIN);
+            const char *fn = f == wt_font14()      ? "font14"
+                           : f == wt_font_mono14() ? "mono14"
+                           : f == wt_font_mono18() ? "mono18"
+                           : f == wt_font_mono21() ? "mono21"
+                           : f == wt_font23()      ? "font23"
+                           : f == wt_font_mono23() ? "mono23"
+                           : f == wt_font28()      ? "font28"
+                           : f == wt_font_mono28() ? "mono28"
+                           : "other";
+            printf("[size] %2d %-6s %-30s %s\n", n->lh, fn, oc_short_tag(tag), t);
         }
     }
 
