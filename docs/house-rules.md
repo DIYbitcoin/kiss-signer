@@ -170,9 +170,12 @@ beside its own SIM_LANG filter, and `.github/workflows/desktop-tests.yml` runs
 them the same way. A gate that is red for a reason nobody is acting on is a
 gate nobody reads.
 
-`.git/hooks/pre-push` runs this whole list bar the device compiler, in order
-and for exit codes, so a push is the same set. `bash tools/install_hooks.sh`
-installs it with the attribution hook; a fresh clone has neither.
+Nothing runs this list for you. A `pre-push` hook used to, and it was removed:
+`.github/workflows/desktop-tests.yml` runs every gate on it and several it
+never touched, so the hook only added three minutes of a spinning push button
+with nowhere to print its refusal. `bash tools/install_hooks.sh` installs the
+`commit-msg` attribution hook, which is the one thing CI cannot catch late
+enough to matter; a fresh clone has no hooks until it is run.
 
 ```bash
 bash sim/build_test.sh && /tmp/kisstest            # unit tests

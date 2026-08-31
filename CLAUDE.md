@@ -233,9 +233,18 @@ docker run --rm -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory \
   espressif/idf:v6.0.1 idf.py -B /project/build-docker build     # the device compiler
 ```
 
-`.git/hooks/pre-push` runs every one of those bar the device compiler, in that
-order and for their exit codes. `bash tools/install_hooks.sh` puts it there,
-along with the attribution hook; a fresh clone has neither until it is run.
+**Nothing runs these for you.** There was a `pre-push` hook that ran the whole
+list, and it is gone: `.github/workflows/desktop-tests.yml` runs every one of
+them plus a fuzz pass, a sanitized walk and the installer checks the hook never
+touched, so it was a duplicate that held a push for three minutes behind a UI
+with nowhere to print why it was refusing. Run them while you are working,
+which is where they catch things, and read the CI result before calling
+anything done.
+
+`bash tools/install_hooks.sh` installs the ONE hook that is still worth
+having -- `commit-msg`, which strips the attribution trailer. That one cannot
+be caught after the fact: a trailer that reaches GitHub is permanent. A fresh
+clone has no hooks until it is run.
 
 **`-B /project/build-docker`, not `/tmp/idfbuild`.** `/tmp` is inside the
 container and `--rm` throws it away, so the build directory never survives:

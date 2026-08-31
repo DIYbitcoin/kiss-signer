@@ -5,15 +5,23 @@
 # after cloning. See the Attribution section of CLAUDE.md for what the commit-msg
 # hook removes and why a written rule was not enough on its own.
 #
-# pre-push runs the gates CI runs, before the push rather than four minutes
-# after it. desktop-tests sat red on develop for four days because the only
-# thing that reads a red run is somebody who goes and looks; two of the breaks
-# were one line each and both would have failed locally in under a minute.
+# ONE HOOK, and it is the one that cannot be caught later. A co-author trailer
+# that reaches GitHub is permanent -- refs/pull/*/head is written by GitHub and
+# never rewritten -- so the only lane that matters is the one before the commit
+# is written. Everything else CI can say four minutes afterwards.
+#
+# There WAS a pre-push hook running the whole gate suite, and it is gone. Every
+# gate it ran, .github/workflows/desktop-tests.yml runs as well, along with a
+# fuzz pass, a sanitized walk and the installer checks the hook never touched --
+# so it was a duplicate that held a push for three minutes behind a UI with
+# nowhere to print why. Run the gates while you are working, which is where
+# they are useful; read the CI result before calling something done, which is
+# the habit the hook was standing in for.
 set -e
 cd "$(dirname "$0")/.."
 DEST=$(git rev-parse --git-path hooks)
 mkdir -p "$DEST"
-for h in commit-msg pre-push; do
+for h in commit-msg; do
     cp "tools/hooks/$h" "$DEST/$h"
     chmod +x "$DEST/$h"
     echo "installed: $DEST/$h"
