@@ -3204,7 +3204,16 @@ static void ez_sync(void)
     if (!s_ez_act) return;
     lv_obj_t *mark = lv_obj_get_child(s_ez_act, 0);
     lv_obj_t *word = lv_obj_get_child(s_ez_act, 1);
-    lv_obj_set_style_opa(mark, s_qr_ez ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
+    // DECIDED: this toggle's mark stays VISIBLE when it is off, dimmed rather
+    // than transparent. The two-state word action hides its mark elsewhere and
+    // that is right where a PAIR of them sits side by side -- the dice screen
+    // -- because the pair is the affordance. This one stands alone in a left
+    // aligned column, and hidden-but-still-occupying-space gave it no
+    // affordance at all AND pushed its word 33px inside the column's edge, so
+    // it read as a centred heading rather than a control. An inert mark says
+    // both things at once: there is a switch here, and it is not on.
+    lv_obj_set_style_opa(mark, LV_OPA_COVER, 0);
+    lv_obj_set_style_text_color(mark, s_qr_ez ? wt_accent() : WT_EDGE, 0);
     lv_obj_set_style_text_color(word, s_qr_ez ? wt_accent() : INK_COL, 0);
     if (s_qr_ez) {
         lv_obj_add_flag(mark, WT_FLAG_ACCENT);
@@ -3275,16 +3284,43 @@ static void qr_out_screen(size_t sw)
     // What to DO with the QR on screen, previously all at 14 beside a 28px
     // part counter. The right column is 322 wide and nothing but the EASY SCAN
     // control sits between here and DONE, so each of these gets its own line.
+    // MARKS, because these two lines are different KINDS and read identically
+    // without them. One is what to do with the square on screen; the other is
+    // the claim that nothing here has touched a network. Stacked as bare
+    // sentences at the same size and colour, the column was six things of
+    // equal weight -- a caption, a count, an instruction, a caution, a control
+    // and the control's own note -- and the reader had to sort them.
+    //
+    // The marks are the sorting, and they cost no key: a loop for the thing
+    // that loops, a lock for the thing that never leaves.
+    // The column held six things of equal weight -- a caption, a count, an
+    // instruction, a caution, a control and the control's own note -- and the
+    // reader had to sort them. Marks were the obvious sorting and they DO NOT
+    // FIT: this lane is 322 and wt_note takes the biggest font that fits the
+    // box, so a glyph and its two spaces put "it loops, hold steady" at font14
+    // while its sibling stayed at 23. Two lines of one kind at two sizes is
+    // worse than the problem.
+    //
+    // So the caution LEAVES the column instead. "never on the network" is not
+    // an instruction competing with the one above it, it is what is
+    // permanently true of this page -- and wt_standing is the element for
+    // exactly that, on the band's own left lane, with the dot the kit gives a
+    // claim. The column keeps the one line that tells the reader what to DO,
+    // at full width and full size.
     if (n > 1) {
         wt_note(s_scr, tr(STR_S_QR_LOOP), 430, 168, 322, 29);
         s_qr_tmr = lv_timer_create(qr_tick, 250, NULL);
     }
-    wt_note(s_scr, tr(STR_S_NO_NETWORK), 430, 201, 322, 29);
+    wt_standing(s_scr, tr(STR_S_NO_NETWORK), WT_OK, false);
     s_ez_act = wt_word_action(s_scr, LV_SYMBOL_OK, tr(STR_S_EASY_SCAN), true,
                                INK_COL, false, qr_ez_cb, NULL);
-    lv_obj_set_pos(s_ez_act, 430, 244);
+    lv_obj_set_pos(s_ez_act, 430, 212);
     ez_sync();
-    wt_note(s_scr, tr(STR_S_EZ_NOTE), 430, 304, 322, 87);
+    // Its own note, directly under it rather than sixty pixels below. This
+    // sentence explains THAT control and nothing else -- "phone won't catch
+    // it? bigger dots, slower loop" -- and floating it away from the thing it
+    // is about is what made the column read as a list of unrelated lines.
+    wt_note(s_scr, tr(STR_S_EZ_NOTE), 430, 254, 322, 87);
     wt_arrow_action(s_scr, tr(STR_C_DONE), false, true, 592, WT_ACTION_Y, 160,
                     true, close_cb, NULL);
     s_part_i = 0;

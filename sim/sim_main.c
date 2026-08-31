@@ -3974,7 +3974,11 @@ int main(void) {
   touch(206, 258); pump(3); release(); pump(20);    // animated signed QR -> zoom
   save("/tmp/sim_qr_out_zoom.ppm");                 // animation keeps moving enlarged
   touch(763, 35); pump(3); release(); pump(6);      // close on latest frame
-  touch(530, 270); pump(3); release(); pump(6);     // EASY SCAN: sparser, slower QR
+  // BY LABEL, not by coordinate. This was touch(530, 270), and the moment the
+  // control moved up the tap landed on the note below it and did nothing --
+  // silently, because tapping a note is not a failure. The frame after it went
+  // on being saved as though the toggle had been pressed.
+  tap_str(STR_S_EASY_SCAN, 3, 8);                   // EASY SCAN: sparser, slower QR
   save("/tmp/sim_qr_out_ez.ppm");
   tap_str(STR_C_DONE, 3, 6);     // DONE -> home
   save("/tmp/sim_qr_end.ppm");

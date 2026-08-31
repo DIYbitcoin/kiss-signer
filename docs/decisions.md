@@ -10,7 +10,7 @@ construction.
 route to the comment that answers it, which is how seven findings were filed
 and withdrawn in one review pass.
 
-11 decisions.
+12 decisions.
 
 ## `main/kiss_info.c`
 
@@ -70,6 +70,12 @@ NO FILENAME HERE, and no "camera" either. Both were cut rather than fixed. The r
 
 [`main/kiss_sign.c:1810`](../main/kiss_sign.c#L1810)
 
+### this toggle's mark stays VISIBLE when it is off, dimmed rather than transparent
+
+The two-state word action hides its mark elsewhere and that is right where a PAIR of them sits side by side -- the dice screen -- because the pair is the affordance. This one stands alone in a left aligned column, and hidden-but-still-occupying-space gave it no affordance at all AND pushed its word 33px inside the column's edge, so it read as a centred heading rather than a control. An inert mark says both things at once: there is a switch here, and it is not on.
+
+[`main/kiss_sign.c:3207`](../main/kiss_sign.c#L3207)
+
 ## `main/kiss_theme.c`
 
 ### the icon grid's ladder floors at 21 and no longer has a font14 rung
@@ -90,4 +96,4 @@ THE FLOOR IS 21, NOT 14, which is the same floor wt_body_para has and for the sa
 
 pump(30), not 20. The outgoing pane leaves on a per row stagger -- (n-1) * MO_OUT_STEP + MO_OUT_MS, which is 330ms for a six row detail pane against 320ms of pump -- so the old count photographed the previous screen still fading through this one. Invisible until overlapcheck learned to read spangroups: the ghost is a folded address, and a spangroup was not text to any check on the list.
 
-[`sim/sim_main.c:4029`](../sim/sim_main.c#L4029)
+[`sim/sim_main.c:4033`](../sim/sim_main.c#L4033)
