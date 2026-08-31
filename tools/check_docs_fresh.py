@@ -34,7 +34,11 @@ import sys
 # rest of sim/ is gates and harness -- it cannot change what a frame looks
 # like, so it is not a reason to re-render one.
 UI = ["main/", "sim/sim_main.c"]
-PICTURES = ["docs/shots/"]
+# Written by gen_docs_shots.py: the commit the frames were rendered from.
+STAMP = "docs/shots/.rendered"
+# Fallback when the stamp is absent (a clone from before it existed): the four
+# directories a regeneration writes, so whichever moved dates the run.
+PICTURES = ["docs/shots/", "docs/readme/", "docs/media/", "docs/review/"]
 
 
 def git(*args):
@@ -48,10 +52,30 @@ def commits_since(base, paths):
     return [tuple(l.split("\t", 1)) for l in out.splitlines() if "\t" in l]
 
 
+def rendered_from():
+    """(commit, how it was dated) for the last regeneration.
+
+    The stamp is the accurate answer: a run that changes no pixel still writes
+    it, so closing the gap is always recordable. A commit that only renames a
+    save() literal cannot move a picture, and without the stamp that rename
+    reads as a screen change with no regeneration behind it -- which is a gate
+    crying wolf on the one repo where the frames are already correct.
+    """
+    sha = git("show", f"HEAD:{STAMP}").strip()
+    if sha:
+        when = git("log", "-1", "--format=%h %ci", sha)
+        if when:
+            return sha, when + "  (stamped)"
+    last = git("log", "-1", "--format=%h %ci", "--", *PICTURES)
+    if not last:
+        return "", ""
+    return last.split()[0], last + "  (dated by the pictures; no stamp)"
+
+
 def selftest():
     """A check nobody has seen fire is a check nobody should trust."""
     if not git("log", "-1", "--format=%H", "--", *PICTURES):
-        sys.exit("selftest: no commit has ever touched docs/shots")
+        sys.exit("selftest: no commit has ever touched the picture directories")
     # Must stop: from HEAD there is nothing newer than HEAD.
     if commits_since("HEAD", UI):
         sys.exit("selftest: counted UI commits newer than HEAD")
@@ -77,10 +101,9 @@ def main():
         print("docs freshness: " + msg)
         return
 
-    last = git("log", "-1", "--format=%h %ci", "--", *PICTURES)
-    if not last:
-        sys.exit("docs freshness: no commit has ever touched docs/shots")
-    base = last.split()[0]
+    base, last = rendered_from()
+    if not base:
+        sys.exit("docs freshness: nothing records when the frames were rendered")
 
     behind = commits_since(base, UI)
     if not behind:

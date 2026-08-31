@@ -791,7 +791,32 @@ def main():
     print("%d screenshots from %d frames, %.0f KB"
           % (len(list(targets())), len(cache), total / 1024.0))
     print("%d lines -> %s" % (lines, os.path.relpath(MD, ROOT)))
+    write_stamp()
     return 0
+
+
+def write_stamp():
+    """Record which commit these frames were rendered from.
+
+    Without this the only evidence a regeneration ran is a picture whose bytes
+    changed -- so a run that moves nothing leaves no trace, and
+    check_docs_fresh.py goes on reporting a gap that has already been closed.
+    On the release line that check is fatal, so the missing evidence would
+    have been unfixable except by editing a PNG.
+
+    The sha is HEAD at render time. If the tree was dirty the frames show more
+    than HEAD does, which is the honest reading either way: the pictures are
+    at least as new as this commit.
+    """
+    sha = subprocess.run(["git", "-C", ROOT, "rev-parse", "HEAD"],
+                         capture_output=True, text=True)
+    if sha.returncode != 0:
+        return
+    path = os.path.join(OUT, ".rendered")
+    with open(path, "w") as f:
+        f.write(sha.stdout.strip() + "\n")
+    print("rendered from %s -> %s" % (sha.stdout.strip()[:8],
+                                      os.path.relpath(path, ROOT)))
 
 
 if __name__ == "__main__":
