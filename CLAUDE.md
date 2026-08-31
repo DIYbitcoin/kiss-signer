@@ -227,10 +227,52 @@ instruction on the screen. In twenty locales it is still *Karte*, *tarjeta*,
 
 ## Copy
 
-- No hyphens in English wallet or explainer text.
+**Ordinary Bitcoin and computer words, said the way somebody would say them
+out loud.** The reader is somebody who bought their first signing device last
+week. They are standing up, reading once, deciding something. They are not
+reading for pleasure and nothing on the glass is worth being clever in.
+
+**The test: if the owner can reply "what does that mean?", it is wrong.** That
+is not hypothetical, it is what happened to *"Optional. Never instead of
+paper."* -- five words, no jargon, and it still had to be explained, because
+an instruction phrased as the negation of something else makes the reader do
+the work. It says *"Optional. Seed words still go on paper."* now.
+
+- **Say what to DO.** Not what not to do, not what it is not instead of.
+- **A sentence is under fourteen words**, because that is what anybody says
+  in one breath.
+- **No metaphor.** Data does not sit, live, travel or sleep anywhere.
+  "It can sit where plain words could not" was written on this screen and is
+  two failures in one line.
+- **No four syllable word** that Bitcoin or a computer did not already make
+  the reader learn. `coordinator` and `derivation` earn their length;
+  nothing else on this device does.
+- **The name in full, every time** -- see the Vocabulary rule above. When the
+  line will not fit, cut a different word, never the name.
+- No hyphens in English screen or explainer text.
 - Cut any string that restates the title, or a value sitting next to it.
 - Headings in a pair are parallel: "not stored" / "not recoverable".
 - Prefer a mark to a word wherever the mark is unambiguous.
+
+`python3 tools/check_vocab.py` fails on the mechanical half of this --
+APHORISM, LONG-SENTENCE, LONG-WORD alongside the naming rules -- and every
+one of those three rules is there because a string in this session tripped
+it. The half it cannot see is whether the sentence sounds like a person, and
+that is what reading it aloud is for. Do that before the commit, not after
+the owner asks.
+
+The record of one screen, because the shape of the failure repeats: the
+LOCKED BACKUP explainer went
+
+| | |
+| --- | --- |
+| shipped | "A QR only your password opens." | 
+| then | "A locked copy of your words." |
+| then | "Optional. Never instead of paper." |
+| landed | "A locked copy of your seed words." / "Optional. Seed words still go on paper." |
+
+Four rounds, three of them spent on the owner asking for plain words and the
+right name. Every one of the first three was shorter, cleverer, and worse.
 
 ## Gates
 

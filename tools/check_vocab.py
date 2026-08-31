@@ -15,6 +15,13 @@ rounds of the owner shouting to get "seed words" onto it.
 So the rule stops being something to remember. Every rule here is one that
 was already written down and broken anyway.
 
+Two kinds of rule, because the owner asked for two things. The NAMED rules
+are about calling a thing by its name -- seed words, signer, keys. The PLAIN
+rules are about the rest of the sentence: ordinary Bitcoin and computer
+words, said the way somebody would say them out loud. "Optional. Never
+instead of paper." broke none of the named rules and still had to be
+explained, which is the failure the plain rules exist for.
+
 Shape, copied from sim/overlapcheck.c because it is the shape that works
 here: a rule fires, a per-rule ALLOW carries the uses that are correct with
 the reason each is correct, and a per-rule BACKLOG carries the strings the
@@ -51,6 +58,74 @@ class Rule:
         self.backlog = set(backlog)
         self.fires_on = fires_on      # selftest: must fire
         self.clean = clean            # selftest: must NOT fire
+
+    def search(self, text):
+        m = self.re.search(text)
+        return m.group(0) if m else None
+
+
+class Measure:
+    """A rule that counts rather than matches. Same ALLOW/BACKLOG contract."""
+
+    def __init__(self, name, fn, instead, why, allow=(), backlog=(),
+                 fires_on="", clean=""):
+        self.name = name
+        self.fn = fn
+        self.instead = instead
+        self.why = why
+        self.allow = dict(allow)
+        self.backlog = set(backlog)
+        self.fires_on = fires_on
+        self.clean = clean
+
+    def search(self, text):
+        return self.fn(text)
+
+
+def _sentences(text):
+    return [s for s in re.split(r"[.!?\n]+", text) if s.strip()]
+
+
+def _words(text):
+    return re.findall(r"[A-Za-z][A-Za-z'-]*", text)
+
+
+def long_sentence(text):
+    """A sentence nobody would say in one breath."""
+    for s in _sentences(text):
+        if len(_words(s)) > 14:
+            return s.strip()
+    return None
+
+
+def _syllables(word):
+    w = re.sub(r"[^a-z]", "", word.lower())
+    if not w:
+        return 0
+    n = len(re.findall(r"[aeiouy]+", w))
+    if w.endswith("e") and n > 1 and not w.endswith(("le", "ee")):
+        n -= 1
+    return max(1, n)
+
+
+# Every 4+ syllable word already on screen, each one a term the reader meets
+# in Bitcoin or on a computer anyway. A NEW one has to be added here on
+# purpose, which is the whole mechanism: a long word is a decision, not a
+# reflex.
+LONG_WORDS_OK = {
+    "coordinator", "coordinator's", "derivation", "compatible", "signatures",
+    "replaceable", "unavailable", "unsupported", "unreadable", "unverifiable",
+    "unencrypted", "verification", "denomination", "destination", "recovery",
+    "information", "deniability", "manufacturer", "security", "internally",
+    "everywhere", "everything", "animated",
+}
+
+
+def long_word(text):
+    for w in _words(text):
+        if _syllables(w) >= 4 and w.lower() not in LONG_WORDS_OK:
+            return w
+    return None
 
 
 RULES = [
@@ -108,6 +183,49 @@ RULES = [
         fires_on="erases the wallet history stored now",
         clean="erases what this signer has seen",
     ),
+    # ---- PLAIN: the rest of the sentence ---------------------------------
+    Rule(
+        "APHORISM",
+        r"\b(?:never|not)\s+(?:instead|rather)\b",
+        "say what to DO: \"seed words still go on paper\"",
+        "an instruction phrased as a negation of something else makes the "
+        "reader work out what they are being told. The owner read "
+        "\"Optional. Never instead of paper.\" and asked what it meant",
+        fires_on="Optional. Never instead of paper.",
+        clean="Optional. Seed words still go on paper.",
+    ),
+    Measure(
+        "LONG-SENTENCE",
+        long_sentence,
+        "split it, or cut it to the one thing the reader has to do",
+        "over fourteen words is longer than anybody says out loud, and every "
+        "screen here is read standing up, once, by somebody deciding "
+        "something",
+        backlog=[
+            # Measured, not excused: these predate the rule and each is a
+            # teaching paragraph rather than an instruction. They shrink when
+            # their screen is next touched.
+            "G_FW_BIG_B", "G_FW_OK_B", "G_STORAGE_CLEANUP_B", "N_PSBT_B",
+            "R_PATH_B", "S_COINS_HELP_B", "S_D_TXID_CHANGES", "S_D_TXID_SAME",
+            "S_STOP_NET_B", "S_STOP_NOFP_B", "W_CARDS_HELP_B",
+            "W_SD_CORRUPT_B",
+        ],
+        fires_on="your coordinator built a bitcoin transaction and this "
+                 "signer will now show you every part of it before anything "
+                 "is signed",
+        clean="your coordinator built this. read it before you sign.",
+    ),
+    Measure(
+        "LONG-WORD",
+        long_word,
+        "use the shorter word, or add it to LONG_WORDS_OK with the reason it "
+        "has to be that word",
+        "four syllables is a word somebody has to stop at. The ones already "
+        "on screen are terms Bitcoin and computers use anyway; a new one is "
+        "a decision",
+        fires_on="the authentication requirement is nonnegotiable",
+        clean="you must unlock it first",
+    ),
 ]
 
 
@@ -122,7 +240,7 @@ def scan(strings):
             probe = text
             for name in PROPER:
                 probe = probe.replace(name, " ")
-            if not rule.re.search(probe):
+            if not rule.search(probe):
                 continue
             hit.add(key)
             if key in rule.allow or key in rule.backlog:
@@ -138,11 +256,11 @@ def selftest():
     one that fires on nothing, so both halves are asserted."""
     bad = 0
     for rule in RULES:
-        if not rule.re.search(rule.fires_on):
+        if not rule.search(rule.fires_on):
             print(f"SELFTEST: {rule.name} no longer fires on "
                   f"{rule.fires_on!r}", file=sys.stderr)
             bad += 1
-        if rule.clean and rule.re.search(rule.clean):
+        if rule.clean and rule.search(rule.clean):
             print(f"SELFTEST: {rule.name} fires on the FIXED string "
                   f"{rule.clean!r}", file=sys.stderr)
             bad += 1
