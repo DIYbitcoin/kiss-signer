@@ -160,9 +160,6 @@ UNTRANSLATED_OK = {
     # English-only rule; English in the other twenty until the sweep.
     "I_KEF_HEAD", "I_KEF_EXP_B", "I_KEF_EXP_B_NP", "I_KEF_F1_C",
     "I_KEF_F1_V", "I_KEF_F1_C_NP", "I_KEF_F1_V_NP", "I_KEF_TERM",
-    # The password the device draws for that envelope. Born under the
-    # English-only rule; English in the other twenty until the sweep.
-    "I_KEF_PW_CAP", "I_KEF_PW_NOTE", "I_KEF_PW_OK", "I_KEF_PW_TYPE",
     # What the sign screen says about a refusal it can actually answer: the
     # ownership mismatch and the wrong network. Born under the English-only
     # rule; English in the other twenty until the sweep.
