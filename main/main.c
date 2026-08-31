@@ -2800,20 +2800,42 @@ static void game_tick(lv_timer_t *t) {
       lv_obj_set_style_bg_opa(s_lock_warn, LV_OPA_60, 0);
       lv_obj_add_flag(s_lock_warn, LV_OBJ_FLAG_CLICKABLE);
       lv_obj_remove_flag(s_lock_warn, LV_OBJ_FLAG_SCROLLABLE);
+      // A BAR, not a pill, and the full width of the glass. The pill was
+      // 420px hard coded with the label centred inside it, and the English
+      // string measures 420px at font23 -- so it shipped reading "ocking
+      // soon. tap to stay open", clipped at BOTH ends, and every locale
+      // longer than English was worse. A box sized to a number is a box that
+      // fits one string; this one is sized to the screen, so nothing it is
+      // handed can overflow it.
+      //
+      // It also stops being an outlined rounded rectangle. That shape is
+      // gone from this device and the bar wears what the chrome strip wears:
+      // panel fill, one hairline where it meets the page, and the warning
+      // colour carried by the mark and the words rather than by a border
+      // drawn around them.
       lv_obj_t *card = lv_obj_create(s_lock_warn);
       lv_obj_remove_style_all(card);
-      lv_obj_set_size(card, 420, 56);
-      lv_obj_align(card, LV_ALIGN_TOP_MID, 0, 8);
-      lv_obj_set_style_radius(card, 10, 0);
+      lv_obj_set_size(card, LV_PCT(100), 56);
+      lv_obj_align(card, LV_ALIGN_TOP_MID, 0, 0);
       lv_obj_set_style_bg_color(card, WT_PANEL, 0);
       lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
-      lv_obj_set_style_border_width(card, 2, 0);
-      lv_obj_set_style_border_color(card, WT_WARN, 0);
+      lv_obj_set_style_border_width(card, 1, 0);
+      lv_obj_set_style_border_color(card, WT_HAIR, 0);
+      lv_obj_set_style_border_side(card, LV_BORDER_SIDE_BOTTOM, 0);
+      lv_obj_set_flex_flow(card, LV_FLEX_FLOW_ROW);
+      lv_obj_set_flex_align(card, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
+                            LV_FLEX_ALIGN_CENTER);
+      lv_obj_set_style_pad_column(card, 12, 0);
       lv_obj_remove_flag(card, LV_OBJ_FLAG_CLICKABLE);
       lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
-      lv_obj_t *l = wt_lbl(card, tr(STR_C_LOCK_SOON), 0, 0,
-                           wt_font23(), WT_WARN);
-      lv_obj_center(l);
+      lv_obj_t *mk = lv_label_create(card);          // marks before words
+      lv_label_set_text(mk, LV_SYMBOL_WARNING);
+      lv_obj_set_style_text_font(mk, wt_font23(), 0);
+      lv_obj_set_style_text_color(mk, WT_WARN, 0);
+      lv_obj_t *l = lv_label_create(card);
+      lv_label_set_text(l, tr(STR_C_LOCK_SOON));
+      lv_obj_set_style_text_font(l, wt_font23(), 0);
+      lv_obj_set_style_text_color(l, WT_WARN, 0);
     }
     // The scan screen gets one escape that does NOT go through LVGL. Its own
     // CLOSE is an LVGL control, and while the camera streams it is painted over
