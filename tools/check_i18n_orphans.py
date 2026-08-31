@@ -110,6 +110,17 @@ BACKLOG = frozenset({
     "STR_N_PSBT_T",
     "STR_N_S",
     "STR_S_OR_LOAD",
+    # The DENOMINATION row: the amount on the signing screens is the switch
+    # (wt_denom_bind), it persists through the same call the row made, and the
+    # row's own sub-line said so in as many words. Both wait for the sweep.
+    "STR_I_ROW_DENOM",
+    "STR_I_DENOM_SUB",
+    # The BACKUP tab's definition row. It said what the "?" beside SEED WORDS
+    # already opens -- 12 or 24 ordered words, a BIP39 mnemonic, any
+    # compatible signer opens them -- and was the only grow-in-place row on
+    # the page, which is how it came to read as a button.
+    "STR_I_RESTORE_CAP",
+    "STR_I_RESTORE_PLAIN",
 })
 
 # The self test's needle: a key nothing can reference, and nothing does --

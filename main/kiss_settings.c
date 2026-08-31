@@ -925,17 +925,6 @@ static void persist_cb(lv_event_t *e)
     settings_reopen();
 }
 
-// ---- denomination ----
-static void denom_cb(lv_event_t *e)
-{
-    (void)e;
-    // Two values, so the chip IS the control. A dropdown offering exactly one
-    // alternative is a switch wearing a list's clothes.
-    kiss_settings_set_denom(wt_denom() == WT_DENOM_SATS ? WT_DENOM_BTC
-                                                        : WT_DENOM_SATS);
-    settings_reopen();
-}
-
 // The stroke chooser takes over the screen and hands control back here.
 static void duress_open(void)
 {
@@ -1967,7 +1956,7 @@ static void tab_backup(void)
     // catch without reading anything.
     bool warn = words_unencrypted();
 
-    wt_def_t defs[3] = {
+    wt_def_t defs[2] = {
         // A word AND a lamp: in the GREEN theme the accent is byte identical
         // to WT_OK, so colour alone stops carrying meaning. No fingerprint in
         // the sub any more -- the bench said it does not help here, and the
@@ -1983,25 +1972,14 @@ static void tab_backup(void)
           .sub = tr(ssub), .sub_col = warn ? WT_WARN : (lv_color_t){0},
           .lamp = warn, .lamp_col = WT_WARN, .lamp_pulse = warn,
           .go = store_open_cb },
-        // The third row is the one backup fact that matters, as a definition
-        // that opens where it stands: the paper rebuilds these keys with or
-        // without this device. It replaces the fingerprint card -- the bench:
-        // "no need to show fingerprint there, it doesnt help".
-        //
-        // RECOVERY, not RESTORE. RESTORE is a real action three screens away
-        // (W_CHOOSE_RESTORE, W_RESTORE_T -- type your words in and get your
-        // keys back), so a row wearing it on the BACKUP tab promised to do
-        // that and delivered a sentence. It came back from the bench as
-        // exactly that question. A caption here is a NOUN.
-        //
-        // And it carries the standard's own name, like every other definition
-        // on this device: what the owner is holding is a BIP39 mnemonic, and
-        // that is the word they will meet on whatever signer they rebuild on.
-        { .cap = tr(STR_I_RESTORE_CAP), .val = tr(STR_I_RESTORE_VAL),
-          .plain = tr(STR_I_RESTORE_PLAIN),
-          .term = tr(STR_T_SEED_TERM), .term_label = tr(STR_G_TECHNICAL) },
     };
-    lv_obj_t *list = def_list(defs, 3);
+    // TWO rows. The third was a DEFINITION -- what rebuilds these keys -- and
+    // it was the only grow-in-place row on any tab of this page, which is why
+    // it read as a button that did not do anything. It said what the "?"
+    // beside SEED WORDS already opens and already ships in 21 locales: 12 or
+    // 24 ordered words, a BIP39 mnemonic, and any compatible signer opens
+    // them. One fact, one place, and the tab is two rows of STATE again.
+    lv_obj_t *list = def_list(defs, 2);
     // A "?" beside SEED WORDS, opening what a seed actually IS. The bench
     // asked for exactly this: "there should be a ? mark next to seed words
     // which when tapped explains bip39 mnemonic". The explainer is the one
@@ -2012,16 +1990,15 @@ static void tab_backup(void)
 
 static void tab_device(void)
 {
-    // Two rows, not four: LANGUAGE and THEME live on the action band now --
-    // one is its own label, the other is its own preview, and neither earned
-    // a 142px row. What is left is the two that lead somewhere.
-    char unit[16];
-    const char *u = wt_denom_unit();
-    size_t ui = 0;
-    for (; u[ui] && ui + 1 < sizeof unit; ui++)
-        unit[ui] = (u[ui] >= 'a' && u[ui] <= 'z') ? (char)(u[ui] - 32) : u[ui];
-    unit[ui] = 0;
-
+    // LANGUAGE and THEME live on the action band -- one is its own label, the
+    // other is its own preview, and neither earned a 142px row.
+    //
+    // DENOMINATION is gone too, and it is the clearer case: every amount on
+    // the signing screens IS the switch (wt_denom_bind), the tap persists
+    // through the same kiss_settings_set_denom this row called, and the row's
+    // own sub-line said so -- "or tap an amount". A preference with two
+    // values, changed where the number it changes is on the glass, does not
+    // also need a row three screens away.
     char terms_count[64];
     const int tunread = kiss_terms_unread(KISS_TERMS_ALL, KISS_TERM_N);
     if (tunread > 0)
@@ -2031,13 +2008,7 @@ static void tab_device(void)
         snprintf(terms_count, sizeof terms_count, "%s",
                  tr(STR_I_TERMS_ALL_READ));
 
-    wt_def_t defs[4] = {
-        // From SIGNER, where it outranked itself. The sub TEACHES the faster
-        // control instead of restating the value: an owner who learns to tap
-        // the amount never comes back to this row, which is the point.
-        { .cap = tr(STR_I_ROW_DENOM), .val = unit,
-          .sub = tr(STR_I_DENOM_SUB),
-          .mark = LV_SYMBOL_LOOP, .go = denom_cb },
+    wt_def_t defs[3] = {
         // The version is a FACT, in the page's own ink. It was amber once,
         // with no predicate behind it -- amber on this page means a dot and
         // a count, both of which this row has never had.
@@ -2059,7 +2030,7 @@ static void tab_device(void)
         { .cap = tr(STR_I_ROW_TERMS), .val = terms_count,
           .sub = tr(STR_I_ROW_TERMS_SUB), .go = terms_open_cb },
     };
-    def_list(defs, kiss_session_decoy() ? 3 : 4);
+    def_list(defs, kiss_session_decoy() ? 2 : 3);
 }
 
 static void tab_noundo(void)

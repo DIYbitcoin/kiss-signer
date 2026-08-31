@@ -4135,7 +4135,7 @@ int main(void) {
   must_show("seed words help", tr(STR_W_WHATSEED_S));
   tap_str(STR_C_OK, 3, 8);
 
-  def_go(3, 1);                                      // storage row -> the chooser
+  def_go(2, 1);                                      // storage row -> the chooser
   save("/tmp/sim_storage_choose.ppm");               // three modes, FLASH ticked
   // Same page, encryption ON: the storage row's sub-line stops cautioning. The
   // shim used to be hardcoded 0, so only the cautioned render existed.
@@ -4152,12 +4152,13 @@ int main(void) {
   // which is gone; capacity and what is on the card belong with the build id
   // and the radio rather than behind a picker for where the words live.
   set_tab(SET_DEVICE);
-  // FOUR rows on this tab now: TERMS joined it, so the pitch changed and a
-  // coordinate computed for three lands on the wrong one.
+  // THREE rows on this tab: FIRMWARE, THIS DEVICE, TERMS. DENOMINATION was
+  // the first of four and left with its row -- the amount on the sign screen
+  // is the switch -- so every index here moved up by one.
   //
   // TERMS first -- all ten cards, five to a page, the reference for an owner
   // who wants to READ the words rather than meet them one screen at a time.
-  def_row(4, 3);
+  def_row(3, 2);
   pump(30);
   save("/tmp/sim_terms_p1.ppm");                     // SEED WORDS .. CHANGE
   // By the VALUE: "SEED WORDS" is a caption several screens carry, and a
@@ -4178,7 +4179,7 @@ int main(void) {
   must_show("terms/page three", tr(STR_T_DECOY_CAP));
   tap_str(STR_C_BACK, 3, 20);                        // -> Settings, DEVICE tab
   set_tab(SET_DEVICE);
-  def_row(4, 2);                                     // This device -> the facts
+  def_row(3, 1);                                     // This device -> the facts
   // The five rows enter on a 42ms stagger, so the frame has to wait for the
   // last one: saving straight after the tap photographed two rows and three
   // ghosts, which is a picture of the animation rather than of the page.
@@ -4200,7 +4201,7 @@ int main(void) {
   tap_str(STR_C_BACK, 3, 8);                        // -> Settings, DEVICE tab
 
   set_tab(SET_BACKUP);
-  def_go(3, 1);                                      // -> the chooser
+  def_go(2, 1);                                      // -> the chooser
   set_row(1);                                        // SD CARD -> confirmation
   save("/tmp/sim_storage_confirm_sd.ppm");
   tap_str(STR_G_STORAGE_HOLD_MOVE, 30, 6);    // no travel: no migration
@@ -4216,14 +4217,14 @@ int main(void) {
   touch(670, 240); pump(3); release(); pump(6);     // Settings tile -> Settings
   // CARD INFO while the words live on the card: the sealed row, green tick.
   set_tab(SET_DEVICE);
-  def_row(4, 2);
+  def_row(3, 1);
   touch(SET_LABEL_X, SET_DEV_CARD_Y); pump(3); release(); pump(8);
   save("/tmp/sim_sdinfo_sealed.ppm");               // kiss-seed.enc, present
   must_show("sdinfo/sealed", SDSEED_FILENAME);
   tap_str(STR_C_BACK, 3, 8);                        // -> THIS DEVICE
   tap_str(STR_C_BACK, 3, 8);                        // -> Settings
   set_tab(SET_BACKUP);
-  def_go(3, 1);
+  def_go(2, 1);
   set_row(0);                                        // FLASH
   slide_fire(STR_G_STORAGE_HOLD_MOVE);
   tap_str(STR_C_OK, 3, 8);     // back on FLASH
@@ -4237,7 +4238,7 @@ int main(void) {
   // STORAGE NOT CHANGED: the destination never became durable, so the keys
   // are still exactly where they were. Mode write fails, nothing is published.
   s_sim_move_rc = WSEED_ERR_SD_IO;
-  def_go(3, 1);
+  def_go(2, 1);
   set_row(1);                                        // SD CARD -> confirmation
   slide_fire(STR_G_STORAGE_HOLD_MOVE);
   save("/tmp/sim_storage_fail.ppm");
@@ -4251,14 +4252,14 @@ int main(void) {
   // old copy could not be removed. Two copies, never zero -- which is why this
   // is amber and not the red above, and why it must never say "not changed".
   s_sim_move_rc = WSEED_ERR_CLEANUP;
-  def_go(3, 1);
+  def_go(2, 1);
   set_row(1);                                        // SD CARD
   slide_fire(STR_G_STORAGE_HOLD_MOVE);
   save("/tmp/sim_storage_cleanup.ppm");
   must_show("storage cleanup", tr(STR_G_STORAGE_CLEANUP_T));
   tap_str(STR_C_OK, 3, 8);     // OK -> Settings, now on SD
   // ...and back to FLASH, which is what the rest of the walk is written for.
-  def_go(3, 1);
+  def_go(2, 1);
   set_row(0);                                        // FLASH
   slide_fire(STR_G_STORAGE_HOLD_MOVE);
   tap_str(STR_C_OK, 3, 8);
@@ -4267,7 +4268,7 @@ int main(void) {
   // CANCEL on the confirmation. It lands back on the CHOOSER, not on
   // SETTINGS: the owner was picking a destination, changing their mind about
   // one of the three is not changing their mind about the question.
-  def_go(3, 1);
+  def_go(2, 1);
   set_row(2);                                        // AMNESIC -> confirmation
   save("/tmp/sim_storage_confirm_amnesic.ppm");
   tap_str(STR_C_CANCEL, 3, 8);
@@ -4323,17 +4324,13 @@ int main(void) {
     pump(8);
   }
 
-  // The RESTORE row -- the definition that replaced the fingerprint card:
-  // the one backup fact that matters, opening where it stands.
-  set_tab(SET_BACKUP);
-  def_row(3, 2); pump(30);
-  save("/tmp/sim_settings_restore.ppm");            // words + passphrase, the lesson
-  must_show("backup/restore lesson", tr(STR_I_RESTORE_PLAIN));
-  def_row(3, 2); pump(30);                          // tap again closes it
-
   // RECOVERY WORDS now belongs to Settings. Verify the paper copy, return to
   // Settings, then separately exercise the sensitive word reveal.
-  def_row(3, 0);                                    // Recovery words -> warning
+  //
+  // TWO rows on this tab now: the definition that sat under them said what
+  // the "?" beside SEED WORDS opens, so it went. def_row(2, ...) from here.
+  set_tab(SET_BACKUP);
+  def_row(2, 0);                                    // Recovery words -> warning
   save("/tmp/sim_words_warn.ppm");                  // PAPER: show, check, note
   // The other group, captured HERE and not down in the KEF section: by then
   // the 24-word block has swapped the stored mnemonic out and back, and the
@@ -4397,7 +4394,7 @@ int main(void) {
   kiss_ui_last_fp(held_fp);
   kiss_ui_forget_fp();
   set_tab(SET_BACKUP);
-  def_row(3, 0);                                    // Recovery words
+  def_row(2, 0);                                    // Recovery words
   words_row(1);                      // Check my copy -> intro
   tap_str(STR_W_TYPE_MY_WORDS, 3, 6);   // TYPE MY WORDS -> keypad again
   for (int i = 0; i < 11; i++) {                    // 11x abandon, as above
@@ -4428,7 +4425,7 @@ int main(void) {
   kiss_ui_set_last_fp(held_fp);
 
   set_tab(SET_BACKUP);
-  def_row(3, 0);                                    // Recovery words -> warning again
+  def_row(2, 0);                                    // Recovery words -> warning again
   words_row(0);                        // Show the words -> the WT_WARN gate
   save("/tmp/sim_words_gate.ppm");                  // eye mark, the two captions
   must_show("words gate", tr(STR_W_SHOW_SENT));
@@ -4452,7 +4449,7 @@ int main(void) {
       o += (size_t)snprintf(s_sim_seed + o, sizeof s_sim_seed - o,
                             "%s%s", i ? " " : "", SIM_WORDS[i]);
     set_tab(SET_BACKUP);
-    def_row(3, 0);                                  // Recovery words -> warning
+    def_row(2, 0);                                  // Recovery words -> warning
     words_row(0);                      // Show the words -> the gate
     slide_at(208, 430, 340); release(); pump(10);   // slide through
     save("/tmp/sim_words24_p1.ppm");                // 1-12, one lit sheet dot
@@ -4467,7 +4464,7 @@ int main(void) {
   // reworded weak card gets a frame), type twice, then the locked QR with
   // the fingerprint on it, and the card write's verdict chip.
   set_tab(SET_BACKUP);
-  def_row(3, 0);                                    // Recovery words -> backup page
+  def_row(2, 0);                                    // Recovery words -> backup page
   words_tab(WORDS_ENC);                            // the group, not a wedged row
   words_row(0);                                    // Encrypted backup -> consent
   save("/tmp/sim_kef_warn.ppm");                    // the PASSPHRASE wording
@@ -4536,7 +4533,7 @@ int main(void) {
   // over, so a leak shows up as the firmware screen drawn on top of a live
   // settings page.
   set_tab(SET_DEVICE);
-  def_row(3, 1);                                    // Firmware -> the update screen
+  def_row(3, 0);                                    // Firmware -> the update screen
   save("/tmp/sim_settings_fw.ppm");                 // reached from settings, not directly
   touch(WT_EXIT_X + 70, WT_ACTION_Y + 26); pump(3); release(); pump(8);  // BACK -> settings
   save("/tmp/sim_settings_fw_back.ppm");            // one settings page, rebuilt
@@ -4660,18 +4657,9 @@ int main(void) {
   net_to(KISS_NET_TESTNET);
   save("/tmp/sim_settings_tn.ppm");
 
-  // DENOMINATION: two values, flipped and flipped back, because the sats/BTC
-  // choice reaches every amount the sign screen draws.
-  //
-  // On the DEVICE tab, row 0. It moved off SIGNER, where it was ranked equal
-  // to which chain the coins are on -- and back to SIGNER afterwards, because
-  // everything below this point drives that tab.
-  set_tab(SET_DEVICE);
-  def_go(3, 0);
-  save("/tmp/sim_settings_btc.ppm");                // the value reads BTC
-  must_show("denomination", "BTC");
-  def_go(3, 0);                                     // back to SATS
-  set_tab(SET_SIGNER);
+  // DENOMINATION has no row any more: the amount on the sign screen IS the
+  // switch, and sim_sign_btc above is where the flip is photographed and
+  // asserted, in the place an owner actually does it.
 
   tap_str(STR_C_BACK, 3, 6);      // BACK, right corner -> home
   save("/tmp/sim_wallet_testnet.ppm");              // home now shows TESTNET badge
@@ -5028,18 +5016,25 @@ int main(void) {
   // ANYWAY onto the checksum card is gone with the pill, so there is no
   // sim_setup_cards_cksum_warn frame -- that screen cannot be reached with a
   // verdict on it.
-  touch(218, 176); pump(3); release(); pump(4);     // CREATE SEED
-  touch(174, 144); pump(3); release(); pump(4);     // FLASH -> method choice
-  touch(394, 346); pump(3); release(); pump(4);     // BLIND DRAW
-  tap_str(STR_W_TYPE_MY_WORDS, 3, 4);     // TYPE MY WORDS
+  // pump(8) EVERYWHERE HERE, and it is the same 8 the block above spells out.
+  // This second run was left on 4, which is under the settle the intro needs:
+  // the TYPE MY WORDS tap had not landed when the eleven words were typed, so
+  // they went into the intro screen, the verdict was never reached, and the
+  // walk photographed BLIND DRAW while calling it the refusal. The exact
+  // fault the comment above says was fixed once already.
+  touch(218, 176); pump(3); release(); pump(8);     // CREATE SEED
+  touch(174, 144); pump(3); release(); pump(8);     // FLASH -> method choice
+  touch(394, 346); pump(3); release(); pump(8);     // BLIND DRAW
+  tap_str(STR_W_TYPE_MY_WORDS, 3, 8);     // TYPE MY WORDS
+  must_not_show("cards sorted/left the intro", tr(STR_W_TYPE_MY_WORDS));
   static const char *CARDS_SORTED11[11] = {
       "g", "m", "n", "s", "sy", "fem", "fil", "a", "v", "fol", "c" };
   for (int i = 0; i < 11; i++) restore_word(CARDS_SORTED11[i]);
   save("/tmp/sim_setup_cards_warn.ppm");            // CHECK YOUR WORDS, climbing bars
   must_not_show("cards warn offers no way past", tr(STR_L_USE_ANYWAY));
-  tap_str(STR_W_START_OVER, 3, 4);     // START OVER -> empty keyboard
+  tap_str(STR_W_START_OVER, 3, 8);     // START OVER -> empty keyboard
   for (int i = 0; i < 11; i++) restore_word(CARDS_SORTED11[i]);  // back to it
-  tap_str(STR_C_CANCEL, 3, 4);     // CANCEL -> chooser
+  tap_str(STR_C_CANCEL, 3, 8);     // CANCEL -> chooser
   if (s_sim_pending_mode != -1) {
     fprintf(stderr, "cards warn cancel left storage mode staged\n");
     return 1;
@@ -5499,7 +5494,7 @@ int main(void) {
   }
   touch(670, 240); pump(3); release(); pump(8);     // Settings tile
   set_tab(SET_DEVICE);
-  def_row(3, 1);                                    // Firmware
+  def_row(3, 0);                                    // Firmware
   save("/tmp/sim_fw_before_autolock.ppm");          // up, with the clock running
   if (!kiss_fw_ui_active()) {
     printf("FAIL: firmware screen not open before the auto-lock test\n");

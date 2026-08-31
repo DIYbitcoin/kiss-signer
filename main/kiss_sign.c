@@ -2051,8 +2051,13 @@ static void verify_screen(lv_obj_t *parent)
         // this screen is bound to wt_denom_bind, so a tap flips the unit across
         // the device and writes the choice -- and nothing said so, which made
         // the duplicate an accidental hint rather than a fact. This is the mark
-        // NETWORK, ADDRESS TYPE and DENOMINATION already wear for "tapping
-        // changes this in place", now beside the value it changes there too.
+        // NETWORK and ADDRESS TYPE wear for "tapping changes this in place",
+        // now beside the value it changes here too.
+        //
+        // It is also the ONLY sign left: SETTINGS had a DENOMINATION row whose
+        // own sub-line read "or tap an amount", which is a control three
+        // screens away teaching the faster one. The row is gone and this mark
+        // is what it left behind.
         lv_obj_t *lp = wt_lbl(row, LV_SYMBOL_LOOP, 0, 0, wt_font23(),
                               wt_accent());
         lv_obj_add_flag(lp, WT_FLAG_ACCENT);
