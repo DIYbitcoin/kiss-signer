@@ -19,6 +19,7 @@
 #include "kiss_backup.h"  // kiss_backup_mark: the paper check, made durable
 #include "kiss_crypto.h"
 #include "kiss_kef.h"     // the encrypted backup envelope
+#include "kiss_pwgen.h"   // the five word password the device draws
 #include "kiss_seed.h"
 #include "kiss_setup.h"   // kiss_setup_open_verify: check the paper backup
 #include "kiss_terms.h"   // the ten cards, and this page's two of them
@@ -1207,6 +1208,7 @@ static void words_warn_screen(lv_event_t *e)
 static uint8_t   s_kef_env[KEF_MAX_ENV];
 static size_t    s_kef_env_len;
 static char      s_kef_id[9];
+static char      s_kef_pw[PWGEN_MAX];   // the drawn password, see kef_pw_screen
 static lv_obj_t *s_kef_sd_chip;
 
 static void kef_wipe(void)
@@ -1215,6 +1217,7 @@ static void kef_wipe(void)
     s_kef_env_len = 0;
     memset(s_kef_id, 0, sizeof s_kef_id);
     s_kef_sd_chip = NULL;
+    kiss_wipe(s_kef_pw, sizeof s_kef_pw);
 }
 
 static void kef_finish_cb(lv_event_t *e)
@@ -1300,11 +1303,118 @@ static void kef_show_screen(void)
 
 static void kef_warn_reopen(void) { kef_warn_screen(NULL); }
 
+// ---- the password the device draws --------------------------------------
+//
+// Everything protecting a carried envelope is PBKDF2 over the password, so
+// the envelope is exactly as good as what the owner invented -- and "invent a
+// strong password you will still have in five years" is the request that
+// produces bitcoin2024. The meter on the keyboard judges what they typed; it
+// cannot make a memorable password strong. So the default path is five words
+// drawn here (kiss_pwgen.h): 55 bits, uniform, written down rather than
+// remembered, which is the honest model for a thing opened once in five
+// years. Typing your own stays one tap away for owners who want it.
+//
+// The words are NOT drawn on the QR screen, and this is the reason the two
+// are separate screens at all: one photograph holding both the envelope and
+// its password IS the seed, and an owner photographing their own backup would
+// have no way to see they had taken the password with it.
+static void kef_type_cb(lv_event_t *e)
+{
+    (void)e;
+    kiss_wipe(s_kef_pw, sizeof s_kef_pw);
+    kiss_ui_kef_pass_open(true, kef_check_cb, kef_show_screen,
+                          kef_warn_reopen);
+}
+
+static void kef_pw_use_cb(lv_event_t *e)
+{
+    (void)e;
+    const int rc = kef_check_cb(s_kef_pw, strlen(s_kef_pw));
+    kiss_wipe(s_kef_pw, sizeof s_kef_pw);
+    // The only way a seal fails here is a seed this session can no longer
+    // load, and the screen behind this one could not have opened either --
+    // so there is nothing to say that the consent screen does not say by
+    // being there. kef_check_cb has already wiped the envelope.
+    if (rc != 0) { kef_warn_reopen(); return; }
+    kef_show_screen();
+}
+
+// One cell of the word block: the number dim in its own lane, the word in
+// mono28 beside it. wt_word_grid draws twelve in three columns of four and
+// this is five, so the geometry is local rather than a second mode on it.
+static void kef_pw_word(int cx, int cy, int n, const char *w)
+{
+    const lv_font_t *nf = wt_font_mono18();
+    const lv_font_t *wf = wt_font_mono28();
+    char num[8];
+    snprintf(num, sizeof num, "%d", n);
+    lv_obj_t *nl = wt_lbl(s_scr, num, cx, 0, nf, WT_DIM);
+    lv_obj_set_width(nl, 24);
+    lv_obj_set_height(nl, lv_font_get_line_height(nf));
+    lv_obj_set_style_text_align(nl, LV_TEXT_ALIGN_RIGHT, 0);
+    lv_obj_set_y(nl, cy + (lv_font_get_line_height(wf) -
+                           lv_font_get_line_height(nf)) / 2);
+    // BIP39 words are ASCII by construction, the fingerprint's argument.
+    lv_obj_t *wl = wt_lbl(s_scr, w, cx + 24 + 14, cy, wf, WT_INK);
+    lv_obj_set_height(wl, lv_font_get_line_height(wf));
+}
+
+static void kef_pw_screen(void)
+{
+    swap_screen();
+    s_scr = wt_screen(s_parent, tr(STR_I_ROW_KEF), NULL);
+    wt_chrome_head(s_scr);
+    {
+        char trail[96];
+        snprintf(trail, sizeof trail, "%s / %s", tr(STR_G_T),
+                 tr(STR_I_WTAB_ENC));
+        wt_trail(s_scr, WT_ICON_LOCK, trail, false);
+    }
+
+    wt_card(s_scr, 48, 96, 704, 180);
+    const char *cap = tr(STR_I_KEF_PW_CAP);
+    lv_obj_t *cl = wt_lbl(s_scr, cap, 72, 114, wt_chrome21(cap), wt_accent());
+    lv_obj_add_flag(cl, WT_FLAG_ACCENT);
+    lv_obj_set_style_text_letter_space(cl, 2, 0);
+    // Not decoration: it is the one thing the owner cannot judge by looking
+    // at five ordinary words, and it is what the typed path has a meter for.
+    lv_obj_t *chip = wt_state_chip(s_scr, tr_sym(LV_SYMBOL_OK, STR_L_STRONG),
+                                   WT_OK);
+    lv_obj_set_pos(chip, 560, 108);
+
+    // Three over two, on one lane pitch, so the eye copies down a column and
+    // then across -- the order the numbers say.
+    char pw[PWGEN_MAX];
+    snprintf(pw, sizeof pw, "%s", s_kef_pw);
+    char *p = pw;
+    for (int n = 0; n < PWGEN_WORDS && *p; n++) {
+        char *sp = strchr(p, ' ');
+        if (sp) *sp = 0;
+        kef_pw_word(72 + (n % 3) * 218, 156 + (n / 3) * 54, n + 1, p);
+        p = sp ? sp + 1 : p + strlen(p);
+    }
+    kiss_wipe(pw, sizeof pw);
+
+    wt_note(s_scr, tr(STR_I_KEF_PW_NOTE), 48, 288, 704, 100);
+
+    wt_arrow_action(s_scr, tr(STR_I_KEF_PW_OK), false, true, 412, WT_ACTION_Y,
+                    340, true, kef_pw_use_cb, NULL);
+    lv_obj_t *ty = wt_word_action(s_scr, LV_SYMBOL_EDIT, tr(STR_I_KEF_PW_TYPE),
+                                  true, WT_MUT, false, kef_type_cb, NULL);
+    lv_obj_set_pos(ty, WT_ACT_X, WT_ACTION_Y + 6);
+}
+
 static void kef_make(void *ud)
 {
     (void)ud;
-    kiss_ui_kef_pass_open(true, kef_check_cb, kef_show_screen,
-                          kef_warn_reopen);
+    // A password minted from a source that was never switched on is the one
+    // failure this must not hand back looking valid, so a TRNG that is not
+    // live drops to the keyboard rather than showing five words.
+    if (kiss_pwgen_make(s_kef_pw, sizeof s_kef_pw) != 0) {
+        kef_type_cb(NULL);
+        return;
+    }
+    kef_pw_screen();
 }
 
 static void kef_warn_screen(lv_event_t *e)

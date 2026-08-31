@@ -4535,7 +4535,22 @@ int main(void) {
   words_tab(WORDS_ENC);
   words_row(0);
 
-  slide_fire(STR_I_KEF_MAKE_BTN);                   // slide CHOOSE A PASSWORD
+  // The default path: the device draws five words and the owner writes them
+  // down. The typed keyboard below is the second door, not the first one.
+  slide_fire(STR_I_KEF_MAKE_BTN);                   // slide MAKE A PASSWORD
+  save("/tmp/sim_kef_pw.ppm");                      // the five drawn words
+  must_show("kef drawn password", tr(STR_I_KEF_PW_CAP));
+  must_not_show("kef password screen holds no envelope", "73C5DA0A");
+  must_show("kef typed path stays offered", tr(STR_I_KEF_PW_TYPE));
+  tap_str(STR_I_KEF_PW_OK, 3, 8);                   // I WROTE THESE DOWN -> seal
+  save("/tmp/sim_kef_qr_drawn.ppm");
+  must_show("kef drawn envelope id", "73C5DA0A");
+  tap_str(STR_C_DONE, 3, 8);                        // DONE -> the backup page
+  words_tab(WORDS_ENC);
+  words_row(0);
+
+  slide_fire(STR_I_KEF_MAKE_BTN);                   // slide MAKE A PASSWORD
+  tap_str(STR_I_KEF_PW_TYPE, 3, 8);                 // TYPE MY OWN -> the keyboard
   save("/tmp/sim_kef_pass.ppm");                    // CREATE A BACKUP PASSWORD
   touch(664, 278); pump(3); release(); pump(3);     // k
   touch(201, 202); pump(3); release(); pump(3);     // e
