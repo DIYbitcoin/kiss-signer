@@ -1510,6 +1510,7 @@ lv_obj_t *wt_why_block(lv_obj_t *scr, const char *head, const char *body,
 // lane, the same ladder and the same 690px the ruled version uses. This is
 // what wt_explain_open draws now -- see the note beside it in kiss_theme.c.
 void wt_body_para_to(lv_obj_t *par, const char *body, int y, int bottom);
+void wt_body_para(lv_obj_t *par, const char *body, int y);
 
 // A whole explainer body as ruled blocks, filling the room from `y` down to
 // WT_CONTENT_BOTTOM. Splits the string on its blank lines and picks whichever

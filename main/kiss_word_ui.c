@@ -417,7 +417,7 @@ static void fail_screen(void)
 {
     s_scr = wt_screen(s_parent, tr(STR_C_TRY_AGAIN), NULL);
     wt_chrome_head(s_scr);
-    wt_why_body(s_scr, tr(STR_G_STORAGE_FAIL_GENERIC_B), 150, WT_WARN, true);
+    wt_body_para(s_scr, tr(STR_G_STORAGE_FAIL_GENERIC_B), 150);
     wt_arrow_action(s_scr, tr(STR_C_OK), true, false, 552, WT_ACTION_Y, 200,
                     true, cancel_cb, NULL);
 }
@@ -469,7 +469,7 @@ static void done_screen(void)
         wt_chip(row, nb, false);
         wt_diagram_op(row, LV_SYMBOL_RIGHT);
         wt_chip(row, tr(STR_GD_OFF), false);
-        wt_why_body(s_scr, tr(STR_GD_NOPASS_B), 190, WT_WARN, true);
+        wt_body_para(s_scr, tr(STR_GD_NOPASS_B), 190);
         wt_arrow_action(s_scr, tr(STR_C_OK), true, false, 552, WT_ACTION_Y, 200,
                     true, cancel_cb, NULL);
         return;
@@ -507,7 +507,22 @@ static void done_screen(void)
     wt_icon_text(buf, sizeof buf, WT_ICON_KEY, tr(STR_D_REAL));
     wt_chip(r2, buf, true);
 
-    wt_wraph(s_scr, tr(STR_GD_WORD_OK_B), 48, 228, 704, WT_CONTENT_BOTTOM - 228);
+    // The paragraph that used to sit here said "draw it to open the spare, add
+    // your swipe for your real signer" -- which is the two rows above it, in
+    // words, directly under the picture that already draws them. The copy rule
+    // says cut a string that restates the value beside it, and what belongs in
+    // that band instead is what the diagram CANNOT show: what opens it, and
+    // what happens if the owner forgets. Both are the confirm screen's own
+    // facts, one screen back, already translated everywhere.
+    {
+        wt_fact_t facts[2] = {
+            { .cap = tr(STR_GD_WORD_C_W1_H), .val = tr(STR_GD_WORD_C_W1_B),
+              .icon = LV_SYMBOL_EDIT },
+            { .cap = tr(STR_GD_WORD_C_W2_H), .val = tr(STR_GD_WORD_C_W2_B),
+              .icon = LV_SYMBOL_WARNING, .icon_col = WT_WARN },
+        };
+        wt_facts(s_scr, 236, facts, 2);
+    }
     // The corner, not centred at 300: one action, and it is the way out.
     wt_arrow_action(s_scr, tr(STR_C_OK), true, false, 552, WT_ACTION_Y, 200,
                     true, cancel_cb, NULL);

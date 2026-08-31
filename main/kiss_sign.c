@@ -664,7 +664,7 @@ static void sig_fp_help_cb(lv_event_t *e)
     // was already written in without asking for a new string in twenty one
     // locales. Started below the rows, so the body takes whatever rung fits
     // the room the diagram left it.
-    wt_why_body(s_scr, tr(STR_S_SIG_FP_HELP_B), 216, wt_accent(), true);
+    wt_body_para(s_scr, tr(STR_S_SIG_FP_HELP_B), 216);
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160,
                     true, sig_help_back_cb, NULL);
 }
@@ -847,7 +847,7 @@ static void fail_body(const char *why)
     // mid codepoint at exactly the moment the owner needs to read it.
     char body[384];
     snprintf(body, sizeof body, "%s\n\n%s", why, tr(STR_S_FAIL_SAFE_B));
-    wt_why_body(s_scr, body, 136, STOP_COL, true);
+    wt_body_para(s_scr, body, 136);
 }
 
 static void fail_screen(const char *why)
@@ -1963,7 +1963,7 @@ static void verify_screen(lv_obj_t *parent)
             lv_obj_update_layout(card);
             by += lv_obj_get_height(card) + 20;
         }
-        if (body) wt_why_body(s_scr, body, by, STOP_COL, true);
+        if (body) wt_body_para(s_scr, body, by);
         // Same 776 lane, so the same exit as verify.
         wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, SG_BACK_X140,
                         WT_ACTION_Y, 140, true,

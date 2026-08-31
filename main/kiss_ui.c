@@ -914,7 +914,7 @@ static void recover_screen(void)
         wt_diagram_op(row, LV_SYMBOL_RIGHT);
         wt_chip(row, tr(STR_GD_OFF), false);   // NOT SET: nowhere on this device
     }
-    wt_why_body(s_recovscr, tr(STR_L_RECOVER_B), 190, WT_WARN, true);
+    wt_body_para(s_recovscr, tr(STR_L_RECOVER_B), 190);
 
     // SHOW WORDS opens the reveal; TRY AGAIN returns to the login above, so
     // it is the escape and takes the corner, wearing the accent as the way
@@ -2012,7 +2012,7 @@ static void pp_scan_warn_cb(lv_event_t *e) {
                             tr(STR_L_SCAN_WARN_S));
   wt_chrome_head(scr);                  // the head every other page wears
   lv_obj_move_foreground(scr);
-  wt_why_body(scr, tr(STR_L_SCAN_WARN_B), 122, WT_WARN, true);
+  wt_body_para(scr, tr(STR_L_SCAN_WARN_B), 122);
   wt_arrow_action(scr, tr(STR_L_SCAN_GO), false, true, WT_ACT_X, WT_ACTION_Y,
                   300, false, pp_scan_go_cb, scr);
   wt_arrow_action(scr, tr(STR_C_BACK), true, false, WT_BACK_X, WT_ACTION_Y,

@@ -455,7 +455,7 @@ static void verify_finish(void)
         snprintf(buf, sizeof buf, tr(STR_W_VBAD_FMT), mism + 1);
         mk_screen(tr(STR_W_VBAD_T), tr(STR_W_VBAD_S));
         mk_lbl(buf, 48, 150, wt_font28(), STOP_COL);
-        wt_why_body(s_scr, tr(STR_W_VBAD_B), 206, STOP_COL, true);
+        wt_body_para(s_scr, tr(STR_W_VBAD_B), 206);
         // Typing them again is what this screen is for; DONE is the way out.
         wt_arrow_action(s_scr, tr(STR_C_DONE), true, false, WT_EXIT_X,
                         WT_ACTION_Y, 140, true, verify_exit_cb, NULL);
@@ -3460,7 +3460,7 @@ static void kef_wipe_env(void)
 static void kef_bad_screen(void)
 {
     mk_screen(tr(STR_W_KEF_BAD_T), tr(STR_W_KEF_BAD_S));
-    wt_why_body(s_scr, tr(STR_W_KEF_BAD_B), 140, STOP_COL, true);
+    wt_body_para(s_scr, tr(STR_W_KEF_BAD_B), 140);
     wt_arrow_action(s_scr, tr(STR_C_TRY_AGAIN), false, true, 452,
                     WT_ACTION_Y, 300, true,
                     s_qr_from_restore ? goto_count_cb : load_back_cb, NULL);
@@ -3556,7 +3556,7 @@ static void kef_sd_pick_screen(void)
     if (platform_sd_mount() != 0) {
         platform_sd_unmount();
         mk_screen(tr(STR_W_SD_MISSING_T), NULL);
-        wt_why_body(s_scr, tr(STR_W_KEF_SD_NONE_B), 140, WT_WARN, true);
+        wt_body_para(s_scr, tr(STR_W_KEF_SD_NONE_B), 140);
         wt_arrow_action(s_scr, tr(STR_C_TRY_AGAIN), false, true, 452,
                         WT_ACTION_Y, 300, true, kef_sd_retry_cb, NULL);
         wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 48, WT_ACTION_Y,
@@ -3568,7 +3568,7 @@ static void kef_sd_pick_screen(void)
     platform_sd_unmount();
     if (n <= 0) {
         mk_screen(tr(STR_W_KEF_SD_T), NULL);
-        wt_why_body(s_scr, tr(STR_W_KEF_SD_EMPTY), 140, WT_WARN, true);
+        wt_body_para(s_scr, tr(STR_W_KEF_SD_EMPTY), 140);
         wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_BACK_X,
                         WT_ACTION_Y, 140, true, kef_pick_back_cb, NULL);
         return;
@@ -3605,7 +3605,7 @@ static void kef_sd_open_load_cb(lv_event_t *e)
 static void qr_bad_screen(void)
 {
     mk_screen(tr(STR_W_QRBAD_T), tr(STR_W_QRBAD_S));
-    wt_why_body(s_scr, tr(STR_W_QRBAD_B), 140, STOP_COL, true);
+    wt_body_para(s_scr, tr(STR_W_QRBAD_B), 140);
     wt_arrow_action(s_scr, tr(STR_C_TRY_AGAIN), false, true, 452,
                     WT_ACTION_Y, 300, true,
                     s_qr_from_restore ? goto_count_cb : load_back_cb, NULL);

@@ -1061,7 +1061,7 @@ static void made_open_cb(lv_event_t *e)
         by = 320;
     }
 
-    wt_why_body(s_scr, note, by, wt_accent(), true);
+    wt_body_para(s_scr, note, by);
     lv_obj_set_ext_click_area(
         wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, made_back_cb, NULL), 10);
 }

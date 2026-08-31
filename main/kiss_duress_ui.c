@@ -381,7 +381,7 @@ static void stage_build(int stage)
         wt_diagram_op(row, LV_SYMBOL_RIGHT);
         chip_icon(row, WT_ICON_KEY, tr(STR_D_OWN_FP), true);
         // Two claims, two columns: it really works, and an empty one is a tell.
-        wt_why_body(s_scr, tr(STR_GD_FUND_B), 190, WT_WARN, true);
+        wt_body_para(s_scr, tr(STR_GD_FUND_B), 190);
         // Same rationale as ST_INTRO, opposite wallet -- and that is the whole
         // point of the pair. ST_INTRO's action opens THIS screen, which is about
         // the spare, so it says SPARE. This action opens ST_DONE, which
@@ -523,7 +523,7 @@ static void stage_build(int stage)
         chip_icon(row, WT_ICON_LOCK, tr(STR_D_PASSPHRASE), false);
         wt_diagram_op(row, LV_SYMBOL_RIGHT);
         wt_chip(row, tr(STR_GD_OFF), false);
-        wt_why_body(s_scr, tr(STR_GD_NOPASS_B), 190, WT_WARN, true);
+        wt_body_para(s_scr, tr(STR_GD_NOPASS_B), 190);
         // The missing layer is ADDABLE, and this is the room for it. The
         // body above already says the rest: add a passphrase and the current
         // keys become the spare. The add-later login runs the wizard's
@@ -554,7 +554,7 @@ static void stage_build(int stage)
         // only what the diagram cannot say — the stroke routes, it does not
         // unlock, and this is the last screen in the flow that says so.
         diagram_two_ways();
-        wt_why_body(s_scr, tr(STR_GD_DONE_B), 250, WT_OK, true);
+        wt_body_para(s_scr, tr(STR_GD_DONE_B), 250);
         // The drawing is offered HERE, at the end of the flow, and that is the
         // whole of the discoverability fix. kiss_word_ui_open had exactly one
         // caller in the shipped firmware -- a third pill on a Settings page --

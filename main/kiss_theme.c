@@ -6169,15 +6169,33 @@ exp_paras_t ps;
     int slack = room - used;
     if (slack > 0) { y += slack / 3; room -= slack / 3; }
 
-    // PLAIN. No box, no rule, no 14px indent -- the paragraph sits on the
-    // content lane exactly as wt_explain_hi's does, at the same 690 the ladder
-    // measured it against. Everything above this line is the measuring, and
-    // the measuring is the same either way.
+    // PLAIN, and ONE LABEL PER PARAGRAPH. No box, no rule, no 14px indent --
+    // the text sits on the content lane exactly as wt_explain_hi's does, at
+    // the same 690 the ladder measured it against.
+    //
+    // Separately, because a paragraph is a CLAIM and the device's own gate
+    // agrees: BARE looks for a wrapping label 560 wide and 90 tall, which is
+    // three lines. One label holding two claims and the blank line between
+    // them is a wall by that measure however short each claim is, and it reads
+    // as one too. Drawn apart, each claim stands or falls on its own length --
+    // and a claim that is still three lines by itself is copy to cut, which is
+    // what the house rules say to do about it.
+    //
+    // The gap is exp_height's own model of a blank line, so the ladder above
+    // measured exactly what is drawn here.
     if (!ruled) {
-        lv_obj_t *p = wt_lbl(par, body, 48, y, f, WT_MUT);
-        lv_obj_set_width(p, EXP_FULL_TXT);
-        lv_label_set_long_mode(p, LV_LABEL_LONG_WRAP);
-        wt_widow_measure(body, f, EXP_FULL_TXT);
+        int py = y;
+        const int gap = lv_font_get_line_height(f);
+        for (int i = 0; i < ps.count; i++) {
+            char one[640];
+            exp_join(&ps, i, i + 1, one, sizeof one);
+            lv_obj_t *p = wt_lbl(par, one, 48, py, f, WT_MUT);
+            lv_obj_set_width(p, EXP_FULL_TXT);
+            lv_label_set_long_mode(p, LV_LABEL_LONG_WRAP);
+            wt_widow_measure(one, f, EXP_FULL_TXT);
+            lv_obj_update_layout(p);
+            py += lv_obj_get_height(p) + gap;
+        }
         return;
     }
     if (split_at) {
@@ -6206,6 +6224,11 @@ void wt_why_body_to(lv_obj_t *par, const char *body, int y, int bottom,
 void wt_body_para_to(lv_obj_t *par, const char *body, int y, int bottom)
 {
     body_to(par, body, y, bottom, WT_MUT, false, false);
+}
+
+void wt_body_para(lv_obj_t *par, const char *body, int y)
+{
+    wt_body_para_to(par, body, y, WT_CONTENT_BOTTOM);
 }
 
 void wt_why_body(lv_obj_t *par, const char *body, int y, lv_color_t sev,

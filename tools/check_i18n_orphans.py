@@ -92,6 +92,11 @@ BACKLOG = frozenset({
     # nothing left to sit under.
     "STR_K_HELP_F2C",
     "STR_K_HELP_F2V",
+    # YOUR DRAWING IS SET said "draw it to open the spare, add your swipe for
+    # your real signer" underneath a diagram drawing exactly that. The band
+    # carries what the picture cannot -- what opens it, and what happens if you
+    # forget -- which is the confirm screen's own pair, one screen back.
+    "STR_GD_WORD_OK_B",
     # KEYS re-weighted to the identity-as-headline shape: the fingerprint
     # became the hero and its old row sub went with the row. Translated in 21
     # locales, so it waits for the sweep like the rest of this list.
