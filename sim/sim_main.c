@@ -2665,7 +2665,7 @@ int main(void) {
   // The SCAN KEY line is a DOOR again -- to the one consent flow, which lives
   // in kiss_info beside the KEYS launcher. The gate must open, and CANCEL
   // must land back on this tab, not on the landing tab.
-  touch(400, 229); pump(3); release(); pump(15);    // SCAN KEY row -> the gate
+  touch(400, 353); pump(3); release(); pump(15);    // SCAN KEY row -> the gate
   save("/tmp/sim_recv_spgate.ppm");
   must_show("recv/sp-scan-door", tr(STR_K_SPGATE_SENT));
   tap_str(STR_C_CANCEL, 3, 45);                     // CANCEL -> back to SILENT

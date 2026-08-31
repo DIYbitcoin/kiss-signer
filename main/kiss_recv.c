@@ -1284,8 +1284,17 @@ static void recv_tab_build(void) {
     return;
   }
 
-  // Tab 3. Two lines and the sentence the current screen never says on the
-  // screen itself: what a silent payment IS, in two clauses.
+  // Tab 3, and the whole fault it was reported for is WHO EACH ONE IS FOR.
+  // Two objects sit here -- a static address and a private key -- and under
+  // them floated three claims that are all about the FIRST one, so "one
+  // address you can hand out forever" read as a description of the SCAN KEY
+  // sitting directly above it. The bench asked "so which one is it?".
+  //
+  // BIP352, stated once: a receiver has exactly ONE silent address, it never
+  // appears on chain, and every payment to it lands at a fresh output the
+  // sender derives. Finding those payments needs the scan PRIVATE key, which
+  // is why handing it to a coordinator is a real export and why it can never
+  // spend. Two objects, two audiences, and each row says its own now.
   const int H = 76;
   char sp[128];
   if (kiss_session_sp_address(sp, sizeof sp) != 0)
@@ -1296,26 +1305,21 @@ static void recv_tab_build(void) {
   lv_obj_t *sg = wt_addr_short(r1, sp, wt_font_mono23());
   lv_obj_set_pos(sg, WT_LINE_PAD, wt_line_val_y());
   wt_line_rule_draw(wt_line_rule(p, X, 120 + H, W), 110, 320);
-  // A door again, and the SAME door. The export hands a coordinator a PRIVATE
-  // key and has one consent flow, in kiss_info -- this row opens that exact
-  // gate (kiss_info_open_scan_key) and comes back here when the owner leaves.
-  // The dead-label version of this row was filed from the bench as "doesn't
-  // actually allow to show the SCAN KEY": a fact with no door read as a
-  // broken control, not as a signpost.
-  wt_line_row(p, X, 196, W, H, tr(STR_R_SP_SCAN_BTN), NULL, NULL, WT_INK,
-              tr(STR_K_SP_SUB), NULL, sp_scan_key_cb, NULL);
-  wt_line_rule_draw(wt_line_rule(p, X, 196 + H, W), 152, 320);
-
-  // What a silent payment buys, one mark and one line each -- no paragraph,
-  // no box. The three claims the owner kept asking for: one address, no
-  // reuse on chain, nothing for a watcher to connect.
+  // The three claims sit UNDER THE ADDRESS, between the two rows, because
+  // every one of them is about the address and none is about the key. They
+  // used to hang below both, which is how "one address you can hand out
+  // forever" came to read as a description of the SCAN KEY directly above it.
+  //
+  // They cannot be row sub-lines: a sub shares the value's lane on this row
+  // and the value is a folded silent address, so a claim of any length is
+  // printed straight through it.
   {
     static const char *const SP_ICONS[3] = {
         LV_SYMBOL_LOOP, LV_SYMBOL_SHUFFLE, WT_ICON_HIDDEN };
     const char *const lines[3] = {
         tr(STR_R_EXPL_SP), tr(STR_R_SP_FRESH), tr(STR_R_SP_PRIV) };
     for (int i = 0; i < 3; i++) {
-      const int y = 288 + i * 36;
+      const int y = 206 + i * 36;
       lv_obj_t *ic = wt_lbl(p, SP_ICONS[i], X, y, wt_font23(), wt_accent());
       lv_obj_add_flag(ic, WT_FLAG_ACCENT);
       lv_obj_t *l = wt_lbl(p, lines[i], X + 40, y, wt_font23(), WT_MUT);
@@ -1324,6 +1328,20 @@ static void recv_tab_build(void) {
       lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
     }
   }
+
+  // And the KEY LAST, under a rule of its own: the reading order is the
+  // answer to "which one do I give out" -- the public thing and everything
+  // true of it, then the private one.
+  //
+  // A door again, and the SAME door. The export hands a coordinator a PRIVATE
+  // key and has one consent flow, in kiss_info -- this row opens that exact
+  // gate (kiss_info_open_scan_key) and comes back here when the owner leaves.
+  // The dead-label version of this row was filed from the bench as "doesn't
+  // actually allow to show the SCAN KEY": a fact with no door read as a
+  // broken control, not as a signpost.
+  wt_line_rule_draw(wt_line_rule(p, X, 316, W), 152, 320);
+  wt_line_row(p, X, 320, W, H, tr(STR_R_SP_SCAN_BTN), NULL, NULL, WT_INK,
+              tr(STR_K_SP_SUB), NULL, sp_scan_key_cb, NULL);
 }
 
 static void recv_detail_open(void) {

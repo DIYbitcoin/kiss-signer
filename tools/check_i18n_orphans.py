@@ -72,6 +72,7 @@ BACKLOG = frozenset({
     "STR_I_ROW_HISTORY_SUB",
     "STR_I_SEC_HISTORY",
     "STR_R_SP_EXPORT",
+    "STR_R_SP_EXPORT_S",
     "STR_R_USAGE_UNKNOWN",
     # KEYS re-weighted to the identity-as-headline shape: the fingerprint
     # became the hero and its old row sub went with the row. Translated in 21
@@ -88,7 +89,6 @@ BACKLOG = frozenset({
     "STR_I_KEF_WARN_S_PP",
     "STR_I_PAIR_S",
     "STR_I_ROW_WAYSIN_SUB",
-    "STR_R_SP_EXPORT_S",
     "STR_W_AUD_S",
     "STR_W_MADE_S",
     # Retired when SIGN joined the chrome system: the chooser's subtitle, the
