@@ -49,7 +49,20 @@ jobs:
   release-build:
     runs-on: ubuntu-latest
     steps:
+      # Full history: the docs freshness check below counts commits.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # This workflow runs on a push to main, which is the release line, and a
+      # release is exactly when the pictures stop being an internal detail:
+      # docs/walkthrough.md and the readme set are what somebody reads before
+      # they trust the device. desktop-tests only counts the gap; here a gap
+      # is a failure. Regenerate with tools/gen_docs_shots.sh before the merge.
+      - name: docs freshness (release line)
+        run: |
+          python3 tools/check_docs_fresh.py --selftest
+          python3 tools/check_docs_fresh.py --strict
 
       - name: Build verified release, unsigned (Docker ESP-IDF v6.0.1)
         run: tools/build_release.sh

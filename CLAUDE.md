@@ -297,6 +297,7 @@ python3 tools/check_i18n_orphans.py                # keys nothing references
 python3 tools/check_vocab.py                       # the words on screen vs the glossary
 python3 tools/check_layout_reads.py                # a measurement taken before a layout
 python3 tools/check_sim_fresh.py                   # the published wasm vs the tree
+python3 tools/check_docs_fresh.py                  # how far the pictures trail the screens
 
 docker run --rm -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory \
   -e GIT_CONFIG_VALUE_0=/project -v "$PWD":/project -w /project \
