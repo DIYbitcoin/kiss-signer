@@ -1,3 +1,9 @@
+// DECIDED: this family calls it the DECOY, not the spare. It was twelve
+// strings of "spare" against four of "decoy", and "spare" reads as a BACKUP
+// of the real keys -- which is the one thing it is not, and a dangerous thing
+// for an owner to believe about keys they are about to hand over. See
+// i18n/GLOSSARY.md. The key names still say SPARE; only what an owner reads
+// changed.
 // See kiss_duress_ui.h. Four acts: teach it, say to fund the spare, pick your
 // stroke, draw it twice.
 //

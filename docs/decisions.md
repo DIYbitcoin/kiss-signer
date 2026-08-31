@@ -10,7 +10,15 @@ construction.
 route to the comment that answers it, which is how seven findings were filed
 and withdrawn in one review pass.
 
-12 decisions.
+13 decisions.
+
+## `main/kiss_duress_ui.c`
+
+### this family calls it the DECOY, not the spare
+
+It was twelve strings of "spare" against four of "decoy", and "spare" reads as a BACKUP of the real keys -- which is the one thing it is not, and a dangerous thing for an owner to believe about keys they are about to hand over. See i18n/GLOSSARY.md. The key names still say SPARE; only what an owner reads changed. See kiss_duress_ui.h. Four acts: teach it, say to fund the spare, pick your stroke, draw it twice. The draw screens ask for the MODIFIER only, over a printed reference word, rather than the whole "KISS + stroke". Two reasons. The word is not the part being chosen, so rehearsing it teaches nothing new; and a printed reference gives the classifier a known box to measure against, which is the same thing it will measure against in the game (the bounding box of what was drawn). What the owner rehearses here is exactly what has to work later: the stroke, placed relative to the word.
+
+[`main/kiss_duress_ui.c:1`](../main/kiss_duress_ui.c#L1)
 
 ## `main/kiss_info.c`
 

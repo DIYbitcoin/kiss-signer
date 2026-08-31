@@ -171,8 +171,22 @@ else.
   passphrase rebuild. A wallet is not a device: the same signer opens a
   different wallet when a different passphrase is typed, which is the entire
   point of the passphrase and the duress feature.
-- **The duress family names two identities: the spare signer and the real
-  signer.** Never "spare wallet" or "second wallet". They are the same box and
+- **The duress family names two identities: the DECOY signer and the real
+  signer.** It said "the spare" in twelve strings and "the decoy" in four, with
+  the term card captioned THE DECOY over a value of SPARE KEYS -- the only
+  place the device connected the two words at all. One concept, two names, on
+  the flow whose entire purpose is that an owner can hand something over
+  without hesitating.
+  Decoy wins on safety rather than taste: **"spare" reads as a backup of your
+  real keys**, and an owner who believes that might fund it properly or feel
+  relaxed about losing the real ones. It is not a copy of anything -- it has
+  its own fingerprint and its own addresses, which the fund screen spends a
+  whole sentence correcting. Decoy cannot be misread that way, it is the word
+  the wider space already uses, and the term card pairs it with PLAUSIBLE
+  DENIABILITY. The key NAMES still read D_SPARE and GD_SET_UP_SPARE; renaming
+  those churns the generated tables and every call site for nothing an owner
+  sees.
+  Never "spare wallet", "decoy wallet" or "second wallet". They are the same box and
   the same seed words; the passphrase is the only thing separating them, and
   that is exactly what the owner has to understand — a "wallet" reads as a
   separate thing somewhere else. The family already said "your real signer" in
