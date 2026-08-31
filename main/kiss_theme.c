@@ -1913,6 +1913,37 @@ void wt_addr_fold(const char *addr, char *out, size_t len)
              pre, addr, addr + pre, t, t + 4, t + 8);
 }
 
+const char *wt_name_fold(const char *name, const lv_font_t *f, int lane,
+                         char *out, size_t len)
+{
+    if (!out || !len) return "";
+    if (!name || !*name) { out[0] = 0; return out; }
+    lv_point_t sz;
+    lv_text_get_size(&sz, name, f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    if (sz.x <= lane) { snprintf(out, len, "%s", name); return out; }
+
+    // Give away from the MIDDLE, one character at a time from the head, until
+    // it fits. The tail is what distinguishes, so it is the last thing cut:
+    // head shrinks to nothing before the tail gives up a character.
+    const size_t n = strlen(name);
+    size_t tail = n / 2 > 10 ? 10 : n / 2;
+    for (;;) {
+        for (size_t head = n - tail; head > 0; head--) {
+            snprintf(out, len, "%.*s\xE2\x80\xA6%s",
+                     (int)head, name, name + n - tail);
+            lv_text_get_size(&sz, out, f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+            if (sz.x <= lane) return out;
+        }
+        if (tail <= 3) break;
+        tail--;                       // nothing fits with this tail; shorten it
+    }
+    // A lane too narrow for even three characters and an ellipsis. The caller
+    // decides what to do with a name it cannot show; this hands back the tail
+    // rather than a string of dots.
+    snprintf(out, len, "%s", name + n - 3);
+    return out;
+}
+
 lv_obj_t *wt_addr_short(lv_obj_t *par, const char *addr, const lv_font_t *f)
 {
     size_t n = strlen(addr);

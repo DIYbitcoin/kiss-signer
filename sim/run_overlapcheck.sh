@@ -63,6 +63,7 @@ if [ $? -ne 0 ] ||
     ! printf '%s\n' "$st" | grep -q 'READ self test: 3 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'WIDOW self test: 2 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'CLIPX self test: 2 cases, all as expected' ||
+    ! printf '%s\n' "$st" | grep -q 'DOTS self test: 2 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'TERM self test: 1 case, all as expected'; then
     echo
     echo "FAILED: the self test no longer reports its expected markers, so a"
@@ -210,7 +211,7 @@ for l in "${langs[@]}"; do
 
     if [ "$n" -gt 0 ]; then
         printf '%-8s %3d findings\n' "$l" "$n"
-        printf '%s\n' "$out" | grep -E '^  (TEXT|CONTENT|GROWTH|CLIPPED|ROLE|BARE|WALL|FIT|CUT|TINY|AMBER|RAGGED|LAYER|TERM|READ|LADDER|PATH|WIDOW|CLIPX)' | sed 's/^/  /'
+        printf '%s\n' "$out" | grep -E '^  (TEXT|CONTENT|GROWTH|CLIPPED|ROLE|BARE|WALL|FIT|CUT|TINY|AMBER|RAGGED|LAYER|TERM|READ|LADDER|PATH|WIDOW|CLIPX|DOTS)' | sed 's/^/  /'
         echo
     else
         printf '%-8s clean\n' "$l"

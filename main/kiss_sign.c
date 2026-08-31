@@ -810,7 +810,12 @@ static void done_screen(const char *outname)
     // this to font14 and reported nothing, which is the failure mode the house
     // rules name: a fit helper landing on font14 means the string is too long
     // for the space, and a filename is not copy that can be cut.
-    lv_obj_t *fn = mk_lbl(outname, 48, 300, wt_font28(), INK_COL);
+    // FOLDED to the lane, keeping the tail: the reader is checking WHICH file
+    // was written, and a coordinator export shares its whole head with every
+    // other one it made. DOT gave "zzzz-MANY-recipients-export-from-the-c...".
+    char fold[SD_NAME_LEN + 8];
+    wt_name_fold(outname, wt_font28(), 704, fold, sizeof fold);
+    lv_obj_t *fn = mk_lbl(fold, 48, 300, wt_font28(), INK_COL);
     // Width AND height. DOT on a content-sized label wraps first and dots only
     // once it runs out of lines, so bounding the width alone turned the name
     // into two centred lines that ran straight through the SIGNATURE chip 36px
@@ -1791,7 +1796,14 @@ static void verify_screen(lv_obj_t *parent)
         // nobody anything. It is already on the row that was tapped and in the
         // DETAILS page title, so drop it rather than let it collide.
         if (fr - fx >= 60) {
-            lv_obj_t *f = sg_lbl(s_scr, s_cur, fx, 34, wt_font_mono14(), MUT_COL);
+            // FOLDED, not dotted. LONG_DOT keeps the head, and the head of a
+            // coordinator export is the part every file shares -- the walk
+            // shipped "payment-0...", "zzzz-MANY..." and "zzzzz-MER...", none
+            // of which names a file. The tail carries the number and the
+            // extension, so that is the half that survives.
+            char fold[SD_NAME_LEN + 8];
+            wt_name_fold(s_cur, wt_font_mono14(), fr - fx, fold, sizeof fold);
+            lv_obj_t *f = sg_lbl(s_scr, fold, fx, 34, wt_font_mono14(), MUT_COL);
             lv_obj_set_width(f, fr - fx);
             // HEIGHT TOO, and this was latent for as long as the line existed:
             // LONG_DOT only elides once the box stops growing, so a filename
@@ -3600,8 +3612,14 @@ static void files_build(void)
         const char *tag = is_out ? tr(STR_S_ROW_SIGNATURE)
                         : s_sig[idx] ? tr(STR_S_SIGNED_ALREADY)
                                      : tr(STR_S_FILE_UNSIGNED);
+        // Same fold as the title and the done screen: this is the ONE screen
+        // where the name is what the owner is choosing between, so the half
+        // that distinguishes has to be the half that survives.
+        char fold[SD_NAME_LEN + 8];
+        wt_name_fold(s_files[idx], wt_font_mono23(), WT_LANE_W - 220,
+                     fold, sizeof fold);
         lv_obj_t *row = wt_line_row(p, WT_LANE_X, y, WT_LANE_W, SF_ROW_H,
-                                    tag, s_files[idx], wt_font_mono23(),
+                                    tag, fold, wt_font_mono23(),
                                     INK_COL, NULL, NULL, file_tap_cb,
                                     (void *)(intptr_t)idx);
         if (is_out || s_sig[idx])

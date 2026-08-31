@@ -1239,6 +1239,45 @@ static bool oc_tiny_excused(const char *txt)
     return false;
 }
 
+// Every ellipsis on the device, found the same way a reader finds one: by the
+// dots.
+//
+// CUT measures at the call site, through a sink, because LVGL rewrites the
+// label's own text and a gate reading the finished tree sees a string exactly
+// one lane wide. That is true of the WIDTH -- and the rewritten text still
+// ends in the dots it was given, which the tree does show. So CUT stays (it
+// names the lane and the overflow, which is what tells you how much copy to
+// cut) and this asks the cheaper question everywhere at once: is anything on
+// this screen wearing an ellipsis. No call site has to be wired, so a row
+// helper nobody remembered cannot hide one -- which is exactly what wt_row_x
+// did until this morning.
+static bool oc_ends_in_dots(const char *t)
+{
+    size_t n = strlen(t);
+    if (n >= 3 && strcmp(t + n - 3, "...") == 0) return true;
+    return n >= 3 && strcmp(t + n - 3, "\xE2\x80\xA6") == 0;   // U+2026
+}
+
+static void oc_check_dots(const char *tag)
+{
+    char t[96], sig[192], detail[320];
+    for (int i = 0; i < s_n; i++) {
+        const oc_node_t *n = &s_node[i];
+        if (n->buried || !n->is_label) continue;
+        if (lv_label_get_long_mode(n->obj) != LV_LABEL_LONG_MODE_DOTS) continue;
+        const char *txt = lv_label_get_text(n->obj);
+        if (!txt || !*txt || !oc_ends_in_dots(txt)) continue;
+        oc_text(n->obj, t, sizeof t);
+        snprintf(sig, sizeof sig, "DOTS|%s", t);
+        snprintf(detail, sizeof detail,
+                 "DOTS     \"%s\" is wearing an ellipsis -- its second half is "
+                 "gone and nothing in the source says so. Cut the copy: the "
+                 "lane is what the label and the value beside it leave behind",
+                 t);
+        oc_report_one(tag, sig, detail);
+    }
+}
+
 static void oc_check_tiny(const char *tag)
 {
     char t[96], sig[192], detail[320];
@@ -1825,6 +1864,32 @@ static int oc_selftest_clipx(const char *name, const char *txt,
     return got == want_finding ? 0 : 1;
 }
 
+// DOTS fires on a shape the product no longer contains. Two cases: a name too
+// long for its lane must report, and one that fits must not.
+static int oc_selftest_dots(const char *name, const char *txt, int w,
+                            bool want_finding)
+{
+    lv_obj_t *scr = wt_screen(NULL, "SELFTEST", NULL);
+    lv_screen_load(scr);
+    lv_obj_t *l = wt_lbl(scr, txt, 48, 118, wt_font23(), WT_MUT);
+    lv_obj_set_width(l, w);
+    lv_obj_set_height(l, lv_font_get_line_height(wt_font23()));
+    lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+    lv_refr_now(NULL);
+
+    s_n = 0; s_findings = 0; s_seen_n = 0;
+    lv_area_t full = { 0, 0, LV_HOR_RES - 1, LV_VER_RES - 1 };
+    oc_collect(scr, full, false);
+    oc_mark_buried();
+    oc_check_dots("selftest");
+
+    bool got = s_findings > 0;
+    printf("  %-46s %s (%d finding%s)\n", name,
+           got == want_finding ? "ok" : "FAILED", s_findings,
+           s_findings == 1 ? "" : "s");
+    return got == want_finding ? 0 : 1;
+}
+
 // AMBER fires on a shape the product no longer contains. Two cases: a word in
 // WT_WARN must report, and a lone caution GLYPH in WT_WARN must not -- the
 // glyph is exactly what the rule keeps amber, so a check that reported both
@@ -1933,6 +1998,16 @@ int oc_selftest(void)
                               wt_font23(), false);
     if (bad != was) printf("LADDER self test: %d case(s) wrong\n", bad - was);
     else            printf("LADDER self test: 2 cases, all as expected\n");
+    printf("\n");
+
+    was = bad;
+    printf("DOTS check self test\n");
+    bad += oc_selftest_dots("a name too long for its lane, fires",
+                            "zzzz-MANY-recipients-export.psbt", 120, true);
+    bad += oc_selftest_dots("the same lane, a name that fits, clear",
+                            "ok.psbt", 120, false);
+    if (bad != was) printf("DOTS self test: %d case(s) wrong\n", bad - was);
+    else            printf("DOTS self test: 2 cases, all as expected\n");
     printf("\n");
 
     was = bad;
@@ -2270,6 +2345,7 @@ void oc_check(const char *tag)
     oc_check_fit(tag);
     oc_check_cut(tag);
     oc_check_tiny(tag);
+    oc_check_dots(tag);
     oc_check_amber(tag);
     oc_check_ragged(tag);
     oc_check_layer(tag);

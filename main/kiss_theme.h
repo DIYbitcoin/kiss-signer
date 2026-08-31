@@ -661,6 +661,13 @@ lv_obj_t *wt_addr_short(lv_obj_t *par, const char *addr, const lv_font_t *f);
 // than an object. Mono is not optional on the result: the fold only helps if the
 // characters either side of the ellipsis are readable one at a time.
 void wt_addr_fold(const char *addr, char *out, size_t len);
+// A NAME folded to a pixel lane, keeping its tail. A filename is DATA and the
+// end of it is the half that tells two files apart -- "payment-01.psbt" and
+// "payment-02.psbt" are the same string until the last six characters, so
+// LONG_DOT's head-only "payment-0..." names neither. Writes `name` unchanged
+// when it already fits. Returns out.
+const char *wt_name_fold(const char *name, const lv_font_t *f, int lane,
+                         char *out, size_t len);
 // A status badge: `col` border, 5 percent `col` fill, radius 100, label at
 // font14 in `col` with 1px tracking. Sizes itself to its text. This is what a
 // state reads as in the design review, and it is not a control: no press states,
