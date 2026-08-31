@@ -19,8 +19,11 @@
 // this target. That mapping is what verifies every firmware update, so it has
 // been on real hardware since the PQ signature landed.
 //
-// Ported from the same author's work Kern 0.0.18 shipped (main/core/pbkdf2.c),
-// which measured 8.07 s -> 0.66 s at 100,000 iterations on an ESP32-P4.
+// The target to beat is Kern 0.0.18's: 0.66 s for 100,000 iterations on an
+// ESP32-P4, against 8.07 s for the same derivation in software. The number
+// is theirs and the idea of holding the peripheral is common to both; none
+// of their code is here. Our software baseline is the faster one, so expect
+// nearer the 4.4x the same bracket gave SLH-DSA.
 #ifndef KISS_PBKDF2_H
 #define KISS_PBKDF2_H
 
