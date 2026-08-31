@@ -126,7 +126,7 @@ summary=""
 # itself is a compile-time constant, so the checks are a tolerance against the
 # first run's total and a floor: a run that measured a different pool (a 64K
 # build, or a dead monitor) falls outside both.
-heap_max=0; heap_total=""; heap_who=""; heap_peak_total=0
+heap_max=0; heap_total=""; heap_who=""; heap_peak_total=0; heap_frag=0
 heap_note() {
     local who="$1" out="$2" line tot used
     line=$(printf '%s\n' "$out" | grep -m1 '^\[lvheap\]') || return 1
@@ -136,6 +136,9 @@ heap_note() {
     # disables the ceiling silently.
     tot=$(printf '%s\n' "$line" | awk '{print $3}')
     used=$(printf '%s\n' "$line" | awk '{print $7}')
+    # $9 is "57%" -- kept for the failure message only, never ratcheted.
+    local fr; fr=$(printf '%s\n' "$line" | awk '{print $9}' | tr -d '%')
+    case "$fr" in ''|*[!0-9]*) fr=0;; esac
     case "$used" in ''|*[!0-9]*) return 1;; esac
     case "$tot" in ''|*[!0-9]*) return 1;; esac
     if [ -n "$heap_total" ]; then
@@ -166,7 +169,7 @@ heap_note() {
     # byte count: TLSF's reported denominator wobbles by a header or two.
     if [ "$heap_peak_total" -eq 0 ] ||
        [ $(( used * heap_peak_total )) -gt $(( heap_max * tot )) ]; then
-        heap_max=$used; heap_who=$who; heap_peak_total=$tot
+        heap_max=$used; heap_who=$who; heap_peak_total=$tot; heap_frag=$fr
     fi
     return 0
 }
@@ -315,7 +318,25 @@ total=$((total + roletotal))
 # division could round 90.9% down to 90% and pass the very ceiling it exists
 # to stop. The denominator is the pool reading of the run that SET the peak,
 # not the last run's (heap_peak_total, recorded in heap_note).
-HEAP_MAX_PCT="${HEAP_MAX_PCT:-90}"
+# 88, not 90, and the two points are the whole gate.
+#
+# 90 passed a tree that could not build a screen. On 2026-08-31 adding sixteen
+# objects to the twenty input SIGN > DETAILS page did not fail: lv_obj_create
+# handed back NULL and the next create segfaulted, or lv_refr_now spun at 100%
+# CPU forever with no output. The peak at the time was 110968 of 126344, which
+# is 87.8% -- comfortably under a 90% ceiling, and comfortably unable to build
+# the page. A ceiling above the observed failure is not a ceiling.
+#
+# Fragmentation is why 12% free was not 12% usable. frag_pct sits at 57% and
+# the comment above is right that it is a single-instant sample, so it is
+# still not ratcheted -- but it IS printed in the failure, because "peak 87%"
+# on its own suggests headroom that a 57% fragmented TLSF pool does not have.
+#
+# 85 is the number this should be and the tree cannot hold it yet. Getting
+# there is object count on whatever screen owns the peak, not a bigger pool:
+# the pool matches the device and raising it here would only move the assert
+# onto hardware.
+HEAP_MAX_PCT="${HEAP_MAX_PCT:-88}"
 heap_ok=1
 if [ "${heap_peak_total:-0}" -gt 0 ]; then
     heap_pct=$(( heap_max * 1000 / heap_peak_total / 10 ))
@@ -364,10 +385,13 @@ fi
 # assert -- an infinite loop on the device -- so the margin is the point.
 if [ "$heap_ok" -eq 0 ]; then
     echo
-    echo "FAILED: LVGL heap peaked above the ${HEAP_MAX_PCT}% ceiling (peak ${heap_pct}%, $heap_max of $heap_peak_total, worst in $heap_who)."
-    echo "A failed lv_malloc mid-render is an LVGL assert, which on the device"
-    echo "is an infinite loop. Reduce what a screen builds, or raise the pool"
-    echo "in BOTH sim/lv_conf.h and CONFIG_LV_MEM_SIZE_KILOBYTES deliberately."
+    echo "FAILED: LVGL heap peaked above the ${HEAP_MAX_PCT}% ceiling (peak ${heap_pct}%, $heap_max of $heap_peak_total, worst in $heap_who, frag ${heap_frag}%)."
+    echo "Past the edge LVGL does not report anything: lv_obj_create hands back"
+    echo "NULL and the next create segfaults, or lv_refr_now spins at 100% CPU"
+    echo "forever. Both were reproduced at 87.8% of this pool, so the free"
+    echo "percentage above is not headroom -- read it with the fragmentation."
+    echo "Reduce what a screen BUILDS. Raising the pool in sim/lv_conf.h and"
+    echo "CONFIG_LV_MEM_SIZE_KILOBYTES only moves the assert onto hardware."
     exit 1
 fi
 
