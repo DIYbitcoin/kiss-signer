@@ -2336,6 +2336,17 @@ void oc_check(const char *tag)
         }
     }
 
+    // OVERLAPCHECK_HEAP=1: what this stop is HOLDING, per stop. The
+    // end-of-run [lvheap] line is a global high-water mark and names no
+    // screen, so a tree at 87% says nothing about WHICH page to cut. Sorted,
+    // this is that list.
+    if (getenv("OVERLAPCHECK_HEAP")) {
+        lv_mem_monitor_t m;
+        lv_mem_monitor(&m);
+        printf("[heap] %7u %s\n",
+               (unsigned)(m.total_size - m.free_size), oc_short_tag(tag));
+    }
+
     oc_check_text_overlap(tag);
     oc_check_content_bottom(tag);
     oc_check_ladder(tag);
