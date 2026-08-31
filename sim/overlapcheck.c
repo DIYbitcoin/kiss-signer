@@ -885,6 +885,146 @@ static bool oc_fit_excused(const char *txt)
 }
 
 
+
+// ---- 11. VOID: a screen with almost nothing on it --------------------------
+//
+// Every other check on this list fires on too MUCH -- a paragraph too wide, a
+// frame drawn round a wall of text, a label past the bottom. Nothing fired on
+// too LITTLE, so the term takeover pages shipped as a title, a round badge,
+// two lines of body, OK, and 260px of nothing, and every gate stayed green.
+// BARE cannot see them because their paragraph is three lines short of a wall.
+//
+// Measured as the fraction of the CONTENT LANE's rows that any visible element
+// covers. Rows rather than area, because a screen is read down the page: two
+// short lines with a 200px hole under them is the fault, and an area measure
+// would score it the same as the same two lines spread out.
+//
+// EXEMPT BY ELEMENT KIND, NEVER BY SCREEN NAME. A screen whose content is one
+// big block -- a QR, the viewfinder, a word grid -- is full by construction
+// however little of the lane its rows touch, and a list of exempt screen names
+// rots the first time one is renamed. 200x200 is the smallest of those three
+// by a wide margin.
+#define OC_VOID_MIN_BLOCK 200
+#define OC_VOID_FLOOR      40      // percent of the lane's rows
+
+static bool oc_has_severity_ink(void)
+{
+    for (int i = 0; i < s_n; i++) {
+        const oc_node_t *n = &s_node[i];
+        if (n->buried) continue;
+        if (n->is_label) {
+            lv_color_t c = lv_obj_get_style_text_color(n->obj, LV_PART_MAIN);
+            if (lv_color_eq(c, WT_WARN) || lv_color_eq(c, WT_STOP)) return true;
+        }
+        lv_color_t b = lv_obj_get_style_border_color(n->obj, LV_PART_MAIN);
+        if (lv_obj_get_style_border_opa(n->obj, LV_PART_MAIN) >= 50 &&
+            (lv_color_eq(b, WT_WARN) || lv_color_eq(b, WT_STOP))) return true;
+    }
+    return false;
+}
+
+static int oc_content_coverage(void)
+{
+    // LV_VER_RES is a call on this build, so the array is sized by a constant
+    // comfortably past the panel's 480 rather than by it.
+    static bool row[800];
+    const int top = 16, bot = WT_CONTENT_BOTTOM;
+    for (int y = top; y < bot; y++) row[y] = false;
+
+    for (int i = 0; i < s_n; i++) {
+        const oc_node_t *n = &s_node[i];
+        if (n->buried) continue;
+        if (area_is_backdrop(&n->vis)) continue;
+        int w = n->vis.x2 - n->vis.x1 + 1, h = n->vis.y2 - n->vis.y1 + 1;
+        if (w <= 1 || h <= 1) continue;
+        if (w >= OC_VOID_MIN_BLOCK && h >= OC_VOID_MIN_BLOCK) return 100;
+        int y1 = n->vis.y1 < top ? top : n->vis.y1;
+        int y2 = n->vis.y2 >= bot ? bot - 1 : n->vis.y2;
+        for (int y = y1; y <= y2; y++) row[y] = true;
+    }
+    int used = 0;
+    for (int y = top; y < bot; y++) if (row[y]) used++;
+    return used * 100 / (bot - top);
+}
+
+// The screens that are sparse TODAY. Landed WITH the backlog rather than held
+// back until they are all fixed, which is the argument BARE's own list makes:
+// held back it protects nothing while the work is in progress; landed, it stops
+// screen number seventeen from ever being written. Shrink only -- delete the
+// line when the screen is rebuilt, and the run prints how many are left.
+//
+// Two kinds are on it and they leave by different doors.
+//
+// The TERM TAKEOVERS are the ones this check was written for, and
+// design_handoff_explainers rebuilds them: a title, a round badge, two lines
+// and 260px of nothing. sim_sign_term_sighash is the clearest.
+//
+// The rest say ONE thing and mean the space: an erase that finished, a card
+// that could not be read, a backup whose version is wrong. Their weight is the
+// message and filling them would soften a refusal an owner has to take
+// seriously. They are here rather than exempted because "deliberately sparse"
+// is a judgement, and a judgement in a gate is a carve-out that grows.
+static const char *OC_VOID_BACKLOG[] = {
+    // the term takeovers -- Part 4 deletes these
+    "sim_sign_term_sighash",
+    "sim_sign_merge_why",
+    "sim_settings_whatseed",
+    // one thing, said loudly, with the room to mean it
+    "sim_amnesic_qrbad",
+    "sim_duress_pick",
+    "sim_gword_failed",
+    "sim_kef_badver",
+    "sim_kef_pick",
+    // Covers sim_sd_missing_retry too, and must: the list is matched with
+    // strstr, so a shorter entry swallows every tag it prefixes and the longer
+    // one could never be marked hit -- which the unmatched-entry report caught
+    // the moment both were listed.
+    "sim_sd_missing",
+    "sim_sign_failed",
+    "sim_storage_cleanup",
+    "sim_storage_fail",
+    "sim_storage_sd_ok",
+    "sim_wipe_fail",
+    "sim_wiped",
+};
+static bool s_void_hit[sizeof OC_VOID_BACKLOG / sizeof OC_VOID_BACKLOG[0]];
+
+static bool oc_void_excused(const char *tag)
+{
+    for (unsigned i = 0; i < sizeof OC_VOID_BACKLOG / sizeof OC_VOID_BACKLOG[0]; i++)
+        if (OC_VOID_BACKLOG[i] && strstr(tag, OC_VOID_BACKLOG[i]))
+            { s_void_hit[i] = true; return true; }
+    return false;
+}
+
+static void oc_check_void(const char *tag)
+{
+    if (!oc_has_action_row()) return;          // same exemption BARE takes
+    // A REFUSAL IS ALLOWED TO BE SPARSE, and that is the whole difference
+    // between the two lists this check sorts. A screen that says one thing
+    // loudly -- erased, rejected, could not read the card -- earns its empty
+    // space: the weight IS the message, and filling it would soften a refusal
+    // the owner has to take seriously. A term page is neutral teaching and has
+    // no such excuse.
+    //
+    // Asked by COLOUR rather than by name, so it cannot rot: severity ink is
+    // what a refusal is made of, and no explainer has any.
+    if (oc_has_severity_ink()) return;
+    int cov = oc_content_coverage();
+    if (getenv("OVERLAPCHECK_VOID"))
+        printf("[void] %3d%%  %s\n", cov, oc_short_tag(tag));
+    if (cov >= OC_VOID_FLOOR) return;
+    if (oc_void_excused(tag)) return;
+
+    char sig[192], detail[320];
+    snprintf(sig, sizeof sig, "VOID|%s", oc_short_tag(tag));
+    snprintf(detail, sizeof detail,
+             "VOID     content covers %d%% of the lane (floor is %d%%): a "
+             "title, a little body and a great deal of nothing", cov,
+             OC_VOID_FLOOR);
+    oc_report_one(tag, sig, detail);
+}
+
 // ---- 10. EXIT: a refusal that only goes backwards --------------------------
 //
 // A screen whose content is an empty state or a refusal, and whose action band
@@ -2008,6 +2148,40 @@ static int oc_selftest_clipx(const char *name, const char *txt,
 }
 
 
+
+// VOID reports only backlogged screens today, so it needs proving both ways.
+// Two cases: a title with two lines under it and nothing else must fire, and
+// the same screen with a card filling the lane must not.
+static int oc_selftest_void(const char *name, bool with_card, bool want_finding)
+{
+    lv_obj_t *scr = wt_screen(NULL, "SELFTEST", NULL);
+    lv_screen_load(scr);
+    wt_lbl(scr, "two short lines and then nothing at all", 48, 160,
+           wt_font23(), WT_MUT);
+    if (with_card) {
+        // 190 tall, deliberately under OC_VOID_MIN_BLOCK on its short side, so
+        // this case proves the COVERAGE arithmetic rather than the big-block
+        // exemption sitting in front of it.
+        lv_obj_t *c = wt_card(scr, WT_LANE_X, 196, WT_LANE_W, 190);
+        wt_lbl(c, "a framed figure", 24, 20, wt_font28(), WT_INK);
+    }
+    wt_arrow_action(scr, "OK", true, false, 592, WT_ACTION_Y, 160,
+                    true, NULL, NULL);
+    lv_refr_now(NULL);
+
+    s_n = 0; s_findings = 0; s_seen_n = 0;
+    lv_area_t full = { 0, 0, LV_HOR_RES - 1, LV_VER_RES - 1 };
+    oc_collect(scr, full, false);
+    oc_mark_buried();
+    oc_check_void("selftest");
+
+    bool got = s_findings > 0;
+    printf("  %-46s %s (%d finding%s)\n", name,
+           got == want_finding ? "ok" : "FAILED", s_findings,
+           s_findings == 1 ? "" : "s");
+    return got == want_finding ? 0 : 1;
+}
+
 // EXIT fires on a shape the product no longer contains, so it needs proving
 // both ways. Two cases: a refusal whose band is a lone BACK must report, and
 // the SAME screen with a tab strip must not -- the strip is the way on, and a
@@ -2177,6 +2351,16 @@ int oc_selftest(void)
                               wt_font23(), false);
     if (bad != was) printf("LADDER self test: %d case(s) wrong\n", bad - was);
     else            printf("LADDER self test: 2 cases, all as expected\n");
+    printf("\n");
+
+    was = bad;
+    printf("VOID check self test\n");
+    bad += oc_selftest_void("a title, two lines and nothing else, fires",
+                            false, true);
+    bad += oc_selftest_void("the same screen with a framed card, clear",
+                            true, false);
+    if (bad != was) printf("VOID self test: %d case(s) wrong\n", bad - was);
+    else            printf("VOID self test: 2 cases, all as expected\n");
     printf("\n");
 
     was = bad;
@@ -2609,6 +2793,7 @@ void oc_check(const char *tag)
     oc_check_bare(tag);
     oc_check_wall(tag);
     oc_check_exit(tag);
+    oc_check_void(tag);
     oc_check_fit(tag);
     oc_check_cut(tag);
     oc_check_tiny(tag);
@@ -2669,6 +2854,28 @@ int oc_report(void)
         }
         printf("[overlap] %s: %d screens still on the WALL backlog\n",
                lang, wall_left);
+    }
+    {
+        int void_left = 0;
+        for (unsigned i = 0; i < sizeof OC_VOID_BACKLOG / sizeof OC_VOID_BACKLOG[0]; i++) {
+            if (!OC_VOID_BACKLOG[i]) continue;
+            if (s_void_hit[i]) { void_left++; continue; }
+            printf("[overlap] %s: VOID backlog entry \"%s\" never matched a stop"
+                   " -- rebuild it or delete the line\n", lang, OC_VOID_BACKLOG[i]);
+        }
+        printf("[overlap] %s: %d screens still on the VOID backlog\n",
+               lang, void_left);
+    }
+    {
+        int exit_left = 0;
+        for (unsigned i = 0; i < sizeof OC_EXIT_BACKLOG / sizeof OC_EXIT_BACKLOG[0]; i++) {
+            if (!OC_EXIT_BACKLOG[i]) continue;
+            if (s_exit_hit[i]) { exit_left++; continue; }
+            printf("[overlap] %s: EXIT backlog entry \"%s\" never matched a stop"
+                   " -- rebuild it or delete the line\n", lang, OC_EXIT_BACKLOG[i]);
+        }
+        printf("[overlap] %s: %d screens still on the EXIT backlog\n",
+               lang, exit_left);
     }
     {
         int fit_left = 0;
