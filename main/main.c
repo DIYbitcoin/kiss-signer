@@ -46,6 +46,7 @@
 #include "kiss_setup.h"
 #include "kiss_seed.h"
 #include "kiss_crypto.h"
+#include "kiss_cryptobench.h"
 #include "kiss_theme.h"
 #include "kiss_panel.h"
 #include "kiss_duress.h"
@@ -3720,6 +3721,11 @@ void app_main(void) {
   // confirming it anyway made the refusal permanent instead of temporary.
   int src = kiss_sign_selftest();
   ESP_LOGI(TAG, "signing selftest: %s (stage %d)", src == 0 ? "PASS" : "FAIL", src);
+  // What every blocking crypto call actually costs on this board, printed at
+  // every non release boot. It adds about a second here and it is the only
+  // check in the tree that can see a derivation running in software -- no
+  // desktop gate compiles the accelerator at all. See kiss_cryptobench.h.
+  kiss_cryptobench_run();
   display_start();
   backlight_on();
   touch_start();
