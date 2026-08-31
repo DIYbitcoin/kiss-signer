@@ -2216,6 +2216,22 @@ void kiss_settings_open(lv_obj_t *parent)
     // SECURITY while no duress mark is set, BACKUP for either of its two. The
     // chip counts conditions and a tab has one dot, so BACKUP holding both is
     // the one state where the number is larger than the marks.
+    // DECIDED: these tabs keep their NOUNS and are not renamed after the jobs
+    // they hold. The proposal was HOW IT SIGNS / WHAT IT KEEPS / HOW IT PROVES
+    // / WHAT IT IS, and it does not fit: the five-up strip is 620px, the
+    // shipped labels measure 612 of it, and those four plus NO UNDO measure
+    // 920. Three hundred pixels over is not a layout to tune.
+    //
+    // The only form that fits is single verbs -- SIGNS / KEEPS / PROVES / IS,
+    // 500px -- and "IS" is not a word to put on a tab an owner is looking for
+    // something in. Verbs without subjects read worse than the nouns they
+    // would replace, for a reader who bought their first signing device last
+    // week.
+    //
+    // The miscategorisation the proposal was built on is also gone: it argued
+    // that storage sat on SECURITY while recovery words sat on BACKUP, so
+    // checking a backup crossed two tabs. STORAGE is on BACKUP beside SEED
+    // WORDS, which is one job on one tab.
     const wt_tab_t tabs[TAB_N] = {
         { WT_ICON_KEY,        tr(STR_I_TAB_SIGNER),   false,          false },
         { WT_ICON_SHIELD,     tr(STR_I_TAB_SECURITY), duress_unset(), false },

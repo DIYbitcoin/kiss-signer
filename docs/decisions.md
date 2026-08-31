@@ -10,7 +10,7 @@ construction.
 route to the comment that answers it, which is how seven findings were filed
 and withdrawn in one review pass.
 
-14 decisions.
+15 decisions.
 
 ## `main/kiss_duress_ui.c`
 
@@ -44,11 +44,17 @@ The first tab carrying one, in strip order, so the chip lands on the leftmost ma
 
 [`main/kiss_settings.c:1744`](../main/kiss_settings.c#L1744)
 
+### these tabs keep their NOUNS and are not renamed after the jobs they hold
+
+The proposal was HOW IT SIGNS / WHAT IT KEEPS / HOW IT PROVES / WHAT IT IS, and it does not fit: the five-up strip is 620px, the shipped labels measure 612 of it, and those four plus NO UNDO measure 920. Three hundred pixels over is not a layout to tune. The only form that fits is single verbs -- SIGNS / KEEPS / PROVES / IS, 500px -- and "IS" is not a word to put on a tab an owner is looking for something in. Verbs without subjects read worse than the nouns they would replace, for a reader who bought their first signing device last week. The miscategorisation the proposal was built on is also gone: it argued that storage sat on SECURITY while recovery words sat on BACKUP, so checking a backup crossed two tabs. STORAGE is on BACKUP beside SEED WORDS, which is one job on one tab.
+
+[`main/kiss_settings.c:2219`](../main/kiss_settings.c#L2219)
+
 ### language and theme live on the BAND, moved there out of the DEVICE tab
 
 The band's centre: LANGUAGE and THEME, out of the DEVICE tab. The language control needs no caption -- its label IS the active language's own name, stripped of the regional qualifier ("ESPANOL (ESPANA)" -> "ESPANOL") because the picker's flag carries the variant. A WORD ACTION with a GLOBE, not an arrow action. It was a forward arrow, which is the mark the SCREEN'S OWN action wears -- so the one control on the band that picks between 21 languages was signed exactly like a "go on", and came back from the bench as "should have some icon better than an arrow, no?". A globe says what the control is before its word is read, in every one of those 21 languages at once.
 
-[`main/kiss_settings.c:2264`](../main/kiss_settings.c#L2264)
+[`main/kiss_settings.c:2280`](../main/kiss_settings.c#L2280)
 
 ## `main/kiss_setup.c`
 
