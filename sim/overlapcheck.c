@@ -2272,10 +2272,74 @@ static void oc_check_overlay(const char *tag)
 void oc_check(const char *tag);
 int  oc_report(void);
 
+// ---- what is held BETWEEN stops -------------------------------------------
+//
+// The end-of-run watermark is 107728 and the worst STOP holds 76464. Thirty
+// one kilobytes are live at a moment no stop photographs, so nothing that
+// walks a settled screen can see them -- including every check in this file.
+//
+// This samples on LVGL's own clock instead. At each new high it records what
+// is REACHABLE from the three roots, which is the question that separates the
+// two candidates: a screen that genuinely builds that much during a
+// transition, or objects nobody can reach because lv_obj_delete_async has
+// queued them and lv_timer_handler has not run the queue yet. This tree calls
+// delete_async 76 times.
+static uint32_t s_peak_used, s_peak_reach, s_peak_scr, s_peak_top;
+static const char *s_peak_tag = "(before the first stop)";
+static const char *s_last_tag = "(before the first stop)";
+
+static uint32_t oc_count(lv_obj_t *o)
+{
+    uint32_t n = 1;
+    for (uint32_t i = 0; i < lv_obj_get_child_count(o); i++)
+        n += oc_count(lv_obj_get_child(o, i));
+    return n;
+}
+
+static void oc_heap_sample(lv_timer_t *t);
+// The construction moment: wt_screen is about to build `title`, and whatever
+// it is replacing has not been freed yet.
+static void oc_heap_screen(const char *title)
+{
+    s_last_tag = title ? title : "(untitled screen)";
+    oc_heap_sample(NULL);
+}
+static void oc_heap_ev(lv_event_t *e) { (void)e; oc_heap_sample(NULL); }
+
+static void oc_heap_sample(lv_timer_t *t)
+{
+    (void)t;
+    lv_mem_monitor_t m;
+    lv_mem_monitor(&m);
+    const uint32_t used = m.total_size - m.free_size;
+    if (used <= s_peak_used) return;
+    s_peak_used = used;
+    s_peak_tag  = s_last_tag;
+    lv_obj_t *scr = lv_screen_active();
+    s_peak_scr = scr ? oc_count(scr) : 0;
+    s_peak_top = oc_count(lv_layer_top()) + oc_count(lv_layer_sys());
+    s_peak_reach = s_peak_scr + s_peak_top;
+}
+
 void oc_check(const char *tag)
 {
     lv_obj_t *scr = lv_screen_active();
     if (!scr) return;
+    s_last_tag = oc_short_tag(tag);
+    if (getenv("OVERLAPCHECK_HEAP")) {
+        static lv_timer_t *hs;
+        if (!hs) {
+            hs = lv_timer_create(oc_heap_sample, 1, NULL);
+            // A 1ms timer only samples BETWEEN handler passes, and it topped
+            // out 30KB under the watermark: the peak is inside a pass, while
+            // a screen is being built. The display's own refresh events are
+            // in that pass.
+            lv_display_t *d = lv_display_get_default();
+            lv_display_add_event_cb(d, oc_heap_ev, LV_EVENT_REFR_START, NULL);
+            lv_display_add_event_cb(d, oc_heap_ev, LV_EVENT_REFR_READY, NULL);
+            wt_screen_set_sink(oc_heap_screen);
+        }
+    }
 
     if (oc_is_game_frame(tag)) { s_skipped++; return; }
 
@@ -2374,6 +2438,11 @@ int oc_report(void)
 
     printf("\n[overlap] %s: %d stops checked, %d game frames skipped, "
            "%d distinct findings\n", lang, s_stops, s_skipped, s_findings);
+    if (s_peak_used)
+        printf("[heap-peak] %u bytes, %u objects reachable "
+               "(%u on the screen, %u on the layers), just after %s\n",
+               (unsigned)s_peak_used, (unsigned)s_peak_reach,
+               (unsigned)s_peak_scr, (unsigned)s_peak_top, s_peak_tag);
 
     // Where the walk STARTED, not wt_accent_name(). Two reasons: the walk taps
     // the theme dots near the end and leaves on MONO, so the live theme would

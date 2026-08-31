@@ -666,8 +666,18 @@ int wt_sim_built(int *out, int max)
 }
 #endif
 
+#ifndef ESP_PLATFORM
+// Host only, the CUT sink's own guard: the sink type is declared in the same
+// gate-only block of the header, and firmware has nothing to report to.
+static wt_screen_sink_t s_screen_sink;
+void wt_screen_set_sink(wt_screen_sink_t fn) { s_screen_sink = fn; }
+#endif
+
 lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub)
 {
+#ifndef ESP_PLATFORM
+    if (s_screen_sink) s_screen_sink(title);
+#endif
     lv_obj_t *scr = lv_obj_create(parent);
     lv_obj_remove_style_all(scr);
     lv_obj_set_size(scr, 800, 480);

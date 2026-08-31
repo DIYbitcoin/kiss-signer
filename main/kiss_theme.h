@@ -415,6 +415,14 @@ void wt_fit_set_sink(wt_fit_sink_t fn);
 typedef void (*wt_cut_sink_t)(const char *kind, const char *txt,
                               int want, int lane);
 void wt_cut_set_sink(wt_cut_sink_t fn);
+
+// Called at the TOP of wt_screen, before it allocates anything, with the
+// title it is about to build. The gate uses it to sample the LVGL heap at the
+// one moment no settled-screen check can reach: while the screen being
+// replaced is still fully resident and its replacement has started. NULL in
+// firmware, one null check on the way in.
+typedef void (*wt_screen_sink_t)(const char *title);
+void wt_screen_set_sink(wt_screen_sink_t fn);
 #define WT_READ_MAX_WORDS 14
 #define WT_READ_MAX_SYLL   3
 #endif
