@@ -88,6 +88,16 @@ int kef_sniff(const uint8_t *buf, size_t len);
 size_t kef_emit_header(uint8_t *out, size_t cap, const uint8_t *id,
                        size_t id_len, uint8_t version, uint32_t iter_raw);
 
+// Strip the armor a Krux envelope arrives wearing: base43 from a QR, base64
+// from a file. 0 = `in` was armored text and the bytes are in out/out_len;
+// -1 = it was not, which INCLUDES a raw envelope, so a caller keeps using its
+// own buffer on -1. Nothing is accepted unless what falls out is an envelope
+// kef_sniff claims, so a descriptor or a text mnemonic still reaches whoever
+// else wants it. See the block comment in kiss_kef.c for why this is a read
+// path only: KISS keeps writing raw, which Krux already accepts.
+int kef_unarmor(const uint8_t *in, size_t in_len,
+                uint8_t *out, size_t out_cap, size_t *out_len);
+
 // ---- crypto half (kiss_kef_crypto.c): firmware + native tests ------------
 // The UI sim stubs these in sim/sim_main.c, like every other crypto seam.
 // Both return 0 or -1. One failure code; outputs zeroed on every failure.

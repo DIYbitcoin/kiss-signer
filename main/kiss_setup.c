@@ -3586,8 +3586,21 @@ static void kef_cancel_cb(void)
 
 // 1 = the payload was KEF and has been routed (password prompt or refusal);
 // 0 = not an envelope, the seed paths should have it.
+// Scratch for the unarmoring step. File scope because both callers already
+// sit on an LVGL event stack carrying a KEF_MAX_ENV buffer of their own.
+static uint8_t s_kef_unarm[KEF_MAX_ENV];
+
 static int kef_route(const uint8_t *data, size_t len)
 {
+    // One place for both doors: a Krux envelope wears base43 out of a QR and
+    // base64 out of a file, and until this call the camera and the card both
+    // refused it as "not an envelope". Raw stays the fast path -- kef_unarmor
+    // returns -1 for it and the buffer below is untouched.
+    size_t un_len = 0;
+    if (kef_unarmor(data, len, s_kef_unarm, sizeof s_kef_unarm, &un_len) == 0) {
+        data = s_kef_unarm;
+        len  = un_len;
+    }
     if (!kef_sniff(data, len)) return 0;
     kef_env_t e;
     if (len <= sizeof s_kef_env && kef_parse(data, len, &e) == 0
