@@ -434,9 +434,14 @@ static const char *s_sp_share, *s_sp_seen;
 static int aside_sp_prefixes(lv_obj_t *par, int x, int y, int w) {
   (void)w;
   char buf[WT_ICON_TEXT_MAX];
-  lv_obj_t *col = lv_obj_create(par);
+  // In a card, for the reason aside_col in kiss_info.c gives: two chips are
+  // chrome to a reader and are 40x28 to the frame test, so the picture became
+  // invisible the moment the ruled body it sat above went away.
+  const int pad = 12;
+  lv_obj_t *card = wt_card(par, x, y, 704, 2 * pad);
+  lv_obj_t *col = lv_obj_create(card);
   lv_obj_remove_style_all(col);
-  lv_obj_set_pos(col, x, y);
+  lv_obj_set_pos(col, 0, pad);
   lv_obj_set_width(col, 704);
   lv_obj_set_height(col, LV_SIZE_CONTENT);
   lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
@@ -455,7 +460,9 @@ static int aside_sp_prefixes(lv_obj_t *par, int x, int y, int w) {
   wt_chip(row, buf, true);
 
   lv_obj_update_layout(col);
-  return lv_obj_get_height(col);
+  const int h = lv_obj_get_height(col) + 2 * pad;
+  lv_obj_set_height(card, h);
+  return h;
 }
 
 static void sp_help_cb(lv_event_t *e) {
@@ -1015,9 +1022,22 @@ static void path_help_cb(lv_event_t *e) {
   // recognise it as the thing this page just explained, and a card that only
   // ever says "the numbered branch" teaches a phrase that exists nowhere
   // else in bitcoin.
+  //
+  // THE PATH ITSELF, framed. The card explained a notation the reader could
+  // not see while reading about it -- the row it opened from is behind the
+  // overlay -- so it was a title over five lines of grey and nothing else,
+  // which is the shape the bench keeps sending back. It is the figure this
+  // card is about, so it goes in the value card the kit already has, and the
+  // body underneath is what no picture says.
+  static char path[40];
+  const int purpose = kiss_script() == WSCRIPT_LEGACY ? 44
+                    : kiss_script() == WSCRIPT_NESTED ? 49 : 84;
+  snprintf(path, sizeof path, "m/%dh/%dh/0h", purpose, kiss_testnet() ? 1 : 0);
+
   wt_explain_t x = {
       .title      = tr(STR_R_PATH_H),
       .icon       = LV_SYMBOL_DIRECTORY,
+      .val        = path,
       .body       = tr(STR_R_PATH_B),
       .term       = tr(STR_T_PATH_TERM),
       .term_label = tr(STR_G_TECHNICAL),

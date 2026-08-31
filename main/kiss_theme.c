@@ -6035,6 +6035,11 @@ lv_obj_t *wt_term_line(lv_obj_t *par, const char *label, const char *term,
 {
     if (!par || !term || !*term) return NULL;
     const lv_font_t *tf = chrome23(term);
+    // The TERM's own face, and only its own. Sizing this box from the taller
+    // of the term and its label was tried and is wrong: half the callers pin
+    // this line by hand at a y that assumes the term's height, so growing the
+    // box a pixel walked those lines into the action band. The one caller
+    // that pins by measurement -- wt_explain_open -- measures the children.
     const int h = lv_font_get_line_height(tf);
 
     lv_obj_t *box = lv_obj_create(par);
@@ -6062,8 +6067,9 @@ lv_obj_t *wt_term_line(lv_obj_t *par, const char *label, const char *term,
     return box;
 }
 
-void wt_why_body_to(lv_obj_t *par, const char *body, int y, int bottom,
-                    lv_color_t sev, bool two_col)
+// `ruled` is what an explainer no longer asks for. See wt_body_para_to.
+static void body_to(lv_obj_t *par, const char *body, int y, int bottom,
+                    lv_color_t sev, bool two_col, bool ruled)
 {
     if (!par || !body || !*body) return;
     int room = bottom - y;
@@ -6163,6 +6169,17 @@ exp_paras_t ps;
     int slack = room - used;
     if (slack > 0) { y += slack / 3; room -= slack / 3; }
 
+    // PLAIN. No box, no rule, no 14px indent -- the paragraph sits on the
+    // content lane exactly as wt_explain_hi's does, at the same 690 the ladder
+    // measured it against. Everything above this line is the measuring, and
+    // the measuring is the same either way.
+    if (!ruled) {
+        lv_obj_t *p = wt_lbl(par, body, 48, y, f, WT_MUT);
+        lv_obj_set_width(p, EXP_FULL_TXT);
+        lv_label_set_long_mode(p, LV_LABEL_LONG_WRAP);
+        wt_widow_measure(body, f, EXP_FULL_TXT);
+        return;
+    }
     if (split_at) {
         char left[640], right[640];
         exp_join(&ps, 0, split_at, left, sizeof left);
@@ -6172,6 +6189,23 @@ exp_paras_t ps;
     } else {
         wt_why_block(par, NULL, body, 48, y, EXP_FULL_W, room, f, sev);
     }
+}
+
+void wt_why_body_to(lv_obj_t *par, const char *body, int y, int bottom,
+                    lv_color_t sev, bool two_col)
+{
+    body_to(par, body, y, bottom, sev, two_col, true);
+}
+
+// The same measured paragraph with the rule taken off. The rule is the shape
+// the makeover has spent three rounds moving screens away from -- a column of
+// grey with a coloured bar down its side -- and it survived by moving DOWN
+// into the kit, where wt_explain_open kept drawing every "?" on the device
+// with it. "basically any page with those vertical lines on the side" is
+// sixteen explainer overlays and sixteen full screens, all of them here.
+void wt_body_para_to(lv_obj_t *par, const char *body, int y, int bottom)
+{
+    body_to(par, body, y, bottom, WT_MUT, false, false);
 }
 
 void wt_why_body(lv_obj_t *par, const char *body, int y, lv_color_t sev,
@@ -6415,7 +6449,7 @@ lv_obj_t *wt_explain_open(lv_obj_t *parent, const wt_explain_t *e)
         if (e->mode == WT_GRID_ICONS) {
             explain_grid(ovl, e, y, room, sev);
         } else {
-        wt_why_body_to(ovl, e->body, y, bottom, sev, false);
+            wt_body_para_to(ovl, e->body, y, bottom);
         }
     }
     if (has_term) {
@@ -6426,7 +6460,27 @@ lv_obj_t *wt_explain_open(lv_obj_t *parent, const wt_explain_t *e)
         lv_obj_t *tl = wt_term_line(ovl, e->term_label, e->term, 48, bottom + 14,
                                     704);
         lv_obj_update_layout(tl);
-        lv_obj_set_y(tl, WT_CONTENT_BOTTOM - lv_obj_get_height(tl));
+        // ...measured from what is INSIDE it, not from the box. chrome23
+        // answers per string, so a label can be a pixel taller than the box
+        // holding it and hang out of the bottom -- which is a pixel into the
+        // action band once the box's own bottom is on the floor. CONTENT
+        // reported exactly that on the TXID card while the card next door,
+        // whose term carries a middle dot and lands on a taller face,
+        // measured clean.
+        int th = lv_obj_get_height(tl);
+        for (uint32_t i = 0; i < lv_obj_get_child_count(tl); i++) {
+            lv_obj_t *c = lv_obj_get_child(tl, i);
+            const int cb = lv_obj_get_y(c) + lv_obj_get_height(c);
+            if (cb > th) th = cb;
+        }
+        // TWO CLEAR of the floor, not flush on it. 398 is where the action
+        // band starts, and a line whose last pixel is the band's first is
+        // touching a control -- which CONTENT reads as a crossing and a reader
+        // reads as cramped. It also stops the arithmetic being exact: this
+        // line lands a pixel low on some cards and not others, and chasing
+        // that pixel through chrome23, the intro stagger and the value card
+        // above it bought nothing a two pixel gap does not.
+        lv_obj_set_y(tl, WT_CONTENT_BOTTOM - th - 2);
     }
 
     // 552..752: the corner, like every other way off a screen. It was centred

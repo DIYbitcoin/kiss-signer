@@ -1506,6 +1506,11 @@ lv_obj_t *wt_why_block(lv_obj_t *scr, const char *head, const char *body,
                        int x, int y, int w, int max_h, const lv_font_t *f,
                        lv_color_t col);
 
+// The explainer body WITHOUT the rule: one measured paragraph on the content
+// lane, the same ladder and the same 690px the ruled version uses. This is
+// what wt_explain_open draws now -- see the note beside it in kiss_theme.c.
+void wt_body_para_to(lv_obj_t *par, const char *body, int y, int bottom);
+
 // A whole explainer body as ruled blocks, filling the room from `y` down to
 // WT_CONTENT_BOTTOM. Splits the string on its blank lines and picks whichever
 // of full width or two balanced columns reads best at the largest font that

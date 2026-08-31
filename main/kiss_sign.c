@@ -2731,7 +2731,8 @@ static void det_term_cb(lv_event_t *e)
     const int which = (int)(uintptr_t)lv_event_get_user_data(e);
     static char head[64];
     static char term[64];
-    const char *body = NULL, *icon = NULL, *tterm = NULL;
+    static char vbuf[24];
+    const char *body = NULL, *icon = NULL, *tterm = NULL, *val = NULL;
     wpsbt_details_t det;
     const bool have = (kiss_psbt_details(&det) == 0);
 
@@ -2758,6 +2759,16 @@ static void det_term_cb(lv_event_t *e)
         gloss_line(3, term, sizeof term);
         tterm = term;
         icon = GLOSS_ICONS[3];
+        // ...and the ID ITSELF, framed, because the row that carries it is
+        // behind this overlay and the card was otherwise a title over four
+        // lines of grey -- "this explainer page looks plain", from the bench,
+        // about this exact screen. Head and tail with the middle elided, the
+        // same way every long hex value on this device is shown.
+        if (have && det.txid[0]) {
+            snprintf(vbuf, sizeof vbuf, "%.8s\xE2\x80\xA6%.8s",
+                     det.txid, det.txid + 48);
+            val = vbuf;
+        }
         break;
     case DT_SIGHASH:
         body = wt_split_colon(tr(STR_S_D_SIGHASH), head, sizeof head);
@@ -2777,6 +2788,7 @@ static void det_term_cb(lv_event_t *e)
     wt_explain_t x = {
         .title      = head,
         .icon       = icon,
+        .val        = val,
         .body       = body ? body : "",
         .term       = tterm,
         .term_label = tterm ? tr(STR_G_TECHNICAL) : NULL,

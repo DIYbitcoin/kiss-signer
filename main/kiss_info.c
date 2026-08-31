@@ -180,11 +180,21 @@ static void sp_permission_model(lv_obj_t *parent)
 // The three diagrams, as wt_explain_open asides: draw into the box you are
 // given, report the height you used. Each of the underlying helpers appends into
 // a flex column, so each wrapper supplies one.
+// IN A CARD, since the explainer body stopped being a ruled block. That rule
+// -- 3px wide and as tall as the paragraph -- was what oc_is_frame counted on
+// these screens, and the diagram beside it never was: a chip is about 40x28
+// and the frame test wants 100x30. So the picture was invisible to BARE the
+// moment the rule went, and the gate reported a screen with a diagram on it as
+// a wall of text. Same answer kiss_word_ui.c reached for the same reason, and
+// it reads better: the diagram is one object on the glass instead of two chips
+// floating in the band above the prose.
 static int aside_col(lv_obj_t *par, int x, int y, int w, void (*fill)(lv_obj_t *))
 {
-    lv_obj_t *col = lv_obj_create(par);
+    const int pad = 12;
+    lv_obj_t *card = wt_card(par, x, y, w, 2 * pad);
+    lv_obj_t *col = lv_obj_create(card);
     lv_obj_remove_style_all(col);
-    lv_obj_set_pos(col, x, y);
+    lv_obj_set_pos(col, 0, pad);
     lv_obj_set_width(col, w);
     lv_obj_set_height(col, LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
@@ -194,7 +204,9 @@ static int aside_col(lv_obj_t *par, int x, int y, int w, void (*fill)(lv_obj_t *
     lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
     fill(col);
     lv_obj_update_layout(col);
-    return lv_obj_get_height(col);
+    const int h = lv_obj_get_height(col) + 2 * pad;
+    lv_obj_set_height(card, h);
+    return h;
 }
 // The code the fingerprint card is currently explaining. A static, because the
 // aside callback wt_explain_open takes has no user data and this is the only
