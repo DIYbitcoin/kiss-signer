@@ -5629,237 +5629,6 @@ lv_obj_t *wt_value_card(lv_obj_t *scr, const char *cap, const char *val,
 }
 
 
-// The body font for a PAIR of blocks that must share one size. Taking the
-// smaller of the two rungs, because they render side by side and the taller
-// half decides whether either of them fits.
-//
-// strlen is not a substitute for this and was the bug: the passphrase intro
-// picked its font from whichever body had more BYTES, and a longer string that
-// happens to wrap short chose a size the shorter one could not survive. Italian
-// went 7px past WT_CONTENT_BOTTOM the moment a translation changed length.
-// The caution mark a warn why-block's heading wears, in ONE place: the block
-// that draws it and the sizer that has to allow for it must agree to the
-// pixel, and they are 100 lines apart. Returns false when the marked string
-// would not fit the buffer, in which case the heading goes unmarked and both
-// callers agree on that too.
-static bool why_head_marked(const char *head, char *buf, size_t len)
-{
-    // A heading that ALREADY leads with a glyph keeps it. Several do -- the
-    // erase card's pair is a bin and a sheet of paper, written into the
-    // strings -- and a caution mark stacked in front of one is two marks
-    // saying different things about the same claim. The house rule is a mark
-    // before the words, not marks.
-    //
-    // The SYMS glyphs are private-use codepoints, so every one of them starts
-    // with a byte above 0x7F and no translated heading does.
-    if ((unsigned char)*head > 0x7F) return false;
-    return snprintf(buf, len, "#F2B84B " LV_SYMBOL_WARNING "# %s", head)
-           < (int)len;
-}
-
-// The same string as it is DRAWN: glyph, space, heading, no markup. Measuring
-// the marked-up one instead is measuring nine characters of "#F2B84B " and a
-// closing "#" that never reach the glass -- 126px of them at font23, which
-// wrapped every heading it was asked about and silently took the mark back off
-// the screen it had just been added to.
-static bool why_head_plain(const char *head, char *buf, size_t len)
-{
-    if ((unsigned char)*head > 0x7F) return false;
-    return snprintf(buf, len, LV_SYMBOL_WARNING " %s", head) < (int)len;
-}
-
-const lv_font_t *wt_body_font2(const char *a, const char *b, int w, int max_h)
-{
-    const lv_font_t *fa = wt_body_font(a, w, max_h);
-    const lv_font_t *fb = wt_body_font(b, w, max_h);
-    if (fa == wt_font14() || fb == wt_font14()) return wt_font14();
-    if (fa == wt_font23() || fb == wt_font23()) return wt_font23();
-    return fa;
-}
-
-// The same, for a pair of why-blocks that HAVE headings: measure the headings
-// instead of guessing at them.
-//
-// Callers were subtracting a constant 46 -- a heading wrapped to two lines --
-// plus another 8, from a 166px budget. That is 54px, a third of the room,
-// surrendered in every one of 21 locales because one of them MIGHT wrap. On
-// the passphrase intro it cost a whole rung: two short English headings that
-// occupy 20px were charged 54, and the bodies came out at font23 in a box that
-// had room for font28.
-//
-// wt_why_block already measures its own heading and offsets the body by it, so
-// the guess was never load bearing -- it only ever made the font smaller than
-// the block would have allowed. This measures the same thing the same way, at
-// the same font, so the two agree by construction.
-// A why-block heading is HALF THE CLAIM, not a unit suffix. It was pinned at
-// font14 whatever the body did, so a pair set at font28 wore labels less than
-// half the size of the sentence under them -- reported from the bench as small
-// text more than once, on screens whose bodies were already correct.
-//
-// Then it was pinned at 23, which fixed that and left a subtler version of it:
-// with the body's floor at 21 the two rungs are one step apart and the pair
-// reads as one grey block, and with a body at 28 the HEADING IS SMALLER THAN
-// THE SENTENCE UNDER IT. The rung is one above the body now, which is what a
-// heading is.
-const lv_font_t *wt_why_head_font(const lv_font_t *body)
-{
-    if (body == wt_font14()) return wt_font14();      // legacy: typed text only
-    if (body == wt_font_mono21()) return wt_font23();
-    if (body == wt_font23()) return wt_font28();
-    return wt_font34();
-}
-
-// The two sizes decide each other -- a bigger heading eats the room the body
-// is measured against, and the heading's rung is chosen BY that body -- so
-// this does not iterate towards them. It walks the BODY rungs from the top
-// down and, for each, measures the heading that rung would actually get. The
-// first pair whose real total fits is the answer.
-//
-// Iterating was tried and it lies in both directions. Starting tall it keeps a
-// pessimistic first pass and hands back a rung it had already beaten; starting
-// short it oscillates, because a heading that shrinks gives the body room to
-// grow and ask for the tall heading again. Worse, every trial measurement ran
-// through the REPORTING ladder, so screens whose final answer was fine still
-// printed FIT findings for sizes they never used.
-const lv_font_t *wt_body_font2_head(const char *h1, const char *b1,
-                                    const char *h2, const char *b2,
-                                    int w, int max_h)
-{
-    // The pair's own bodies read the same way every other body does: this is
-    // where both halves of a claim pair are measured, so it is where both get
-    // asked whether an owner can read them once.
-    wt_read_measure(b1);
-    wt_read_measure(b2);
-    const bool mono = mono_can(b1) && mono_can(b2);
-    const lv_font_t *rung[3];
-    rung[0] = wt_font28();
-    rung[1] = wt_font23();
-    rung[2] = mono ? wt_font_mono21() : wt_font23();
-
-    for (int i = 0; i < 3; i++) {
-        const lv_font_t *f  = rung[i];
-        const lv_font_t *hf = wt_why_head_font(f);
-        lv_point_t s1 = {0, 0}, s2 = {0, 0};
-        if (h1 && *h1) lv_text_get_size(&s1, h1, hf, 0, 0, w, LV_TEXT_FLAG_NONE);
-        if (h2 && *h2) lv_text_get_size(&s2, h2, hf, 0, 0, w, LV_TEXT_FLAG_NONE);
-        int head = s1.y > s2.y ? s1.y : s2.y;
-        if (head) head += 6;              // wt_why_block's own heading gap
-        lv_point_t p1 = {0, 0}, p2 = {0, 0};
-        if (b1 && *b1) lv_text_get_size(&p1, b1, f, 0, 0, w, LV_TEXT_FLAG_NONE);
-        if (b2 && *b2) lv_text_get_size(&p2, b2, f, 0, 0, w, LV_TEXT_FLAG_NONE);
-        const int body = p1.y > p2.y ? p1.y : p2.y;
-        if (head + body <= max_h || i == 2) {
-            // The floor overflowed, so it says so -- once, on the size that
-            // was actually used, and naming the longer of the two.
-            if (head + body > max_h)
-                WT_FIT_GAVE_UP("body", p1.y > p2.y ? b1 : b2, w, max_h);
-            return f;
-        }
-    }
-    return rung[2];
-}
-
-lv_obj_t *wt_why_block(lv_obj_t *scr, const char *head, const char *body,
-                       int x, int y, int w, int max_h, const lv_font_t *f,
-                       lv_color_t col)
-{
-    lv_obj_t *box = lv_obj_create(scr);
-    lv_obj_remove_style_all(box);
-    lv_obj_set_pos(box, x, y);
-    lv_obj_remove_flag(box, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_remove_flag(box, LV_OBJ_FLAG_SCROLLABLE);
-
-    // The heading is optional. A block split out of an existing explainer
-    // paragraph has no heading to give it, and inventing one would mean a new
-    // string in twenty one locales for decoration.
-    // A CAUTION block wears the mark. The amber rule down its left edge says
-    // "caution" only to somebody who already knows the palette, and the house
-    // rule is that amber is a MARK colour -- the words take the ink or the
-    // accent, and the warning glyph is what carries the colour. CHECK YOUR
-    // BACKUP had the rule and no mark, and the bench read the block as
-    // ordinary prose: "there should be a caution icon there then no??".
-    //
-    // Here, so no screen has to remember. Every warn block on the device gets
-    // one from this line, and an accent block gets nothing -- it is not a
-    // caution and a mark would say it was.
-    //
-    // Wrapped in a recolour run rather than drawn as a second object, which is
-    // the same answer wt_state_chip reached and for the same reasons: a
-    // separate label has to be measured and positioned into a wrapping
-    // heading, and a spangroup is not an lv_label, so everything that finds a
-    // control by its text stops finding it. The raw text still CONTAINS the
-    // heading, so walk assertions are unaffected.
-    int by = 0;
-    if (head && *head) {
-        char marked[256];
-        const char *ht = head;
-        const lv_font_t *hfont =
-            wt_why_head_font(f ? f : wt_body_font(body, w - 14, max_h));
-        if (lv_color_eq(col, WT_WARN) && why_head_marked(head, marked, sizeof marked)) {
-            // ONLY IF IT IS FREE. The block's font was already chosen against
-            // the UNMARKED heading -- by wt_body_font2_head, one screen over,
-            // which cannot know which of a pair is the caution because it is
-            // not always the second (the duress screen puts WT_WARN on the
-            // left). So the mark is not allowed to change the answer: if it
-            // pushes the heading onto another line, it goes.
-            //
-            // Measured, both ways, at the font actually being used. Telling
-            // the sizer to allow for a mark everywhere was tried first and
-            // cost three separate blocks a rung -- it traded one 12px overflow
-            // for three font14 bodies, which is the worse half of the same
-            // trade this file spends most of its length arguing about.
-            char plain[256];
-            lv_point_t bare, mk;
-            lv_text_get_size(&bare, head, hfont, 0, 0, w - 14, LV_TEXT_FLAG_NONE);
-            if (why_head_plain(head, plain, sizeof plain)) {
-                lv_text_get_size(&mk, plain, hfont, 0, 0, w - 14,
-                                 LV_TEXT_FLAG_NONE);
-                if (mk.y <= bare.y) ht = marked;
-            }
-        }
-        lv_obj_t *h = wt_lbl(box, ht, 14, 0, hfont, WT_INK);
-        if (ht == marked) lv_label_set_recolor(h, true);
-        lv_obj_set_width(h, w - 14);
-        lv_label_set_long_mode(h, LV_LABEL_LONG_WRAP);
-        lv_obj_update_layout(h);
-        by = lv_obj_get_height(h) + 6;
-    }
-
-    // The body takes the largest size that fits the room it was given, unless the
-    // caller has already chosen one for a GROUP of blocks. Fixing it at font14
-    // would make a card of two short paragraphs render in the smallest type the
-    // device owns, which is the mistake this makeover started by making.
-    lv_obj_t *b = wt_lbl(box, body, 14, by,
-                         f ? f : wt_body_font(body, w - 14, max_h - by), WT_MUT);
-    lv_obj_set_width(b, w - 14);
-    lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
-    lv_obj_update_layout(b);
-
-    int hgt = by + lv_obj_get_height(b);
-    lv_obj_set_size(box, w, hgt);
-    // The rule last and sized to the measured text, so it always matches the
-    // block's real height in whatever locale is rendering.
-    lv_obj_t *rule = lv_obj_create(box);
-    lv_obj_remove_style_all(rule);
-    lv_obj_set_pos(rule, 0, 0);
-    lv_obj_set_size(rule, 3, hgt);
-    lv_obj_set_style_radius(rule, 2, 0);
-    lv_obj_set_style_bg_color(rule, col, 0);
-    // Nine callers pass wt_accent() here, and without the flag every one of
-    // them kept the OLD accent after a theme change -- a pink rule beside
-    // orange chrome until the screen was rebuilt. accent_walk needs telling,
-    // and a fill needs the FILL flag: the plain one only repaints text.
-    //
-    // Only when the colour IS the accent. The status colours never move, so
-    // flagging a WT_WARN rule would repaint a caution the theme's colour.
-    if (lv_color_eq(col, wt_accent()))
-        lv_obj_add_flag(rule, WT_FLAG_ACCENT_FILL);
-    lv_obj_set_style_bg_opa(rule, LV_OPA_COVER, 0);
-    lv_obj_remove_flag(rule, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_remove_flag(rule, LV_OBJ_FLAG_SCROLLABLE);
-    return box;
-}
-
 // ---- the explainer card ----
 // Every "?" on the device opens one of these, and they were all the same thing:
 // a centred title over a centred paragraph, floating in the middle of a dimmed
@@ -5917,7 +5686,6 @@ const char *wt_split_colon(const char *line, char *head, size_t head_len)
 // Now both arrangements are measured at every size and the first that fits wins.
 #define EXP_MAX_PARA 6
 #define EXP_FULL_W   704
-#define EXP_COL_W    344
 // Measure against the TEXT lane, not the block. wt_why_block spends 14 on the
 // coloured rule and its gutter, so a measurement taken at the block's own width
 // comes back short and the last line lands under the OK action. That is not
@@ -5925,7 +5693,6 @@ const char *wt_split_colon(const char *line, char *head, size_t head_len)
 // payment card 19px past WT_CONTENT_BOTTOM in five locales.
 #define EXP_RULE_W   14
 #define EXP_FULL_TXT (EXP_FULL_W - EXP_RULE_W)
-#define EXP_COL_TXT  (EXP_COL_W - EXP_RULE_W)
 
 typedef struct {
     const char *p[EXP_MAX_PARA];
@@ -6067,9 +5834,14 @@ lv_obj_t *wt_term_line(lv_obj_t *par, const char *label, const char *term,
     return box;
 }
 
-// `ruled` is what an explainer no longer asks for. See wt_body_para_to.
-static void body_to(lv_obj_t *par, const char *body, int y, int bottom,
-                    lv_color_t sev, bool two_col, bool ruled)
+// The device's body renderer. It used to have a second arrangement -- two
+// grey columns with a coloured rule down the side of each, wt_why_block -- and
+// that shape is gone: the bench asked for the vertical lines to leave, and the
+// screens that wore them are built from a headline, a paragraph and captioned
+// fact rows now. What is left is the MEASURING, which was always the valuable
+// half: pick the largest rung the copy fits at, and report when even the floor
+// will not hold it.
+static void body_to(lv_obj_t *par, const char *body, int y, int bottom)
 {
     if (!par || !body || !*body) return;
     int room = bottom - y;
@@ -6101,65 +5873,22 @@ exp_paras_t ps;
     if (mono_can(body)) { ladder[2] = wt_font_mono21(); rungs = 3; }
 
     const lv_font_t *f = ladder[rungs - 1];
-    int split_at = 0;                 // 0 = one full width block
     int used = room;
 
     for (int r = 0; r < rungs; r++) {
         const lv_font_t *cand = ladder[r];
+        const int hf = exp_height(&ps, 0, ps.count, cand, EXP_FULL_TXT);
+        if (hf <= room) { f = cand; used = hf; break; }
 
-        // Full width first. It reads better than two columns and it is the
-        // only arrangement that can use the whole 704 lane, but a two line
-        // answer stretched across the page leaves a hole under itself, so it
-        // has to earn the lane by filling at least half the room. A single
-        // paragraph takes it regardless: there is nothing to split.
-        // two_col is what a full SCREEN asks for and a card does not. The
-        // "earn the lane" rule below was tuned for the explainer overlay, which
-        // has little room, so a body nearly always fills half of it and takes
-        // the full width. A screen has ~280px and three paragraphs fill it
-        // easily, so the same rule produced the exact wall of grey text these
-        // screens were being rebuilt to stop being. With 2+ paragraphs a screen
-        // goes straight to the two columns the reveal screen established.
-        int hf = exp_height(&ps, 0, ps.count, cand, EXP_FULL_TXT);
-        if (!(two_col && ps.count >= 2) &&
-            hf <= room && (ps.count == 1 || hf * 2 >= room)) {
-            f = cand; split_at = 0; used = hf;
-            break;
-        }
-
-        // Otherwise deal the paragraphs into two columns at the boundary
-        // that makes them most nearly equal, rather than always after the
-        // first. Balanced columns are what let the pair share a bigger font:
-        // they share one by design, and one shares badly when one half is
-        // four words and the other is two paragraphs.
-        if (ps.count >= 2) {
-            int best = 1, best_gap = -1, best_tall = 0;
-            for (int k = 1; k < ps.count; k++) {
-                int hl = exp_height(&ps, 0, k, cand, EXP_COL_TXT);
-                int hr = exp_height(&ps, k, ps.count, cand, EXP_COL_TXT);
-                int gap = hl > hr ? hl - hr : hr - hl;
-                if (best_gap < 0 || gap < best_gap) {
-                    best_gap = gap; best = k; best_tall = hl > hr ? hl : hr;
-                }
-            }
-            if (best_tall <= room) {
-                f = cand; split_at = best; used = best_tall;
-                break;
-            }
-        }
-
-        // Nothing fits at the floor either: keep the floor, clamp, and let
-        // wt_why_block's own bounds do the rest. Better a full card at the
-        // smallest rung a body is allowed than a card that silently drops its
-        // second half -- and SAY SO, because the copy is what has to give.
-        // This path was silent for its whole life: the ladder picked 14, the
-        // string never looked like a bug in the source, and it came off the
-        // bench four separate times before anything reported it.
+        // Nothing fits at the floor either: keep the floor, clamp, and SAY SO,
+        // because the copy is what has to give. This path was silent for its
+        // whole life -- the ladder picked 14, the string never looked like a
+        // bug in the source, and it came off the bench four separate times
+        // before anything reported it.
         if (r == rungs - 1) {
             f = cand;
-            split_at = ps.count >= 2 ? 1 : 0;
             used = room;
-            WT_FIT_GAVE_UP("body", body, split_at ? EXP_COL_TXT : EXP_FULL_TXT,
-                           room);
+            WT_FIT_GAVE_UP("body", body, EXP_FULL_TXT, room);
         }
     }
 
@@ -6169,9 +5898,8 @@ exp_paras_t ps;
     int slack = room - used;
     if (slack > 0) { y += slack / 3; room -= slack / 3; }
 
-    // PLAIN, and ONE LABEL PER PARAGRAPH. No box, no rule, no 14px indent --
-    // the text sits on the content lane exactly as wt_explain_hi's does, at
-    // the same 690 the ladder measured it against.
+    // ONE LABEL PER PARAGRAPH, on the content lane, exactly where
+    // wt_explain_hi puts one.
     //
     // Separately, because a paragraph is a CLAIM and the device's own gate
     // agrees: BARE looks for a wrapping label 560 wide and 90 tall, which is
@@ -6183,58 +5911,28 @@ exp_paras_t ps;
     //
     // The gap is exp_height's own model of a blank line, so the ladder above
     // measured exactly what is drawn here.
-    if (!ruled) {
-        int py = y;
-        const int gap = lv_font_get_line_height(f);
-        for (int i = 0; i < ps.count; i++) {
-            char one[640];
-            exp_join(&ps, i, i + 1, one, sizeof one);
-            lv_obj_t *p = wt_lbl(par, one, 48, py, f, WT_MUT);
-            lv_obj_set_width(p, EXP_FULL_TXT);
-            lv_label_set_long_mode(p, LV_LABEL_LONG_WRAP);
-            wt_widow_measure(one, f, EXP_FULL_TXT);
-            lv_obj_update_layout(p);
-            py += lv_obj_get_height(p) + gap;
-        }
-        return;
-    }
-    if (split_at) {
-        char left[640], right[640];
-        exp_join(&ps, 0, split_at, left, sizeof left);
-        exp_join(&ps, split_at, ps.count, right, sizeof right);
-        wt_why_block(par, NULL, left,  48, y, EXP_COL_W, room, f, sev);
-        wt_why_block(par, NULL, right, 408, y, EXP_COL_W, room, f, WT_MUT);
-    } else {
-        wt_why_block(par, NULL, body, 48, y, EXP_FULL_W, room, f, sev);
+    int py = y;
+    const int gap = lv_font_get_line_height(f);
+    for (int i = 0; i < ps.count; i++) {
+        char one[640];
+        exp_join(&ps, i, i + 1, one, sizeof one);
+        lv_obj_t *p = wt_lbl(par, one, 48, py, f, WT_MUT);
+        lv_obj_set_width(p, EXP_FULL_TXT);
+        lv_label_set_long_mode(p, LV_LABEL_LONG_WRAP);
+        wt_widow_measure(one, f, EXP_FULL_TXT);
+        lv_obj_update_layout(p);
+        py += lv_obj_get_height(p) + gap;
     }
 }
 
-void wt_why_body_to(lv_obj_t *par, const char *body, int y, int bottom,
-                    lv_color_t sev, bool two_col)
-{
-    body_to(par, body, y, bottom, sev, two_col, true);
-}
-
-// The same measured paragraph with the rule taken off. The rule is the shape
-// the makeover has spent three rounds moving screens away from -- a column of
-// grey with a coloured bar down its side -- and it survived by moving DOWN
-// into the kit, where wt_explain_open kept drawing every "?" on the device
-// with it. "basically any page with those vertical lines on the side" is
-// sixteen explainer overlays and sixteen full screens, all of them here.
 void wt_body_para_to(lv_obj_t *par, const char *body, int y, int bottom)
 {
-    body_to(par, body, y, bottom, WT_MUT, false, false);
+    body_to(par, body, y, bottom);
 }
 
 void wt_body_para(lv_obj_t *par, const char *body, int y)
 {
     wt_body_para_to(par, body, y, WT_CONTENT_BOTTOM);
-}
-
-void wt_why_body(lv_obj_t *par, const char *body, int y, lv_color_t sev,
-                 bool two_col)
-{
-    wt_why_body_to(par, body, y, WT_CONTENT_BOTTOM, sev, two_col);
 }
 
 // ---- WT_GRID_ICONS ----

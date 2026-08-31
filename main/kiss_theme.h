@@ -1483,47 +1483,24 @@ lv_obj_t *wt_alert_chip(lv_obj_t *scr, const char *txt,
 lv_obj_t *wt_value_card(lv_obj_t *scr, const char *cap, const char *val,
                         int x, int y, int w, bool big);
 
-// A note with a coloured rule down its left edge: optional heading in WT_INK,
-// body in WT_MUT, a 3px bar in `col`. The review's "why it matters" and "how
-// you'll use it" pattern. Two of these side by side turn a centred paragraph
-// nobody reads into two claims somebody can, which is the whole reason it
-// exists. Pass head as NULL for body only. Pass f as NULL to take the largest
-// size that fits `max_h`, so a short claim reads big and a long translation
-// shrinks rather than overflowing; pass a font to make several blocks share one
-// size. Returns the block so the caller can measure it.
-// One shared size for a PAIR of blocks: the smaller of the two rungs, since
-// the taller half decides whether either fits. Never pick by strlen.
-const lv_font_t *wt_body_font2(const char *a, const char *b, int w, int max_h);
-// Same, for a pair of why-blocks WITH headings. Measures the headings rather
-// than charging the caller a constant for the worst case they might reach.
-// The heading rung a why-block body implies: font14 only when the body is.
-const lv_font_t *wt_why_head_font(const lv_font_t *body);
-const lv_font_t *wt_body_font2_head(const char *h1, const char *b1,
-                                    const char *h2, const char *b2,
-                                    int w, int max_h);
 
-lv_obj_t *wt_why_block(lv_obj_t *scr, const char *head, const char *body,
-                       int x, int y, int w, int max_h, const lv_font_t *f,
-                       lv_color_t col);
-
-// The explainer body WITHOUT the rule: one measured paragraph on the content
-// lane, the same ladder and the same 690px the ruled version uses. This is
-// what wt_explain_open draws now -- see the note beside it in kiss_theme.c.
+// THE BODY. Splits the string on its blank lines, picks the largest rung the
+// whole thing fits at, and draws one label per paragraph on the content lane
+// from `y` down to `bottom` (WT_CONTENT_BOTTOM for the short form). A body
+// that will not fit at the floor is reported through the FIT sink rather than
+// shrunk further: the copy is what has to give.
+//
+// One paragraph, one label, deliberately. A single label holding two claims
+// and the blank line between them is a wall of text to the BARE gate and to a
+// reader, however short each claim is.
+//
+// There used to be a second arrangement -- two grey columns with a coloured
+// rule down the side of each -- and it is gone. Two claims are a pair of
+// wt_facts rows now: a caption, a mark, and a value the owner can read in one
+// line. The rule was the thing the bench kept sending back.
 void wt_body_para_to(lv_obj_t *par, const char *body, int y, int bottom);
 void wt_body_para(lv_obj_t *par, const char *body, int y);
 
-// A whole explainer body as ruled blocks, filling the room from `y` down to
-// WT_CONTENT_BOTTOM. Splits the string on its blank lines and picks whichever
-// of full width or two balanced columns reads best at the largest font that
-// fits, so a screen gets the reveal screen's arrangement without hand placing
-// anything. `sev` colours the first block (accent, or a status colour when the
-// screen is a warning); the second is always WT_MUT.
-//
-// Costs nothing to translate: it splits copy that already exists.
-// `two_col`: true on a full screen, where 2+ paragraphs should become two
-// columns rather than one wide block; false on the explainer overlay, whose
-// full width arrangement is tuned and approved.
-//
 // The term line under a definition or an explainer body: the LABEL on a fixed
 // 150px lane at chrome23 ls2 WT_MUT, then the real term beside it at ls 0 in
 // the accent. One line, never wrapping -- a term that would wrap gets a
@@ -1539,18 +1516,6 @@ lv_obj_t *wt_term_line(lv_obj_t *par, const char *label, const char *term,
                        int x, int y, int w);
 
 
-// THE FLOOR IS 21, and 23 where the body cannot be set in mono. There is no
-// font14 rung: a body is what an owner READS and 14 is what this device sets
-// MARKS in. A body too long for its room reports through the fit sink instead
-// of shrinking out of sight, so the copy is what gives.
-void wt_why_body(lv_obj_t *par, const char *body, int y, lv_color_t sev,
-                 bool two_col);
-// The same, stopping at `bottom` instead of WT_CONTENT_BOTTOM, for a page
-// that puts something UNDER the body -- a term line, a page-2 rule. Passing
-// the real floor is what keeps the body measuring against the line it will
-// land on rather than against the room it happens to be in.
-void wt_why_body_to(lv_obj_t *par, const char *body, int y, int bottom,
-                    lv_color_t sev, bool two_col);
 
 // ---- the explainer card, behind every "?" on the device ----
 // Title top left like any other page, an optional icon badge on the title's row,

@@ -35,7 +35,8 @@ inventing.
 | the figure it is about, framed | `wt_value_card(scr, cap, val, x, y, w, big)` |
 | a panel to group content | `wt_card(scr, x, y, w, h)` |
 | a relationship, drawn | `wt_diagram_row` + `wt_chip` + `wt_diagram_op`, or `wt_diagram_fp` / `wt_diagram_verify` / `wt_diagram_pair` |
-| two claims, not one paragraph | `wt_why_block(scr, head, body, x, y, w, max_h, f, col)` |
+| two claims, not one paragraph | `wt_facts(scr, y, facts, n)` — a caption, a mark and a one-line value each |
+| a page that explains itself | `wt_explain(scr, headline, para, facts, n)` — headline, one paragraph, the rows above |
 | a list of settings or facts | `wt_row` / `wt_row_x` / `wt_row_head` |
 | the camera | `wt_viewfinder` |
 | actions | `wt_arrow_action` on the band, `wt_word_action` in a row |
@@ -44,22 +45,31 @@ Rules:
 
 1. **Something framed, above the action row.** A bare paragraph is never the
    only content. A pill does not count — it is the action, not the subject.
-2. **Split claims, do not stack them.** Two `wt_why_block`s side by side at
-   `x = 48` and `x = 408`, `w = 344`, `y = 232`, `max_h = WT_CONTENT_BOTTOM - 232`.
-   Accent rule on how it works, `WT_WARN` on where it goes wrong. This geometry
-   is proven on the fingerprint reveal, the passphrase intro and the backup
-   check — copy it rather than inventing a third layout.
-   When the blocks have headings, size the shared body with
-   `wt_body_font2_head(h1, b1, h2, b2, w, max_h)`. It measures the headings.
-   **Never `wt_body_font2` with a hand-subtracted budget.** Four call sites did
-   it anyway, long after this paragraph was written: three passed
-   `BH - 46 - 8`, one passed a bare `112`, which is the same 54px of a 166px
-   budget given away in all 21 locales. That is a third of the room, and a third
-   of the room is the difference between font23 and font14.
+2. **Split claims, do not stack them.** A claim is a `wt_facts` row: a caption
+   in the accent, a mark before it, and a value on ONE line at font28. Two or
+   three of them under a headline and a single paragraph is `wt_explain`, and
+   that is the shape of every screen an owner reads.
+
+   **The pair of ruled blocks is gone, and so is the code.** `wt_why_block`
+   drew two columns of grey with a coloured bar down the side of each, at
+   `x = 48` and `x = 408`, `w = 344` — the shape this table used to send people
+   to. It came back off the bench three separate rounds, ending with *"basically
+   any page with those vertical lines on the side"*, and the last sixteen
+   screens wearing it were rebuilt in one pass. `wt_why_block`, `wt_why_body`,
+   `wt_body_font2` and `wt_body_font2_head` were deleted with it; do not
+   reintroduce a third arrangement.
+
+   What survives is the MEASURING, in `wt_body_para` / `wt_body_para_to`: the
+   largest rung the whole body fits at, one label per paragraph, and a report
+   through the FIT sink when even the floor will not hold it. Never subtract a
+   guessed heading height from a budget — four call sites did, three passing
+   `BH - 46 - 8` and one a bare `112`, giving away 54px of a 166px budget in
+   all 21 locales. A third of the room is the difference between font23 and
+   font14.
 
    **font14 is metadata: chip labels, unit suffixes, chevrons. MARKS. Nothing
    an owner has to READ is ever font14.** It has now been reported from the
-   bench four separate times, and the third was not a `wt_body_font2` budget at all
+   bench four separate times, and the third was not a body budget at all
    — it was the SIGNED screen's "what to do next" line, the single most
    important sentence on that screen, set through `wt_note` in a 48px box it
    could not fit at any larger size.
@@ -112,7 +122,7 @@ Rules:
    ~38px. A three paragraph body pays it twice. **When a screen renders smaller
    than it should, count its paragraphs before you cut words**: merging two is
    usually worth more than any rewrite, and it is what finally moved the seed
-   explainer off font14. Instrument the ladder in `wt_why_body` rather than
+   explainer off font14. Instrument the ladder in `wt_body_para` rather than
    estimating — every hand estimate in this file's history has been wrong.
 4. **Marks before words.** Every chip and row label carries an icon.
 5. **Only glyphs already in `SYMS`** (`tools/fonts/gen_fonts.sh`). Anything else
@@ -301,11 +311,16 @@ it, so strokes merge and fall through.
 ROLE, **BARE**, **WALL**, **FIT** and **CUT**. The first two of those four are
 rule 1 above, enforced; the last two are the font14 rule and what replaced it:
 
-- **BARE** — a wide paragraph and no framed element at all.
+- **BARE** — a wide paragraph and no framed element at all. "Wide" is 560px
+  and "a paragraph" is 90px, which is three lines — so a claim short enough to
+  read is never one. It counted a why-block's 3px rule bar until that shape was
+  retired, and thirteen screens were reported the moment it went: every one of
+  them had been rebuilt AROUND the rule. They were fixed by cutting the copy
+  until no single claim was a wall, not by drawing a box around one.
 - **WALL** — a wide paragraph where every frame on the screen is a box drawn
   *around* it. A `wt_card` full of `wt_wraph` passes BARE and is still a wall of
-  text; this is the check that says so. A chip, a badge, a row, a value card or
-  a why-block rule anywhere else on the screen clears it.
+  text; this is the check that says so. A chip, a badge, a row or a value card
+  anywhere else on the screen clears it.
 - **FIT** — `wt_note_fit` gave up and set font14. It picks the biggest font
   that FITS, so it is silent by construction: the string never looks like a
   bug in the source, and this has come off the bench three separate times. It

@@ -654,7 +654,7 @@ static int s_role_status_objs;
 
 // ---- 6. BARE: a screen whose only content is a wall of text ----------------
 //
-// The product has a kit for this -- wt_card, wt_value_card, wt_why_block,
+// The product has a kit for this -- wt_card, wt_value_card, wt_facts rows,
 // wt_chip, the diagram rows -- and the fault this catches is not using it: a
 // title, one 704px grey paragraph and a button. It is not a rendering bug, so
 // none of the five checks above can see it; every one of those screens is
@@ -665,10 +665,14 @@ static int s_role_status_objs;
 // than once and screens kept shipping bare anyway.
 //
 // A wall is a wrapping label wide enough to be the page's body. A frame is
-// anything with a border and a fill big enough to be a card or a chip, or a
-// why-block's rule bar -- narrow, tall, and the one thing on a bare screen that
-// is never present. A screen with a wall and no frame is the shape being
-// rejected.
+// anything with a border and a fill big enough to be a card. A screen with a
+// wall and no frame is the shape being rejected.
+//
+// It used to count a why-block's 3px rule bar as well, and on thirteen screens
+// that bar was the only frame it could see. The bar is gone -- the body is a
+// plain paragraph now -- so those thirteen were reported the moment it went,
+// which is what the check is for. They were fixed by cutting the copy until no
+// single claim was a wall, not by drawing a box around one.
 //
 // The thresholds are deliberately generous: 560px is far wider than a 344px
 // why-block, and 90px is three lines at font23. Nothing that has been through
@@ -686,8 +690,6 @@ static bool oc_is_frame(const oc_node_t *n)
     // neither is anything else the reader can press.
     if (n->clickable) return false;
     if (n->vis.y2 >= WT_CONTENT_BOTTOM) return false;
-    // a why-block's coloured rule: 3px wide, as tall as the claim beside it
-    if (w <= 4 && h >= 30) return true;
     if (w < 100 || h < 30) return false;
     if (lv_obj_get_style_border_width(n->obj, LV_PART_MAIN) < 1) return false;
     if (lv_obj_get_style_bg_opa(n->obj, LV_PART_MAIN) >= LV_OPA_50) return true;
@@ -719,8 +721,9 @@ static bool oc_is_frame(const oc_node_t *n)
 // translated copy and would need twenty one spellings of the same exemption.
 static const char *OC_BARE_BACKLOG[] = {
     // EMPTY, and that is the point. Nine stops were listed here when the check
-    // landed; all nine have been rebuilt with wt_why_body, so every screen on
-    // the device that has an action row now puts something framed above it.
+    // landed; all nine were rebuilt around the ruled body, and when that shape
+    // was retired they came back and were fixed properly -- by cutting the
+    // copy until no single claim is a wall.'
     // A new entry is a screen someone chose not to fix, and needs saying so.
     NULL,   // C forbids an empty initialiser; the loop below skips NULLs
 };
@@ -760,7 +763,7 @@ static void oc_check_bare(const char *tag)
     snprintf(sig, sizeof sig, "BARE|%s", t);
     snprintf(detail, sizeof detail,
              "BARE     \"%s\" is a %dx%d paragraph and the screen has no framed "
-             "element (wt_card / wt_value_card / wt_why_block / wt_chip)",
+             "element (wt_card / wt_value_card / a diagram in one)",
              t, (int)(wall->vis.x2 - wall->vis.x1 + 1),
              (int)(wall->vis.y2 - wall->vis.y1 + 1));
     oc_report_one(tag, sig, detail);
@@ -799,8 +802,8 @@ static int  s_fit_n;
 // They are font23 now, and what goes wrong at that size is an ellipsis rather
 // than a rung -- which is check 9, CUT.
 //
-// 300 is read off the kit, not guessed: wt_why_block bodies are 344 wide and
-// the narrowest real body column is 330; below that is a chip or a badge.
+// 300 is read off the kit, not guessed: the narrowest real body column is
+// 330; below that is a chip or a badge.
 // The HEIGHT matters as much. A caution row gives its subline about 24px, and
 // one line of font23 is 31 -- so font14 there is the box deciding, not the copy,
 // and "high fee" is not a screen anybody needs to fix. 36 is one font23 line
@@ -959,7 +962,7 @@ static void oc_check_wall(const char *tag)
     snprintf(detail, sizeof detail,
              "WALL     \"%s\" is a %dx%d paragraph and every frame on the screen "
              "is a box drawn around it (use a diagram row, chips, rows or "
-             "wt_why_block instead)",
+             "wt_facts instead)",
              t, (int)(wall->vis.x2 - wall->vis.x1 + 1),
              (int)(wall->vis.y2 - wall->vis.y1 + 1));
     oc_report_one(tag, sig, detail);
