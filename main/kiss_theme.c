@@ -6141,6 +6141,7 @@ static void explain_grid(lv_obj_t *ovl, const wt_explain_t *e, int y, int room,
             if (sz.y > tallest) tallest = sz.y;
         }
         if (tallest <= pitch - 6) break;
+        // DECIDED: the icon grid's ladder floors at 21 and no longer has a font14 rung.
         // THE FLOOR IS 21, NOT 14, which is the same floor wt_body_para has
         // and for the same reason: font14 is for MARKS -- chip labels, unit
         // suffixes, chevrons -- and every string in this grid is a SENTENCE an

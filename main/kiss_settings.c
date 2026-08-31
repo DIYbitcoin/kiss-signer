@@ -1731,6 +1731,8 @@ static int attention_count(void)
          + (words_unencrypted() ? 1 : 0);
 }
 
+// DECIDED: the amber dots on the tab strip are the attention chip's ROUTING and
+// cannot be deleted as a duplicate of the count.
 // The first tab carrying one, in strip order, so the chip lands on the leftmost
 // mark and the owner works rightwards. It used to be hard coded to BACKUP on
 // the strength of a comment saying both counted conditions lived there; that
@@ -2249,6 +2251,7 @@ void kiss_settings_open(lv_obj_t *parent)
         wt_alert_chip(s_scr, lab, attn_cb, NULL);
     }
 
+    // DECIDED: language and theme live on the BAND, moved there out of the DEVICE tab.
     // The band's centre: LANGUAGE and THEME, out of the DEVICE tab. The
     // language control needs no caption -- its label IS the active language's
     // own name, stripped of the regional qualifier ("ESPANOL (ESPANA)" ->

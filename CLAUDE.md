@@ -130,6 +130,31 @@ Rules:
    `LV_SYMBOL_*` plus `WT_ICON_QR/KEY/SECRET/SD/LOCK/REPLACE`.
 6. **Nothing crosses `WT_CONTENT_BOTTOM` (398).**
 
+### A defect seen in a frame is a hypothesis
+
+**Check `docs/decisions.md` for the screen before filing one, and read the
+builder's comment if it is listed. If the comment answers it, the finding is
+retracted, not argued.**
+
+Seven findings were filed and withdrawn in a single review pass, and every one
+of them was already answered in a comment a few lines above the code that
+drew it: the KEYS tab strip, the dice fills, the RECEIVE caption picker, the
+storage chooser's pairing, the attention dots' routing, the band's language and
+theme controls, and the stop tab. The screens were right and the reasoning was
+invisible, so every reviewer re-derived the same wrong conclusions and every
+reply was spent refuting them.
+
+The comment beside the code stays the source of truth -- a second hand written
+copy goes stale the first time one changes. `docs/decisions.md` is GENERATED
+from `// DECIDED:` markers by `tools/gen_decisions.py`, with `file:line` links,
+and a drift gate in `desktop-tests.yml` keeps it honest. Mark **reversals
+only**: X was tried, it was wrong, Y is why. A marker on every interesting
+comment produces a document nobody reads, which is the same as not having one.
+
+The rule points at the generated page and not at the comment on purpose. A
+reviewer holding a frame has no idea which file drew it, which is exactly how
+all seven happened.
+
 ## Vocabulary
 
 **THIS IS A SIGNING DEVICE. IT IS NOT A WALLET, AND NOTHING IN IT IS "THE

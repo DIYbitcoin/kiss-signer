@@ -4026,6 +4026,8 @@ int main(void) {
   // The popover: page-aligned fives now, with pager rows -- the way to go
   // BACK an index without leaving the tab, and the window holds still under
   // the finger instead of re-centring on every pick.
+  // DECIDED: a frame saved too soon photographs the OUTGOING pane, and reads as a
+  // layout bug rather than a timing one.
   // pump(30), not 20. The outgoing pane leaves on a per row stagger --
   // (n-1) * MO_OUT_STEP + MO_OUT_MS, which is 330ms for a six row detail pane
   // against 320ms of pump -- so the old count photographed the previous screen

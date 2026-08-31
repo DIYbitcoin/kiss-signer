@@ -43,6 +43,9 @@ jobs:
       - name: no new unreferenced i18n keys
         run: python3 tools/check_i18n_orphans.py
 
+      - name: the decisions index matches the comments it is built from
+        run: python3 tools/gen_decisions.py --check
+
       - name: the words on screen match the glossary
         run: python3 tools/check_vocab.py
 

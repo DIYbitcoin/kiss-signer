@@ -1014,6 +1014,8 @@ static void next_cb(lv_event_t *e) {
 }
 
 // ---- tab 1: the index, and the ONE list behind it ----
+// DECIDED: the ADDRESS #N caption opens the list and is not a duplicate of NEXT
+// ADDRESS; it replaced a popover that drifted out of step with it.
 // There was a popover here: five rows, its own pager, its own remembered page,
 // opened by a chevron that bounced forever under the caption. It was a second
 // address picker standing beside ALL ADDRESSES, which is a list of the same

@@ -2271,6 +2271,12 @@ static void dice_screen_build(void)
 
     s_dice_card = wt_card(s_scr, DICE_CARD_X, DICE_CARD_Y, DICE_CARD_W, DICE_CARD_H);
 
+    // DECIDED: the dice keys are drawn in wt_accent() over WT_DIV troughs, not
+    // in a hardcoded blue. They read stronger than the rest of the device only
+    // because six large fills carry the same accent that is hairlines
+    // everywhere else -- area against stroke, not a palette break. There is no
+    // hardcoded colour in this file outside one dim amber.
+    //
     // The keys, each directly over the column it feeds: six for a die, two for
     // a coin.
     //
@@ -3262,6 +3268,8 @@ static void storage_screen(void)
     // Settings. The note is inside its control instead of hidden behind a
     // help card: this choice decides what an attacker or a border search can
     // recover after power-off.
+    // DECIDED: the first boot storage chooser matches the Settings one row for row on
+    // purpose, so neither may be reordered alone.
     // Geometry and OBJECT from WT_CHOICE_* and wt_row_x, matching
     // storage_chooser_screen() in kiss_settings.c row for row. The two screens
     // present the identical choice and must not drift apart again, which is why

@@ -1807,6 +1807,8 @@ static void verify_screen(lv_obj_t *parent)
         // Below about 60px a filename is ellipsis and one character, which tells
         // nobody anything. It is already on the row that was tapped and in the
         // DETAILS page title, so drop it rather than let it collide.
+        // DECIDED: the sign review band does NOT name the transaction's file; that line was
+        // cut rather than fixed.
         // NO FILENAME HERE, and no "camera" either. Both were cut rather
         // than fixed.
         //

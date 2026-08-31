@@ -857,6 +857,8 @@ typedef struct {
     const char *icon;
     const char *label;
     bool        dot;    // a 7px WT_WARN mark: something in this group wants reading
+    // DECIDED: the destructive group is a TAB with its own tint and cross-fade, not a row
+    // buried on another page.
     bool        stop;   // the destructive group, in WT_STOP_INK on a WT_STOP tint
 } wt_tab_t;
 // Builds `n` tabs left to right from (x, y); the one at `sel` wears the

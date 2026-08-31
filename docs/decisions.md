@@ -1,0 +1,87 @@
+# Decisions
+
+Reversals: something was tried on this device, it was wrong, and this is why
+what ships is what ships. Generated from `// DECIDED:` comments by
+`tools/gen_decisions.py` -- the comment beside the code is the source of truth
+and this is an index of it, so a stale entry here is impossible by
+construction.
+
+**Read this before filing a defect from a screenshot.** A frame gives you no
+route to the comment that answers it, which is how seven findings were filed
+and withdrawn in one review pass.
+
+10 decisions.
+
+## `main/kiss_info.c`
+
+### the KEYS page has no tab strip, and the COORDINATOR element beside its title is a breadcrumb rather than a lone tab
+
+ONE segment. It was "KEYS / COORDINATOR" and the second half restates the title this page already carries.
+
+[`main/kiss_info.c:505`](../main/kiss_info.c#L505)
+
+## `main/kiss_recv.c`
+
+### the ADDRESS #N caption opens the list and is not a duplicate of NEXT ADDRESS; it replaced a popover that drifted out of step with it
+
+There was a popover here: five rows, its own pager, its own remembered page, opened by a chevron that bounced forever under the caption. It was a second address picker standing beside ALL ADDRESSES, which is a list of the same hundred indices with a different pagination (3, not 5) and a different remembered position -- and the two drifted apart by construction. A swipe through the list moves s_list_base and never touches s_idx, so an owner who paged the list back to #0 and returned found the popover built around #5. That is the bench's report, and no amount of fixing the popover's memory makes two pickers on one screen agree about which one the reader meant. So the caption IS the way in, and the list is the picker. Tapping it lands on ALL ADDRESSES with the page holding s_idx already under the finger and that row already ticked; row_tap_cb picks and comes straight back. One list, one pagination, and the position is computed from the selection every time, so there is nothing left to drift.
+
+[`main/kiss_recv.c:1017`](../main/kiss_recv.c#L1017)
+
+## `main/kiss_settings.c`
+
+### the amber dots on the tab strip are the attention chip's ROUTING and cannot be deleted as a duplicate of the count
+
+The first tab carrying one, in strip order, so the chip lands on the leftmost mark and the owner works rightwards. It used to be hard coded to BACKUP on the strength of a comment saying both counted conditions lived there; that stopped being true the moment duress joined the count, and a chip that jumps past a lit dot is worse than one that does not move.
+
+[`main/kiss_settings.c:1734`](../main/kiss_settings.c#L1734)
+
+### language and theme live on the BAND, moved there out of the DEVICE tab
+
+The band's centre: LANGUAGE and THEME, out of the DEVICE tab. The language control needs no caption -- its label IS the active language's own name, stripped of the regional qualifier ("ESPANOL (ESPANA)" -> "ESPANOL") because the picker's flag carries the variant. A WORD ACTION with a GLOBE, not an arrow action. It was a forward arrow, which is the mark the SCREEN'S OWN action wears -- so the one control on the band that picks between 21 languages was signed exactly like a "go on", and came back from the bench as "should have some icon better than an arrow, no?". A globe says what the control is before its word is read, in every one of those 21 languages at once.
+
+[`main/kiss_settings.c:2254`](../main/kiss_settings.c#L2254)
+
+## `main/kiss_setup.c`
+
+### the dice keys are drawn in wt_accent() over WT_DIV troughs, not in a hardcoded blue
+
+They read stronger than the rest of the device only because six large fills carry the same accent that is hairlines everywhere else -- area against stroke, not a palette break. There is no hardcoded colour in this file outside one dim amber. The keys, each directly over the column it feeds: six for a die, two for a coin. A die's key is the FACE, because that is what is printed on the thing in the owner's hand and it is also the character recorded. A coin has no digits on it, and the keys used to say 0 and 1 -- which made the first act of the flow an invented convention the owner had to hold in their head for 128 taps, before they had done anything. They say HEADS and TAILS now: nothing to decide, nothing to remember, and the words on the keys are the words on the coin. The recorded character is still 0 and 1, so the preimage is still the bit string. The mapping that makes it checkable does not live in anyone's head either -- W_COIN_VERIFY_NOTE prints it directly above the hash, on the one line written for the reader who is going to recompute it.
+
+[`main/kiss_setup.c:2274`](../main/kiss_setup.c#L2274)
+
+### the first boot storage chooser matches the Settings one row for row on purpose, so neither may be reordered alone
+
+Geometry and OBJECT from WT_CHOICE_* and wt_row_x, matching storage_chooser_screen() in kiss_settings.c row for row. The two screens present the identical choice and must not drift apart again, which is why the numbers live in kiss_theme.h and not in either file -- and now the shape does too, which is the drift that actually happened last time. Nothing is selected here. In Settings one of the three IS the current mode and wears the tick; this is first boot, there is no current mode yet, and a tick on FLASH would be the device answering its own question.
+
+[`main/kiss_setup.c:3271`](../main/kiss_setup.c#L3271)
+
+## `main/kiss_sign.c`
+
+### the sign review band does NOT name the transaction's file; that line was cut rather than fixed
+
+NO FILENAME HERE, and no "camera" either. Both were cut rather than fixed. The reader tapped that name on the file list one screen back, or watched the camera assemble the transaction, so the line restated what they had just done -- which is the copy rule's own example of a string to cut. And a filename is the COORDINATOR'S bookkeeping, not a fact about the payment: what says this is the right transaction is the amount and the destination, and both are on this screen at full size. A name in the corner never checked anything. What it cost to keep was the whole band. The line ran under the title beside the signed badge, the network chip and the fingerprint, and it was the only unlabelled string among them. It also carried two defects for as long as it existed: set in the smallest face on the device, and, once that was corrected, handing a translated phrase to a filename tail-fold so a scanned transaction read "scan...ansaction" on the screen where a payment is approved. fx survives because the badge and the chip above measure their lane against it: they may not run back under the title.
+
+[`main/kiss_sign.c:1810`](../main/kiss_sign.c#L1810)
+
+## `main/kiss_theme.c`
+
+### the icon grid's ladder floors at 21 and no longer has a font14 rung
+
+THE FLOOR IS 21, NOT 14, which is the same floor wt_body_para has and for the same reason: font14 is for MARKS -- chip labels, unit suffixes, chevrons -- and every string in this grid is a SENTENCE an owner reads before signing. WHY FLAGGED is the case that proves it: five caution rows explaining why a payment was flagged, all of them at the size this device keeps for punctuation. mono21 only where the copy CAN be mono, which is what the body ladder asks too. Where it cannot, the rung stays 23 and the overflow is reported rather than shrunk away -- copy too long for its box is copy to cut, and a silent drop is what hid this for the grid's whole life.
+
+[`main/kiss_theme.c:6144`](../main/kiss_theme.c#L6144)
+
+## `main/kiss_theme.h`
+
+### the destructive group is a TAB with its own tint and cross-fade, not a row buried on another page
+
+[`main/kiss_theme.h:860`](../main/kiss_theme.h#L860)
+
+## `sim/sim_main.c`
+
+### a frame saved too soon photographs the OUTGOING pane, and reads as a layout bug rather than a timing one
+
+pump(30), not 20. The outgoing pane leaves on a per row stagger -- (n-1) * MO_OUT_STEP + MO_OUT_MS, which is 330ms for a six row detail pane against 320ms of pump -- so the old count photographed the previous screen still fading through this one. Invisible until overlapcheck learned to read spangroups: the ghost is a folded address, and a spangroup was not text to any check on the list.
+
+[`sim/sim_main.c:4029`](../sim/sim_main.c#L4029)

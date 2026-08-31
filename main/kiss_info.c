@@ -502,6 +502,8 @@ static void pair_screen(void)
     // already there.
     wt_help_tab_n(s_scr, NULL, kiss_terms_unread(KISS_TERMS_PAIR, 3),
                   pair_terms_cb, NULL);
+    // DECIDED: the KEYS page has no tab strip, and the COORDINATOR element beside its
+    // title is a breadcrumb rather than a lone tab.
     // ONE segment. It was "KEYS / COORDINATOR" and the second half restates
     // the title this page already carries.
     wt_trail(s_scr, WT_ICON_QR, tr(STR_I_T), false);
