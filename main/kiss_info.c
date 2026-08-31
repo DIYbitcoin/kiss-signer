@@ -556,7 +556,19 @@ static void pair_screen(void)
 
     // The QR is primary on page one; the selected app's import directions are
     // readable here and repeated with the proof step on the static NEXT page.
-    s_pair_note = wt_note(s_scr, "", 400, 204, 360, 190);
+    s_pair_note = wt_note(s_scr, "", 400, 204, 360, 108);
+
+    // WHAT THIS QR HANDS OVER, at the moment it is handed over. The KEYS page
+    // says it as a standing line one screen back, and this is the screen where
+    // the owner actually shows the code to something -- a fact worth teaching
+    // in help is worth stating at the decision.
+    //
+    // K_EXPL_COORD already carries BOTH halves in one string and ships in 21
+    // locales, so this costs no key: "it sees every payment. it can never
+    // spend one." The accent stop between the two sentences is what separates
+    // the reassurance from the limit, which is the whole reason that treatment
+    // exists.
+    wt_note(s_scr, tr(STR_K_EXPL_COORD), 400, 318, 360, 76);
 
     // This BACK used to take the corner on the theory that an escape from the
     // whole flow earns it while a step back to one page does not. That rule was
