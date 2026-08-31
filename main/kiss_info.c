@@ -1635,7 +1635,15 @@ static void info_screen(void)
         // pair this once was -- the smallest type on the device, on the one
         // line whose whole job is to be seen. The dot breathes: the caution
         // earns it.
-        wt_standing(s_scr, tr(STR_G_TEST_CHIP), WT_WARN, true);
+        //
+        // The CHAIN'S OWN NAME, not a description of it. This said "TEST
+        // NETWORK" while the home badge said TESTNET, the sign chip said
+        // "TESTNET, practice coins" and the Settings row said TESTNET over
+        // "not real bitcoin" -- four phrasings of one fact, and this one was
+        // wrong on signet as well, since the same string covered both chains.
+        // kiss_net_name() is what the home badge and the Settings row already
+        // print, so there is one name and it is the chain's.
+        wt_standing(s_scr, kiss_net_name(), WT_WARN, true);
     } else if (!wt_help_seen()) {
         hint = tr(STR_C_HELP_HINT);
     } else {

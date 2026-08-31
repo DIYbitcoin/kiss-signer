@@ -1772,12 +1772,20 @@ static void verify_screen(lv_obj_t *parent)
         // this line already has, and the filename shrinks for it like it does
         // for the signed badge above.
         if (s_sum.testnet) {
-            lv_obj_t *nb = wt_state_chip(s_scr,
-                                         tr_sym(LV_SYMBOL_WARNING,
-                                                s_sum.net == KISS_NET_SIGNET
-                                                    ? STR_I_NET_SIGNET
-                                                    : STR_I_NET_TEST),
-                                         WT_WARN);
+            // The name alone. It read "TESTNET, practice coins", which is a
+            // name and a caption crammed onto a chip that has no caption
+            // lane -- and the mark beside it already says the coins are not
+            // to be trusted. The caption survives where a lane exists for it,
+            // which is the Settings row's sub.
+            //
+            // tr_sym takes a key and this is not one: chain names are proper
+            // nouns and kiss_net_name_of returns them untranslated, the same
+            // as the home badge and the Settings row. Same two-space join
+            // tr_sym uses, so the chip is spaced like every other one.
+            char nl[32];
+            snprintf(nl, sizeof nl, "%s  %s", LV_SYMBOL_WARNING,
+                     kiss_net_name_of(s_sum.net));
+            lv_obj_t *nb = wt_state_chip(s_scr, nl, WT_WARN);
             lv_obj_update_layout(nb);
             int nw = lv_obj_get_width(nb);
             // Only if the line can hold it. On a file that already carries a

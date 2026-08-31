@@ -254,7 +254,7 @@ UNTRANSLATED_OK = {
     # R_NEVER_HANDED, R_HANDED_ALREADY, R_SP_BTN and S_CMP_8 all ship already.
     # These eighteen are the ones with no equivalent.
     "K_FP_SUB", "K_CAP_PAIRING", "K_PAIR_SUB", "K_SP_SUB",
-    "K_EXPL_COORD", "G_TEST_CHIP", "R_TAB_THIS", "R_ENLARGE", "R_PATH_CAP",
+    "K_EXPL_COORD", "R_TAB_THIS", "R_ENLARGE", "R_PATH_CAP",
     "R_NEXT_ADDR", "R_LIST_COUNT", "R_TAB_SP", "R_ONE_EACH_SHORT", "R_USED_NOTE",
     "R_SP_ADDR_CAP", "R_SP_QR_SUB", "R_SP_EXPORT", "R_EXPL_SP",
     # RECEIVE's [ ? ] explainer, the last page to grow the mark. Born under
@@ -324,11 +324,12 @@ UNTRANSLATED_OK = {
     "W_RNG_NOSRC_B", "W_RNG_GO", "W_RNG_AGAIN",
     "W_RNG_CHI_CAP", "W_RNG_RANGE_CAP",
     "W_RNG_EVEN", "W_RNG_TOOEVEN", "W_RNG_RETRY", "W_RNG_PASS_NOTE",
-    # The third network and the chooser that names all three. Born under the
-    # English-only rule, like the KEF block above: the other twenty carry the
-    # English as a placeholder the sweep replaces.
-    "I_NET_SIGNET", "R_ON_SIGNET",
-    "I_NET_MAIN_NOTE", "I_NET_TEST_NOTE", "I_NET_SIGNET_NOTE",
+    # The third network's own line on RECEIVE. Born under the English-only
+    # rule, like the KEF block above: the other twenty carry the English as a
+    # placeholder the sweep replaces. Its five siblings went when the chains
+    # stopped being named four different ways -- kiss_net_name_of() prints the
+    # name now, untranslated, because a chain's name is a proper noun.
+    "R_ON_SIGNET",
     # The history switch: the Settings row, its chooser and the two truths the
     # ON row can tell. Born under the English-only rule, like the KEF block
     # above: the other twenty carry the English until the sweep.

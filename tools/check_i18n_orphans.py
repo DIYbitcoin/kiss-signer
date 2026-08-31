@@ -63,9 +63,6 @@ BACKLOG = frozenset({
     # translated key stays parked until the translation sweep removes it from
     # all 21 locale files together.
     "STR_G_FW_PILL",
-    "STR_I_NET_MAIN_NOTE",
-    "STR_I_NET_SIGNET_NOTE",
-    "STR_I_NET_TEST_NOTE",
     "STR_I_POP_CHIP",
     "STR_I_POP_ERASE",
     "STR_I_POP_KEEP",
