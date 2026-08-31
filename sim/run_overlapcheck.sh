@@ -209,7 +209,7 @@ for l in "${langs[@]}"; do
 
     if [ "$n" -gt 0 ]; then
         printf '%-8s %3d findings\n' "$l" "$n"
-        printf '%s\n' "$out" | grep -E '^  (TEXT|CONTENT|GROWTH|CLIPPED|ROLE|BARE|WALL|FIT|CUT|TINY|AMBER|RAGGED|LAYER|TERM|READ|LADDER|PATH)' | sed 's/^/  /'
+        printf '%s\n' "$out" | grep -E '^  (TEXT|CONTENT|GROWTH|CLIPPED|ROLE|BARE|WALL|FIT|CUT|TINY|AMBER|RAGGED|LAYER|TERM|READ|LADDER|PATH|WIDOW)' | sed 's/^/  /'
         echo
     else
         printf '%-8s clean\n' "$l"

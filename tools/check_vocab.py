@@ -135,13 +135,8 @@ RULES = [
         'say "seed words" (what they are) or "recovery words" (the backup)',
         'GLOSSARY.md: bare "words" reads as a house term and has to be '
         "unlearned the first time an owner opens anything else",
-        backlog=[
-            # GLOSSARY.md's own "not yet converted" list. Each is pinned to a
-            # pixel box in sim/fitcheck.c, so the anchor is wider than the word
-            # it replaces and every slot has to be re-measured, not assumed.
-            "GD_WORD_C_W2_B", "L_PPINTRO_B", "T_PATH_PLAIN", "W_QRBAD_B",
-            "W_TYPE_MY_WORDS", "W_VINTRO_W1_B",
-        ],
+        # GLOSSARY.md's "not yet converted" list was six strings and is
+        # empty: they were measured and converted rather than excused.
         fires_on="A locked copy of your words.",
         clean="A locked copy of your seed words.",
     ),
@@ -162,7 +157,6 @@ RULES = [
         'say "seed words"',
         "GLOSSARY.md: never the bare word `seed` in a user-facing string. It "
         "is fine in code, comments and filenames",
-        backlog=["GD_INTRO_S"],
         fires_on="a passphrase makes a second signer from one seed",
         clean="a passphrase opens different seed words",
     ),
@@ -193,6 +187,17 @@ RULES = [
         "\"Optional. Never instead of paper.\" and asked what it meant",
         fires_on="Optional. Never instead of paper.",
         clean="Optional. Seed words still go on paper.",
+    ),
+    Rule(
+        "METAPHOR",
+        r"\b(?:sits?|lives?|travels?|sleeps?|grows?|wakes?|breathes?)\b"
+        r"|\bmakes? the trip\b",
+        "say what actually happens: is, stays, never leaves, comes from",
+        "seed words do not live anywhere, coins do not sit on the network and "
+        "keys do not make trips. A reader deciding something has to translate "
+        "the picture back into the fact, and some of them get it wrong",
+        fires_on="your seed words now live in flash.",
+        clean="your seed words are now in flash.",
     ),
     Measure(
         "LONG-SENTENCE",
