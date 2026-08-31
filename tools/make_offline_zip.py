@@ -72,7 +72,7 @@ SITE_REQUIRED = [
     "fonts/LICENSE-IBMPlexMono.txt",
     "fonts/LICENSE-IoskeleyMono.txt",
     "media/game-menu.png",
-    "media/wallet-home.png",
+    "media/signer-home.png",
     "media/export-descriptor.png",
     "media/passphrase-warning.png",
     "media/qr-scan.png",

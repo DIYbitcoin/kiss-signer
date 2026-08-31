@@ -62,7 +62,7 @@ SECTIONS = [
           "set up, that opens the passphrase login. Once a spare exists, the "
           "same four letters open that instead, and your own swipe after them "
           "is what asks for the passphrase."),
-         ("03-signer-home", "sim_wallet",
+         ("03-signer-home", "sim_home",
           "Your recovery words and your exact passphrase together make these "
           "keys. A different passphrase silently opens different keys, "
           "so check the fingerprint is the one you expect.\n\n"
@@ -237,8 +237,8 @@ AXES = {
         # release since has died here before it built anything.
         extra=[("t0-network", "sim_settings_tn_first"),
                ("t0a-signet-settings", "sim_settings_signet"),
-               ("t0b-signet-home", "sim_wallet_signet"),
-               ("t1-home", "sim_wallet_testnet"),
+               ("t0b-signet-home", "sim_home_signet"),
+               ("t1-home", "sim_home_testnet"),
                ("t2-settings", "sim_settings_tn"),
                ("t3-receive", "sim_recv_tn"),
                ("t4-receive-detail", "sim_recv_detail_tn"),
@@ -279,7 +279,7 @@ def live_axes():
 
 LEGACY = [
     ("docs/readme/menu.png",              "sim_menu"),
-    ("docs/readme/wallet.png",            "sim_wallet"),
+    ("docs/readme/signer-home.png",            "sim_home"),
     ("docs/readme/setup-1-choose.png",    "sim_setup_choose"),
     ("docs/readme/setup-2-words.png",     "sim_setup_words"),
     ("docs/readme/setup-3-quiz.png",      "sim_setup_quiz"),
@@ -296,7 +296,7 @@ LEGACY = [
     # is the same explainer, reached from the home fingerprint chip instead.
     ("docs/readme/learn-card.png",        "sim_home_fp"),
     ("docs/media/game-menu.png",          "sim_menu"),
-    ("docs/media/wallet-home.png",        "sim_wallet"),
+    ("docs/media/signer-home.png",        "sim_home"),
     ("docs/media/passphrase-warning.png", "sim_setup_warn"),
     ("docs/media/export-descriptor.png",  "sim_pair"),
     ("docs/media/sign-verify.png",        "sim_sign_verify"),

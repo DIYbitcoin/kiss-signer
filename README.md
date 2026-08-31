@@ -14,7 +14,7 @@ draw. The strokes are traced onto this picture so you can see where they go.</su
 <table>
 <tr>
 <td align="center"><img src="docs/readme/menu.png" alt="FRUIT ISLAND game menu" width="400"></td>
-<td align="center"><img src="docs/readme/wallet.png" alt="KISS Signer home screen" width="400"></td>
+<td align="center"><img src="docs/readme/signer-home.png" alt="KISS Signer home screen" width="400"></td>
 </tr>
 <tr>
 <td align="center"><sub><b>What everyone sees</b>, a real, playable game</sub></td>

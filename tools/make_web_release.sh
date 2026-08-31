@@ -86,7 +86,7 @@ gpg_sign() {
 #
 # Every frame bakes the version in: sim/build_sim.sh compiles VERSION into
 # KISS_VERSION_STR and the home screen footer prints it. Nothing reran the
-# generator between beta4 and beta7, so docs/media/wallet-home.png advertised
+# generator between beta4 and beta7, so docs/media/signer-home.png advertised
 # 0.1.0-beta4 for three releases, on the page that tells people what they are
 # installing. gen_docs_shots.py --check could not catch it: it verifies that
 # sim_main.c still saves the frames the manifest names, deliberately not what

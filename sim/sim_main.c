@@ -2349,7 +2349,7 @@ int main(void) {
   pump(50);                                         // code locks; glide to the chip begins
   save("/tmp/sim_fp_fly.ppm");                      // mid-glide
   pump(70);                                         // landed; chip + caption faded in
-  save("/tmp/sim_wallet.ppm");
+  save("/tmp/sim_home.ppm");
   pump(90);                                         // ~1.4s idle: motes drift up
   save("/tmp/sim_home_idle.ppm");                   // motes at new positions here
   pump(120);                                        // more drift
@@ -4459,7 +4459,7 @@ int main(void) {
   // still fits and still does not overlap. What it does not do is BRANCH the
   // way it would on a device somebody had unlocked.
   //
-  // It was already visible in this file's own captions. sim_wallet_signet is
+  // It was already visible in this file's own captions. sim_home_signet is
   // annotated "badge reads SIGNET, not TESTNET" and there is no badge in the
   // frame, because kiss_home_refresh() reads a session that is not open. The
   // caption described the intent and the frame recorded the bug, and the two
@@ -4701,7 +4701,7 @@ int main(void) {
   band_theme();                                     // -> CYPHERPINK
   save("/tmp/sim_settings_pink.ppm");               // accent recolors the chrome + title
   tap_str(STR_C_BACK, 3, 6);      // BACK, right corner -> home still pink
-  save("/tmp/sim_wallet_pink.ppm");
+  save("/tmp/sim_home_pink.ppm");
   touch(670, 240); pump(3); release(); pump(6);     // Settings again
   set_tab(SET_DEVICE);
   band_theme(); band_theme();                       // ORANGE, then back to MONO
@@ -4730,7 +4730,7 @@ int main(void) {
   save("/tmp/sim_settings_signet.ppm");             // the value reads SIGNET
   must_show("net signet names itself", kiss_net_name());
   tap_str(STR_C_BACK, 3, 6);      // BACK, right corner -> home
-  save("/tmp/sim_wallet_signet.ppm");               // badge reads SIGNET, not TESTNET
+  save("/tmp/sim_home_signet.ppm");               // badge reads SIGNET, not TESTNET
   must_show("home badge signet", kiss_net_name());
   touch(670, 240); pump(3); release(); pump(6);     // Settings tile
   net_to(KISS_NET_TESTNET);
@@ -4741,7 +4741,7 @@ int main(void) {
   // asserted, in the place an owner actually does it.
 
   tap_str(STR_C_BACK, 3, 6);      // BACK, right corner -> home
-  save("/tmp/sim_wallet_testnet.ppm");              // home now shows TESTNET badge
+  save("/tmp/sim_home_testnet.ppm");              // home now shows TESTNET badge
   touch(310, 240); pump(3); release(); pump(6);     // Receive: tb1 detail landing
   save("/tmp/sim_recv_tn.ppm");                     // detail, on testnet
   // The list is one tab away. Capture it on testnet so the tb1 lines and the
@@ -4796,7 +4796,7 @@ int main(void) {
   // bc1 and sp1 prefixes where tb1 and tsp1 are one character longer. That last
   // one is a layout difference, not a colour one, and the receive screen folds
   // the address to fit.
-  save("/tmp/sim_wallet_mainnet.ppm");              // home: NO testnet badge
+  save("/tmp/sim_home_mainnet.ppm");              // home: NO testnet badge
   touch(310, 240); pump(3); release(); pump(6);     // Receive -> bc1 detail
   save("/tmp/sim_recv_mainnet.ppm");                // bc1, no "on testnet" line
   tap_str(STR_R_TAB_SP, 3, 40);                     // SILENT tab

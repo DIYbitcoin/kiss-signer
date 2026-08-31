@@ -562,7 +562,7 @@ def main():
         (fontdir / f"glyphs_{fc}.txt").write_text(txt + "\n", encoding="utf-8")
         print(f"glyphs_{fc}.txt: {len(cs)} non-ASCII glyphs")
 
-    # tile-title glyphs (H_TILE_*) for the 23px wallet-home fonts: keep these
+    # tile-title glyphs (H_TILE_*) for the 23px home fonts: keep these
     # subsets tiny, the 23px size exists only for the four home tiles
     for stem, ident, fc, _nat in LOCALES:
         if fc == "lat":

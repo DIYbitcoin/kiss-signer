@@ -18,7 +18,7 @@ GREEN accent, English, mainnet. ADDENDUM-02's axis, the one MONO hides because M
 
 ![green, 03 signer home](green/03-signer-home.png)
 
-`sim_wallet`
+`sim_home`
 
 ![green, 03a setup storage](green/03a-setup-storage.png)
 
@@ -114,7 +114,7 @@ The test networks, MONO, English. The walk already captures these near the end a
 
 ![testnet, 03 signer home](testnet/03-signer-home.png)
 
-`sim_wallet`
+`sim_home`
 
 ![testnet, 03a setup storage](testnet/03a-setup-storage.png)
 
@@ -206,11 +206,11 @@ The test networks, MONO, English. The walk already captures these near the end a
 
 ![testnet, t0b signet home](testnet/t0b-signet-home.png)
 
-`sim_wallet_signet`
+`sim_home_signet`
 
 ![testnet, t1 home](testnet/t1-home.png)
 
-`sim_wallet_testnet`
+`sim_home_testnet`
 
 ![testnet, t2 settings](testnet/t2-settings.png)
 

@@ -67,7 +67,7 @@ void       wt_lock_565(int *r5, int *g6, int *b5);
 // Montserrat (ASCII HUD only). 40/48pt stay built-in (digits/symbols only).
 const lv_font_t *wt_font14(void);
 const lv_font_t *wt_font14_for_lang(int lang);  // native-name rows in the language picker
-const lv_font_t *wt_font23(void);   // wallet-home tile titles (baked-art size)
+const lv_font_t *wt_font23(void);   // home tile titles (baked-art size)
 const lv_font_t *wt_font28(void);
 // Page titles + primary buttons. Latin/Cyrillic get a real 34px face;
 // CJK locales get 28 (no CJK face exists at 34, and CJK glyphs already
