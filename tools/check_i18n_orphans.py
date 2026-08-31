@@ -85,6 +85,13 @@ BACKLOG = frozenset({
     "STR_K_TYPE_PLAIN",
     "STR_K_TYPE_TERM_FMT",
     "STR_R_USAGE_UNKNOWN",
+    # The KEYS explainer used to head itself "What your keys are called" and
+    # then define three unrelated nouns underneath. The middle one was
+    # ACCOUNT / "network and address style", which is not what an account is.
+    # The page explains the three ROWS it shows now, so the account pair has
+    # nothing left to sit under.
+    "STR_K_HELP_F2C",
+    "STR_K_HELP_F2V",
     # KEYS re-weighted to the identity-as-headline shape: the fingerprint
     # became the hero and its old row sub went with the row. Translated in 21
     # locales, so it waits for the sweep like the rest of this list.

@@ -1479,12 +1479,17 @@ static void info_tab_build(void)
     if (s_help_open) {
         // The [ ? ] content: the lane replaced, not a card and not an
         // overlay. Nothing on it is interactive; the strip is the way back.
+        // The three ROWS of this page, in the order the page shows them.
+        // They used to be three unrelated nouns under a headline about a
+        // fourth thing -- and the middle one, ACCOUNT / "network and address
+        // style", is not what an account is. The bench read the page and could
+        // not say what it was explaining, which is the whole report.
         wt_fact_t facts[3] = {
             { .cap = tr(STR_K_HELP_F1C), .val = tr(STR_K_HELP_F1V),
               .icon = WT_ICON_KEY },
-            { .cap = tr(STR_K_HELP_F2C), .val = tr(STR_K_HELP_F2V),
-              .icon = WT_ICON_QR },
             { .cap = tr(STR_K_HELP_F3C), .val = tr(STR_K_HELP_F3V),
+              .icon = WT_ICON_QR },
+            { .cap = tr(STR_I_SEC_FIRST), .val = tr(STR_S_CMP_8),
               .icon = LV_SYMBOL_EYE_OPEN },
         };
         wt_explain(p, tr(STR_K_HELP_HEAD), tr(STR_K_HELP_BODY), facts, 3);
