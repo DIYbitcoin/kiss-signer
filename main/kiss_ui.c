@@ -93,6 +93,12 @@ static char s_first[PASS_MAX + 1];
 // with ONE vague failure — a wrong password and a corrupt envelope must read
 // the same. These arms run FIRST in kb_cb, the s_backup_verify_pass shape.
 static bool s_kef_mode;
+// ...borrowed for a PASSPHRASE rather than a backup password. Same
+// keyboard, same no-session contract, different noun -- and the noun is
+// load bearing: a passphrase opens keys, a backup password opens an
+// envelope, and a caption saying the wrong one on a screen where the
+// owner is being asked to prove they remember theirs is the whole bug.
+static bool s_kef_pass;
 static bool s_kef_create;
 static bool s_kef_first_done;
 static char s_kef_first[PASS_MAX + 1];
@@ -387,8 +393,9 @@ static void entry_refresh_text(void) {
     // The ghost prompt names what is being typed, and in KEF mode that is a
     // backup password, never a passphrase (vocabulary is load bearing here:
     // a passphrase opens a wallet, this opens an envelope).
-    lv_label_set_text(s_entry, tr(s_kef_mode ? STR_L_KEF_TYPE_PROMPT
-                                             : STR_L_TYPE_PROMPT));
+    lv_label_set_text(s_entry, tr(s_kef_mode && !s_kef_pass
+                                      ? STR_L_KEF_TYPE_PROMPT
+                                      : STR_L_TYPE_PROMPT));
     lv_obj_set_style_text_color(s_entry, MUT_COL, 0);
     kiss_wipe(buf, sizeof buf);
     return;
@@ -504,6 +511,7 @@ static void wipe_and_close(void) {
   s_backup_verified = false;
   s_backup_verify_pass = false;
   s_kef_mode = false;
+  s_kef_pass = false;
   s_kef_create = false;
   s_kef_first_done = false;
   kiss_wipe(s_kef_first, sizeof s_kef_first);
@@ -1244,7 +1252,8 @@ static void setup_warn_verify_cb(lv_event_t *e)
 {
   (void)e;
   if (s_warnscr) { lv_obj_delete_async(s_warnscr); s_warnscr = NULL; }
-  kiss_setup_open_verify(lv_screen_active(), setup_warn_words_done);
+  kiss_setup_open_verify(lv_screen_active(), setup_warn_words_done,
+                         false);   // this flow runs its own passphrase leg
 }
 
 static void setup_warn_screen(void) {
@@ -1831,7 +1840,12 @@ static void kb_cb(lv_event_t *e) {
       } else {
         // The derive takes a visible moment (100k PBKDF2 on the device);
         // say so before blocking, or OK reads as a dead key.
-        cap_set(tr(s_kef_create ? STR_L_KEF_LOCKING : STR_L_KEF_UNLOCKING),
+        // "unlocking your backup" is the KEF noun and it is wrong for a
+        // passphrase: nothing is being opened, a fingerprint is being
+        // rederived. The rehearsal's own prompt stands instead, which is the
+        // instruction the owner is still carrying out.
+        cap_set(tr(s_kef_pass    ? STR_L_VERIFY_PASS
+                 : s_kef_create  ? STR_L_KEF_LOCKING : STR_L_KEF_UNLOCKING),
                 MUT_COL, true);
         lv_refr_now(NULL);
         int rc = s_kef_check_cb ? s_kef_check_cb(s_pass, (size_t)s_plen) : -1;
@@ -1841,7 +1855,12 @@ static void kb_cb(lv_event_t *e) {
           s_caret = 0;
           s_show = false;
           if (s_showbtn_lbl) lv_label_set_text(s_showbtn_lbl, tr(STR_L_SHOW));
-          cap_set(tr(s_kef_create ? STR_L_KEF_FAIL : STR_L_KEF_BAD),
+          // The passphrase rehearsal has its own refusal, and it is the one
+          // that says what actually happened: the answer was not wrong about
+          // a password, it opens DIFFERENT KEYS. Same string the setup
+          // rehearsal has always used for the same moment.
+          cap_set(tr(s_kef_pass    ? STR_L_BACKUP_PASS_BAD
+                   : s_kef_create  ? STR_L_KEF_FAIL : STR_L_KEF_BAD),
                   lv_color_hex(0xFF4D5E), true);
           entry_refresh();
         } else {
@@ -2211,7 +2230,8 @@ void kiss_login_open(void (*unlocked_cb)(void)) {
   // they already have is an instruction to invent a second one, which opens a
   // different wallet. Restoring gets the plain caption the ordinary unlock uses.
   cap_set(s_kef_mode
-              ? tr(s_kef_create ? STR_L_KEF_PASS_NEW : STR_L_KEF_PASS_OPEN)
+              ? tr(s_kef_pass    ? STR_L_VERIFY_PASS
+                 : s_kef_create  ? STR_L_KEF_PASS_NEW : STR_L_KEF_PASS_OPEN)
           : s_setup_mode && !s_restore_mode ? tr(STR_L_CREATE_YOUR_PASS)
                                             : tr(STR_L_PASSPHRASE_CAP),
           MUT_COL, false);
@@ -2326,6 +2346,19 @@ void kiss_login_open(void (*unlocked_cb)(void)) {
 // itself and THEN calls on_done, so the next screen never finds the login
 // still standing. CANCEL folds and calls on_cancel. No wallet, no session,
 // no fingerprint anywhere in this mode.
+// The passphrase rehearsal borrows the same keyboard, and for the same reason
+// the KEF password does: nothing is staged, nothing is derived into the
+// session, and the caller's on_check is the only thing that decides. What it
+// checks is kiss_session_prepare beside the live session, so a wrong answer
+// keeps the keyboard up and changes nothing.
+void kiss_ui_verify_pass_open(int (*on_check)(const char *pass, size_t len),
+                              void (*on_done)(void), void (*on_cancel)(void))
+{
+  s_kef_pass = true;
+  kiss_ui_kef_pass_open(false, on_check, on_done, on_cancel);
+  if (!kiss_ui_active()) s_kef_pass = false;   // refused: leave no mode behind
+}
+
 void kiss_ui_kef_pass_open(bool create,
                            int (*on_check)(const char *pass, size_t len),
                            void (*on_done)(void), void (*on_cancel)(void))

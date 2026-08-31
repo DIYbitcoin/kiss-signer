@@ -175,6 +175,12 @@ int kiss_session_decoy(void);
 // costs a hash, and returns the same four bytes whenever a session is open
 // because it is the same master key. 0 on success, non-zero with no session.
 int kiss_session_fingerprint(uint8_t out[4]);
+// The same four bytes for the key kiss_session_prepare derived BESIDE the open
+// one. This is what lets a passphrase be CHECKED without being committed: the
+// backup rehearsal prepares, reads this, discards, and compares -- so a wrong
+// answer cannot leave the device holding different keys than it started with.
+// 0 on success, non-zero with nothing prepared.
+int kiss_session_prepared_fingerprint(uint8_t out[4]);
 // BIP84 mainnet address at m/84h/0h/0h/<change>/<index> (native segwit, bc1q...)
 int kiss_session_address(int change, uint32_t index, char *out, size_t out_len);
 

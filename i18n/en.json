@@ -338,7 +338,7 @@
   "I_WORDS_OK_VAL": "CHECKED",
   "I_WORDS_S": "on paper, in order. never a photo, never a file.",
   "I_WORDS_UNVERIFIED": "paper never checked",
-  "I_WORDS_VERIFIED_FMT": "checked · fingerprint %s",
+  "I_WORDS_VERIFIED_FMT": "checked · %s",
   "I_WROW_CHECK": "CHECK MY COPY",
   "I_WROW_HOLDS": "CONTENTS",
   "I_WROW_KEF": "Locked backup",

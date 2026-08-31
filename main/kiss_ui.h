@@ -30,6 +30,14 @@ bool kiss_ui_active(void);
 // meter; otherwise one entry. on_check runs on OK and returns 0 or -1; -1
 // keeps the keyboard up with one vague failure, 0 folds it and then calls
 // on_done. CANCEL folds it and calls on_cancel.
+// The BACKUP CHECK's second leg: the same keyboard, collecting a PASSPHRASE.
+// on_check gets what was typed and answers 0 (it rederives these keys) or -1
+// (it does not, and the keyboard stays up to be tried again). Nothing is
+// staged and the open session is never replaced -- see
+// kiss_session_prepared_fingerprint.
+void kiss_ui_verify_pass_open(int (*on_check)(const char *pass, size_t len),
+                              void (*on_done)(void), void (*on_cancel)(void));
+
 void kiss_ui_kef_pass_open(bool create,
                            int (*on_check)(const char *pass, size_t len),
                            void (*on_done)(void), void (*on_cancel)(void));

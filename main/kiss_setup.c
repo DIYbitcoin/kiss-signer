@@ -70,6 +70,8 @@ static int s_wpage;             // which 12-word page the reveal is showing
 static bool s_restore;
 static bool s_verify;           // reuse the restore keypad to CHECK the paper backup
 static bool s_verify_ok;        // result returned to the caller after this check
+static bool s_verify_pass;      // ...and the passphrase leg was asked for
+static bool s_verify_full;      // ...and it passed: words AND passphrase
 static bool s_load;             // AMNESIC per-session load, not first-boot setup
 static int s_sd_problem;         // WSEED_ERR_* shown by the missing-card gate
 
@@ -152,6 +154,7 @@ static void goto_restore_cb(lv_event_t *e) { (void)e; restore_screen(); }
 bool kiss_setup_active(void) { return s_scr != NULL; }
 
 bool kiss_setup_verify_succeeded(void) { return s_verify_ok; }
+bool kiss_setup_verify_full(void)      { return s_verify_full; }
 
 static void wipe_state(void)
 {
@@ -371,6 +374,50 @@ static void verify_finish_exit(void)
 static void verify_exit_cb(lv_event_t *e)  { (void)e; verify_finish_exit(); }
 static void verify_retry_cb(lv_event_t *e) { (void)e; restore_screen(); }
 
+// ---- the second leg: the passphrase ---------------------------------------
+//
+// The words alone are half a backup. This screen ends by printing the open
+// keys' fingerprint and telling the owner to write it down -- and on a wallet
+// with a passphrase, the words they just checked cannot reproduce that code by
+// themselves. It said so, in its own subtitle: "the passphrase is not part of
+// this check", directly above the code it was asking them to trust. The two
+// halves of the screen contradicted each other and the half they copy onto
+// paper was the unproven one.
+//
+// So it is asked for, fresh, and it has to rederive the same four bytes. The
+// derivation goes BESIDE the live session (kiss_session_prepare ->
+// kiss_session_prepared_fingerprint -> discard), so a wrong answer cannot
+// leave the device holding keys the owner did not open -- which is the only
+// reason this is safe to offer somewhere an owner arrives already unlocked.
+//
+// Nothing is stored. The comparison is between two fingerprints, and the
+// passphrase is wiped with the keyboard.
+static void verify_ok_screen(void);
+
+static int verify_pass_check(const char *pass, size_t len)
+{
+    (void)len;
+    uint8_t got[4] = {0}, want[4] = {0};
+    kiss_ui_last_fp(want);
+    int rc = kiss_session_prepare(pass);
+    if (rc == 0) rc = kiss_session_prepared_fingerprint(got);
+    kiss_session_discard_prepared();
+    if (rc != 0) return -1;
+    // kiss_rehearse_pass_ok, not memcmp: a zeroed `want` must never verify,
+    // and that decision lives where kisstest can reach it.
+    return kiss_rehearse_pass_ok(got, want) ? 0 : -1;
+}
+
+static void verify_pass_done(void)
+{
+    s_verify_full = true;
+    verify_ok_screen();
+}
+
+// CANCEL is not a failure. The words matched and that is worth saying; the
+// screen simply keeps the subtitle admitting the passphrase was not checked.
+static void verify_pass_cancel(void) { verify_ok_screen(); }
+
 static void verify_finish(void)
 {
     char typed[WSEED_MAX_MNEMONIC], stored[WSEED_MAX_MNEMONIC];
@@ -383,7 +430,50 @@ static void verify_finish(void)
 
     if (mism < 0) {
         s_verify_ok = true;
-        mk_screen(tr(STR_W_VOK_T), tr(STR_W_VOK_S));
+        // A wallet with NO passphrase has nothing left to prove -- the words
+        // ARE the whole backup, and asking anyway is the unanswerable prompt
+        // kiss_rehearse.h exists to stop. Same seam, same answer, both routes.
+        //
+        // ...and only when there is an identity to compare against. A zeroed
+        // fingerprint never verifies (kiss_rehearse_pass_ok), so asking for a
+        // passphrase with no keys open is a prompt whose every answer is
+        // refused -- the same unanswerable shape kiss_rehearse exists to stop,
+        // arrived at from the other side.
+        uint8_t held[4];
+        kiss_ui_last_fp(held);
+        if (s_verify_pass && kiss_fp_known(held) &&
+            kiss_rehearse_after_words(kiss_session_decoy()) ==
+                KISS_REHEARSE_NEED_PASSPHRASE) {
+            kiss_ui_verify_pass_open(verify_pass_check, verify_pass_done,
+                                     verify_pass_cancel);
+            return;
+        }
+        verify_ok_screen();
+        return;
+    }
+
+    {
+        char buf[128];   // Cyrillic runs 2 bytes/char: 48 truncated every ru render
+        snprintf(buf, sizeof buf, tr(STR_W_VBAD_FMT), mism + 1);
+        mk_screen(tr(STR_W_VBAD_T), tr(STR_W_VBAD_S));
+        mk_lbl(buf, 48, 150, wt_font28(), STOP_COL);
+        wt_body_para(s_scr, tr(STR_W_VBAD_B), 206);
+        // Typing them again is what this screen is for; DONE is the way out.
+        wt_arrow_action(s_scr, tr(STR_C_DONE), true, false, WT_EXIT_X,
+                        WT_ACTION_Y, 140, true, verify_exit_cb, NULL);
+        wt_arrow_action(s_scr, tr(STR_W_TYPE_AGAIN_BTN), false, true, WT_ACT_X,
+                        WT_ACTION_Y, 300, false, verify_retry_cb, NULL);
+    }
+}
+
+static void verify_ok_screen(void)
+{
+    {
+        // FULL BACKUP VERIFIED when the passphrase leg ran and matched: the
+        // title is the claim, and the subtitle that used to disclaim the
+        // passphrase has nothing left to disclaim. Both strings already ship.
+        mk_screen(tr(s_verify_full ? STR_L_BACKUP_VERIFIED : STR_W_VOK_T),
+                  s_verify_full ? NULL : tr(STR_W_VOK_S));
         mk_lbl(tr_sym(LV_SYMBOL_OK, STR_W_VOK_MATCH), 48, 150,
                wt_font28(), OK_COL);
 
@@ -450,17 +540,6 @@ static void verify_finish(void)
         // Only the exit in the bar, so it takes the corner.
         wt_arrow_action(s_scr, tr(STR_C_DONE), false, true, WT_BACK_X,
                         WT_ACTION_Y, 140, true, verify_exit_cb, NULL);
-    } else {
-        char buf[128];   // Cyrillic runs 2 bytes/char: 48 truncated every ru render
-        snprintf(buf, sizeof buf, tr(STR_W_VBAD_FMT), mism + 1);
-        mk_screen(tr(STR_W_VBAD_T), tr(STR_W_VBAD_S));
-        mk_lbl(buf, 48, 150, wt_font28(), STOP_COL);
-        wt_body_para(s_scr, tr(STR_W_VBAD_B), 206);
-        // Typing them again is what this screen is for; DONE is the way out.
-        wt_arrow_action(s_scr, tr(STR_C_DONE), true, false, WT_EXIT_X,
-                        WT_ACTION_Y, 140, true, verify_exit_cb, NULL);
-        wt_arrow_action(s_scr, tr(STR_W_TYPE_AGAIN_BTN), false, true, WT_ACT_X,
-                        WT_ACTION_Y, 300, false, verify_retry_cb, NULL);
     }
 }
 
@@ -3763,7 +3842,8 @@ void kiss_setup_open(lv_obj_t *parent, void (*done_cb)(void))
     choose_screen();
 }
 
-void kiss_setup_open_verify(lv_obj_t *parent, void (*done_cb)(void))
+void kiss_setup_open_verify(lv_obj_t *parent, void (*done_cb)(void),
+                            bool with_pass)
 {
     if (s_scr) return;
     kiss_ui_ensure_indev();
@@ -3772,6 +3852,8 @@ void kiss_setup_open_verify(lv_obj_t *parent, void (*done_cb)(void))
     s_restore = true;                  // reuse the restore word-entry keypad
     s_verify = true;
     s_verify_ok = false;
+    s_verify_pass = with_pass;
+    s_verify_full = false;
     wipe_state();
     char words[WSEED_MAX_MNEMONIC];
     if (kiss_seed_load(words, sizeof words) != 0) {   // no seed: nothing to check

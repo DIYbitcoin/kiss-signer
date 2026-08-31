@@ -939,8 +939,16 @@ static void winfo_after_verify(void)
     // Nothing is taken away by this: kiss_backup_mark only ever sets, and keys
     // opened with a passphrase earned their mark on the rehearsal at setup,
     // where the passphrase actually was checked.
+    //
+    // The leg EXISTS here now: kiss_setup_open_verify is opened with
+    // with_pass, so a wallet with a passphrase is asked for it and has to
+    // rederive the fingerprint before this route claims anything. So the
+    // condition is "the words were the whole backup, OR the passphrase proved
+    // it too" -- and the half check still cannot turn the chip green.
     if (kiss_setup_verify_succeeded() &&
-        kiss_rehearse_after_words(kiss_session_decoy()) == KISS_REHEARSE_VERIFIED) {
+        (kiss_setup_verify_full() ||
+         kiss_rehearse_after_words(kiss_session_decoy()) ==
+             KISS_REHEARSE_VERIFIED)) {
         uint8_t fp[4];
         kiss_ui_last_fp(fp);
         kiss_backup_mark(fp);
@@ -952,7 +960,7 @@ static void verify_copy_cb(lv_event_t *e)
 {
     (void)e;
     swap_screen();                       // drop this screen (async: safe mid-event)
-    kiss_setup_open_verify(s_parent, winfo_after_verify);
+    kiss_setup_open_verify(s_parent, winfo_after_verify, true);
 }
 
 // ---- RECOVERY WORDS: two groups, PAPER and ENCRYPTED --------------------

@@ -561,6 +561,13 @@ int kiss_session_decoy(void) { return s_sim_decoy; }
 int kiss_session_fingerprint(unsigned char out[4]) {
   return kiss_fingerprint(s_sim_sess_pass, out);
 }
+// ...and the same for the key prepared BESIDE it, which is what the backup
+// rehearsal compares against. The stub keeps the prepared passphrase, so a
+// wrong answer produces a different fake fingerprint exactly as the device
+// produces a different real one.
+int kiss_session_prepared_fingerprint(unsigned char out[4]) {
+  return kiss_fingerprint(s_sim_prep_pass, out);
+}
 // The refusal switch: a locked session refuses every derivation at once. The
 // refusal renders were introduced by fixes to five screens that used to encode
 // the failure string into their QRs; without this switch the sim derives
@@ -4407,8 +4414,27 @@ int main(void) {
   touch(44, 314); pump(3); release(); pump(3);      // a
   touch(450, 374); pump(3); release(); pump(3);     // b
   touch(664, 254); pump(3); release(); pump(3);     // o -> "abo"
-  touch(55, 182); pump(3); release(); pump(4);     // accept "about" -> VERIFIED
+  touch(55, 182); pump(3); release(); pump(6);     // accept "about" -> the words match
+  // THE SECOND LEG. The words are half a backup on a wallet with a
+  // passphrase, so the check asks for it fresh and it has to rederive the
+  // fingerprint this screen is about to print. The session opened with nine
+  // a's (kiss_session_open, above), and the sim's fingerprint is a function of
+  // the passphrase exactly as the device's is -- so the same nine keys are the
+  // right answer here and anything else is not.
+  save("/tmp/sim_verify_pass.ppm");                 // TYPE THE EXACT PASSPHRASE
+  must_show("verify/passphrase leg", tr(STR_L_VERIFY_PASS));
+  touch(46, 278); pump(3); release(); pump(3);      // one 'a': the wrong answer
+  touch(725, 430); pump(3); release(); pump(8);     // OK -> refused, keyboard stays
+  save("/tmp/sim_verify_pass_bad.ppm");             // THAT OPENS DIFFERENT KEYS
+  must_show("verify/wrong passphrase is refused", tr(STR_L_BACKUP_PASS_BAD));
+  // The refusal WIPES what was typed, so this is nine from empty, not eight
+  // more on top of one.
+  for (int i = 0; i < 9; i++) {
+    touch(46, 278); pump(3); release(); pump(3);
+  }
+  touch(725, 430); pump(3); release(); pump(8);     // OK -> FULL BACKUP VERIFIED
   save("/tmp/sim_verify_ok.ppm");
+  must_show("verify/full backup", tr(STR_L_BACKUP_VERIFIED));
   // The same screen with NO fingerprint to show -- the twin of the guard that
   // let 00000000 onto the warning screen, and the branch this one has always
   // taken the other side of. It is not a colour swap: with no fingerprint the
@@ -4444,7 +4470,11 @@ int main(void) {
   touch(44, 314); pump(3); release(); pump(3);      // a
   touch(450, 374); pump(3); release(); pump(3);     // b
   touch(664, 254); pump(3); release(); pump(3);     // o
-  touch(55, 182); pump(3); release(); pump(4);     // accept -> VERIFIED, no fp
+  // NO PASSPHRASE LEG on this one, and that is the point of the state: with
+  // no fingerprint held there is nothing for a passphrase to rederive, so the
+  // check does not ask for one. Straight to the verdict, which keeps the
+  // subtitle admitting the passphrase was not part of it.
+  touch(55, 182); pump(3); release(); pump(6);     // accept -> VERIFIED, no fp
   save("/tmp/sim_verify_ok_nofp.ppm");              // tall body, no code below
   tap_str(STR_C_DONE, 3, 6);     // DONE -> Settings
   // The backup group with NO FINGERPRINT, which is what kiss_ui_forget_fp
