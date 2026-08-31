@@ -498,6 +498,33 @@ static void sp_addr_render(void) {
     wt_group4(s_sp_addr, grouped, sizeof(grouped));
     s_addr_sg = wt_addr_spans(s_scr, grouped, SP_COL_W, wt_font_mono28());
     lv_obj_set_pos(s_addr_sg, SP_COL_X, 100);
+    // A LADDER, because the clamp below cannot save this on its own. It holds
+    // the path block off WT_CONTENT_BOTTOM by pulling it UP, and a tall enough
+    // address means it gets pulled up INTO the address -- which is what the
+    // longest testnet silent payment did: eight lines at mono28, and
+    // DERIVATION PATH landing on the last of them.
+    //
+    // So the address steps down a rung when it will not fit, the same answer
+    // every body on this device gives. Shrinking one rung is always better
+    // than two strings sharing pixels on the screen an owner compares an
+    // address on.
+    //
+    // Measured here rather than trusted: the two test chains differ by a
+    // character, and that character is the whole difference between seven
+    // lines and eight.
+    {
+        lv_obj_update_layout(s_addr_sg);
+        lv_obj_update_layout(s_sp_path_lbl);
+        const int want = 100 + lv_obj_get_height(s_addr_sg) + 14;
+        const int room = WT_CONTENT_BOTTOM - 22
+                       - lv_obj_get_height(s_sp_path_lbl);
+        if (want > room) {
+            lv_obj_delete(s_addr_sg);
+            s_addr_sg = wt_addr_spans(s_scr, grouped, SP_COL_W,
+                                      wt_font_mono23());
+            lv_obj_set_pos(s_addr_sg, SP_COL_X, 100);
+        }
+    }
   } else {
     // Match the readable list form: constant prefix muted, four meaningful
     // characters near each end lit. The QR still receives all of `s_sp_addr`.

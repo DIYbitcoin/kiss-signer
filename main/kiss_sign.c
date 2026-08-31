@@ -748,9 +748,13 @@ static void done_summary(int y)
         if (!n_recip++) only = i;
     }
     if (n_recip == 1) {
-        wt_lbl(c, LV_SYMBOL_GPS, 14, 76, wt_font14(), MUT_COL);
-        lv_obj_t *ad = wt_addr_short(c, s_sum.outs[only].addr, wt_font_mono14());
-        lv_obj_set_pos(ad, 40, 74);
+        // mono23. This is WHERE the money went, on the screen that confirms it
+        // went -- an owner reads it against their coordinator, so it is not a
+        // mark and font14 is not its size. The GPS glyph beside it IS a mark
+        // and keeps font14.
+        wt_lbl(c, LV_SYMBOL_GPS, 14, 78, wt_font14(), MUT_COL);
+        lv_obj_t *ad = wt_addr_short(c, s_sum.outs[only].addr, wt_font_mono23());
+        lv_obj_set_pos(ad, 40, 70);
     } else if (n_recip > 1) {
         char b[80];
         snprintf(b, sizeof b, tr(STR_S_D_OUTPUTS_FMT),

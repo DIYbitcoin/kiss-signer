@@ -160,9 +160,50 @@ static bool area_is_backdrop(const lv_area_t *a)
 // long strings and multi byte scripts. Truncation stops on a byte that is not a
 // UTF-8 continuation, otherwise a Japanese finding prints as mojibake and reads
 // like a second bug.
+// A SPANGROUP IS TEXT, and eight checks could not see one. The kit builds six
+// of them -- the folded address, a definition row, wt_explain_hi's body and the
+// explainer overlay's own -- and every one was invisible to TEXT, CONTENT,
+// GROWTH, CLIPPED, BARE, WALL, CUT and the size dump, because all of them ask
+// lv_obj_check_type for lv_label_class and a spangroup is not one.
+//
+// Nothing about those checks cares which class drew the glyphs. They care what
+// the string is, how tall its line box is, and whether it wraps -- all three of
+// which a spangroup can answer.
+static bool oc_is_text(lv_obj_t *o)
+{
+    return lv_obj_check_type(o, &lv_label_class) ||
+           lv_obj_check_type(o, &lv_spangroup_class);
+}
+
+// The spans joined, in order. A body split into "sentence" + "." + "sentence"
+// is one string to every check that reads it, which is what it is on the glass.
+static void oc_span_text(lv_obj_t *o, char *out, size_t out_len)
+{
+    size_t n = 0;
+    uint32_t cnt = lv_spangroup_get_span_count(o);
+    for (uint32_t i = 0; i < cnt && n + 1 < out_len; i++) {
+        lv_span_t *sp = lv_spangroup_get_child(o, (int32_t)i);
+        const char *t = sp ? lv_span_get_text(sp) : NULL;
+        for (; t && *t && n + 1 < out_len; t++)
+            out[n++] = (*t == '\n' || *t == '\r') ? ' ' : *t;
+    }
+    out[n] = '\0';
+}
+
+static const char *oc_text_of(lv_obj_t *o, char *scratch, size_t len)
+{
+    if (lv_obj_check_type(o, &lv_label_class)) return lv_label_get_text(o);
+    if (lv_obj_check_type(o, &lv_spangroup_class)) {
+        oc_span_text(o, scratch, len);
+        return scratch;
+    }
+    return NULL;
+}
+
 static void oc_text(lv_obj_t *o, char *out, size_t out_len)
 {
-    const char *t = lv_obj_check_type(o, &lv_label_class) ? lv_label_get_text(o) : NULL;
+    char sp[512];
+    const char *t = oc_text_of(o, sp, sizeof sp);
     if (!t || !*t) {
         // "(not text)" told the reader nothing and made every finding about a
         // decoration look the same. Name what it actually hit.
@@ -233,12 +274,13 @@ static void oc_collect(lv_obj_t *o, lv_area_t clip, bool clip_scrolls)
     lv_area_t vis;
     if (!oc_intersect(&vis, &coords, &clip)) return;   // clipped out entirely
 
-    bool is_label = lv_obj_check_type(o, &lv_label_class);
+    bool is_label = oc_is_text(o);
 
     // A label with no text has a box but nothing in it, and comparing empty
     // boxes invents findings nobody can act on.
     if (is_label) {
-        const char *t = lv_label_get_text(o);
+        char sp[512];
+        const char *t = oc_text_of(o, sp, sizeof sp);
         if (!t || !*t) return;
     }
 
@@ -252,7 +294,12 @@ static void oc_collect(lv_obj_t *o, lv_area_t clip, bool clip_scrolls)
                  ? (int)lv_font_get_line_height(lv_obj_get_style_text_font(o, LV_PART_MAIN))
                  : 0;
     n->is_label  = is_label;
-    n->wraps     = is_label && lv_label_get_long_mode(o) == LV_LABEL_LONG_MODE_WRAP;
+    // A spangroup in BREAK mode wraps, which is the same claim LONG_MODE_WRAP
+    // makes about a label -- and it is what BARE and WALL are asking about.
+    n->wraps     = is_label &&
+                   (lv_obj_check_type(o, &lv_spangroup_class)
+                      ? lv_spangroup_get_mode(o) == LV_SPAN_MODE_BREAK
+                      : lv_label_get_long_mode(o) == LV_LABEL_LONG_MODE_WRAP);
     n->leaf      = kids == 0;
     n->clickable = lv_obj_has_flag(o, LV_OBJ_FLAG_CLICKABLE);
     n->buried    = false;
@@ -272,8 +319,12 @@ static void oc_collect(lv_obj_t *o, lv_area_t clip, bool clip_scrolls)
     // here because it never clips -- it rewrites its own text, which is what
     // CUT reports.
     {
-        const lv_label_long_mode_t lm = is_label ? lv_label_get_long_mode(o)
-                                                 : LV_LABEL_LONG_MODE_WRAP;
+        // A spangroup has no long mode. It never marquees and never dots, so
+        // WRAP is the honest stand-in -- and reading a label's accessor off
+        // one is a segfault, which is how this was found.
+        const lv_label_long_mode_t lm =
+            lv_obj_check_type(o, &lv_label_class) ? lv_label_get_long_mode(o)
+                                                  : LV_LABEL_LONG_MODE_WRAP;
         const bool marquee = lm == LV_LABEL_LONG_MODE_SCROLL
                           || lm == LV_LABEL_LONG_MODE_SCROLL_CIRCULAR;
         n->cutx = is_label && !marquee && !clip_scrolls
@@ -1547,6 +1598,8 @@ static void oc_check_dots(const char *tag)
     for (int i = 0; i < s_n; i++) {
         const oc_node_t *n = &s_node[i];
         if (n->buried || !n->is_label) continue;
+        // DOTS is a label idiom; a spangroup cannot be in it.
+        if (!lv_obj_check_type(n->obj, &lv_label_class)) continue;
         if (lv_label_get_long_mode(n->obj) != LV_LABEL_LONG_MODE_DOTS) continue;
         const char *txt = lv_label_get_text(n->obj);
         if (!txt || !*txt || !oc_ends_in_dots(txt)) continue;
@@ -1567,7 +1620,8 @@ static void oc_check_tiny(const char *tag)
     for (int i = 0; i < s_n; i++) {
         const oc_node_t *n = &s_node[i];
         if (n->buried || !n->is_label) continue;
-        const char *txt = lv_label_get_text(n->obj);
+        char spbuf[512];
+        const char *txt = oc_text_of(n->obj, spbuf, sizeof spbuf);
         if (!txt || !*txt) continue;
         if (!oc_font_is_tiny(lv_obj_get_style_text_font(n->obj, LV_PART_MAIN)))
             continue;
@@ -1637,7 +1691,8 @@ static void oc_check_amber(const char *tag)
     for (int i = 0; i < s_n; i++) {
         const oc_node_t *n = &s_node[i];
         if (n->buried || !n->is_label) continue;
-        const char *txt = lv_label_get_text(n->obj);
+        char spbuf[512];
+        const char *txt = oc_text_of(n->obj, spbuf, sizeof spbuf);
         if (!txt || !*txt) continue;
         if (!oc_is_warn(lv_obj_get_style_text_color(n->obj, LV_PART_MAIN)))
             continue;
@@ -2753,7 +2808,8 @@ void oc_check(const char *tag)
         for (int i = 0; i < s_n; i++) {
             const oc_node_t *n = &s_node[i];
             if (!n->is_label || n->buried) continue;
-            const char *txt = lv_label_get_text(n->obj);
+            char spbuf[512];
+        const char *txt = oc_text_of(n->obj, spbuf, sizeof spbuf);
             if (!txt || !*txt) continue;
             char t[96];
             oc_text(n->obj, t, sizeof t);

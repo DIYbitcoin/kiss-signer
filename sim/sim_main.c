@@ -4024,7 +4024,13 @@ int main(void) {
   // The popover: page-aligned fives now, with pager rows -- the way to go
   // BACK an index without leaving the tab, and the window holds still under
   // the finger instead of re-centring on every pick.
-  touch(350, 128); pump(3); release(); pump(20);    // ADDRESS #N -> index popover
+  // pump(30), not 20. The outgoing pane leaves on a per row stagger --
+  // (n-1) * MO_OUT_STEP + MO_OUT_MS, which is 330ms for a six row detail pane
+  // against 320ms of pump -- so the old count photographed the previous screen
+  // still fading through this one. Invisible until overlapcheck learned to
+  // read spangroups: the ghost is a folded address, and a spangroup was not
+  // text to any check on the list.
+  touch(350, 128); pump(3); release(); pump(30);    // ADDRESS #N -> index popover
   save("/tmp/sim_recv_full.ppm");
   touch(446, 170); pump(3); release(); pump(20);    // pick the first offered
   tap_str(STR_R_NEXT_ADDR, 3, 8);   // NEXT ADDRESS -> next unused index

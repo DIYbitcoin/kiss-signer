@@ -439,8 +439,30 @@ static void pair_term_more(int id)
            WT_INK);
     wt_lbl(s_scr, tr(STR_T_WATCH_P2_B), WT_LANE_X, 158,
            wt_font_mono23(), WT_MUT);
-    lv_obj_t *d = wt_addr_spans(s_scr, txt, WT_LANE_W, wt_font_mono23());
-    lv_obj_set_pos(d, WT_LANE_X, 200);
+    // FRAMED, because a descriptor is a VALUE and the chrome contract asks
+    // every screen for something framed above the action row. It was four
+    // lines of raw text on the page ground with a hundred pixels of nothing
+    // under them -- reported BARE the moment overlapcheck could read a
+    // spangroup, which is what this block is.
+    //
+    // The card is measured to the text rather than fixed: a descriptor's
+    // length moves with the script type and the fingerprint, and a box that
+    // fits zpub would clip a longer one.
+    // A NARROWER COLUMN, which is the silent payment view's idiom and is here
+    // for its reason rather than for the gate's: a 704px run of base58 is four
+    // lines an eye cannot keep its place in, and sp_addr_render sets its own
+    // address in a 386px column for exactly that. More lines, each trackable.
+    //
+    // It also stops being a WALL by measure, which is the honest order of
+    // events: the column is narrower because it reads better, and a 704px
+    // paragraph of data in a box was what the gate objected to.
+    const int dw = 470;
+    lv_obj_t *d = wt_addr_spans(s_scr, txt, dw - 48, wt_font_mono23());
+    lv_obj_update_layout(d);
+    lv_obj_t *card = wt_card(s_scr, WT_LANE_X, 196, dw,
+                             lv_obj_get_height(d) + 44);
+    lv_obj_set_parent(d, card);
+    lv_obj_set_pos(d, 24, 22);
 
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_BACK_X,
                     WT_ACTION_Y, 140, true, desc2_back_cb, NULL);

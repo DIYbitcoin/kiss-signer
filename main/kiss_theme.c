@@ -6072,7 +6072,29 @@ static void explain_grid(lv_obj_t *ovl, const wt_explain_t *e, int y, int room,
             if (sz.y > tallest) tallest = sz.y;
         }
         if (tallest <= pitch - 6) break;
-        bf = wt_font14();
+        // THE FLOOR IS 21, NOT 14, which is the same floor wt_body_para has
+        // and for the same reason: font14 is for MARKS -- chip labels, unit
+        // suffixes, chevrons -- and every string in this grid is a SENTENCE an
+        // owner reads before signing. WHY FLAGGED is the case that proves it:
+        // five caution rows explaining why a payment was flagged, all of them
+        // at the size this device keeps for punctuation.
+        //
+        // mono21 only where the copy CAN be mono, which is what the body
+        // ladder asks too. Where it cannot, the rung stays 23 and the overflow
+        // is reported rather than shrunk away -- copy too long for its box is
+        // copy to cut, and a silent drop is what hid this for the grid's whole
+        // life.
+        bool mono_ok = true;
+        for (int i = 0; i < n && mono_ok; i++) {
+            char line[GRID_LINE_MAX];
+            int l = len[i] < (int)sizeof line ? len[i] : (int)sizeof line - 1;
+            lv_memcpy(line, ln[i], (size_t)l);
+            line[l] = 0;
+            if (!mono_can(line)) mono_ok = false;
+        }
+        if (pass == 0 && mono_ok) { bf = wt_font_mono21(); continue; }
+        WT_FIT_GAVE_UP("grid", ln[0], tw, pitch - 6);
+        break;
     }
 
     for (int i = 0; i < n; i++) {
