@@ -2841,8 +2841,9 @@ static void details_gesture_cb(lv_event_t *e)
 // A marked metadata line: the mark in its own label because the mono faces
 // carry no icon plane -- one label in mono18 would draw the glyph as the
 // missing-fallback box.
-static void dtab_meta(lv_obj_t *row, const char *icon, const char *txt,
-                      lv_color_t col)
+// Returns the LINE, so a caller can close a group with a pad on the last one.
+static lv_obj_t *dtab_meta(lv_obj_t *row, const char *icon, const char *txt,
+                           lv_color_t col)
 {
     lv_obj_t *ln = lv_obj_create(row);
     lv_obj_remove_style_all(ln);
@@ -2857,6 +2858,7 @@ static void dtab_meta(lv_obj_t *row, const char *icon, const char *txt,
     lv_label_set_text(l, txt);
     lv_obj_set_style_text_font(l, wt_font_mono18(), 0);
     lv_obj_set_style_text_color(l, col, 0);
+    return ln;
 }
 
 // INPUTS: what this transaction spends. The amount leads at 28 with its
@@ -2889,13 +2891,21 @@ static void dtab_inputs(lv_obj_t *p)
                                                  : LV_SCROLLBAR_MODE_AUTO);
     wt_list_scrollbar(il);
     lv_obj_set_style_bg_opa(il, LV_OPA_TRANSP, 0);
+    // NO PER INPUT CONTAINER. `il` is already a flex COLUMN, so wrapping each
+    // input's three lines in a second column bought exactly one thing: a 14px
+    // bottom pad. That is sixteen objects on this page spent on a gap, and
+    // this page has none to spare -- the LVGL heap peaks at 87% with 57%
+    // fragmentation, and sixteen MORE objects here do not fail, they hand
+    // lv_obj_create a NULL parent or spin lv_refr_now at 100% forever.
+    //
+    // The pad goes on the last line of each group instead, which is what it
+    // always meant. The lines are unchanged: a mark label and a text label in
+    // a flex row, because the mark has to be a separate label to stay MONO
+    // text beside it -- only the lat faces carry the FontAwesome plane
+    // (tools/fonts/gen_fonts.sh), so one merged label would put a txid and a
+    // derivation path into a proportional face.
     for (uint32_t i = 0; i < s_det.n_in; i++) {
-        lv_obj_t *row = lv_obj_create(il);
-        lv_obj_remove_style_all(row);
-        lv_obj_set_width(row, lv_pct(100));
-        lv_obj_set_height(row, LV_SIZE_CONTENT);
-        lv_obj_set_flex_flow(row, LV_FLEX_FLOW_COLUMN);
-        lv_obj_set_style_pad_bottom(row, 14, 0);
+        lv_obj_t *row = il;
 
         wt_fmt_amount(s_det.ins[i].sats, a, sizeof a);
         // The verify screen can only say "one of these amounts is not
@@ -2930,7 +2940,9 @@ static void dtab_inputs(lv_obj_t *p)
                      (unsigned)s_det.ins[i].purpose, s_sum.testnet ? 1 : 0,
                      (unsigned)s_det.ins[i].change,
                      (unsigned)s_det.ins[i].index);
-        dtab_meta(row, GLOSS_ICONS[6], buf, OK_COL);
+        // The group's gap, on its last line: what the container carried.
+        lv_obj_set_style_pad_bottom(dtab_meta(row, GLOSS_ICONS[6], buf, OK_COL),
+                                    14, 0);
     }
 }
 
