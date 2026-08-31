@@ -40,6 +40,21 @@ locale, such as `billetera` versus `cartera` and `arquivo` versus `ficheiro`.
   than assumed. `sub/write` is the worked example: it is 704x30, which is ONE
   line at font23, and five locales had to be compressed to the `words +
   passphrase = these keys` form to hold it.
+- **"encrypted", never "locked", for the KEF backup.** The device was saying
+  both for one thing: the row read LOCKED BACKUP and the headline "A locked
+  copy of your seed words", while the term row said ENCRYPTED SEED QR, the SD
+  row said "Encrypted backups" and the bad-scan screen said "this signer takes
+  an encrypted backup". "Encrypted" is what Krux, Sparrow and everything else
+  calls it, so "locked" was a house term an owner has to unlearn, and it was
+  never written down here -- which is how it survived beside its own opposite
+  on adjacent screens. `I_KEF_HEAD`, `I_KEF_SHOW_S`, `I_KEF_WARN_S_PP`,
+  `I_ROW_KEF`, `I_ROW_KEF_SUB`, `I_WROW_KEF`, `L_KEF_LOCKING` and
+  `L_KEF_UNLOCKING` are the eight that moved.
+- **"lock" still means the session, and only the session.** `C_SESSION_LOCKED`,
+  `C_LOCK_SOON`, `C_LOCKED_B` and the storage strings that say "after you lock"
+  are about the five minute idle lock and must not be swept with the above. So
+  are `GD_DRAW_AGAIN_S` and `GD_WORD_AGAIN_S`, where "lock you out" is what a
+  mis-drawn stroke does.
 - **"wallet" for the owner's own key set is finished.** What is left is
   correct: the coordinator wallet, other products' names (BlueWallet, Sparrow
   Wallet), other people's software (`N_PSBT_B`, `R_SP_WHY_B`), and
