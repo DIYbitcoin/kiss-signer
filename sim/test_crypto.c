@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "kiss_crypto.h"
+#include "kiss_simpath.h"  // the scratch, and the lock on it
 #include "kiss_sp.h"   // sp_schnorr_sign: the second secp context
 #include "kiss_psbt.h"
 #include "kiss_usage.h"
@@ -817,6 +818,9 @@ static void test_sign_refused_when_selftest_fails(const uint8_t *psbt, size_t le
 }
 
 int main(int argc, char **argv) {
+    // The tests own the fake card too -- test_seed_layer writes it, and a walk
+    // running beside them rewrites it underneath. Same lock, same reason.
+    kiss_sim_lock("kisstest");
     // step 7 first: ends with the dev seed stored, which everything below uses
     fails += test_seed_layer();
     fails += test_backup_layer();

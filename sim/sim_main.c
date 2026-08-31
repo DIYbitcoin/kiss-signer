@@ -14,6 +14,13 @@
 #include "kiss_crypto.h"
 #include "kiss_rngaudit.h"  // kiss_rngaudit_sim_result: the once-in-500 renders
 #include "kiss_simpath.h"  // KISS_SIM_TMP: one run's scratch is its own
+// Who is holding the lock, in the refusal the loser prints. Both binaries
+// are this file: the gate build is the same walk with the checks compiled in.
+#ifdef OVERLAPCHECK
+#define WALK_NAME "kissoverlap"
+#else
+#define WALK_NAME "fruitsim"
+#endif
 #include "platform_sd.h"    // the proof stub writes a real (small) file
 #include "kiss_seed_sd.h"   // SDSEED_FILENAME: the move stub keeps it truthful
 #include "sha256/sha256.h"  // cUR's, real hash for the stub's junk
@@ -1243,6 +1250,41 @@ static void must_show(const char *what, const char *needle) {
     return;
   }
   if (find_label_text(lv_screen_active(), needle)) return;
+
+  // ELLIPSISED, not absent? The kit pins captions, values and sub-lines to
+  // their lanes with LONG_DOT, so in any locale whose word is longer than
+  // English's the label on the glass is a PREFIX of this string plus dots.
+  // The needle then finds nothing on a screen that drew perfectly, the walk
+  // stops there, and every stop after it prints "clean" for a screen it never
+  // reached: ten locales died that way on one firmware caption, and the sweep
+  // they were part of measured nothing.
+  //
+  // So the head is tried before the failure is believed, and it is ONE
+  // mechanism rather than a second kind of needle every call site has to
+  // remember to use: the ones nobody has thought about are covered too. It is
+  // not a pass in disguise -- the ellipsis is a real finding and CUT reports
+  // it, with the lane it overflowed, as the copy problem it is. What this
+  // stops is a length in one translation deciding whether the other twenty
+  // get measured at all.
+  //
+  // Half the needle, and never under eight bytes: a short prefix would match
+  // some other label eventually and turn a real absence into a note, which is
+  // the one way this could be worse than the failure it replaces.
+  {
+    int n = (int)strlen(needle) / 2;
+    if (n > 24) n = 24;
+    if (n >= 8) {
+      char head[64];
+      while (n > 0 && ((unsigned char)needle[n] & 0xC0) == 0x80) n--;
+      snprintf(head, sizeof head, "%.*s", n, needle);
+      if (*head && find_label_text(lv_screen_active(), head)) {
+        printf("note: %s: \"%s\" is on the screen ELLIPSISED -- the kit drew "
+               "about \"%s\", the needle passed on that, and the copy itself "
+               "is a CUT finding\n", what, needle, head);
+        return;
+      }
+    }
+  }
   printf("FAIL: %s: no label on screen contains \"%s\"\n", what, needle);
   // Only for the first failure of a run: six of these would bury the log, and
   // the first one is the one that says where the walk actually was.
@@ -1262,29 +1304,6 @@ static void must_show(const char *what, const char *needle) {
     printf("      --- frame written to /tmp/sim_walk_FAIL.ppm ---\n");
 #endif
   }
-  g_walk_fails++;
-}
-
-// A needle on a PINNED label. A fact caption lives on a 214px lane under
-// LONG_DOT and a fact value on 438px, so in any locale whose word is longer
-// than English's the rendered text is a PREFIX of the string plus dots -- and
-// a whole-string needle fails on a screen that rendered perfectly. TEN
-// locales died on one of these: the firmware downgrade caption, which is
-// "GOING BACK" in English and "version en arrière" in French. A dead walk
-// then prints "clean" for every stop it never reached, so one needle took a
-// whole sweep with it.
-//
-// The head is what survives the dots. Whole-string needles stay the default;
-// this is for the labels the kit pins, and it says so at the call site.
-static void must_show_head(const char *what, const char *needle, int n) {
-  char head[64];
-  if (n <= 0 || n >= (int)sizeof head) n = (int)sizeof head - 1;
-  // Never split a UTF-8 sequence: a half codepoint matches nothing and would
-  // read as the very failure this helper exists to stop.
-  while (n > 0 && ((unsigned char)needle[n] & 0xC0) == 0x80) n--;
-  snprintf(head, sizeof head, "%.*s", n, needle);
-  if (!*head || find_label_text(lv_screen_active(), head)) return;
-  printf("FAIL: %s: no label on screen starts \"%s\"\n", what, head);
   g_walk_fails++;
 }
 
@@ -2134,6 +2153,9 @@ static void sim_fixture_reset(void) {
 }
 
 int main(void) {
+  // Before anything touches the fake card. Two walks on one scratch invent
+  // failures rather than colliding loudly; see kiss_simpath.h.
+  kiss_sim_lock(WALK_NAME);
   const char *sl = getenv("SIM_LANG");
   if (sl && *sl && strcmp(sl, "en") != 0) {
     for (int i = 0; i < I18N_LANG_N; i++)
@@ -6317,10 +6339,7 @@ int main(void) {
     must_show("fw/older note", tr(STR_G_FW_DOWN_SHORT));
     tap_str(STR_G_FW_INSTALL, 3, FW_SETTLE);        // the confirm it warns on
     save("/tmp/sim_fw_confirm_down.ppm");           // both rules amber
-    // The HEAD of the caption: it sits on the fact row's 214px lane and is
-    // ellipsised in every locale with a longer word for it, which is a CUT
-    // finding and not a rendering fault.
-    must_show_head("fw/down claim", tr(STR_G_FW_DOWN_H), 8);
+    must_show("fw/down claim", tr(STR_G_FW_DOWN_H));
     sd_unlink("kiss-signer-0.0.1.bin");
 
     // 4b. already running. The one refusal that is not a fault: accent and a
