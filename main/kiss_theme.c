@@ -4487,7 +4487,16 @@ lv_obj_t *wt_def_row_help(lv_obj_t *list, int k, lv_event_cb_t cb, void *ud)
     // where this chip already stood -- so on the one row that has both (address
     // type) the loop was drawn underneath the "?" and vanished. The mark comes
     // first because it belongs to the VALUE; the chip explains the idea.
-    const int mx = r->cyc ? r->mark_w + 10 : 0;
+    //
+    // THIRTY, not ten. At ten the loop and the "?" read as one two-part
+    // control -- "does it have to be so fucking close to the cycle icon" is
+    // the bench looking at ADDRESS TYPE, the only row on the device that
+    // carries both. Fourteen still separates the value from its loop, because
+    // the loop belongs to the value it cycles; a full chip of air separates
+    // the loop from the chip, because the chip belongs to the row. The sub
+    // yields the difference for free -- mx is subtracted from its width
+    // below.
+    const int mx = r->cyc ? r->mark_w + 30 : 0;
     // ...and the sub yields the mark's width as well. The shrink below was
     // written for a chip sitting straight after the value and was never told
     // the chip had moved right past the loop, so on the ONE row that has both
