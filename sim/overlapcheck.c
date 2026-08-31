@@ -2330,7 +2330,9 @@ void oc_check(const char *tag)
                            : f == wt_font28()      ? "font28"
                            : f == wt_font_mono28() ? "mono28"
                            : "other";
-            printf("[size] %2d %-6s %-30s %s\n", n->lh, fn, oc_short_tag(tag), t);
+            printf("[size] %2d %-6s %4d %4d %p %-30s %s\n", n->lh, fn,
+                   (int)n->vis.x1, (int)n->vis.y1, (void *)n->parent,
+                   oc_short_tag(tag), t);
         }
     }
 
