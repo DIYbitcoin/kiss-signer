@@ -1598,7 +1598,7 @@ static void terms_build_page(void)
     int n = KISS_TERM_N - first;
     if (n > KISS_TERMS_PER_PAGE) n = KISS_TERMS_PER_PAGE;
     kiss_terms_list(s_terms_body, &KISS_TERMS_ALL[first], n);
-    kiss_terms_hint(s_scr);
+    kiss_terms_hint(s_scr, KISS_TERMS_ALL, KISS_TERM_N);
 
     // DOTS IN THE TRAIL, not a pager line at the lane's foot. A definition
     // list at n=5 fills the whole 284px lane by construction, so a pager

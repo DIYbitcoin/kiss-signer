@@ -2742,7 +2742,7 @@ int main(void) {
   touch(350, 128); pump(3); release(); pump(20);    // ADDRESS #N -> the index popover
   save("/tmp/sim_recv_pop.ppm");
   touch(446, 170); pump(3); release(); pump(20);    // pick the first offered index
-  touch(500, 370); pump(3); release(); pump(30);    // the path digits -> explainer
+  touch(500, 254); pump(3); release(); pump(30);    // the path digits -> explainer
   save("/tmp/sim_recv_path_help.ppm");
   tap_str(STR_C_OK, 3, 6);
   tap_str(STR_R_NEXT_ADDR, 3, 8);     // NEXT ADDRESS -> next unused index

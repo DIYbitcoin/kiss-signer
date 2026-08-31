@@ -2705,7 +2705,7 @@ static void glossary_cb(lv_event_t *e)
     kiss_terms_list_at(s_scr, KISS_TERMS_SIGN, 3, land);
     // The band here holds only BACK, in the right corner, so the left lane
     // is free for the one hint the plus is owed.
-    kiss_terms_hint(s_scr);
+    kiss_terms_hint(s_scr, KISS_TERMS_SIGN, 3);
 
     // The stroke that opened this page closes it: a right swipe lands back
     // on the DETAILS tab it left, the same promise every deck's [ ? ] keeps.

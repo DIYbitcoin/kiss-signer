@@ -450,7 +450,7 @@ static void pair_terms_cb(lv_event_t *e)
     wt_trail(s_scr, WT_ICON_WHAT, tr(STR_I_PAIR_T), false);
     kiss_terms_more_hook(pair_term_has_more, pair_term_more);
     kiss_terms_list(s_scr, KISS_TERMS_PAIR, 2);
-    kiss_terms_hint(s_scr);
+    kiss_terms_hint(s_scr, KISS_TERMS_PAIR, 2);
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_BACK_X,
                     WT_ACTION_Y, 140, true, pair_terms_back_cb, NULL);
 }

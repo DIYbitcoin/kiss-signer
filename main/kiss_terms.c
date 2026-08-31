@@ -88,6 +88,11 @@ static int       s_open = -1;
 
 static lv_obj_t *s_band_scr;
 static lv_obj_t *s_band;
+// The scope the screen holding the band is responsible for. See the header:
+// counting the whole device on a page showing two terms is a number pointing
+// somewhere the reader cannot see.
+static const int *s_band_ids;
+static int        s_band_n;
 static void terms_band_draw(void);
 
 // A term is READ when its row is CLOSED. Opening one proves curiosity;
@@ -161,15 +166,18 @@ static void terms_band_draw(void)
         s_band = wt_standing(s_band_scr, tr(STR_H_HINT_ROW), WT_DIM, false);
         return;
     }
-    const int unread = kiss_terms_unread(KISS_TERMS_ALL, KISS_TERM_N);
+    const int unread = s_band_ids && s_band_n > 0
+                     ? kiss_terms_unread(s_band_ids, s_band_n) : 0;
     if (unread <= 0) return;
     char band[64];
     snprintf(band, sizeof band, tr(STR_H_UNREAD_FMT), unread);
     s_band = wt_standing(s_band_scr, band, WT_DIM, false);
 }
 
-void kiss_terms_hint(lv_obj_t *scr)
+void kiss_terms_hint(lv_obj_t *scr, const int *ids, int n)
 {
+    s_band_ids = ids;
+    s_band_n   = n;
     // A NEW screen means the old band went with the old screen, so the
     // pointer is dropped rather than deleted. The SAME screen means a page
     // turn, and then the old band is still there and has to go -- nulling it

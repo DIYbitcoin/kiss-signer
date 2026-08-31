@@ -1346,7 +1346,11 @@ static void recv_tab_build(void) {
     // the mark is the sign that says so.
     lv_obj_t *ph = lv_obj_create(p);
     lv_obj_remove_style_all(ph);
-    lv_obj_set_pos(ph, RECV_COL_X, 356);
+    // 240, under the compare line, not 356. At 356 this row ended 8px above
+    // the action band and put a 30px chip inside a thumb's width of BACK --
+    // with 150px of the column doing nothing above it. A help mark that close
+    // to the way out is a mark nobody dares aim at.
+    lv_obj_set_pos(ph, RECV_COL_X, 240);
     lv_obj_set_size(ph, RECV_COL_W, 34);
     lv_obj_remove_flag(ph, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(ph, LV_OBJ_FLAG_CLICKABLE);

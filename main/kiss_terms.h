@@ -79,7 +79,15 @@ lv_obj_t *kiss_terms_list_at(lv_obj_t *scr, const int *ids, int n, int open_id);
 //
 // The + hint waits until the [ ? ] hint is spent: two new marks arrived in one
 // pass and only one of them is taught at a time.
-void kiss_terms_hint(lv_obj_t *scr);
+//
+// (ids, n) is the SCOPE this screen is responsible for, not the rows it has
+// drawn: the settings page pages the full reference five at a time and still
+// owns all of it, while the sign and pairing glossaries own three terms and
+// two. It used to count the whole device on all three, so a page showing two
+// terms reported eight unread and pointed nowhere -- "its not clear where is
+// left to read". Counted this way the number and the unread dots under it are
+// the same claim, and the answer to where is: look down.
+void kiss_terms_hint(lv_obj_t *scr, const int *ids, int n);
 
 // PAGE TWO, the one addition the def-row idiom needed. A term whose value is
 // an artefact (a descriptor, 150 characters) or a figure with arithmetic
