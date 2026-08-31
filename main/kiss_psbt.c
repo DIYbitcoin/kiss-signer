@@ -81,7 +81,12 @@ static void caution(wpsbt_summary_t *s, uint16_t flag, const char *r)
 // nonstandard and the tx may not relay. Distinct from the privacy threshold.
 static uint64_t dust_floor(uint32_t purpose)
 {
-    return purpose == 44 ? 546 : purpose == 49 ? 540 : 294;   // p2pkh / nested / segwit
+    // Bitcoin Core's GetDustThreshold at the default 3000 sat/kvB relay fee.
+    // Taproot is its own number: a p2tr output is larger than a p2wpkh one and
+    // its spending input smaller, and the two do not cancel. It used to fall
+    // through to the segwit 294, so a 300 sat change output read as ordinary
+    // on the one script type where it cannot be relayed.
+    return purpose == 44 ? 546 : purpose == 49 ? 540 : purpose == 86 ? 330 : 294;
 }
 
 // Find OUR keypath in a PSBT keypath map (master fingerprint match) and parse
