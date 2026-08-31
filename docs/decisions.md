@@ -10,7 +10,7 @@ construction.
 route to the comment that answers it, which is how seven findings were filed
 and withdrawn in one review pass.
 
-13 decisions.
+14 decisions.
 
 ## `main/kiss_duress_ui.c`
 
@@ -42,13 +42,13 @@ There was a popover here: five rows, its own pager, its own remembered page, ope
 
 The first tab carrying one, in strip order, so the chip lands on the leftmost mark and the owner works rightwards. It used to be hard coded to BACKUP on the strength of a comment saying both counted conditions lived there; that stopped being true the moment duress joined the count, and a chip that jumps past a lit dot is worse than one that does not move.
 
-[`main/kiss_settings.c:1734`](../main/kiss_settings.c#L1734)
+[`main/kiss_settings.c:1744`](../main/kiss_settings.c#L1744)
 
 ### language and theme live on the BAND, moved there out of the DEVICE tab
 
 The band's centre: LANGUAGE and THEME, out of the DEVICE tab. The language control needs no caption -- its label IS the active language's own name, stripped of the regional qualifier ("ESPANOL (ESPANA)" -> "ESPANOL") because the picker's flag carries the variant. A WORD ACTION with a GLOBE, not an arrow action. It was a forward arrow, which is the mark the SCREEN'S OWN action wears -- so the one control on the band that picks between 21 languages was signed exactly like a "go on", and came back from the bench as "should have some icon better than an arrow, no?". A globe says what the control is before its word is read, in every one of those 21 languages at once.
 
-[`main/kiss_settings.c:2254`](../main/kiss_settings.c#L2254)
+[`main/kiss_settings.c:2264`](../main/kiss_settings.c#L2264)
 
 ## `main/kiss_setup.c`
 
@@ -98,10 +98,18 @@ THE FLOOR IS 21, NOT 14, which is the same floor wt_body_para has and for the sa
 
 [`main/kiss_theme.h:860`](../main/kiss_theme.h#L860)
 
+## `main/main.c`
+
+### the home's next-step hint is a CONTROL, not a caption
+
+It wears LV_SYMBOL_RIGHT, which on this device means "this opens a screen" -- and it opened nothing, so the one mark whose whole job is to promise navigation was making a promise the label could not keep. It goes where it points now.
+
+[`main/main.c:248`](../main/main.c#L248)
+
 ## `sim/sim_main.c`
 
 ### a frame saved too soon photographs the OUTGOING pane, and reads as a layout bug rather than a timing one
 
 pump(30), not 20. The outgoing pane leaves on a per row stagger -- (n-1) * MO_OUT_STEP + MO_OUT_MS, which is 330ms for a six row detail pane against 320ms of pump -- so the old count photographed the previous screen still fading through this one. Invisible until overlapcheck learned to read spangroups: the ghost is a folded address, and a spangroup was not text to any check on the list.
 
-[`sim/sim_main.c:4033`](../sim/sim_main.c#L4033)
+[`sim/sim_main.c:4086`](../sim/sim_main.c#L4086)

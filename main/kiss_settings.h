@@ -7,6 +7,8 @@
 #include "lvgl.h"
 
 void kiss_settings_open(lv_obj_t *parent);
+// ...on the BACKUP tab, for the home's next-step hint.
+void kiss_settings_open_backup(lv_obj_t *parent);
 bool kiss_settings_active(void);
 void kiss_settings_close(void);   // idle auto-lock: drop the screen
 

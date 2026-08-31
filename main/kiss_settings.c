@@ -129,6 +129,16 @@ static const char *type_name(int sc)
     }
 }
 
+// The home's next-step hint names the one job this signer has not done, and
+// checking a paper copy lives on the BACKUP tab. A named entry rather than an
+// exported tab enum: one caller needs one destination, and a magic int in a
+// header is a thing to get wrong later.
+void kiss_settings_open_backup(lv_obj_t *parent)
+{
+    s_tab = TAB_BACKUP;
+    kiss_settings_open(parent);
+}
+
 bool kiss_settings_active(void) { return s_scr != NULL; }
 
 static void store_u8(const char *key, uint8_t v);

@@ -245,6 +245,12 @@ static lv_obj_t *s_home;         // baked KISS Signer menu (visual shell only, f
 static lv_obj_t *s_mote[N_MOTES];  // ambient idle life: dim dots drifting up
 static lv_obj_t *s_tile_ttl[4];            // live tile labels (settle in on unlock)
 static lv_obj_t *s_next_lbl;               // the one step this signer has not taken
+// DECIDED: the home's next-step hint is a CONTROL, not a caption. It wears
+// LV_SYMBOL_RIGHT, which on this device means "this opens a screen" -- and it
+// opened nothing, so the one mark whose whole job is to promise navigation was
+// making a promise the label could not keep. It goes where it points now.
+enum { NEXT_NONE = 0, NEXT_BACKUP, NEXT_PAIR };
+static int s_next_kind;
 // One number, two placements: built here and re-aligned after every text
 // change, because the label is content sized and a translation of a different
 // width would otherwise stay centred on the old one.
@@ -1855,13 +1861,21 @@ static void next_step_sync(void) {
   int chigh; uint32_t cheight;
   const char *step = NULL;
   if (have_keys) {
-    if (!kiss_ui_backup_checked())
+    if (!kiss_ui_backup_checked()) {
       step = tr(STR_H_NEXT_BACKUP);
+      s_next_kind = NEXT_BACKUP;
+    }
     else if (!kiss_usage_chain_known(fp, kiss_testnet() ? 1 : 0, kiss_script(),
-                                     &chigh, &cheight))
+                                     &chigh, &cheight)) {
       step = tr(STR_H_NEXT_PAIR);
+      s_next_kind = NEXT_PAIR;
+    }
   }
-  if (!step) { lv_obj_add_flag(s_next_lbl, LV_OBJ_FLAG_HIDDEN); return; }
+  if (!step) {
+    s_next_kind = NEXT_NONE;
+    lv_obj_add_flag(s_next_lbl, LV_OBJ_FLAG_HIDDEN);
+    return;
+  }
   // The font too, not just the text: a language change reaches the home
   // through this call and CJK wants its own face, the same reason the tile
   // titles re-set theirs.
@@ -2610,6 +2624,16 @@ static const struct {
 };
 #define N_SCREENS (sizeof SCREENS / sizeof SCREENS[0])
 
+// The hint's own box, plus a little air. It sits immediately under the tiles
+// and is the only thing on the home whose width is not fixed art.
+static bool next_hint_hit(int x, int y)
+{
+  if (!s_next_lbl) return false;
+  lv_area_t a;
+  lv_obj_get_coords(s_next_lbl, &a);
+  return x >= a.x1 - 12 && x <= a.x2 + 12 && y >= a.y1 && y <= a.y2 + 10;
+}
+
 static void game_tick(lv_timer_t *t) {
   (void)t;
   int tx = 0, ty = 0;
@@ -2968,6 +2992,22 @@ static void game_tick(lv_timer_t *t) {
     } else if (pressed && !s_prev_press &&
                tx >= 410 && tx <= 570 && ty >= 140 && ty <= 340) { // Keys tile: export
       s_tile_pend = 3;
+    } else if (pressed && !s_prev_press && s_next_kind != NEXT_NONE &&
+               s_next_lbl &&
+               !lv_obj_has_flag(s_next_lbl, LV_OBJ_FLAG_HIDDEN) &&
+               next_hint_hit(tx, ty)) {
+      // AFTER the tiles, so the boundary row belongs to them: they end at 340
+      // and the hint's box starts there.
+      //
+      // Measured off the label rather than a hardcoded box, which is what the
+      // tiles get away with because they are fixed art. This label is content
+      // sized and centred, so its width moves with every one of 21 locales and
+      // a box written for English would miss in the other twenty.
+      if (s_next_kind == NEXT_BACKUP) kiss_settings_open_backup(lv_screen_active());
+      else                            kiss_info_open(lv_screen_active());
+      s_gest_swallow = true;
+      s_prev_press = pressed;
+      return;
     } else if (pressed && !s_prev_press &&
                tx >= 590 && tx <= 750 && ty >= 140 && ty <= 340) { // Settings tile
       s_tile_pend = 4;
@@ -2995,6 +3035,13 @@ static void game_tick(lv_timer_t *t) {
       s_tile_pend = 3;
     else if (pressed && !s_prev_press && tx >= 590 && tx <= 750 && ty >= 140 && ty <= 340)
       s_tile_pend = 4;
+    // The next-step hint, as a fifth tile. AFTER them, so the boundary row at
+    // 340 stays theirs, and acted on at the release like the rest of this
+    // branch.
+    else if (pressed && !s_prev_press && s_next_kind != NEXT_NONE && s_next_lbl &&
+             !lv_obj_has_flag(s_next_lbl, LV_OBJ_FLAG_HIDDEN) &&
+             next_hint_hit(tx, ty))
+      s_tile_pend = 5;
     else if (!pressed && s_prev_press && s_fp_pend) {
       s_fp_pend = false;
       fp_card_open();
@@ -3004,6 +3051,13 @@ static void game_tick(lv_timer_t *t) {
       if (t == 1) kiss_sign_open(lv_screen_active());
       else if (t == 2) kiss_recv_open(lv_screen_active());
       else if (t == 3) kiss_info_open(lv_screen_active());
+      else if (t == 5) {
+        // The fifth "tile" is the next-step hint, which goes where it points.
+        if (s_next_kind == NEXT_BACKUP)
+          kiss_settings_open_backup(lv_screen_active());
+        else
+          kiss_info_open(lv_screen_active());
+      }
       else kiss_settings_open(lv_screen_active());
     }
 #endif

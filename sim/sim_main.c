@@ -1530,6 +1530,28 @@ static lv_obj_t *find_accent_line(lv_obj_t *o)
 // between two matches -- and the clickable-ancestor rule is what keeps the
 // per-face COUNT labels under the columns out of it: they read "1" too, and
 // nothing above them is clickable.
+// A plain LABEL by its text, with no clickable ancestor required. The home's
+// next-step hint is drawn by the game's own sampler rather than by LVGL -- the
+// tiles are too -- so ctrl_for, which walks up for a clickable parent, cannot
+// see it and reports it as a missing action.
+static lv_obj_t *s_lbl_hit;
+static void lbl_walk(lv_obj_t *o, const char *txt)
+{
+    if (!o || s_lbl_hit || lv_obj_has_flag(o, LV_OBJ_FLAG_HIDDEN)) return;
+    if (lv_obj_check_type(o, &lv_label_class)) {
+        const char *t = lv_label_get_text(o);
+        if (t && strstr(t, txt)) { s_lbl_hit = o; return; }
+    }
+    for (uint32_t i = 0; i < lv_obj_get_child_count(o); i++)
+        lbl_walk(lv_obj_get_child(o, i), txt);
+}
+static lv_obj_t *lbl_for(const char *txt)
+{
+    s_lbl_hit = NULL;
+    lbl_walk(lv_screen_active(), txt);
+    return s_lbl_hit;
+}
+
 static lv_obj_t *ctrl_for(const char *txt, const char *how)
 {
     s_hit = NULL; s_hits = 0; s_bar_hit = NULL; s_bar_hits = 0;
@@ -2377,6 +2399,37 @@ int main(void) {
   save("/tmp/sim_fp_fly.ppm");                      // mid-glide
   pump(70);                                         // landed; chip + caption faded in
   save("/tmp/sim_home.ppm");
+
+  // ---- the next-step hint goes where it points ----
+  //
+  // It wears LV_SYMBOL_RIGHT, which on this device means "this opens a
+  // screen", and for its whole life it opened nothing -- the one mark whose
+  // job is to promise navigation, making a promise the label could not keep.
+  //
+  // Tapped by the label's own coords rather than a written box: it is content
+  // sized, so a box measured in English would miss in the other twenty.
+  {
+    extern bool kiss_settings_active(void);
+    lv_obj_t *hint = lbl_for(tr(STR_H_NEXT_BACKUP));
+    if (!hint) { printf("FAIL: home hint: not on the home at all\n"); g_walk_fails++; }
+    if (hint) {
+      lv_area_t a;
+      lv_obj_get_coords(hint, &a);
+      touch((a.x1 + a.x2) / 2, (a.y1 + a.y2) / 2);
+      pump(3); release(); pump(30);
+      if (!kiss_settings_active()) {
+        printf("FAIL: home hint: tapping it opened nothing\n");
+        g_walk_fails++;
+      }
+      save("/tmp/sim_home_hint_backup.ppm");        // SETTINGS, on BACKUP
+      must_show("home hint lands on BACKUP", tr(STR_I_TAB_BACKUP));
+      // Settings remembers the tab it was last on, so a deep link leaves it
+      // there. Put it back before leaving: every later stop in this walk opens
+      // settings expecting SIGNER, and two of them assert on its rows.
+      set_tab(SET_SIGNER);
+      tap_str(STR_C_BACK, 3, 20);                   // -> home
+    }
+  }
   pump(90);                                         // ~1.4s idle: motes drift up
   save("/tmp/sim_home_idle.ppm");                   // motes at new positions here
   pump(120);                                        // more drift
