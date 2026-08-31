@@ -2307,6 +2307,23 @@ static int unlock_kind(void) {
     int k = WDR_NONE;
     if (used > 0 && n - used <= 1)
       k = kiss_duress_route_marked(true, n - used == 1);
+    // DECIDED: a draw that can no longer become the word is cleared HERE, on
+    // the lift, not left to the 3s idle. The word is the FIRST stored.strokes
+    // strokes of the buffer, so once that many have been drawn without
+    // matching, no later stroke can change the answer -- and every attempt
+    // after it appended to the corpse instead of starting fresh. The device
+    // then answered to nothing at all until the owner put their hand down for
+    // a full three seconds, which is not what a person does between two tries.
+    //
+    // Reported from the bench as a signer that would not open to its own
+    // word. The log showed the strokes counting 1..17 across five attempts,
+    // 2.5s apart, and never resetting. The heuristic that catches an abandoned
+    // KISS is switched OFF whenever a word is stored -- it is built on the
+    // letters being drawn left to right, which a custom word is not -- so the
+    // idle was the only clear there was.
+    if (k == WDR_NONE && !s_cover_pending && s_strokes >= stored.strokes) {
+      s_gn = 0; s_strokes = 0;
+    }
 #ifdef SIMULATOR
     if (k != WDR_NONE) g_last_unlock_kind = k;
 #endif

@@ -10,7 +10,7 @@ construction.
 route to the comment that answers it, which is how seven findings were filed
 and withdrawn in one review pass.
 
-15 decisions.
+16 decisions.
 
 ## `main/kiss_duress_ui.c`
 
@@ -112,10 +112,16 @@ It wears LV_SYMBOL_RIGHT, which on this device means "this opens a screen" -- an
 
 [`main/main.c:248`](../main/main.c#L248)
 
+### a draw that can no longer become the word is cleared HERE, on the lift, not left to the 3s idle
+
+The word is the FIRST stored.strokes strokes of the buffer, so once that many have been drawn without matching, no later stroke can change the answer -- and every attempt after it appended to the corpse instead of starting fresh. The device then answered to nothing at all until the owner put their hand down for a full three seconds, which is not what a person does between two tries. Reported from the bench as a signer that would not open to its own word. The log showed the strokes counting 1..17 across five attempts, 2.5s apart, and never resetting. The heuristic that catches an abandoned KISS is switched OFF whenever a word is stored -- it is built on the letters being drawn left to right, which a custom word is not -- so the idle was the only clear there was.
+
+[`main/main.c:2310`](../main/main.c#L2310)
+
 ## `sim/sim_main.c`
 
 ### a frame saved too soon photographs the OUTGOING pane, and reads as a layout bug rather than a timing one
 
 pump(30), not 20. The outgoing pane leaves on a per row stagger -- (n-1) * MO_OUT_STEP + MO_OUT_MS, which is 330ms for a six row detail pane against 320ms of pump -- so the old count photographed the previous screen still fading through this one. Invisible until overlapcheck learned to read spangroups: the ghost is a folded address, and a spangroup was not text to any check on the list.
 
-[`sim/sim_main.c:4086`](../sim/sim_main.c#L4086)
+[`sim/sim_main.c:4106`](../sim/sim_main.c#L4106)

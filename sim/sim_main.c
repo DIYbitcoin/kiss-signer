@@ -2538,6 +2538,26 @@ int main(void) {
       tap_str(STR_L_TAP_TO_OPEN, 3, 12);
       pump(120);
 
+      // A FAILED attempt must not poison the next one. Every case above is
+      // preceded by lock_to_menu() and a long pump, so the walk had only ever
+      // asked this feature one clean question at a time -- and on the bench
+      // the second attempt was the one that mattered. main.c keeps the ink
+      // until the panel has been quiet for 3s, and matches the word against
+      // the FIRST stored.strokes strokes of whatever it is holding, so a
+      // completed wrong draw left every later try measuring somebody else's
+      // ink. The heuristic that catches an abandoned KISS is off whenever a
+      // word is stored. Six junk strokes, 640ms, then the word.
+      lock_to_menu();
+      mark_line(); mark_slash(); mark_line(); mark_slash(); mark_line(); mark_slash();
+      pump(40);
+      g_last_unlock_kind = -2;
+      draw_cover();
+      if (g_last_unlock_kind != WDR_DECOY) {
+        printf("FAIL: written word: a retry after a failed draw routed %d, "
+               "expected WDR_DECOY (%d)\n", g_last_unlock_kind, WDR_DECOY);
+        g_walk_fails++;
+      }
+
       // And the sentence the feature exists to make true: with a word stored,
       // a DIFFERENT draw opens nothing at all. Two plain strokes here, nothing
       // like the stored shape and nowhere near its stroke count.
