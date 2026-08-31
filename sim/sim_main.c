@@ -5903,6 +5903,37 @@ int main(void) {
   tap_str(STR_C_OK, 3, 130);   // OK -> menu
   save("/tmp/sim_wiped_menu.ppm");                  // must be the game MENU
 
+  // ---- CANCEL out of the wizard must not start a round of Fruit Island ----
+  //
+  // Here because this is the only place in the walk where the device is
+  // genuinely keyless AND showing the cover, which is the state a signer
+  // ships in and the state nothing had ever asked a question about. Every
+  // scripted walk enters the signer by calling draw_cover(), so the walk can
+  // never be the one that backs out again.
+  //
+  // The fault: the release that deletes the wizard was read by the game's own
+  // sampler as a tap on the menu, so leaving setup STARTED PLAYING. The menu
+  // is baked artwork with no label in it, so a photograph cannot tell the two
+  // apart and no needle can either -- which is why this asks the game for its
+  // own state instead.
+  {
+    extern int kiss_game_state_for_test(void);   // main.c
+    const int ST_MENU_ = 0, ST_PLAY_ = 1;
+    (void)ST_PLAY_;
+    kiss_begin_setup(); pump(20);
+    must_show("fresh-boot/wizard opens", tr(STR_W_SETUP_T));
+    tap_str(STR_C_CANCEL, 3, 30);
+    if (kiss_setup_active()) {
+      printf("FAIL: fresh-boot: CANCEL did not leave the wizard\n");
+      g_walk_fails++;
+    }
+    if (kiss_game_state_for_test() != ST_MENU_) {
+      printf("FAIL: fresh-boot: CANCEL started the game instead of landing on the cover\n");
+      g_walk_fails++;
+    }
+    save("/tmp/sim_cover_after_cancel.ppm");     // the cover MENU, not a round
+  }
+
   // step 10: AMNESIC mode — nothing is stored, so the KISS gesture lands on
   // LOAD YOUR WALLET instead of the wizard, and an encrypted backup is a valid
   // way in.
@@ -6571,6 +6602,7 @@ int main(void) {
     }
     printf("ok: no orphaned sign screens\n");
   }
+
   if (g_walk_fails) {
     printf("FAIL: %d missing fact(s) on a verify screen\n", g_walk_fails);
     return 1;

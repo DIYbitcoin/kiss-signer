@@ -2664,6 +2664,32 @@ static void game_tick(lv_timer_t *t) {
   bool lock_held_off = false;
   for (size_t i = 0; i < N_SCREENS; i++)
     if (SCREENS[i].holds_lock_off && SCREENS[i].active()) { lock_held_off = true; break; }
+  // A screen closing UNDER THE FINGER hands the game a finger it never saw go
+  // down. CANCEL on the setup wizard is the case that shows it: the tap
+  // deletes the wizard, this gate goes false on the same release, and the game
+  // reads a lone lift as "a tap on the menu" and starts playing. So a keyless
+  // owner who backed out of setup did not land on the cover at all -- they
+  // landed in a round of Fruit Island, one step further from the signer than
+  // the fault everyone was describing.
+  //
+  // General rather than a carve-out for the wizard: every screen with
+  // holds_lock_off can be closed by a control near the bottom of the glass,
+  // and each one was a single release away from the same thing.
+  //
+  // s_gest_swallow ONLY while the finger is still down. The flag is cleared on
+  // the next LIFT, so arming it after the finger is already up leaves it
+  // waiting to eat the owner's next stroke -- and on this screen that stroke
+  // is the first leg of their unlock word. Once the hand is off the glass
+  // there is nothing left to swallow: dropping s_prev_press says "that lift
+  // was not a tap" for this release only, and nothing carries into the next.
+  static bool s_prev_held;
+  if (s_prev_held && !lock_held_off) {
+    s_gn = 0; s_strokes = 0;
+    cover_pending_clear();
+    if (pressed) s_gest_swallow = true;  // that finger belonged to the screen
+    else         s_prev_press = false;   // it already left: not a tap either
+  }
+  s_prev_held = lock_held_off;
   if (lock_held_off) {                                        // login/wizard own the touch
     // The menu is buried; its fruit must stop drifting. This is the hook and not
     // the menu panel's hidden flag because the wizard opens OVER the menu with
@@ -3278,6 +3304,14 @@ static void storage_locked_screen(lv_obj_t *root,
 // assignment runs there, and the harness that drives the safe-mode screen is
 // what proves it is reached.
 static bool s_storage_blocked;
+
+#ifdef SIMULATOR
+// Test seam, simulator only. The walk needs to tell "back on the cover MENU"
+// from "playing a round", and the menu is baked artwork with no label in it --
+// so a frame proves nothing a needle can read, which is exactly how CANCEL
+// starting a game survived every gate this project has.
+int kiss_game_state_for_test(void) { return s_state; }
+#endif
 
 void build_game(void) {  // non-static: the simulator harness calls this too
   // The baked art lives in flash as RLE and its descriptors start empty, so
