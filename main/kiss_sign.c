@@ -3341,6 +3341,28 @@ static void file_tap_cb(lv_event_t *e)
 // Both dead ends on the SD path: no card in the slot, and a card with no .psbt
 // on it. They render in the SD CARD tab's lane -- same card, same amber SD
 // glyph, same words as when they owned a page of their own.
+static void sign_tab_go(int tab);
+
+// Both dead ends offer the sibling that needs no card.
+//
+// The instruction on these cards is right and an owner with no card reader,
+// or no card, cannot follow it. The way forward was one tab away and never
+// mentioned: SCAN QR needs no card at all. It is not a BAND action, because
+// the tab strip above already carries SCAN QR and a second control for the
+// same destination is the fault the sign band just lost -- so the card that
+// states the problem is the thing that leads out of it, which is the pattern
+// the setup wizard's own help card uses: "someone who does not know what this
+// is will reach for the sentence, not the punctuation".
+//
+// Only the card takes the tap. wt_word_action makes itself clickable when it
+// is handed a callback, and a clickable child inside a clickable parent fires
+// the handler twice; it is handed none.
+static void sd_empty_scan_cb(lv_event_t *e)
+{
+    (void)e;
+    sign_tab_go(0);                       // 0 is SCAN QR, 1 is SD CARD
+}
+
 static void sd_lane_empty(lv_obj_t *p, const char *head, const char *body)
 {
     lv_obj_t *card = wt_card(p, WT_LANE_X, 140, WT_LANE_W, 200);
@@ -3350,8 +3372,24 @@ static void sd_lane_empty(lv_obj_t *p, const char *head, const char *body)
     lv_obj_set_width(h, 600);
     lv_label_set_long_mode(h, LV_LABEL_LONG_WRAP);
     lv_obj_update_layout(h);
+    // The body keeps its lane, minus the room the way out now takes. It still
+    // teaches the CARD route, which is what an owner on this tab came for.
     wt_note_col(card, body, 28, 22 + lv_obj_get_height(h) + 14, 648,
-                200 - 58 - lv_obj_get_height(h), MUT_COL);
+                200 - 58 - 44 - lv_obj_get_height(h), MUT_COL);
+
+    // S_OPEN_CAM, not S_SCAN_QR. The tab strip above already says SCAN QR, so
+    // the card would have carried the same words twice on one screen -- and
+    // act_for refused to tap either of them, which is the walk saying the same
+    // thing. OPEN CAMERA ships in 21 locales, names the action rather than the
+    // method, and lives on the tab this card leads to, so the two are never on
+    // the glass together.
+    lv_obj_t *act = wt_word_action(card, WT_ICON_ARR_R, tr(STR_S_OPEN_CAM),
+                                   false, wt_accent(), true, NULL, NULL);
+    lv_obj_remove_flag(act, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_align(act, LV_ALIGN_BOTTOM_LEFT, 24, -10);
+
+    lv_obj_add_flag(card, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(card, sd_empty_scan_cb, LV_EVENT_CLICKED, NULL);
 }
 
 // The trail the SD branch's opened-from screens wear: how the owner got here.

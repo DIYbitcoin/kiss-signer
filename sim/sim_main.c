@@ -2081,6 +2081,24 @@ KISS_SIM_PATH_FN(simsd_path, "simsd")
 // went on deleting a card nobody was using. The walk's REMOVE step then left
 // four files standing, every row below them shifted, and three later stops
 // photographed the wrong transaction while reporting a needle that was missing.
+// Empty the simulated card of transactions. The two SIGN empty states are the
+// only screens in the flow that need a card with nothing on it, and building
+// that state by name would break the moment a fixture is added.
+static void sd_clear_psbts(void) {
+  DIR *d = opendir(SIMSD);
+  if (!d) return;
+  struct dirent *e;
+  while ((e = readdir(d))) {
+    const char *dot = strrchr(e->d_name, '.');
+    if (dot && strcmp(dot, ".psbt") == 0) {
+      char p[512];
+      snprintf(p, sizeof p, "%s/%s", SIMSD, e->d_name);
+      unlink(p);
+    }
+  }
+  closedir(d);
+}
+
 static void sd_unlink(const char *name) {
   char p[256];
   snprintf(p, sizeof p, "%s/%s", SIMSD, name);
@@ -2093,26 +2111,12 @@ static FILE *sd_fopen(const char *name, const char *mode) {
   return fopen(p, mode);
 }
 
-static void sim_fixture_reset(void) {
-  mkdir(SIMSD, 0777);
-
-  // Two passes: collect, close, then remove. Deleting inside the readdir loop
-  // is the shape platform_sd.c avoids for the same reason -- see its comment
-  // about f_readdir after f_unlink -- and there is no reason to write the
-  // fragile version here just because the host happens to tolerate it.
-  char doomed[64][256];
-  int n = 0;
-  DIR *d = opendir(SIMSD);
-  if (d) {
-    struct dirent *e;
-    while ((e = readdir(d)) != NULL && n < 64) {
-      if (e->d_name[0] == '.') continue;
-      snprintf(doomed[n++], sizeof doomed[0], "%s/%s", SIMSD, e->d_name);
-    }
-    closedir(d);
-  }
-  for (int i = 0; i < n; i++) remove(doomed[i]);
-
+// Hoisted out of sim_fixture_reset so the walk can put the transactions
+// BACK. The SIGN empty states need a card with nothing on it, and a step a
+// hundred saves later still taps a file row -- deleting them and not
+// restoring them opened the empty card under that tap instead.
+static void sd_write_psbt_fixtures(void)
+{
   // The six the sign walk taps, and the content each one's verify screen is
   // built from (sim_main.c's kiss_psbt_load stub branches on these words).
   // The names are chosen so a plain sort puts them in the order the walk taps:
@@ -2146,6 +2150,29 @@ static void sim_fixture_reset(void) {
     FILE *f = fopen(p, "wb");
     if (f) { fputs(FIXTURES[i].body, f); fclose(f); }
   }
+}
+
+static void sim_fixture_reset(void) {
+  mkdir(SIMSD, 0777);
+
+  // Two passes: collect, close, then remove. Deleting inside the readdir loop
+  // is the shape platform_sd.c avoids for the same reason -- see its comment
+  // about f_readdir after f_unlink -- and there is no reason to write the
+  // fragile version here just because the host happens to tolerate it.
+  char doomed[64][256];
+  int n = 0;
+  DIR *d = opendir(SIMSD);
+  if (d) {
+    struct dirent *e;
+    while ((e = readdir(d)) != NULL && n < 64) {
+      if (e->d_name[0] == '.') continue;
+      snprintf(doomed[n++], sizeof doomed[0], "%s/%s", SIMSD, e->d_name);
+    }
+    closedir(d);
+  }
+  for (int i = 0; i < n; i++) remove(doomed[i]);
+
+  sd_write_psbt_fixtures();
 
   // kiss_seed.c and kiss_seed_sd.c persist to these on the host build.
   static const char *const STATE[] = {
@@ -3800,7 +3827,29 @@ int main(void) {
   tap_str(STR_S_FROM_SD, 3, 30);                    // SD CARD tab -> the list
   save("/tmp/sim_sign_files_few.ppm");              // 2 rows + the hint line
   must_show("sparse file list", tr(STR_S_FILES_HINT));
-  tap_str(STR_C_BACK, 3, 6);     // BACK -> home (the page IS the chooser)
+
+  // ---- the two SD dead ends, which nothing had ever opened ----
+  //
+  // SIGN -> SD CARD with an empty slot, and with a card carrying no
+  // transaction. Both render in the SD tab's own lane rather than on a screen
+  // of their own, so check_screen_coverage cannot see them: they have no
+  // title, and the walk had never built either one.
+  tap_str(STR_C_BACK, 3, 6);     // BACK -> home
+  sd_clear_psbts();
+  touch(130, 240); pump(3); release(); pump(6);     // Sign tile -> the page
+  tap_str(STR_S_FROM_SD, 3, 30);                    // SD CARD tab
+  save("/tmp/sim_sign_no_psbt.ppm");                // a card, and nothing on it
+  must_show("sign/no psbt on the card", tr(STR_S_NO_PSBT_FILES));
+  tap_str(STR_C_BACK, 3, 6);     // BACK -> home
+
+  platform_sd_test_set_present(0);                  // the slot, empty
+  touch(130, 240); pump(3); release(); pump(6);     // Sign tile -> the page
+  tap_str(STR_S_FROM_SD, 3, 30);                    // SD CARD tab
+  save("/tmp/sim_sign_no_card.ppm");                // no card at all
+  must_show("sign/no card in the slot", tr(STR_S_NO_SD));
+  tap_str(STR_C_BACK, 3, 6);     // BACK -> home
+  platform_sd_test_set_present(1);
+  sd_write_psbt_fixtures();      // the card is a fixture again for later steps
 
   // step 6: Sign via QR — scan (real UR fountain parts injected as if the
   // camera decoded them), verify, sign, animated UR out

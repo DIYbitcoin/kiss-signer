@@ -884,6 +884,149 @@ static bool oc_fit_excused(const char *txt)
     return false;
 }
 
+
+// ---- 10. EXIT: a refusal that only goes backwards --------------------------
+//
+// A screen whose content is an empty state or a refusal, and whose action band
+// holds exactly one control which goes BACK. The instruction on such a screen
+// is usually right and usually impossible to follow from where the reader is
+// standing, so the only thing they can do is leave -- and the sibling that
+// would have worked is never named.
+//
+// SIGN -> SD CARD with an empty slot was the case that named this check. Its
+// card said "insert a card holding the PSBT file your coordinator saved" to an
+// owner who has no card, and the band said BACK. The way out was SCAN QR,
+// which needs no card at all.
+//
+// AND THE SCREEN HAS NO TAB STRIP, which is the clause that makes the check
+// usable. A tab strip IS a way on: it is navigation the band does not carry,
+// and every tabbed pane on this device would otherwise be reported the moment
+// its band is a lone BACK. Without this clause the first run named a dozen
+// screens that are not dead ends at all.
+//
+// Back is found by its GLYPH, not its word: wt_arrow_action draws WT_ICON_ARR_L
+// when back is true, and the word beside it is translated twenty-one ways.
+static bool oc_node_has_ancestor(const oc_node_t *n, const lv_obj_t *anc)
+{
+    for (lv_obj_t *p = n->obj; p; p = lv_obj_get_parent(p))
+        if (p == anc) return true;
+    return false;
+}
+
+static bool oc_ctrl_is_back(const oc_node_t *ctrl)
+{
+    char t[64];
+    for (int i = 0; i < s_n; i++) {
+        const oc_node_t *n = &s_node[i];
+        if (!n->is_label || n->buried) continue;
+        if (!oc_node_has_ancestor(n, ctrl->obj)) continue;
+        oc_text(n->obj, t, sizeof t);
+        if (strstr(t, WT_ICON_ARR_L)) return true;
+    }
+    return false;
+}
+
+// Clickable anything sitting on the chrome strip row is the tab strip. A trail
+// lives on the same row and is NOT clickable, which is exactly the difference
+// that matters here: one of them is a way on and the other is a breadcrumb.
+static bool oc_has_tabstrip(void)
+{
+    for (int i = 0; i < s_n; i++) {
+        const oc_node_t *n = &s_node[i];
+        if (n->buried || !n->clickable) continue;
+        if (area_is_backdrop(&n->vis)) continue;
+        int mid = (n->vis.y1 + n->vis.y2) / 2;
+        if (mid >= WT_CHROME_STRIP_Y && mid <= WT_CHROME_STRIP_Y + WT_BR_H)
+            return true;
+    }
+    return false;
+}
+
+// A warn or empty state CARD, and the frame is load bearing rather than
+// incidental. A frameless refusal -- the SD CARD info screen's "no card", say
+// -- is usually one whose remedy is physical: "put the card in the slot and
+// open this screen again" is followable, there is no sibling action to offer,
+// and BACK really is all there is. The screens this check is for are the ones
+// that FRAME a refusal and then strand the reader inside it.
+//
+// A warn or empty state card: a frame painted in a severity colour, or one
+// holding a word in it. wt_row_sev tints its fill at opa 13 under a border at
+// 77, so the BORDER is what has to be asked about -- the same thing oc_is_frame
+// learned the hard way two checks above.
+static bool oc_warn_card(void)
+{
+    for (int i = 0; i < s_n; i++) {
+        const oc_node_t *n = &s_node[i];
+        if (n->buried || !oc_is_frame(n)) continue;
+        lv_color_t bc = lv_obj_get_style_border_color(n->obj, LV_PART_MAIN);
+        if (lv_color_eq(bc, WT_WARN) || lv_color_eq(bc, WT_STOP)) return true;
+        for (int j = 0; j < s_n; j++) {
+            const oc_node_t *m = &s_node[j];
+            if (!m->is_label || m->buried) continue;
+            if (!oc_node_has_ancestor(m, n->obj)) continue;
+            lv_color_t tc = lv_obj_get_style_text_color(m->obj, LV_PART_MAIN);
+            if (lv_color_eq(tc, WT_WARN) || lv_color_eq(tc, WT_STOP)) return true;
+        }
+    }
+    return false;
+}
+
+// Shrink only, like BARE and WALL. An entry is a screen someone chose not to
+// give a way on, and needs saying so.
+static const char *OC_EXIT_BACKLOG[] = {
+    NULL,   // C forbids an empty initialiser; the loop below skips NULLs
+};
+static bool s_exit_hit[sizeof OC_EXIT_BACKLOG / sizeof OC_EXIT_BACKLOG[0]];
+
+static bool oc_exit_excused(const char *tag)
+{
+    for (unsigned i = 0; i < sizeof OC_EXIT_BACKLOG / sizeof OC_EXIT_BACKLOG[0]; i++)
+        if (OC_EXIT_BACKLOG[i] && strstr(tag, OC_EXIT_BACKLOG[i]))
+            { s_exit_hit[i] = true; return true; }
+    return false;
+}
+
+static void oc_check_exit(const char *tag)
+{
+    if (!oc_has_action_row()) return;
+    if (oc_has_tabstrip()) return;                 // a tab IS a way on
+    if (!oc_warn_card()) return;                   // not a refusal
+
+    const oc_node_t *only = NULL;
+    int band = 0;
+    for (int i = 0; i < s_n; i++) {
+        const oc_node_t *n = &s_node[i];
+        if (n->buried || !n->clickable) continue;
+        if (area_is_backdrop(&n->vis)) continue;
+        if (n->vis.y1 < oc_bottom() || n->vis.y2 >= LV_VER_RES) continue;
+        // Only the OUTERMOST clickable counts: an arrow action is one control
+        // whose labels may be clickable in their own right, and counting both
+        // would make every single-control band look like two.
+        bool nested = false;
+        for (int j = 0; j < s_n; j++) {
+            const oc_node_t *m = &s_node[j];
+            if (m == n || m->buried || !m->clickable) continue;
+            if (m->obj != n->obj && oc_node_has_ancestor(n, m->obj)) nested = true;
+        }
+        if (nested) continue;
+        band++;
+        only = n;
+    }
+    if (band != 1 || !only) return;
+    if (!oc_ctrl_is_back(only)) return;
+    if (oc_exit_excused(tag)) return;
+
+    // The control's own text is not worth printing: an arrow action is a
+    // container and oc_text answers "<container tappable>" for it. What the
+    // reader of this finding needs is the SCREEN, which the tag already names.
+    char sig[192], detail[320];
+    snprintf(sig, sizeof sig, "EXIT|%s", oc_short_tag(tag));
+    snprintf(detail, sizeof detail,
+             "EXIT     a refusal or empty state whose band goes only "
+             "backwards, on a screen with no tab strip to carry the way on");
+    oc_report_one(tag, sig, detail);
+}
+
 static void oc_check_fit(const char *tag)
 {
     for (int i = 0; i < s_fit_n; i++) {
@@ -1864,6 +2007,42 @@ static int oc_selftest_clipx(const char *name, const char *txt,
     return got == want_finding ? 0 : 1;
 }
 
+
+// EXIT fires on a shape the product no longer contains, so it needs proving
+// both ways. Two cases: a refusal whose band is a lone BACK must report, and
+// the SAME screen with a tab strip must not -- the strip is the way on, and a
+// check without that clause reports every tabbed pane on the device.
+static int oc_selftest_exit(const char *name, bool with_tabs, bool want_finding)
+{
+    lv_obj_t *scr = wt_screen(NULL, "SELFTEST", NULL);
+    lv_screen_load(scr);
+    if (with_tabs) {
+        static const wt_tab_t tabs[2] = {
+            { WT_ICON_QR, "ONE", false, false },
+            { WT_ICON_SD, "TWO", false, false },
+        };
+        wt_tabs_flex(scr, tabs, 2, 1, NULL);
+    }
+    lv_obj_t *card = wt_card(scr, WT_LANE_X, 140, WT_LANE_W, 200);
+    lv_obj_set_style_border_color(card, WT_WARN, 0);
+    wt_lbl(card, "nothing on this card", 28, 26, wt_font28(), WT_WARN);
+    wt_arrow_action(scr, "BACK", true, false, 592, WT_ACTION_Y, 160,
+                    true, NULL, NULL);
+    lv_refr_now(NULL);
+
+    s_n = 0; s_findings = 0; s_seen_n = 0;
+    lv_area_t full = { 0, 0, LV_HOR_RES - 1, LV_VER_RES - 1 };
+    oc_collect(scr, full, false);
+    oc_mark_buried();
+    oc_check_exit("selftest");
+
+    bool got = s_findings > 0;
+    printf("  %-46s %s (%d finding%s)\n", name,
+           got == want_finding ? "ok" : "FAILED", s_findings,
+           s_findings == 1 ? "" : "s");
+    return got == want_finding ? 0 : 1;
+}
+
 // DOTS fires on a shape the product no longer contains. Two cases: a name too
 // long for its lane must report, and one that fits must not.
 static int oc_selftest_dots(const char *name, const char *txt, int w,
@@ -1998,6 +2177,16 @@ int oc_selftest(void)
                               wt_font23(), false);
     if (bad != was) printf("LADDER self test: %d case(s) wrong\n", bad - was);
     else            printf("LADDER self test: 2 cases, all as expected\n");
+    printf("\n");
+
+    was = bad;
+    printf("EXIT check self test\n");
+    bad += oc_selftest_exit("a refusal whose band is only BACK, fires",
+                            false, true);
+    bad += oc_selftest_exit("the same refusal with a tab strip, clear",
+                            true, false);
+    if (bad != was) printf("EXIT self test: %d case(s) wrong\n", bad - was);
+    else            printf("EXIT self test: 2 cases, all as expected\n");
     printf("\n");
 
     was = bad;
@@ -2419,6 +2608,7 @@ void oc_check(const char *tag)
     oc_check_colour_roles(tag);
     oc_check_bare(tag);
     oc_check_wall(tag);
+    oc_check_exit(tag);
     oc_check_fit(tag);
     oc_check_cut(tag);
     oc_check_tiny(tag);
