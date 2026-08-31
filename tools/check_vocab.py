@@ -279,6 +279,37 @@ def scan_names():
     return found
 
 
+# The card in the box is a surface this project ships, so it is written under
+# the same rules as the glass and read by the same gate. It was the one piece
+# of owner-facing copy living outside any review: docs/packaging-card.md says
+# so itself, and this is the half that makes that true rather than aspirational.
+#
+# Only the blockquote. The file around it argues for the copy and is prose for
+# whoever maintains it, not words an owner ever reads.
+CARD = ROOT / "docs" / "packaging-card.md"
+
+
+def card_strings():
+    if not CARD.exists():
+        return {}
+    out, n, buf = {}, 0, []
+    for line in CARD.read_text(encoding="utf-8").split("\n"):
+        if not line.startswith(">"):
+            continue
+        body = line[1:].strip()
+        if body.startswith("###"):
+            if buf:
+                out["CARD_%d_B" % n] = " ".join(buf)
+                buf = []
+            n += 1
+            out["CARD_%d_H" % n] = body.lstrip("#").strip()
+        elif body:
+            buf.append(body)
+    if buf:
+        out["CARD_%d_B" % n] = " ".join(buf)
+    return out
+
+
 def scan(strings):
     """[(rule, key, text)] for every fresh finding, plus stale backlog keys."""
     found, stale = [], []
@@ -342,6 +373,7 @@ def main():
         return 1
 
     strings = json.loads(EN.read_text(encoding="utf-8"))
+    strings.update(card_strings())
     found, stale = scan(strings)
     named = scan_names()
 
