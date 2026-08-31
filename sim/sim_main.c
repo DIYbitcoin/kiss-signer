@@ -2739,9 +2739,11 @@ int main(void) {
   touch(156, 353); pump(3); release(); pump(6);     // TAP TO ENLARGE -> the same zoom
     save("/tmp/sim_recv_zoom_line.ppm"); // same zoom by design; must be identical
   touch(763, 35); pump(3); release(); pump(6);      // close zoom
-  touch(350, 128); pump(3); release(); pump(20);    // ADDRESS #N -> the index popover
-  save("/tmp/sim_recv_pop.ppm");
-  touch(446, 170); pump(3); release(); pump(20);    // pick the first offered index
+  // The caption is the way INTO the list now -- there is no popover -- and the
+  // list lands on the page holding the selected index with that row ticked.
+  touch(350, 128); pump(3); release(); pump(40);    // ADDRESS #N -> ALL ADDRESSES
+  save("/tmp/sim_recv_pick.ppm");                   // the list, on the right page
+  touch(400, 204); pump(3); release(); pump(40);    // pick a row -> back on tab 0
   touch(500, 254); pump(3); release(); pump(30);    // the path digits -> explainer
   save("/tmp/sim_recv_path_help.ppm");
   tap_str(STR_C_OK, 3, 6);
@@ -2818,17 +2820,17 @@ int main(void) {
   // the state that matters -- UNUSED is the happy default nobody has to read.
   //
   // Mark one, reopen so the landing index is past it, then step BACK through
-  // the popover onto the marked one. That exercises the route an owner takes
-  // to reach a used address as well as the lamp it lights.
+  // the list onto the marked one. That exercises the route an owner takes to
+  // reach a used address as well as the lamp it lights.
   {
     uint8_t fp[4];
     kiss_ui_last_fp(fp);
     kiss_usage_mark(fp, kiss_testnet() ? 1 : 0, kiss_script(), 10);
     tap_str(STR_C_BACK, 3, 6);                       // -> home
     touch(310, 240); pump(3); release(); pump(20);   // Receive: lands on #11
-    touch(350, 128); pump(3); release(); pump(20);   // ADDRESS #11 -> popover
-    save("/tmp/sim_recv_pop_used.ppm");              // #9 and #10 read USED
-    touch(446, 170); pump(3); release(); pump(30);   // pick #9
+    touch(350, 128); pump(3); release(); pump(40);   // ADDRESS #11 -> the list
+    save("/tmp/sim_recv_pick_used.ppm");             // #9 and #10 read USED
+    touch(400, 204); pump(3); release(); pump(40);   // pick #9, the first row
     save("/tmp/sim_recv_used.ppm");                  // the amber lamp and its line
     tap_str(STR_R_ALL_ADDR, 3, 40);                  // ALL ADDRESSES, mixed states
     save("/tmp/sim_recv_list_used.ppm");
