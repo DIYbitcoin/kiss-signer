@@ -1373,7 +1373,6 @@ static void info_help_cb(lv_event_t *e)
     // wt_pane_go refuses a same-tab call, so this is its swap by hand: stop
     // whatever is mid-flight, send the old group out, build the new one in.
     // [ ? ] never highlights, but the strip releases the tab behind it.
-    wt_tabs_flex_help(s_ictx.tabs, s_ictx.tab, s_help_open);
     const bool was_moving = s_ictx.entering;
     wt_pane_stop(&s_ictx);
     if (was_moving && s_ictx.pane) {
@@ -1389,21 +1388,10 @@ static void info_help_cb(lv_event_t *e)
     wt_pane_exit(&s_ictx, dir);
 }
 
-static void info_tab_cb(lv_event_t *e)
-{
-    int tab = (int)(intptr_t)lv_event_get_user_data(e);
-    // A real tab is also the way back from [ ? ]: tapping the one already
-    // selected re-lands on its rows, which wt_pane_go's same-tab refusal
-    // would otherwise swallow.
-    if (s_help_open && tab == s_ictx.tab) { info_help_cb(NULL); return; }
-    s_help_open = false;
-    wt_pane_go(&s_ictx, tab, false, info_tab_build);
-}
-
-// The stroke, on the KEYS page: two tabs, one deck. [ ? ] stays a toggle
-// rather than a position on the deck, but the stroke reaches it -- past the
-// last tab opens it, and a right swipe on it is the way back. SETTINGS
-// shipped this first, from the bench's "i cant swipe to the question mark".
+// The stroke, on the KEYS page: one page and its [ ? ]. The explainer stays a
+// toggle rather than a position on a deck, and the stroke reaches it -- left
+// opens it, right comes back. SETTINGS shipped this first, from the bench's
+// "i cant swipe to the question mark".
 static void info_gesture_cb(lv_event_t *e)
 {
     const int step = wt_swipe_step(e);
@@ -1412,10 +1400,9 @@ static void info_gesture_cb(lv_event_t *e)
         if (step < 0) info_help_cb(NULL);
         return;
     }
-    const int to = s_ictx.tab + step;
-    if (to > 1) { info_help_cb(NULL); return; }
-    if (to < 0) return;             // the deck still ends on the left
-    wt_pane_go(&s_ictx, to, false, info_tab_build);
+    // One page, so the deck is the page and the [ ? ]: a left stroke opens the
+    // explainer, and there is nowhere to the right of it to go.
+    if (step > 0) info_help_cb(NULL);
 }
 
 // The address fold this lane can hold. wt_addr_short's own fold is 28 mono
@@ -1482,13 +1469,11 @@ static void info_addr_value(lv_obj_t *row)
 // Four lines and two lines, both on the one full-width lane. The old screen
 // put four facts in a left column and two destinations in a right one, which
 // is four different shapes for six things that are all "a label, what it says,
-// and where it takes you". They are one shape now, and the tab strip is what
-// buys the room: the lane is 704 wide instead of 365, so an address fits at
-// mono23 and a path fits beside its own type.
+// and where it takes you". They are one shape now, on a 704 wide lane, so an
+// address fits at mono23 and a path fits beside its own type.
 static void info_tab_build(void)
 {
     lv_obj_t *p = s_ictx.pane;
-    char buf[128];
     const int X = 48, W = 704;
 
     if (s_help_open) {
@@ -1503,73 +1488,6 @@ static void info_tab_build(void)
               .icon = LV_SYMBOL_EYE_OPEN },
         };
         wt_explain(p, tr(STR_K_HELP_HEAD), tr(STR_K_HELP_BODY), facts, 3);
-        return;
-    }
-
-    if (s_ictx.tab == 0) {
-        // No fingerprint hero. It was the top half of this page and a
-        // straight duplicate of the home page's own headline -- the owner
-        // asked for it gone from the bench. What is left is the three facts
-        // a coordinator conversation actually needs, each a third of the
-        // lane, each opening its plain-sentence definition where it stands.
-
-        // h, not an apostrophe, and this is correctness rather than style: at
-        // small sizes the apostrophes in m/84'/0'/0' render as tick marks and
-        // the line reads as m/84/0/0. Those are DIFFERENT PATHS, and a
-        // coordinator handed the unhardened one finds none of these keys.
-        int sc = kiss_script();
-        int purpose = sc == WSCRIPT_LEGACY ? 44 : sc == WSCRIPT_NESTED ? 49
-                                                                       : 84;
-        snprintf(buf, sizeof buf, "m/%dh/%dh/0h", purpose,
-                 kiss_testnet() ? 1 : 0);
-        char term_type[64];
-        snprintf(term_type, sizeof term_type, tr(STR_K_TYPE_TERM_FMT),
-                 purpose);
-
-        // The first address, folded to the device's own idiom: prefix, the
-        // gap, the last eight in two blocks -- or the session-locked state,
-        // as words, never as an address-shaped fragment.
-        char ahead[24] = {0}, atail[16] = {0};
-        char abuf[128];
-        size_t n = kiss_session_address(0, 0, abuf, sizeof abuf) == 0
-                       ? strlen(abuf) : 0;
-        bool locked = n < 20;
-        if (!locked) {
-            int pre = !strncmp(abuf, "tsp1", 4) ? 5
-                    : (!strncmp(abuf, "bc1", 3) || !strncmp(abuf, "tb1", 3) ||
-                       !strncmp(abuf, "sp1", 3)) ? 4 : 0;
-            const char *t = abuf + n - 8;
-            char pfx[8] = {0};
-            if (pre) { memcpy(pfx, abuf, (size_t)pre); pfx[pre] = ' '; }
-            snprintf(ahead, sizeof ahead, "%s\xE2\x80\xA6 ", pfx);
-            snprintf(atail, sizeof atail, "%.4s %.4s", t, t + 4);
-        }
-
-        bool tn = kiss_testnet();
-        wt_def_t defs[3] = {
-            { .cap = tr(STR_I_SEC_NET), .val = kiss_net_name(),
-              .sub = tr(tn ? STR_G_TESTNET_NOTE : STR_G_MAINNET_NOTE),
-              .plain = tr(tn ? STR_K_NET_PLAIN_TEST : STR_K_NET_PLAIN_MAIN),
-              .lamp = true, .lamp_col = tn ? WT_WARN : WT_OK,
-              .lamp_pulse = tn },
-            { .cap = tr(STR_I_SEC_TYPE),
-              .val = tr(sc == WSCRIPT_LEGACY ? STR_S_TY_LEGACY
-                        : sc == WSCRIPT_NESTED ? STR_S_TY_NESTED
-                                               : STR_S_TY_NATIVE),
-              .sub = buf, .plain = tr(STR_K_TYPE_PLAIN),
-              .term = term_type, .term_label = tr(STR_G_TECHNICAL) },
-            // No sub beside the address: at the closed value's 28 the lane
-            // left over cannot hold a sentence, and the lit tail already IS
-            // the "check these" cue. A GO row, not a definition: the tap
-            // lands on RECEIVE's THIS ADDRESS at index 0, the one place the
-            // full address shows -- the owner asked that folded addresses
-            // lead there instead of explaining themselves in place.
-            { .cap = tr(STR_I_SEC_FIRST),
-              .val = locked ? tr(STR_C_SESSION_LOCKED) : ahead,
-              .val_tail = locked ? NULL : atail,
-              .go = first_addr_go_cb },
-        };
-        wt_def_list(p, defs, 3);
         return;
     }
 
@@ -1661,15 +1579,22 @@ static void info_screen(void)
     s_help_open = false;
     s_scr = wt_chrome(s_parent, tr(STR_I_T));
 
-    wt_tab_t t[2] = {
-        { .icon = WT_ICON_KEY,  .label = tr(STR_I_SEC_THIS_WALLET) },
-        { .icon = WT_ICON_LINK, .label = tr(STR_D_ONLINE_APP) },
-    };
-
+    // NO TAB STRIP. THIS SIGNER held three rows and every one of them was a
+    // fact with a home somewhere else: NETWORK and ADDRESS TYPE are changed on
+    // SETTINGS > SIGNER, and the network is already this page's own standing
+    // line; FIRST ADDRESS is what RECEIVE opens on. A tab whose whole content
+    // is a read-only copy of another page is a tab an owner has to check twice.
+    //
+    // Desktop against mobile does not want tabs either, and could not use
+    // them: it is a switch INSIDE pair_screen because it changes the QR
+    // PAYLOAD -- a descriptor for Sparrow, a different export for BlueWallet
+    // -- and a strip up here would only take the reader further from it.
+    //
+    // What is left is one page about one thing: how a coordinator comes to
+    // watch these keys, and how you prove it worked.
     s_ictx.scr    = s_scr;
-    s_ictx.select = wt_tabs_flex_select;
-    s_ictx.tabs   = wt_tabs_flex(s_scr, t, 2, s_ictx.tab, info_tab_cb);
-    wt_pane_tabs_watch(&s_ictx);
+    s_ictx.tab    = 0;
+    s_ictx.tabs   = NULL;
     wt_swipe_watch(s_scr, info_gesture_cb);
 
     // The band's left lane holds ONE line, by rank: the test network caution
@@ -1689,6 +1614,15 @@ static void info_screen(void)
         wt_standing(s_scr, tr(STR_K_STANDING), WT_DIM, false);
     }
     wt_help_tab(s_scr, hint, info_help_cb, NULL);
+    // AFTER the tab, and that is not a style choice: the trail's box runs to
+    // 752 unless something is already sitting there, so built first it prints
+    // straight through the [ ? ].
+    //
+    // The strip row keeps a word. The tab this page lost was called
+    // COORDINATOR and that was the one thing on it worth saying: the page is
+    // about the conversation with a coordinator, not about the keys as an
+    // object. A trail is where a page with no tabs says so.
+    wt_trail(s_scr, WT_ICON_LINK, tr(STR_D_ONLINE_APP), false);
 
     s_ictx.pane = wt_pane_new(&s_ictx);
     info_tab_build();

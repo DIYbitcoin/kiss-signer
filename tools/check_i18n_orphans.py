@@ -73,6 +73,17 @@ BACKLOG = frozenset({
     "STR_I_SEC_HISTORY",
     "STR_R_SP_EXPORT",
     "STR_R_SP_EXPORT_S",
+    # KEYS lost its THIS SIGNER tab: three rows that were a read-only copy of
+    # SETTINGS > SIGNER and of RECEIVE's first address. The captions go with
+    # the tab, and so do the definitions that opened inside two of them -- the
+    # network's is said by the sub-line on the row that CHANGES it ("not real
+    # bitcoin"), and the address type's by the "?" card already beside it.
+    "STR_I_SEC_NET",
+    "STR_I_SEC_TYPE",
+    "STR_K_NET_PLAIN_MAIN",
+    "STR_K_NET_PLAIN_TEST",
+    "STR_K_TYPE_PLAIN",
+    "STR_K_TYPE_TERM_FMT",
     "STR_R_USAGE_UNKNOWN",
     # KEYS re-weighted to the identity-as-headline shape: the fingerprint
     # became the hero and its old row sub went with the row. Translated in 21

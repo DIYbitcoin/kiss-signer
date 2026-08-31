@@ -2850,59 +2850,37 @@ int main(void) {
   // frame looked like a rendering fault and was really a frame taken early,
   // which is the second time that has happened on this walk.
   touch(490, 240); pump(3); release(); pump(45);    // Wallet tile -> section home
-  save("/tmp/sim_winfo.ppm");
-  // The in-place definition, the pass's central interaction and the reason
-  // the fp/type help cards left this page: NETWORK opens where it stands, the
-  // other rows drop to 34px ghosts, and the plain sentence lands inside the
-  // grown row. Three rows now -- the fingerprint hero is gone, the home page
-  // already headlines the same code -- so NETWORK is the top third at
-  // 114..208. 30 pumps: the height animation is 240ms and the body rides in
-  // 90ms behind it.
-  touch(400, 160); pump(3); release(); pump(8);     // NETWORK row -> opening
-  // Heights in transit: the open row growing and the ghosts collapsing in
-  // the same tick. Raw, not saved -- a mid-flight frame must never become a
-  // stop the settled-state gates compare against.
-  shot_raw("sim_winfo_def_mid.ppm");
-  pump(22);                                         // and let it settle
-  save("/tmp/sim_winfo_def.ppm");
-  must_show("keys/def plain", tr(STR_K_NET_PLAIN_TEST));
-  touch(400, 240); pump(3); release(); pump(30);    // the open row -> all closed
-  // The [ ? ] tab: the content lane replaced by the page's explainer, and
-  // the first-run hint stopped for good (this is the walk's first open).
+  // ONE PAGE, no tab strip. THIS SIGNER held a read-only copy of two SETTINGS
+  // rows and of RECEIVE's first address, so it went; what is left is how a
+  // coordinator comes to watch these keys. No coordinator has spoken at this
+  // point -- the recv test wiped its usage record on the way out -- so the
+  // page shows the 5c empty state: the absence named, what pairing gives, and
+  // the row that fills it.
+  save("/tmp/sim_winfo_coord_empty.ppm");
+  must_show("coord empty", tr(STR_K_COORD_NONE));
+  // The [ ? ]: the content lane replaced by the page's explainer, and the
+  // first-run hint stopped for good (this is the walk's first open).
   touch(720, 85); pump(3); release(); pump(45);   // 45: the fact rows land on the stagger
   save("/tmp/sim_winfo_what.ppm");
   must_show("keys/help head", tr(STR_K_HELP_HEAD));
-  touch(720, 85); pump(3); release(); pump(45);     // [ ? ] again -> the rows; 45 outlasts the exit stagger
-  // KEYS is two tabs on one flex strip now, spread across the 620 lane, and
-  // a deck like every other tabbed page: the crossing is made by STROKE here,
-  // both directions, because no other stop swipes this page. The COORDINATOR
-  // WALLET tab holds PAIRING at 120 and SILENT PAYMENT at 196.
-  for (int i = 0; i <= 8; i++) { touch(500 - i * 14, 250); pump(3); }
-  release(); pump(40);                              // swipe -> COORDINATOR WALLET
-  // No coordinator has ever spoken at this point -- the recv test wiped its
-  // usage record on the way out -- so the tab shows the 5c empty state: the
-  // absence named, what pairing gives, and the row that fills it.
-  save("/tmp/sim_winfo_coord_empty.ppm");
-  must_show("coord empty", tr(STR_K_COORD_NONE));
-  // And past the deck's end: the stroke opens [ ? ] on this page too, and a
-  // right stroke on it lands back on the tab it left.
+  touch(720, 85); pump(3); release(); pump(45);     // [ ? ] again -> the rows
+  // The stroke still reaches the explainer, which is the only other thing on
+  // this page: left opens it, right comes back.
   for (int i = 0; i <= 8; i++) { touch(500 - i * 14, 250); pump(3); }
   release(); pump(50);
-  must_show("keys/swipe past coord opens help", tr(STR_K_HELP_HEAD));
+  must_show("keys/swipe opens help", tr(STR_K_HELP_HEAD));
   for (int i = 0; i <= 8; i++) { touch(300 + i * 14, 250); pump(3); }
   release(); pump(50);
   must_show("keys/swipe closes help", tr(STR_K_COORD_NONE));
   {
     // Give this signer a coordinator's word -- the same store RECEIVE's lamp
-    // reads -- and bounce the tab so the populated page renders.
+    // reads -- and reopen so the populated page renders.
     uint8_t cfp[4];
     kiss_ui_last_fp(cfp);
     kiss_usage_chain_set(cfp, kiss_testnet() ? 1 : 0, kiss_script(), -1, 1);
   }
-  for (int i = 0; i <= 8; i++) { touch(300 + i * 14, 250); pump(3); }
-  release(); pump(40);                              // swipe back -> THIS SIGNER
-  must_show("keys/swipe back to this signer", tr(STR_I_SEC_FIRST));
-  tap_str(STR_D_ONLINE_APP, 3, 40);                 // COORDINATOR WALLET, populated
+  tap_str(STR_C_BACK, 3, 8);                        // -> home
+  touch(490, 240); pump(3); release(); pump(45);    // KEYS again, populated
   save("/tmp/sim_winfo_coord.ppm");
   touch(400, 150); pump(3); release(); pump(6);     // PAIRING -> PAIR COORDINATOR
   save("/tmp/sim_pair.ppm");                        // descriptor (Sparrow) active
