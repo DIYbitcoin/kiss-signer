@@ -36,17 +36,34 @@ static const term_card_t CARDS[KISS_TERM_N] = {
                             STR_T_RNG_PLAIN,  STR_T_RNG_TERM },
     [KISS_TERM_DECOY]   = { STR_T_DECOY_CAP,  STR_T_DECOY_VAL,
                             STR_T_DECOY_PLAIN, STR_T_DECOY_TERM },
+    // The word this device says most often and had never defined. Every
+    // other card leans on it -- the fingerprint NAMES your keys, the account
+    // says WHICH keys open, the descriptor lets a coordinator watch them --
+    // and the KEYS page's own help said "it gets public keys only" to a
+    // reader who had never been told what a public key is.
+    //
+    // Captioned PRIVATE KEY, not KEYS: the caption is the term an owner meets
+    // in their coordinator, and the pair is taught from the half that matters
+    // to them. The public half is the sentence's second clause, which is also
+    // where it belongs -- a public key is only interesting for what it lets
+    // somebody else do.
+    [KISS_TERM_KEY]     = { STR_T_KEY_CAP,    STR_T_KEY_VAL,
+                            STR_T_KEY_PLAIN,  STR_T_KEY_TERM },
 };
 
 const int KISS_TERMS_SIGN[3] = { KISS_TERM_PSBT, KISS_TERM_FEE,
                                  KISS_TERM_CHANGE };
-const int KISS_TERMS_KEYS[2] = { KISS_TERM_FP, KISS_TERM_ACCOUNT };
-const int KISS_TERMS_PAIR[2] = { KISS_TERM_DESC, KISS_TERM_FP };
+const int KISS_TERMS_KEYS[3] = { KISS_TERM_KEY, KISS_TERM_FP,
+                                 KISS_TERM_ACCOUNT };
+// Pairing is the moment a public key leaves, so it is the moment to say
+// which half left.
+const int KISS_TERMS_PAIR[3] = { KISS_TERM_KEY, KISS_TERM_DESC,
+                                 KISS_TERM_FP };
 const int KISS_TERMS_RECV[1] = { KISS_TERM_ACCOUNT };
 const int KISS_TERMS_ALL[KISS_TERM_N] = {
     KISS_TERM_SEED, KISS_TERM_PASS, KISS_TERM_FP, KISS_TERM_PSBT,
     KISS_TERM_CHANGE, KISS_TERM_FEE, KISS_TERM_DESC, KISS_TERM_ACCOUNT,
-    KISS_TERM_ENTROPY, KISS_TERM_DECOY,
+    KISS_TERM_ENTROPY, KISS_TERM_DECOY, KISS_TERM_KEY,
 };
 
 static uint16_t s_mask;

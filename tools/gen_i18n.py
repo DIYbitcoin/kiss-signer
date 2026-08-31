@@ -156,6 +156,7 @@ UNTRANSLATED_OK = {
     "T_PATH_CAP", "T_PATH_VAL", "T_PATH_PLAIN",
     "T_RNG_CAP", "T_RNG_VAL", "T_RNG_PLAIN", "T_RNG_TERM",
     "T_DECOY_CAP", "T_DECOY_VAL", "T_DECOY_PLAIN", "T_DECOY_TERM",
+    "T_KEY_CAP", "T_KEY_VAL", "T_KEY_PLAIN", "T_KEY_TERM",
     # The locked backup screen, moved onto the explainer shape. Born under the
     # English-only rule; English in the other twenty until the sweep.
     "I_KEF_HEAD", "I_KEF_EXP_B", "I_KEF_EXP_B_NP", "I_KEF_F1_C",

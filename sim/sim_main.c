@@ -2963,9 +2963,18 @@ int main(void) {
   // By the VALUE: DESCRIPTOR is also the KEYS explainer's third caption
   // now, and a needle two keys share passes on whichever shows either.
   must_show("pair/terms", tr(STR_T_WATCH_VAL));
-  // DESCRIPTOR's page two: the artefact itself, in blocks. Its row is the
-  // first, so it centres on 170 at n=2, and opening it puts MORE in the band.
-  touch(400, 170); pump(3); release(); pump(30);
+  // PRIVATE KEY open: the word this device says on every screen, and the
+  // only one a reader could not look up here until now. Pairing is where it
+  // matters -- this is the page that sends the OTHER half out.
+  tap_str(STR_T_KEY_CAP, 3, 30);
+  save("/tmp/sim_pair_term_key.ppm");
+  must_show("pair/private key", tr(STR_T_KEY_PLAIN));
+  tap_str(STR_T_KEY_CAP, 3, 30);                    // closed again
+  // DESCRIPTOR's page two: the artefact itself, in blocks. By its CAPTION,
+  // not by a row centre: the centre moved the day PRIVATE KEY joined this
+  // page and took the next four taps with it, because a coordinate knows
+  // nothing about how many rows are above it.
+  tap_str(STR_T_WATCH_CAP, 3, 30);
   tap_str(STR_H_MORE, 3, 25);
   save("/tmp/sim_pair_desc2.ppm");                  // the whole descriptor
   must_show("pair/descriptor page two", tr(STR_T_WATCH_P2_HEAD));

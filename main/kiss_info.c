@@ -461,8 +461,8 @@ static void pair_terms_cb(lv_event_t *e)
     wt_chrome_head(s_scr);
     wt_trail(s_scr, WT_ICON_WHAT, tr(STR_I_PAIR_T), false);
     kiss_terms_more_hook(pair_term_has_more, pair_term_more);
-    kiss_terms_list(s_scr, KISS_TERMS_PAIR, 2);
-    kiss_terms_hint(s_scr, KISS_TERMS_PAIR, 2);
+    kiss_terms_list(s_scr, KISS_TERMS_PAIR, 3);
+    kiss_terms_hint(s_scr, KISS_TERMS_PAIR, 3);
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_BACK_X,
                     WT_ACTION_Y, 140, true, pair_terms_back_cb, NULL);
 }
@@ -478,7 +478,7 @@ static void pair_screen(void)
     // The TAB FIRST, so the trail beside it knows where to stop: they share
     // one 30px strip and the trail's box runs to 752 unless something is
     // already there.
-    wt_help_tab_n(s_scr, NULL, kiss_terms_unread(KISS_TERMS_PAIR, 2),
+    wt_help_tab_n(s_scr, NULL, kiss_terms_unread(KISS_TERMS_PAIR, 3),
                   pair_terms_cb, NULL);
     // ONE segment. It was "KEYS / COORDINATOR" and the second half restates
     // the title this page already carries.

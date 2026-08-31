@@ -46,6 +46,9 @@ typedef enum {
     KISS_TERM_ACCOUNT,
     KISS_TERM_ENTROPY,
     KISS_TERM_DECOY,
+    // Appended, never inserted: the enum is NVS storage order (above), so a
+    // new term goes on the end or every bit means a different word.
+    KISS_TERM_KEY,
     KISS_TERM_N
 } kiss_term_t;
 bool kiss_term_read(int id);
@@ -111,8 +114,8 @@ void kiss_terms_turned(void);
 // The four sets that have a tab today. Each is `const int[]` plus its count,
 // so a page passes one pair and nothing else knows the order.
 extern const int KISS_TERMS_SIGN[3];      // PSBT, THE FEE, CHANGE
-extern const int KISS_TERMS_KEYS[2];      // FINGERPRINT, ACCOUNT
-extern const int KISS_TERMS_PAIR[2];      // DESCRIPTOR, FINGERPRINT
+extern const int KISS_TERMS_KEYS[3];      // PRIVATE KEY, FINGERPRINT, ACCOUNT
+extern const int KISS_TERMS_PAIR[3];      // PRIVATE KEY, DESCRIPTOR, FINGERPRINT
 extern const int KISS_TERMS_RECV[1];      // ACCOUNT
 // All ten, for the SETTINGS reference. THE DECOY is in this list, which is
 // why the row that opens it is absent in a decoy session.
