@@ -3243,7 +3243,9 @@ int main(void) {
     if (chip) {
       lv_obj_t *par = lv_obj_get_parent(chip);
       touch(lv_obj_get_x(par) + 15, lv_obj_get_y(par) + 15);
-      pump(3); release(); pump(30);
+      pump(3); release(); pump(40);   // 40: wt_card_intro staggers the overlay over 40+300ms and each child
+      // takes 220 to settle, so the LAST one is still travelling 560ms in,
+      // against 480ms of pump. The card was always photographed mid intro.
     } else {
       printf("FAIL: details/txid: no term chip heading the strip\n");
       g_walk_fails++;

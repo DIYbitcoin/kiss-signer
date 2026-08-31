@@ -6270,6 +6270,13 @@ lv_obj_t *wt_explain_open(lv_obj_t *parent, const wt_explain_t *e)
         lv_obj_set_width(s, lane);
         lv_label_set_long_mode(s, LV_LABEL_LONG_DOT);
         y = 104;
+    } else {
+        lv_obj_t *pt = parent ? wt_screen_title(parent) : NULL;
+        const char *pn = pt ? lv_label_get_text(pt) : NULL;
+        if (pn && *pn) {
+            wt_trail(ovl, WT_ICON_WHAT, pn, false);
+            y = WT_CHROME_STRIP_Y + WT_BR_H;
+        }
     }
 
     // Band one: the value this card is about, and whatever diagram the caller
@@ -6330,7 +6337,22 @@ lv_obj_t *wt_explain_open(lv_obj_t *parent, const wt_explain_t *e)
         int th = lv_obj_get_height(tl);
         for (uint32_t i = 0; i < lv_obj_get_child_count(tl); i++) {
             lv_obj_t *c = lv_obj_get_child(tl, i);
-            const int cb = lv_obj_get_y(c) + lv_obj_get_height(c);
+            // The FONT's line box where it is taller than the label's own. A
+            // label's box is what LVGL gave it; the glyphs are what the reader
+            // and the CONTENT check both see. On the TXID card the labels sit
+            // 3px inside this container and paint 25 tall, needing 28 -- and
+            // measuring the box answered 25, which put the line's last row of
+            // pixels exactly on the band.
+            //
+            // RELATIVE positions, deliberately. An earlier attempt at this
+            // measured absolute coords right after moving the container, and
+            // LVGL had not resolved the children yet, so it read the line as
+            // already clear and corrected nothing.
+            int ch = lv_obj_get_height(c);
+            const int lh = (int)lv_font_get_line_height(
+                               lv_obj_get_style_text_font(c, LV_PART_MAIN));
+            if (lh > ch) ch = lh;
+            const int cb = lv_obj_get_y(c) + ch;
             if (cb > th) th = cb;
         }
         // TWO CLEAR of the floor, not flush on it. 398 is where the action
@@ -6341,6 +6363,7 @@ lv_obj_t *wt_explain_open(lv_obj_t *parent, const wt_explain_t *e)
         // that pixel through chrome23, the intro stagger and the value card
         // above it bought nothing a two pixel gap does not.
         lv_obj_set_y(tl, WT_CONTENT_BOTTOM - th - 2);
+
     }
 
     // 552..752: the corner, like every other way off a screen. It was centred
