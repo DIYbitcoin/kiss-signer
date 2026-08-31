@@ -1803,25 +1803,28 @@ static void verify_screen(lv_obj_t *parent)
         // Below about 60px a filename is ellipsis and one character, which tells
         // nobody anything. It is already on the row that was tapped and in the
         // DETAILS page title, so drop it rather than let it collide.
-        if (fr - fx >= 60) {
-            // FOLDED, not dotted. LONG_DOT keeps the head, and the head of a
-            // coordinator export is the part every file shares -- the walk
-            // shipped "payment-0...", "zzzz-MANY..." and "zzzzz-MER...", none
-            // of which names a file. The tail carries the number and the
-            // extension, so that is the half that survives.
-            char fold[SD_NAME_LEN + 8];
-            wt_name_fold(s_cur, wt_font_mono14(), fr - fx, fold, sizeof fold);
-            lv_obj_t *f = sg_lbl(s_scr, fold, fx, 34, wt_font_mono14(), MUT_COL);
-            lv_obj_set_width(f, fr - fx);
-            // HEIGHT TOO, and this was latent for as long as the line existed:
-            // LONG_DOT only elides once the box stops growing, so a filename
-            // with a width and no height WRAPS first. Nothing had ever narrowed
-            // this lane enough to show it -- the network badge did, and a
-            // 60 character coordinator export dropped a second line straight
-            // through the hero.
-            lv_obj_set_height(f, lv_font_get_line_height(wt_font_mono14()));
-            lv_label_set_long_mode(f, LV_LABEL_LONG_DOT);
-        }
+        // NO FILENAME HERE, and no "camera" either. Both were cut rather
+        // than fixed.
+        //
+        // The reader tapped that name on the file list one screen back, or
+        // watched the camera assemble the transaction, so the line restated
+        // what they had just done -- which is the copy rule's own example of a
+        // string to cut. And a filename is the COORDINATOR'S bookkeeping, not
+        // a fact about the payment: what says this is the right transaction is
+        // the amount and the destination, and both are on this screen at full
+        // size. A name in the corner never checked anything.
+        //
+        // What it cost to keep was the whole band. The line ran under the
+        // title beside the signed badge, the network chip and the fingerprint,
+        // and it was the only unlabelled string among them. It also carried
+        // two defects for as long as it existed: set in the smallest face on
+        // the device, and, once that was corrected, handing a translated
+        // phrase to a filename tail-fold so a scanned transaction read
+        // "scan...ansaction" on the screen where a payment is approved.
+        //
+        // fx survives because the badge and the chip above measure their lane
+        // against it: they may not run back under the title.
+        (void)fx;
     }
 
     // The chip at the top right is ONE slot in two states. The caution count
