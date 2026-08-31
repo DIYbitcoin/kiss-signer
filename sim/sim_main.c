@@ -2910,7 +2910,12 @@ int main(void) {
   touch(350, 128); pump(3); release(); pump(40);    // ADDRESS #N -> ALL ADDRESSES
   save("/tmp/sim_recv_pick.ppm");                   // the list, on the right page
   touch(400, 204); pump(3); release(); pump(40);    // pick a row -> back on tab 0
-  touch(500, 254); pump(3); release(); pump(30);    // the path digits -> explainer
+  // 40, not 30. wt_card_intro staggers its children over 560ms and pump(30)
+  // is 480, so the frame was caught mid-travel and the term line measured a
+  // pixel into the action band -- a CONTENT finding that looks exactly like a
+  // layout bug and is a walk that photographed too early. Same 560ms that
+  // caught the outgoing pane on another stop.
+  touch(500, 254); pump(3); release(); pump(40);   // the path digits -> explainer
   save("/tmp/sim_recv_path_help.ppm");
   tap_str(STR_C_OK, 3, 6);
   tap_str(STR_R_NEXT_ADDR, 3, 8);     // NEXT ADDRESS -> next unused index

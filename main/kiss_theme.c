@@ -1547,6 +1547,12 @@ lv_obj_t *wt_slide_rule_c(lv_obj_t *scr, const char *txt, const char *held,
     return wt_slide(scr, &s);
 }
 
+// Paragraph text is drawn as SPANS, so the full stop of each sentence can
+// carry the accent. Declared here because the side-note helpers below are the
+// first users and the builder lives with the explainers.
+static void spans_fill(lv_obj_t *sg, const char *txt, const char *hi);
+static lv_obj_t *spans_new(lv_obj_t *par, int x, int y, int w);
+
 lv_obj_t *wt_lbl(lv_obj_t *scr, const char *txt, int x, int y,
                  const lv_font_t *f, lv_color_t col)
 {
@@ -1564,11 +1570,7 @@ lv_obj_t *wt_lbl(lv_obj_t *scr, const char *txt, int x, int y,
 // derived from the gap, and short copy is what earns the big one.
 lv_obj_t *wt_wraph(lv_obj_t *scr, const char *txt, int x, int y, int w, int h)
 {
-    lv_obj_t *l = lv_label_create(scr);
-    lv_obj_set_style_text_color(l, WT_MUT, 0);
-    lv_obj_set_width(l, w);
-    lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
-    lv_obj_set_pos(l, x, y);
+    lv_obj_t *l = spans_new(scr, x, y, w);
     wt_wrap_fit(l, txt, w, h);
     return l;
 }
@@ -1579,8 +1581,8 @@ lv_obj_t *wt_wraph(lv_obj_t *scr, const char *txt, int x, int y, int w, int h)
 void wt_wrap_fit(lv_obj_t *l, const char *txt, int w, int h)
 {
     if (!l) return;
-    lv_label_set_text(l, txt);
     lv_obj_set_style_text_font(l, wt_body_font(txt, w, h), 0);
+    spans_fill(l, txt, NULL);
 }
 
 // A note that BELONGS to a control: same auto-fit, capped at 23. Left uncapped,
@@ -1599,17 +1601,13 @@ static const lv_font_t *note_font(const char *txt, int w, int max_h)
 void wt_note_fit(lv_obj_t *l, const char *txt, int w, int h)
 {
     if (!l) return;
-    lv_label_set_text(l, txt);
     lv_obj_set_style_text_font(l, note_font(txt, w, h), 0);
+    spans_fill(l, txt, NULL);
 }
 
 lv_obj_t *wt_note(lv_obj_t *scr, const char *txt, int x, int y, int w, int h)
 {
-    lv_obj_t *l = lv_label_create(scr);
-    lv_obj_set_style_text_color(l, WT_MUT, 0);
-    lv_obj_set_width(l, w);
-    lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
-    lv_obj_set_pos(l, x, y);
+    lv_obj_t *l = spans_new(scr, x, y, w);
     wt_note_fit(l, txt, w, h);
     return l;
 }
@@ -1621,13 +1619,9 @@ lv_obj_t *wt_wrap(lv_obj_t *scr, const char *txt, int x, int y, int w, int max_h
     // font14-is-a-bug shape with the ladder missing rather than overruled:
     // its three callers are the sentences that explain why an address did not
     // match, on the screen where an owner decides whether to trust one.
-    lv_obj_t *l = lv_label_create(scr);
-    lv_obj_set_style_text_color(l, WT_MUT, 0);
-    lv_label_set_text(l, txt ? txt : "");
+    lv_obj_t *l = spans_new(scr, x, y, w);
     lv_obj_set_style_text_font(l, wt_body_font(txt ? txt : "", w, max_h), 0);
-    lv_obj_set_width(l, w);
-    lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
-    lv_obj_set_pos(l, x, y);
+    spans_fill(l, txt, NULL);
     return l;
 }
 
@@ -3827,19 +3821,58 @@ static const lv_font_t *explain_para_font(const char *s, int w, int lines)
     return chrome23(s);
 }
 
+// The headline is a SENTENCE, and its stop wears the accent like every other
+// one on the page. A label holds a single colour, so the stop is a second
+// label butted against the end of the first -- which needs the headline to
+// actually FIT its lane, because the position is measured from the text.
+//
+// When it does not fit, nothing happens and the label keeps LV_LABEL_LONG_DOT:
+// an ellipsised headline ends in dots rather than a stop, and there is nothing
+// there to colour. Same reasoning as everywhere else in this file -- the
+// fallback is the shape that was already correct, not a guess.
+static lv_obj_t *head_stop(lv_obj_t *scr, const char *txt, int x, int y,
+                           const lv_font_t *f, int lane)
+{
+    lv_point_t whole;
+    lv_text_get_size(&whole, txt, f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    // It does not fit its lane: keep the label, which ellipsises. A headline
+    // that ends in dots has no stop to colour, and two objects here would only
+    // overlap -- which is exactly what a first attempt at this did, a "." label
+    // dropped on top of a full width one, reported by the TEXT check.
+    if (whole.x > lane) return NULL;
+    lv_obj_t *sg = spans_new(scr, x, y, lane);
+    lv_obj_set_style_text_color(sg, WT_INK, 0);
+    lv_obj_set_style_text_font(sg, f, 0);
+    spans_fill(sg, txt, NULL);
+    return sg;
+}
+
+// Every paragraph on this device is drawn by this, so the accent stop is one
+// path rather than a habit each screen has to remember. Declared here because
+// the explainers are built well above it.
+static lv_obj_t *body_spans_hi(lv_obj_t *par, const char *txt, int x, int y,
+                               const lv_font_t *f, int w, const char *hi);
+
 void wt_explain_hi(lv_obj_t *scr, const char *headline, const char *para,
                    const char *hi, const wt_fact_t *facts, int n)
 {
     const lv_font_t *hf = explain_head_font(headline, WT_LANE_W);
-    lv_obj_t *h = wt_lbl(scr, headline, WT_LANE_X, 118, hf, WT_INK);
-    lv_obj_set_width(h, WT_LANE_W);
-    // HEIGHT TOO. LONG_DOT only elides once the box stops growing, so a
-    // headline with a width and no height does not ellipsise -- it wraps, and
-    // the paragraph pinned at 152 is then printed straight through its second
-    // line. Which is exactly what a longer SIGN headline did the hour it was
-    // written. Same lesson as every other pinned one-liner in this file.
-    lv_obj_set_height(h, lv_font_get_line_height(hf));
-    lv_label_set_long_mode(h, LV_LABEL_LONG_DOT);
+    // The headline is a sentence and its stop wears the accent too, which
+    // needs it drawn as spans. That costs LV_LABEL_LONG_DOT, so it is only
+    // taken when the headline measurably FITS -- and the label with its
+    // ellipsis is what happens when it does not.
+    lv_obj_t *h = head_stop(scr, headline, WT_LANE_X, 118, hf, WT_LANE_W);
+    if (!h) {
+        h = wt_lbl(scr, headline, WT_LANE_X, 118, hf, WT_INK);
+        lv_obj_set_width(h, WT_LANE_W);
+        // HEIGHT TOO. LONG_DOT only elides once the box stops growing, so a
+        // headline with a width and no height does not ellipsise -- it wraps,
+        // and the paragraph pinned at 152 is then printed straight through its
+        // second line. Which is exactly what a longer SIGN headline did the
+        // hour it was written. Same lesson as every other pinned one-liner.
+        lv_obj_set_height(h, lv_font_get_line_height(hf));
+        lv_label_set_long_mode(h, LV_LABEL_LONG_DOT);
+    }
 
     // mono28, the reading rung. This was chrome18, then chrome23, and it is
     // 28 now because 28 is what a SENTENCE is set in on this device -- the
@@ -3848,35 +3881,12 @@ void wt_explain_hi(lv_obj_t *scr, const char *headline, const char *para,
     wt_read_measure(headline);
     wt_read_measure(para);
     const lv_font_t *pf = explain_para_font(para, 690, 2);
-    const char *at = hi && *hi ? strstr(para, hi) : NULL;
-    if (at) {
-        // The term the page exists to teach, in INK against the MUT sentence
-        // -- the mono face has no bold, so contrast is the emphasis. Same
-        // metrics either way: the spans wrap exactly as the label would.
-        char head[256];
-        snprintf(head, sizeof head, "%.*s", (int)(at - para), para);
-        lv_obj_t *sg = lv_spangroup_create(scr);
-        lv_obj_set_pos(sg, WT_LANE_X, WT_EXPLAIN_PARA_Y);
-        lv_obj_set_width(sg, 690);
-        lv_spangroup_set_mode(sg, LV_SPAN_MODE_BREAK);
-        lv_obj_set_style_text_font(sg, pf, 0);
-        lv_span_t *s1 = lv_spangroup_new_span(sg);
-        lv_span_set_text(s1, head);
-        lv_style_set_text_color(lv_span_get_style(s1), WT_MUT);
-        lv_span_t *s2 = lv_spangroup_new_span(sg);
-        char term[32];
-        snprintf(term, sizeof term, "%s", hi);
-        lv_span_set_text(s2, term);
-        lv_style_set_text_color(lv_span_get_style(s2), WT_INK);
-        lv_span_t *s3 = lv_spangroup_new_span(sg);
-        lv_span_set_text(s3, at + strlen(hi));
-        lv_style_set_text_color(lv_span_get_style(s3), WT_MUT);
-    } else {
-        lv_obj_t *p = wt_lbl(scr, para, WT_LANE_X, WT_EXPLAIN_PARA_Y, pf,
-                             WT_MUT);
-        lv_obj_set_width(p, 690);
-        lv_label_set_long_mode(p, LV_LABEL_LONG_WRAP);
-    }
+    // ONE path, highlight or not. This used to be two: a spangroup when the
+    // page named a term and a plain label otherwise, and the accent stop was
+    // added to neither -- which is why every [ ? ] page on the device was
+    // missing it while the twelve takeover pages had it. A paragraph is a
+    // paragraph.
+    body_spans_hi(scr, para, WT_LANE_X, WT_EXPLAIN_PARA_Y, pf, 690, hi);
     lv_point_t ps;
     lv_text_get_size(&ps, para, pf, 0, 0, 690, LV_TEXT_FLAG_NONE);
     wt_widow_measure(para, pf, 690);
@@ -5889,6 +5899,103 @@ lv_obj_t *wt_term_line(lv_obj_t *par, const char *label, const char *term,
 // fact rows now. What is left is the MEASURING, which was always the valuable
 // half: pick the largest rung the copy fits at, and report when even the floor
 // will not hold it.
+// One run of ordinary body text, with the page's own term lifted into the ink
+// if it appears inside this run. Split out because the run is built in two
+// places (mid-paragraph and at the end) and the highlight has to happen in
+// both.
+// An ordinary run of body text carries NO span style, so it inherits the
+// spangroup's own text colour. That is what keeps these a drop-in replacement
+// for the labels they came from: a caller that reaches for
+// lv_obj_set_style_text_color still recolours the whole paragraph, and only
+// the stops and the highlighted term hold a colour of their own.
+static void span_run(lv_obj_t *sg, const char *txt, const char *hi)
+{
+    const char *at = hi && *hi ? strstr(txt, hi) : NULL;
+    if (!at) {
+        lv_span_set_text(lv_spangroup_new_span(sg), txt);
+        return;
+    }
+    if (at > txt) {
+        char head[640];
+        snprintf(head, sizeof head, "%.*s", (int)(at - txt), txt);
+        lv_span_set_text(lv_spangroup_new_span(sg), head);
+    }
+    lv_span_t *s2 = lv_spangroup_new_span(sg);
+    lv_span_set_text(s2, hi);
+    lv_style_set_text_color(lv_span_get_style(s2), WT_INK);
+    if (at[strlen(hi)])
+        lv_span_set_text(lv_spangroup_new_span(sg), at + strlen(hi));
+}
+
+// Refill an EXISTING spangroup. The three side-note helpers below all have a
+// _fit twin that re-texts them after the fact -- the settings chooser caption
+// swaps on every tap -- so the rebuild has to be a first class operation, not
+// something only the constructor can do.
+static void spans_fill(lv_obj_t *sg, const char *txt, const char *hi)
+{
+    // The _fit helpers are public and are called on labels this file did not
+    // create -- kiss_sign.c re-texts two of its own with wt_note_fit. Reading
+    // a label as a spangroup walks a linked list that is not there, which is a
+    // segfault with no output at all. So the label case stays a label.
+    if (!lv_obj_check_type(sg, &lv_spangroup_class)) {
+        lv_label_set_text(sg, txt ? txt : "");
+        return;
+    }
+    while (lv_spangroup_get_span_count(sg))
+        lv_spangroup_delete_span(sg, lv_spangroup_get_child(sg, 0));
+    if (!txt) txt = "";
+    size_t i = 0, run = 0;
+    char buf[640];
+    while (txt[i]) {
+        const bool stop = txt[i] == '.' && i > 0 &&
+                          ((txt[i - 1] >= 'a' && txt[i - 1] <= 'z') ||
+                           (txt[i - 1] >= 'A' && txt[i - 1] <= 'Z') ||
+                           (txt[i - 1] >= '0' && txt[i - 1] <= '9')) &&
+                          (txt[i + 1] == '\0' || txt[i + 1] == ' ' ||
+                           txt[i + 1] == '\n');
+        if (!stop) {
+            if (run + 1 < sizeof buf) buf[run++] = txt[i];
+            i++;
+            continue;
+        }
+        if (run) { buf[run] = 0; span_run(sg, buf, hi); run = 0; }
+        // The stop takes the space after it. Left on the front of the next
+        // span, that space becomes the first character of a wrapped LINE and
+        // indents it -- which a plain label never does, because it collapses
+        // whitespace at the break. Carried on the stop it sits at the end of
+        // the line instead, where it costs nothing.
+        lv_span_t *dot = lv_spangroup_new_span(sg);
+        lv_span_set_text(dot, txt[i + 1] == ' ' ? ". " : ".");
+        lv_style_set_text_color(lv_span_get_style(dot), wt_accent());
+        i += txt[i + 1] == ' ' ? 2 : 1;
+    }
+    if (run) { buf[run] = 0; span_run(sg, buf, hi); }
+    lv_spangroup_refresh(sg);
+}
+
+// A wrapping paragraph that carries its accent stops, in place of a label.
+// Same geometry a label had: a fixed width, a content height, and the colour
+// on the object rather than on the text.
+static lv_obj_t *spans_new(lv_obj_t *par, int x, int y, int w)
+{
+    lv_obj_t *sg = lv_spangroup_create(par);
+    lv_obj_remove_style_all(sg);
+    lv_obj_set_style_text_color(sg, WT_MUT, 0);
+    lv_obj_set_pos(sg, x, y);
+    lv_obj_set_width(sg, w);
+    lv_obj_set_height(sg, LV_SIZE_CONTENT);
+    lv_spangroup_set_mode(sg, LV_SPAN_MODE_BREAK);
+    // A LABEL is neither clickable nor scrollable and a spangroup is both, so
+    // dropping one in place of the other silently eats the press meant for the
+    // card underneath it. The setup chooser's "new here?" card stopped opening
+    // the moment its note became spans, and the frame showed the chooser still
+    // on screen with nothing to say why.
+    lv_obj_remove_flag(sg, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(sg, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(sg, WT_FLAG_ACCENT);
+    return sg;
+}
+
 // A paragraph as spans, with the full stop of each sentence in the accent.
 //
 // The accent stop marks where one thought ends and the next begins, so a two
@@ -5910,53 +6017,21 @@ lv_obj_t *wt_term_line(lv_obj_t *par, const char *label, const char *term,
 static lv_obj_t *body_spans(lv_obj_t *par, const char *txt, int x, int y,
                             const lv_font_t *f, int w)
 {
-    lv_obj_t *sg = lv_spangroup_create(par);
-    lv_obj_remove_style_all(sg);
-    lv_obj_set_pos(sg, x, y);
-    lv_obj_set_width(sg, w);
-    lv_obj_set_height(sg, LV_SIZE_CONTENT);
-    lv_obj_set_style_text_font(sg, f, 0);
-    lv_spangroup_set_mode(sg, LV_SPAN_MODE_BREAK);
+    return body_spans_hi(par, txt, x, y, f, w, NULL);
+}
 
-    size_t i = 0, run = 0;
-    char buf[640];
-    while (txt[i]) {
-        const bool stop = txt[i] == '.' && i > 0 &&
-                          ((txt[i - 1] >= 'a' && txt[i - 1] <= 'z') ||
-                           (txt[i - 1] >= 'A' && txt[i - 1] <= 'Z') ||
-                           (txt[i - 1] >= '0' && txt[i - 1] <= '9')) &&
-                          (txt[i + 1] == '\0' || txt[i + 1] == ' ' ||
-                           txt[i + 1] == '\n');
-        if (!stop) {
-            if (run + 1 < sizeof buf) buf[run++] = txt[i];
-            i++;
-            continue;
-        }
-        if (run) {
-            buf[run] = 0;
-            lv_span_t *sp = lv_spangroup_new_span(sg);
-            lv_span_set_text(sp, buf);
-            lv_style_set_text_color(lv_span_get_style(sp), WT_MUT);
-            run = 0;
-        }
-        // The stop takes the space after it. Left on the front of the next
-        // span, that space becomes the first character of a wrapped LINE and
-        // indents it -- which a plain label never does, because it collapses
-        // whitespace at the break. Carried on the stop it sits at the end of
-        // the line instead, where it costs nothing.
-        lv_span_t *dot = lv_spangroup_new_span(sg);
-        lv_span_set_text(dot, txt[i + 1] == ' ' ? ". " : ".");
-        lv_style_set_text_color(lv_span_get_style(dot), wt_accent());
-        i += txt[i + 1] == ' ' ? 2 : 1;
-    }
-    if (run) {
-        buf[run] = 0;
-        lv_span_t *sp = lv_spangroup_new_span(sg);
-        lv_span_set_text(sp, buf);
-        lv_style_set_text_color(lv_span_get_style(sp), WT_MUT);
-    }
-    lv_obj_add_flag(sg, WT_FLAG_ACCENT);
-    lv_spangroup_refresh(sg);
+// The same paragraph, with ONE term inside it lifted into the ink. The mono
+// face has no bold, so contrast is the only emphasis there is, and the term a
+// page exists to teach is the one thing on it worth that. It is a parameter
+// rather than a second function because the stop colouring has to run either
+// way -- the branch that highlighted a term used to be the branch with no
+// accent stops in it, which is how every [ ? ] page lost them.
+static lv_obj_t *body_spans_hi(lv_obj_t *par, const char *txt, int x, int y,
+                               const lv_font_t *f, int w, const char *hi)
+{
+    lv_obj_t *sg = spans_new(par, x, y, w);
+    lv_obj_set_style_text_font(sg, f, 0);
+    spans_fill(sg, txt, hi);
     return sg;
 }
 

@@ -468,7 +468,7 @@
   "R_ENLARGE": "TAP TO ENLARGE",
   "R_EXPL_SP": "one address you can hand out forever",
   "R_HANDED_ALREADY": "USED",
-  "R_HELP_BODY": "Every address here comes from your keys. Check one here before you trust it.",
+  "R_HELP_BODY": "Every address comes from your keys. Check one here before you trust it.",
   "R_HELP_F1C": "ONE EACH",
   "R_HELP_F1V": "a new one every payment",
   "R_HELP_F2C": "THE LAMP",
