@@ -2730,7 +2730,8 @@ static void det_term_cb(lv_event_t *e)
 {
     const int which = (int)(uintptr_t)lv_event_get_user_data(e);
     static char head[64];
-    const char *body = NULL, *icon = NULL;
+    static char term[64];
+    const char *body = NULL, *icon = NULL, *tterm = NULL;
     wpsbt_details_t det;
     const bool have = (kiss_psbt_details(&det) == 0);
 
@@ -2747,6 +2748,15 @@ static void det_term_cb(lv_event_t *e)
         // the id is the fact, whether it survives signing is the lesson.
         body = det.txid_final ? tr(STR_S_D_TXID_SAME) : tr(STR_S_D_TXID_CHANGES);
         snprintf(head, sizeof head, "%s", tr(STR_S_D_TXID));
+        // ...and the word an owner meets in their coordinator, on the
+        // TECHNICAL line every other definition here already carries. This
+        // card was the one without it, which is what made it a title and a
+        // paragraph of grey. It costs no key: the glossary's fourth line IS
+        // "TXID: the tracking ID after it is sent", and wt_split_colon takes
+        // the term off the front of it in whatever locale is rendering --
+        // the same lift the FEE RATE case below already makes.
+        gloss_line(3, term, sizeof term);
+        tterm = term;
         icon = GLOSS_ICONS[3];
         break;
     case DT_SIGHASH:
@@ -2765,10 +2775,12 @@ static void det_term_cb(lv_event_t *e)
         break;
     }
     wt_explain_t x = {
-        .title  = head,
-        .icon   = icon,
-        .body   = body ? body : "",
-        .ok_txt = tr(STR_C_OK),
+        .title      = head,
+        .icon       = icon,
+        .body       = body ? body : "",
+        .term       = tterm,
+        .term_label = tterm ? tr(STR_G_TECHNICAL) : NULL,
+        .ok_txt     = tr(STR_C_OK),
     };
     wt_explain_open(s_scr, &x);
 }

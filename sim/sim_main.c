@@ -1265,6 +1265,29 @@ static void must_show(const char *what, const char *needle) {
   g_walk_fails++;
 }
 
+// A needle on a PINNED label. A fact caption lives on a 214px lane under
+// LONG_DOT and a fact value on 438px, so in any locale whose word is longer
+// than English's the rendered text is a PREFIX of the string plus dots -- and
+// a whole-string needle fails on a screen that rendered perfectly. TEN
+// locales died on one of these: the firmware downgrade caption, which is
+// "GOING BACK" in English and "version en arrière" in French. A dead walk
+// then prints "clean" for every stop it never reached, so one needle took a
+// whole sweep with it.
+//
+// The head is what survives the dots. Whole-string needles stay the default;
+// this is for the labels the kit pins, and it says so at the call site.
+static void must_show_head(const char *what, const char *needle, int n) {
+  char head[64];
+  if (n <= 0 || n >= (int)sizeof head) n = (int)sizeof head - 1;
+  // Never split a UTF-8 sequence: a half codepoint matches nothing and would
+  // read as the very failure this helper exists to stop.
+  while (n > 0 && ((unsigned char)needle[n] & 0xC0) == 0x80) n--;
+  snprintf(head, sizeof head, "%.*s", n, needle);
+  if (!*head || find_label_text(lv_screen_active(), head)) return;
+  printf("FAIL: %s: no label on screen starts \"%s\"\n", what, head);
+  g_walk_fails++;
+}
+
 static void must_show_exact(const char *what, const char *needle) {
   if (find_label_exact(lv_screen_active(), needle)) return;
   printf("FAIL: %s: no label on screen equals \"%s\"\n", what, needle);
@@ -6294,7 +6317,10 @@ int main(void) {
     must_show("fw/older note", tr(STR_G_FW_DOWN_SHORT));
     tap_str(STR_G_FW_INSTALL, 3, FW_SETTLE);        // the confirm it warns on
     save("/tmp/sim_fw_confirm_down.ppm");           // both rules amber
-    must_show("fw/down claim", tr(STR_G_FW_DOWN_H));
+    // The HEAD of the caption: it sits on the fact row's 214px lane and is
+    // ellipsised in every locale with a longer word for it, which is a CUT
+    // finding and not a rendering fault.
+    must_show_head("fw/down claim", tr(STR_G_FW_DOWN_H), 8);
     sd_unlink("kiss-signer-0.0.1.bin");
 
     // 4b. already running. The one refusal that is not a fault: accent and a
