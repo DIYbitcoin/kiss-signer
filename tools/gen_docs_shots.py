@@ -136,11 +136,13 @@ SECTIONS = [
      "your addresses and build transactions. It never hands over anything "
      "that can spend.",
      [
-         ("04-keys-facts", "sim_winfo",
-          "KEYS answers which device you are holding: the fingerprint takes "
-          "the top third, big enough to check across a desk, and the facts "
-          "under it open their plain-words definitions in place. The [ ? ] "
-          "mark explains the page; COORDINATOR is the second tab."),
+         ("04-keys-facts", "sim_winfo_coord",
+          "KEYS is one page about one thing: how a coordinator comes to "
+          "watch these keys. PAIRING shows it the QR, SCAN KEY hands a "
+          "silent payments coordinator the key that finds payments without "
+          "being able to spend them, and FIRST ADDRESS is how you check the "
+          "pairing landed on the right keys. The [ ? ] mark explains the "
+          "page."),
          ("05-pair-sparrow", "sim_pair",
           "PAIR COORDINATOR with DESKTOP selected shows the descriptor "
           "Sparrow reads. Scan it with Sparrow's webcam, or export to SD. "

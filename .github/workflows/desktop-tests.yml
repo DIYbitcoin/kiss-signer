@@ -452,7 +452,13 @@ jobs:
       # Down here with the SD fixtures for the same reason they are: /tmp/kissapp
       # links kiss_seed.c and platform_sd.c and writes the same hardcoded host
       # paths, so it must not run before the screen walk.
+      # if: always(), because the step BELOW has it. Without it a failure
+      # anywhere earlier in this job skips the install and then runs the build
+      # that needs it, so the log's last word is "sdl2-config: command not
+      # found" -- a missing dependency, reported instead of the real failure
+      # twenty lines up. It cost the first read of exactly that log.
       - name: SDL2 for the interactive simulator
+        if: always()
         run: sudo apt-get update -qq && sudo apt-get install -y -qq libsdl2-dev
 
       - name: interactive simulator builds and boots
