@@ -1937,6 +1937,11 @@ static void seedwords_help_cb(lv_event_t *e)
         // the title where the reader's eye already is.
         .sub    = tr(STR_W_WHATSEED_S),
         .body   = tr(STR_W_WHATSEED_B),
+        // The real term, on the card that defines the plain one. T_SEED_TERM
+        // already ships in 21 locales beside every other term card, so the
+        // line this overlay was missing costs no key.
+        .term   = tr(STR_T_SEED_TERM),
+        .term_label = tr(STR_G_TECHNICAL),
         .ok_txt = tr(STR_C_OK),
         .mode   = WT_BODY_PROSE,
     };

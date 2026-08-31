@@ -1019,7 +1019,6 @@ static const char *OC_VOID_BACKLOG[] = {
     // the term takeovers -- Part 4 deletes these
     "sim_sign_term_sighash",
     "sim_sign_merge_why",
-    "sim_settings_whatseed",
     // one thing, said loudly, with the room to mean it
     "sim_amnesic_qrbad",
     "sim_duress_pick",

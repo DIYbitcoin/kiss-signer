@@ -5889,6 +5889,77 @@ lv_obj_t *wt_term_line(lv_obj_t *par, const char *label, const char *term,
 // fact rows now. What is left is the MEASURING, which was always the valuable
 // half: pick the largest rung the copy fits at, and report when even the floor
 // will not hold it.
+// A paragraph as spans, with the full stop of each sentence in the accent.
+//
+// The accent stop marks where one thought ends and the next begins, so a two
+// sentence body is scannable before it is read. Three other treatments were
+// tried and this is the one that shipped: splitting the body by WEIGHT --
+// answer in ink, qualifier in grey -- looks tidy and teaches the wrong thing,
+// because the qualifier is usually the half carrying the risk ("Miners keep
+// it.", "It cannot spend them.", "Left empty, it opens the decoy."). Dimming
+// that says skip this. One ink for both, and the punctuation does the
+// structural work.
+//
+// A FULL STOP, not every dot. A '.' only counts when a letter or digit sits
+// before it and a space or the end of the string sits after, so a version
+// number or a decimal keeps its own colour.
+//
+// WT_FLAG_ACCENT on each stop, so wt_accent_restyle repaints them with every
+// other accent when the theme changes -- the flag exists because a list of
+// accent-bearing objects built by shared helpers is a list that goes stale.
+static lv_obj_t *body_spans(lv_obj_t *par, const char *txt, int x, int y,
+                            const lv_font_t *f, int w)
+{
+    lv_obj_t *sg = lv_spangroup_create(par);
+    lv_obj_remove_style_all(sg);
+    lv_obj_set_pos(sg, x, y);
+    lv_obj_set_width(sg, w);
+    lv_obj_set_height(sg, LV_SIZE_CONTENT);
+    lv_obj_set_style_text_font(sg, f, 0);
+    lv_spangroup_set_mode(sg, LV_SPAN_MODE_BREAK);
+
+    size_t i = 0, run = 0;
+    char buf[640];
+    while (txt[i]) {
+        const bool stop = txt[i] == '.' && i > 0 &&
+                          ((txt[i - 1] >= 'a' && txt[i - 1] <= 'z') ||
+                           (txt[i - 1] >= 'A' && txt[i - 1] <= 'Z') ||
+                           (txt[i - 1] >= '0' && txt[i - 1] <= '9')) &&
+                          (txt[i + 1] == '\0' || txt[i + 1] == ' ' ||
+                           txt[i + 1] == '\n');
+        if (!stop) {
+            if (run + 1 < sizeof buf) buf[run++] = txt[i];
+            i++;
+            continue;
+        }
+        if (run) {
+            buf[run] = 0;
+            lv_span_t *sp = lv_spangroup_new_span(sg);
+            lv_span_set_text(sp, buf);
+            lv_style_set_text_color(lv_span_get_style(sp), WT_MUT);
+            run = 0;
+        }
+        // The stop takes the space after it. Left on the front of the next
+        // span, that space becomes the first character of a wrapped LINE and
+        // indents it -- which a plain label never does, because it collapses
+        // whitespace at the break. Carried on the stop it sits at the end of
+        // the line instead, where it costs nothing.
+        lv_span_t *dot = lv_spangroup_new_span(sg);
+        lv_span_set_text(dot, txt[i + 1] == ' ' ? ". " : ".");
+        lv_style_set_text_color(lv_span_get_style(dot), wt_accent());
+        i += txt[i + 1] == ' ' ? 2 : 1;
+    }
+    if (run) {
+        buf[run] = 0;
+        lv_span_t *sp = lv_spangroup_new_span(sg);
+        lv_span_set_text(sp, buf);
+        lv_style_set_text_color(lv_span_get_style(sp), WT_MUT);
+    }
+    lv_obj_add_flag(sg, WT_FLAG_ACCENT);
+    lv_spangroup_refresh(sg);
+    return sg;
+}
+
 static void body_to(lv_obj_t *par, const char *body, int y, int bottom)
 {
     if (!par || !body || !*body) return;
@@ -5964,9 +6035,7 @@ exp_paras_t ps;
     for (int i = 0; i < ps.count; i++) {
         char one[640];
         exp_join(&ps, i, i + 1, one, sizeof one);
-        lv_obj_t *p = wt_lbl(par, one, 48, py, f, WT_MUT);
-        lv_obj_set_width(p, EXP_FULL_TXT);
-        lv_label_set_long_mode(p, LV_LABEL_LONG_WRAP);
+        lv_obj_t *p = body_spans(par, one, 48, py, f, EXP_FULL_TXT);
         wt_widow_measure(one, f, EXP_FULL_TXT);
         lv_obj_update_layout(p);
         py += lv_obj_get_height(p) + gap;
