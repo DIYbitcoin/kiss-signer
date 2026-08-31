@@ -6292,11 +6292,17 @@ lv_obj_t *wt_state_chip(lv_obj_t *par, const char *txt, lv_color_t col)
     lv_label_set_recolor(c, true);
     lv_obj_set_style_text_font(c, wt_font14(), 0);
     lv_obj_set_style_text_letter_space(c, 1, 0);
-    lv_obj_set_style_radius(c, 100, 0);
-    lv_obj_set_style_border_width(c, 1, 0);
-    lv_obj_set_style_pad_hor(c, 12, 0);
+    // NO RIM. A rounded outline around a word is the pill this device does
+    // not draw any more -- the sign pill, the settings pill, the header pills
+    // and the auto-lock banner all went, and this was the last shape still
+    // wearing one, on every screen at once because it is the kit's.
+    // The state is carried by the tint and the ink, which is what the flat
+    // chrome does everywhere else.
+    lv_obj_set_style_radius(c, 4, 0);
+    lv_obj_set_style_border_width(c, 0, 0);
+    lv_obj_set_style_pad_hor(c, 10, 0);
     lv_obj_set_style_pad_ver(c, 5, 0);
-    lv_obj_set_style_bg_opa(c, 13, 0);        // ~5 percent
+    lv_obj_set_style_bg_opa(c, 36, 0);        // ~14 percent: the rim's job now
     lv_obj_remove_flag(c, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_remove_flag(c, LV_OBJ_FLAG_SCROLLABLE);
     // Declared font14 for the whole widget: a state chip is a BADGE, which is

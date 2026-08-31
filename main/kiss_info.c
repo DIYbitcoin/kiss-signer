@@ -488,9 +488,12 @@ static void pair_screen(void)
                                wt_ink_for(WT_WARN));
         lv_obj_set_style_bg_color(net, lv_color_hex(0x2A2113), 0);
         lv_obj_set_style_bg_opa(net, LV_OPA_COVER, 0);
-        lv_obj_set_style_border_color(net, wt_ink_for(WT_WARN), 0);
-        lv_obj_set_style_border_width(net, 1, 0);
-        lv_obj_set_style_radius(net, 10, 0);
+        // Flat, like wt_state_chip: the tint and the ink carry the state and
+        // no outline is drawn round the word. This badge was rolled by hand
+        // rather than taken from the kit, which is why it kept the rim after
+        // the kit lost it.
+        lv_obj_set_style_border_width(net, 0, 0);
+        lv_obj_set_style_radius(net, 4, 0);
         lv_obj_set_style_pad_hor(net, 8, 0);
         lv_obj_set_style_pad_ver(net, 3, 0);
         lv_obj_set_style_text_letter_space(net, 1, 0);

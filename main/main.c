@@ -3680,7 +3680,7 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   lv_obj_set_style_bg_opa(s_saver_hint, 110, 0);            // subtle dark backing so it reads on any backdrop
   lv_obj_set_style_pad_hor(s_saver_hint, 24, 0);
   lv_obj_set_style_pad_ver(s_saver_hint, 11, 0);
-  lv_obj_set_style_radius(s_saver_hint, 20, 0);
+  lv_obj_set_style_radius(s_saver_hint, 4, 0);   // a bubble is a pill too
   lv_obj_align(s_saver_hint, LV_ALIGN_BOTTOM_MID, 0, -64);
   lv_obj_add_flag(s_saver_hint, LV_OBJ_FLAG_HIDDEN);
   // The pulse starts with the saver and dies with it (saver_hint_pulse /
