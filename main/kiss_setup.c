@@ -3471,8 +3471,30 @@ static void choose_screen(void)
         lv_obj_add_flag(hc, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_add_event_cb(hc, whatseed_cb, LV_EVENT_CLICKED, NULL);
     }
-    wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, WT_BACK_X,
-                    WT_ACTION_Y, 140, true, cancel_cb, NULL);
+    // DECIDED: the FIRST screen of setup has no CANCEL on a signer with no
+    // keys, because there is nothing to cancel to. This is the one place the
+    // "no screen without an exit" rule is deliberately not applied, and the
+    // rule's own case says why: it was written for the WORDS screen, where an
+    // owner mid flow could only go forward or pull the power. Here the two
+    // choices ARE the way on, and the language picker is in the corner.
+    //
+    // What CANCEL did instead was strand people. It closed the wizard onto the
+    // fruit game, and the only route back into a keyless signer is the KISS
+    // draw -- printed on a card in the packaging and nowhere on the glass. So
+    // an owner who backed out of setup, or drew the gesture before knowing
+    // what it opened, was holding a signing device that had become a game.
+    //
+    // The obvious fix is the one that must NOT be built: a way in on the cover
+    // itself. kiss_seed_exists() is false on an AMNESIC signer with no session
+    // loaded and on an SD signer with its card out, so a cover that offers
+    // setup whenever there are no keys wears a signer's name permanently on
+    // the two modes that need the cover most. That is the decoy, gone.
+    //
+    // With keys, CANCEL stays exactly as it was: the wizard is reached from
+    // Settings then, there is a device behind it, and going back is correct.
+    if (kiss_seed_exists())
+        wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, WT_BACK_X,
+                        WT_ACTION_Y, 140, true, cancel_cb, NULL);
 
     // first boot happens BEFORE Settings is reachable: a fresh device must not
     // trap its owner in English, so the language picker lives here too
@@ -3850,6 +3872,15 @@ void kiss_setup_open_sd_missing(lv_obj_t *parent, int reason,
     wipe_state();
     sd_problem_screen(reason);
 }
+
+#ifdef SIMULATOR
+// Test seam, simulator only. The first screen of setup on a keyless signer has
+// no CANCEL on purpose -- there is nothing to cancel to -- so the walk that
+// proves that has no way to dismiss it afterwards. Every other close on this
+// screen is a control the owner presses, and the whole point of the stop is
+// that one of them is gone.
+void kiss_setup_close_for_test(void) { close_all(); }
+#endif
 
 void kiss_setup_open(lv_obj_t *parent, void (*done_cb)(void))
 {

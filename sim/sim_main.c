@@ -5962,35 +5962,56 @@ int main(void) {
   tap_str(STR_C_OK, 3, 130);   // OK -> menu
   save("/tmp/sim_wiped_menu.ppm");                  // must be the game MENU
 
-  // ---- CANCEL out of the wizard must not start a round of Fruit Island ----
+  // ---- the trap: backing out of setup on a signer with no keys ----
   //
   // Here because this is the only place in the walk where the device is
-  // genuinely keyless AND showing the cover, which is the state a signer
-  // ships in and the state nothing had ever asked a question about. Every
-  // scripted walk enters the signer by calling draw_cover(), so the walk can
-  // never be the one that backs out again.
+  // genuinely keyless, which is the state a signer ships in and the state
+  // nothing had ever asked a question about. Every scripted walk enters the
+  // signer by calling draw_cover(), so the walk can never be the one that
+  // gets lost.
   //
-  // The fault: the release that deletes the wizard was read by the game's own
-  // sampler as a tap on the menu, so leaving setup STARTED PLAYING. The menu
-  // is baked artwork with no label in it, so a photograph cannot tell the two
-  // apart and no needle can either -- which is why this asks the game for its
-  // own state instead.
+  // TWO HALVES, and the second is what stops the fix being a decoy leak.
+  //
+  // Keyless, the first screen of setup must NOT offer CANCEL: there is nothing
+  // to cancel to. It used to, and it closed the wizard onto the fruit game,
+  // whose only route back into a keyless signer is a gesture printed on a card
+  // in the packaging. The two choices on that screen are the way on.
+  //
+  // With keys, CANCEL must be there and must land on the cover MENU rather
+  // than in a ROUND -- the release that deletes the wizard was read by the
+  // game's own sampler as a tap on the menu, so leaving setup started playing.
+  // The menu is baked artwork with no label in it, so a photograph cannot tell
+  // the two apart and no needle can either; this asks the game its own state.
   {
     extern int kiss_game_state_for_test(void);   // main.c
-    const int ST_MENU_ = 0, ST_PLAY_ = 1;
-    (void)ST_PLAY_;
+    const int ST_MENU_ = 0;
+
     kiss_begin_setup(); pump(20);
-    must_show("fresh-boot/wizard opens", tr(STR_W_SETUP_T));
+    must_show("trap/keyless setup opens", tr(STR_W_SETUP_T));
+    must_not_show("trap/keyless setup offers no CANCEL", tr(STR_C_CANCEL));
+    save("/tmp/sim_setup_keyless.ppm");          // two choices, no way to strand
+    extern void kiss_setup_close_for_test(void);   // kiss_setup.c
+    kiss_setup_close_for_test();
+    pump(10);
+
+    // ...and the same screen on a signer that HAS keys, where the wizard is
+    // the Settings door and going back is correct.
+    kiss_seed_store("abandon abandon abandon abandon abandon abandon "
+                    "abandon abandon abandon abandon abandon about");
+    kiss_begin_setup(); pump(20);
+    must_show("trap/keyed setup offers CANCEL", tr(STR_C_CANCEL));
     tap_str(STR_C_CANCEL, 3, 30);
     if (kiss_setup_active()) {
-      printf("FAIL: fresh-boot: CANCEL did not leave the wizard\n");
+      printf("FAIL: trap: CANCEL did not leave the wizard\n");
       g_walk_fails++;
     }
     if (kiss_game_state_for_test() != ST_MENU_) {
-      printf("FAIL: fresh-boot: CANCEL started the game instead of landing on the cover\n");
+      printf("FAIL: trap: CANCEL started the game instead of landing on the cover\n");
       g_walk_fails++;
     }
     save("/tmp/sim_cover_after_cancel.ppm");     // the cover MENU, not a round
+    kiss_seed_wipe();
+    pump(4);
   }
 
   // step 10: AMNESIC mode — nothing is stored, so the KISS gesture lands on
