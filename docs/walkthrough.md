@@ -66,7 +66,7 @@ Pairing hands Sparrow a watch-only map of your keys so it can find your addresse
 
 ![KISS screen: keys facts](shots/04-keys-facts.png)
 
-KEYS answers which device you are holding: the fingerprint takes the top third, big enough to check across a desk, and the facts under it open their plain-words definitions in place. The [ ? ] mark explains the page; COORDINATOR is the second tab.
+KEYS is one page about one thing: how a coordinator comes to watch these keys. PAIRING shows it the QR, SCAN KEY hands a silent payments coordinator the key that finds payments without being able to spend them, and FIRST ADDRESS is how you check the pairing landed on the right keys. The [ ? ] mark explains the page.
 
 ![KISS screen: pair sparrow](shots/05-pair-sparrow.png)
 

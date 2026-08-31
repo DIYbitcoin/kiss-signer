@@ -50,7 +50,7 @@ GREEN accent, English, mainnet. ADDENDUM-02's axis, the one MONO hides because M
 
 ![green, 04 keys facts](green/04-keys-facts.png)
 
-`sim_winfo`
+`sim_winfo_coord`
 
 ![green, 05 pair sparrow](green/05-pair-sparrow.png)
 
@@ -146,7 +146,7 @@ The test networks, MONO, English. The walk already captures these near the end a
 
 ![testnet, 04 keys facts](testnet/04-keys-facts.png)
 
-`sim_winfo`
+`sim_winfo_coord`
 
 ![testnet, 05 pair sparrow](testnet/05-pair-sparrow.png)
 
