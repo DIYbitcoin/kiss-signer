@@ -200,7 +200,7 @@
   "G_TECHNICAL": "TECHNICAL",
   "G_TESTNET_NOTE": "not real bitcoin",
   "G_TEST_CHIP": "TEST NETWORK",
-  "G_TOUCH_DEAD": "touch not responding. unplug, then plug back in.",
+  "G_TOUCH_DEAD": "touch not responding. unplug, plug back in.",
   "G_TRAIL_SETUP": "SETUP",
   "G_WIPEC_B": "the seed words leave this device.\n\nyour paper + passphrase bring them back.",
   "G_WIPEC_T": "ERASE THESE SEED WORDS?",

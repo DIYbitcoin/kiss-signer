@@ -78,6 +78,7 @@ typedef struct {
     lv_obj_t *obj;
     lv_area_t vis;        // coords after every clipping ancestor has had its say
     lv_area_t nat;        // where it asked to be, before any of them
+    bool cutx;            // ...and lost its left or right edge to it
     int       lh;         // line height of its font, 0 when it is not text
     bool      is_label;
     bool      wraps;
@@ -259,6 +260,25 @@ static void oc_collect(lv_obj_t *o, lv_area_t clip, bool clip_scrolls)
     // the reader can bring the rest into view. Losing it to one that does not
     // is text nobody can ever read.
     n->cut       = is_label && coords.y2 > vis.y2 && !clip_scrolls;
+    // The same question sideways, and the one that was never asked. `cut` has
+    // only ever compared y, so a label WIDER than the box holding it was
+    // invisible to every check in this file. The auto-lock banner sat in a
+    // 420px box with the English string measuring 420px at font23 and shipped
+    // reading "ocking soon. tap to stay open" -- clipped at both ends, on a
+    // stop the walk photographs, with every gate green.
+    //
+    // SCROLL and SCROLL_CIRCULAR are the legitimate case: a label that moves
+    // to show the rest is not a label with a missing half. DOT is not exempt
+    // here because it never clips -- it rewrites its own text, which is what
+    // CUT reports.
+    {
+        const lv_label_long_mode_t lm = is_label ? lv_label_get_long_mode(o)
+                                                 : LV_LABEL_LONG_MODE_WRAP;
+        const bool marquee = lm == LV_LABEL_LONG_MODE_SCROLL
+                          || lm == LV_LABEL_LONG_MODE_SCROLL_CIRCULAR;
+        n->cutx = is_label && !marquee && !clip_scrolls
+               && (coords.x1 < vis.x1 || coords.x2 > vis.x2);
+    }
     n->parent    = lv_obj_get_parent(o);
 
     // Children are clipped to this object unless it says otherwise. This is why
@@ -535,6 +555,22 @@ static void oc_check_clipped(const char *tag)
                  "CLIPPED  \"%s\" asks for y %d..%d, cut off at %d, %d px unreadable",
                  t, (int)n->nat.y1, (int)n->nat.y2, (int)n->vis.y2,
                  (int)(n->nat.y2 - n->vis.y2));
+        oc_report_one(tag, sig, detail);
+    }
+
+    for (int i = 0; i < s_n; i++) {
+        oc_node_t *n = &s_node[i];
+        if (!n->is_label || n->buried || !n->cutx) continue;
+
+        oc_text(n->obj, t, sizeof t);
+        snprintf(sig, sizeof sig, "CLIPX|%s", t);
+        snprintf(detail, sizeof detail,
+                 "CLIPX    \"%s\" asks for x %d..%d, visible only %d..%d, "
+                 "%d px cut off the side -- the box is sized to a number and "
+                 "the string is wider than it",
+                 t, (int)n->nat.x1, (int)n->nat.x2,
+                 (int)n->vis.x1, (int)n->vis.x2,
+                 (int)((n->vis.x1 - n->nat.x1) + (n->nat.x2 - n->vis.x2)));
         oc_report_one(tag, sig, detail);
     }
 }
@@ -1747,6 +1783,38 @@ static int oc_selftest_tiny(const char *name, const char *txt, bool declare,
     return got == want_finding ? 0 : 1;
 }
 
+// CLIPX fires on a shape the product no longer contains, the standing WALL,
+// CUT and TINY have. Two cases, because this check has two ways to be wrong: a
+// label wider than the box holding it must report, and one that fits must not.
+// The first is the auto-lock banner exactly as it shipped -- a 420px box with
+// a centred label the English string overflows at both ends.
+static int oc_selftest_clipx(const char *name, const char *txt,
+                             int box_w, bool want_finding)
+{
+    lv_obj_t *scr = wt_screen(NULL, "SELFTEST", NULL);
+    lv_screen_load(scr);
+    lv_obj_t *box = lv_obj_create(scr);
+    lv_obj_remove_style_all(box);
+    lv_obj_set_size(box, box_w, 56);
+    lv_obj_set_pos(box, (800 - box_w) / 2, 8);
+    lv_obj_remove_flag(box, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_t *l = wt_lbl(box, txt, 0, 0, wt_font23(), WT_WARN);
+    lv_obj_center(l);
+    lv_refr_now(NULL);
+
+    s_n = 0; s_findings = 0; s_seen_n = 0;
+    lv_area_t full = { 0, 0, LV_HOR_RES - 1, LV_VER_RES - 1 };
+    oc_collect(scr, full, false);
+    oc_mark_buried();
+    oc_check_clipped("selftest");
+
+    bool got = s_findings > 0;
+    printf("  %-46s %s (%d finding%s)\n", name,
+           got == want_finding ? "ok" : "FAILED", s_findings,
+           s_findings == 1 ? "" : "s");
+    return got == want_finding ? 0 : 1;
+}
+
 // AMBER fires on a shape the product no longer contains. Two cases: a word in
 // WT_WARN must report, and a lone caution GLYPH in WT_WARN must not -- the
 // glyph is exactly what the rule keeps amber, so a check that reported both
@@ -1855,6 +1923,16 @@ int oc_selftest(void)
                               wt_font23(), false);
     if (bad != was) printf("LADDER self test: %d case(s) wrong\n", bad - was);
     else            printf("LADDER self test: 2 cases, all as expected\n");
+    printf("\n");
+
+    was = bad;
+    printf("CLIPX check self test\n");
+    bad += oc_selftest_clipx("the auto-lock banner as it shipped, fires",
+                             "locking soon. tap to stay open.", 420, true);
+    bad += oc_selftest_clipx("the same words in a box that holds them, clear",
+                             "locking soon. tap to stay open.", 780, false);
+    if (bad != was) printf("CLIPX self test: %d case(s) wrong\n", bad - was);
+    else            printf("CLIPX self test: 2 cases, all as expected\n");
     printf("\n");
 
     was = bad;
@@ -2076,6 +2154,34 @@ static void oc_check_layer(const char *tag)
     oc_layer_walk(lv_layer_sys(), tag, "lv_layer_sys", 0);
 }
 
+// LAYER exempts the deliberate full screen overlay, and that exemption used to
+// cover everything INSIDE it as well -- so the auto-lock banner, the one thing
+// the top layer legitimately holds, was the one thing no check in this file
+// ever read. It shipped clipped at both ends for the life of the feature.
+//
+// The exemption stays: an overlay covering the glass is what the layer is for,
+// and running TEXT or CONTENT across it would report the covering itself. What
+// runs is the clip pair, against the overlay's own tree, which is exactly the
+// question an overlay can get wrong.
+static void oc_check_overlay(const char *tag)
+{
+    lv_obj_t *top = lv_layer_top();
+    const lv_area_t full = { 0, 0, LV_HOR_RES - 1, LV_VER_RES - 1 };
+
+    for (uint32_t i = 0; i < lv_obj_get_child_count(top); i++) {
+        lv_obj_t *o = lv_obj_get_child(top, i);
+        if (!oc_visible(o)) continue;
+        lv_area_t c;
+        lv_obj_get_coords(o, &c);
+        if (c.x1 > 0 || c.y1 > 0 ||
+            area_w(&c) < LV_HOR_RES || area_h(&c) < LV_VER_RES) continue;
+        s_n = 0;
+        oc_collect(o, full, false);
+        oc_check_clipped(tag);
+        s_n = 0;
+    }
+}
+
 // ---------------------------------------------------------------- entry points
 
 void oc_check(const char *tag);
@@ -2131,6 +2237,9 @@ void oc_check(const char *tag)
     oc_check_amber(tag);
     oc_check_ragged(tag);
     oc_check_layer(tag);
+    // LAST: it rebuilds the node set against the overlay's tree, so anything
+    // reading the screen's set has to have read it already.
+    oc_check_overlay(tag);
 }
 
 int oc_report(void)
