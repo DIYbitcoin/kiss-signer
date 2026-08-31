@@ -33,6 +33,7 @@ nothing unless a dead rule would have been caught.
 import json
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -234,6 +235,50 @@ RULES = [
 ]
 
 
+# Rules that apply to NAMES as well as to sentences. A name is not a string
+# an owner reads, so most of the copy rules have nothing to say about one --
+# but the vocabulary rules do, because a name is where the next string comes
+# from. docs/readme/wallet.png was the picture at the top of README.md for
+# months, and the walk called the same frame sim_wallet in six save() calls,
+# which is where the filename came from. The sweep that renamed the screen to
+# signer-home could not see either: this gate read i18n/en.json and nothing
+# else, so a filename was never a string and a save() literal never was.
+NAME_RULES = ["WALLET"]
+
+# Names that keep the word on purpose, same contract as a rule's ALLOW.
+NAME_ALLOW = {}
+
+
+def names():
+    """(label, name) for every tracked path and every walk frame."""
+    out = []
+    ls = subprocess.run(["git", "-C", str(ROOT), "ls-files"],
+                        capture_output=True, text=True)
+    if ls.returncode == 0:
+        for p in ls.stdout.split():
+            out.append(("path", p))
+    sim = ROOT / "sim" / "sim_main.c"
+    if sim.exists():
+        for frame in re.findall(r'save\("([^"]+)"\)',
+                                sim.read_text(encoding="utf-8")):
+            out.append(("frame", frame))
+    return out
+
+
+def scan_names():
+    """[(rule, label, name)] for every name a vocabulary rule fires on."""
+    rules = [r for r in RULES if r.name in NAME_RULES]
+    found = []
+    for label, name in names():
+        # A path is read a segment at a time, so the separators are word
+        # breaks: wallet-home.png and docs/wallet/ both have to hit.
+        probe = re.sub(r"[/_.-]", " ", name)
+        for rule in rules:
+            if rule.search(probe) and name not in NAME_ALLOW:
+                found.append((rule, label, name))
+    return found
+
+
 def scan(strings):
     """[(rule, key, text)] for every fresh finding, plus stale backlog keys."""
     found, stale = [], []
@@ -269,6 +314,21 @@ def selftest():
             print(f"SELFTEST: {rule.name} fires on the FIXED string "
                   f"{rule.clean!r}", file=sys.stderr)
             bad += 1
+    # The name scan is its own half and fails its own way: it reads paths
+    # rather than sentences, so a rule that works on prose can still miss a
+    # filename, where the word arrives between a slash and a dash.
+    probe = re.sub(r"[/_.-]", " ", "docs/media/wallet-home.png")
+    fixed = re.sub(r"[/_.-]", " ", "docs/media/signer-home.png")
+    wallet = next((r for r in RULES if r.name == "WALLET"), None)
+    if not wallet or not wallet.search(probe):
+        print("SELFTEST: the name scan no longer fires on "
+              "docs/media/wallet-home.png", file=sys.stderr)
+        bad += 1
+    elif wallet.search(fixed):
+        print("SELFTEST: the name scan fires on the FIXED name "
+              "docs/media/signer-home.png", file=sys.stderr)
+        bad += 1
+
     print(f"vocabulary selftest: {len(RULES)} rules, {bad} broken")
     return 1 if bad else 0
 
@@ -283,8 +343,13 @@ def main():
 
     strings = json.loads(EN.read_text(encoding="utf-8"))
     found, stale = scan(strings)
+    named = scan_names()
 
     backlogged = sum(len(r.backlog) for r in RULES)
+    for rule, label, name in named:
+        print(f"ERROR: {rule.name} {label} {name}\n"
+              f"    -> {rule.instead}\n"
+              f"       {rule.why}", file=sys.stderr)
     for rule, key, text in found:
         print(f"ERROR: {rule.name} {key}: {text[:72]!r}\n"
               f"    -> {rule.instead}\n"
@@ -295,7 +360,8 @@ def main():
 
     print(f"vocabulary: {len(strings)} strings, {len(found)} new, "
           f"{backlogged} backlogged, {len(stale)} backlog entries to retire")
-    return 1 if found else 0
+    print(f"vocabulary: {len(names())} names checked, {len(named)} bad")
+    return 1 if (found or named) else 0
 
 
 if __name__ == "__main__":

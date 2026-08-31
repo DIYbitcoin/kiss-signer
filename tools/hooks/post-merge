@@ -1,0 +1,18 @@
+#!/bin/sh
+# Sweep the worktrees that the merge just finished with.
+#
+# A second checkout is one command to make and nothing removes it: kiss-signer-b
+# sat beside the repo for two days after its branch landed in develop, clean,
+# fully merged, carrying its own build-docker/. The moment that becomes true is
+# a merge, which is why this hangs here.
+#
+# It cannot hold anything up and it cannot refuse anything -- the one argument
+# that retired the old pre-push hook. tools/worktree_gc.sh removes only a
+# worktree that is not this one, not the main checkout, untouched for an hour,
+# clean, and whose branch is an ancestor of develop or main. Anything else it
+# leaves, and `git worktree remove` refuses on its own besides.
+#
+# Backgrounded and silent: a merge in GitHub Desktop has nowhere to print.
+[ -x "$(git rev-parse --show-toplevel)/tools/worktree_gc.sh" ] || exit 0
+(cd "$(git rev-parse --show-toplevel)" && sh tools/worktree_gc.sh >/dev/null 2>&1 &)
+exit 0

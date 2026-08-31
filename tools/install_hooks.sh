@@ -5,7 +5,7 @@
 # after cloning. See the Attribution section of CLAUDE.md for what the commit-msg
 # hook removes and why a written rule was not enough on its own.
 #
-# ONE HOOK, and it is the one that cannot be caught later. A co-author trailer
+# ONE GATE, and it is the one that cannot be caught later. A co-author trailer
 # that reaches GitHub is permanent -- refs/pull/*/head is written by GitHub and
 # never rewritten -- so the only lane that matters is the one before the commit
 # is written. Everything else CI can say four minutes afterwards.
@@ -17,11 +17,17 @@
 # nowhere to print why. Run the gates while you are working, which is where
 # they are useful; read the CI result before calling something done, which is
 # the habit the hook was standing in for.
+#
+# post-merge is the second file here and it is not a gate at all -- it refuses
+# nothing, prints nothing and holds nothing up. It sweeps the worktrees a merge
+# just finished with, because that is the moment they become finished and
+# nothing in git notices. See tools/hooks/post-merge for what it will and will
+# not remove.
 set -e
 cd "$(dirname "$0")/.."
 DEST=$(git rev-parse --git-path hooks)
 mkdir -p "$DEST"
-for h in commit-msg; do
+for h in commit-msg post-merge; do
     cp "tools/hooks/$h" "$DEST/$h"
     chmod +x "$DEST/$h"
     echo "installed: $DEST/$h"
