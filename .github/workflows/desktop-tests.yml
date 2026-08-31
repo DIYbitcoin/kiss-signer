@@ -39,6 +39,9 @@ jobs:
       - name: no new unreferenced i18n keys
         run: python3 tools/check_i18n_orphans.py
 
+      - name: the words on screen match the glossary
+        run: python3 tools/check_vocab.py
+
       - name: crypto tests (BIP39 vector + PSBT suite)
         run: |
           bash sim/build_test.sh

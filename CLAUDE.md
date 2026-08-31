@@ -173,6 +173,33 @@ Recovery words + passphrase → **keys**; the fingerprint is what those keys are
 sees. A sentence like "an empty wallet on a signer" is describing two different
 things and needs rewriting.
 
+### The thing has a name. Write the name.
+
+**"seed words".** Not "your words", not "the words", not "paper words". The
+glossary already said so — *bare "words", used as if it named the thing,
+reads as a house term and has to be unlearned the first time an owner opens
+anything else* — and the LOCKED BACKUP explainer was written **"A locked copy
+of your words"**, corrected to **"Keep your paper words too"**, and only
+reached "seed words" after the owner asked for it twice, shouting the second
+time. Two invented terms in a row, on the screen where an owner decides
+whether a second copy of their seed words gets made.
+
+The failure is not carelessness about one word, it is a habit: reaching for a
+shorter phrase because the line has to fit. **When the name does not fit, cut
+another word, never the name.** "Keep your seed words on paper too" did not
+fit in two lines; "Seed words still go on paper" does, and says the same
+thing. The name was never the part to give up.
+
+So `tools/check_vocab.py` now reads `i18n/en.json` and fails on it, wired into
+`desktop-tests.yml` beside the orphan check. Four rules — BARE-WORDS,
+COINED-WORDS (any modifier bolted onto `words`), BARE-SEED, WALLET — each with
+the ALLOW list of uses that are correct and why (Sparrow's own menu path, the
+sender's wallet), and a shrink-only BACKLOG holding the six strings GLOSSARY.md
+already lists as unconverted. `VOCAB_SELFTEST=1` asserts every rule still fires
+on the string it was written for AND stays quiet on the string that fixed it,
+and the gate refuses to report at all if a rule is dead. Both strings above
+fail it.
+
 Same rule for everything else on screen: storage is **storage**, not "where
 your words live". If a mainstream signer has a word for it, use that word.
 
@@ -225,6 +252,7 @@ bash sim/build_osdcheck.sh && SIM_LANG=en /tmp/kissosd     # on-video overlay te
 bash sim/build_sim.sh && OVERLAPCHECK_LANGS=en bash sim/run_overlapcheck.sh   # screen walk
 python3 tools/check_screen_coverage.py             # screens no gate sees
 python3 tools/check_i18n_orphans.py                # keys nothing references
+python3 tools/check_vocab.py                       # the words on screen vs the glossary
 python3 tools/check_layout_reads.py                # a measurement taken before a layout
 python3 tools/check_sim_fresh.py                   # the published wasm vs the tree
 
