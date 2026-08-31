@@ -22,6 +22,7 @@
 #include "wally_crypto.h"
 
 #include "kiss_crypto.h"   // fingerprint id; jitter + trng gate for the IV
+#include "kiss_pbkdf2.h"   // the key derivation, on the chip's SHA engine
 
 #ifdef ESP_PLATFORM
 #include "esp_random.h"
@@ -207,9 +208,11 @@ static int derive_key(const char *password, size_t pass_len,
     // not be NULL for libwally.
     static const uint8_t none;
     if (!id) id = &none;
-    return wally_pbkdf2_hmac_sha256((const uint8_t *)password, pass_len,
-                                    id, id_len, 0, iters,
-                                    key, 32) == WALLY_OK ? 0 : -1;
+    // On the device this is 200,000 SHA-256 compressions on the accelerator
+    // instead of in portable C, and it is the whole cost of opening or making
+    // a locked backup. See kiss_pbkdf2.h.
+    return kiss_pbkdf2_sha256((const uint8_t *)password, pass_len,
+                              id, id_len, iters, key);
 }
 
 // ---- the two envelope operations ---------------------------------------
