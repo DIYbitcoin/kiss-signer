@@ -923,7 +923,12 @@ static void words_gate_screen(void)
     wt_gate_t g = {
         .mark     = LV_SYMBOL_EYE_OPEN,
         .sentence = tr(STR_W_SHOW_SENT),
-        .para     = tr(STR_I_WORDS_S),
+        // NO PARAGRAPH. "Your seed words appear on this screen." says what is
+        // about to happen and the two facts below say what it costs and what
+        // it does not; there was nothing left for a third line to add, so it
+        // was carrying the COPYING instruction from the setup grid -- an
+        // answer to a question this screen does not ask.
+        .para     = NULL,
         .surv = tr(STR_W_SHOW_SURV),
         .goes = tr(STR_W_SHOW_GOES),
         .stop     = false,

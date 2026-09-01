@@ -900,6 +900,7 @@ enum {
     STR_W_WRITE_S,
     STR_W_WRITE_T,
     STR_W_WROTE,
+    STR_W_VOK_B_NP,
     STR_N
 };
 

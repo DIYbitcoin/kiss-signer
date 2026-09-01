@@ -469,11 +469,25 @@ static void verify_finish(void)
 static void verify_ok_screen(void)
 {
     {
-        // FULL BACKUP VERIFIED when the passphrase leg ran and matched: the
-        // title is the claim, and the subtitle that used to disclaim the
-        // passphrase has nothing left to disclaim. Both strings already ship.
-        mk_screen(tr(s_verify_full ? STR_L_BACKUP_VERIFIED : STR_W_VOK_T),
-                  s_verify_full ? NULL : tr(STR_W_VOK_S));
+        // DECIDED: a signer with NO passphrase gets the full verdict and no
+        // disclaimer. This read s_verify_full alone, which is only true when
+        // the passphrase leg actually RAN -- and that leg is skipped outright
+        // when there is no passphrase to check. So a device that has never had
+        // one showed "SEED WORDS VERIFIED" under a subtitle reading "the
+        // passphrase is not part of this check", disclaiming something the
+        // owner does not have and cannot add to the check.
+        //
+        // kiss_rehearse_after_words is the seam that already knows: VERIFIED
+        // means the words alone ARE the whole backup. When they are, and they
+        // matched, the backup is fully verified and there is nothing to
+        // disclaim. The subtitle survives for the case it was written for --
+        // a passphrase in use whose leg was cancelled or not offered.
+        const bool pp_needed =
+            kiss_rehearse_after_words(kiss_session_decoy()) ==
+                KISS_REHEARSE_NEED_PASSPHRASE;
+        const bool full = s_verify_full || !pp_needed;
+        mk_screen(tr(full ? STR_L_BACKUP_VERIFIED : STR_W_VOK_T),
+                  full ? NULL : tr(STR_W_VOK_S));
         mk_lbl(tr_sym(LV_SYMBOL_OK, STR_W_VOK_MATCH), 48, 150,
                wt_font28(), OK_COL);
 
@@ -516,25 +530,38 @@ static void verify_ok_screen(void)
             lv_obj_remove_flag(vcol, LV_OBJ_FLAG_SCROLLABLE);
             wt_diagram_verify(vcol);
         }
-        mk_body(tr(STR_W_VOK_B), 48, fp_known ? 196 : 296, 704,
+        // ...and the body does not name a passphrase either. It said "seed
+        // words + passphrase restore these keys" on a signer that has no
+        // passphrase, which is the same fault as the subtitle above and was
+        // reported in the same breath.
+        mk_body(tr(pp_needed ? STR_W_VOK_B : STR_W_VOK_B_NP),
+                48, fp_known ? 196 : 296, 704,
                 fp_known ? 58 : WT_CONTENT_BOTTOM - 296, MUT_COL);
 
         if (fp_known) {
             char fpbuf[16];
             snprintf(fpbuf, sizeof fpbuf, "%02X%02X%02X%02X",
                      fp[0], fp[1], fp[2], fp[3]);
-            mk_lbl(tr(STR_L_FP_CAP), 48, 268, wt_font14(), MUT_COL);
-            lv_obj_t *f = mk_lbl(fpbuf, 48, 290, wt_font28(), INK_COL);
+            // font23, not font14. FINGERPRINT is a caption an owner READS,
+            // not a mark: it names the eight characters under it, and the
+            // house rule puts a word somebody reads at 23 or above. It was
+            // the smallest thing on a screen whose subject is those eight
+            // characters.
+            mk_lbl(tr(STR_L_FP_CAP), 48, 258, wt_font23(), MUT_COL);
+            lv_obj_t *f = mk_lbl(fpbuf, 48, 292, wt_font28(), INK_COL);
             lv_obj_set_style_text_letter_space(f, 4, 0);
-            // 58, not 48. At 48 this fitted two lines only at font14, which
-            // made the one instruction the screen exists to give the smallest
-            // text on it. 334 + 58 = 392 clears the 398 floor, and a long
-            // translation still falls back to font14 inside the same slot.
+            // ONE LINE, so it lands at font28 rather than font23. It used to
+            // say "this code names the keys open right now. you will see it
+            // again on the home screen." -- two lines defining a word the
+            // caption above already uses and that a bitcoin owner has known
+            // since their first coordinator. What is worth the room is the
+            // CHECK: the coordinator shows this same fingerprint, and a
+            // mismatch means the keys are not the ones being watched.
             //
             // INK, matching setup_warn_screen. Not the accent and not WT_OK:
             // in GREEN theme those are the same colour, and the green tick
             // above is already carrying the status.
-            mk_body(tr(STR_W_VOK_FP), 48, 334, 704, 58, INK_COL);
+            mk_body(tr(STR_W_VOK_FP), 48, 336, 704, 46, INK_COL);
         }
 
         // Only the exit in the bar, so it takes the corner.

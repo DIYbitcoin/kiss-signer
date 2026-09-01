@@ -4330,7 +4330,18 @@ static lv_obj_t *def_list_build(lv_obj_t *scr, const wt_def_t *defs, int n,
             r->val_x += 8 + 12;
         }
 
-        r->vf_closed = chrome28(defs[k].val);
+        // A CLOSED row's value sits at the caption's own rung, not one above
+        // it. It was chrome28 against a chrome23 caption and a chrome23 tab
+        // strip, so on SETTINGS the answer was bigger than the row that names
+        // it AND bigger than the tab naming the page -- reported from the
+        // bench looking at BACKUP, where CHECKED and SD CARD were the largest
+        // words on screen after the title. The value keeps its rank the way it
+        // always did, in INK against the caption's MUT; it does not need a
+        // second channel saying the same thing louder.
+        //
+        // The OPEN row keeps 28. There the value IS the subject of an expanded
+        // row, and the step up is what says so.
+        r->vf_closed = chrome23(defs[k].val);
         r->vf_open   = chrome28(defs[k].val);
         r->vf_ghost  = chrome18(defs[k].val);
         const lv_font_t *vf = r->vf_closed;
@@ -4765,6 +4776,14 @@ void wt_gate(lv_obj_t *scr, const wt_gate_t *g)
     const int FLOOR = WT_ACTION_Y_SLIDE - 8;   // nothing may touch the slide
     const int PARA_W = 690;
     const int MARK_W = 34;                     // the tick's lane, fixed
+    // A paragraph is OPTIONAL. The SHOW gate has nothing to put in one: its
+    // sentence says what is about to happen and its two facts say what that
+    // costs and what it does not, so the slot was filled with the copying
+    // instruction from a different screen -- "Your seed words appear on this
+    // screen." followed by "on paper, in order.", which is an answer to a
+    // question the sentence did not ask. Cut, rather than reworded: the screen
+    // was already complete without it.
+    const bool has_para = g->para && *g->para;
     const bool has_warn = g->warn && *g->warn;
     const lv_font_t *wf = has_warn ? chrome23(g->warn) : NULL;
     const lv_font_t *mkf = wt_font23();
@@ -4772,12 +4791,15 @@ void wt_gate(lv_obj_t *scr, const wt_gate_t *g)
     const lv_font_t *pf = NULL, *f0 = NULL, *f1 = NULL;
     int ph = 0, wh = 0, h0 = 0, h1 = 0;
     for (int rung = 0; rung < 2; rung++) {
-        pf = rung ? chrome18(g->para) : chrome23(g->para);
+        pf = rung ? chrome18(has_para ? g->para : "") : chrome23(has_para ? g->para : "");
         f0 = rung ? chrome18(g->surv) : chrome23(g->surv);
         f1 = rung ? chrome18(g->goes) : chrome23(g->goes);
-        lv_point_t ps;
-        lv_text_get_size(&ps, g->para, pf, 0, 0, PARA_W, LV_TEXT_FLAG_NONE);
-        ph = ps.y;
+        ph = 0;
+        if (has_para) {
+            lv_point_t ps;
+            lv_text_get_size(&ps, g->para, pf, 0, 0, PARA_W, LV_TEXT_FLAG_NONE);
+            ph = ps.y;
+        }
         wh = 0;
         if (has_warn) {
             lv_point_t ws;
@@ -4794,15 +4816,25 @@ void wt_gate(lv_obj_t *scr, const wt_gate_t *g)
         // between the sentence and the slide, which is what the sink is for:
         // silent was the old behaviour and it is what let four text runs sit
         // two rungs small with nothing to say so.
-        if (rung == 1)
+        if (rung == 1 && has_para)
             WT_FIT_GAVE_UP("gate", g->para, PARA_W, FLOOR - TOP);
     }
 
+    // A gate with no paragraph would otherwise hug its sentence and leave the
+    // whole bottom of the lane empty, which is what the SHOW gate looked like
+    // the moment its paragraph was cut. Drop by a third of the slack, the same
+    // move wt_body_para makes and for the same reason: centring outright
+    // floats the block away from the sentence it belongs to. The full gates
+    // have no slack, so nothing moves on them.
+    const int used = ph + wh + GAP + GAP + h0 + FGAP + h1;
     int y = TOP;
-    lv_obj_t *p = wt_lbl(scr, g->para, WT_LANE_X, y, pf, WT_MUT);
-    lv_obj_set_width(p, PARA_W);
-    lv_label_set_long_mode(p, LV_LABEL_LONG_WRAP);
-    y += ph;
+    if (FLOOR - TOP > used) y += (FLOOR - TOP - used) / 3;
+    if (has_para) {
+        lv_obj_t *p = wt_lbl(scr, g->para, WT_LANE_X, y, pf, WT_MUT);
+        lv_obj_set_width(p, PARA_W);
+        lv_label_set_long_mode(p, LV_LABEL_LONG_WRAP);
+        y += ph;
+    }
 
     if (has_warn) {
         // The one amber line a stop gate may carry: a caution the owner can

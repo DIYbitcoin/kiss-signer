@@ -110,6 +110,9 @@ static void intro_screen(void)
         wt_trail(s_scr, LV_SYMBOL_SHUFFLE, trail, false);
     }
 
+    // The card clears the trail strip (70..100) with a gap of its own.
+    const int RNG_CARD_Y = WT_CHROME_STRIP_Y + WT_BR_H + 24;
+
     bool live = kiss_trng_live();
 
     // The provenance row leads, because it answers the one question the bars
@@ -123,7 +126,11 @@ static void intro_screen(void)
              // ON and OFF are words, not a reading. The mono face on this page
              // belongs to the counter under the bars.
              wt_font23(), live ? OK_COL : WARN_COL, false,
-             WT_CHOICE_X, WT_CHOICE_Y(0), WT_CHOICE_W, WT_CHOICE_H,
+             // NOT WT_CHOICE_Y(0). That constant is 96 and the trail strip
+             // runs 70..100, so this card's top edge was drawn four pixels
+             // INSIDE the row naming the page -- the chooser screens the
+             // constant was borrowed from have no trail above them.
+             WT_CHOICE_X, RNG_CARD_Y, WT_CHOICE_W, WT_CHOICE_H,
              NULL, NULL);
 
     // What the test scores and what it cannot see, as rows under the row that
@@ -137,7 +144,9 @@ static void intro_screen(void)
           .val = live ? tr(STR_W_RNG_WHY2_B) : tr(STR_W_RNG_NOSRC_B),
           .icon = LV_SYMBOL_WARNING, .icon_col = WT_WARN },
     };
-    wt_facts(s_scr, 204, facts, 2);
+    // Under the card with a gap that reads as one, rather than pinned at a
+    // number chosen when the card sat higher.
+    wt_facts(s_scr, RNG_CARD_Y + WT_CHOICE_H + 34, facts, 2);
 
     lv_obj_t *back = wt_arrow_action(s_scr, tr(STR_C_BACK), true, false,
                                      WT_BACK_X, WT_ACTION_Y, 140, true,

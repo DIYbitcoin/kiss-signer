@@ -226,6 +226,10 @@ UNTRANSLATED_OK = {
     "I_KEF_MAKE_BTN", "I_KEF_SHOW_S", "I_KEF_SHOW_NOTE", "I_KEF_SD_BTN",
     "W_KEF_BAD_T", "W_KEF_BAD_S", "W_KEF_BAD_B",
     "W_KEF_SD_T", "W_KEF_SD_S", "W_KEF_SD_EMPTY", "W_KEF_SD_NONE_B",
+    # The verified screen's body for a signer with NO passphrase: the same two
+    # claims without naming one the owner does not have. Born under the
+    # English-only rule.
+    "W_VOK_B_NP",
     # What the envelope does NOT hold, shown only when a passphrase is in use.
     # Born under the English-only rule, like the block it sits in.
     "I_KEF_PP_H", "I_KEF_PP_B", "I_KEF_WARN_S_PP",

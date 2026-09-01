@@ -4320,7 +4320,11 @@ int main(void) {
     const char *v = tr(kiss_ui_backup_checked() ? STR_I_WORDS_OK_VAL
                                                 : STR_I_WORDS_NO_VAL);
     lv_point_t vs;
-    lv_text_get_size(&vs, v, wt_chrome28(v), 0, 0, LV_COORD_MAX,
+    // chrome23, the CLOSED row's rung. This measured at chrome28 and the tap
+    // landed short of the chip the day the closed value moved down a rung --
+    // and a missed tap does not fail here, it derails: every later save()
+    // photographs the cover and every later needle fails somewhere else.
+    lv_text_get_size(&vs, v, wt_chrome23(v), 0, 0, LV_COORD_MAX,
                      LV_TEXT_FLAG_NONE);
     // Row 0 carries a lamp, so the value starts 20 past DEF_VAL_X.
     touch(48 + 238 + 20 + vs.x + 14 + 15, SET_DEF_Y(3, 0));

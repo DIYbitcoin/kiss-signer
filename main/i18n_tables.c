@@ -143,12 +143,12 @@ static const char *const tbl_en[STR_N] = {
     [STR_G_FW_WRITING_FMT] = "WRITING %s",
     [STR_G_FW_WRITING_T] = "WRITING FIRMWARE",
     [STR_G_HELP_BODY] = "Seed words + passphrase = your keys.",
-    [STR_G_HELP_F1C] = "SAFE TO TRY",
-    [STR_G_HELP_F1V] = "every pick changes back",
+    [STR_G_HELP_F1C] = "THE LOOP",
+    [STR_G_HELP_F1V] = "tap to cycle the options",
     [STR_G_HELP_F2C] = "THE DOT",
     [STR_G_HELP_F2V] = "a tab needs attention",
     [STR_G_HELP_F3C] = "NO UNDO",
-    [STR_G_HELP_F3V] = "the tab that erases keys",
+    [STR_G_HELP_F3V] = "tab that erases keys",
     [STR_G_HELP_HEAD] = "Nothing here signs a transaction.",
     [STR_G_HIST_OFF_BTN] = "DISABLED",
     [STR_G_HIST_OFF_NOTE] = "changes last until power off. picking this erases the used addresses it remembers.",
@@ -846,9 +846,9 @@ static const char *const tbl_en[STR_N] = {
     [STR_W_RNG_SRC_SUB] = "the chip's noise circuit, on at boot",
     [STR_W_RNG_T] = "RANDOMNESS AUDIT",
     [STR_W_RNG_TOOEVEN] = "TOO EVEN",
-    [STR_W_RNG_WHY1_B] = "5000 numbers, 100 piles",
+    [STR_W_RNG_WHY1_B] = "5000 numbers, 100 bins",
     [STR_W_RNG_WHY1_H] = "SPREAD",
-    [STR_W_RNG_WHY2_B] = "a fake passes this too",
+    [STR_W_RNG_WHY2_B] = "software passes it too",
     [STR_W_RNG_WHY2_H] = "CANNOT PROVE",
     [STR_W_SCAN_KEF_QR] = "SCAN MY BACKUP",
     [STR_W_SD_BTN] = "SD CARD",
@@ -879,10 +879,10 @@ static const char *const tbl_en[STR_N] = {
     [STR_W_VINTRO_T] = "CHECK YOUR BACKUP",
     [STR_W_VINTRO_W1_B] = "You type your seed words. The signer checks them against these keys.",
     [STR_W_VINTRO_W1_H] = "PROVES",
-    [STR_W_VINTRO_W2_B] = "these keys come back",
+    [STR_W_VINTRO_W2_B] = "your paper opens them",
     [STR_W_VINTRO_W2_H] = "NEVER SHOWS",
     [STR_W_VOK_B] = "keep it offline and private.\nseed words + passphrase restore these keys.",
-    [STR_W_VOK_FP] = "this code names the keys open right now.\nyou will see it again on the home screen.",
+    [STR_W_VOK_FP] = "your coordinator shows the same one.",
     [STR_W_VOK_MATCH] = "every word matched",
     [STR_W_VOK_S] = "the passphrase is not part of this check",
     [STR_W_VOK_T] = "SEED WORDS VERIFIED",
@@ -900,6 +900,7 @@ static const char *const tbl_en[STR_N] = {
     [STR_W_WRITE_S] = "seed words + this passphrase restore these keys",
     [STR_W_WRITE_T] = "WRITE THESE DOWN",
     [STR_W_WROTE] = "I WROTE THEM DOWN",
+    [STR_W_VOK_B_NP] = "keep it offline and private.\nthese seed words restore these keys.",
 };
 
 static const char *const tbl_de[STR_N] = {
@@ -1783,7 +1784,7 @@ static const char *const tbl_de[STR_N] = {
     [STR_W_VINTRO_W2_B] = "es sagt passt oder nicht. deine Wörter zeigt es nie an.",
     [STR_W_VINTRO_W2_H] = "was es nie tut",
     [STR_W_VOK_B] = "bewahre es offline und privat auf.\nSeed-Wörter + Passphrase holen diese Schlüssel zurück.",
-    [STR_W_VOK_FP] = "schreibe diesen Code neben deine Wörter.\nso prüfst du später deine Passphrase.",
+    [STR_W_VOK_FP] = "schreibe diesen Code neben deine Wörter.",
     [STR_W_VOK_MATCH] = "jedes Wort stimmt",
     [STR_W_VOK_S] = "die Passphrase gehört nicht zu dieser Prüfung",
     [STR_W_VOK_T] = "BACKUP BESTÄTIGT",
@@ -1801,6 +1802,7 @@ static const char *const tbl_de[STR_N] = {
     [STR_W_WRITE_S] = "Seed-Wörter + Passphrase = diese Schlüssel",
     [STR_W_WRITE_T] = "SCHREIB SIE AUF",
     [STR_W_WROTE] = "ICH HABE SIE NOTIERT",
+    [STR_W_VOK_B_NP] = "keep it offline and private.\nthese seed words restore these keys.",
 };
 
 static const char *const tbl_es[STR_N] = {
@@ -2684,7 +2686,7 @@ static const char *const tbl_es[STR_N] = {
     [STR_W_VINTRO_W2_B] = "dice coincide o no. nunca muestra las palabras guardadas.",
     [STR_W_VINTRO_W2_H] = "qué nunca hace",
     [STR_W_VOK_B] = "guárdalo offline y en privado.\npalabras semilla + passphrase restauran estas llaves.",
-    [STR_W_VOK_FP] = "escribe este código junto a tus palabras.\nasí compruebas tu passphrase más tarde.",
+    [STR_W_VOK_FP] = "escribe este código junto a tus palabras.",
     [STR_W_VOK_MATCH] = "todas las palabras coinciden",
     [STR_W_VOK_S] = "la passphrase no entra en esta comprobación",
     [STR_W_VOK_T] = "RESPALDO VERIFICADO",
@@ -2702,6 +2704,7 @@ static const char *const tbl_es[STR_N] = {
     [STR_W_WRITE_S] = "palabras semilla + passphrase = estas llaves",
     [STR_W_WRITE_T] = "ANÓTALAS",
     [STR_W_WROTE] = "YA LAS ANOTÉ",
+    [STR_W_VOK_B_NP] = "keep it offline and private.\nthese seed words restore these keys.",
 };
 
 static const char *const tbl_fr[STR_N] = {
@@ -3585,7 +3588,7 @@ static const char *const tbl_fr[STR_N] = {
     [STR_W_VINTRO_W2_B] = "il dit correspond ou non. il n'affiche jamais vos mots.",
     [STR_W_VINTRO_W2_H] = "ce que ça ne fait pas",
     [STR_W_VOK_B] = "garde-le hors ligne et privé.\nmots de seed + phrase secrète restaurent ces clés.",
-    [STR_W_VOK_FP] = "écrivez ce code à côté de vos mots.\nil vérifie votre phrase secrète plus tard.",
+    [STR_W_VOK_FP] = "écrivez ce code à côté de vos mots.",
     [STR_W_VOK_MATCH] = "chaque mot correspond",
     [STR_W_VOK_S] = "la phrase secrète ne fait pas partie de ce contrôle",
     [STR_W_VOK_T] = "SAUVEGARDE VÉRIFIÉE",
@@ -3603,6 +3606,7 @@ static const char *const tbl_fr[STR_N] = {
     [STR_W_WRITE_S] = "mots de seed + la même phrase secrète restaurent ces clés",
     [STR_W_WRITE_T] = "NOTE-LES",
     [STR_W_WROTE] = "JE LES AI NOTÉS",
+    [STR_W_VOK_B_NP] = "keep it offline and private.\nthese seed words restore these keys.",
 };
 
 static const char *const tbl_it[STR_N] = {
@@ -4486,7 +4490,7 @@ static const char *const tbl_it[STR_N] = {
     [STR_W_VINTRO_W2_B] = "dice solo coincide o no. non mostra mai le parole salvate.",
     [STR_W_VINTRO_W2_H] = "cosa non fa mai",
     [STR_W_VOK_B] = "tienilo offline e privato.\nparole seed + passphrase ripristinano queste chiavi.",
-    [STR_W_VOK_FP] = "scrivi questo codice accanto alle tue parole.\ncosì controlli la passphrase più tardi.",
+    [STR_W_VOK_FP] = "scrivi questo codice accanto alle tue parole.",
     [STR_W_VOK_MATCH] = "tutte le parole coincidono",
     [STR_W_VOK_S] = "la passphrase non fa parte di questo controllo",
     [STR_W_VOK_T] = "BACKUP VERIFICATO",
@@ -4504,6 +4508,7 @@ static const char *const tbl_it[STR_N] = {
     [STR_W_WRITE_S] = "parole seed + questa passphrase riaprono le chiavi",
     [STR_W_WRITE_T] = "SCRIVILE SU CARTA",
     [STR_W_WROTE] = "LE HO SCRITTE",
+    [STR_W_VOK_B_NP] = "keep it offline and private.\nthese seed words restore these keys.",
 };
 
 static const char *const tbl_ja[STR_N] = {
@@ -5387,7 +5392,7 @@ static const char *const tbl_ja[STR_N] = {
     [STR_W_VINTRO_W2_B] = "端末は一致か不一致を答えるだけ。保存された単語は表示しません。",
     [STR_W_VINTRO_W2_H] = "表示しません",
     [STR_W_VOK_B] = "オフラインで安全に保管を。\nシードフレーズ + パスフレーズで復元できます。",
-    [STR_W_VOK_FP] = "単語と同じ紙にこのコードを書いてください。\n後でパスフレーズを確認できます。",
+    [STR_W_VOK_FP] = "単語と同じ紙にこのコードを書いてください。",
     [STR_W_VOK_MATCH] = "すべての単語が一致",
     [STR_W_VOK_S] = "パスフレーズはこの確認に含まれません",
     [STR_W_VOK_T] = "バックアップ確認済み",
@@ -5405,6 +5410,7 @@ static const char *const tbl_ja[STR_N] = {
     [STR_W_WRITE_S] = "シードフレーズ + 同じパスフレーズでこの鍵を復元できます",
     [STR_W_WRITE_T] = "書き留めてください",
     [STR_W_WROTE] = "書き留めました",
+    [STR_W_VOK_B_NP] = "keep it offline and private.\nthese seed words restore these keys.",
 };
 
 static const char *const tbl_ko[STR_N] = {
@@ -6288,7 +6294,7 @@ static const char *const tbl_ko[STR_N] = {
     [STR_W_VINTRO_W2_B] = "기기는 맞다/아니다만 답합니다. 저장된 단어는 보여주지 않습니다.",
     [STR_W_VINTRO_W2_H] = "표시하지 않습니다",
     [STR_W_VOK_B] = "오프라인에 안전하게 보관하세요.\n시드 문구 + 패스프레이즈가 이 키를 되살립니다.",
-    [STR_W_VOK_FP] = "단어와 같은 종이에 이 코드를 적으세요.\n나중에 패스프레이즈를 확인할 수 있습니다.",
+    [STR_W_VOK_FP] = "단어와 같은 종이에 이 코드를 적으세요.",
     [STR_W_VOK_MATCH] = "모든 단어 일치",
     [STR_W_VOK_S] = "패스프레이즈는 이 확인에 들어가지 않습니다",
     [STR_W_VOK_T] = "백업 검증 완료",
@@ -6306,6 +6312,7 @@ static const char *const tbl_ko[STR_N] = {
     [STR_W_WRITE_S] = "시드 문구 + 같은 패스프레이즈가 이 키를 되살립니다",
     [STR_W_WRITE_T] = "적어 두세요",
     [STR_W_WROTE] = "다 적었습니다",
+    [STR_W_VOK_B_NP] = "keep it offline and private.\nthese seed words restore these keys.",
 };
 
 static const char *const tbl_nl[STR_N] = {
@@ -7189,7 +7196,7 @@ static const char *const tbl_nl[STR_N] = {
     [STR_W_VINTRO_W2_B] = "het zegt klopt of niet. je bewaarde woorden toont het nooit.",
     [STR_W_VINTRO_W2_H] = "wat het nooit doet",
     [STR_W_VOK_B] = "bewaar het offline en prive.\nseed woorden + passphrase herstellen deze sleutels.",
-    [STR_W_VOK_FP] = "schrijf deze code naast je woorden.\nzo controleer je later je passphrase.",
+    [STR_W_VOK_FP] = "schrijf deze code naast je woorden.",
     [STR_W_VOK_MATCH] = "elk woord klopt",
     [STR_W_VOK_S] = "de wachtwoordzin hoort niet bij deze controle",
     [STR_W_VOK_T] = "BACK-UP GEVERIFIEERD",
@@ -7207,6 +7214,7 @@ static const char *const tbl_nl[STR_N] = {
     [STR_W_WRITE_S] = "seed-woorden + deze wachtwoordzin openen ze weer",
     [STR_W_WRITE_T] = "SCHRIJF ZE OP",
     [STR_W_WROTE] = "IK HEB ZE GENOTEERD",
+    [STR_W_VOK_B_NP] = "keep it offline and private.\nthese seed words restore these keys.",
 };
 
 static const char *const tbl_pl[STR_N] = {
@@ -8090,7 +8098,7 @@ static const char *const tbl_pl[STR_N] = {
     [STR_W_VINTRO_W2_B] = "mówi tylko: zgadza się lub nie. zapisanych słów nie pokaże.",
     [STR_W_VINTRO_W2_H] = "czego nigdy nie robi",
     [STR_W_VOK_B] = "trzymaj offline i prywatnie.\nsłowa seed + fraza odtworzą te klucze.",
-    [STR_W_VOK_FP] = "zapisz ten kod obok swoich słów.\ntak później sprawdzisz swoją frazę.",
+    [STR_W_VOK_FP] = "zapisz ten kod obok swoich słów.",
     [STR_W_VOK_MATCH] = "każde słowo się zgadza",
     [STR_W_VOK_S] = "fraza dostępu nie należy do tej kontroli",
     [STR_W_VOK_T] = "KOPIA POTWIERDZONA",
@@ -8108,6 +8116,7 @@ static const char *const tbl_pl[STR_N] = {
     [STR_W_WRITE_S] = "słowa seed + ta sama fraza odtworzą te klucze",
     [STR_W_WRITE_T] = "ZAPISZ JE",
     [STR_W_WROTE] = "ZAPISAŁEM JE",
+    [STR_W_VOK_B_NP] = "keep it offline and private.\nthese seed words restore these keys.",
 };
 
 static const char *const tbl_pt[STR_N] = {
@@ -8991,7 +9000,7 @@ static const char *const tbl_pt[STR_N] = {
     [STR_W_VINTRO_W2_B] = "diz bate ou não bate. nunca mostra as palavras guardadas.",
     [STR_W_VINTRO_W2_H] = "o que nunca faz",
     [STR_W_VOK_B] = "guarde offline e em sigilo.\npalavras seed + passphrase restauram estas chaves.",
-    [STR_W_VOK_FP] = "escreva este código ao lado das suas palavras.\nassim confere a sua passphrase depois.",
+    [STR_W_VOK_FP] = "escreva este código ao lado das suas palavras.",
     [STR_W_VOK_MATCH] = "todas as palavras batem",
     [STR_W_VOK_S] = "a passphrase não entra nesta conferência",
     [STR_W_VOK_T] = "BACKUP VERIFICADO",
@@ -9009,6 +9018,7 @@ static const char *const tbl_pt[STR_N] = {
     [STR_W_WRITE_S] = "palavras seed + passphrase = estas chaves",
     [STR_W_WRITE_T] = "ANOTE ESTAS PALAVRAS",
     [STR_W_WROTE] = "JÁ ANOTEI",
+    [STR_W_VOK_B_NP] = "keep it offline and private.\nthese seed words restore these keys.",
 };
 
 static const char *const tbl_ru[STR_N] = {
@@ -9892,7 +9902,7 @@ static const char *const tbl_ru[STR_N] = {
     [STR_W_VINTRO_W2_B] = "скажет совпало или нет. сохраненные слова не покажет.",
     [STR_W_VINTRO_W2_H] = "чего оно не делает",
     [STR_W_VOK_B] = "храните ее офлайн и в тайне.\nсид-фраза + кодовая фраза восстановят эти ключи.",
-    [STR_W_VOK_FP] = "запишите этот код рядом со словами.\nтак вы позже проверите свою фразу.",
+    [STR_W_VOK_FP] = "запишите этот код рядом со словами.",
     [STR_W_VOK_MATCH] = "все слова совпали",
     [STR_W_VOK_S] = "кодовая фраза в эту проверку не входит",
     [STR_W_VOK_T] = "КОПИЯ ПОДТВЕРЖДЕНА",
@@ -9910,6 +9920,7 @@ static const char *const tbl_ru[STR_N] = {
     [STR_W_WRITE_S] = "сид-фраза + та же кодовая фраза восстановят эти ключи",
     [STR_W_WRITE_T] = "ЗАПИШИТЕ ИХ",
     [STR_W_WROTE] = "Я ИХ ЗАПИСАЛ",
+    [STR_W_VOK_B_NP] = "keep it offline and private.\nthese seed words restore these keys.",
 };
 
 static const char *const tbl_tr[STR_N] = {
@@ -10793,7 +10804,7 @@ static const char *const tbl_tr[STR_N] = {
     [STR_W_VINTRO_W2_B] = "sadece eşleşti ya da eşleşmedi der. kayıtlı kelimeleri göstermez.",
     [STR_W_VINTRO_W2_H] = "asla ne yapmaz",
     [STR_W_VOK_B] = "çevrimdışı ve gizli saklayın.\nseed kelimeleri + parola bu anahtarları geri getirir.",
-    [STR_W_VOK_FP] = "bu kodu kelimelerinin yanına yaz.\nPassphrase'ini sonra böyle kontrol edersin.",
+    [STR_W_VOK_FP] = "bu kodu kelimelerinin yanına yaz.",
     [STR_W_VOK_MATCH] = "her kelime eşleşti",
     [STR_W_VOK_S] = "Passphrase bu denetimin parçası değil",
     [STR_W_VOK_T] = "YEDEK DOĞRULANDI",
@@ -10811,6 +10822,7 @@ static const char *const tbl_tr[STR_N] = {
     [STR_W_WRITE_S] = "seed kelimeleri + aynı parola bu anahtarları geri getirir",
     [STR_W_WRITE_T] = "BUNLARI YAZIN",
     [STR_W_WROTE] = "YAZDIM",
+    [STR_W_VOK_B_NP] = "keep it offline and private.\nthese seed words restore these keys.",
 };
 
 static const char *const tbl_vi[STR_N] = {
@@ -11694,7 +11706,7 @@ static const char *const tbl_vi[STR_N] = {
     [STR_W_VINTRO_W2_B] = "chỉ nói khớp hay không. không bao giờ hiện các từ đã lưu.",
     [STR_W_VINTRO_W2_H] = "nó không bao giờ làm",
     [STR_W_VOK_B] = "giữ ngoại tuyến và riêng tư.\ntừ seed + mật khẩu khôi phục bộ khóa này.",
-    [STR_W_VOK_FP] = "viết mã này cạnh các từ của bạn.\nđể sau này kiểm tra cụm mật khẩu.",
+    [STR_W_VOK_FP] = "viết mã này cạnh các từ của bạn.",
     [STR_W_VOK_MATCH] = "mọi từ đều khớp",
     [STR_W_VOK_S] = "cụm mật khẩu không nằm trong lần kiểm này",
     [STR_W_VOK_T] = "SAO LƯU ĐÃ XÁC MINH",
@@ -11712,6 +11724,7 @@ static const char *const tbl_vi[STR_N] = {
     [STR_W_WRITE_S] = "từ seed + đúng mật khẩu đó khôi phục bộ khóa này",
     [STR_W_WRITE_T] = "GHI LẠI NGAY",
     [STR_W_WROTE] = "TÔI ĐÃ GHI XONG",
+    [STR_W_VOK_B_NP] = "keep it offline and private.\nthese seed words restore these keys.",
 };
 
 static const char *const tbl_zh[STR_N] = {
@@ -12595,7 +12608,7 @@ static const char *const tbl_zh[STR_N] = {
     [STR_W_VINTRO_W2_B] = "设备只回答对或不对，从不显示已保存的词。",
     [STR_W_VINTRO_W2_H] = "从不做什么",
     [STR_W_VOK_B] = "离线保存，不要外传。\n助记词 + 密码短语可以恢复这组密钥。",
-    [STR_W_VOK_FP] = "把这个码写在助记词旁边。\n以后用它检查密码短语。",
+    [STR_W_VOK_FP] = "把这个码写在助记词旁边。",
     [STR_W_VOK_MATCH] = "每个词都吻合",
     [STR_W_VOK_S] = "口令不属于这次核对",
     [STR_W_VOK_T] = "备份已验证",
@@ -12613,6 +12626,7 @@ static const char *const tbl_zh[STR_N] = {
     [STR_W_WRITE_S] = "助记词 + 同一个密码短语可以恢复这组密钥",
     [STR_W_WRITE_T] = "抄下这些词",
     [STR_W_WROTE] = "我已抄好",
+    [STR_W_VOK_B_NP] = "keep it offline and private.\nthese seed words restore these keys.",
 };
 
 static const char *const tbl_es_es[STR_N] = {
@@ -13496,7 +13510,7 @@ static const char *const tbl_es_es[STR_N] = {
     [STR_W_VINTRO_W2_B] = "dice coincide o no. nunca muestra las palabras guardadas.",
     [STR_W_VINTRO_W2_H] = "qué nunca hace",
     [STR_W_VOK_B] = "guárdalo offline y en privado.\npalabras semilla + passphrase restauran estas claves.",
-    [STR_W_VOK_FP] = "escribe este código junto a tus palabras.\nasí compruebas tu passphrase más tarde.",
+    [STR_W_VOK_FP] = "escribe este código junto a tus palabras.",
     [STR_W_VOK_MATCH] = "todas las palabras coinciden",
     [STR_W_VOK_S] = "la passphrase no entra en esta comprobación",
     [STR_W_VOK_T] = "COPIA VERIFICADA",
@@ -13514,6 +13528,7 @@ static const char *const tbl_es_es[STR_N] = {
     [STR_W_WRITE_S] = "palabras semilla + passphrase = estas claves",
     [STR_W_WRITE_T] = "ANÓTALAS",
     [STR_W_WROTE] = "YA LAS ANOTÉ",
+    [STR_W_VOK_B_NP] = "keep it offline and private.\nthese seed words restore these keys.",
 };
 
 static const char *const tbl_pt_pt[STR_N] = {
@@ -14397,7 +14412,7 @@ static const char *const tbl_pt_pt[STR_N] = {
     [STR_W_VINTRO_W2_B] = "diz bate ou não bate. nunca mostra as palavras guardadas.",
     [STR_W_VINTRO_W2_H] = "o que nunca faz",
     [STR_W_VOK_B] = "guarde offline e em privado.\npalavras seed + passphrase restauram estas chaves.",
-    [STR_W_VOK_FP] = "escreva este código ao lado das suas palavras.\nassim confere a sua passphrase depois.",
+    [STR_W_VOK_FP] = "escreva este código ao lado das suas palavras.",
     [STR_W_VOK_MATCH] = "todas as palavras coincidem",
     [STR_W_VOK_S] = "a passphrase não entra nesta conferência",
     [STR_W_VOK_T] = "CÓPIA DE SEGURANÇA VERIFICADA",
@@ -14415,6 +14430,7 @@ static const char *const tbl_pt_pt[STR_N] = {
     [STR_W_WRITE_S] = "palavras seed + passphrase = estas chaves",
     [STR_W_WRITE_T] = "ANOTE ESTAS PALAVRAS",
     [STR_W_WROTE] = "JÁ ANOTEI",
+    [STR_W_VOK_B_NP] = "keep it offline and private.\nthese seed words restore these keys.",
 };
 
 static const char *const tbl_nb[STR_N] = {
@@ -15298,7 +15314,7 @@ static const char *const tbl_nb[STR_N] = {
     [STR_W_VINTRO_W2_B] = "den sier stemmer eller ikke. de lagrede ordene vises aldri.",
     [STR_W_VINTRO_W2_H] = "hva det aldri gjør",
     [STR_W_VOK_B] = "oppbevar det offline og privat.\nseed-ord + passordfrase gjenoppretter disse nøklene.",
-    [STR_W_VOK_FP] = "skriv denne koden ved siden av ordene dine.\nslik sjekker du passordfrasen senere.",
+    [STR_W_VOK_FP] = "skriv denne koden ved siden av ordene dine.",
     [STR_W_VOK_MATCH] = "alle ordene stemte",
     [STR_W_VOK_S] = "passordfrasen er ikke med i denne sjekken",
     [STR_W_VOK_T] = "SIKKERHETSKOPIEN ER BEKREFTET",
@@ -15316,6 +15332,7 @@ static const char *const tbl_nb[STR_N] = {
     [STR_W_WRITE_S] = "seed-ord + samme passordfrase henter disse nøklene",
     [STR_W_WRITE_T] = "SKRIV DISSE NED",
     [STR_W_WROTE] = "JEG SKREV DEM NED",
+    [STR_W_VOK_B_NP] = "keep it offline and private.\nthese seed words restore these keys.",
 };
 
 static const char *const tbl_sv[STR_N] = {
@@ -16199,7 +16216,7 @@ static const char *const tbl_sv[STR_N] = {
     [STR_W_VINTRO_W2_B] = "den säger stämmer eller inte. sparade ord visas aldrig.",
     [STR_W_VINTRO_W2_H] = "vad det aldrig gör",
     [STR_W_VOK_B] = "förvara det offline och privat.\nseed-ord + lösenfras återställer dessa nycklar.",
-    [STR_W_VOK_FP] = "skriv denna kod bredvid dina ord.\nså kontrollerar du lösenfrasen senare.",
+    [STR_W_VOK_FP] = "skriv denna kod bredvid dina ord.",
     [STR_W_VOK_MATCH] = "alla ord stämde",
     [STR_W_VOK_S] = "lösenfrasen ingår inte i den här kontrollen",
     [STR_W_VOK_T] = "SÄKERHETSKOPIAN ÄR KONTROLLERAD",
@@ -16217,6 +16234,7 @@ static const char *const tbl_sv[STR_N] = {
     [STR_W_WRITE_S] = "seed-ord + samma lösenfras återställer dessa nycklar",
     [STR_W_WRITE_T] = "SKRIV NER DESSA",
     [STR_W_WROTE] = "JAG SKREV NER DEM",
+    [STR_W_VOK_B_NP] = "keep it offline and private.\nthese seed words restore these keys.",
 };
 
 static const char *const tbl_da[STR_N] = {
@@ -17100,7 +17118,7 @@ static const char *const tbl_da[STR_N] = {
     [STR_W_VINTRO_W2_B] = "den siger passer eller ej. den viser aldrig dine gemte ord.",
     [STR_W_VINTRO_W2_H] = "hvad det aldrig gør",
     [STR_W_VOK_B] = "opbevar det offline og privat.\nseed-ord + adgangsfrase gendanner disse nøgler.",
-    [STR_W_VOK_FP] = "skriv denne kode ved siden af dine ord.\nsådan tjekker du din adgangsfrase senere.",
+    [STR_W_VOK_FP] = "skriv denne kode ved siden af dine ord.",
     [STR_W_VOK_MATCH] = "alle ord matchede",
     [STR_W_VOK_S] = "adgangssætningen er ikke med i dette tjek",
     [STR_W_VOK_T] = "SIKKERHEDSKOPI BEKRÆFTET",
@@ -17118,6 +17136,7 @@ static const char *const tbl_da[STR_N] = {
     [STR_W_WRITE_S] = "seed-ord + samme adgangsfrase gendanner disse nøgler",
     [STR_W_WRITE_T] = "SKRIV DISSE NED",
     [STR_W_WROTE] = "JEG SKREV DEM NED",
+    [STR_W_VOK_B_NP] = "keep it offline and private.\nthese seed words restore these keys.",
 };
 
 static const char *const tbl_cs[STR_N] = {
@@ -18001,7 +18020,7 @@ static const char *const tbl_cs[STR_N] = {
     [STR_W_VINTRO_W2_B] = "řekne jen: sedí, nebo nesedí. uložená slova neukáže.",
     [STR_W_VINTRO_W2_H] = "co nikdy neudělá",
     [STR_W_VOK_B] = "uchovej to offline a v soukromí.\nslova seedu + fráze obnoví tyto klíče.",
-    [STR_W_VOK_FP] = "napiš tento kód vedle svých slov.\ntak si později ověříš svou frázi.",
+    [STR_W_VOK_FP] = "napiš tento kód vedle svých slov.",
     [STR_W_VOK_MATCH] = "všechna slova se shodovala",
     [STR_W_VOK_S] = "přístupová fráze do téhle kontroly nepatří",
     [STR_W_VOK_T] = "ZÁLOHA OVĚŘENA",
@@ -18019,6 +18038,7 @@ static const char *const tbl_cs[STR_N] = {
     [STR_W_WRITE_S] = "slova seedu + stejná fráze obnoví tyto klíče",
     [STR_W_WRITE_T] = "ZAPIŠTE SI TATO SLOVA",
     [STR_W_WROTE] = "SLOVA JSEM SI ZAPSAL(A)",
+    [STR_W_VOK_B_NP] = "keep it offline and private.\nthese seed words restore these keys.",
 };
 
 static const char *const tbl_hr[STR_N] = {
@@ -18902,7 +18922,7 @@ static const char *const tbl_hr[STR_N] = {
     [STR_W_VINTRO_W2_B] = "kaže samo slaže se ili ne. spremljene riječi ne pokazuje.",
     [STR_W_VINTRO_W2_H] = "što nikad ne radi",
     [STR_W_VOK_B] = "čuvaj to offline i privatno.\nseed riječi + fraza vraćaju ove ključeve.",
-    [STR_W_VOK_FP] = "zapiši ovaj kod pored svojih riječi.\ntako kasnije provjeriš kodnu frazu.",
+    [STR_W_VOK_FP] = "zapiši ovaj kod pored svojih riječi.",
     [STR_W_VOK_MATCH] = "svaka riječ se podudara",
     [STR_W_VOK_S] = "kodna fraza nije dio ove provjere",
     [STR_W_VOK_T] = "SIGURNOSNA KOPIJA POTVRĐENA",
@@ -18920,6 +18940,7 @@ static const char *const tbl_hr[STR_N] = {
     [STR_W_WRITE_S] = "seed riječi + ista fraza vraćaju ove ključeve",
     [STR_W_WRITE_T] = "ZAPIŠITE OVE RIJEČI",
     [STR_W_WROTE] = "ZAPISAO/LA SAM IH",
+    [STR_W_VOK_B_NP] = "keep it offline and private.\nthese seed words restore these keys.",
 };
 
 const char *const *const i18n_tables[I18N_LANG_N] = {
