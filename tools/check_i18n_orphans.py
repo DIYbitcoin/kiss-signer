@@ -12,9 +12,11 @@ So this is the check that looks. It reads the enum in main/i18n_keys.h -- which
 gen_i18n.py writes from en.json, so it is the full set -- and greps every C and
 Python source that could name one. What is left over is unreferenced.
 
-The nineteen already here are a BACKLOG, not a pass: they are recorded so the
-gate can fail on the twentieth. The list only ever shrinks. When a key on it
-comes back into use the run says so and asks for it to be removed, because a
+The backlog is EMPTY, and that is the state to keep it in: it held 55 keys,
+recorded so the gate could fail on the fifty-sixth, and they were deleted in
+one sweep across all 21 locale files. Anything that lands on it again is a
+screen that was rebuilt and left its old strings behind. The list only ever
+shrinks, and a key on it that comes back into use is reported, because a
 backlog nobody prunes is a list of lies.
 
     python3 tools/check_i18n_orphans.py        report, and fail on anything new
@@ -42,126 +44,21 @@ SELF = Path(__file__).resolve()
 KEY_RE = re.compile(r"\bSTR_[A-Z0-9_]+\b")
 ENUM_RE = re.compile(r"^\s*(STR_[A-Z0-9_]+)\s*,\s*$")
 
-# Unreferenced on the day the check landed. Shrink only.
+# Empty, and meant to stay that way. Shrink only.
 #
-# Three groups, and the shape of each says what happened: the SETTINGS page was
-# rebuilt around section tabs and left its NET/HISTORY/FW/POP rows behind, and
-# STR_R_SP_EXPORT is the value of RECEIVE's SCAN KEY row from when that row was
-# a launcher. None of them is deletable in isolation -- deleting a key edits all
-# 21 locale files, which is the translation sweep's work, not a wording change's.
-BACKLOG = frozenset({
-    "STR_G_FW_CH_DARK",
-    "STR_G_FW_NEWER",
-    "STR_G_FW_OLDER",
-    "STR_G_FW_ROW_SIZE",
-    "STR_G_FW_ROW_VER",
-    "STR_G_HIST_OFF_NOTE",
-    "STR_G_HIST_ON_NOTE",
-    "STR_G_HIST_ON_NOTE_PLAIN",
-    "STR_G_SD_INFO_PILL",
-    # The DEVICE-tab rewrite retired the old firmware launcher label. Its
-    # translated key stays parked until the translation sweep removes it from
-    # all 21 locale files together.
-    "STR_G_FW_PILL",
-    "STR_I_POP_CHIP",
-    "STR_I_POP_ERASE",
-    "STR_I_POP_KEEP",
-    "STR_I_ROW_HISTORY_SUB",
-    "STR_I_SEC_HISTORY",
-    "STR_R_SP_EXPORT",
-    "STR_R_SP_EXPORT_S",
-    # KEYS lost its THIS SIGNER tab: three rows that were a read-only copy of
-    # SETTINGS > SIGNER and of RECEIVE's first address. The captions go with
-    # the tab, and so do the definitions that opened inside two of them -- the
-    # network's is said by the sub-line on the row that CHANGES it ("not real
-    # bitcoin"), and the address type's by the "?" card already beside it.
-    "STR_I_SEC_NET",
-    "STR_I_SEC_TYPE",
-    "STR_K_NET_PLAIN_MAIN",
-    "STR_K_NET_PLAIN_TEST",
-    "STR_K_TYPE_PLAIN",
-    "STR_K_TYPE_TERM_FMT",
-    "STR_R_USAGE_UNKNOWN",
-    # The KEYS explainer used to head itself "What your keys are called" and
-    # then define three unrelated nouns underneath. The middle one was
-    # ACCOUNT / "network and address style", which is not what an account is.
-    # The page explains the three ROWS it shows now, so the account pair has
-    # nothing left to sit under.
-    "STR_K_HELP_F2C",
-    "STR_K_HELP_F2V",
-    # YOUR DRAWING IS SET said "draw it to open the spare, add your swipe for
-    # your real signer" underneath a diagram drawing exactly that. The band
-    # carries what the picture cannot -- what opens it, and what happens if you
-    # forget -- which is the confirm screen's own pair, one screen back.
-    "STR_GD_WORD_OK_B",
-    # KEYS re-weighted to the identity-as-headline shape: the fingerprint
-    # became the hero and its old row sub went with the row. Translated in 21
-    # locales, so it waits for the sweep like the rest of this list.
-    "STR_K_FP_SUB",
-    # The scan key gate: its hold said the title over again in a lane the
-    # words could not fit, so it shares HOLD TO SHOW with the word grid.
-    "STR_R_SP_SHOW",
-    # SEED WORDS, the PAPER tab: the SHOW THEM row's sub said "paper only. no
-    # photo, no file." and the gate one tap later says the same instruction in
-    # full. A row that restates the screen it opens is the thing this page's
-    # body was already cut for.
-    "STR_I_WROW_SHOW_SUB",
-    # A third wording of one rule. "paper only. never type or photograph." sat
-    # under the setup word grid while the SETTINGS reveal gate said "on paper,
-    # in order. never a photo or a file." for the same instruction -- two
-    # negations and no instruction against one of each. Both screens show
-    # I_WORDS_S now.
-    "STR_W_PAPER_ONLY",
-    # The gate shape's second caption. WHAT SURVIVES and WHAT DOES NOT spent a
-    # 168px lane saying what a tick and a cross say, and that lane was why the
-    # answers themselves could not leave mono18. WHAT SURVIVES survives: the
-    # wipe screen's explainer still uses it as a fact caption.
-    "STR_C_NOT_SURVIVES",
-    # SEED WORDS, the ENCRYPTED tab: two HEADS of a two block explainer whose
-    # bodies were deleted, left wired up as a row sub and a group note. The
-    # row asked "what is in it" instead of answering, and the tab ended on
-    # "if you lose it". Both replaced by strings that carry a fact.
-    "STR_I_KEF_PP_H",
-    "STR_I_KEF_W2_H",
-    # Subtitles retired by the trails pass: every opened-from page now names
-    # its path at y=70 instead of restating its title, its content or a value
-    # the screen already shows. Each waits for the sweep like the rest.
-    "STR_G_STORAGE_CURRENT_FMT",
-    "STR_I_PAIR_S",
-    "STR_I_ROW_WAYSIN_SUB",
-    "STR_W_AUD_S",
-    "STR_W_MADE_S",
-    # Retired when SIGN joined the chrome system: the chooser's subtitle, the
-    # file list's subtitle, the SD empty states' subtitle, and the HOW SIGNING
-    # WORKS overlay whose three steps and definition became the page's [ ? ]
-    # explainer. All translated in 21 locales; they wait for the sweep.
-    "STR_S_CHOOSE_FILE",
-    "STR_S_COORD_B",
-    "STR_S_COORD_T",
-    "STR_S_FLOW_1",
-    "STR_S_FLOW_2",
-    "STR_S_FLOW_3",
-    "STR_S_GET_TX",
-    "STR_S_SD_SUB",
-    # Retired when SIGN grew its tab strip and the camera page was de-boxed:
-    # the SD row's sub-line, the scan page's subtitle, and the PSBT help card
-    # the [ ? ] explainer replaced.
-    "STR_N_PSBT_B",
-    "STR_N_PSBT_T",
-    "STR_N_S",
-    "STR_S_OR_LOAD",
-    # The DENOMINATION row: the amount on the signing screens is the switch
-    # (wt_denom_bind), it persists through the same call the row made, and the
-    # row's own sub-line said so in as many words. Both wait for the sweep.
-    "STR_I_ROW_DENOM",
-    "STR_I_DENOM_SUB",
-    # The BACKUP tab's definition row. It said what the "?" beside SEED WORDS
-    # already opens -- 12 or 24 ordered words, a BIP39 mnemonic, any
-    # compatible signer opens them -- and was the only grow-in-place row on
-    # the page, which is how it came to read as a button.
-    "STR_I_RESTORE_CAP",
-    "STR_I_RESTORE_PLAIN",
-})
+# It carried 55 keys, in three groups whose shape said what had happened: the
+# SETTINGS page rebuilt around section tabs, leaving its NET/HISTORY/FW/POP rows
+# behind; the sign flow's old COORDINATOR explainer; and STR_R_SP_EXPORT, the
+# value of RECEIVE's SCAN KEY row from when that row was a launcher.
+#
+# This used to say they were not deletable in isolation, because deleting a key
+# edits all 21 locale files and that is the translation sweep's work. It is not:
+# a DELETION carries no wording anywhere, so nothing about it can be thrown away
+# when the sweep happens, and holding 55 dead keys in flash in 21 languages to
+# wait for a pass that changes none of them was paying for nothing. One reviewer
+# also read STR_R_ONE_EACH off en.json and filed a finding about a string the
+# device has never drawn, which is the other cost.
+BACKLOG = frozenset()
 
 # The self test's needle: a key nothing can reference, and nothing does --
 # including this line, because the scan skips this file.

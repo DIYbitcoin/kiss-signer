@@ -211,7 +211,7 @@ RULES = [
             # Measured, not excused: these predate the rule and each is a
             # teaching paragraph rather than an instruction. They shrink when
             # their screen is next touched.
-            "G_FW_BIG_B", "G_FW_OK_B", "G_STORAGE_CLEANUP_B", "N_PSBT_B",
+            "G_FW_BIG_B", "G_FW_OK_B", "G_STORAGE_CLEANUP_B",
             "S_COINS_HELP_B", "S_D_TXID_CHANGES", "S_D_TXID_SAME",
             "S_STOP_NET_B", "S_STOP_NOFP_B", "W_CARDS_HELP_B",
             "W_SD_CORRUPT_B",
