@@ -2778,10 +2778,28 @@ static void verify_screen(lv_obj_t *parent)
             // muted -- the same split the graph's rows make. One string would
             // be one colour, and one colour here means either a shouted
             // caption or a mark that cannot follow the theme.
+            // ONE label, RECOLOR: the mark takes the accent and the words stay
+            // muted, the same split the graph's rows make. A second label in
+            // this chip is a third child in a 236px flex row and the walk found
+            // that as a segfault four stops away.
+            //
+            // NO WT_FLAG_ACCENT, and that is the one difference from the graph.
+            // With the flag this crashed on every non-MONO accent -- the walk
+            // switches theme on the sign screen with no rebuild, and accent_walk
+            // repainting a RECOLOR label in that chip is what did it. The cost
+            // of leaving it off is that a theme switched WHILE this screen is up
+            // leaves the mark in the old accent until the next rebuild, which
+            // repaint_verify does on every acknowledgement and every page turn.
+            // A stale mark on a badge is the smaller of the two.
+            char kb[64];
+            snprintf(kb, sizeof kb, "%s  #%02X%02X%02X %s#", WT_ICON_KEY,
+                     MUT_COL.red, MUT_COL.green, MUT_COL.blue,
+                     tr(STR_S_SIGNING_AS));
             lv_obj_t *c = lv_label_create(chip);
-            lv_label_set_text(c, tr_sym(WT_ICON_KEY, STR_S_SIGNING_AS));
+            lv_label_set_recolor(c, true);
+            lv_label_set_text(c, kb);
             lv_obj_set_style_text_font(c, wt_font14(), 0);
-            lv_obj_set_style_text_color(c, MUT_COL, 0);
+            lv_obj_set_style_text_color(c, wt_accent(), 0);
             snprintf(buf, sizeof buf, "%02X%02X%02X%02X", fp[0], fp[1], fp[2], fp[3]);
             lv_obj_t *f = lv_label_create(chip);
             lv_label_set_text(f, buf);
@@ -3319,7 +3337,13 @@ static void verify_screen(lv_obj_t *parent)
 
         snprintf(buf, sizeof buf, tr(STR_S_BUNDLE_IN_FMT), (unsigned)s_sum.n_in);
         snprintf(s_graph_cap_rest, sizeof s_graph_cap_rest, "%s", buf);
-        lv_obj_t *lc = sg_lbl(s_scr, buf, 24, 150, wt_font14(), MUT_COL);
+        // 146, not 150. This line names the two columns and sat four pixels
+        // off the first row of one of them. The air comes from ABOVE it, not
+        // from moving the graph: the graph's y moves every output row with it,
+        // and those rows are what a finger and the walk both aim at. The hero
+        // ends at 138, so eight above and eleven below is the balance -- and
+        // nothing below this line moved at all.
+        lv_obj_t *lc = sg_lbl(s_scr, buf, 24, 146, wt_font14(), MUT_COL);
         lv_obj_set_style_text_letter_space(lc, 2, 0);
         s_graph_cap = lc;      // becomes SIGNING, then ALL %u COINS SIGNED
         // "SPENDING 3 OF YOUR COINS" is the first line on this screen that uses
@@ -3414,7 +3438,7 @@ static void verify_screen(lv_obj_t *parent)
                              LV_TEXT_FLAG_NONE);
             tot_cap_w = ts.x + 8;
             tot_w += tot_cap_w;
-            tot_y = 150 + (lv_font_get_line_height(f14) - f14->base_line)
+            tot_y = 146 + (lv_font_get_line_height(f14) - f14->base_line)
                         - (lv_font_get_line_height(f23) - f23->base_line);
         }
         // ---- the caption line, in three slots -----------------------------
@@ -3440,7 +3464,7 @@ static void verify_screen(lv_obj_t *parent)
         // From the glossary's own line rather than a key of its own: the term
         // is already translated 21 times and gloss_term(2) has been lifting
         // CHANGE out of it for as long as the change row has existed.
-        lv_obj_t *rc = sg_lbl(s_scr, gloss_term(1), 0, 150,
+        lv_obj_t *rc = sg_lbl(s_scr, gloss_term(1), 0, 146,
                               wt_font14(), MUT_COL);
         lv_obj_set_style_text_letter_space(rc, 2, 0);
         lv_obj_update_layout(rc);
@@ -3507,7 +3531,7 @@ static void verify_screen(lv_obj_t *parent)
             snprintf(pc, sizeof pc, tr(STR_N_PARTS_FMT),
                      wt_bundle_page(bg) + 1, wt_bundle_pages(bg));
             const lv_font_t *pf14 = wt_font14(), *pf23 = wt_font_mono23();
-            const int py = 150 + (lv_font_get_line_height(pf14) - pf14->base_line)
+            const int py = 146 + (lv_font_get_line_height(pf14) - pf14->base_line)
                                - (lv_font_get_line_height(pf23) - pf23->base_line);
             lv_obj_t *pl = s_page_lbl = sg_lbl(s_scr, pc, 0, py,
                                                pf23, wt_accent());
@@ -3540,7 +3564,7 @@ static void verify_screen(lv_obj_t *parent)
         // built first it rendered perfectly and swallowed every press. Fourth
         // time in this file. The walk taps it now.
         if (tot_w) {
-            sg_lbl(s_scr, tr(STR_S_IN_TOTAL), tot_x, 150, wt_font14(), MUT_COL);
+            sg_lbl(s_scr, tr(STR_S_IN_TOTAL), tot_x, 146, wt_font14(), MUT_COL);
             lv_obj_t *tot = sg_lbl(s_scr, intot, tot_x + tot_cap_w, tot_y,
                                    wt_font_mono23(), INK_COL);
             wt_denom_bind(tot);
@@ -3549,7 +3573,7 @@ static void verify_screen(lv_obj_t *parent)
             // baseline: it is font14 beside mono23 and the pair reads as one
             // amount, the same way the hero's "sats" sits beside its number.
             sg_lbl(s_scr, wt_denom_unit(),
-                   tot_x + tot_cap_w + lv_obj_get_width(tot) + 8, 150,
+                   tot_x + tot_cap_w + lv_obj_get_width(tot) + 8, 146,
                    wt_font14(), MUT_COL);
         }
 

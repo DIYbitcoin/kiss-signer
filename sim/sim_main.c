@@ -1816,9 +1816,20 @@ static void find_lit(lv_obj_t *o, const char *txt)
         }
         hit = strstr(j, txt) != NULL;
     }
-    if (hit)
-        for (lv_obj_t *p = o; p; p = lv_obj_get_parent(p))
-            if (lv_obj_has_flag(p, LV_OBJ_FLAG_CLICKABLE)) { s_lit = p; return; }
+    // The climb stops short of the SCREEN. Every sign screen carries a swipe
+    // watcher, which makes the screen itself clickable -- so a label with no
+    // control of its own walked all the way up and handed the tap to the
+    // gesture handler, which read it as a swipe past the last tab and opened
+    // the glossary over a screen that was already gone. Four levels is deeper
+    // than any row on this device and shallower than the screen.
+    if (hit) {
+        lv_obj_t *scr = lv_screen_active();
+        lv_obj_t *q = o;
+        for (int up = 0; q && up < 5; q = lv_obj_get_parent(q), up++) {
+            if (q == scr) break;
+            if (lv_obj_has_flag(q, LV_OBJ_FLAG_CLICKABLE)) { s_lit = q; return; }
+        }
+    }
     for (uint32_t i = 0; i < lv_obj_get_child_count(o) && !s_lit; i++)
         find_lit(lv_obj_get_child(o, i), txt);
 }
@@ -3240,7 +3251,13 @@ int main(void) {
   // The ADDRESS LINE of the recipient row, not its amount: the amount is the
   // unit switch on every screen of this device, so the two lines of a row are
   // two controls and each is the thing under the finger.
-  touch(600, 210); pump(3); release(); pump(8);      // the address line
+  // BY NAME, not by coordinate. The address line moves whenever the graph band
+  // does, and a tap that lands on empty glass does not fail here -- it fails
+  // two screens later, as a segfault in whatever the miss eventually reaches.
+  if (!tap_lit("g3h8 ffkz", 3, 8)) {
+    printf("FAIL: the recipient's address line was not tappable\n");
+    return 1;
+  }
   save("/tmp/sim_sign_addr_mid.ppm");
   pump(30);                                          // let the stagger settle
   save("/tmp/sim_sign_addr.ppm");
@@ -3575,7 +3592,11 @@ int main(void) {
               "bc1q zyg3  \xE2\x80\xA6  g3zy g3h8 ffkz");
     // The recipient ROW, which is the control an owner presses now: one
     // layout at every count, and the card that used to be here is gone.
-    touch(600, 210); pump(3); release(); pump(30);
+    // By name, for the reason the first address tap gives above.
+    if (!tap_lit("g3h8 ffkz", 3, 30)) {
+      printf("FAIL: the paid-before address line was not tappable\n");
+      return 1;
+    }
     save("/tmp/sim_sign_known_why.ppm");
     // The BODY, not the whole string: WT_GRID_ICONS splits each entry at its
     // "HEAD: " and puts the two halves in separate labels, so the full string
