@@ -133,20 +133,33 @@ static void intro_screen(void)
              WT_CHOICE_X, RNG_CARD_Y, WT_CHOICE_W, WT_CHOICE_H,
              NULL, NULL);
 
-    // What the test scores and what it cannot see, as rows under the row that
-    // says where the numbers come from. With no source the second one carries
-    // the refusal instead of the caution: a formula passes this test too, so
-    // there is nothing here to audit -- the same reason key material refuses.
-    wt_fact_t facts[2] = {
+    // DECIDED: the pair read "SPREAD / 5000 numbers, 100 groups" and
+    // "CANNOT PROVE / software passes it too", and came off the bench as
+    // "what are you trying to say". Both were the middle of a sentence: one
+    // named the method without saying what it measures, the other named a
+    // limit without saying what a pass would have meant. Three rows say the
+    // whole thing in order -- what runs, what a good result looks like, what
+    // it still cannot tell you -- and the third is where "spread" is earned,
+    // so SPREAD SCORE on the result page arrives with a meaning attached.
+    //
+    // The value lane is 438px at font28, about 25 characters, so none of
+    // these can grow into a sentence: that is the shape doing its job, and
+    // anything longer belongs in a paragraph, not a fact row.
+    wt_fact_t facts[3] = {
         { .cap = tr(STR_W_RNG_WHY1_H), .val = tr(STR_W_RNG_WHY1_B),
           .icon = LV_SYMBOL_SHUFFLE },
-        { .cap = tr(STR_W_RNG_WHY2_H),
+        { .cap = tr(STR_W_RNG_FAIR_H), .val = tr(STR_W_RNG_FAIR_B),
+          .icon = LV_SYMBOL_OK },
+        // With no source the caution stops being a caveat and becomes the
+        // refusal: there is nothing to score, so the caption changes too --
+        // "THE LIMIT / nothing to audit" is two halves of different claims.
+        { .cap = live ? tr(STR_W_RNG_WHY2_H) : tr(STR_W_RNG_OFF),
           .val = live ? tr(STR_W_RNG_WHY2_B) : tr(STR_W_RNG_NOSRC_B),
           .icon = LV_SYMBOL_WARNING, .icon_col = WT_WARN },
     };
     // Under the card with a gap that reads as one, rather than pinned at a
     // number chosen when the card sat higher.
-    wt_facts(s_scr, RNG_CARD_Y + WT_CHOICE_H + 34, facts, 2);
+    wt_facts(s_scr, RNG_CARD_Y + WT_CHOICE_H + 34, facts, 3);
 
     lv_obj_t *back = wt_arrow_action(s_scr, tr(STR_C_BACK), true, false,
                                      WT_BACK_X, WT_ACTION_Y, 140, true,

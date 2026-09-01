@@ -781,6 +781,8 @@ enum {
     STR_W_RNG_AGAIN,
     STR_W_RNG_CHI_CAP,
     STR_W_RNG_EVEN,
+    STR_W_RNG_FAIR_B,
+    STR_W_RNG_FAIR_H,
     STR_W_RNG_GO,
     STR_W_RNG_NOSRC_B,
     STR_W_RNG_OFF,

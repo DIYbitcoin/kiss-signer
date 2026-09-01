@@ -778,6 +778,8 @@
   "W_RNG_AGAIN": "KØR IGEN",
   "W_RNG_CHI_CAP": "SPREDNINGSSCORE",
   "W_RNG_EVEN": "JÆVNT",
+  "W_RNG_FAIR_B": "spreads them evenly",
+  "W_RNG_FAIR_H": "A FAIR CHIP",
   "W_RNG_GO": "START",
   "W_RNG_NOSRC_B": "uden en kilde er tallene en formel, og en formel består også. der er intet at revidere før kilden er tilbage.",
   "W_RNG_OFF": "INGEN KILDE",
