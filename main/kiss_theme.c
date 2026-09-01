@@ -7634,15 +7634,6 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
                              LV_TEXT_FLAG_NONE);
             wid += ts.x + 8;                  // + bundle_row's pad_column
         }
-        // The unit rides the amount's own string on a one-coin spend; measure
-        // the pair, not the figure, or the strands start under the word.
-        if (n_in == 1) {
-            char u[24];
-            snprintf(u, sizeof u, " %s", wt_denom_unit());
-            lv_text_get_size(&ts, u, in_f, 0, 0, LV_COORD_MAX,
-                             LV_TEXT_FLAG_NONE);
-            wid += ts.x;
-        }
         if (wid > lane) lane = wid;
     }
     if (lane > BLANE_MAX) lane = BLANE_MAX;
@@ -7687,16 +7678,11 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
         // input TOTAL, and with one coin there is no separate total to put it
         // on. It came back from the bench as "what are they, sat amounts?".
         //
-        // In the amount's OWN string, not a label beside it. A second object
-        // per input row is not affordable here -- the LVGL pool peaks at 84%
-        // on this screen, and the label allocation returned NULL, which the
-        // walk found as a segfault two screens later rather than as an error.
-        // So the unit rides the same face as the figure, which the lane
-        // measurement above already accounts for.
-        if (n_in == 1) {
-            size_t al = strlen(amt);
-            snprintf(amt + al, sizeof amt - al, " %s", wt_denom_unit());
-        }
+        // The caller labels it TOTAL through in[0].label instead. Both will not
+        // fit: the lane is capped at BLANE_MAX so the strands keep their run to
+        // the junction, and the word plus the figure plus the unit is past it.
+        // The word wins -- the hero four lines up already carries the unit, and
+        // what the row needed was to say WHAT it is, not what it is counted in.
         if (in[i].label)                      // the group row: words, then the total
             b->note[k] = bundle_txt(row, in[i].label, wt_font14(),
                                     acc ? wt_accent() : WT_MUT, acc);

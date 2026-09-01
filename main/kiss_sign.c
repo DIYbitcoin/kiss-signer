@@ -3192,6 +3192,11 @@ static void verify_screen(lv_obj_t *parent)
                                             .flagged = IN_DUST(det.ins[last].sats) };
             }
         }
+        // One coin IS the total, so the row says so. The caption line's middle
+        // slot stays empty in that case -- printing the figure again 40px above
+        // its own row is the same number twice -- and the word was the half of
+        // that block the row was actually missing.
+        if (n_in == 1) in[0].label = tr(STR_S_IN_TOTAL);
         if (!n_in) {
             // The fallback strand is the whole input side, so it can only carry
             // a caution that is about the whole input side.
@@ -3343,7 +3348,11 @@ static void verify_screen(lv_obj_t *parent)
         // and those rows are what a finger and the walk both aim at. The hero
         // ends at 138, so eight above and eleven below is the balance -- and
         // nothing below this line moved at all.
-        lv_obj_t *lc = sg_lbl(s_scr, buf, 24, 146, wt_font14(), MUT_COL);
+        // font23, not font14. These name the two columns the whole screen is
+        // made of, and font14 is for MARKS -- chip labels, unit suffixes,
+        // chevrons. The line already stands as tall as the mono23 total that
+        // shares it, so the rung costs no height on the screens that carry one.
+        lv_obj_t *lc = sg_lbl(s_scr, buf, 24, 146, wt_font23(), MUT_COL);
         lv_obj_set_style_text_letter_space(lc, 2, 0);
         s_graph_cap = lc;      // becomes SIGNING, then ALL %u COINS SIGNED
         // "SPENDING 3 OF YOUR COINS" is the first line on this screen that uses
@@ -3371,7 +3380,7 @@ static void verify_screen(lv_obj_t *parent)
             cands[2] = alt;
             for (int c = 0; c < 3; c++) {
                 lv_point_t p;
-                lv_text_get_size(&p, cands[c], wt_font14(), 2, 0,
+                lv_text_get_size(&p, cands[c], wt_font23(), 2, 0,
                                  LV_COORD_MAX, LV_TEXT_FLAG_NONE);
                 if (p.x > capw) capw = p.x;
             }
@@ -3408,7 +3417,7 @@ static void verify_screen(lv_obj_t *parent)
         int tot_w = 0, tot_x = 0, tot_y = 0, tot_unit_w = 0, tot_cap_w = 0;
         if (n_in > 1) {
             lv_point_t ts;
-            const lv_font_t *f14 = wt_font14(), *f23 = wt_font_mono23();
+            const lv_font_t *f14 = wt_font23(), *f23 = wt_font_mono23();
             wt_fmt_amount(s_sum.in_sats, intot, sizeof intot);
             lv_text_get_size(&ts, intot, f23, 0, 0, LV_COORD_MAX,
                              LV_TEXT_FLAG_NONE);
@@ -3465,7 +3474,7 @@ static void verify_screen(lv_obj_t *parent)
         // is already translated 21 times and gloss_term(2) has been lifting
         // CHANGE out of it for as long as the change row has existed.
         lv_obj_t *rc = sg_lbl(s_scr, gloss_term(1), 0, 146,
-                              wt_font14(), MUT_COL);
+                              wt_font23(), MUT_COL);
         lv_obj_set_style_text_letter_space(rc, 2, 0);
         lv_obj_update_layout(rc);
         const int out_x = SG_CAP_R - SG_CAP_CNT - lv_obj_get_width(rc);
@@ -3474,8 +3483,26 @@ static void verify_screen(lv_obj_t *parent)
         // SIGNING and then ALL n COINS SIGNED -- so the centre does not move
         // when the word under the finger changes.
         const int mid_l = 24 + capw + 12, mid_r = out_x - 12;
+        // The middle slot SHEDS rather than overflows. Twenty coins make the
+        // left caption ALL 20 COINS SIGNED and the figure seven digits wide, so
+        // the three parts stopped fitting between the two column heads and the
+        // unit landed on the word OUTPUTS -- which the overlap gate caught.
+        // The UNIT goes first: the hero four lines up is the same denomination
+        // and says it in full, so it is the most redundant of the three. The
+        // word TOTAL goes second, and only when the line genuinely cannot hold
+        // it -- it is the half that says what the figure IS, which is the whole
+        // reason the figure stopped floating. The figure never goes.
+        if (tot_w > mid_r - mid_l && tot_unit_w) {
+            tot_w -= tot_unit_w;
+            tot_unit_w = 0;
+        }
+        if (tot_w > mid_r - mid_l && tot_cap_w) {
+            tot_w -= tot_cap_w;
+            tot_cap_w = 0;
+        }
         tot_x = mid_l + (mid_r - mid_l - tot_w) / 2;
-        if (tot_x < mid_l) tot_x = mid_l;      // a wide locale: left anchored
+        if (tot_x + tot_w > mid_r) tot_x = mid_r - tot_w;
+        if (tot_x < mid_l) tot_x = mid_l;      // nothing left to shed
         s_coins_chip_x = mid_l;
 
         // With one recipient the address card takes the band under the graph.
@@ -3530,7 +3557,7 @@ static void verify_screen(lv_obj_t *parent)
             char pc[16];
             snprintf(pc, sizeof pc, tr(STR_N_PARTS_FMT),
                      wt_bundle_page(bg) + 1, wt_bundle_pages(bg));
-            const lv_font_t *pf14 = wt_font14(), *pf23 = wt_font_mono23();
+            const lv_font_t *pf14 = wt_font23(), *pf23 = wt_font_mono23();
             const int py = 146 + (lv_font_get_line_height(pf14) - pf14->base_line)
                                - (lv_font_get_line_height(pf23) - pf23->base_line);
             lv_obj_t *pl = s_page_lbl = sg_lbl(s_scr, pc, 0, py,
@@ -3564,7 +3591,8 @@ static void verify_screen(lv_obj_t *parent)
         // built first it rendered perfectly and swallowed every press. Fourth
         // time in this file. The walk taps it now.
         if (tot_w) {
-            sg_lbl(s_scr, tr(STR_S_IN_TOTAL), tot_x, 146, wt_font14(), MUT_COL);
+            if (tot_cap_w)
+                sg_lbl(s_scr, tr(STR_S_IN_TOTAL), tot_x, 146, wt_font23(), MUT_COL);
             lv_obj_t *tot = sg_lbl(s_scr, intot, tot_x + tot_cap_w, tot_y,
                                    wt_font_mono23(), INK_COL);
             wt_denom_bind(tot);
@@ -3572,9 +3600,10 @@ static void verify_screen(lv_obj_t *parent)
             // The unit rides the figure's own top edge rather than its
             // baseline: it is font14 beside mono23 and the pair reads as one
             // amount, the same way the hero's "sats" sits beside its number.
-            sg_lbl(s_scr, wt_denom_unit(),
-                   tot_x + tot_cap_w + lv_obj_get_width(tot) + 8, 146,
-                   wt_font14(), MUT_COL);
+            if (tot_unit_w)
+                sg_lbl(s_scr, wt_denom_unit(),
+                       tot_x + tot_cap_w + lv_obj_get_width(tot) + 8, 146,
+                       wt_font23(), MUT_COL);
         }
 
         // NO ADDRESS CARD, at any recipient count. This screen had TWO
