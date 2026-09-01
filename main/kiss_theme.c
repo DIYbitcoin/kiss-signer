@@ -7849,9 +7849,14 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
             char m[192];
             size_t o = 0;
             o += (size_t)snprintf(m, sizeof m, "%s", out[i].mark);
+            // CHANGE keeps its WORD in the accent too. It is the one row whose
+            // subject is money coming BACK, and the bench asked for the whole
+            // of it lit rather than the figure alone -- in the theme's colour,
+            // which is what the accent has always been.
+            const lv_color_t wc = acc ? wt_accent() : WT_MUT;
             if (out[i].label && o + 2 < sizeof m) {
                 o += (size_t)snprintf(m + o, sizeof m - o, "  #%02X%02X%02X ",
-                                      WT_MUT.red, WT_MUT.green, WT_MUT.blue);
+                                      wc.red, wc.green, wc.blue);
                 // '#' opens a colour run, so a literal one -- the change row's
                 // address index -- has to be doubled or LVGL eats the digits
                 // after it as a colour.

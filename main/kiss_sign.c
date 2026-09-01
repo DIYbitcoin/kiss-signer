@@ -2654,6 +2654,19 @@ static void verify_screen(lv_obj_t *parent)
             snprintf(ll + strlen(ll), sizeof ll - strlen(ll),
                      tr(STR_S_LOCK_AFTER_FMT), (unsigned)s_sum.locktime);
             lv_obj_t *lb = wt_state_chip(s_scr, ll, WT_MUT);
+            // The MARK in the theme's colour, the block number muted, the rim
+            // and tint left where wt_state_chip put them. Its own split only
+            // fires for WT_WARN, so this is the same recolor the caption above
+            // uses, applied over the top.
+            {
+                char lm[64];
+                snprintf(lm, sizeof lm, "%s  #%02X%02X%02X %s#", WT_ICON_LOCK,
+                         MUT_COL.red, MUT_COL.green, MUT_COL.blue,
+                         ll + strlen(WT_ICON_LOCK) + 2);
+                lv_label_set_recolor(lb, true);
+                lv_label_set_text(lb, lm);
+                lv_obj_set_style_text_color(lb, wt_accent(), 0);
+            }
             lv_obj_update_layout(lb);
             int lw = lv_obj_get_width(lb);
             // The same guard the network badge takes -- a badge placed on a
@@ -2680,7 +2693,7 @@ static void verify_screen(lv_obj_t *parent)
             const bool q_fits = (fr - 30 - 12 - lw - 12 - fx >= 12);
             if (q_fits || fr - lw - 12 - fx >= 12) {
                 if (q_fits) {
-                    wt_help_chip(s_scr, fr - 30, 26, MUT_COL,
+                    wt_help_chip(s_scr, fr - 30, 26, wt_accent(),
                                  det_term_cb, (void *)(uintptr_t)DT_LOCKTIME);
                     fr -= 30 + 12;
                 }
@@ -3352,7 +3365,39 @@ static void verify_screen(lv_obj_t *parent)
         // made of, and font14 is for MARKS -- chip labels, unit suffixes,
         // chevrons. The line already stands as tall as the mono23 total that
         // shares it, so the rung costs no height on the screens that carry one.
-        lv_obj_t *lc = sg_lbl(s_scr, buf, 24, 146, wt_font23(), MUT_COL);
+        // The COUNT takes the accent, the word and its brackets do not. Same
+        // RECOLOR split the graph's rows make, and the same way round: the
+        // label's own colour is the accent so WT_FLAG_ACCENT repaints it, and
+        // the muted halves are pinned in markup, which cannot go stale.
+        //
+        // The digits are FOUND rather than formatted in, because the caption is
+        // a translated format and only English can be assumed to put the number
+        // where English puts it. snprintf gives the finished line; the number is
+        // then located in it. It also survives the caption becoming SIGNING and
+        // ALL n COINS SIGNED, which carry no markup and simply render in the
+        // label's colour -- the accent, which is what a signature is drawn in.
+        char capm[192], num[16];
+        snprintf(num, sizeof num, "%u", (unsigned)s_sum.n_in);
+        const char *at = strstr(buf, num);
+        if (at) {
+            // The BRACKETS come with the number. "(1)" is one mark and reads as
+            // one, so lighting the digit and leaving its brackets grey split a
+            // thing that is not two things. Walked out from the digits rather
+            // than assumed: a locale that writes the count without brackets
+            // simply lights the digits, which is what it had before.
+            const char *lo = at, *hi = at + strlen(num);
+            while (lo > buf && (lo[-1] == '(' || lo[-1] == '[')) lo--;
+            while (*hi == ')' || *hi == ']') hi++;
+            snprintf(capm, sizeof capm, "#%02X%02X%02X %.*s#%.*s#%02X%02X%02X %s#",
+                     MUT_COL.red, MUT_COL.green, MUT_COL.blue,
+                     (int)(lo - buf), buf, (int)(hi - lo), lo,
+                     MUT_COL.red, MUT_COL.green, MUT_COL.blue, hi);
+        } else {
+            snprintf(capm, sizeof capm, "%s", buf);
+        }
+        lv_obj_t *lc = sg_lbl(s_scr, capm, 24, 146, wt_font23(), wt_accent());
+        lv_label_set_recolor(lc, true);
+        lv_obj_add_flag(lc, WT_FLAG_ACCENT);
         lv_obj_set_style_text_letter_space(lc, 2, 0);
         s_graph_cap = lc;      // becomes SIGNING, then ALL %u COINS SIGNED
         // "SPENDING 3 OF YOUR COINS" is the first line on this screen that uses
