@@ -2263,14 +2263,13 @@ static uint16_t caution_rows(uint16_t f, const char **parts, uint16_t *bits, int
     // test states its own evidence. Integer percent: this only fires at 10 and
     // above, and a tenth of a percent changes nobody's decision.
     //
-    // "of the send" and not "of what you send", which is what the DETAILS deck
-    // says with a whole lane to itself. The bar carries the leading caution
-    // plus "+N" for the rest, and that line is 475px: the longer phrase pushed
-    // it to 35 characters, past what font23 holds, so wt_note_fit dropped the
-    // sentence to font14 and the TINY check said so. The preposition is what
-    // gave way -- naming what the percentage is OF is the whole point of
-    // printing it, and a share of nothing in particular is exactly the reading
-    // "0% of inputs" gets on other signers.
+    // The bare percentage. It read "26% of the send", then "26% of what you
+    // send" before that, and the phrase was most of the line: the bar carries
+    // the leading caution plus "+N" for the rest inside 475px, and the longest
+    // form pushed it past what font23 holds. Beside the words HIGH FEE a
+    // percentage has only one thing it can be a share of, which is what makes
+    // this different from the "0% of inputs" other signers print next to no
+    // claim at all.
     if (n < cap && (f & WPSBT_C_HIGHFEE)) {
         static char hf[96];
         char fig[48];
@@ -2733,10 +2732,15 @@ static void verify_screen(lv_obj_t *parent)
         } else {
             uint8_t fp[4];
             kiss_ui_last_fp(fp);
-            lv_obj_t *c = lv_label_create(chip);
             // The key is step 2's mark on the HOW SIGNING WORKS diagram: the
             // same mark on the chip says "this is the step you are at" without
             // a word of overlap between the two screens.
+            //
+            // Its own label, so the MARK takes the accent while the words stay
+            // muted -- the same split the graph's rows make. One string would
+            // be one colour, and one colour here means either a shouted
+            // caption or a mark that cannot follow the theme.
+            lv_obj_t *c = lv_label_create(chip);
             lv_label_set_text(c, tr_sym(WT_ICON_KEY, STR_S_SIGNING_AS));
             lv_obj_set_style_text_font(c, wt_font14(), 0);
             lv_obj_set_style_text_color(c, MUT_COL, 0);
@@ -3180,33 +3184,23 @@ static void verify_screen(lv_obj_t *parent)
         // digits. 80 could not hold the worst case and -Wformat-truncation
         // said so -- on the device compiler, which is the only lane that
         // implements it.
-        char sbuf[80], fbuf[80], cbuf[104];
-        snprintf(sbuf, sizeof sbuf, "%s", GLOSS_ICONS[1]);
-        snprintf(fbuf, sizeof fbuf, "%s  %s", GLOSS_ICONS[4], tr(STR_S_FEE));
-        // The change strand names its INDEX only when the index is the thing
-        // wrong with it. It was added because an owner could read the whole
-        // graph and still not know their change had been parked at #99999
-        // where no coordinator scans -- the whole of TX-17 -- and then printed
-        // on every transaction, so an ordinary spend carried "#0" next to the
-        // word CHANGE: a number that means nothing until it means everything,
-        // which is the copy rule's own case for cutting a string.
+        char fbuf[80], cbuf[104];
+        snprintf(fbuf, sizeof fbuf, "%s", tr(STR_S_FEE));
+        // The change strand does NOT name its address index. It did, on every
+        // transaction, so an ordinary spend carried "#0" beside the word
+        // CHANGE -- a number that means nothing until it means everything.
+        // Then it was narrowed to the out-of-reach case, and that is where it
+        // stopped being this row's job at all: the caution says "change out of
+        // reach #99999" in full, and no signature is possible until every
+        // caution has been acknowledged, so the owner cannot reach the slide
+        // without having read the number. A value next to a value is what the
+        // copy rule cuts.
         //
-        // WPSBT_GAP_INDEX is the bar kiss_psbt.c raises the caution at, read
-        // here rather than off the caution flag so the row and the strand agree
-        // about WHICH output earned it -- with two change outputs the flag is
-        // set for the transaction and the number belongs to one of them. One
-        // buffer serves every change strand, so with more than one the bare
-        // word stays rather than have them all claim the first one's number.
-        uint32_t ci = 0;
-        if (change_n == 1)
-            for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS; i++)
-                if (s_sum.outs[i].is_change) { ci = s_sum.outs[i].index; break; }
-        if (ci >= WPSBT_GAP_INDEX) {
-            snprintf(cbuf, sizeof cbuf, "%s  %s  #%u", GLOSS_ICONS[2],
-                     gloss_term(2), (unsigned)ci);
-        } else {
-            snprintf(cbuf, sizeof cbuf, "%s  %s", GLOSS_ICONS[2], gloss_term(2));
-        }
+        // It also cannot live here any more. This label is RECOLOR markup so
+        // the mark can take the accent while the words stay muted, and '#'
+        // opens a colour run -- an index inside it ends the run early and
+        // paints the digits the mark's colour by accident.
+        snprintf(cbuf, sizeof cbuf, "%s", gloss_term(2));
         for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS
                         && n_out < WT_BUNDLE_MAX; i++) {
             if (s_sum.outs[i].is_change) continue;
@@ -3220,7 +3214,7 @@ static void verify_screen(lv_obj_t *parent)
             // its amount and a card below was its address -- and that card is
             // what made this screen two layouts.
             out[n_out++] = (wt_strand_t){ .sats  = s_sum.outs[i].sats,
-                                          .label = sbuf,
+                                          .mark  = GLOSS_ICONS[1],
                                           .role  = WT_STRAND_SEND,
                                           .known = kiss_payee_seen(s_sum.outs[i].addr),
                                           .addr  = s_sum.outs[i].addr };
@@ -3236,6 +3230,7 @@ static void verify_screen(lv_obj_t *parent)
         }
         if (n_out < WT_BUNDLE_MAX)
             out[n_out++] = (wt_strand_t){ .sats  = s_sum.fee_sats,
+                                          .mark  = GLOSS_ICONS[4],
                                           .label = fbuf,
                                           .role  = WT_STRAND_FEE,
                                           // The strand is already as thick as
@@ -3257,6 +3252,7 @@ static void verify_screen(lv_obj_t *parent)
                 ((s_sum.caution_flags & (WPSBT_C_DUST_CHANGE | WPSBT_C_SMALL_CHANGE))
                  && cv > 0 && cv < WPSBT_PRIVACY_SATS);
             out[n_out++] = (wt_strand_t){ .sats  = cv,
+                                          .mark  = GLOSS_ICONS[2],
                                           .label = cbuf,   // CHANGE
                                           .role  = WT_STRAND_CHANGE,
                                           .flagged = ch_bad };
@@ -3347,7 +3343,7 @@ static void verify_screen(lv_obj_t *parent)
         // question: the chip explains a word, and this is half the arithmetic
         // the screen exists for.
         char intot[32] = "";
-        int tot_w = 0, tot_x = 0, tot_y = 0, tot_unit_w = 0;
+        int tot_w = 0, tot_x = 0, tot_y = 0, tot_unit_w = 0, tot_cap_w = 0;
         if (n_in > 1) {
             lv_point_t ts;
             const lv_font_t *f14 = wt_font14(), *f23 = wt_font_mono23();
@@ -3369,6 +3365,17 @@ static void verify_screen(lv_obj_t *parent)
                              LV_TEXT_FLAG_NONE);
             tot_unit_w = ts.x + 8;
             tot_w += tot_unit_w;
+            // ...and the word TOTAL in front of it. It was a bare figure
+            // floating between the caption and the graph with nothing saying
+            // what it was -- the reader had to work out that a number beside
+            // "INPUTS (5)" is their sum. The gap it sits in is not decoration
+            // either: the caption becomes ALL 5 COINS SIGNED, so the lane is
+            // measured against the widest word it will ever hold and the
+            // figure has to start past it.
+            lv_text_get_size(&ts, tr(STR_S_IN_TOTAL), f14, 0, 0, LV_COORD_MAX,
+                             LV_TEXT_FLAG_NONE);
+            tot_cap_w = ts.x + 8;
+            tot_w += tot_cap_w;
             tot_y = 150 + (lv_font_get_line_height(f14) - f14->base_line)
                         - (lv_font_get_line_height(f23) - f23->base_line);
         }
@@ -3476,7 +3483,8 @@ static void verify_screen(lv_obj_t *parent)
         // built first it rendered perfectly and swallowed every press. Fourth
         // time in this file. The walk taps it now.
         if (tot_w) {
-            lv_obj_t *tot = sg_lbl(s_scr, intot, tot_x, tot_y,
+            sg_lbl(s_scr, tr(STR_S_IN_TOTAL), tot_x, 150, wt_font14(), MUT_COL);
+            lv_obj_t *tot = sg_lbl(s_scr, intot, tot_x + tot_cap_w, tot_y,
                                    wt_font_mono23(), INK_COL);
             wt_denom_bind(tot);
             lv_obj_update_layout(tot);
@@ -3484,7 +3492,7 @@ static void verify_screen(lv_obj_t *parent)
             // baseline: it is font14 beside mono23 and the pair reads as one
             // amount, the same way the hero's "sats" sits beside its number.
             sg_lbl(s_scr, wt_denom_unit(),
-                   tot_x + lv_obj_get_width(tot) + 8, 150,
+                   tot_x + tot_cap_w + lv_obj_get_width(tot) + 8, 150,
                    wt_font14(), MUT_COL);
         }
 

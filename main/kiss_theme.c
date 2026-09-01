@@ -7842,9 +7842,46 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
         wt_fmt_amount(out[i].sats, amt, sizeof amt);
         b->amount[k] = bundle_txt(line, amt, wt_font_mono23(), oc, acc);
         wt_denom_bind(b->amount[k]);
-        if (out[i].label)
+        // The MARK takes the accent and the WORDS stay muted, on every row.
+        // Change used to be the one row whose label was accent too, which drew
+        // the whole row in the theme colour -- and it is the AMOUNT that comes
+        // back to the owner, not the word for it. So the accent lands on the
+        // figure and on the marks, and no row's words are louder than another's.
+        //
+        // ONE label, with LVGL's inline RECOLOR doing what two objects would --
+        // the same trick wt_state_chip uses, and for the same reason it gives
+        // there: two objects in this row is a second child in a flex line and
+        // the walk's coordinate taps land somewhere else.
+        //
+        // The colours are the right way round for a THEME. The label's own
+        // colour is the accent and carries the MARK, so WT_FLAG_ACCENT
+        // repaints it when the theme changes; the words are pinned to WT_MUT
+        // by markup, which never goes stale because WT_MUT never moves. The
+        // other way round would bake the accent into a string and leave it
+        // behind the first time somebody switches theme on this screen.
+        if (out[i].mark) {
+            char m[192];
+            size_t o = 0;
+            o += (size_t)snprintf(m, sizeof m, "%s", out[i].mark);
+            if (out[i].label && o + 2 < sizeof m) {
+                o += (size_t)snprintf(m + o, sizeof m - o, "  #%02X%02X%02X ",
+                                      WT_MUT.red, WT_MUT.green, WT_MUT.blue);
+                // '#' opens a colour run, so a literal one -- the change row's
+                // address index -- has to be doubled or LVGL eats the digits
+                // after it as a colour.
+                for (const char *q = out[i].label; *q && o + 3 < sizeof m; q++) {
+                    if (*q == '#') m[o++] = '#';
+                    m[o++] = *q;
+                }
+                if (o + 2 < sizeof m) m[o++] = '#';
+                m[o] = 0;
+            }
+            b->note[k] = bundle_txt(line, m, wt_font14(), wt_accent(), true);
+            lv_label_set_recolor(b->note[k], true);
+        } else if (out[i].label) {
             b->note[k] = bundle_txt(line, out[i].label, wt_font14(),
-                                    acc ? oc : WT_MUT, acc);
+                                    WT_MUT, false);
+        }
         // A destination these keys have paid before. A bare mark, no word: the
         // row already carries an amount, a label and an address, and the one
         // thing being added is "you have been here". The words for it are on
@@ -8125,8 +8162,11 @@ void wt_bundle_state(lv_obj_t *bundle, int state)
                            acc ? wt_accent() : (b->amount[k] ? WT_INK : WT_MUT),
                            acc && !b->flag[k], acc);
             live_out = true;   // the page dim below is what this just undid
-            if (b->note[k] && !acc)
-                lv_obj_set_style_text_color(b->note[k], WT_MUT, 0);
+            // The note's own colour is its MARK, which is the accent on every
+            // row -- its words carry WT_MUT in markup. bundle_repaint paints
+            // the note with the amount, so this puts the mark back.
+            if (b->note[k])
+                lv_obj_set_style_text_color(b->note[k], wt_accent(), 0);
         } else {
             // An input at rest, taken from its role rather than assumed to be
             // muted: a flagged one wears WT_WARN and has to come back to it

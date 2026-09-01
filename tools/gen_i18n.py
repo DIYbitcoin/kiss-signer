@@ -186,6 +186,10 @@ UNTRANSLATED_OK = {
     # says it. Born under the English-only rule; English in the other twenty
     # until the sweep.
     "S_C_HIGHFEE_PCT",
+    # The word over the input side's total, which was a bare figure floating
+    # between the caption and the graph. Born under the English-only rule;
+    # English in the other twenty until the sweep.
+    "S_IN_TOTAL",
     # The SIGN term cards. Born under the English-only rule; English in the
     # other twenty until the sweep.
     "T_PSBT_CAP", "T_PSBT_VAL", "T_PSBT_PLAIN", "T_PSBT_TERM",

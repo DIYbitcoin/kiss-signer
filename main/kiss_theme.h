@@ -543,6 +543,12 @@ enum { WT_STRAND_IN = 0, WT_STRAND_SEND, WT_STRAND_FEE, WT_STRAND_CHANGE };
 
 typedef struct {
     uint64_t    sats;
+    // The row's MARK, its own object so it can take the accent while the words
+    // beside it stay muted. It used to be the first two characters of `label`,
+    // which made the pair one label and one colour -- so a change row wearing
+    // the accent wore it on the word CHANGE as well, and the marks that are
+    // not change could not wear it at all.
+    const char *mark;
     const char *label;      // the words beside the amount; NULL for a bare input
     uint8_t     role;       // WT_STRAND_*
     bool        signed_ok;  // repaint this strand in wt_accent(): its signature landed
