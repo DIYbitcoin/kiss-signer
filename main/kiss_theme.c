@@ -7863,11 +7863,30 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
     b->npage = 0;
     {
         const int colh = lv_obj_get_height(col);
-        const int gap  = 10;
+        // TWO gaps, because one number was doing two jobs and they disagree.
+        // GAP_MIN is the tightest spacing a reader can still tell two rows
+        // apart at; GAP_PAGED is what the column prefers when it cannot spread.
+        //
+        // The split below measures at the FLOOR, so a page is cut only when the
+        // ROWS do not fit -- never when the SPACING does not. That distinction
+        // is the whole bug it fixes: an ordinary spend is a recipient, a fee
+        // and change (49 + 25 + 25 = 99), the column is 111 tall with a caution
+        // bar under the graph, and at ten pixels between rows it needs 119. So
+        // the commonest FLAGGED transaction on the device put the money coming
+        // back to its owner on a second page, and missed the first by eight
+        // pixels of decoration.
+        //
+        // Nothing above it can give those pixels back: the graph's box is
+        // h + 2 * BPAD, so at SG_GRAPH_H_C it already reaches 298 against the
+        // caution bar's hairline at 289, and the bar cannot move down either --
+        // 290 + 44 is two clear of the slide band. SG_GRAPH_H_C is 8 less than
+        // SG_GRAPH_H for exactly that reason.
+        const int GAP_MIN   = 4;
+        const int GAP_PAGED = 10;
         int content = 0;
         for (uint16_t i = 0; i < b->n_out; i++)
-            if (b->row[i]) content += lv_obj_get_height(b->row[i]) + gap;
-        content -= content ? gap : 0;
+            if (b->row[i]) content += lv_obj_get_height(b->row[i]) + GAP_MIN;
+        content -= content ? GAP_MIN : 0;
 
         // Cut a page where the next row would not fit WHOLE. At least one row
         // per page whatever its height: a paragraph taller than the band still
@@ -7880,7 +7899,7 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
             b->prow[b->npage] = (uint8_t)i;
             while (i < b->n_out) {
                 const int rh  = b->row[i] ? lv_obj_get_height(b->row[i]) : 0;
-                const int add = used ? gap + rh : rh;
+                const int add = used ? GAP_MIN + rh : rh;
                 if (i > first && used + add > colh) break;
                 used += add;
                 i++;
@@ -7891,14 +7910,17 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
         if (!b->npage) b->npage = 1;
 
         // Everything fits: distribute the slack so three destinations read as a
-        // list down the band rather than bunched at its top.
+        // list down the band rather than bunched at its top. Measured from the
+        // same floor `content` was, so the arithmetic is invariant -- every
+        // column that already fit renders at exactly the gap it did before, and
+        // the one that did not lands on the tightest gap that holds it.
         if (b->npage == 1 && n_out > 1) {
-            int g = (colh - content) / (int)(n_out - 1) + gap;
+            int g = (colh - content) / (int)(n_out - 1) + GAP_MIN;
             if (g > 28) g = 28;             // a list, not a scatter
-            if (g < 6)  g = 6;
+            if (g < GAP_MIN) g = GAP_MIN;
             lv_obj_set_style_pad_row(col, g, 0);
         } else {
-            lv_obj_set_style_pad_row(col, gap, 0);
+            lv_obj_set_style_pad_row(col, GAP_PAGED, 0);
         }
     }
 
