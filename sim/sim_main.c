@@ -3442,6 +3442,16 @@ int main(void) {
   // here -- it fails four screens later on a DONE action that is not up yet, and
   // then cascades through every BACK after it.
   pump(110);                                        // past REVEAL_MS: writes SD
+  // The arrival motion, drawn OVER the finished exit screen. This lands about
+  // 570ms in -- the pump above clears REVEAL_MS with 10 frames to spare and
+  // the motion has been running since the timer fired -- which is the lock
+  // front a third of the way down the block, with the first characters of the
+  // code already out of it.
+  save("/tmp/sim_sign_arrival.ppm");
+  // Any press ends it. Photographed straight after, because the whole point
+  // of the rule is that a filename an owner is reading back must never be mid
+  // scramble -- if the skip did not land, this frame says so.
+  touch(400, 240); pump(3); release(); pump(20);
   save("/tmp/sim_sign_done.ppm");
   // By the glyph, not by pixel. The chip is right aligned against the artifact
   // card's edge now, so its x is whatever the code's width leaves -- a number
@@ -3815,6 +3825,7 @@ int main(void) {
     }
     slide_grip(STR_S_HOLD_TO_SIGN); slide_go(320);
     release(); pump(150);                           // past the reveal, writes SD
+    touch(400, 240); pump(3); release(); pump(20);  // past the arrival motion
     save("/tmp/sim_sign_done_many.ppm");
     // What the card must say, and what it must not. The count comes from the
     // string DETAILS already uses for it, so this needle is the translated one
@@ -4006,6 +4017,12 @@ int main(void) {
   // the taps gate would call them a dead interaction, which is exactly what it
   // did.
   pump(45); release(); pump(120);
+  // ...and the same arrival motion on this path, over the QR screen. The code
+  // flies to the right column here rather than to a card row, so it is a
+  // different handover and gets its own frame.
+  pump(40);
+  save("/tmp/sim_qr_arrival.ppm");
+  touch(400, 240); pump(3); release(); pump(20);    // any press ends it
   save("/tmp/sim_qr_out1.ppm");                     // animated UR out, first part
   pump(20);                                         // ~320ms: 250ms timer advanced
   save("/tmp/sim_qr_out2.ppm");                     // ...a different part

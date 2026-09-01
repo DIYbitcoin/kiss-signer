@@ -267,6 +267,16 @@ static void oc_collect(lv_obj_t *o, lv_area_t clip, bool clip_scrolls)
 {
     if (s_n >= OC_MAX_NODES) return;
     if (!oc_visible(o)) return;
+    // A decor CONTAINER takes its whole subtree with it, and that is the
+    // difference between this and the per-node skip the CONTENT check does.
+    // The home motes are leaves and are still collected. The signed screen's
+    // arrival motion is not: it is 48 labels stacked three deep at fourteen
+    // origins, on purpose, because the faces are fixed pitch and that is how
+    // per character colour is drawn without one object per character. All
+    // nine questions here are about where content was PUT on a page, and none
+    // of them means anything asked of one 122ms frame of an animation -- the
+    // page underneath is in this tree too, and it is the one to measure.
+    if (wt_is_decor(o) && lv_obj_get_child_count(o) > 0) return;
 
     lv_area_t coords;
     lv_obj_get_coords(o, &coords);

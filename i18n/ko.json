@@ -573,6 +573,7 @@
   "S_STEP_TAKE": "take the card out",
   "S_STEP_OPEN": "open in Sparrow",
   "S_STEP_CAST": "broadcast",
+  "S_MOTION_CAP": "YOUR SIGNED TRANSACTION · AND THE SIGNATURE IN IT",
   "S_SIG_FP_HELP_B": "이 코드는 서명 자체에서 나옵니다.\n\n믿는 다른 서명기에서 다시 서명하세요.\n\n같은 코드면 아무도 바꾸지 않은 것입니다.",
   "S_SIG_FP_HELP_T": "서명 확인",
   "S_SPARROW_SAVE": "Sparrow에서: 거래를 PSBT 파일로 카드에 저장하세요",

@@ -178,6 +178,7 @@ static char s_sig_fp[9];               // fingerprint of the just-signed PSBT (8
 static char s_done_name[SD_NAME_LEN + 8]; // saved outname, so the ? panel can rebuild
 
 static void qr_out_screen(size_t sw);
+static void mo_stop(void);            // the arrival motion, torn down with SIGN
 static size_t s_qr_sw;            // signed length, kept so help can rebuild the QR screen
 static bool s_help_from_qr;       // which signed screen the SIGNATURE panel returns to
 
@@ -267,6 +268,7 @@ static void widgets_drop(void)
     // step_back drops the loaded transaction so the next pick loads its own.
     // The QR-out screen and its easy-scan re-encode read s_out, and neither
     // comes through here -- qr_out_screen clears the widget pointers itself.
+    mo_stop();                    // the arrival overlay and its timer, if any
     kiss_wipe(s_in, sizeof s_in);
     kiss_wipe(s_out, sizeof s_out);
     s_out_len = 0;
@@ -689,6 +691,12 @@ static void sig_fp_open_cb(lv_event_t *e)
     sig_fp_help_cb(NULL);
 }
 
+// Where the exit screen drew the signature code, in SCREEN coordinates, so
+// the motion knows where to fly it. Filled by the two builders because the
+// pair itself is drawn into a card and knows only card-relative numbers.
+static int s_sig_val_x, s_sig_val_y;
+static const lv_font_t *s_sig_val_f;
+
 // round_chip's diameter. Not exported by the kit, and the pair has to be
 // measured before it is drawn so a right aligned caller knows where to start.
 #define SIG_CHIP_D 30
@@ -936,7 +944,12 @@ static void done_artifact(const char *outname, int y)
 
     wt_lbl(c, tr(STR_S_SIG_FP_CAP), PAD, 62, wt_font14(), MUT_COL);
     const lv_font_t *cf = wt_font_mono21();
-    sig_value_pair(c, R - sig_pair_w(cf), 58, false, cf);
+    const int vx = R - sig_pair_w(cf);
+    sig_value_pair(c, vx, 58, false, cf);
+    // In SCREEN coordinates, for the arrival motion to fly the code into.
+    s_sig_val_x = 48 + vx;
+    s_sig_val_y = y + 58;
+    s_sig_val_f = cf;
 }
 
 // Three steps, and only the first one happens here.
@@ -1148,6 +1161,496 @@ static void mark_paid_recipients(void)
 // after this without moving ay.
 #define ADDR_CARD_H 82
 
+// ---- the arrival motion (both exit screens) --------------------------------
+//
+// The transaction resolving into the thing you can check. A block of the
+// signed PSBT settles top down out of noise while the signature's code locks
+// out of the middle of it, and both hand over to the screen underneath.
+//
+// ONE timer drives all of it and every state is a function of ELAPSED MS
+// rather than of ticks. The P4 repaints a full screen in about 130ms, so a
+// tick counted wave would run at a different speed on the panel than in the
+// simulator; late ticks make this one coarser and never longer.
+//
+// Per character colour without 727 objects. The faces are fixed pitch, so
+// three labels at ONE origin, each space padded where a character is not its
+// colour, compose into exactly the per span picture the reference draws --
+// 14 rows x 3, plus two a line for the caption and two for the code, is 48
+// labels rather than one per character. They take lv_label_set_text_static
+// into buffers that live in BSS, so a re-roll every 122ms allocates nothing.
+//
+// And no lv_anim, and no opacity on the container. Fading a parent puts LVGL
+// on the layer path, and this parent covers the whole 800x480: 768KB of
+// composite against a 126KB heap. A label carries its own opa without a
+// layer, and the timer is already running.
+
+#define MO_ROWS      14
+#define MO_COLS      46
+#define MO_CELLS     (MO_ROWS * MO_COLS)
+#define MO_TOP       52          // the block's first row
+#define MO_LINE      20          // ...and the pitch between them
+#define MO_CAP_BOT  396          // the caption's floor, clear of the band
+
+// Every number below is the reference at its approved speed, in absolute ms.
+#define MO_TICK       33
+#define MO_FLIP      122         // an unlocked cell re-rolls this often
+#define MO_WAVE     1378         // the lock front, first row to last
+#define MO_FLASH     170         // accent, before a locked cell settles
+#define MO_CODE_T0   489         // the first character of the code locks
+#define MO_CODE_GAP  222         // ...and the rest, one at a time
+#define MO_CAP_GAP   244         // a caption line lights after the block
+#define MO_CAP_JIT   178         // ...with this much scatter inside the line
+#define MO_HAND     3065         // the block lifts, the code starts travelling
+#define MO_TRAVEL    578         // ...and lands
+#define MO_FADE      380         // the overlay dissolves off the exit screen
+#define MO_END      (MO_HAND + MO_TRAVEL + MO_FADE)
+
+#define MO_CAP_MAX    96         // characters of one caption line
+
+static struct {
+    lv_obj_t *ovl;
+    lv_obj_t *row[MO_ROWS][3];       // dim scramble / accent flash / settled
+    lv_obj_t *cap[2][2];             // the line, and the accent rolling over it
+    lv_obj_t *code[2];               // scrambling, and locked
+    lv_timer_t *tmr;
+    uint32_t  t0;
+    uint32_t  flip;                  // when the unlocked cells last re-rolled
+    uint32_t  rng;
+    int       cap_n[2];
+    bool      cap_pitch[2];          // the picked face is fixed pitch
+    bool      cap_lit[2];            // ...and the line is already all accent
+    int       code_n;
+    int       code_x0, code_y0;      // where the code starts its travel
+    int       hole_c0, hole_c1;      // the cells the code is standing in front of
+    int       hole_r0, hole_r1;
+    bool      row_still[MO_ROWS];    // this row has settled; stop repainting it
+    bool      handed;                // the handover has been done once
+    bool      swapped;               // ...and the code is at its target rung
+} s_mo;
+
+static char    s_mo_b64[MO_CELLS + 1];
+static uint8_t s_mo_jit[MO_CELLS];               // where in its row's band a cell locks
+static char    s_mo_buf[MO_ROWS][3][MO_COLS + 1];
+static const char *s_mo_cap_txt[2];              // the line, untouched
+static char    s_mo_cap_src[2][MO_CAP_MAX + 1];  // ...and its per character copy
+static char    s_mo_cap_buf[2][2][MO_CAP_MAX + 1];
+static uint8_t s_mo_cap_jit[2][MO_CAP_MAX];
+static char    s_mo_code_src[16];
+static char    s_mo_code_buf[2][16];
+
+// Cosmetic only, so an LCG rather than the TRNG: this picks which glyph a
+// cell shows while it is still noise, and spending real entropy on that would
+// be 644 draws every 122ms for nothing.
+static char mo_glyph(void)
+{
+    static const char B64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                              "abcdefghijklmnopqrstuvwxyz0123456789+/";
+    s_mo.rng = s_mo.rng * 1103515245u + 12345u;
+    return B64[(s_mo.rng >> 16) & 63];
+}
+
+static void mo_stop(void)
+{
+    if (s_mo.tmr) { lv_timer_delete(s_mo.tmr); s_mo.tmr = NULL; }
+    // ASYNC. The commonest way this is reached is a press, and mo_skip_cb runs
+    // inside the overlay's own event dispatch -- deleting the object LVGL is
+    // still walking is the one thing that cannot be done here.
+    if (s_mo.ovl) { lv_obj_delete_async(s_mo.ovl); s_mo.ovl = NULL; }
+    // The signed transaction in plain text, gone with the picture that drew
+    // it. Not secret -- it leaves by QR or on the card -- but widgets_drop
+    // wipes the bytes it came from and a copy that outlived them would make
+    // that wipe a half measure.
+    kiss_wipe(s_mo_b64, sizeof s_mo_b64);
+}
+
+// The overlay can also go with its parent (the idle auto-lock tears the whole
+// screen down), and the timer would then be writing into freed labels.
+static void mo_gone_cb(lv_event_t *e)
+{
+    (void)e;
+    s_mo.ovl = NULL;
+    if (s_mo.tmr) { lv_timer_delete(s_mo.tmr); s_mo.tmr = NULL; }
+}
+
+// DECIDED: any press anywhere ends the motion at once, and nothing ever waits
+// on it. The exit screen is already built and DONE is already live underneath
+// -- the motion is drawn OVER a finished screen rather than in front of one
+// being prepared, so a skip is a delete and not a fast forward. Same rule the
+// drift-home timer was deleted for: a filename an owner is reading back must
+// never be mid scramble, and a screen that will not let go reads as a crash.
+static void mo_skip_cb(lv_event_t *e)
+{
+    (void)e;
+    mo_stop();
+}
+
+// 483 bytes is exactly 644 base64 characters, which is exactly the block: 14
+// rows of 46, and no padding character anywhere in it.
+#define MO_B64_BYTES 483
+
+// DECIDED: the motion draws the REAL s_out base64 and the REAL s_sig_fp, never
+// invented bytes. A motion that scrambles plausible looking characters and
+// resolves to something else is a lie told by the one screen whose whole job
+// is to hand back something checkable, and an owner who photographed the frame
+// and compared it would find it. The first row genuinely reads cHNidP8B.
+static bool mo_fill_b64(size_t sw)
+{
+    static char enc[MO_CELLS + 8];
+    const size_t n = sw < MO_B64_BYTES ? sw : MO_B64_BYTES;
+    if (!n || qrt_b64_encode(s_out, n, enc, sizeof enc) != 0) return false;
+    const size_t len = strlen(enc);
+    if (!len) return false;
+    // A transaction shorter than 483 bytes repeats rather than gains
+    // characters nothing signed. There is no such PSBT in practice -- the
+    // smallest single-input spend is several KB -- and repeating is the only
+    // answer here that stays true.
+    for (int i = 0; i < MO_CELLS; i++) s_mo_b64[i] = enc[(size_t)i % len];
+    s_mo_b64[MO_CELLS] = 0;
+    kiss_wipe(enc, sizeof enc);
+    return true;
+}
+
+static lv_obj_t *mo_lbl(const char *buf, int x, int y, const lv_font_t *f,
+                        lv_color_t col, int ls)
+{
+    lv_obj_t *l = lv_label_create(s_mo.ovl);
+    lv_label_set_text_static(l, buf);
+    lv_obj_set_style_text_font(l, f, 0);
+    lv_obj_set_style_text_color(l, col, 0);
+    lv_obj_set_style_text_letter_space(l, ls, 0);
+    lv_obj_set_pos(l, x, y);
+    return l;
+}
+
+// One caption line: the words, and the accent that rolls through them.
+static void mo_cap_line(int i, const char *txt, const lv_font_t *f,
+                        lv_color_t base, int y)
+{
+    const int n = (int)strlen(txt);
+    s_mo_cap_txt[i] = txt;
+    s_mo.cap_n[i] = n;
+    // Per character only where the face is FIXED PITCH: the roll is two
+    // labels at one origin and that only composes if every glyph is the same
+    // width. A locale whose caption leaves the mono set gets the sans face and
+    // the line lights in one step -- the wave still rolls block, line, line,
+    // which is what the beat is there for.
+    //
+    // Length is part of the same question. A line that will not fit the per
+    // character buffer takes the one step path rather than being cut to fit:
+    // a translated string chopped to a byte count loses half a codepoint, and
+    // the mono faces this branch needs are ASCII anyway.
+    s_mo.cap_pitch[i] = n <= MO_CAP_MAX &&
+                        (f == wt_font_mono14() || f == wt_font_mono18() ||
+                         f == wt_font_mono21() || f == wt_font_mono23());
+
+    lv_point_t sz;
+    lv_text_get_size(&sz, txt, f, 2, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    const int x = (800 - sz.x) / 2;
+
+    if (s_mo.cap_pitch[i]) {
+        lv_memcpy(s_mo_cap_src[i], txt, (size_t)n);
+        s_mo_cap_src[i][n] = 0;
+        lv_memcpy(s_mo_cap_buf[i][0], txt, (size_t)n);
+        s_mo_cap_buf[i][0][n] = 0;
+        s_mo_cap_buf[i][1][0] = 0;
+        for (int c = 0; c < n; c++)
+            s_mo_cap_jit[i][c] = (uint8_t)(mo_glyph() & 0x7F);
+        s_mo.cap[i][0] = mo_lbl(s_mo_cap_buf[i][0], x, y, f, base, 2);
+        s_mo.cap[i][1] = mo_lbl(s_mo_cap_buf[i][1], x, y, f, wt_accent(), 2);
+    } else {
+        s_mo.cap[i][0] = mo_lbl(txt, x, y, f, base, 2);
+        s_mo.cap[i][1] = mo_lbl("", x, y, f, wt_accent(), 2);
+    }
+}
+
+// ---- the tick -------------------------------------------------------------
+
+static void mo_paint_block(uint32_t t)
+{
+    const int row_ms = MO_WAVE / MO_ROWS;
+    const bool flip = (t - s_mo.flip) >= MO_FLIP;
+    if (flip) s_mo.flip = t;
+
+    for (int r = 0; r < MO_ROWS; r++) {
+        if (s_mo.row_still[r]) continue;
+        bool still = true;
+        const bool hole_row = r >= s_mo.hole_r0 && r <= s_mo.hole_r1;
+        for (int c = 0; c < MO_COLS; c++) {
+            const int i = r * MO_COLS + c;
+            // The block has a HOLE where the code stands. The reference lifts
+            // the code off the noise with a 22px dark text-shadow and LVGL has
+            // none -- a plate behind it would be a hard edged chip, which is a
+            // different object. Clearing the cells says the same thing and
+            // says it better: the code is coming OUT of the block, so the
+            // block is missing exactly where it went.
+            if (hole_row && c >= s_mo.hole_c0 && c <= s_mo.hole_c1) {
+                s_mo_buf[r][0][c] = ' ';
+                s_mo_buf[r][1][c] = ' ';
+                s_mo_buf[r][2][c] = ' ';
+                continue;
+            }
+            // The front moves BY ROW, with the jitter scattering each cell
+            // inside a band 1.6 rows deep -- so it reads as a front coming
+            // down rather than as text being typed left to right.
+            const uint32_t lock = (uint32_t)(r * row_ms) +
+                                  (uint32_t)s_mo_jit[i] * row_ms * 13 / 1000;
+            if (t < lock) {
+                if (flip) s_mo_buf[r][0][c] = mo_glyph();
+                s_mo_buf[r][1][c] = ' ';
+                s_mo_buf[r][2][c] = ' ';
+                still = false;
+            } else {
+                const bool hot = (t - lock) < MO_FLASH;
+                s_mo_buf[r][0][c] = ' ';
+                s_mo_buf[r][1][c] = hot ? s_mo_b64[i] : ' ';
+                s_mo_buf[r][2][c] = hot ? ' ' : s_mo_b64[i];
+                if (hot) still = false;
+            }
+        }
+        for (int k = 0; k < 3; k++)
+            lv_label_set_text_static(s_mo.row[r][k], s_mo_buf[r][k]);
+        // A settled row is written once more and then left alone. Without
+        // this the whole block invalidates on every tick for the rest of the
+        // motion, which on the panel is the difference between a wave and a
+        // slideshow.
+        s_mo.row_still[r] = still;
+    }
+}
+
+static void mo_paint_code(uint32_t t)
+{
+    if (!s_mo.code_n) return;
+    for (int c = 0; c < s_mo.code_n; c++) {
+        const bool gap  = s_mo_code_src[c] == ' ';
+        const bool done = t >= (uint32_t)(MO_CODE_T0 + c * MO_CODE_GAP);
+        s_mo_code_buf[0][c] = done || gap ? ' ' : mo_glyph();
+        s_mo_code_buf[1][c] = done ? s_mo_code_src[c] : ' ';
+    }
+    lv_label_set_text_static(s_mo.code[0], s_mo_code_buf[0]);
+    lv_label_set_text_static(s_mo.code[1], s_mo_code_buf[1]);
+}
+
+static void mo_paint_cap(uint32_t t)
+{
+    for (int i = 0; i < 2; i++) {
+        const int n = s_mo.cap_n[i];
+        if (!n || s_mo.cap_lit[i]) continue;
+        // Down through line one, then line two, once the block is done.
+        const uint32_t t0 = MO_WAVE + (uint32_t)(i + 1) * MO_CAP_GAP;
+        if (t < t0) continue;
+
+        if (!s_mo.cap_pitch[i]) {
+            s_mo.cap_lit[i] = true;                 // one step: the whole line
+            lv_label_set_text_static(s_mo.cap[i][0], "");
+            lv_label_set_text_static(s_mo.cap[i][1], s_mo_cap_txt[i]);
+            continue;
+        }
+        bool all = true;
+        for (int c = 0; c < n; c++) {
+            const uint32_t lock = t0 + (uint32_t)s_mo_cap_jit[i][c] *
+                                       MO_CAP_JIT / 127;
+            const bool lit = t >= lock;
+            s_mo_cap_buf[i][0][c] = lit ? ' ' : s_mo_cap_src[i][c];
+            s_mo_cap_buf[i][1][c] = lit ? s_mo_cap_src[i][c] : ' ';
+            if (!lit) all = false;
+        }
+        lv_label_set_text_static(s_mo.cap[i][0], s_mo_cap_buf[i][0]);
+        lv_label_set_text_static(s_mo.cap[i][1], s_mo_cap_buf[i][1]);
+        // Lit stays lit: the caption never reverts, so once every character
+        // has turned there is nothing left to repaint.
+        s_mo.cap_lit[i] = all;
+    }
+}
+
+// The block drops back to a tenth and lifts 8px, the caption goes, and the
+// code flies into the row that will hold it. LVGL cannot scale text, so the
+// reference's shrink is a travel plus a font swap at arrival -- the two the
+// handoff names, and the one it calls better.
+static void mo_handover(uint32_t t)
+{
+    if (!s_mo.handed) {
+        s_mo.handed = true;
+        for (int r = 0; r < MO_ROWS; r++)
+            for (int k = 0; k < 3; k++) {
+                lv_obj_set_style_opa(s_mo.row[r][k], LV_OPA_10, 0);
+                lv_obj_set_y(s_mo.row[r][k], MO_TOP + r * MO_LINE - 8);
+            }
+        for (int i = 0; i < 2; i++)
+            for (int k = 0; k < 2; k++)
+                if (s_mo.cap[i][k]) lv_obj_set_style_opa(s_mo.cap[i][k],
+                                                         LV_OPA_TRANSP, 0);
+        if (s_mo.code[0]) lv_obj_set_style_opa(s_mo.code[0], LV_OPA_TRANSP, 0);
+    }
+    if (!s_mo.code[1] || !s_sig_val_f) return;
+
+    // The rung swaps at the START of the travel, not at the end of it.
+    //
+    // The handoff names two ways to do a shrink LVGL cannot do: travel plus a
+    // font swap at arrival, or a fade. Swapping at arrival was tried and it
+    // leaves the screen: mono34 is 234px of code, the row it is aiming at
+    // starts at 578, and 578 + 234 is 812 on an 800px panel -- the code
+    // overhangs the right bezel for the whole of the travel and then snaps
+    // narrow. Same two elements, same travel; only the moment the rung
+    // changes moved, and it moved to the one frame where the block is already
+    // dropping to a tenth and nothing else on the glass is still.
+    if (!s_mo.swapped) {
+        s_mo.swapped = true;
+        lv_obj_set_style_text_font(s_mo.code[1], s_sig_val_f, 0);
+        // ...and the TRACKING with it. The motion sets the code at 6 to give
+        // it presence at font34; the row it lands in is a plain wt_lbl at 0,
+        // and arriving one letter space wide of it drew the code twice,
+        // visibly doubled, for the whole of the dissolve.
+        lv_obj_set_style_text_letter_space(s_mo.code[1], 0, 0);
+        lv_point_t sz;
+        lv_text_get_size(&sz, s_mo_code_src, s_sig_val_f, 0, 0, LV_COORD_MAX,
+                         LV_TEXT_FLAG_NONE);
+        // Re-centred on the swap so the code does not jump sideways before it
+        // has started moving: it was centred at font34 and has to stay centred
+        // at the new one.
+        s_mo.code_x0 = (800 - sz.x) / 2;
+        s_mo.code_y0 += (lv_font_get_line_height(wt_font_mono34()) -
+                         lv_font_get_line_height(s_sig_val_f)) / 2;
+    }
+
+    const uint32_t d = t - MO_HAND;
+    if (d < MO_TRAVEL) {
+        // Ease out, the reference's own shape: fast off the mark, settling
+        // into the row rather than arriving at speed.
+        const int32_t p = (int32_t)(d * 1000 / MO_TRAVEL);
+        const int32_t inv = 1000 - p;
+        const int32_t e = 1000 - inv * inv * inv / 1000000;
+        lv_obj_set_pos(s_mo.code[1],
+                       s_mo.code_x0 + (s_sig_val_x - s_mo.code_x0) * e / 1000,
+                       s_mo.code_y0 + (s_sig_val_y - s_mo.code_y0) * e / 1000);
+    } else {
+        lv_obj_set_pos(s_mo.code[1], s_sig_val_x, s_sig_val_y);
+    }
+}
+
+static void mo_tick(lv_timer_t *tm)
+{
+    (void)tm;
+    if (!s_mo.ovl) { mo_stop(); return; }
+    const uint32_t t = lv_tick_elaps(s_mo.t0);
+
+    if (t < MO_HAND) {
+        mo_paint_block(t);
+        mo_paint_code(t);
+        mo_paint_cap(t);
+        return;
+    }
+    mo_handover(t);
+    if (t < MO_HAND + MO_TRAVEL) return;
+
+    const uint32_t f = t - MO_HAND - MO_TRAVEL;
+    if (f >= MO_FADE) { mo_stop(); return; }
+
+    // The exit screen is fully painted underneath; dissolving this off it IS
+    // the screen fading in, and it costs one bg_opa plus one opa per label
+    // instead of a full screen composite buffer.
+    const lv_opa_t o = (lv_opa_t)(LV_OPA_COVER -
+                                  LV_OPA_COVER * f / MO_FADE);
+    lv_obj_set_style_bg_opa(s_mo.ovl, o, 0);
+    for (int r = 0; r < MO_ROWS; r++)
+        for (int k = 0; k < 3; k++)
+            lv_obj_set_style_opa(s_mo.row[r][k],
+                                 (lv_opa_t)(LV_OPA_10 * o / LV_OPA_COVER), 0);
+    if (s_mo.code[1]) lv_obj_set_style_opa(s_mo.code[1], o, 0);
+}
+
+// Started by finish_sign_cb only, never by the two screen builders: BACK out
+// of the signature panel rebuilds whichever screen it came from, and a motion
+// that replayed there would scramble a filename somebody had gone to read the
+// explainer about.
+static void mo_start(lv_obj_t *parent, size_t sw)
+{
+    lv_memzero(&s_mo, sizeof s_mo);
+    s_mo.rng = lv_tick_get() | 1u;
+    if (!mo_fill_b64(sw)) return;
+
+    for (int i = 0; i < MO_CELLS; i++) s_mo_jit[i] = (uint8_t)(mo_glyph() & 0x7F);
+
+    s_mo.ovl = lv_obj_create(parent);
+    lv_obj_remove_style_all(s_mo.ovl);
+    lv_obj_set_size(s_mo.ovl, 800, 480);
+    lv_obj_set_pos(s_mo.ovl, 0, 0);
+    lv_obj_set_style_bg_color(s_mo.ovl, WT_BG, 0);
+    lv_obj_set_style_bg_opa(s_mo.ovl, LV_OPA_COVER, 0);
+    lv_obj_remove_flag(s_mo.ovl, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(s_mo.ovl, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(s_mo.ovl, mo_skip_cb, LV_EVENT_PRESSED, NULL);
+    lv_obj_add_event_cb(s_mo.ovl, mo_gone_cb, LV_EVENT_DELETE, NULL);
+    lv_obj_move_foreground(s_mo.ovl);
+    // DECOR, so the screen walk measures the page underneath rather than one
+    // frame of this. See oc_collect: a decor container takes its subtree.
+    wt_mark_decor(s_mo.ovl);
+
+    // font14 for the block, and it is not the rule being broken: nobody reads
+    // base64. It is the TEXTURE the code comes out of, and at a readable rung
+    // 46 characters across would be a wall of letters where the reference has
+    // a field of them.
+    const lv_font_t *bf = wt_font_mono14();
+    lv_point_t sz;
+    lv_text_get_size(&sz, s_mo_b64, bf, 1, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    const int bx = (800 - sz.x / MO_ROWS) / 2;
+    for (int r = 0; r < MO_ROWS; r++) {
+        for (int c = 0; c < MO_COLS; c++) s_mo_buf[r][0][c] = mo_glyph();
+        lv_memset(s_mo_buf[r][1], ' ', MO_COLS);
+        lv_memset(s_mo_buf[r][2], ' ', MO_COLS);
+        for (int k = 0; k < 3; k++) s_mo_buf[r][k][MO_COLS] = 0;
+        const int y = MO_TOP + r * MO_LINE;
+        s_mo.row[r][0] = mo_lbl(s_mo_buf[r][0], bx, y, bf, WT_DIM, 1);
+        s_mo.row[r][1] = mo_lbl(s_mo_buf[r][1], bx, y, bf, wt_accent(), 1);
+        s_mo.row[r][2] = mo_lbl(s_mo_buf[r][2], bx, y, bf, MUT_COL, 1);
+    }
+
+    // The code, centred in the block it is coming out of.
+    if (s_sig_fp[0]) {
+        sig_fp_code(s_mo_code_src, sizeof s_mo_code_src);
+        s_mo.code_n = (int)strlen(s_mo_code_src);
+        const lv_font_t *cf = wt_font_mono34();
+        lv_text_get_size(&sz, s_mo_code_src, cf, 6, 0, LV_COORD_MAX,
+                         LV_TEXT_FLAG_NONE);
+        s_mo.code_x0 = (800 - sz.x) / 2;
+        s_mo.code_y0 = MO_TOP + (MO_ROWS * MO_LINE - sz.y) / 2;
+        for (int k = 0; k < 2; k++) {
+            lv_memset(s_mo_code_buf[k], ' ', (size_t)s_mo.code_n);
+            s_mo_code_buf[k][s_mo.code_n] = 0;
+        }
+        // The scramble in the accent at a quarter, which is the reference's
+        // dim orange without adding a colour to the palette.
+        s_mo.code[0] = mo_lbl(s_mo_code_buf[0], s_mo.code_x0, s_mo.code_y0,
+                              cf, wt_accent(), 6);
+        lv_obj_set_style_opa(s_mo.code[0], LV_OPA_30, 0);
+        s_mo.code[1] = mo_lbl(s_mo_code_buf[1], s_mo.code_x0, s_mo.code_y0,
+                              cf, wt_accent(), 6);
+
+        // The cells it stands in front of, with a character of air each side.
+        lv_point_t one;
+        lv_text_get_size(&one, "M", bf, 1, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+        const int pitch = one.x ? one.x : 9;
+        s_mo.hole_c0 = (s_mo.code_x0 - bx) / pitch - 1;
+        s_mo.hole_c1 = (s_mo.code_x0 + sz.x - bx) / pitch + 1;
+        s_mo.hole_r0 = (s_mo.code_y0 - MO_TOP) / MO_LINE;
+        s_mo.hole_r1 = (s_mo.code_y0 + sz.y - MO_TOP) / MO_LINE;
+    } else {
+        s_mo.hole_r0 = 1; s_mo.hole_r1 = 0;         // no code, no hole
+    }
+
+    // The caption, bottom anchored off the action band rather than pinned to
+    // the reference's y: the faces differ by locale and this is the last
+    // thing above the bar.
+    const char *c1 = tr(STR_S_MOTION_CAP), *c2 = tr(STR_T_PSBT_TERM);
+    const lv_font_t *f1 = wt_chrome18(c1), *f2 = wt_font_mono14();
+    const int h1 = lv_font_get_line_height(f1);
+    const int h2 = lv_font_get_line_height(f2);
+    mo_cap_line(1, c2, f2, WT_DIM, MO_CAP_BOT - h2);
+    mo_cap_line(0, c1, f1, MUT_COL, MO_CAP_BOT - h2 - 6 - h1);
+
+    s_mo.t0  = lv_tick_get();
+    s_mo.tmr = lv_timer_create(mo_tick, MO_TICK, NULL);
+}
+
 static size_t s_signed_len;
 
 static void finish_sign_cb(lv_timer_t *t)
@@ -1157,6 +1660,7 @@ static void finish_sign_cb(lv_timer_t *t)
     if (s_src == SRC_QR) {                       // came by QR: goes back by QR
         s_qr_sw = sw;
         qr_out_screen(sw);
+        mo_start(lv_obj_get_parent(s_scr), sw);
         return;
     }
     const char *outname = signed_name(s_cur);
@@ -1170,6 +1674,9 @@ static void finish_sign_cb(lv_timer_t *t)
         return;
     }
     done_screen(outname);
+    // AFTER the screen, never instead of it: the motion is drawn over a
+    // finished page, so a skip is a delete and DONE was live the whole time.
+    mo_start(lv_obj_get_parent(s_scr), sw);
 }
 
 static void do_sign_cb(lv_timer_t *t)
@@ -3528,6 +4035,9 @@ static void qr_out_screen(size_t sw)
     // already fixing from the other end.
     mk_lbl(tr(STR_S_SIG_FP_CAP), 430, 96, wt_font14(), MUT_COL);
     sig_value_pair(s_scr, 430, 118, true, wt_font_mono23());
+    s_sig_val_x = 430;                // where the motion flies the code to
+    s_sig_val_y = 118;
+    s_sig_val_f = wt_font_mono23();
     wt_line_rule(s_scr, 430, 160, 322);
 
     // Everything below the rule keeps the rhythm it was device tested on --

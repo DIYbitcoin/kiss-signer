@@ -573,6 +573,7 @@
   "S_STEP_TAKE": "take the card out",
   "S_STEP_OPEN": "open in Sparrow",
   "S_STEP_CAST": "broadcast",
+  "S_MOTION_CAP": "YOUR SIGNED TRANSACTION · AND THE SIGNATURE IN IT",
   "S_SIG_FP_HELP_B": "bu kod imzanın kendisinden gelir.\n\ngüvendiğiniz bir imzalayıcıda yeniden imzalayın.\n\naynı kod, kimsenin bir şey değiştirmediği anlamına gelir.",
   "S_SIG_FP_HELP_T": "İMZA KONTROLÜ",
   "S_SPARROW_SAVE": "Sparrow'da: işlemi PSBT dosyası olarak karta kaydedin",

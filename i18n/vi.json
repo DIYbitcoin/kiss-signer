@@ -573,6 +573,7 @@
   "S_STEP_TAKE": "take the card out",
   "S_STEP_OPEN": "open in Sparrow",
   "S_STEP_CAST": "broadcast",
+  "S_MOTION_CAP": "YOUR SIGNED TRANSACTION · AND THE SIGNATURE IN IT",
   "S_SIG_FP_HELP_B": "mã này sinh ra từ chính chữ ký.\n\nký lại trên một thiết bị ký bạn tin.\n\ncùng một mã nghĩa là không ai đổi gì.",
   "S_SIG_FP_HELP_T": "KIỂM TRA CHỮ KÝ",
   "S_SPARROW_SAVE": "trong Sparrow: lưu giao dịch thành file PSBT vào thẻ",

@@ -573,6 +573,7 @@
   "S_STEP_TAKE": "take the card out",
   "S_STEP_OPEN": "open in Sparrow",
   "S_STEP_CAST": "broadcast",
+  "S_MOTION_CAP": "YOUR SIGNED TRANSACTION · AND THE SIGNATURE IN IT",
   "S_SIG_FP_HELP_B": "denne koden kommer fra selve signaturen.\n\nsigner igjen på en signerer du stoler på.\n\nsamme kode betyr at ingen har endret noe.",
   "S_SIG_FP_HELP_T": "SIGNATUR SJEKK",
   "S_SPARROW_SAVE": "i Sparrow Wallet: lagre transaksjonen som en PSBT-fil på kortet",

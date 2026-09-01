@@ -175,6 +175,9 @@ UNTRANSLATED_OK = {
     # the English-only rule; English in the other twenty until the sweep.
     "S_OUTS_FIXED", "S_DONE_SUB2", "S_FILE_CAP",
     "S_STEP_TAKE", "S_STEP_OPEN", "S_STEP_CAST",
+    # ...and the caption under the arrival motion. Born under the
+    # English-only rule; English in the other twenty until the sweep.
+    "S_MOTION_CAP",
     # The SIGN term cards. Born under the English-only rule; English in the
     # other twenty until the sweep.
     "T_PSBT_CAP", "T_PSBT_VAL", "T_PSBT_PLAIN", "T_PSBT_TERM",
