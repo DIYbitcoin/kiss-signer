@@ -7479,17 +7479,26 @@ static void bundle_relink(wt_bundle_t *b)
             ry = b->n_out < 2 ? band / 2
                : BMARG + (int)i * (band - 2 * BMARG) / (int)(b->n_out - 1);
         }
-        // Dimmed by COLOUR, never by opacity. An lv_line is drawn segment by
-        // segment with a round cap on each, so at partial alpha every joint
-        // blends twice and the curve renders as a row of beads -- a DOTTED
-        // strand, which is the one thing a strand on this device may not look
-        // like by accident: dashes mean many coins folded into one, and it is
-        // the only dashed line the theme draws. Off the page it was a dotted
-        // line running to no row at all, which is exactly how it was read.
-        lv_obj_set_style_line_color(ln, on ? bundle_col(b->role[b->out0 + i],
-                                                        b->flag[b->out0 + i],
-                                                        false)
-                                          : WT_EDGE, 0);
+        // DECIDED: an output not on this page draws NO STRAND. It used to draw
+        // a dimmed one, on the reasoning that the shape of the transaction
+        // should not leave while its detail is read -- and what that produced
+        // was a line running to blank glass, because the row it aims at is
+        // hidden. There is nothing at the end of it and nothing that says why,
+        // so it reads as a destination the screen will not name: the one thing
+        // this graph exists to never do. It was reported from the bench as a
+        // strand "going to nowhere", twice, once about its colour and once
+        // about the strand itself.
+        //
+        // What is lost is the fan on a paged spend, and the counter on the
+        // caption line carries that instead -- 1/2 is on the glass beside
+        // WHERE IT GOES, and the read-to-the-end gate holds the slide until
+        // every page has been turned, so no signature can happen from one
+        // page's worth of strands.
+        lv_obj_set_style_line_color(ln, bundle_col(b->role[b->out0 + i],
+                                                   b->flag[b->out0 + i],
+                                                   false), 0);
+        if (on) lv_obj_remove_flag(ln, LV_OBJ_FLAG_HIDDEN);
+        else    lv_obj_add_flag(ln, LV_OBJ_FLAG_HIDDEN);
         lv_point_precise_t *pp = b->pts + (size_t)(b->out0 + i) * BSEG;
         int npts = BSEG;
         if (ry == b->jy) {

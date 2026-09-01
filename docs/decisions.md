@@ -10,7 +10,7 @@ construction.
 route to the comment that answers it, which is how seven findings were filed
 and withdrawn in one review pass.
 
-29 decisions.
+30 decisions.
 
 ## `main/kiss_duress_ui.c`
 
@@ -34,7 +34,7 @@ ONE segment. It was "KEYS / COORDINATOR" and the second half restates the title 
 
 One taproot input is in fact enough: BIP341 hashes every input amount into THAT input's sighash, so any lie about any amount invalidates its signature, and the two session attack cannot assemble a tx where every signature verifies. So a spend of one received silent payment beside one P2WPKH coin that carries its full previous transaction is provably honest and is refused anyway. Left strict on purpose. The cost of the strict form is that a rare transaction comes back to the coordinator to be rebuilt with the prev txs attached, which is what BIP174 asks for and what Core, Sparrow and Electrum already send. The cost of the loose form, if the reasoning above is wrong in one case nobody has thought of, is a fee the owner cannot see going to a miner. Those are not the same size, and this is the one gate in the file whose whole subject is a number that cannot be checked afterwards.
 
-[`main/kiss_psbt.c:973`](../main/kiss_psbt.c#L973)
+[`main/kiss_psbt.c:980`](../main/kiss_psbt.c#L980)
 
 ## `main/kiss_recv.c`
 
@@ -116,49 +116,49 @@ This is the one place the "no screen without an exit" rule is deliberately not a
 
 beta7 moved it into the panel and left "SIGNATURE" as a caption with nothing under it -- on the screens whose whole job is to hand back the one thing a second signer can be checked against. The panel was the right home for the TEACHING and was never the right home for the fact. The ring and the glyph take the accent with the code: they are one thing, and a grey chip beside an accent value read as two.
 
-[`main/kiss_sign.c:706`](../main/kiss_sign.c#L706)
+[`main/kiss_sign.c:714`](../main/kiss_sign.c#L714)
 
 ### the montserrat48 tick at y=236 and the padlock beside it are GONE, and the tick joins the title
 
 SIGNED was claimed three times on this screen -- the page title, that 48px checkmark, and a note under it -- while the two facts an owner actually leaves with, which file and what to do next, had no room. One claim, once, on the row that already carries the word. The lock keeps its meaning beside it: where this can go is settled.
 
-[`main/kiss_sign.c:847`](../main/kiss_sign.c#L847)
+[`main/kiss_sign.c:855`](../main/kiss_sign.c#L855)
 
 ### the two-line note is gone
 
 "put the card back in Sparrow, then broadcast" was the whole point of the screen set in a 14px note, and it ran three separate actions together in one sentence -- so a reader standing at the device had to work out which of them was theirs to do NOW. Numbered and split, with step 1 lit and the other two not, the strip says where this device's part ends without spending a word on it.
 
-[`main/kiss_sign.c:957`](../main/kiss_sign.c#L957)
+[`main/kiss_sign.c:965`](../main/kiss_sign.c#L965)
 
 ### any press anywhere ends the motion at once, and nothing ever waits on it
 
 The exit screen is already built and DONE is already live underneath -- the motion is drawn OVER a finished screen rather than in front of one being prepared, so a skip is a delete and not a fast forward. Same rule the drift-home timer was deleted for: a filename an owner is reading back must never be mid scramble, and a screen that will not let go reads as a crash.
 
-[`main/kiss_sign.c:1275`](../main/kiss_sign.c#L1275)
+[`main/kiss_sign.c:1283`](../main/kiss_sign.c#L1283)
 
 ### the motion draws the REAL s_out base64 and the REAL s_sig_fp, never invented bytes
 
 A motion that scrambles plausible looking characters and resolves to something else is a lie told by the one screen whose whole job is to hand back something checkable, and an owner who photographed the frame and compared it would find it. The first row genuinely reads cHNidP8B.
 
-[`main/kiss_sign.c:1291`](../main/kiss_sign.c#L1291)
+[`main/kiss_sign.c:1299`](../main/kiss_sign.c#L1299)
 
 ### the two change rows are exclusive and the dust one wins, even though kiss_psbt.c raises them PER OUTPUT and can therefore set both -- one change output under the dust floor and a second between the floor and 5000
 
 Both bits set draws the dust row only, and caution_all_bits reads back through here, so the gate asks for the rows the owner can see and stays consistent. Splitting them was considered and dropped. It takes the stack to six on a page built for five (SG_ROW_MAX, and the ceiling argument above), and it buys a second row saying "tiny change" beside a row already saying "dust change" -- the same sentence about the same fault, for a two change output transaction almost no coordinator builds. What is lost is real and it is one line of a soft privacy caution, not a claim about where the money goes.
 
-[`main/kiss_sign.c:2267`](../main/kiss_sign.c#L2267)
+[`main/kiss_sign.c:2281`](../main/kiss_sign.c#L2281)
 
 ### the sign review band does NOT name the transaction's file; that line was cut rather than fixed
 
 NO FILENAME HERE, and no "camera" either. Both were cut rather than fixed. The reader tapped that name on the file list one screen back, or watched the camera assemble the transaction, so the line restated what they had just done -- which is the copy rule's own example of a string to cut. And a filename is the COORDINATOR'S bookkeeping, not a fact about the payment: what says this is the right transaction is the amount and the destination, and both are on this screen at full size. A name in the corner never checked anything. What it cost to keep was the whole band. The line ran under the title beside the signed badge, the network chip and the fingerprint, and it was the only unlabelled string among them. It also carried two defects for as long as it existed: set in the smallest face on the device, and, once that was corrected, handing a translated phrase to a filename tail-fold so a scanned transaction read "scan...ansaction" on the screen where a payment is approved. fx survives because the badge and the chip above measure their lane against it: they may not run back under the title.
 
-[`main/kiss_sign.c:2545`](../main/kiss_sign.c#L2545)
+[`main/kiss_sign.c:2633`](../main/kiss_sign.c#L2633)
 
 ### this toggle's mark stays VISIBLE when it is off, dimmed rather than transparent
 
 The two-state word action hides its mark elsewhere and that is right where a PAIR of them sits side by side -- the dice screen -- because the pair is the affordance. This one stands alone in a left aligned column, and hidden-but-still-occupying-space gave it no affordance at all AND pushed its word 33px inside the column's edge, so it read as a centred heading rather than a control. An inert mark says both things at once: there is a switch here, and it is not on.
 
-[`main/kiss_sign.c:3952`](../main/kiss_sign.c#L3952)
+[`main/kiss_sign.c:4080`](../main/kiss_sign.c#L4080)
 
 ## `main/kiss_theme.c`
 
@@ -180,11 +180,17 @@ THE FLOOR IS 21, NOT 14, which is the same floor wt_body_para has and for the sa
 
 [`main/kiss_theme.c:6478`](../main/kiss_theme.c#L6478)
 
+### an output not on this page draws NO STRAND
+
+It used to draw a dimmed one, on the reasoning that the shape of the transaction should not leave while its detail is read -- and what that produced was a line running to blank glass, because the row it aims at is hidden. There is nothing at the end of it and nothing that says why, so it reads as a destination the screen will not name: the one thing this graph exists to never do. It was reported from the bench as a strand "going to nowhere", twice, once about its colour and once about the strand itself. What is lost is the fan on a paged spend, and the counter on the caption line carries that instead -- 1/2 is on the glass beside WHERE IT GOES, and the read-to-the-end gate holds the slide until every page has been turned, so no signature can happen from one page's worth of strands.
+
+[`main/kiss_theme.c:7482`](../main/kiss_theme.c#L7482)
+
 ## `main/kiss_theme.h`
 
 ### the destructive group is a TAB with its own tint and cross-fade, not a row buried on another page
 
-[`main/kiss_theme.h:892`](../main/kiss_theme.h#L892)
+[`main/kiss_theme.h:899`](../main/kiss_theme.h#L899)
 
 ## `main/main.c`
 
@@ -206,4 +212,4 @@ The word is the FIRST stored.strokes strokes of the buffer, so once that many ha
 
 pump(30), not 20. The outgoing pane leaves on a per row stagger -- (n-1) * MO_OUT_STEP + MO_OUT_MS, which is 330ms for a six row detail pane against 320ms of pump -- so the old count photographed the previous screen still fading through this one. Invisible until overlapcheck learned to read spangroups: the ghost is a folded address, and a spangroup was not text to any check on the list.
 
-[`sim/sim_main.c:4097`](../sim/sim_main.c#L4097)
+[`sim/sim_main.c:4130`](../sim/sim_main.c#L4130)
