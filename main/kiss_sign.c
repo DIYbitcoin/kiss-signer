@@ -437,7 +437,13 @@ static lv_obj_t *mk_lbl(const char *txt, int x, int y, const lv_font_t *f, lv_co
 static const char *const GLOSS_ICONS[] = {
     LV_SYMBOL_DOWNLOAD,     // INPUTS
     LV_SYMBOL_UPLOAD,       // OUTPUTS
-    LV_SYMBOL_LOOP,         // CHANGE
+    // A RETURN arrow, not the loop. LV_SYMBOL_LOOP is this device's "tapping
+    // this cycles it in place" mark -- every Settings row that advances through
+    // a list wears it, and so does the amount on the sign hero one line above
+    // this one, where a tap flips sats and BTC. So the change row said "tap to
+    // cycle" in the same glyph, on the same screen, about a number that does
+    // not cycle. Change is money coming BACK, which is what this arrow draws.
+    LV_SYMBOL_NEW_LINE,     // CHANGE
     LV_SYMBOL_GPS,          // TXID
     LV_SYMBOL_CUT,          // FEE RATE
     WT_ICON_LOCK,           // LOCKTIME
@@ -2413,8 +2419,15 @@ static void cautions_screen(void)
         lv_obj_set_pos(row, 24, y);
         lv_obj_set_size(row, 752, SG_ROW_H);
         lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+        // WARN_COL raw, NOT through wt_ink_for. The rule that function carries
+        // is that a caution's WORDS take the accent and its GLYPH keeps the
+        // amber -- so running the glyph through it does the exact opposite,
+        // and both of this screen's warning marks did. The header chip two
+        // hundred lines up has it right, which is what the pair looked like on
+        // glass: an amber triangle beside an accent count in the corner, and an
+        // accent triangle beside ink text on the bar under the graph.
         sg_lbl(row, done ? LV_SYMBOL_OK : LV_SYMBOL_WARNING, SG_PAD, 16,
-               wt_font23(), done ? OK_COL : wt_ink_for(WARN_COL));
+               wt_font23(), done ? OK_COL : WARN_COL);
         lv_obj_t *t = lv_label_create(row);
         lv_obj_set_pos(t, 52, 19);
         lv_obj_set_style_text_color(t, done ? MUT_COL : INK_COL, 0);
@@ -2948,8 +2961,10 @@ static void verify_screen(lv_obj_t *parent)
         lv_obj_remove_flag(bar, LV_OBJ_FLAG_SCROLLABLE);
         sg_rule(24, SG_BAR_Y_G - 1, 752, 1);
         sg_rule(24, SG_BAR_Y_G + SG_BAR_H, 752, 1);
+        // The MARK keeps the amber -- see the row page's own mark for the rule
+        // and for what running a glyph through wt_ink_for looked like.
         sg_lbl(bar, all_done ? LV_SYMBOL_OK : LV_SYMBOL_WARNING, SG_PAD, 10,
-               wt_font23(), all_done ? OK_COL : wt_ink_for(WARN_COL));
+               wt_font23(), all_done ? OK_COL : WARN_COL);
         // "+N" carries the rest of the list without a string to translate: the
         // header chip already states the total, so this only has to say that
         // the one line shown is not all of it.

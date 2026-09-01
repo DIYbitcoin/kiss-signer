@@ -7479,7 +7479,17 @@ static void bundle_relink(wt_bundle_t *b)
             ry = b->n_out < 2 ? band / 2
                : BMARG + (int)i * (band - 2 * BMARG) / (int)(b->n_out - 1);
         }
-        lv_obj_set_style_line_opa(ln, on ? LV_OPA_COVER : 90, 0);
+        // Dimmed by COLOUR, never by opacity. An lv_line is drawn segment by
+        // segment with a round cap on each, so at partial alpha every joint
+        // blends twice and the curve renders as a row of beads -- a DOTTED
+        // strand, which is the one thing a strand on this device may not look
+        // like by accident: dashes mean many coins folded into one, and it is
+        // the only dashed line the theme draws. Off the page it was a dotted
+        // line running to no row at all, which is exactly how it was read.
+        lv_obj_set_style_line_color(ln, on ? bundle_col(b->role[b->out0 + i],
+                                                        b->flag[b->out0 + i],
+                                                        false)
+                                          : WT_EDGE, 0);
         lv_point_precise_t *pp = b->pts + (size_t)(b->out0 + i) * BSEG;
         int npts = BSEG;
         if (ry == b->jy) {
@@ -8017,6 +8027,7 @@ void wt_bundle_state(lv_obj_t *bundle, int state)
         if (acc) lv_obj_add_flag(b->dot, WT_FLAG_ACCENT_FILL);
         else     lv_obj_remove_flag(b->dot, WT_FLAG_ACCENT_FILL);
     }
+    bool live_out = false;
     for (int k = 0; k < (int)b->n_line; k++) {
         const bool is_in = (k < (int)b->out0);
         if (state == WT_BUNDLE_HOLDING) {
@@ -8055,6 +8066,7 @@ void wt_bundle_state(lv_obj_t *bundle, int state)
             bundle_repaint(b, k, bundle_col(b->role[k], b->flag[k], false),
                            acc ? wt_accent() : (b->amount[k] ? WT_INK : WT_MUT),
                            acc && !b->flag[k], acc);
+            live_out = true;   // the page dim below is what this just undid
             if (b->note[k] && !acc)
                 lv_obj_set_style_text_color(b->note[k], WT_MUT, 0);
         } else {
@@ -8071,6 +8083,11 @@ void wt_bundle_state(lv_obj_t *bundle, int state)
                            b->n_in == 1 ? WT_INK : WT_MUT, false, false);
         }
     }
+    // The loop above paints an output from its ROLE, which knows nothing about
+    // pages -- so a strand whose row is not on this page came back at full
+    // strength. It only matters coming back to rest (a hold let go), which is
+    // the one path that repaints outputs without the page having moved.
+    if (live_out) bundle_relink(b);
 }
 
 // ---- the signature landing (see kiss_theme.h) ----
