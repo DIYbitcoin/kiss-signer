@@ -558,7 +558,7 @@
   "S_RM_ALL": "УДАЛИТЬ ВСЕ",
   "S_RM_C_B": "они исчезнут с карты. ничего без подписи не тронуто.",
   "S_RM_SIGNED": "УДАЛИТЬ ПОДПИСАННЫЕ",
-  "S_RM_PERMANENT": "gone for good. one slide each.",
+  "S_RM_PERMANENT": "slide to delete",
   "S_ROW_SIGNATURE": "ПОДПИСЬ",
   "S_SAVED_NOTE": "записано на карту",
   "S_SCANNED_TX": "отсканированная транзакция",

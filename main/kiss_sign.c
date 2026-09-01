@@ -1078,7 +1078,13 @@ static void done_screen(const char *outname)
 // of the bad news.
 static void sd_fix_line(void)
 {
-    wt_note_col(s_scr, tr(STR_S_FIX_SD), 48, 200, 704, 120, MUT_COL);
+    // MARKS BEFORE WORDS, which this screen had none of: a red sentence over
+    // 250px of nothing was the whole of it. The verdict takes the warning glyph
+    // in the STOP colour and the way out takes the card's own mark, so the two
+    // halves are told apart before either is read.
+    wt_lbl(s_scr, LV_SYMBOL_WARNING, 48, 142, wt_font28(), STOP_COL);
+    wt_lbl(s_scr, WT_ICON_SD, 48, 202, wt_font28(), MUT_COL);
+    wt_note_col(s_scr, tr(STR_S_FIX_SD), 96, 200, 656, 120, MUT_COL);
 }
 
 static void fail_body(const char *why)
@@ -4424,7 +4430,7 @@ static void file_tap_cb(lv_event_t *e)
         wt_trail(s_scr, WT_ICON_SIGN, trail, false);
         // A refusal to sign, alone on an otherwise empty screen with 230px
         // of room under it. There is no reason for it to be the small type.
-        wt_note_col(s_scr, tr(STR_S_READ_FAIL), 48, 140, 704, 100, STOP_COL);
+        wt_note_col(s_scr, tr(STR_S_READ_FAIL), 96, 140, 656, 100, STOP_COL);
         sd_fix_line();
         wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y,
                         160, true, files_back_cb, NULL);
@@ -4445,7 +4451,7 @@ static void file_tap_cb(lv_event_t *e)
         char trail[96];
         snprintf(trail, sizeof trail, "%s / %s", tr(STR_S_T), s_cur);
         wt_trail(s_scr, WT_ICON_SIGN, trail, false);
-        wt_note_col(s_scr, tr(STR_S_NOT_PSBT), 48, 140, 704, 100, STOP_COL);
+        wt_note_col(s_scr, tr(STR_S_NOT_PSBT), 96, 140, 656, 100, STOP_COL);
         sd_fix_line();
         wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y,
                         160, true, files_back_cb, NULL);

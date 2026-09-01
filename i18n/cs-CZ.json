@@ -558,7 +558,7 @@
   "S_RM_ALL": "SMAZAT VSE",
   "S_RM_C_B": "tyto zmizi z karty. nic nepodepsaneho se nedotkne.",
   "S_RM_SIGNED": "SMAZAT PODEPSANE",
-  "S_RM_PERMANENT": "gone for good. one slide each.",
+  "S_RM_PERMANENT": "slide to delete",
   "S_ROW_SIGNATURE": "PODPIS",
   "S_SAVED_NOTE": "uloženo na kartu",
   "S_SCANNED_TX": "naskenovaná transakce",

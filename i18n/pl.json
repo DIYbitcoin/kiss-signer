@@ -558,7 +558,7 @@
   "S_RM_ALL": "USUN WSZYSTKIE",
   "S_RM_C_B": "te znikna z karty. nic niepodpisanego nie zostanie ruszone.",
   "S_RM_SIGNED": "USUN PODPISANE",
-  "S_RM_PERMANENT": "gone for good. one slide each.",
+  "S_RM_PERMANENT": "slide to delete",
   "S_ROW_SIGNATURE": "PODPIS",
   "S_SAVED_NOTE": "zapisane na karcie",
   "S_SCANNED_TX": "zeskanowana transakcja",

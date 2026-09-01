@@ -1796,12 +1796,29 @@ static lv_obj_t *s_lit;
 static void find_lit(lv_obj_t *o, const char *txt)
 {
     if (!o || s_lit || lv_obj_has_flag(o, LV_OBJ_FLAG_HIDDEN)) return;
+    bool hit = false;
     if (lv_obj_check_type(o, &lv_label_class)) {
         const char *t = lv_label_get_text(o);
-        if (t && strstr(t, txt))
-            for (lv_obj_t *p = o; p; p = lv_obj_get_parent(p))
-                if (lv_obj_has_flag(p, LV_OBJ_FLAG_CLICKABLE)) { s_lit = p; return; }
+        hit = t && strstr(t, txt) != NULL;
+    } else if (lv_obj_check_type(o, &lv_spangroup_class)) {
+        // Every lit address on this device is a SPANGROUP, not a label -- a
+        // grey head and an accented tail are two spans of one line. Asking only
+        // labels found nothing and the walk tapped empty glass.
+        char j[256]; size_t o2 = 0; j[0] = 0;
+        uint32_t sn = lv_spangroup_get_span_count(o);
+        for (uint32_t i = 0; i < sn && o2 + 1 < sizeof j; i++) {
+            lv_span_t *sp = lv_spangroup_get_child(o, (int32_t)i);
+            const char *t = sp ? lv_span_get_text(sp) : NULL;
+            if (!t) continue;
+            size_t n = strlen(t);
+            if (o2 + n >= sizeof j) n = sizeof j - 1 - o2;
+            memcpy(j + o2, t, n); o2 += n; j[o2] = 0;
+        }
+        hit = strstr(j, txt) != NULL;
     }
+    if (hit)
+        for (lv_obj_t *p = o; p; p = lv_obj_get_parent(p))
+            if (lv_obj_has_flag(p, LV_OBJ_FLAG_CLICKABLE)) { s_lit = p; return; }
     for (uint32_t i = 0; i < lv_obj_get_child_count(o) && !s_lit; i++)
         find_lit(lv_obj_get_child(o, i), txt);
 }

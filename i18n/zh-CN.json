@@ -558,7 +558,7 @@
   "S_RM_ALL": "全部删除",
   "S_RM_C_B": "这些将从卡上消失。 未签名的文件都保留。",
   "S_RM_SIGNED": "删除已签名",
-  "S_RM_PERMANENT": "gone for good. one slide each.",
+  "S_RM_PERMANENT": "slide to delete",
   "S_ROW_SIGNATURE": "签名数据",
   "S_SAVED_NOTE": "已存到卡上",
   "S_SCANNED_TX": "扫码得到的交易",

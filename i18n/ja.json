@@ -558,7 +558,7 @@
   "S_RM_ALL": "すべて消去",
   "S_RM_C_B": "これらはカードから消えます。 未署名のファイルはそのままです。",
   "S_RM_SIGNED": "署名済みを消去",
-  "S_RM_PERMANENT": "gone for good. one slide each.",
+  "S_RM_PERMANENT": "slide to delete",
   "S_ROW_SIGNATURE": "署名データ",
   "S_SAVED_NOTE": "カードに保存しました",
   "S_SCANNED_TX": "スキャンしたトランザクション",
