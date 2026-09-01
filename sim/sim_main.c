@@ -720,6 +720,9 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
     snprintf(s->outs[5].addr, sizeof s->outs[5].addr,
              "bc1q8c6fshw2dlwun7ekn9qwf37cu2rn755upcp6el");
     s->outs[5].sats = 39000; s->outs[5].is_change = true;
+    // A locktime that binds, on the one fixture whose header is otherwise
+    // uncrowded: the badge has to be visible somewhere the walk photographs.
+    s->locktime = 5127853; s->lock_binds = true;
   } else if (len >= 5 && memmem(bytes, len, "UNPRV", 5)) {
     // A two-input spend whose amounts were declared and not proved. This is a
     // REFUSAL, not a caution: the fee on the screen would be a number the
@@ -768,6 +771,10 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
     s->fee_rate_x10 = 570;
     s->status = WPSBT_CAUTION;
     s->outs[1].index = 99999;            // change parked past the scan window
+    // A locktime, on the most crowded header the walk reaches: signed
+    // badge, network, caution count. This is the frame that says whether the
+    // badge stands down instead of landing on the title.
+    s->locktime = 5127853; s->lock_binds = true;
     s->caution_flags = WPSBT_C_HIGHFEE | WPSBT_C_DUST_INPUT |
                        WPSBT_C_DUST_CHANGE | WPSBT_C_MERGE_INS |
                        WPSBT_C_GAP_CHANGE;

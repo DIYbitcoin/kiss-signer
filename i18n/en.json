@@ -481,6 +481,7 @@
   "S_ADDR_HELP_B": "COMPARE: the lit characters against your coordinator.\nSWAPPED: malware can change it on your computer, not here.",
   "S_ALL_SIGNED_FMT": "ALL %u INPUTS SIGNED",
   "S_BUNDLE_IN_FMT": "INPUTS (%u)",
+  "S_LOCK_AFTER_FMT": "NOT BEFORE %u",
   "S_BUNDLE_MORE_FMT": "%u more inputs",
   "S_BUNDLE_NOCHANGE_FMT": "no change, this empties all %u",
   "S_BUNDLE_OUT": "WHERE IT GOES",

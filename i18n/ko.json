@@ -481,6 +481,7 @@
   "S_ADDR_HELP_B": "대조: 코디네이터가 보이는 주소와 하나씩 맞춰 보세요.\n주소 교체: 컴퓨터에서는 다른 주소가 될 수 있습니다. 여기서는 아닙니다.",
   "S_ALL_SIGNED_FMT": "%u개 전부 서명 완료",
   "S_BUNDLE_IN_FMT": "입력 (%u)",
+  "S_LOCK_AFTER_FMT": "NOT BEFORE %u",
   "S_BUNDLE_MORE_FMT": "코인 %u개 더",
   "S_BUNDLE_NOCHANGE_FMT": "잔돈 없음, %u개 전부 씁니다",
   "S_BUNDLE_OUT": "가는 곳",

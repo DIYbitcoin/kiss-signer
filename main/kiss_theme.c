@@ -7267,6 +7267,7 @@ typedef struct {
     lv_obj_t           *amount[WT_BUNDLE_MAX];
     lv_obj_t           *note[WT_BUNDLE_MAX];
     uint8_t             role[WT_BUNDLE_MAX];
+    bool                flag[WT_BUNDLE_MAX];  // a caution points at this strand
     // The hold overlay: one accent line per INPUT strand, drawn over its
     // resting one and truncated to how far the hold has got. Its own point
     // block, because the resting strand's is what the truncation is measured
@@ -7345,14 +7346,17 @@ static void bundle_curve(lv_point_precise_t *out, int x0, int y0, int x1, int y1
     }
 }
 
-static lv_color_t bundle_col(uint8_t role, bool signed_ok)
+// A signature outranks a caution: once the strand is in the accent the screen
+// is saying a signature exists, and that claim may not be overpainted by one
+// the owner has already acknowledged to get here.
+static lv_color_t bundle_col(uint8_t role, bool flagged, bool signed_ok)
 {
     if (signed_ok) return wt_accent();
+    if (flagged)   return WT_WARN;
     switch (role) {
     case WT_STRAND_SEND:   return WT_INK;
     case WT_STRAND_FEE:    return WT_DIM;
     case WT_STRAND_CHANGE: return wt_accent();
-    case WT_STRAND_LINKED: return WT_WARN;
     default:               return WT_MUT;
     }
 }
@@ -7364,7 +7368,7 @@ static lv_obj_t *bundle_strand(lv_obj_t *par, const wt_strand_t *s,
     lv_obj_set_pos(l, 0, 0);
     lv_line_set_points(l, pts, (uint32_t)npts);
     lv_obj_set_style_line_width(l, px, 0);
-    lv_obj_set_style_line_color(l, bundle_col(s->role, s->signed_ok), 0);
+    lv_obj_set_style_line_color(l, bundle_col(s->role, s->flagged, s->signed_ok), 0);
     lv_obj_set_style_line_rounded(l, true, 0);
     if (s->is_group) {
         // Many coins must never read as one coin. This is the only dashed line
@@ -7373,7 +7377,10 @@ static lv_obj_t *bundle_strand(lv_obj_t *par, const wt_strand_t *s,
         lv_obj_set_style_line_dash_width(l, 3, 0);
         lv_obj_set_style_line_dash_gap(l, 5, 0);
     }
-    if (s->role == WT_STRAND_CHANGE || s->signed_ok)
+    // A flagged change strand is amber, not the accent, so it must NOT carry the
+    // flag that repaints the accent: a theme switch would put the accent back
+    // over a caution the screen is still making.
+    if ((s->role == WT_STRAND_CHANGE && !s->flagged) || s->signed_ok)
         lv_obj_add_flag(l, WT_FLAG_ACCENT);
     return l;
 }
@@ -7632,6 +7639,7 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
         const int px = wt_strand_px(in[i].sats, max_sats);
         b->line[k] = bundle_strand(box, &in[i], pp, npts, px);
         b->role[k] = in[i].role;
+        b->flag[k] = in[i].flagged;
         b->nseg[k] = (uint8_t)npts;
         // The overlay, built now and hidden, so a tick allocates nothing and
         // creates nothing. Same width and same dash as the strand underneath:
@@ -7738,6 +7746,7 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
             b->line[k] = bundle_strand(sbox, &out[i], pp, BSEG,
                                        wt_strand_px(out[i].sats, max_sats));
             b->role[k] = out[i].role;
+            b->flag[k] = out[i].flagged;
         }
         pp += BSEG;
 
@@ -7909,20 +7918,24 @@ static wt_bundle_t *bundle_state(lv_obj_t *bundle)
     return NULL;
 }
 
+// Two accent flags, not one, because a flagged change strand splits them: the
+// AMOUNT still comes back to the owner and keeps the accent, while the LINE is
+// amber and must not be repainted by a theme switch. Every other state passes
+// the same value twice.
 static void bundle_repaint(wt_bundle_t *b, int k, lv_color_t line_col,
-                           lv_color_t txt_col, bool accent)
+                           lv_color_t txt_col, bool line_acc, bool txt_acc)
 {
     if (b->line[k]) {
         lv_obj_set_style_line_color(b->line[k], line_col, 0);
-        if (accent) lv_obj_add_flag(b->line[k], WT_FLAG_ACCENT);
-        else        lv_obj_remove_flag(b->line[k], WT_FLAG_ACCENT);
+        if (line_acc) lv_obj_add_flag(b->line[k], WT_FLAG_ACCENT);
+        else          lv_obj_remove_flag(b->line[k], WT_FLAG_ACCENT);
     }
     lv_obj_t *t[2] = { b->amount[k], b->note[k] };
     for (int i = 0; i < 2; i++) {
         if (!t[i]) continue;
         lv_obj_set_style_text_color(t[i], txt_col, 0);
-        if (accent) lv_obj_add_flag(t[i], WT_FLAG_ACCENT);
-        else        lv_obj_remove_flag(t[i], WT_FLAG_ACCENT);
+        if (txt_acc) lv_obj_add_flag(t[i], WT_FLAG_ACCENT);
+        else         lv_obj_remove_flag(t[i], WT_FLAG_ACCENT);
     }
 }
 
@@ -8007,7 +8020,7 @@ void wt_bundle_state(lv_obj_t *bundle, int state)
     for (int k = 0; k < (int)b->n_line; k++) {
         const bool is_in = (k < (int)b->out0);
         if (state == WT_BUNDLE_HOLDING) {
-            // Outputs stand down, and so does a LINKED input's warn colour --
+            // Outputs stand down, and so does a flagged input's warn colour --
             // to the plain mute, not up to WT_INK. Both directions matter and
             // for the same reason: the fill drawn over these is the accent, and
             // it needs something to be visible against. WT_INK is too close to
@@ -8021,28 +8034,32 @@ void wt_bundle_state(lv_obj_t *bundle, int state)
             // about for these 1200ms is the commitment, not the warning.
             bundle_repaint(b, k, is_in ? WT_MUT : WT_EDGE,
                            is_in ? (b->n_in == 1 ? WT_INK : WT_MUT) : WT_EDGE,
-                           false);
+                           false, false);
         } else if (state == WT_BUNDLE_SIGNING) {
             // Inputs at full strength, outputs stood down. The note rows go with
             // their side: a silent payment's claim is about an output, so it
             // dims with the output it belongs to.
             bundle_repaint(b, k, is_in ? WT_INK : WT_EDGE,
-                           is_in ? WT_INK : WT_EDGE, false);
+                           is_in ? WT_INK : WT_EDGE, false, false);
         } else if (state == WT_BUNDLE_SIGNED && is_in) {
-            bundle_repaint(b, k, wt_accent(), wt_accent(), true);
+            bundle_repaint(b, k, wt_accent(), wt_accent(), true, true);
         } else if (!is_in) {
             // Back to what the row means, taken from its role rather than
             // remembered: the destinations are readable again the moment there
             // is a signature over them.
+            // The amount keeps what it MEANS and the strand keeps what is
+            // WRONG with it. A dust change output still comes back to the
+            // owner, so its figure stays in the accent; the line it rides is
+            // the caution.
             const bool acc = (b->role[k] == WT_STRAND_CHANGE);
-            bundle_repaint(b, k, bundle_col(b->role[k], false),
+            bundle_repaint(b, k, bundle_col(b->role[k], b->flag[k], false),
                            acc ? wt_accent() : (b->amount[k] ? WT_INK : WT_MUT),
-                           acc);
+                           acc && !b->flag[k], acc);
             if (b->note[k] && !acc)
                 lv_obj_set_style_text_color(b->note[k], WT_MUT, 0);
         } else {
             // An input at rest, taken from its role rather than assumed to be
-            // muted: a linked one wears WT_WARN and has to come back to it
+            // muted: a flagged one wears WT_WARN and has to come back to it
             // after a hold is let go. The LABEL stays muted either way -- the
             // strand is what the caution is about, and an amount in WT_WARN
             // would read as something wrong with that number.
@@ -8050,8 +8067,8 @@ void wt_bundle_state(lv_obj_t *bundle, int state)
             // One input row is the input total and rests at WT_INK; several
             // are a breakdown and rest muted. Same test wt_bundle built them
             // under, so a hold let go puts back what was drawn.
-            bundle_repaint(b, k, bundle_col(b->role[k], false),
-                           b->n_in == 1 ? WT_INK : WT_MUT, false);
+            bundle_repaint(b, k, bundle_col(b->role[k], b->flag[k], false),
+                           b->n_in == 1 ? WT_INK : WT_MUT, false, false);
         }
     }
 }

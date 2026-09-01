@@ -518,13 +518,19 @@ lv_obj_t *wt_diagram_airgap(lv_obj_t *parent);
 // signature exists. Colour is never the only cue for any of them -- each row
 // carries the glossary's own mark for what it is, so the fee is told from the
 // send by a pair of scissors and not by a shade of white.
-// WT_STRAND_LINKED is an input on a spend wide enough to raise the coins
-// linked caution. It is the same strand in WT_WARN, and it is the caution
-// DRAWN: the convergence on the junction is what the warning is describing, so
-// the screen can point at it instead of asking the reader to picture it.
+// A FLAGGED strand is the same strand in WT_WARN, and it is the caution DRAWN:
+// the thing the warning is about, pointed at, instead of a sentence asking the
+// reader to picture it. It is a flag and not a role because every role can be
+// flagged and the role still has to survive -- a flagged change output is still
+// change, and it goes back to the accent the moment the hold begins.
+//
+// It replaced WT_STRAND_LINKED, which was the linked-inputs caution wearing the
+// same amber as its own private role. One caution had a colour and the other
+// four did not, so a fee that was most of the transaction drew exactly like a
+// fee that was nothing, and dust change drew like change.
+//
 // Appended, never inserted -- these are stored in the widget by value.
-enum { WT_STRAND_IN = 0, WT_STRAND_SEND, WT_STRAND_FEE, WT_STRAND_CHANGE,
-       WT_STRAND_LINKED };
+enum { WT_STRAND_IN = 0, WT_STRAND_SEND, WT_STRAND_FEE, WT_STRAND_CHANGE };
 
 // Strands the graph can hold in total. Five is what the elision leaves on the
 // input side at any coin count (first two, the group, last two). The output
@@ -540,6 +546,7 @@ typedef struct {
     const char *label;      // the words beside the amount; NULL for a bare input
     uint8_t     role;       // WT_STRAND_*
     bool        signed_ok;  // repaint this strand in wt_accent(): its signature landed
+    bool        flagged;    // a caution points AT this strand: draw it in WT_WARN
     bool        is_group;   // the elided middle: dashed, and holds group_n coins
     uint16_t    group_n;
     // A row that reserves its place and its words but has no strand and no

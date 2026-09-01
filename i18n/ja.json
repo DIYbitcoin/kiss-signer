@@ -481,6 +481,7 @@
   "S_ADDR_HELP_B": "照合: 明るい文字を、コーディネーターが見せるアドレスと見くらべます。\nすり替え: 不正なソフトはパソコン上で書き換えます。ここでは書き換えられません。",
   "S_ALL_SIGNED_FMT": "%u 件すべて署名完了",
   "S_BUNDLE_IN_FMT": "インプット (%u)",
+  "S_LOCK_AFTER_FMT": "NOT BEFORE %u",
   "S_BUNDLE_MORE_FMT": "他 %u 件のコイン",
   "S_BUNDLE_NOCHANGE_FMT": "お釣りなし、%u 件すべてを使い切ります",
   "S_BUNDLE_OUT": "送り先",

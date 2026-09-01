@@ -481,6 +481,7 @@
   "S_ADDR_HELP_B": "JÄMFÖR: de upplysta tecknen, med adressen din koordinator visar.\nBYTT: skadlig kod kan ändra den på datorn. här kan den inte.",
   "S_ALL_SIGNED_FMT": "ALLA %u MYNT SIGNERADE",
   "S_BUNDLE_IN_FMT": "INGÅNGAR (%u)",
+  "S_LOCK_AFTER_FMT": "NOT BEFORE %u",
   "S_BUNDLE_MORE_FMT": "%u mynt till",
   "S_BUNDLE_NOCHANGE_FMT": "ingen växel, detta tömmer alla %u",
   "S_BUNDLE_OUT": "VART DET GÅR",

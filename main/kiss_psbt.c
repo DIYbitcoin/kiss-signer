@@ -776,10 +776,17 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     // stack for a question a 64-bit key settles.
     uint64_t seen[WPSBT_ADDR_TRACK];
     uint32_t nseen = 0;
+    bool     lock_enforced = false;   // some input leaves the locktime live
     for (size_t i = 0; i < s_psbt->num_inputs && i < tx->num_inputs; i++) {
         const struct wally_psbt_input *in = &s_psbt->inputs[i];
         if (tx->inputs[i].sequence < 0xFFFFFFFE)
             s->rbf = true;
+        // A locktime only binds when an input asks for it. Every sequence at
+        // 0xFFFFFFFF and the field is decoration a node ignores, so warning
+        // about it would be warning about nothing -- and that is not rare:
+        // coordinators leave a stale locktime on a final transaction.
+        if (tx->inputs[i].sequence != 0xFFFFFFFF)
+            lock_enforced = true;
 
         if (in->sighash != 0 && in->sighash != WALLY_SIGHASH_ALL) {
             stop(s, "sighash is not ALL");
@@ -1108,6 +1115,10 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     if ((fee_base > 0 && s->fee_sats * 10 >= fee_base) ||
         s->fee_rate_x10 > WPSBT_HIGH_RATE_X10)
         caution(s, WPSBT_C_HIGHFEE, "unusually high fee - check it before signing");
+
+    // Stated, not flagged -- see wpsbt_summary_t.lock_binds for why a signer
+    // that cannot see the chain tip must not turn this into a caution.
+    s->lock_binds = (s->locktime != 0) && lock_enforced;
 
     s_status = s->status;
     return 0;

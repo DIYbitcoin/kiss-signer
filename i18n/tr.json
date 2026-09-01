@@ -481,6 +481,7 @@
   "S_ADDR_HELP_B": "KARŞILAŞTIRIN: parlak karakterleri, koordinatörünüzün gösterdiği adresle.\nDEĞİŞTİRİLDİ: kötü yazılım onu bilgisayarda değiştirir. burada değiştiremez.",
   "S_ALL_SIGNED_FMT": "%u COININ TÜMÜ İMZALANDI",
   "S_BUNDLE_IN_FMT": "GİRDİLER (%u)",
+  "S_LOCK_AFTER_FMT": "NOT BEFORE %u",
   "S_BUNDLE_MORE_FMT": "%u coin daha",
   "S_BUNDLE_NOCHANGE_FMT": "para üstü yok, bu %u tanesini de boşaltır",
   "S_BUNDLE_OUT": "NEREYE GİDİYOR",

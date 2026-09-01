@@ -481,6 +481,7 @@
   "S_ADDR_HELP_B": "VERGELIJK: de opgelichte tekens, met het adres dat je coordinator toont.\nGERUILD: malware kan het op je computer wijzigen. hier niet.",
   "S_ALL_SIGNED_FMT": "ALLE %u MUNTEN ONDERTEKEND",
   "S_BUNDLE_IN_FMT": "INVOER (%u)",
+  "S_LOCK_AFTER_FMT": "NOT BEFORE %u",
   "S_BUNDLE_MORE_FMT": "%u munten meer",
   "S_BUNDLE_NOCHANGE_FMT": "geen wisselgeld, dit leegt alle %u",
   "S_BUNDLE_OUT": "WAAR HET HEEN GAAT",

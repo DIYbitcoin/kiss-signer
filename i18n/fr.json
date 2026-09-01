@@ -481,6 +481,7 @@
   "S_ADDR_HELP_B": "COMPARE : les caractères éclairés, avec l'adresse que montre ton coordinateur.\nÉCHANGÉE : un logiciel malveillant peut la changer sur ton ordinateur. pas ici.",
   "S_ALL_SIGNED_FMT": "LES %u PIÈCES SIGNÉES",
   "S_BUNDLE_IN_FMT": "ENTRÉES (%u)",
+  "S_LOCK_AFTER_FMT": "NOT BEFORE %u",
   "S_BUNDLE_MORE_FMT": "%u pièces de plus",
   "S_BUNDLE_NOCHANGE_FMT": "pas de monnaie, cela vide les %u",
   "S_BUNDLE_OUT": "OÙ CELA VA",

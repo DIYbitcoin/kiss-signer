@@ -2541,6 +2541,45 @@ static void verify_screen(lv_obj_t *parent)
                 lv_obj_delete(nb);
             }
         }
+        // WHEN it can be sent, when that is not "now". A locktime that binds
+        // makes an ordinary looking payment unbroadcastable until the block it
+        // names, and every figure on this screen is silent about it -- it was
+        // one line on the DETAILS deck's third tab, which is where a fact goes
+        // to be unread.
+        //
+        // A BADGE and not a caution, in the same chain and the same slot class
+        // as the network: the signer is offline, so it cannot tell a
+        // coordinator's ordinary anti-fee-sniping locktime from a lock set
+        // months out, and an acknowledgement on every Sparrow transaction is
+        // the fatigue this file already refuses to spend on RBF and fee rate.
+        // The owner knows roughly where the chain is; the block is the fact
+        // they need and this states it.
+        //
+        // WT_MUT, deliberately not WT_WARN: nothing is wrong, something is
+        // scheduled. Amber on this screen is a thing that needs acknowledging.
+        if (s_sum.lock_binds) {
+            char ll[40];
+            snprintf(ll, sizeof ll, "%s  ", WT_ICON_LOCK);
+            snprintf(ll + strlen(ll), sizeof ll - strlen(ll),
+                     tr(STR_S_LOCK_AFTER_FMT), (unsigned)s_sum.locktime);
+            lv_obj_t *lb = wt_state_chip(s_scr, ll, WT_MUT);
+            lv_obj_update_layout(lb);
+            int lw = lv_obj_get_width(lb);
+            // The same guard the network badge takes -- a badge placed on a
+            // line that has run out of lane lands on the TITLE -- with a
+            // smaller reserve, because the 60 above is the width the FILENAME
+            // needed and this screen no longer draws one. What is left is
+            // clearance from the title, and 12 is that. At 60 the badge never
+            // appeared at all: the network chip and a five digit block leave
+            // about 19px of this lane, so the fact would have been promoted off
+            // the DETAILS deck and onto a screen that then dropped it.
+            if (fr - lw - 12 - fx >= 12) {
+                lv_obj_set_pos(lb, fr - lw, 26);
+                fr -= lw + 12;
+            } else {
+                lv_obj_delete(lb);
+            }
+        }
         // Below about 60px a filename is ellipsis and one character, which tells
         // nobody anything. It is already on the row that was tapped and in the
         // DETAILS page title, so drop it rather than let it collide.
@@ -2937,14 +2976,20 @@ static void verify_screen(lv_obj_t *parent)
         size_t n_in = 0, n_out = 0;
         uint64_t max_sats = 0;
 
-        // The coins linked caution, drawn rather than only written. The strands
-        // converging on one dot ARE the linkage the bar below is warning about,
-        // so they wear WT_WARN and the words stop being the only place it is
-        // said. Every input takes it, including the elided group -- the reason
-        // is the convergence, and no single coin is more responsible for it
-        // than another.
-        const uint8_t in_role = (s_sum.caution_flags & WPSBT_C_MERGE_INS)
-                              ? WT_STRAND_LINKED : WT_STRAND_IN;
+        // Every caution that has a strand, drawn rather than only written. The
+        // strand IS the thing the bar below is talking about, so it wears
+        // WT_WARN and the words stop being the only place it is said.
+        //
+        // Linking takes EVERY input, including the elided group: the reason is
+        // the convergence on one junction and no single coin is more
+        // responsible for it than another. A dust coin is the opposite case,
+        // one named coin, so it is flagged per strand below.
+        const bool in_all = (s_sum.caution_flags & WPSBT_C_MERGE_INS) != 0;
+        // A coin small enough to be somebody else's marker. Only where a strand
+        // is ONE coin: the elided group is a total, and amber on it would claim
+        // every coin folded into it is dust.
+        #define IN_DUST(v) (in_all || ((s_sum.caution_flags & WPSBT_C_DUST_INPUT) \
+                                       && (v) > 0 && (v) < WPSBT_PRIVACY_SATS))
 
         char gbuf[64];
         if (have_det && det.n_in) {
@@ -2973,7 +3018,7 @@ static void verify_screen(lv_obj_t *parent)
             if (total_n <= 5 || det.n_in < 4) {
                 for (uint32_t i = 0; i < det.n_in && n_in < WT_BUNDLE_MAX; i++)
                     in[n_in++] = (wt_strand_t){ .sats = det.ins[i].sats,
-                                                .role = in_role };
+                                                .flagged = IN_DUST(det.ins[i].sats) };
             } else {
                 const uint32_t last = det.n_in - 1;
                 uint64_t shown = det.ins[0].sats + det.ins[1].sats
@@ -2982,23 +3027,26 @@ static void verify_screen(lv_obj_t *parent)
                 snprintf(gbuf, sizeof gbuf, tr(STR_S_BUNDLE_MORE_FMT),
                          (unsigned)(total_n - 4));
                 in[n_in++] = (wt_strand_t){ .sats = det.ins[0].sats,
-                                            .role = in_role };
+                                            .flagged = IN_DUST(det.ins[0].sats) };
                 in[n_in++] = (wt_strand_t){ .sats = det.ins[1].sats,
-                                            .role = in_role };
+                                            .flagged = IN_DUST(det.ins[1].sats) };
                 in[n_in++] = (wt_strand_t){ .sats = hidden, .label = gbuf,
-                                            .role = in_role,
+                                            .flagged = in_all,
                                             .is_group = true,
                                             .group_n = (uint16_t)(total_n - 4) };
                 in[n_in++] = (wt_strand_t){ .sats = det.ins[last - 1].sats,
-                                            .role = in_role };
+                                            .flagged = IN_DUST(det.ins[last - 1].sats) };
                 in[n_in++] = (wt_strand_t){ .sats = det.ins[last].sats,
-                                            .role = in_role };
+                                            .flagged = IN_DUST(det.ins[last].sats) };
             }
         }
         if (!n_in) {
-            in[0] = (wt_strand_t){ .sats = s_sum.in_sats, .role = in_role };
+            // The fallback strand is the whole input side, so it can only carry
+            // a caution that is about the whole input side.
+            in[0] = (wt_strand_t){ .sats = s_sum.in_sats, .flagged = in_all };
             n_in = 1;
         }
+        #undef IN_DUST
 
         // Recipients, then the fee, then change: the order every frame draws
         // and the order the sentence "amount plus fee, and what comes back"
@@ -3076,13 +3124,29 @@ static void verify_screen(lv_obj_t *parent)
         if (n_out < WT_BUNDLE_MAX)
             out[n_out++] = (wt_strand_t){ .sats  = s_sum.fee_sats,
                                           .label = fbuf,
-                                          .role  = WT_STRAND_FEE };
+                                          .role  = WT_STRAND_FEE,
+                                          // The strand is already as thick as
+                                          // its share; amber is what says that
+                                          // share is the thing being flagged.
+                                          .flagged = (s_sum.caution_flags
+                                                      & WPSBT_C_HIGHFEE) != 0 };
         for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS
                         && n_out < WT_BUNDLE_MAX; i++) {
             if (!s_sum.outs[i].is_change) continue;
-            out[n_out++] = (wt_strand_t){ .sats  = s_sum.outs[i].sats,
+            // Per OUTPUT, not per transaction: kiss_psbt.c raises these while
+            // walking the outputs, so with two change outputs the amber belongs
+            // on the one that earned it. Dust and tiny are read off this
+            // output's own amount, and out of reach off its own index.
+            const uint64_t cv = s_sum.outs[i].sats;
+            const bool ch_bad =
+                ((s_sum.caution_flags & WPSBT_C_GAP_CHANGE)
+                 && s_sum.outs[i].index >= WPSBT_GAP_INDEX) ||
+                ((s_sum.caution_flags & (WPSBT_C_DUST_CHANGE | WPSBT_C_SMALL_CHANGE))
+                 && cv > 0 && cv < WPSBT_PRIVACY_SATS);
+            out[n_out++] = (wt_strand_t){ .sats  = cv,
                                           .label = cbuf,   // CHANGE
-                                          .role  = WT_STRAND_CHANGE };
+                                          .role  = WT_STRAND_CHANGE,
+                                          .flagged = ch_bad };
         }
         // A transaction that leaves nothing behind says so on the row where
         // change would have been, rather than by having one row fewer. The

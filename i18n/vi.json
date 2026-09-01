@@ -481,6 +481,7 @@
   "S_ADDR_HELP_B": "ĐỐI CHIẾU: các ký tự sáng, với địa chỉ bộ điều phối của bạn hiện ra.\nBỊ TRÁO: mã độc đổi được nó trên máy tính. ở đây thì không.",
   "S_ALL_SIGNED_FMT": "ĐÃ KÝ CẢ %u ĐỒNG",
   "S_BUNDLE_IN_FMT": "ĐẦU VÀO (%u)",
+  "S_LOCK_AFTER_FMT": "NOT BEFORE %u",
   "S_BUNDLE_MORE_FMT": "%u đồng nữa",
   "S_BUNDLE_NOCHANGE_FMT": "không có tiền thừa, dùng hết cả %u đồng",
   "S_BUNDLE_OUT": "TIỀN ĐI ĐÂU",
