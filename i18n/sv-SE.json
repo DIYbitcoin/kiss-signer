@@ -485,7 +485,6 @@
   "S_D_LT_CAP": "NOT BEFORE BLOCK",
   "S_BUNDLE_MORE_FMT": "%u mynt till",
   "S_BUNDLE_NOCHANGE_FMT": "ingen växel, detta tömmer alla %u",
-  "S_BUNDLE_OUT": "VART DET GÅR",
   "S_CMP_8": "jämför dessa 8",
   "S_COINS_HELP_B": "INTE HÄR: den ligger på bitcoin nätverket. ingen enhet håller den, inte heller denna.\nBARA NYCKLAR: ditt är nyckeln som öppnar den, och nyckeln är det den här signeraren sparar.\nFÖRBRUKAS: att öppna den förbrukar allt. det du inte skickar kommer tillbaka som en ny.",
   "S_C_DUSTCH": "dammväxel",

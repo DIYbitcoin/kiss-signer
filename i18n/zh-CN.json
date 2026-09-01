@@ -485,7 +485,6 @@
   "S_D_LT_CAP": "NOT BEFORE BLOCK",
   "S_BUNDLE_MORE_FMT": "另有 %u 个币",
   "S_BUNDLE_NOCHANGE_FMT": "没有找零, 这会花掉全部 %u 个",
-  "S_BUNDLE_OUT": "去向",
   "S_CMP_8": "对比这 8 个字",
   "S_COINS_HELP_B": "不在这里: 它在比特币网络上。没有设备保管它，这台也没有。\n只有密钥: 属于你的是打开它的密钥，这台签名器保管的也是密钥。\n整笔用掉: 打开就会整笔用掉。没有送出的部分会作为新的回到你这里。",
   "S_C_DUSTCH": "粉尘找零",

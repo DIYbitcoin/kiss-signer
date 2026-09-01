@@ -185,6 +185,36 @@ a reader has to unlearn the first time they read anything else.
 `i18n/GLOSSARY.md` is the authority and has the 21 locale anchors — check it
 before naming anything.
 
+### BITCOIN simple, not simple simple
+
+**The plain English paraphrase of a Bitcoin word is not the simple version of
+it. It is a house term with extra steps, and it is worse than the word.** The
+owner has said this more times than either of us has counted, shouting the last
+one, and it keeps happening because the Copy rules below read like a licence for
+it — "no four syllable word", "said the way somebody would say it out loud".
+They are not. They are about SENTENCES. A NAME is settled by the Vocabulary rule
+above, and the answer is whatever Sparrow, Nunchuk and mempool.space already
+call it.
+
+The sign screen headed its output column **"WHERE IT GOES"**. Three plain words,
+no jargon, and every one of them wrong: the column beside it says **INPUTS**,
+the glossary one tap away teaches **OUTPUTS**, `GLOSS_ICONS[1]` is the OUTPUTS
+mark, and the DETAILS deck's own tab is called OUTPUTS. So the screen taught a
+paraphrase in the one place its own pair was already on the glass, and the
+reader had to learn the real word somewhere else anyway. It says OUTPUTS, from
+`gloss_term(1)` — the glossary's own line, already translated 21 times, no key.
+
+**"DESTINATIONS" was the next thing reached for and is the same mistake.** It is
+not what a coordinator calls them either, and it is not more honest for the fee
+row or the change row than the word that actually covers all three.
+
+The test, before inventing anything: **what does the coordinator on the owner's
+laptop call this?** If it has a name there, that is the name. Reach for plain
+words for the SENTENCE around it, never for the name itself — the Copy rule
+already says so in its own words, *"the name in full, every time; when the line
+will not fit, cut a different word, never the name"*, and that rule is not only
+about seed words.
+
 The three that got tangled, and cost a full sweep to untangle:
 
 | | |

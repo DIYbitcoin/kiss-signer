@@ -485,7 +485,6 @@
   "S_D_LT_CAP": "NOT BEFORE BLOCK",
   "S_BUNDLE_MORE_FMT": "%u munten meer",
   "S_BUNDLE_NOCHANGE_FMT": "geen wisselgeld, dit leegt alle %u",
-  "S_BUNDLE_OUT": "WAAR HET HEEN GAAT",
   "S_CMP_8": "vergelijk deze 8",
   "S_COINS_HELP_B": "NIET HIER: hij staat op het bitcoin netwerk. geen apparaat houdt hem vast, dit ook niet.\nALLEEN SLEUTELS: van jou is de sleutel die hem opent, en de sleutel is wat deze signer bewaart.\nOPGEBRUIKT: openen gebruikt hem helemaal op. wat je niet stuurt komt terug als een nieuwe.",
   "S_C_DUSTCH": "dust-wisselgeld",

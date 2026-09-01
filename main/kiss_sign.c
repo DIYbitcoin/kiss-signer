@@ -3358,7 +3358,17 @@ static void verify_screen(lv_obj_t *parent)
         const int chip_max = 448 - tot_w - 30;
         if (s_coins_chip_x > chip_max) s_coins_chip_x = chip_max;
         tot_x = s_coins_chip_x + 30 + 12;
-        lv_obj_t *rc = sg_lbl(s_scr, tr(STR_S_BUNDLE_OUT), 464, 150,
+        // OUTPUTS, which is what it is called. This read "WHERE IT GOES" --
+        // a plain English paraphrase, over a column whose own rows carry the
+        // OUTPUTS mark, opposite a caption saying INPUTS, on a screen whose
+        // DETAILS deck has a tab called OUTPUTS and a glossary one tap away
+        // that teaches the word. The paraphrase taught nothing and the reader
+        // had to learn the real word somewhere else regardless.
+        //
+        // From the glossary's own line rather than a key of its own: the term
+        // is already translated 21 times and gloss_term(2) has been lifting
+        // CHANGE out of it for as long as the change row has existed.
+        lv_obj_t *rc = sg_lbl(s_scr, gloss_term(1), 464, 150,
                               wt_font14(), MUT_COL);
         lv_obj_set_style_text_letter_space(rc, 2, 0);
 

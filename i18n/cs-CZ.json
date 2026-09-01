@@ -485,7 +485,6 @@
   "S_D_LT_CAP": "NOT BEFORE BLOCK",
   "S_BUNDLE_MORE_FMT": "dalších %u mincí",
   "S_BUNDLE_NOCHANGE_FMT": "bez drobných, tímto se vyprázdní všech %u",
-  "S_BUNDLE_OUT": "KAM TO JDE",
   "S_CMP_8": "porovnejte těchto 8",
   "S_COINS_HELP_B": "NENÍ TADY: leží v síti bitcoinu. nedrží ji žádné zařízení, ani toto.\nJEN KLÍČE: vlastníš klíč, který ji odemyká, a klíč je to, co tento podepisovač uchovává.\nSPOTŘEBUJE SE: odemčením se spotřebuje celá. co neposíláš, vrátí se jako nová.",
   "S_C_DUSTCH": "prachové drobné",

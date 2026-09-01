@@ -485,7 +485,6 @@
   "S_D_LT_CAP": "NOT BEFORE BLOCK",
   "S_BUNDLE_MORE_FMT": "%u coin daha",
   "S_BUNDLE_NOCHANGE_FMT": "para üstü yok, bu %u tanesini de boşaltır",
-  "S_BUNDLE_OUT": "NEREYE GİDİYOR",
   "S_CMP_8": "bu 8'i karşılaştır",
   "S_COINS_HELP_B": "BURADA DEĞİL: bitcoin ağında durur. hiçbir cihaz onu tutmaz, bu da tutmaz.\nSADECE ANAHTAR: senin olan, onu açan anahtardır ve bu imzalayıcının sakladığı da odur.\nTAMAMI GİDER: açmak tamamını harcar. göndermediğin kadarı yenisi olarak geri gelir.",
   "S_C_DUSTCH": "toz para üstü",

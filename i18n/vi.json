@@ -485,7 +485,6 @@
   "S_D_LT_CAP": "NOT BEFORE BLOCK",
   "S_BUNDLE_MORE_FMT": "%u đồng nữa",
   "S_BUNDLE_NOCHANGE_FMT": "không có tiền thừa, dùng hết cả %u đồng",
-  "S_BUNDLE_OUT": "TIỀN ĐI ĐÂU",
   "S_CMP_8": "so sánh 8 ký tự này",
   "S_COINS_HELP_B": "KHÔNG Ở ĐÂY: nó nằm trên mạng bitcoin. không thiết bị nào giữ nó, kể cả cái này.\nCHỈ CÓ KHÓA: của bạn là khóa mở nó, và khóa là thứ máy ký này giữ.\nDÙNG HẾT: mở nó là dùng hết. phần bạn không gửi quay về thành một cái mới.",
   "S_C_DUSTCH": "tiền thừa bụi",

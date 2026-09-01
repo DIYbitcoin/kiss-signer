@@ -485,7 +485,6 @@
   "S_D_LT_CAP": "NOT BEFORE BLOCK",
   "S_BUNDLE_MORE_FMT": "%u pièces de plus",
   "S_BUNDLE_NOCHANGE_FMT": "pas de monnaie, cela vide les %u",
-  "S_BUNDLE_OUT": "OÙ CELA VA",
   "S_CMP_8": "comparer ces 8",
   "S_COINS_HELP_B": "PAS ICI: elle est sur le réseau bitcoin. aucun appareil ne la détient, celui ci non plus.\nCLÉS SEULEMENT: vous possédez la clé qui l'ouvre, et c'est la clé que ce signataire garde.\nCONSOMMÉE: l'ouvrir la consomme entièrement. ce que vous n'envoyez pas revient en une nouvelle.",
   "S_C_DUSTCH": "monnaie poussière",

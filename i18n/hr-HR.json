@@ -485,7 +485,6 @@
   "S_D_LT_CAP": "NOT BEFORE BLOCK",
   "S_BUNDLE_MORE_FMT": "još %u novčića",
   "S_BUNDLE_NOCHANGE_FMT": "bez ostatka, ovo prazni svih %u",
-  "S_BUNDLE_OUT": "KAMO IDE",
   "S_CMP_8": "usporedi ovih 8",
   "S_COINS_HELP_B": "NIJE OVDJE: stoji na bitcoin mreži. ne drži je nijedan uređaj, ni ovaj.\nSAMO KLJUČEVI: tvoj je ključ koji je otključava, a ključ je ono što ovaj potpisnik čuva.\nPOTROŠI SE: otključavanje potroši cijelu. što ne pošalješ, vraća se kao nova.",
   "S_C_DUSTCH": "dust ostatak",

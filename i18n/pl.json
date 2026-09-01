@@ -485,7 +485,6 @@
   "S_D_LT_CAP": "NOT BEFORE BLOCK",
   "S_BUNDLE_MORE_FMT": "jeszcze %u monet",
   "S_BUNDLE_NOCHANGE_FMT": "bez reszty, to opróżnia wszystkie %u",
-  "S_BUNDLE_OUT": "DOKĄD IDZIE",
   "S_CMP_8": "porównaj te 8",
   "S_COINS_HELP_B": "NIE TUTAJ: leży w sieci bitcoina. nie trzyma go żadne urządzenie, to też nie.\nTYLKO KLUCZE: twój jest klucz, który go otwiera, i to klucz przechowuje ten podpisujący.\nZUŻYWA SIĘ: otwarcie zużywa go w całości. czego nie wysyłasz, wraca jako nowy.",
   "S_C_DUSTCH": "reszta-pył",

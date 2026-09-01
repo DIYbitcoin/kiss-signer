@@ -485,7 +485,6 @@
   "S_D_LT_CAP": "NOT BEFORE BLOCK",
   "S_BUNDLE_MORE_FMT": "%u monedas más",
   "S_BUNDLE_NOCHANGE_FMT": "sin cambio, esto vacía las %u",
-  "S_BUNDLE_OUT": "A DÓNDE VA",
   "S_CMP_8": "compara estos 8",
   "S_COINS_HELP_B": "NO ESTÁ AQUÍ: está en la red de bitcoin. ningún dispositivo la guarda, este tampoco.\nSOLO CLAVES: lo tuyo es la clave que la abre, y la clave es lo que guarda este firmante.\nSE GASTA ENTERA: abrirla la consume del todo. lo que no envías vuelve como una nueva.",
   "S_C_DUSTCH": "cambio polvo",

@@ -485,7 +485,6 @@
   "S_D_LT_CAP": "NOT BEFORE BLOCK",
   "S_BUNDLE_MORE_FMT": "%u mønter mere",
   "S_BUNDLE_NOCHANGE_FMT": "ingen byttepenge, dette tømmer alle %u",
-  "S_BUNDLE_OUT": "HVOR DEN GÅR HEN",
   "S_CMP_8": "sammenlign disse 8",
   "S_COINS_HELP_B": "IKKE HER: den ligger på bitcoin netværket. ingen enhed holder den, heller ikke denne.\nKUN NØGLER: du ejer nøglen, der låser den op, og nøglen er det, denne signer gemmer.\nBRUGT OP: at låse den op bruger det hele. det, du ikke sender, kommer tilbage som en ny.",
   "S_C_DUSTCH": "støv som byttepenge",
