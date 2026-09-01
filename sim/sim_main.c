@@ -4548,7 +4548,7 @@ int main(void) {
   must_show("words/swipe back to paper", tr(STR_I_WROW_CHECK));
   // VERIFY MY COPY: type the stored dev mnemonic (11x abandon + about).
   // 'abandon' = 'a','b' -> suggestion[0]; 'about' = 'a','b','o' -> suggestion[0].
-  words_row(1);                         // Check my copy -> intro
+  words_row(0);                         // Check my copy -> intro
   save("/tmp/sim_verify_intro.ppm");
   tap_str(STR_W_TYPE_MY_WORDS, 3, 6);     // TYPE MY WORDS -> keypad
   save("/tmp/sim_verify_entry.ppm");
@@ -4614,7 +4614,7 @@ int main(void) {
   kiss_ui_forget_fp();
   set_tab(SET_BACKUP);
   def_row(2, 0);                                    // Recovery words
-  words_row(1);                      // Check my copy -> intro
+  words_row(0);                      // Check my copy -> intro
   tap_str(STR_W_TYPE_MY_WORDS, 3, 6);   // TYPE MY WORDS -> keypad again
   for (int i = 0; i < 11; i++) {                    // 11x abandon, as above
     touch(44, 314); pump(3); release(); pump(3);
@@ -4649,7 +4649,7 @@ int main(void) {
 
   set_tab(SET_BACKUP);
   def_row(2, 0);                                    // Recovery words -> warning again
-  words_row(0);                        // Show the words -> the WT_WARN gate
+  words_row(1);                        // Show the words -> the WT_WARN gate
   save("/tmp/sim_words_gate.ppm");                  // eye mark, the two captions
   must_show("words gate", tr(STR_W_SHOW_SENT));
   // a tap is NOT enough here either
@@ -4673,7 +4673,7 @@ int main(void) {
                             "%s%s", i ? " " : "", SIM_WORDS[i]);
     set_tab(SET_BACKUP);
     def_row(2, 0);                                  // Recovery words -> warning
-    words_row(0);                      // Show the words -> the gate
+    words_row(1);                      // Show the words -> the gate
     slide_at(208, 430, 340); release(); pump(10);   // slide through
     save("/tmp/sim_words24_p1.ppm");                // 1-12, one lit sheet dot
     tap_str(STR_R_NEXT, 3, 6);   // NEXT

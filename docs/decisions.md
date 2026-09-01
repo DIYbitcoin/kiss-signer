@@ -62,19 +62,19 @@ The band's centre: LANGUAGE and THEME, out of the DEVICE tab. The language contr
 
 They read stronger than the rest of the device only because six large fills carry the same accent that is hairlines everywhere else -- area against stroke, not a palette break. There is no hardcoded colour in this file outside one dim amber. The keys, each directly over the column it feeds: six for a die, two for a coin. A die's key is the FACE, because that is what is printed on the thing in the owner's hand and it is also the character recorded. A coin has no digits on it, and the keys used to say 0 and 1 -- which made the first act of the flow an invented convention the owner had to hold in their head for 128 taps, before they had done anything. They say HEADS and TAILS now: nothing to decide, nothing to remember, and the words on the keys are the words on the coin. The recorded character is still 0 and 1, so the preimage is still the bit string. The mapping that makes it checkable does not live in anyone's head either -- W_COIN_VERIFY_NOTE prints it directly above the hash, on the one line written for the reader who is going to recompute it.
 
-[`main/kiss_setup.c:2274`](../main/kiss_setup.c#L2274)
+[`main/kiss_setup.c:2280`](../main/kiss_setup.c#L2280)
 
 ### the first boot storage chooser matches the Settings one row for row on purpose, so neither may be reordered alone
 
 Geometry and OBJECT from WT_CHOICE_* and wt_row_x, matching storage_chooser_screen() in kiss_settings.c row for row. The two screens present the identical choice and must not drift apart again, which is why the numbers live in kiss_theme.h and not in either file -- and now the shape does too, which is the drift that actually happened last time. Nothing is selected here. In Settings one of the three IS the current mode and wears the tick; this is first boot, there is no current mode yet, and a tick on FLASH would be the device answering its own question.
 
-[`main/kiss_setup.c:3271`](../main/kiss_setup.c#L3271)
+[`main/kiss_setup.c:3277`](../main/kiss_setup.c#L3277)
 
 ### the FIRST screen of setup has no CANCEL on a signer with no keys, because there is nothing to cancel to
 
 This is the one place the "no screen without an exit" rule is deliberately not applied, and the rule's own case says why: it was written for the WORDS screen, where an owner mid flow could only go forward or pull the power. Here the two choices ARE the way on, and the language picker is in the corner. What CANCEL did instead was strand people. It closed the wizard onto the fruit game, and the only route back into a keyless signer is the KISS draw -- printed on a card in the packaging and nowhere on the glass. So an owner who backed out of setup, or drew the gesture before knowing what it opened, was holding a signing device that had become a game. The obvious fix is the one that must NOT be built: a way in on the cover itself. kiss_seed_exists() is false on an AMNESIC signer with no session loaded and on an SD signer with its card out, so a cover that offers setup whenever there are no keys wears a signer's name permanently on the two modes that need the cover most. That is the decoy, gone. With keys, CANCEL stays exactly as it was: the wizard is reached from Settings then, there is a device behind it, and going back is correct.
 
-[`main/kiss_setup.c:3474`](../main/kiss_setup.c#L3474)
+[`main/kiss_setup.c:3480`](../main/kiss_setup.c#L3480)
 
 ## `main/kiss_sign.c`
 

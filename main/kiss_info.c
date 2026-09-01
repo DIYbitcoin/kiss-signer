@@ -1029,16 +1029,6 @@ static void wtab_paper(void)
 {
     const bool ok = kiss_ui_backup_checked();
 
-    // NO SUB. It said "paper only. no photo, no file." and the gate one tap
-    // later says "on paper, in order. never a photo, never a file." -- the
-    // same instruction, one screen early, which is the restatement this
-    // page's body was already cut for. It belongs where the words are about
-    // to be on the glass, not on the row that opens the gate.
-    wt_row_wide(w_pane, WT_WIDE_Y(0), &(wt_wide_t){
-        .label = tr(STR_I_WROW_SHOW),
-        .kind  = WT_WIDE_OPEN,
-        .cb    = words_show_cb,
-    });
 
     // The same two facts the SETTINGS backup row states, in the same shape: a
     // glyph for the value and the state in the sub, so a long locale grows the
@@ -1056,7 +1046,7 @@ static void wtab_paper(void)
         snprintf(wsub, sizeof wsub, "%s", tr(STR_I_WORDS_UNVERIFIED));
         snprintf(wval, sizeof wval, "%s", LV_SYMBOL_WARNING);
     }
-    wt_row_wide(w_pane, WT_WIDE_Y(1), &(wt_wide_t){
+    wt_row_wide(w_pane, WT_WIDE_Y(0), &(wt_wide_t){
         .label   = tr(STR_I_WROW_CHECK),
         .sub     = wsub,
         .sub_col = ok ? WT_OK : WT_WARN,
@@ -1065,6 +1055,23 @@ static void wtab_paper(void)
         .vcol    = ok ? WT_OK : WT_WARN,
         .sev     = ok ? WT_SEV_OK : WT_SEV_WARN,
         .cb      = verify_copy_cb,
+    });
+
+    // CHECK MY COPY FIRST. It was second, under SHOW THEM, and the order is
+    // the page's advice: the row above is the only one here that changes
+    // anything, it is what turns the amber state green, and it is what an
+    // owner holding a page of words should do before asking for them again.
+    // Putting the reveal first offers the glass as the answer to "have I got
+    // these right", which it is not -- reading them off the screen proves
+    // nothing about the paper.
+    //
+    // NO SUB on the reveal. It said "paper only. no photo, no file." and the
+    // gate one tap later says the same instruction in full, which is the
+    // restatement this page's body was already cut for once.
+    wt_row_wide(w_pane, WT_WIDE_Y(1), &(wt_wide_t){
+        .label = tr(STR_I_WROW_SHOW),
+        .kind  = WT_WIDE_OPEN,
+        .cb    = words_show_cb,
     });
 
     // The entropy judge's verdict, carried forward from the seed that was

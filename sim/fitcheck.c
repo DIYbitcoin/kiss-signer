@@ -29,7 +29,7 @@ typedef struct {
 
 static const slot_t SLOTS[] = {
     // kiss_setup.c:279 — amber line under the word grid
-    { "setup/paper-only", STR_W_PAPER_ONLY, 700,  40 },
+    { "setup/paper-only", STR_I_WORDS_S,    700,  40 },
     // kiss_info.c — "?" cards (155 with a diagram, 225 without; the
     // scan-key warning below pairs a short body with three visual facts).
     // The PAIRING one is gone with its card: that page's [ ? 2 ] opens

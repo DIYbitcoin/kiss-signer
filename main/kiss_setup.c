@@ -919,8 +919,14 @@ static void words_screen(void)
     }
     // the one rule that matters while they are copying: loud, under the grid,
     // not buried at the end of the subtitle
-    lv_obj_t *po = mk_lbl(tr(STR_W_PAPER_ONLY), 48, 352,
-                          wt_body_font(tr(STR_W_PAPER_ONLY), 700, 40),
+    //
+    // STR_I_WORDS_S, the SAME sentence the reveal gate in SETTINGS shows. This
+    // was W_PAPER_ONLY -- "paper only. never type or photograph." -- a third
+    // wording of one rule, on the third screen that gives it. Two negations
+    // and no instruction, against "on paper, in order" which says what to do
+    // and adds the part that matters while somebody is copying twelve words.
+    lv_obj_t *po = mk_lbl(tr(STR_I_WORDS_S), 48, 352,
+                          wt_body_font(tr(STR_I_WORDS_S), 700, 40),
                           wt_ink_for(WARN_COL));
     lv_obj_set_width(po, 700);
     lv_label_set_long_mode(po, LV_LABEL_LONG_WRAP);

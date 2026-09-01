@@ -106,6 +106,12 @@ BACKLOG = frozenset({
     # full. A row that restates the screen it opens is the thing this page's
     # body was already cut for.
     "STR_I_WROW_SHOW_SUB",
+    # A third wording of one rule. "paper only. never type or photograph." sat
+    # under the setup word grid while the SETTINGS reveal gate said "on paper,
+    # in order. never a photo or a file." for the same instruction -- two
+    # negations and no instruction against one of each. Both screens show
+    # I_WORDS_S now.
+    "STR_W_PAPER_ONLY",
     # The gate shape's second caption. WHAT SURVIVES and WHAT DOES NOT spent a
     # 168px lane saying what a tick and a cross say, and that lane was why the
     # answers themselves could not leave mono18. WHAT SURVIVES survives: the
