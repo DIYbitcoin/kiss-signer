@@ -2484,13 +2484,35 @@ lv_obj_t *wt_row_x(lv_obj_t *scr, const char *icon, const char *label,
             // The SAME arithmetic wt_row_sub_font predicts, from the same
             // helper: a private copy here is how the two drift apart.
             const int sh = row_sub_lane_h(rowh);
-            lv_obj_t *s = wt_lbl(row, sub, lx, liney,
-                                 sf_auto ? wt_body_font(sub, sw, sh) : sf,
-                                 WT_MUT);
+            const lv_font_t *ssf = sf_auto ? wt_body_font(sub, sw, sh) : sf;
+            lv_obj_t *s = wt_lbl(row, sub, lx, liney, ssf, WT_MUT);
             lv_obj_set_width(s, sw);
             lv_obj_set_height(s, sh);
             lv_label_set_long_mode(s, LV_LABEL_LONG_WRAP);
             lv_obj_set_user_data(s, (void *)WT_SUB_TAG);
+
+            // THE PAIR IS CENTRED, and the 3px above is not the gap it looks
+            // like: on a 64px row the label owns 7..37 and the sub owns what
+            // is left, so there is nowhere to put a gap and the numbers are
+            // the box. A CHOICE row is 94 and the same arithmetic left the
+            // sub tucked under the label with 12px of nothing beneath it --
+            // "the text below RANDOMNESS AUDIT is quite fucking close to it".
+            //
+            // The lane is unchanged, so a translation that needs two lines
+            // still gets them and still picks its own rung. What moves is
+            // where the finished pair SITS: measured, not guessed, because a
+            // sub that wrapped is twice as tall and a block centred on the
+            // one-line case would hang out of the bottom of the card.
+            lv_point_t ss;
+            lv_text_get_size(&ss, sub, ssf, 0, 0, sw, LV_TEXT_FLAG_NONE);
+            const int subh  = ss.y < sh ? ss.y : sh;
+            const int lh    = lv_obj_get_height(l);
+            const int total = lh + WT_ROW_SUB_GAP + subh;
+            int top = (rowh - total) / 2;
+            if (top < 7) top = 7;
+            lv_obj_set_height(s, subh);
+            lv_obj_set_y(l, top);
+            lv_obj_set_y(s, top + lh + WT_ROW_SUB_GAP);
         } else {
             // MEASURED, through the same sink the wide row and the def rows
             // use. This row is where CUT was NOT wired, and it is the row the

@@ -750,6 +750,11 @@ lv_obj_t *wt_row_head(lv_obj_t *scr, const char *txt, int x, int y, int w);
 // the extra four pixels only bought air inside the card. Redraw 05 draws 56 for
 // its smaller type; 64 is the same proportion at the type this device has.
 #define WT_ROW_H 64
+// The air between a row's label and its sub-line, on a TALL row only. A 64px
+// row has none to give: its label owns 7..37 and its sub owns the rest. A
+// CHOICE row is 94 and had the same 3px, which reads as one block of text
+// rather than a heading and a line under it.
+#define WT_ROW_SUB_GAP 10
 // Severity of a row CARD, applied after wt_row builds it. Redraw 05 tints the
 // whole box rather than one note inside it, so a group reads before its words
 // do: green for a state already satisfied, amber for a warning about the
