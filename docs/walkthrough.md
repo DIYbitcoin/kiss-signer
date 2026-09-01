@@ -142,6 +142,18 @@ Signed. The signed file or QR has to go back to Sparrow, and Sparrow broadcasts 
 
 Handing the signature back by animated QR when there is no SD card. Point Sparrow's webcam at it and let it run; tap the QR if the camera needs larger modules.
 
+## Checking the signer itself
+
+Two questions you can ask this device about its own keys, at any time, with nothing leaving it. SETTINGS > BACKUP > AUDIT, or the same row on SECURITY.
+
+![KISS screen: audit](shots/17-audit.png)
+
+HOW YOUR KEYS WERE MADE reads back the source this signer recorded when the seed was made: dice, coin flips, the camera and your taps, a blind draw, or brought in from somewhere else. It is the one fact about a set of keys you cannot recover by looking at the seed words.
+
+![KISS screen: audit randomness](shots/18-audit-randomness.png)
+
+RANDOMNESS AUDIT takes 5000 numbers from the chip and counts them into 100 groups. An even spread inside the fair range is what a working chip looks like; it cannot prove the chip is honest, because good software passes the same test, and the screen says so. A fair chip fails this about 1 run in 500, so run it again before worrying.
+
 ---
 
 Regenerate with `bash tools/gen_docs_shots.sh`.

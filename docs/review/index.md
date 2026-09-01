@@ -104,6 +104,14 @@ GREEN accent, English, mainnet. ADDENDUM-02's axis, the one MONO hides because M
 
 `sim_qr_out1`
 
+![green, 17 audit](green/17-audit.png)
+
+`sim_audit_choose`
+
+![green, 18 audit randomness](green/18-audit-randomness.png)
+
+`sim_rng_result`
+
 ## testnet
 
 The test networks, MONO, English. The walk already captures these near the end and they were published nowhere. SIGNET is a label: the same keys, the same tb1 addresses, a different chain.
@@ -203,6 +211,14 @@ The test networks, MONO, English. The walk already captures these near the end a
 ![testnet, 16 sign qr out](testnet/16-sign-qr-out.png)
 
 `sim_qr_out1`
+
+![testnet, 17 audit](testnet/17-audit.png)
+
+`sim_audit_choose`
+
+![testnet, 18 audit randomness](testnet/18-audit-randomness.png)
+
+`sim_rng_result`
 
 ![testnet, t0 network](testnet/t0-network.png)
 
