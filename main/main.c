@@ -244,25 +244,16 @@ static lv_obj_t *s_home;         // baked KISS Signer menu (visual shell only, f
 #define N_MOTES 5
 static lv_obj_t *s_mote[N_MOTES];  // ambient idle life: dim dots drifting up
 static lv_obj_t *s_tile_ttl[4];            // live tile labels (settle in on unlock)
-static lv_obj_t *s_next_lbl;               // the one step this signer has not taken
-// DECIDED: the home's next-step hint is a CONTROL, not a caption. It wears
-// LV_SYMBOL_RIGHT, which on this device means "this opens a screen" -- and it
-// opened nothing, so the one mark whose whole job is to promise navigation was
-// making a promise the label could not keep. It goes where it points now.
-enum { NEXT_NONE = 0, NEXT_BACKUP, NEXT_PAIR };
-static int s_next_kind;
-// One number, two placements: built here and re-aligned after every text
-// change, because the label is content sized and a translation of a different
-// width would otherwise stay centred on the old one.
-// 340, not 346. "pair a coordinator, then verify an address" is two steps and
-// it WRAPS to two lines, which at 346 put the second one 4px past
-// WT_CONTENT_BOTTOM -- the overlap gate found it the first time the pre-push
-// hook ran in strict mode. The line moved rather than the copy: this is the
-// only place on the device that says what to do next, and both halves of it
-// are things the owner has not done yet. There is room -- the tiles end at
-// 330 and this leaves 16 above the text -- and none below, which is why 340
-// and not 336.
-#define HOME_NEXT_Y 340
+// DECIDED: the home carries NO next-step line. It said "check your paper
+// against these keys" until the paper was checked, then "pair a coordinator,
+// then verify an address" until one had spoken, and it came off the bench as a
+// first-time-user walkthrough on the screen the owner looks at every day. The
+// order it was teaching is in docs/walkthrough.md, which is where the owner
+// asked for it to live -- the same argument that took the passphrase line off
+// this screen, a few paragraphs down in kiss_home_build().
+//
+// The tiles are the home. A signer that keeps suggesting the next thing is a
+// signer that never finishes setting itself up.
 // tile title string ids, in tile order (sign, receive, keys, settings).
 // STR_H_TILE_WALLET is a legacy KEY NAME whose value has been "Keys" for a
 // while; renaming the key would touch all 21 locale files for nothing.
@@ -1849,49 +1840,8 @@ static void sd_badge_sync(bool present) {
   }
 }
 
-// The step, or nothing. Read on every refresh rather than cached: the paper
-// can be checked and a coordinator can speak inside one unlocked session, and
-// both of those land here through the refresh the screens that change them
-// already call.
-static void next_step_sync(void) {
-  if (!s_next_lbl) return;
-  uint8_t fp[4];
-  kiss_ui_last_fp(fp);
-  const bool have_keys = (fp[0] | fp[1] | fp[2] | fp[3]) != 0;
-  int chigh; uint32_t cheight;
-  const char *step = NULL;
-  if (have_keys) {
-    if (!kiss_ui_backup_checked()) {
-      step = tr(STR_H_NEXT_BACKUP);
-      s_next_kind = NEXT_BACKUP;
-    }
-    else if (!kiss_usage_chain_known(fp, kiss_testnet() ? 1 : 0, kiss_script(),
-                                     &chigh, &cheight)) {
-      step = tr(STR_H_NEXT_PAIR);
-      s_next_kind = NEXT_PAIR;
-    }
-  }
-  if (!step) {
-    s_next_kind = NEXT_NONE;
-    lv_obj_add_flag(s_next_lbl, LV_OBJ_FLAG_HIDDEN);
-    return;
-  }
-  // The font too, not just the text: a language change reaches the home
-  // through this call and CJK wants its own face, the same reason the tile
-  // titles re-set theirs.
-  lv_obj_set_style_text_font(s_next_lbl, wt_font23(), 0);
-  char buf[128];
-  snprintf(buf, sizeof buf, "%s  %s", LV_SYMBOL_RIGHT, step);
-  lv_label_set_text(s_next_lbl, buf);
-  lv_obj_clear_flag(s_next_lbl, LV_OBJ_FLAG_HIDDEN);
-  // Re-align after the text: the label is content sized, so a translation of a
-  // different width would otherwise stay centred on the old one.
-  lv_obj_align(s_next_lbl, LV_ALIGN_TOP_MID, 0, HOME_NEXT_Y);
-}
-
 void kiss_home_refresh(void) {
   kiss_home_restyle();
-  next_step_sync();
   sd_badge_sync(platform_sd_probe() != 0);
   if (!s_net_lbl) return;
   if (kiss_testnet()) {
@@ -2641,16 +2591,6 @@ static const struct {
 };
 #define N_SCREENS (sizeof SCREENS / sizeof SCREENS[0])
 
-// The hint's own box, plus a little air. It sits immediately under the tiles
-// and is the only thing on the home whose width is not fixed art.
-static bool next_hint_hit(int x, int y)
-{
-  if (!s_next_lbl) return false;
-  lv_area_t a;
-  lv_obj_get_coords(s_next_lbl, &a);
-  return x >= a.x1 - 12 && x <= a.x2 + 12 && y >= a.y1 && y <= a.y2 + 10;
-}
-
 static void game_tick(lv_timer_t *t) {
   (void)t;
   int tx = 0, ty = 0;
@@ -3009,22 +2949,6 @@ static void game_tick(lv_timer_t *t) {
     } else if (pressed && !s_prev_press &&
                tx >= 410 && tx <= 570 && ty >= 140 && ty <= 340) { // Keys tile: export
       s_tile_pend = 3;
-    } else if (pressed && !s_prev_press && s_next_kind != NEXT_NONE &&
-               s_next_lbl &&
-               !lv_obj_has_flag(s_next_lbl, LV_OBJ_FLAG_HIDDEN) &&
-               next_hint_hit(tx, ty)) {
-      // AFTER the tiles, so the boundary row belongs to them: they end at 340
-      // and the hint's box starts there.
-      //
-      // Measured off the label rather than a hardcoded box, which is what the
-      // tiles get away with because they are fixed art. This label is content
-      // sized and centred, so its width moves with every one of 21 locales and
-      // a box written for English would miss in the other twenty.
-      if (s_next_kind == NEXT_BACKUP) kiss_settings_open_backup(lv_screen_active());
-      else                            kiss_info_open(lv_screen_active());
-      s_gest_swallow = true;
-      s_prev_press = pressed;
-      return;
     } else if (pressed && !s_prev_press &&
                tx >= 590 && tx <= 750 && ty >= 140 && ty <= 340) { // Settings tile
       s_tile_pend = 4;
@@ -3052,13 +2976,6 @@ static void game_tick(lv_timer_t *t) {
       s_tile_pend = 3;
     else if (pressed && !s_prev_press && tx >= 590 && tx <= 750 && ty >= 140 && ty <= 340)
       s_tile_pend = 4;
-    // The next-step hint, as a fifth tile. AFTER them, so the boundary row at
-    // 340 stays theirs, and acted on at the release like the rest of this
-    // branch.
-    else if (pressed && !s_prev_press && s_next_kind != NEXT_NONE && s_next_lbl &&
-             !lv_obj_has_flag(s_next_lbl, LV_OBJ_FLAG_HIDDEN) &&
-             next_hint_hit(tx, ty))
-      s_tile_pend = 5;
     else if (!pressed && s_prev_press && s_fp_pend) {
       s_fp_pend = false;
       fp_card_open();
@@ -3068,13 +2985,6 @@ static void game_tick(lv_timer_t *t) {
       if (t == 1) kiss_sign_open(lv_screen_active());
       else if (t == 2) kiss_recv_open(lv_screen_active());
       else if (t == 3) kiss_info_open(lv_screen_active());
-      else if (t == 5) {
-        // The fifth "tile" is the next-step hint, which goes where it points.
-        if (s_next_kind == NEXT_BACKUP)
-          kiss_settings_open_backup(lv_screen_active());
-        else
-          kiss_info_open(lv_screen_active());
-      }
       else kiss_settings_open(lv_screen_active());
     }
 #endif
@@ -3683,55 +3593,6 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   // question at all. The way in belongs in docs/walkthrough.md and in the
   // wizard that configures it, not standing under the tiles of a signer
   // somebody may have been made to open.
-
-  // ONE next step, in the band under the tiles.
-  //
-  // The order that matters is written down in docs/walkthrough.md -- check the
-  // paper, pair a coordinator, verify an address on the device, then move a
-  // little money -- and the device said none of it. Four equal tiles is a menu,
-  // and a menu tells a newcomer what they CAN do without ever saying which of
-  // it comes first. The step this line names is the one that catches a
-  // computer showing an address that is not yours, and it is worth nothing
-  // once the money is already sent.
-  //
-  // Two facts, both already stored and both already read elsewhere on this
-  // device: kiss_ui_backup_checked() is the question SETTINGS asks about the
-  // paper, and kiss_usage_chain_known() is the only honest signal this signer
-  // has for "a coordinator has spoken", which kiss_info.c already treats as
-  // paired-ness. So this adds no state; it reads what two screens read.
-  //
-  // MUTED, and no all-good version. Accent here would be the GREEN that is
-  // byte identical to WT_OK on one theme, which would dress a suggestion up as
-  // something the device has checked -- exactly what task 6 of the UX
-  // acceptance walks the flows looking for. And a badge that is always on
-  // screen is a badge nobody reads, which is why the settings attention chip
-  // has no "all clear" state either: when both steps are done this is hidden
-  // and the band goes back to being empty.
-  //
-  // NOTHING HERE NAMES THE SECOND DOOR. The line the band used to carry did,
-  // and the reasoning that removed it is a few paragraphs up and still holds.
-  // Pairing and paper are not that: every signer of this kind wants both, and
-  // saying so singles nobody out.
-  s_next_lbl = lv_label_create(s_home);
-  lv_label_set_text(s_next_lbl, "");
-  lv_obj_set_style_text_font(s_next_lbl, wt_font23(), 0);
-  lv_obj_set_style_text_color(s_next_lbl, lv_color_hex(0x7A869C), 0);
-  lv_obj_set_style_text_align(s_next_lbl, LV_TEXT_ALIGN_CENTER, 0);
-  // The lane, and WRAP rather than DOT. A one-line label pinned with LONG_DOT
-  // is the CUT fault: it loses its second half and rewrites its own text to
-  // say so, which a walk of the finished tree cannot see. Wrapping instead
-  // means a translation too long for one line pushes past WT_CONTENT_BOTTOM,
-  // where the screen walk reports it as what it is -- copy that needs cutting
-  // at the sweep, not a sentence quietly missing its end.
-  lv_obj_set_width(s_next_lbl, 704);
-  lv_label_set_long_mode(s_next_lbl, LV_LABEL_LONG_WRAP);
-  lv_obj_add_flag(s_next_lbl, LV_OBJ_FLAG_HIDDEN);
-  // 346, measured rather than estimated. The tiles end at 333 and the theme
-  // cluster starts at 408, so the band is real -- but the 23px rung's LINE BOX
-  // is 49px on the Latin face, not the ~31 the glyph height suggests, and 352
-  // put the bottom of it 4px past WT_CONTENT_BOTTOM. The screen walk said so;
-  // no estimate in this file's history has ever been right about a line box.
-  lv_obj_align(s_next_lbl, LV_ALIGN_TOP_MID, 0, HOME_NEXT_Y);
 
   // Tile labels, live + translated. The 23px title carries the whole action;
   // the former 14px subtitle duplicated it and was unreadable at arm's length.
