@@ -655,6 +655,23 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
         }
         loose = true;
     }
+    uint8_t psbt_hash[32];                         // deterministic-DLEQ seed
+    wally_sha256(bytes, len, psbt_hash, 32);
+    // NOW the decode buffer is dead, and not one line sooner: `bytes` still
+    // points INTO it for a base64 PSBT, and the hash above is the seed for the
+    // deterministic DLEQ proof. Wiping before this point silently reseeded every
+    // proof off 4096 zero bytes -- which is what the golden BIP340 vectors
+    // in sim/test_sp.c caught, and the only thing that would have.
+    //
+    // Every later return is an error path that would otherwise leave a whole
+    // PSBT in .bss for the rest of the boot -- so the wipe sits on the line
+    // after the last read of `bytes`, and the two shape checks below moved
+    // BELOW it rather than the wipe being repeated in each. Both of them
+    // returned -2 with the decoded transaction still in the buffer: every
+    // address and amount of a rejected PSBT, readable for the rest of the
+    // boot. Neither is exotic -- a PSBTv0 with no global tx and a v2/v0
+    // hybrid are the two shapes a hostile file takes to get here.
+    wally_bzero(b64buf, sizeof b64buf);
     if (!(s_psbt->version == 2 || s_psbt->tx)) {
         kiss_psbt_free();
         return -2;
@@ -666,17 +683,6 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
         kiss_psbt_free();
         return -2;
     }
-    uint8_t psbt_hash[32];                         // deterministic-DLEQ seed
-    wally_sha256(bytes, len, psbt_hash, 32);
-    // NOW the decode buffer is dead, and not one line sooner: `bytes` still
-    // points INTO it for a base64 PSBT, and the hash above is the seed for the
-    // deterministic DLEQ proof. Wiping before this point silently reseeded every
-    // proof off 4096 zero bytes -- which is what the golden BIP340 vectors
-    // in sim/test_sp.c caught, and the only thing that would have.
-    //
-    // Every later return is an error path that would otherwise leave a whole
-    // PSBT in .bss for the rest of the boot.
-    wally_bzero(b64buf, sizeof b64buf);
 
     s->status = WPSBT_READY;                       // cleared at entry; earned here
     s->testnet = kiss_testnet() != 0;
