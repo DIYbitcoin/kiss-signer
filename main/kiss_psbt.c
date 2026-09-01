@@ -970,6 +970,22 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     // an outpoint and there is nothing left to lie about. A coordinator that
     // strips them is asking to be trusted about the fee; this device does not
     // have to agree.
+    // DECIDED: the bar is ntap < n_in and NOT ntap == 0, which refuses more
+    // than the argument above strictly requires. One taproot input is in fact
+    // enough: BIP341 hashes every input amount into THAT input's sighash, so
+    // any lie about any amount invalidates its signature, and the two session
+    // attack cannot assemble a tx where every signature verifies. So a spend
+    // of one received silent payment beside one P2WPKH coin that carries its
+    // full previous transaction is provably honest and is refused anyway.
+    //
+    // Left strict on purpose. The cost of the strict form is that a rare
+    // transaction comes back to the coordinator to be rebuilt with the prev
+    // txs attached, which is what BIP174 asks for and what Core, Sparrow and
+    // Electrum already send. The cost of the loose form, if the reasoning
+    // above is wrong in one case nobody has thought of, is a fee the owner
+    // cannot see going to a miner. Those are not the same size, and this is
+    // the one gate in the file whose whole subject is a number that cannot be
+    // checked afterwards.
     if (s->n_in >= 2 && ntap < s->n_in && nunproven > 0)
         stop(s, "input amounts not proven");
 

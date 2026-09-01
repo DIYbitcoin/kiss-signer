@@ -1543,6 +1543,20 @@ static uint16_t caution_rows(uint16_t f, const char **parts, uint16_t *bits, int
         snprintf(g, sizeof g, tr(STR_S_C_GAPCH), (unsigned)idx);
         bits[n] = WPSBT_C_GAP_CHANGE;    parts[n++] = g;
     }
+    // DECIDED: the two change rows are exclusive and the dust one wins, even
+    // though kiss_psbt.c raises them PER OUTPUT and can therefore set both --
+    // one change output under the dust floor and a second between the floor
+    // and 5000. Both bits set draws the dust row only, and caution_all_bits
+    // reads back through here, so the gate asks for the rows the owner can
+    // see and stays consistent.
+    //
+    // Splitting them was considered and dropped. It takes the stack to six on
+    // a page built for five (SG_ROW_MAX, and the ceiling argument above), and
+    // it buys a second row saying "tiny change" beside a row already saying
+    // "dust change" -- the same sentence about the same fault, for a two
+    // change output transaction almost no coordinator builds. What is lost is
+    // real and it is one line of a soft privacy caution, not a claim about
+    // where the money goes.
     if (n < cap && (f & WPSBT_C_DUST_CHANGE))
         { bits[n] = WPSBT_C_DUST_CHANGE; parts[n++] = tr(STR_S_C_DUSTCH); }
     else if (n < cap && (f & WPSBT_C_SMALL_CHANGE))
