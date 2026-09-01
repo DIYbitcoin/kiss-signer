@@ -3772,6 +3772,8 @@ void wt_row_seen_mark(void)
 typedef struct {
     lv_obj_t *tab;    // what breathes
     lv_obj_t *hint;   // the band line, or NULL
+    bool pulse;       // there is something unread: the breathe is not the
+                      // first-run teach and does not end with it
 } wt_help_ctx_t;
 
 static void help_free_cb(lv_event_t *e) { lv_free(lv_event_get_user_data(e)); }
@@ -3783,7 +3785,7 @@ static void help_first_cb(lv_event_t *e)
     wt_help_ctx_t *c = lv_event_get_user_data(e);
     if (s_help_seen) return;
     s_help_seen = true;
-    if (c->tab) {
+    if (c->tab && !c->pulse) {
         lv_anim_delete(c->tab, an_opa);
         lv_obj_set_style_opa(c->tab, LV_OPA_COVER, 0);
     }
@@ -3880,29 +3882,48 @@ lv_obj_t *wt_help_tab_n(lv_obj_t *scr, const char *hint, int unread,
     wt_help_ctx_t *c = lv_calloc(1, sizeof *c);
     if (c) {
         c->tab = b;
-        if (!s_help_seen) {
-            // Motion 19: the mark breathes until the first open, ever.
+        // DECIDED: the tab breathes whenever it has something UNREAD, not only
+        // until the first open ever. It pulsed once, on the first [ ? ] an
+        // owner ever met, and was still forever after -- so [ ? 3 ] drew the
+        // count and then sat there, which is a badge you have to be looking at
+        // to notice. The attention dot on a content tab has answered the same
+        // question since it was filed from the bench as "not pulsing", and it
+        // answers a GLANCE. This is the same statement, so it is the same
+        // motion: 100..255 over 1200ms ease in out, the values wt_dot_breathe
+        // uses, rather than the 71..230 this one had of its own. The size and
+        // translate halves of a dot's breathe do not come with it -- growing a
+        // tab in a 30px strip moves the brackets, and the pixels are spent.
+        //
+        // It stops on its own. The count comes from kiss_terms_unread at
+        // build, the explainer swaps the screen, and coming back rebuilds the
+        // tab with whatever is left; at zero there is no animation to delete.
+        const bool teach = !s_help_seen;   // never opened, on this device
+        c->pulse = unread > 0;
+        if (teach || c->pulse) {
+            // Motion 19.
             lv_anim_t a;
             lv_anim_init(&a);
             lv_anim_set_var(&a, b);
             lv_anim_set_exec_cb(&a, an_opa);
-            lv_anim_set_values(&a, 71, 230);
+            lv_anim_set_values(&a, 100, 255);
             lv_anim_set_duration(&a, 1200);
             lv_anim_set_playback_duration(&a, 1200);
             lv_anim_set_path_cb(&a, lv_anim_path_ease_in_out);
             lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
             lv_anim_start(&a);
-            if (hint && *hint) {
-                action_bar_ensure(scr);
-                const lv_font_t *hf = chrome18(hint);
-                int lh = lv_font_get_line_height(hf);
-                c->hint = wt_lbl(scr, hint, WT_ACT_X,
-                                 WT_ACTION_Y + (WT_ACTION_H - lh) / 2, hf,
-                                 WT_DIM);
-                lv_obj_set_width(c->hint, 592 - 12 - WT_ACT_X);
-                lv_obj_set_height(c->hint, lh);
-                lv_label_set_long_mode(c->hint, LV_LABEL_LONG_DOT);
-            }
+        }
+        // The band line is the TEACH half and only that: it says what the
+        // mark is, which an owner who has opened one already knows.
+        if (teach && hint && *hint) {
+            action_bar_ensure(scr);
+            const lv_font_t *hf = chrome18(hint);
+            int lh = lv_font_get_line_height(hf);
+            c->hint = wt_lbl(scr, hint, WT_ACT_X,
+                             WT_ACTION_Y + (WT_ACTION_H - lh) / 2, hf,
+                             WT_DIM);
+            lv_obj_set_width(c->hint, 592 - 12 - WT_ACT_X);
+            lv_obj_set_height(c->hint, lh);
+            lv_label_set_long_mode(c->hint, LV_LABEL_LONG_DOT);
         }
         lv_obj_add_event_cb(b, help_first_cb, LV_EVENT_CLICKED, c);
         lv_obj_add_event_cb(b, help_free_cb, LV_EVENT_DELETE, c);

@@ -1182,13 +1182,18 @@ lv_obj_t *wt_standing(lv_obj_t *scr, const char *txt, lv_color_t col,
 // mark wears -- see the body -- and the tab carries a 12px ext click area, so
 // the target is 87x54 while the drawing stays inside the 30px strip.
 //
-// `hint`: until [ ? ] has been opened once on this device, the mark breathes
-// and the band's left lane carries this lowercase line -- but only a page
-// whose left lane is empty may say it, so a page with its own action passes
-// NULL and keeps the breathing mark alone. The kit stays string-free: the
-// caller translates. Both stop for good on the first open, wherever it
-// happens: the tab flips wt_help_seen itself, then calls `cb` to let the
-// page swap its lane for the explainer.
+// The tab BREATHES on the attention dots' rhythm -- 100..255 over 1200ms,
+// wt_dot_breathe's own values -- whenever it has something to say: until
+// [ ? ] has been opened once on this device, and on any page whose count is
+// above zero. Still means read.
+//
+// `hint`: the first-run half also puts this lowercase line in the band's left
+// lane -- but only a page whose left lane is empty may say it, so a page with
+// its own action passes NULL and keeps the breathing mark alone. The kit stays
+// string-free: the caller translates. The line and the first-run breathe both
+// stop for good on the first open, wherever it happens: the tab flips
+// wt_help_seen itself, then calls `cb` to let the page swap its lane for the
+// explainer. A count's breathe outlives that and ends when the count does.
 lv_obj_t *wt_help_tab(lv_obj_t *scr, const char *hint,
                       lv_event_cb_t cb, void *ud);
 // The same tab with a COUNT: [ ? 3 ] means three of this page's terms have

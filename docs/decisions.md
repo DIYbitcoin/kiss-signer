@@ -10,7 +10,7 @@ construction.
 route to the comment that answers it, which is how seven findings were filed
 and withdrawn in one review pass.
 
-22 decisions.
+24 decisions.
 
 ## `main/kiss_duress_ui.c`
 
@@ -49,6 +49,14 @@ There was a popover here: five rows, its own pager, its own remembered page, ope
 It was on the band from every pane, including the [ ? ] explainer, on the argument that the explainer's own second sentence -- "check one here before you trust it" -- is what VERIFY does, so the screen was offering the thing it had just taught. The owner disagrees, twice: a control that has nothing to do with the pane under it reads as belonging to that pane. It follows the same rule NEXT ADDRESS already did. The band on the other panes is then BACK alone, which is correct here and not an EXIT finding: this screen has a tab strip, and the strip is the way between panes.
 
 [`main/kiss_recv.c:1117`](../main/kiss_recv.c#L1117)
+
+## `main/kiss_rngaudit.c`
+
+### the pair read "SPREAD / 5000 numbers, 100 groups" and "CANNOT PROVE / software passes it too", and came off the bench as "what are you trying to say"
+
+Both were the middle of a sentence: one named the method without saying what it measures, the other named a limit without saying what a pass would have meant. Three rows say the whole thing in order -- what runs, what a good result looks like, what it still cannot tell you -- and the third is where "spread" is earned, so SPREAD SCORE on the result page arrives with a meaning attached. The value lane is 438px at font28, about 25 characters, so none of these can grow into a sentence: that is the shape doing its job, and anything longer belongs in a paragraph, not a fact row.
+
+[`main/kiss_rngaudit.c:136`](../main/kiss_rngaudit.c#L136)
 
 ## `main/kiss_settings.c`
 
@@ -128,13 +136,19 @@ The two-state word action hides its mark elsewhere and that is right where a PAI
 
 It shipped at 14 and came off the bench as too small to see and too small to aim at -- the same report the content tab LABELS got when they were 18, and this tab sits in the same 30px strip beside them. So the mark takes the tab rung, chrome23, and the brackets stay mono18 punctuation a rung below it exactly as they do on a content tab. Measured: the glyph goes 11x17 -> 17x25 in a strip 30 tall.
 
-[`main/kiss_theme.c:3817`](../main/kiss_theme.c#L3817)
+[`main/kiss_theme.c:3819`](../main/kiss_theme.c#L3819)
+
+### the tab breathes whenever it has something UNREAD, not only until the first open ever
+
+It pulsed once, on the first [ ? ] an owner ever met, and was still forever after -- so [ ? 3 ] drew the count and then sat there, which is a badge you have to be looking at to notice. The attention dot on a content tab has answered the same question since it was filed from the bench as "not pulsing", and it answers a GLANCE. This is the same statement, so it is the same motion: 100..255 over 1200ms ease in out, the values wt_dot_breathe uses, rather than the 71..230 this one had of its own. The size and translate halves of a dot's breathe do not come with it -- growing a tab in a 30px strip moves the brackets, and the pixels are spent. It stops on its own. The count comes from kiss_terms_unread at build, the explainer swaps the screen, and coming back rebuilds the tab with whatever is left; at zero there is no animation to delete.
+
+[`main/kiss_theme.c:3885`](../main/kiss_theme.c#L3885)
 
 ### the icon grid's ladder floors at 21 and no longer has a font14 rung
 
 THE FLOOR IS 21, NOT 14, which is the same floor wt_body_para has and for the same reason: font14 is for MARKS -- chip labels, unit suffixes, chevrons -- and every string in this grid is a SENTENCE an owner reads before signing. WHY FLAGGED is the case that proves it: five caution rows explaining why a payment was flagged, all of them at the size this device keeps for punctuation. mono21 only where the copy CAN be mono, which is what the body ladder asks too. Where it cannot, the rung stays 23 and the overflow is reported rather than shrunk away -- copy too long for its box is copy to cut, and a silent drop is what hid this for the grid's whole life.
 
-[`main/kiss_theme.c:6439`](../main/kiss_theme.c#L6439)
+[`main/kiss_theme.c:6460`](../main/kiss_theme.c#L6460)
 
 ## `main/kiss_theme.h`
 
