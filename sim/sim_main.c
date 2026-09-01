@@ -3437,17 +3437,19 @@ int main(void) {
   }
 
   slide_grip(STR_S_HOLD_TO_SIGN); slide_go(320);    // past the track: signs
-  release(); pump(40);                              // past REVEAL_TRAVEL_MS
+  release(); pump(64);                              // past REVEAL_TRAVEL_MS
   // The reveal, and the reason the walk stops here rather than landing straight
   // on the exit screen. The graph has spent the whole flow claiming a strand in
   // the accent means a signature exists; this is the frame where that is
   // discharged, all inputs together, because one libwally call signed all of
   // them and there was never a per coin moment to show.
   //
-  // 40 frames, not 8: the strands CROSS to the accent over REVEAL_TRAVEL_MS
+  // 64 frames, not 8: the strands CROSS to the accent over REVEAL_TRAVEL_MS
   // now rather than switching between two frames, so 8 caught them a third of
   // the way over and the frame this stop exists for was a colour that means
-  // nothing. 520ms is 33 frames at the harness's 16ms; 40 clears it.
+  // nothing. REVEAL_TRAVEL_MS is 900 and the harness runs 16ms frames, so the
+  // crossing is 57 of them and 64 clears it. It was 40 while the travel was
+  // 520; the pair moves together or this stop photographs a half-signed graph.
   save("/tmp/sim_sign_reveal.ppm");
   // 110, not 50: REVEAL_MS went 700 -> 1600 so the answer is on the glass long
   // enough to read. 1600ms is 100 frames. Landing short here does not fail

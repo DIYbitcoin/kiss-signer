@@ -1150,8 +1150,15 @@ static void mark_paid_recipients(void)
 // bench as "it happens too fast after the hold bar is full", which is the only
 // instrument that can measure this.
 #define REVEAL_MS 1600
-// The signature crossing the input strands. Inside REVEAL_MS, not added to it.
-#define REVEAL_TRAVEL_MS 520
+// The signature crossing the input strands. Inside REVEAL_MS, not added to it,
+// so it may grow up to that and no further.
+//
+// 900, not 520. The crossing is the one moment on this device that says a
+// signature now exists, and at 520 it was over before the eye that had just
+// left the slider had arrived -- reported from the bench as wanting it slower.
+// 900 leaves ~700ms of settled frame inside REVEAL_MS, which is what the 1600
+// was raised to buy in the first place.
+#define REVEAL_TRAVEL_MS 900
 // The address card under the graph. One mono23 line plus the compare caption,
 // centred as a block: 29 + 6 + 18 is 53, and 66 gives it the same breathing
 // room RECEIVE's 114 gives two lines of the same type.
