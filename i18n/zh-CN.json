@@ -178,7 +178,7 @@
   "G_STORAGE_CLEANUP_B": "新位置已启用并经过验证，但无法删除旧的已保存副本。\n\n两个位置可能仍有你的词。",
   "G_STORAGE_CLEANUP_NEXT": "已移动。旧的那份没能删掉。",
   "G_STORAGE_CLEANUP_T": "存储位置已更改，但有警告",
-  "G_STORAGE_CONFIRM_AMNESIC_B": "删除本设备管理的所有已保存副本。\n\n锁定后，每次使用都必须载入助记词或 SeedQR。",
+  "G_STORAGE_CONFIRM_AMNESIC_B": "锁定后，每次使用都必须载入助记词或 SeedQR。",
   "G_STORAGE_CONFIRM_FLASH_B": "将助记词移至内部闪存。\n\n仅在验证闪存副本后删除当前副本。",
   "G_STORAGE_CONFIRM_SD_B": "移至只有本设备能打开的加密 SD 文件。\n\n此卡不是备份。请将助记词记在纸上，以防卡或设备丢失。\n\n仅在验证后删除旧存储。",
   "G_STORAGE_CONFIRM_T": "要移动助记词吗？",

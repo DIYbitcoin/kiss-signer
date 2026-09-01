@@ -178,7 +178,7 @@
   "G_STORAGE_CLEANUP_B": "der neue Ort ist aktiv und geprüft, aber die alte gespeicherte Kopie konnte nicht entfernt werden.\n\nbeide Orte können deine Wörter noch enthalten.",
   "G_STORAGE_CLEANUP_NEXT": "Verschoben. Die alte Kopie ging nicht weg.",
   "G_STORAGE_CLEANUP_T": "SPEICHER GEÄNDERT MIT WARNUNG",
-  "G_STORAGE_CONFIRM_AMNESIC_B": "alle von diesem Gerät verwalteten gespeicherten Kopien entfernen.\n\nnach dem Sperren musst du deine Wörter oder SeedQR in jeder Sitzung laden.",
+  "G_STORAGE_CONFIRM_AMNESIC_B": "nach dem Sperren musst du deine Wörter oder SeedQR in jeder Sitzung laden.",
   "G_STORAGE_CONFIRM_FLASH_B": "deine Wörter in den internen Flash verschieben.\n\ndie aktuelle Kopie wird erst nach Prüfung der Flash-Kopie entfernt.",
   "G_STORAGE_CONFIRM_SD_B": "auf eine verschlüsselte SD-Datei verschieben, die nur dieses Gerät öffnen kann.\n\ndie Karte ist kein Backup. bewahre die Wörter auf Papier auf, falls Karte oder Gerät verloren gehen.\n\nder alte Speicher wird erst nach Prüfung entfernt.",
   "G_STORAGE_CONFIRM_T": "WÖRTER VERSCHIEBEN?",

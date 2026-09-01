@@ -178,7 +178,7 @@
   "G_STORAGE_CLEANUP_B": "nowe miejsce jest aktywne i sprawdzone, ale nie można usunąć starej zapisanej kopii.\n\noba miejsca mogą nadal zawierać twoje słowa.",
   "G_STORAGE_CLEANUP_NEXT": "Przeniesione. Stara kopia nie zniknęła.",
   "G_STORAGE_CLEANUP_T": "ZMIENIONO Z OSTRZEŻENIEM",
-  "G_STORAGE_CONFIRM_AMNESIC_B": "usuń wszystkie zapisane kopie zarządzane przez to urządzenie.\n\npo zablokowaniu musisz w każdej sesji wczytać słowa lub SeedQR.",
+  "G_STORAGE_CONFIRM_AMNESIC_B": "po zablokowaniu musisz w każdej sesji wczytać słowa lub SeedQR.",
   "G_STORAGE_CONFIRM_FLASH_B": "przenieś swoje słowa do wewnętrznej pamięci flash.\n\nobecna kopia zostanie usunięta dopiero po sprawdzeniu kopii w pamięci flash.",
   "G_STORAGE_CONFIRM_SD_B": "przenieś do zaszyfrowanego pliku SD, który może otworzyć tylko to urządzenie.\n\nkarta nie jest kopią zapasową. zachowaj słowa na papierze na wypadek utraty karty lub urządzenia.\n\nstare miejsce zapisu zostanie usunięte dopiero po sprawdzeniu.",
   "G_STORAGE_CONFIRM_T": "PRZENIEŚĆ SŁOWA?",

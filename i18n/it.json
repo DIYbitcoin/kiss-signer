@@ -178,7 +178,7 @@
   "G_STORAGE_CLEANUP_B": "la nuova posizione è attiva e verificata, ma non è stato possibile rimuovere la vecchia copia salvata.\n\nentrambe le posizioni potrebbero contenere ancora le tue parole.",
   "G_STORAGE_CLEANUP_NEXT": "Spostato. La vecchia copia non se n'è andata.",
   "G_STORAGE_CLEANUP_T": "ARCHIVIAZIONE CAMBIATA CON AVVISO",
-  "G_STORAGE_CONFIRM_AMNESIC_B": "rimuovi ogni copia salvata gestita da questo dispositivo.\n\ndopo il blocco dovrai caricare le parole o SeedQR a ogni sessione.",
+  "G_STORAGE_CONFIRM_AMNESIC_B": "dopo il blocco dovrai caricare le parole o SeedQR a ogni sessione.",
   "G_STORAGE_CONFIRM_FLASH_B": "sposta le tue parole nella flash interna.\n\nla copia attuale viene rimossa solo dopo la verifica della copia nella flash.",
   "G_STORAGE_CONFIRM_SD_B": "sposta in un file SD cifrato che solo questo dispositivo può aprire.\n\nla scheda non è un backup. conserva le parole su carta in caso di perdita della scheda o del dispositivo.\n\nla vecchia archiviazione viene rimossa solo dopo la verifica.",
   "G_STORAGE_CONFIRM_T": "SPOSTARE LE PAROLE?",

@@ -178,7 +178,7 @@
   "G_STORAGE_CLEANUP_B": "den nya platsen är aktiv och verifierad, men den gamla sparade kopian kunde inte tas bort.\n\nbåda platserna kan fortfarande innehålla dina ord.",
   "G_STORAGE_CLEANUP_NEXT": "Flyttat. Den gamla kopian försvann inte.",
   "G_STORAGE_CLEANUP_T": "LAGRING ÄNDRAD MED VARNING",
-  "G_STORAGE_CONFIRM_AMNESIC_B": "ta bort alla sparade kopior som hanteras av den här enheten.\n\nnär du har låst måste du ladda orden eller SeedQR varje session.",
+  "G_STORAGE_CONFIRM_AMNESIC_B": "när du har låst måste du ladda orden eller SeedQR varje session.",
   "G_STORAGE_CONFIRM_FLASH_B": "flytta dina ord till intern flash.\n\nden nuvarande kopian tas bort först när flashkopian har verifierats.",
   "G_STORAGE_CONFIRM_SD_B": "flytta till en krypterad SD-fil som bara den här enheten kan öppna.\n\nkortet är ingen säkerhetskopia. spara orden på papper om kortet eller enheten förloras.\n\ngammal lagring tas bort först efter verifiering.",
   "G_STORAGE_CONFIRM_T": "FLYTTA DINA ORD?",

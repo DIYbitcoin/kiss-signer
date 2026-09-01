@@ -178,7 +178,7 @@
   "G_STORAGE_CLEANUP_B": "nové místo je aktivní a ověřené, ale starou uloženou kopii nešlo odstranit.\n\nobě místa mohou stále obsahovat vaše slova.",
   "G_STORAGE_CLEANUP_NEXT": "Přesunuto. Stará kopie neodešla.",
   "G_STORAGE_CLEANUP_T": "ÚLOŽIŠTĚ ZMĚNĚNO S VAROVÁNÍM",
-  "G_STORAGE_CONFIRM_AMNESIC_B": "odstranit všechny uložené kopie spravované tímto zařízením.\n\npo zamknutí musíte při každém použití načíst svá slova nebo SeedQR.",
+  "G_STORAGE_CONFIRM_AMNESIC_B": "po zamknutí musíte při každém použití načíst svá slova nebo SeedQR.",
   "G_STORAGE_CONFIRM_FLASH_B": "přesunout záložní slova do interní flash.\n\nsoučasná kopie se odstraní až po ověření kopie ve flash.",
   "G_STORAGE_CONFIRM_SD_B": "přesunout do šifrovaného souboru na SD, který otevře jen toto zařízení.\n\nkarta není záloha. pro případ ztráty karty nebo zařízení uchovejte slova na papíře.\n\nstaré úložiště se odstraní až po ověření.",
   "G_STORAGE_CONFIRM_T": "PŘESUNOUT SLOVA?",

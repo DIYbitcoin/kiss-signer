@@ -178,7 +178,7 @@
   "G_STORAGE_CLEANUP_B": "novo mjesto je aktivno i provjereno, ali stara spremljena kopija ne može se ukloniti.\n\noba mjesta možda još sadrže vaše riječi.",
   "G_STORAGE_CLEANUP_NEXT": "Premješteno. Stara kopija nije otišla.",
   "G_STORAGE_CLEANUP_T": "POHRANA PROMIJENJENA UZ UPOZORENJE",
-  "G_STORAGE_CONFIRM_AMNESIC_B": "ukloni sve spremljene kopije kojima upravlja ovaj uređaj.\n\nnakon zaključavanja moraš učitati riječi ili SeedQR u svakoj sesiji.",
+  "G_STORAGE_CONFIRM_AMNESIC_B": "nakon zaključavanja moraš učitati riječi ili SeedQR u svakoj sesiji.",
   "G_STORAGE_CONFIRM_FLASH_B": "premjesti tvoje riječi u internu flash memoriju.\n\ntrenutna kopija uklanja se tek nakon provjere kopije u flash memoriji.",
   "G_STORAGE_CONFIRM_SD_B": "premjesti u šifriranu SD datoteku koju može otvoriti samo ovaj uređaj.\n\nkartica nije sigurnosna kopija. čuvaj riječi na papiru za slučaj gubitka kartice ili uređaja.\n\nstara pohrana uklanja se tek nakon provjere.",
   "G_STORAGE_CONFIRM_T": "PREMJESTITI RIJEČI?",

@@ -178,7 +178,7 @@
   "G_STORAGE_CLEANUP_B": "nơi mới đang hoạt động và đã được xác minh, nhưng không thể xóa bản sao cũ.\n\ncả hai nơi vẫn có thể chứa các từ của bạn.",
   "G_STORAGE_CLEANUP_NEXT": "Đã chuyển. Bản cũ không chịu đi.",
   "G_STORAGE_CLEANUP_T": "ĐÃ ĐỔI NƠI LƯU, CÓ CẢNH BÁO",
-  "G_STORAGE_CONFIRM_AMNESIC_B": "xóa mọi bản sao đã lưu do thiết bị này quản lý.\n\nsau khi khóa, bạn phải nạp cụm từ khôi phục hoặc SeedQR trong mỗi phiên.",
+  "G_STORAGE_CONFIRM_AMNESIC_B": "sau khi khóa, bạn phải nạp cụm từ khôi phục hoặc SeedQR trong mỗi phiên.",
   "G_STORAGE_CONFIRM_FLASH_B": "chuyển các từ khôi phục vào flash nội bộ.\n\nchỉ xóa bản sao cũ sau khi bản sao mới được xác minh.",
   "G_STORAGE_CONFIRM_SD_B": "chuyển sang tệp SD mã hóa mà chỉ thiết bị này mở được.\n\nthẻ không phải bản sao lưu. giữ cụm từ trên giấy phòng khi mất thẻ hoặc thiết bị.\n\nchỉ xóa nơi lưu cũ sau khi xác minh.",
   "G_STORAGE_CONFIRM_T": "CHUYỂN CÁC TỪ?",

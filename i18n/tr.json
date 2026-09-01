@@ -178,7 +178,7 @@
   "G_STORAGE_CLEANUP_B": "yeni yer etkin ve doğrulanmış, ancak eski kayıtlı kopya kaldırılamadı.\n\nher iki yerde de kelimelerin bulunabilir.",
   "G_STORAGE_CLEANUP_NEXT": "Taşındı. Eski kopya gitmedi.",
   "G_STORAGE_CLEANUP_T": "DEPOLAMA UYARIYLA DEĞİŞTİ",
-  "G_STORAGE_CONFIRM_AMNESIC_B": "bu cihazın yönettiği tüm kayıtlı kopyaları kaldır.\n\nkilitledikten sonra her oturumda kelimelerini veya SeedQR'ı yüklemelisin.",
+  "G_STORAGE_CONFIRM_AMNESIC_B": "kilitledikten sonra her oturumda kelimelerini veya SeedQR'ı yüklemelisin.",
   "G_STORAGE_CONFIRM_FLASH_B": "kurtarma kelimelerini dahili flash'a taşı.\n\nmevcut kopya yalnızca doğrulamadan sonra kaldırılır.",
   "G_STORAGE_CONFIRM_SD_B": "yalnızca bu cihazın açabileceği şifreli bir SD dosyasına taşı.\n\nkart yedek değildir. kart veya cihaz kaybına karşı kelimeleri kağıtta sakla.\n\neski depolama yalnızca doğrulamadan sonra kaldırılır.",
   "G_STORAGE_CONFIRM_T": "KELİMELER TAŞINSIN MI?",

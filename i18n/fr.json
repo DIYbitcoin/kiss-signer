@@ -178,7 +178,7 @@
   "G_STORAGE_CLEANUP_B": "le nouvel emplacement est actif et vérifié, mais l'ancienne copie enregistrée n'a pas pu être supprimée.\n\nles deux emplacements peuvent encore contenir vos mots.",
   "G_STORAGE_CLEANUP_NEXT": "Déplacé. L'ancienne copie n'est pas partie.",
   "G_STORAGE_CLEANUP_T": "STOCKAGE MODIFIÉ AVEC AVERTISSEMENT",
-  "G_STORAGE_CONFIRM_AMNESIC_B": "supprimer toutes les copies enregistrées gérées par cet appareil.\n\naprès verrouillage, chargez vos mots ou SeedQR à chaque session.",
+  "G_STORAGE_CONFIRM_AMNESIC_B": "après verrouillage, chargez vos mots ou SeedQR à chaque session.",
   "G_STORAGE_CONFIRM_FLASH_B": "déplacer vos mots vers la mémoire flash interne.\n\nla copie actuelle n'est supprimée qu'après vérification de la copie flash.",
   "G_STORAGE_CONFIRM_SD_B": "déplacer vers un fichier SD chiffré que seul cet appareil peut ouvrir.\n\nla carte n'est pas une sauvegarde. gardez les mots sur papier en cas de perte de la carte ou de l'appareil.\n\nl'ancien stockage n'est supprimé qu'après vérification.",
   "G_STORAGE_CONFIRM_T": "DÉPLACER VOS MOTS?",

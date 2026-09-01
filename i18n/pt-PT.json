@@ -178,7 +178,7 @@
   "G_STORAGE_CLEANUP_B": "o novo lugar está ativo e verificado, mas não foi possível remover a cópia guardada antiga.\n\nos dois lugares podem ainda conter as suas palavras.",
   "G_STORAGE_CLEANUP_NEXT": "Movido. A cópia antiga não saiu.",
   "G_STORAGE_CLEANUP_T": "ALTERADO COM AVISO",
-  "G_STORAGE_CONFIRM_AMNESIC_B": "remover todas as cópias guardadas geridas por este dispositivo.\n\ndepois de bloquear, tem de carregar as palavras ou SeedQR em cada sessão.",
+  "G_STORAGE_CONFIRM_AMNESIC_B": "depois de bloquear, tem de carregar as palavras ou SeedQR em cada sessão.",
   "G_STORAGE_CONFIRM_FLASH_B": "mover as palavras para a flash interna.\n\na cópia atual só é removida depois de a cópia na flash ser verificada.",
   "G_STORAGE_CONFIRM_SD_B": "mover para um ficheiro SD encriptado que só este dispositivo pode abrir.\n\no cartão não é uma cópia de segurança. guarde as palavras em papel em caso de perda do cartão ou do dispositivo.\n\no armazenamento antigo só é removido após a verificação.",
   "G_STORAGE_CONFIRM_T": "MOVER AS PALAVRAS?",

@@ -914,7 +914,7 @@ static void recv_refresh(void) {
       char grouped[128];
       wt_group4(addr, grouped, sizeof grouped);
       s_addr_sg = wt_addr_spans(par, grouped, RECV_COL_W, wt_font_mono23());
-      lv_obj_set_pos(s_addr_sg, RECV_COL_X, 160);
+      lv_obj_set_pos(s_addr_sg, RECV_COL_X, 178);
       // The mark says "there is more here", and open is where there is not.
       // It also sits in the lane the wrapped form takes: left visible it
       // overlaps the address's own first line, which is what TEXT and GROWTH
@@ -926,7 +926,7 @@ static void recv_refresh(void) {
       // future prefix pushes it, the air around the ellipsis goes, never a
       // block and never the font size.
       s_addr_sg = wt_addr_short(par, addr, wt_font_mono23());
-      lv_obj_set_pos(s_addr_sg, RECV_COL_X, 160);
+      lv_obj_set_pos(s_addr_sg, RECV_COL_X, 178);
       if (s_addr_more) lv_obj_remove_flag(s_addr_more, LV_OBJ_FLAG_HIDDEN);
     }
   }
@@ -934,7 +934,7 @@ static void recv_refresh(void) {
     lv_label_set_text_fmt(s_idx_lbl, tr(STR_R_ADDR_N_FMT), (unsigned)s_idx);
     lv_obj_update_layout(s_idx_lbl);
     if (s_idx_chev)
-      lv_obj_set_pos(s_idx_chev, lv_obj_get_width(s_idx_lbl) + 10, 5);
+      lv_obj_set_pos(s_idx_chev, lv_obj_get_width(s_idx_lbl) + 16, 5);
   }
   if (s_path_lbl) {
     int purpose = kiss_script() == WSCRIPT_LEGACY ? 44
@@ -1231,7 +1231,11 @@ static void recv_tab_build(void) {
     // the first render can size the caption against whichever form is up.
     s_addr_hit = lv_obj_create(p);
     lv_obj_remove_style_all(s_addr_hit);
-    lv_obj_set_pos(s_addr_hit, RECV_COL_X - 8, 150);
+    // 168, not 150. The ADDRESS #N row ends at 148 and the address started
+    // 12px under it, so the two read as one block and the row's own control
+    // looked like part of the address. 30px is the gap the rest of this
+    // device puts between a caption row and the thing it captions.
+    lv_obj_set_pos(s_addr_hit, RECV_COL_X - 8, 168);
     lv_obj_set_size(s_addr_hit, RECV_COL_W + 16, 96);
     lv_obj_remove_flag(s_addr_hit, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(s_addr_hit, LV_OBJ_FLAG_CLICKABLE);
@@ -1244,7 +1248,7 @@ static void recv_tab_build(void) {
     // -- an instruction about a different job, doing the work of an
     // affordance. The plus is the kit's own "there is more here", the same
     // one the def rows wear, and it is what the address block was missing.
-    s_addr_more = wt_lbl(p, LV_SYMBOL_PLUS, RECV_COL_X + RECV_COL_W - 22, 156,
+    s_addr_more = wt_lbl(p, LV_SYMBOL_PLUS, RECV_COL_X + RECV_COL_W - 22, 174,
                          wt_font23(), wt_accent());
     lv_obj_add_flag(s_addr_more, WT_FLAG_ACCENT);
 

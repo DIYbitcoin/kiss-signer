@@ -178,7 +178,7 @@
   "G_STORAGE_CLEANUP_B": "det nye sted er aktivt og bekræftet, men den gamle gemte kopi kunne ikke fjernes.\n\nbegge steder kan stadig indeholde dine ord.",
   "G_STORAGE_CLEANUP_NEXT": "Flyttet. Den gamle kopi ville ikke væk.",
   "G_STORAGE_CLEANUP_T": "LAGRING ÆNDRET MED ADVARSEL",
-  "G_STORAGE_CONFIRM_AMNESIC_B": "fjern alle gemte kopier, som denne enhed styrer.\n\nnår du låser, skal du indlæse dine ord eller SeedQR i hver session.",
+  "G_STORAGE_CONFIRM_AMNESIC_B": "når du låser, skal du indlæse dine ord eller SeedQR i hver session.",
   "G_STORAGE_CONFIRM_FLASH_B": "flyt dine ord til intern flash.\n\nden nuværende kopi fjernes først, når flashkopien er bekræftet.",
   "G_STORAGE_CONFIRM_SD_B": "flyt til en krypteret SD-fil, som kun denne enhed kan åbne.\n\nkortet er ikke en sikkerhedskopi. gem ordene på papir, hvis kort eller enhed mistes.\n\ngammel lagring fjernes først efter bekræftelse.",
   "G_STORAGE_CONFIRM_T": "FLYT DINE ORD?",

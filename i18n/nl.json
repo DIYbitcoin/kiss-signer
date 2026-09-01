@@ -178,7 +178,7 @@
   "G_STORAGE_CLEANUP_B": "de nieuwe plek is actief en gecontroleerd, maar de oude opgeslagen kopie kon niet worden verwijderd.\n\nbeide plekken kunnen je woorden nog bevatten.",
   "G_STORAGE_CLEANUP_NEXT": "Verplaatst. De oude kopie ging niet weg.",
   "G_STORAGE_CLEANUP_T": "OPSLAG GEWIJZIGD MET WAARSCHUWING",
-  "G_STORAGE_CONFIRM_AMNESIC_B": "verwijder elke opgeslagen kopie die dit apparaat beheert.\n\nna vergrendeling moet je elke sessie je woorden of SeedQR laden.",
+  "G_STORAGE_CONFIRM_AMNESIC_B": "na vergrendeling moet je elke sessie je woorden of SeedQR laden.",
   "G_STORAGE_CONFIRM_FLASH_B": "verplaats je woorden naar de interne flash.\n\nde huidige kopie wordt pas verwijderd nadat de flashkopie is gecontroleerd.",
   "G_STORAGE_CONFIRM_SD_B": "verplaats naar een versleuteld SD-bestand dat alleen dit apparaat kan openen.\n\nde kaart is geen back-up. bewaar je woorden op papier voor verlies van de kaart of het apparaat.\n\nde oude opslag wordt pas na controle verwijderd.",
   "G_STORAGE_CONFIRM_T": "WOORDEN VERPLAATSEN?",
