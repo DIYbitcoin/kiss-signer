@@ -137,6 +137,7 @@ static lv_obj_t *s_lock_note;              // the locked reassurance in the QR's
 // die with the screen.
 static lv_obj_t *s_lamp_dot, *s_lamp_lbl, *s_idx_chev;
 static lv_obj_t *s_next_act;          // NEXT ADDRESS: only tab 0 may show it
+static lv_obj_t *s_vfy_act;           // VERIFY: the same, and for the same reason
 // Whether tab 0 shows the address grouped and whole instead of folded. A view,
 // not a remembered state: reset on every open. This is the ONLY place on the
 // device a full receive address renders as text -- everything else folds and
@@ -162,7 +163,7 @@ static void close_cb(lv_event_t *e) {
   s_sp_card = NULL;
   s_state_chip = s_chain_lbl = NULL;
   s_addr_card = s_cmp_lbl = s_addr_more = NULL;
-  s_next_act = s_addr_hit = NULL;
+  s_next_act = s_vfy_act = s_addr_hit = NULL;
   s_idx_chev = s_lamp_dot = s_lamp_lbl = NULL;
   if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
 }
@@ -1121,12 +1122,25 @@ static void recv_gesture_cb(lv_event_t *e) {
 // ---- the three groups ----
 // NEXT ADDRESS shows only where it acts: tab 0 with the rows up, never under
 // the [ ? ] and never on the list or SILENT.
-static void recv_next_vis(void) {
-  if (!s_next_act) return;
-  if (s_rctx.tab == 0 && !s_help_open)
-    lv_obj_remove_flag(s_next_act, LV_OBJ_FLAG_HIDDEN);
-  else
-    lv_obj_add_flag(s_next_act, LV_OBJ_FLAG_HIDDEN);
+// DECIDED: VERIFY belongs to THIS ADDRESS, not to the whole page. It was on
+// the band from every pane, including the [ ? ] explainer, on the argument
+// that the explainer's own second sentence -- "check one here before you
+// trust it" -- is what VERIFY does, so the screen was offering the thing it
+// had just taught. The owner disagrees, twice: a control that has nothing to
+// do with the pane under it reads as belonging to that pane. It follows the
+// same rule NEXT ADDRESS already did.
+//
+// The band on the other panes is then BACK alone, which is correct here and
+// not an EXIT finding: this screen has a tab strip, and the strip is the way
+// between panes.
+static void recv_band_vis(void) {
+  const bool on = s_rctx.tab == 0 && !s_help_open;
+  lv_obj_t *acts[2] = { s_next_act, s_vfy_act };
+  for (int i = 0; i < 2; i++) {
+    if (!acts[i]) continue;
+    if (on) lv_obj_remove_flag(acts[i], LV_OBJ_FLAG_HIDDEN);
+    else    lv_obj_add_flag(acts[i], LV_OBJ_FLAG_HIDDEN);
+  }
 }
 
 static void recv_tab_build(void) {
@@ -1137,7 +1151,7 @@ static void recv_tab_build(void) {
   s_cmp_lbl = s_lamp_dot = s_lamp_lbl = s_idx_chev = NULL;
   s_addr_hit = NULL;
   s_state_chip = NULL;
-  recv_next_vis();
+  recv_band_vis();
 
   if (s_help_open) {
     // The [ ? ] content: the lane replaced, not a card and not an overlay.
@@ -1423,14 +1437,14 @@ static void recv_detail_open(void) {
   // Three arrows, the action row's three positions. VERIFY is the primary and
   // takes the accent on its LABEL as well: there is no filled primary left to
   // give it, and none is wanted -- a fill is a box.
-  wt_arrow_action(s_scr, tr(STR_R_VERIFY), false, true, WT_ACT_X, WT_ACTION_Y,
-                  0, false, vfy_scan, NULL);
+  s_vfy_act = wt_arrow_action(s_scr, tr(STR_R_VERIFY), false, true, WT_ACT_X,
+                              WT_ACTION_Y, 0, false, vfy_scan, NULL);
   // Held by the tab logic: NEXT ADDRESS belongs to THIS ADDRESS alone. On the
   // other tabs it used to advance the hidden index with nothing on screen
   // moving -- invisible state mutation wearing a working control's clothes.
   s_next_act = wt_arrow_action(s_scr, tr(STR_R_NEXT_ADDR), false, false, 300,
                                WT_ACTION_Y, 0, false, next_cb, NULL);
-  recv_next_vis();
+  recv_band_vis();
   wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160,
                   true, close_cb, NULL);
 }
