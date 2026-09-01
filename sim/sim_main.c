@@ -756,6 +756,12 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
     s->caution_flags = WPSBT_C_MERGE_INS;
     snprintf(s->reason, sizeof s->reason,
              "many coins spent at once - they are linked forever");
+  } else if (len >= 6 && memmem(bytes, len, "GARBLE", 6)) {
+    // A file on the card that this device cannot read at all. The refusal was
+    // the only sign screen the walk never opened, so its copy and its geometry
+    // were unphotographed -- and it is the screen a new owner is most likely to
+    // meet, because it is what a wrong export or a truncated write produces.
+    return -1;
   } else if (len >= 5 && memmem(bytes, len, "COMBO", 5)) {
     // Every caution at once: proves the summary + WHY card stack up. FIVE rows
     // is the most the row page can ever draw, so this is the fixture that says
@@ -1781,6 +1787,33 @@ static void find_nth(lv_obj_t *o, const char *txt)
     for (uint32_t i = 0; i < lv_obj_get_child_count(o); i++)
         find_nth(lv_obj_get_child(o, i), txt);
 }
+// Tap a control by a LITERAL substring of its label. tap_str and tap_str_nth
+// both take a translation key, and a filename is not one -- it is the only
+// thing on a file row that identifies it, and the row's position moves with
+// every file the walk signs or deletes. Returns false when nothing on the
+// screen carries the text, so a caller can page and ask again.
+static lv_obj_t *s_lit;
+static void find_lit(lv_obj_t *o, const char *txt)
+{
+    if (!o || s_lit || lv_obj_has_flag(o, LV_OBJ_FLAG_HIDDEN)) return;
+    if (lv_obj_check_type(o, &lv_label_class)) {
+        const char *t = lv_label_get_text(o);
+        if (t && strstr(t, txt))
+            for (lv_obj_t *p = o; p; p = lv_obj_get_parent(p))
+                if (lv_obj_has_flag(p, LV_OBJ_FLAG_CLICKABLE)) { s_lit = p; return; }
+    }
+    for (uint32_t i = 0; i < lv_obj_get_child_count(o) && !s_lit; i++)
+        find_lit(lv_obj_get_child(o, i), txt);
+}
+static bool tap_lit(const char *txt, int hold, int settle)
+{
+    s_lit = NULL;
+    find_lit(lv_screen_active(), txt);
+    if (!s_lit) return false;
+    tap_obj(s_lit, hold, settle);
+    return true;
+}
+
 static void tap_str_nth(int key, int nth, int hold, int settle)
 {
     const char *txt = tr(key);
@@ -2159,6 +2192,10 @@ static void sd_write_psbt_fixtures(void)
     // one recipient with no change: the shape the elided middle exists for, and
     // the only fixture where n_total exceeds what ins[] can hold.
     { "zzzzz-MERGE.psbt", "MERGE" },
+    // ...and this one after THAT, for the same reason: a file the loader
+    // refuses outright, which is the only way to reach the "not a valid PSBT"
+    // screen and the fix line under it.
+    { "zzzzzz-GARBLE.psbt", "GARBLE" },
   };
   for (unsigned i = 0; i < sizeof FIXTURES / sizeof FIXTURES[0]; i++) {
     char p[256];
@@ -3577,6 +3614,37 @@ int main(void) {
   // without deleting it, so if the ack action is not actually hit, nothing counts
   // an orphan and the check passes on a build that leaks.
   tap_str(STR_C_BACK, 3, 6);     // BACK (leftmost) -> the file list
+  // A file this device cannot read. It is the only sign screen nothing had ever
+  // photographed, and it is the one a new owner is most likely to meet: a wrong
+  // export or a truncated write produces exactly this, so it has to say where
+  // to put a good file.
+  //
+  // It sorts LAST on the card, so reaching it is swipe-until-found rather than
+  // a coordinate -- and the pages are COUNTED on the way out so the same number
+  // comes back. Every stop below this one taps a row by POSITION, and a list
+  // left on page four makes those stops report findings about whatever happens
+  // to be under the finger. The assertion after the walk back is what turns a
+  // miscount into a failure HERE rather than three screens later.
+  {
+    int fwd = 0;
+    bool got = false;
+    for (; fwd < 6 && !got; ) {
+      got = tap_lit("GARBLE", 3, 12);
+      if (got) break;
+      for (int i = 0; i <= 8; i++) { touch(500 - i * 14, 250); pump(3); }
+      release(); pump(30);
+      fwd++;
+    }
+    if (!got) { printf("FAIL: the unreadable file was never reachable\n"); return 1; }
+    save("/tmp/sim_sign_not_psbt.ppm");
+    must_show("unreadable file names the fix", tr(STR_S_FIX_SD));
+    tap_str(STR_C_BACK, 3, 6);                      // -> the list, page `fwd`
+    for (int pg = 0; pg < fwd; pg++) {
+      for (int i = 0; i <= 8; i++) { touch(300 + i * 14, 250); pump(3); }
+      release(); pump(30);
+    }
+    must_show("file list back on page one", "payment-01");
+  }
   // warn-COMBO leads page two now: nine files, three a page.
   for (int i = 0; i <= 8; i++) { touch(500 - i * 14, 250); pump(3); }
   release(); pump(30);                              // swipe left -> page 2

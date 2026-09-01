@@ -1068,6 +1068,19 @@ static void done_screen(const char *outname)
 // kept the file that was already there, or the encoder never produced a frame
 // -- so the claim is true wherever it is shown, and the screen becomes the
 // split pair the rest of the flow uses instead of one line under a title.
+// What to DO after a file this device cannot use. Both file failures said what
+// was wrong and stopped, which leaves a new owner holding an SD card and a
+// reader with no idea which direction to walk. The empty-card screen has taught
+// the route all along (S_SPARROW_SAVE); these two had nothing.
+//
+// Under the refusal, never inside it: the red note is the verdict and this is
+// the way out, and one paragraph carrying both would make the instruction part
+// of the bad news.
+static void sd_fix_line(void)
+{
+    wt_note_col(s_scr, tr(STR_S_FIX_SD), 48, 200, 704, 120, MUT_COL);
+}
+
 static void fail_body(const char *why)
 {
     // 174 is the cap a translated string is generated under, twice over plus
@@ -1965,7 +1978,13 @@ static void caution_help_cb(lv_event_t *e)
 
     wt_explain_t x = {
         .title  = tr(STR_S_WHY_T),
-        .sub    = tr(STR_S_WHY_FOOT),
+        // NO FOOT. It read "unsure? fix it in your coordinator." under five
+        // lines that each stated a fact and stopped, so one sentence carried
+        // the what-to-do for all of them and only the reader who got to the
+        // bottom of the card saw it. Every line names its own action now --
+        // lower it, leave that coin unspent, spend from fewer coins, adjust
+        // the amount, rescan -- and a footer repeating them would be the
+        // restatement the copy rule cuts.
         .icon   = LV_SYMBOL_WARNING,
         .body   = body,
         .ok_txt = tr(STR_C_OK),
@@ -4405,7 +4424,8 @@ static void file_tap_cb(lv_event_t *e)
         wt_trail(s_scr, WT_ICON_SIGN, trail, false);
         // A refusal to sign, alone on an otherwise empty screen with 230px
         // of room under it. There is no reason for it to be the small type.
-        wt_note_col(s_scr, tr(STR_S_READ_FAIL), 48, 140, 704, 232, STOP_COL);
+        wt_note_col(s_scr, tr(STR_S_READ_FAIL), 48, 140, 704, 100, STOP_COL);
+        sd_fix_line();
         wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y,
                         160, true, files_back_cb, NULL);
         return;
@@ -4425,7 +4445,8 @@ static void file_tap_cb(lv_event_t *e)
         char trail[96];
         snprintf(trail, sizeof trail, "%s / %s", tr(STR_S_T), s_cur);
         wt_trail(s_scr, WT_ICON_SIGN, trail, false);
-        wt_note_col(s_scr, tr(STR_S_NOT_PSBT), 48, 140, 704, 232, STOP_COL);
+        wt_note_col(s_scr, tr(STR_S_NOT_PSBT), 48, 140, 704, 100, STOP_COL);
+        sd_fix_line();
         wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y,
                         160, true, files_back_cb, NULL);
         return;
@@ -4666,6 +4687,20 @@ static void rm_screen(void)
 
     mk_chrome(s_parent, tr(STR_S_RM_SIGNED));
     sd_trail();
+    // What it COSTS, on the way in rather than on the confirm screen behind
+    // each row's slide. A screen called REMOVE FILES that says nothing about
+    // permanence until after the gesture has been started is telling the owner
+    // at the wrong end.
+    //
+    // On the TITLE row, not the trail's: the trail's rule runs the full lane,
+    // so a label beside the words shares a box with it and the overlap gate
+    // said so. The title ends around 290 and nothing else claims that row.
+    {
+        lv_obj_t *pm = wt_lbl(s_scr, tr(STR_S_RM_PERMANENT), 0, 30,
+                              wt_font23(), MUT_COL);
+        lv_obj_update_layout(pm);
+        lv_obj_set_x(pm, 776 - lv_obj_get_width(pm));
+    }
     wt_swipe_watch(s_scr, rm_gesture_cb);
     memset(&s_fctx, 0, sizeof s_fctx);
     s_fctx.scr = s_scr;

@@ -190,6 +190,10 @@ UNTRANSLATED_OK = {
     # between the caption and the graph. Born under the English-only rule;
     # English in the other twenty until the sweep.
     "S_IN_TOTAL",
+    # Where to put the file when a card holds none this device can read, and
+    # what REMOVE FILES costs before the slide. Born under the English-only
+    # rule; English in the other twenty until the sweep.
+    "S_FIX_SD", "S_RM_PERMANENT",
     # The SIGN term cards. Born under the English-only rule; English in the
     # other twenty until the sweep.
     "T_PSBT_CAP", "T_PSBT_VAL", "T_PSBT_PLAIN", "T_PSBT_TERM",
