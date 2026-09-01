@@ -354,6 +354,30 @@ incremental and takes seconds. And if a run is interrupted, **the container
 keeps building** -- `docker ps` and `docker kill` it, or three full rebuilds end
 up fighting over the same RAM and one of them comes back as exit 137.
 
+**`build-release/` is not that directory and `idf.py` must never be pointed at
+it.** It belongs to `tools/build_release.sh`, which builds with a DIFFERENT
+config -- `-DSDKCONFIG=/project/sdkconfig.release -DKISS_RELEASE=1`, WARN level
+logs and signed-app verification ON -- and then signs the app on the host. A
+plain `idf.py -B build-release build` re-configures it to the default sdkconfig
+and relinks over objects compiled under the release one.
+
+The result boots into `abort()` at 2031 ms, every cycle, before `app_main` is
+reached. There is nothing in the build output to see: it finished, exit 0, no
+warnings, and the version string it reports is correct. The clean container
+build of the same commit ran for twelve seconds with zero resets, so the
+defect was never in the tree.
+
+**And it was flashed with every part hash verified.** esptool wrote four parts
+at the right offsets, read each one back and printed "Hash of data verified",
+and the board still could not boot. **A verified flash proves the bytes on the
+chip match the file. It proves nothing about whether the file was linked from
+a coherent object tree**, which is the failure that actually happens -- so
+"esptool verified it" is not evidence a build is sound, and the only thing
+that is, is the boot log.
+
+When a release build looks wrong, `rm -rf build-release` and go through
+`tools/build_release.sh`. Never incrementally.
+
 **The device compiler is on this list, not only in a paragraph further down.**
 It was documented as required for anything touching `main/` and was not among
 the commands anyone runs, which is how a 64 byte buffer holding a 160 byte
