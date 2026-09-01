@@ -4712,8 +4712,12 @@ int main(void) {
   // than one screen, and the value is what differs between the two variants
   // of this one.
   must_show("kef/no passphrase", tr(STR_I_KEF_F1_V_NP));
+  // The pp variant's own value, which is the string that would be on screen
+  // if the caveat had leaked into a session that has no passphrase. It used
+  // to be a heading from a block that no longer exists -- a needle pointed at
+  // a string nothing draws cannot fail.
   must_not_show("kef/no passphrase says nothing about one",
-                tr(STR_I_KEF_PP_H));
+                tr(STR_I_KEF_F1_V));
   kiss_session_open("x");                           // back to the truth
   tap_str(STR_C_BACK, 3, 8);
   words_tab(WORDS_ENC);

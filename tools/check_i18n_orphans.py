@@ -106,12 +106,16 @@ BACKLOG = frozenset({
     # full. A row that restates the screen it opens is the thing this page's
     # body was already cut for.
     "STR_I_WROW_SHOW_SUB",
+    # SEED WORDS, the ENCRYPTED tab: two HEADS of a two block explainer whose
+    # bodies were deleted, left wired up as a row sub and a group note. The
+    # row asked "what is in it" instead of answering, and the tab ended on
+    # "if you lose it". Both replaced by strings that carry a fact.
+    "STR_I_KEF_PP_H",
+    "STR_I_KEF_W2_H",
     # Subtitles retired by the trails pass: every opened-from page now names
     # its path at y=70 instead of restating its title, its content or a value
     # the screen already shows. Each waits for the sweep like the rest.
     "STR_G_STORAGE_CURRENT_FMT",
-    "STR_I_KEF_SHOW_S",
-    "STR_I_KEF_WARN_S_PP",
     "STR_I_PAIR_S",
     "STR_I_ROW_WAYSIN_SUB",
     "STR_W_AUD_S",

@@ -1172,14 +1172,28 @@ static void wtab_enc(void)
     // tick is a result. WT_WIDE_OPEN with no callback keeps it in full ink with
     // no chevron and no tap; the amber is on the sub alone, where it is a
     // caution about CONTENT rather than a claim about state.
+    // THE ANSWER, not the question. This read I_KEF_PP_H -- "what is in
+    // it" -- which is a HEADING: it and I_KEF_W2_H ("if you lose it") are
+    // the two heads of a block whose bodies were deleted, and both were left
+    // wired up. So the row an owner opens to find out what is in the envelope
+    // asked them the question back, and did it only on a signer WITH a
+    // passphrase, which is the case where the answer matters.
+    //
+    // I_KEF_WARN_S_PP is that answer, already written and already in 21
+    // locales -- it was sitting on the orphan backlog. The fact it carries is
+    // the one that bites: this QR holds the words and NOT the passphrase, so
+    // on its own it rebuilds different keys.
     wt_row_wide(w_pane, WT_WIDE_Y(1), &(wt_wide_t){
         .label   = tr(STR_I_WROW_HOLDS),
-        .sub     = tr(pp ? STR_I_KEF_PP_H : STR_I_KEF_WARN_S),
+        .sub     = tr(pp ? STR_I_KEF_WARN_S_PP : STR_I_KEF_WARN_S),
         .sub_col = pp ? WT_WARN : WT_MUT,
         .kind    = WT_WIDE_OPEN,
     });
 
-    wt_group_note(w_pane, 2, tr(STR_I_KEF_W2_H));
+    // ...and the other head goes the same way. "if you lose it" ended the tab
+    // on a dangling fragment; what it was reaching for is what opens the
+    // thing, which is the one fact the two rows above do not carry.
+    wt_group_note(w_pane, 2, tr(STR_I_KEF_SHOW_S));
 
     // No fingerprint card here either. The row above already names the file
     // by its fingerprint ("one QR, or 9A2C33E3.kef"), so the card was the
