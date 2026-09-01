@@ -3812,10 +3812,17 @@ lv_obj_t *wt_help_tab_n(lv_obj_t *scr, const char *hint, int unread,
     lv_obj_remove_flag(dv, LV_OBJ_FLAG_SCROLLABLE);
 
     // Brackets off the mono face -- they are ASCII -- and the mark off the
-    // Latin face, which is where FontAwesome lives. 18-ish brackets, 14 mark:
-    // the two rungs the ladder offers around the drawing's 18 and 17.
+    // Latin face, which is where FontAwesome lives.
+    //
+    // DECIDED: the mark is font23, not the font14 every other mark on this
+    // device wears. It shipped at 14 and came off the bench as too small to
+    // see and too small to aim at -- the same report the content tab LABELS
+    // got when they were 18, and this tab sits in the same 30px strip beside
+    // them. So the mark takes the tab rung, chrome23, and the brackets stay
+    // mono18 punctuation a rung below it exactly as they do on a content tab.
+    // Measured: the glyph goes 11x17 -> 17x25 in a strip 30 tall.
     const lv_font_t *bf = wt_font_mono18();
-    const lv_font_t *mf = wt_font14();
+    const lv_font_t *mf = wt_font23();
     lv_point_t bs, ms;
     lv_text_get_size(&bs, "[", bf, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
     lv_text_get_size(&ms, WT_ICON_WHAT, mf, 0, 0, LV_COORD_MAX,
@@ -3828,7 +3835,12 @@ lv_obj_t *wt_help_tab_n(lv_obj_t *scr, const char *hint, int unread,
         snprintf(cnt, sizeof cnt, "%d", unread > 99 ? 99 : unread);
         lv_text_get_size(&cs, cnt, bf, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
     }
-    const int gap = 6, pad = 8;
+    // The strip ends at WT_LANE_X + 620 = 668, which is where the divider is,
+    // so this tab's left edge is not free to travel: [ ? 3 ] measured 78 wide
+    // and landed on 674, six pixels of air. The bigger mark spends exactly
+    // those six, so the air around it comes back out of the gap -- 4 reads
+    // right against a 17px glyph anyway, where 6 was air around an 11px one.
+    const int gap = 4, pad = 8;
     int w = 2 * pad + 2 * bs.x + 2 * gap + ms.x + (cs.x ? cs.x + gap : 0);
 
     lv_obj_t *b = lv_obj_create(scr);
@@ -3840,6 +3852,10 @@ lv_obj_t *wt_help_tab_n(lv_obj_t *scr, const char *hint, int unread,
     lv_obj_set_size(b, w, WT_BR_H);
     lv_obj_remove_flag(b, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(b, LV_OBJ_FLAG_CLICKABLE);
+    // The drawing is capped by the strip it sits in; the TARGET is not. 12
+    // takes a 63x30 tab to 87x54, which is what wt_help_chip already gives a
+    // mark half this one's size, and it costs the layout nothing.
+    lv_obj_set_ext_click_area(b, 12);
     wt_tap_feedback(b);
 
     // All three parts wear the accent in EVERY state: unlike a content tab

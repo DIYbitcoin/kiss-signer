@@ -1178,7 +1178,9 @@ lv_obj_t *wt_standing(lv_obj_t *scr, const char *txt, lv_color_t col,
 // pinned by its RIGHT edge to x=752 -- the mark's rendered width varies with
 // the glyph metrics, so a computed left edge drifts. All three parts wear the
 // accent in every state; unlike a content tab its brackets never dim, because
-// it is always available.
+// it is always available. The MARK is font23 and not the font14 every other
+// mark wears -- see the body -- and the tab carries a 12px ext click area, so
+// the target is 87x54 while the drawing stays inside the 30px strip.
 //
 // `hint`: until [ ? ] has been opened once on this device, the mark breathes
 // and the band's left lane carries this lowercase line -- but only a page

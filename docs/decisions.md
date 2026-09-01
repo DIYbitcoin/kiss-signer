@@ -10,7 +10,7 @@ construction.
 route to the comment that answers it, which is how seven findings were filed
 and withdrawn in one review pass.
 
-21 decisions.
+22 decisions.
 
 ## `main/kiss_duress_ui.c`
 
@@ -124,31 +124,37 @@ The two-state word action hides its mark elsewhere and that is right where a PAI
 
 ## `main/kiss_theme.c`
 
+### the mark is font23, not the font14 every other mark on this device wears
+
+It shipped at 14 and came off the bench as too small to see and too small to aim at -- the same report the content tab LABELS got when they were 18, and this tab sits in the same 30px strip beside them. So the mark takes the tab rung, chrome23, and the brackets stay mono18 punctuation a rung below it exactly as they do on a content tab. Measured: the glyph goes 11x17 -> 17x25 in a strip 30 tall.
+
+[`main/kiss_theme.c:3817`](../main/kiss_theme.c#L3817)
+
 ### the icon grid's ladder floors at 21 and no longer has a font14 rung
 
 THE FLOOR IS 21, NOT 14, which is the same floor wt_body_para has and for the same reason: font14 is for MARKS -- chip labels, unit suffixes, chevrons -- and every string in this grid is a SENTENCE an owner reads before signing. WHY FLAGGED is the case that proves it: five caution rows explaining why a payment was flagged, all of them at the size this device keeps for punctuation. mono21 only where the copy CAN be mono, which is what the body ladder asks too. Where it cannot, the rung stays 23 and the overflow is reported rather than shrunk away -- copy too long for its box is copy to cut, and a silent drop is what hid this for the grid's whole life.
 
-[`main/kiss_theme.c:6349`](../main/kiss_theme.c#L6349)
+[`main/kiss_theme.c:6439`](../main/kiss_theme.c#L6439)
 
 ## `main/kiss_theme.h`
 
 ### the destructive group is a TAB with its own tint and cross-fade, not a row buried on another page
 
-[`main/kiss_theme.h:873`](../main/kiss_theme.h#L873)
+[`main/kiss_theme.h:892`](../main/kiss_theme.h#L892)
 
 ## `main/main.c`
 
-### the home's next-step hint is a CONTROL, not a caption
+### the home carries NO next-step line
 
-It wears LV_SYMBOL_RIGHT, which on this device means "this opens a screen" -- and it opened nothing, so the one mark whose whole job is to promise navigation was making a promise the label could not keep. It goes where it points now.
+It said "check your paper against these keys" until the paper was checked, then "pair a coordinator, then verify an address" until one had spoken, and it came off the bench as a first-time-user walkthrough on the screen the owner looks at every day. The order it was teaching is in docs/walkthrough.md, which is where the owner asked for it to live -- the same argument that took the passphrase line off this screen, a few paragraphs down in kiss_home_build(). The tiles are the home. A signer that keeps suggesting the next thing is a signer that never finishes setting itself up. tile title string ids, in tile order (sign, receive, keys, settings). STR_H_TILE_WALLET is a legacy KEY NAME whose value has been "Keys" for a while; renaming the key would touch all 21 locale files for nothing.
 
-[`main/main.c:248`](../main/main.c#L248)
+[`main/main.c:247`](../main/main.c#L247)
 
 ### a draw that can no longer become the word is cleared HERE, on the lift, not left to the 3s idle
 
 The word is the FIRST stored.strokes strokes of the buffer, so once that many have been drawn without matching, no later stroke can change the answer -- and every attempt after it appended to the corpse instead of starting fresh. The device then answered to nothing at all until the owner put their hand down for a full three seconds, which is not what a person does between two tries. Reported from the bench as a signer that would not open to its own word. The log showed the strokes counting 1..17 across five attempts, 2.5s apart, and never resetting. The heuristic that catches an abandoned KISS is switched OFF whenever a word is stored -- it is built on the letters being drawn left to right, which a custom word is not -- so the idle was the only clear there was.
 
-[`main/main.c:2310`](../main/main.c#L2310)
+[`main/main.c:2260`](../main/main.c#L2260)
 
 ## `sim/sim_main.c`
 
@@ -156,4 +162,4 @@ The word is the FIRST stored.strokes strokes of the buffer, so once that many ha
 
 pump(30), not 20. The outgoing pane leaves on a per row stagger -- (n-1) * MO_OUT_STEP + MO_OUT_MS, which is 330ms for a six row detail pane against 320ms of pump -- so the old count photographed the previous screen still fading through this one. Invisible until overlapcheck learned to read spangroups: the ghost is a folded address, and a spangroup was not text to any check on the list.
 
-[`sim/sim_main.c:4116`](../sim/sim_main.c#L4116)
+[`sim/sim_main.c:4068`](../sim/sim_main.c#L4068)
