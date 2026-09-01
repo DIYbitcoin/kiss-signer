@@ -628,9 +628,11 @@ static void sig_fp_help_cb(lv_event_t *e)
     s_inert[0] = NULL; s_page_lbl = NULL;
     mk_screen(parent, tr(STR_S_SIG_FP_HELP_T), NULL);
 
-    // This device's own code first, real and big: the signed screens no
-    // longer carry it on their main surface (it is a check for the cautious,
-    // not a step for everyone), so this panel is where it lives now.
+    // This device's own code first, real and big. It is on the screen behind
+    // this one too now, at mono21 or mono23; here it is the subject rather
+    // than a value in a row, and the two example rows below compare against
+    // it -- a panel that taught the comparison without showing the reader
+    // which code was theirs made them go back to find out.
     if (s_sig_fp[0]) {
         char code[12];
         sig_fp_code(code, sizeof code);
@@ -678,10 +680,9 @@ static void sig_fp_help_cb(lv_event_t *e)
 }
 
 
-// The compact form the signed screens carry now: caption + "?" chip only.
-// The code itself moved into the panel the chip opens -- it is a check for
-// the cautious, not a step in everyone's flow, and at full size it was the
-// loudest thing on a screen whose real message is "take the card back".
+// Which screen the panel has to rebuild on the way back. The exit screens are
+// built by two different functions and neither is reachable from the other, so
+// the chip carries its own answer rather than the panel guessing from state.
 static void sig_fp_open_cb(lv_event_t *e)
 {
     s_help_from_qr = lv_event_get_user_data(e) != NULL;
@@ -727,18 +728,6 @@ static void sig_value_pair(lv_obj_t *par, int x, int y, bool from_qr,
     // 30px and a mono21 line is 26, so one y for both sat the chip a rung low.
     wt_help_chip(par, cx, y + (lv_font_get_line_height(f) - SIG_CHIP_D) / 2,
                  wt_accent(), sig_fp_open_cb, from_qr ? (void *)1 : NULL);
-}
-
-static void draw_sig_chip(int x, int y, bool from_qr)
-{
-    if (!s_sig_fp[0]) return;
-    // Chip FIRST, at a fixed x, caption trailing: the caption is translated
-    // and grows rightward harmlessly, while the one tappable thing on the
-    // pair sits at the same spot in every locale -- which is also what lets
-    // the walk tap it without measuring text.
-    wt_help_chip(s_scr, x, y, MUT_COL, sig_fp_open_cb,
-                 from_qr ? (void *)1 : NULL);
-    mk_lbl(tr(STR_S_SIG_FP_CAP), x + 40, y + 5, wt_font14(), MUT_COL);
 }
 
 // The receipt: what left, what it cost, and where it went, in one card.
@@ -837,7 +826,15 @@ static void done_summary(int y)
     }
 }
 
-// The tick, the word, and the condition it was reached under, on one row.
+// The tick, the word, and -- on the SD path -- the condition it was reached
+// under, on one row.
+//
+// `outs_fixed` draws the padlock pair. The SD screen takes it and the QR
+// screen does not: the claim is equally true of both, but the QR page spends
+// its right column on the code, the part counter, a control and two notes, and
+// a sixth thing on the head is what the column was already too full of. It
+// also has somewhere to say it -- the standing NEVER ON THE NETWORK on the
+// band, which the SD screen has no room for.
 //
 // DECIDED: the montserrat48 tick at y=236 and the padlock beside it are GONE,
 // and the tick joins the title. SIGNED was claimed three times on this screen
@@ -845,7 +842,7 @@ static void done_summary(int y)
 // facts an owner actually leaves with, which file and what to do next, had no
 // room. One claim, once, on the row that already carries the word. The lock
 // keeps its meaning beside it: where this can go is settled.
-static void signed_title_row(void)
+static void signed_title_row(bool outs_fixed)
 {
     // Measured before anything is placed. The title has to be re-fitted to
     // the lane the marks leave, and fitting it after the move would put the
@@ -864,8 +861,9 @@ static void signed_title_row(void)
 
     const int cx = 48 + ts.x + 14;                   // where the word starts
     // The lane the WORD gets: what is left after the tick before it and the
-    // cursor, the lock and its label after it.
-    wt_title_fit(s_scr, 752 - cx - (12 + 10 + 14 + ks.x + 8 + os.x));
+    // blinking block, the lock and its label after it.
+    const int trail = outs_fixed ? 14 + ks.x + 8 + os.x : 0;
+    wt_title_fit(s_scr, 752 - cx - (12 + 10 + trail));
 
     mk_lbl(LV_SYMBOL_OK, 48, 18, wt_font34(), OK_COL);
     lv_obj_t *cap = wt_screen_title(s_scr);
@@ -886,6 +884,8 @@ static void signed_title_row(void)
         // wt_title_cursor records getting wrong on its own x.
         after += 12 + lv_obj_get_style_width(cur, LV_PART_MAIN);
     }
+
+    if (!outs_fixed) return;
 
     // Centred on the title's line, not hung off its top: font14 beside font34
     // sharing a y sits the pair up on the capitals with nothing under them.
@@ -1012,7 +1012,7 @@ static void done_screen(const char *outname)
     // screen could not say before: S_DONE_SD_SUB's three instructions moved
     // into the steps strip at the foot, where they are three things again.
     mk_screen(parent, tr(STR_S_SIGNED_T), tr(STR_S_DONE_SUB2));
-    signed_title_row();
+    signed_title_row(true);
 
     // ---- what was signed ------------------------------------------------
     //
@@ -3500,6 +3500,9 @@ static void qr_out_screen(size_t sw)
     }
 
     mk_screen(parent, tr(STR_S_SIGNED_T), tr(STR_S_QR_SUB));
+    // The tick, without the padlock pair the SD screen carries -- see
+    // signed_title_row for why this page leaves it off.
+    signed_title_row(false);
     // 302/274, down from 316/288 at y=100. The old card ran to y=415 and the
     // QR bitmap itself to 401, so its bottom 4px sat in the action band and is
     // now painted over by the bar: a signed transaction that will not scan.
@@ -3508,16 +3511,29 @@ static void qr_out_screen(size_t sw)
     wt_qr_card(s_scr, &s_qr_img, 48, 96, 302, 274);
 
     int n = qrt_encoder_parts(s_qenc);
-    // The signature fingerprint takes the top slot of the right column. The
-    // redundant "OK SIGNED" label that sat here is dropped: the page title and
-    // the sub line both already say the transaction is signed, and this is the
-    // one place the QR path can show the code without crowding (the card below
-    // is 302 square, running to the action band). Same code the SD screen shows.
-    // 96 tops the column flush with the QR card beside it; the code at mono23
-    // runs to 125, so the part counter drops to 130 and still clears the first
-    // note at 168.
-    draw_sig_chip(430, 96, true);
-    s_part_lbl = mk_lbl(n > 1 ? "" : tr(STR_S_QR_SINGLE), 430, 130,
+    // The signature fingerprint takes the top slot of the right column, as a
+    // caption and a VALUE -- the same pair the SD screen's artifact card
+    // carries, from the same builder. The redundant "OK SIGNED" label that sat
+    // here is dropped: the page title and the sub line both already say the
+    // transaction is signed, and this is the one place the QR path can show
+    // the code without crowding (the card below is 302 square, running to the
+    // action band).
+    //
+    // 96 tops the column flush with the QR card beside it. Then a WT_DIV rule,
+    // because what is above it is the ARTIFACT -- what this device made, and
+    // the one thing on the page to compare against a second signer -- and
+    // everything below it is the machinery for getting the square into a
+    // camera. Stacked without the rule the column read as six things of equal
+    // weight, which is the problem the marks and the standing claim were
+    // already fixing from the other end.
+    mk_lbl(tr(STR_S_SIG_FP_CAP), 430, 96, wt_font14(), MUT_COL);
+    sig_value_pair(s_scr, 430, 118, true, wt_font_mono23());
+    wt_line_rule(s_scr, 430, 160, 322);
+
+    // Everything below the rule keeps the rhythm it was device tested on --
+    // 130 / 168 / 212 / 254 -- shifted down by the 42px the artifact block
+    // above it takes. The last note ends at 383, clear of WT_CONTENT_BOTTOM.
+    s_part_lbl = mk_lbl(n > 1 ? "" : tr(STR_S_QR_SINGLE), 430, 172,
                         wt_font28(), INK_COL);
     // What to DO with the QR on screen, previously all at 14 beside a 28px
     // part counter. The right column is 322 wide and nothing but the EASY SCAN
@@ -3546,19 +3562,19 @@ static void qr_out_screen(size_t sw)
     // claim. The column keeps the one line that tells the reader what to DO,
     // at full width and full size.
     if (n > 1) {
-        wt_note(s_scr, tr(STR_S_QR_LOOP), 430, 168, 322, 29);
+        wt_note(s_scr, tr(STR_S_QR_LOOP), 430, 210, 322, 29);
         s_qr_tmr = lv_timer_create(qr_tick, 250, NULL);
     }
     wt_standing(s_scr, tr(STR_S_NO_NETWORK), WT_OK, false);
     s_ez_act = wt_word_action(s_scr, LV_SYMBOL_OK, tr(STR_S_EASY_SCAN), true,
                                INK_COL, false, qr_ez_cb, NULL);
-    lv_obj_set_pos(s_ez_act, 430, 212);
+    lv_obj_set_pos(s_ez_act, 430, 254);
     ez_sync();
     // Its own note, directly under it rather than sixty pixels below. This
     // sentence explains THAT control and nothing else -- "phone won't catch
     // it? bigger dots, slower loop" -- and floating it away from the thing it
     // is about is what made the column read as a list of unrelated lines.
-    wt_note(s_scr, tr(STR_S_EZ_NOTE), 430, 254, 322, 87);
+    wt_note(s_scr, tr(STR_S_EZ_NOTE), 430, 296, 322, 87);
     wt_arrow_action(s_scr, tr(STR_C_DONE), false, true, 592, WT_ACTION_Y, 160,
                     true, close_cb, NULL);
     s_part_i = 0;

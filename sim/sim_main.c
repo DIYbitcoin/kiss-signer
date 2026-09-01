@@ -4018,6 +4018,15 @@ int main(void) {
   // on being saved as though the toggle had been pressed.
   tap_str(STR_S_EASY_SCAN, 3, 8);                   // EASY SCAN: sparser, slower QR
   save("/tmp/sim_qr_out_ez.ppm");
+  // The panel from the QR side, which nothing had ever opened: sig_fp_open_cb
+  // carries which screen built it and sig_help_back_cb rebuilds THAT one, so
+  // the SD stop above only ever proved half of it. A BACK landing on the SD
+  // screen here would be silent -- both pages are titled SIGNED.
+  tap_label_exact("?");                             // ? beside SIGNATURE -> panel
+  save("/tmp/sim_qr_sigcheck.ppm");
+  tap_str(STR_C_BACK, 3, 8);                        // BACK -> the QR screen again
+  must_show("qr screen after the signature panel", tr(STR_S_EASY_SCAN));
+  save("/tmp/sim_qr_out_back.ppm");
   tap_str(STR_C_DONE, 3, 6);     // DONE -> home
   save("/tmp/sim_qr_end.ppm");
 

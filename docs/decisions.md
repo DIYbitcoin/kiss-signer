@@ -116,13 +116,13 @@ This is the one place the "no screen without an exit" rule is deliberately not a
 
 beta7 moved it into the panel and left "SIGNATURE" as a caption with nothing under it -- on the screens whose whole job is to hand back the one thing a second signer can be checked against. The panel was the right home for the TEACHING and was never the right home for the fact. The ring and the glyph take the accent with the code: they are one thing, and a grey chip beside an accent value read as two.
 
-[`main/kiss_sign.c:697`](../main/kiss_sign.c#L697)
+[`main/kiss_sign.c:698`](../main/kiss_sign.c#L698)
 
 ### the montserrat48 tick at y=236 and the padlock beside it are GONE, and the tick joins the title
 
 SIGNED was claimed three times on this screen -- the page title, that 48px checkmark, and a note under it -- while the two facts an owner actually leaves with, which file and what to do next, had no room. One claim, once, on the row that already carries the word. The lock keeps its meaning beside it: where this can go is settled.
 
-[`main/kiss_sign.c:842`](../main/kiss_sign.c#L842)
+[`main/kiss_sign.c:839`](../main/kiss_sign.c#L839)
 
 ### the two-line note is gone
 
@@ -154,19 +154,19 @@ The two-state word action hides its mark elsewhere and that is right where a PAI
 
 It shipped at 14 and came off the bench as too small to see and too small to aim at -- the same report the content tab LABELS got when they were 18, and this tab sits in the same 30px strip beside them. So the mark takes the tab rung, chrome23, and the brackets stay mono18 punctuation a rung below it exactly as they do on a content tab. Measured: the glyph goes 11x17 -> 17x25 in a strip 30 tall.
 
-[`main/kiss_theme.c:3830`](../main/kiss_theme.c#L3830)
+[`main/kiss_theme.c:3837`](../main/kiss_theme.c#L3837)
 
 ### the tab breathes whenever it has something UNREAD, not only until the first open ever
 
 It pulsed once, on the first [ ? ] an owner ever met, and was still forever after -- so [ ? 3 ] drew the count and then sat there, which is a badge you have to be looking at to notice. The attention dot on a content tab has answered the same question since it was filed from the bench as "not pulsing", and it answers a GLANCE. This is the same statement, so it is the same motion: 100..255 over 1200ms ease in out, the values wt_dot_breathe uses, rather than the 71..230 this one had of its own. The size and translate halves of a dot's breathe do not come with it -- growing a tab in a 30px strip moves the brackets, and the pixels are spent. It stops on its own. The count comes from kiss_terms_unread at build, the explainer swaps the screen, and coming back rebuilds the tab with whatever is left; at zero there is no animation to delete.
 
-[`main/kiss_theme.c:3896`](../main/kiss_theme.c#L3896)
+[`main/kiss_theme.c:3903`](../main/kiss_theme.c#L3903)
 
 ### the icon grid's ladder floors at 21 and no longer has a font14 rung
 
 THE FLOOR IS 21, NOT 14, which is the same floor wt_body_para has and for the same reason: font14 is for MARKS -- chip labels, unit suffixes, chevrons -- and every string in this grid is a SENTENCE an owner reads before signing. WHY FLAGGED is the case that proves it: five caution rows explaining why a payment was flagged, all of them at the size this device keeps for punctuation. mono21 only where the copy CAN be mono, which is what the body ladder asks too. Where it cannot, the rung stays 23 and the overflow is reported rather than shrunk away -- copy too long for its box is copy to cut, and a silent drop is what hid this for the grid's whole life.
 
-[`main/kiss_theme.c:6471`](../main/kiss_theme.c#L6471)
+[`main/kiss_theme.c:6478`](../main/kiss_theme.c#L6478)
 
 ## `main/kiss_theme.h`
 
@@ -194,4 +194,4 @@ The word is the FIRST stored.strokes strokes of the buffer, so once that many ha
 
 pump(30), not 20. The outgoing pane leaves on a per row stagger -- (n-1) * MO_OUT_STEP + MO_OUT_MS, which is 330ms for a six row detail pane against 320ms of pump -- so the old count photographed the previous screen still fading through this one. Invisible until overlapcheck learned to read spangroups: the ghost is a folded address, and a spangroup was not text to any check on the list.
 
-[`sim/sim_main.c:4071`](../sim/sim_main.c#L4071)
+[`sim/sim_main.c:4080`](../sim/sim_main.c#L4080)
