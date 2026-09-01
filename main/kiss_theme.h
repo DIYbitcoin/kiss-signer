@@ -691,6 +691,14 @@ void      wt_state_chip_set(lv_obj_t *chip, const char *txt, lv_color_t col);
 // Objects that wear the accent and must be repainted when it changes. A user
 // flag rather than a list, because eyebrows and chevrons are built by shared
 // helpers in six files and any list of them is a list that goes stale.
+// A paragraph spangroup whose FULL STOPS wear the accent, and nothing else.
+//
+// Its own flag, because WT_FLAG_ACCENT paints the object's whole text and a
+// paragraph's ordinary runs carry no span style of their own -- they inherit
+// the group's colour, which is what lets a caller recolour one the way it
+// recoloured the label this replaced. Flagged as ACCENT, a theme change turned
+// EVERY SENTENCE on the device the accent colour. Only the stops.
+#define WT_FLAG_ACCENT_STOPS LV_OBJ_FLAG_WIDGET_2
 #define WT_FLAG_ACCENT LV_OBJ_FLAG_USER_1
 // The accent is not always TEXT. A flag that only ever meant "repaint the text
 // colour" silently did nothing on the two objects that carry the accent without

@@ -1410,6 +1410,55 @@ static bool oc_read_excused(const char *w)
     return false;
 }
 
+// ---- INK: a paragraph's WORDS wearing the accent ---------------------------
+//
+// The accent is for MARKS: a chip, a chevron, a tick, a row label, and the
+// single full stop that ends a sentence. It is never the colour of the words
+// themselves, and this check exists because that rule was broken by one line
+// and shipped.
+//
+// wt_gate's sentence and a few other single lines ARE accent by design, so the
+// rule cannot be "no accent text". The shape it asks about is exact: a
+// paragraph built by the kit's span builder carries WT_FLAG_ACCENT_STOPS, and
+// its ordinary runs deliberately carry NO span style so they inherit the
+// GROUP's colour -- which is what lets a caller recolour one the way it
+// recoloured the label it replaced. So the group's own text colour is the
+// colour of every word in it, and if that is the accent then the whole
+// paragraph is.
+//
+// What went wrong was reusing WT_FLAG_ACCENT for the stops. That flag means
+// "paint this object's text the accent", not "this object has accent bits in
+// it", so the first theme applied turned every sentence on the device the
+// accent colour. Nothing caught it: the size and geometry checks do not ask
+// about colour, the role gate asks only about accent-versus-status collisions
+// on chips and borders, and every frame anyone looked at was rendered in MONO,
+// where the accent is a pale grey and the mistake is invisible.
+static void oc_check_ink(const char *tag)
+{
+    const lv_color_t acc = wt_accent();
+    for (int i = 0; i < s_n; i++) {
+        lv_obj_t *o = s_node[i].obj;
+        if (!lv_obj_check_type(o, &lv_spangroup_class)) continue;
+        // NOT keyed on WT_FLAG_ACCENT_STOPS. The bug this exists for set the
+        // OTHER flag, so a check that only looked at the right one would have
+        // watched it go past. Any wrapping spangroup whose GROUP colour is the
+        // accent has accent words in it, whatever flag put the colour there.
+        if (!s_node[i].wraps) continue;
+        if (!lv_color_eq(lv_obj_get_style_text_color(o, LV_PART_MAIN), acc))
+            continue;
+        char sp[512];
+        const char *t = oc_text_of(o, sp, sizeof sp);
+        char sig[192], detail[320];
+        snprintf(sig, sizeof sig, "INK|%s", t ? t : "");
+        snprintf(detail, sizeof detail,
+                 "INK      a paragraph is painted the ACCENT colour, so every "
+                 "word in it is: \"%.90s\" -- the accent belongs to marks and "
+                 "to the full stop, never to the words",
+                 t ? t : "");
+        oc_report_one(tag, sig, detail);
+    }
+}
+
 static void oc_check_cut(const char *tag)
 {
     char sig[192], detail[320];
@@ -2371,6 +2420,41 @@ static int oc_selftest_read(const char *name, const char *kind,
     return got == want_finding ? 0 : 1;
 }
 
+// INK builds the exact shape it forbids and the exact shape it must ignore:
+// a kit paragraph whose group colour is the accent, and the same paragraph in
+// body ink. Both through wt_body_para, so the check is exercised against what
+// the kit actually makes rather than a hand-built spangroup that might drift
+// from it.
+static int oc_selftest_ink(const char *name, bool accent, bool want_finding)
+{
+    lv_obj_t *scr = wt_screen(NULL, "SELFTEST", NULL);
+    lv_screen_load(scr);
+    wt_body_para(scr, "One sentence. And a second one after it.", 120);
+    if (accent) {
+        // What the bug was: the paragraph flagged so its stops follow the
+        // theme, and the flag chosen being the one that paints the whole
+        // object's text.
+        for (uint32_t i = 0; i < lv_obj_get_child_count(scr); i++) {
+            lv_obj_t *c = lv_obj_get_child(scr, i);
+            if (lv_obj_check_type(c, &lv_spangroup_class))
+                lv_obj_set_style_text_color(c, wt_accent(), 0);
+        }
+    }
+    lv_refr_now(NULL);
+
+    s_n = 0; s_findings = 0; s_seen_n = 0;
+    lv_area_t full = { 0, 0, LV_HOR_RES - 1, LV_VER_RES - 1 };
+    oc_collect(scr, full, false);
+    oc_mark_buried();
+    oc_check_ink("selftest");
+
+    bool got = s_findings > 0;
+    printf("  %-46s %s (%d finding%s)\n", name,
+           got == want_finding ? "ok" : "FAILED", s_findings,
+           s_findings == 1 ? "" : "s");
+    return got == want_finding ? 0 : 1;
+}
+
 int oc_selftest(void)
 {
     lv_color_t stop = WT_STOP, ok = WT_OK, ink = WT_INK, key = WT_KEY;
@@ -2391,6 +2475,16 @@ int oc_selftest(void)
     bad += oc_selftest_cut("a label that fits, clear", "STORAGE", NULL, false);
     if (bad) printf("CUT self test: %d case(s) wrong\n", bad);
     else     printf("CUT self test: 4 cases, all as expected\n");
+    printf("\n");
+
+    int was_ink = bad;
+    printf("INK check self test\n");
+    bad += oc_selftest_ink("a paragraph painted the accent, fires", true, true);
+    bad += oc_selftest_ink("the same paragraph in body ink, clear", false,
+                           false);
+    if (bad != was_ink) printf("INK self test: %d case(s) wrong\n",
+                               bad - was_ink);
+    else                printf("INK self test: 2 cases, all as expected\n");
     printf("\n");
 
     // Each block reports its OWN verdict, because the marker the run script
@@ -2851,6 +2945,7 @@ void oc_check(const char *tag)
     oc_check_void(tag);
     oc_check_fit(tag);
     oc_check_cut(tag);
+    oc_check_ink(tag);
     oc_check_tiny(tag);
     oc_check_dots(tag);
     oc_check_amber(tag);

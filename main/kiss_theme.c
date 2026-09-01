@@ -2119,6 +2119,22 @@ lv_obj_t *wt_addr_spans_lift(lv_obj_t *par, const char *grouped, int w,
 // survive this, or every theme change makes the arrows a little louder.
 static void accent_walk(lv_obj_t *o)
 {
+    // A paragraph: only its full stops move. Checked BEFORE the flag below
+    // because the two must never both be set on one object -- WT_FLAG_ACCENT
+    // paints the group's text colour, and a paragraph's ordinary runs inherit
+    // exactly that.
+    if (lv_obj_has_flag(o, WT_FLAG_ACCENT_STOPS)) {
+        uint32_t sn = lv_spangroup_get_span_count(o);
+        for (uint32_t i = 0; i < sn; i++) {
+            lv_span_t *sp = lv_spangroup_get_child(o, (int32_t)i);
+            const char *t = sp ? lv_span_get_text(sp) : NULL;
+            // The stop spans are the ones spans_fill made, and it makes them
+            // out of exactly these two strings.
+            if (t && (strcmp(t, ". ") == 0 || strcmp(t, ".") == 0))
+                lv_style_set_text_color(lv_span_get_style(sp), wt_accent());
+        }
+        if (sn) lv_spangroup_refresh(o);
+    }
     if (lv_obj_has_flag(o, WT_FLAG_ACCENT)) {
         // Text first and unconditionally, which is what this flag has always
         // done and what every label under it still needs. Then the two classes
@@ -6048,7 +6064,11 @@ static lv_obj_t *spans_new(lv_obj_t *par, int x, int y, int w)
     // on screen with nothing to say why.
     lv_obj_remove_flag(sg, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_remove_flag(sg, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_flag(sg, WT_FLAG_ACCENT);
+    // STOPS, not the whole thing. WT_FLAG_ACCENT sets the object's text
+    // colour, and a paragraph's ordinary runs deliberately carry no style of
+    // their own so they inherit the group's -- so that flag painted every
+    // sentence on the device the accent colour the moment a theme was applied.
+    lv_obj_add_flag(sg, WT_FLAG_ACCENT_STOPS);
     return sg;
 }
 

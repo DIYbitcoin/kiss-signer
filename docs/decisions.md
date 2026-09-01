@@ -96,13 +96,13 @@ The two-state word action hides its mark elsewhere and that is right where a PAI
 
 THE FLOOR IS 21, NOT 14, which is the same floor wt_body_para has and for the same reason: font14 is for MARKS -- chip labels, unit suffixes, chevrons -- and every string in this grid is a SENTENCE an owner reads before signing. WHY FLAGGED is the case that proves it: five caution rows explaining why a payment was flagged, all of them at the size this device keeps for punctuation. mono21 only where the copy CAN be mono, which is what the body ladder asks too. Where it cannot, the rung stays 23 and the overflow is reported rather than shrunk away -- copy too long for its box is copy to cut, and a silent drop is what hid this for the grid's whole life.
 
-[`main/kiss_theme.c:6275`](../main/kiss_theme.c#L6275)
+[`main/kiss_theme.c:6295`](../main/kiss_theme.c#L6295)
 
 ## `main/kiss_theme.h`
 
 ### the destructive group is a TAB with its own tint and cross-fade, not a row buried on another page
 
-[`main/kiss_theme.h:860`](../main/kiss_theme.h#L860)
+[`main/kiss_theme.h:868`](../main/kiss_theme.h#L868)
 
 ## `main/main.c`
 
