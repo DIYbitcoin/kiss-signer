@@ -101,6 +101,53 @@ refuses to report if the check no longer fires
 printed and do NOT fail: font bytes are cheap next to deleting a glyph a
 half-written screen is waiting for.
 
+### The other half of that, which nobody had: the SOURCE
+
+`KISS_SIM_TMP` stops two runs sharing a fake card. Nothing stops two people
+sharing the checkout, and that is worse, because the failure is silent about
+where it came from.
+
+Measured, and misdiagnosed on the spot. Two runs of
+`tools/check_screen_coverage.py` 29 seconds apart: **exit 0 with no failures,
+then exit 1 with twelve** — `tap "DEVICE"`, then `Legacy`, `Nested SegWit`,
+`Address types`, `network never reached 0`. Same commit either side. It was
+reported to the owner as a flaky gate that would redden a green branch at
+random.
+
+It was nothing of the kind. Somebody else was editing the same tree: SETTINGS >
+BACKUP had gained a third row, and the walk's `def_go(n, i)` call sites had not
+been bumped yet. Both facts landed together in one commit six minutes later, so
+the broken state existed **only in the working tree** and no commit ever held
+it.
+
+Two things make this class expensive, and both are worth knowing on their own:
+
+- **`def_go(n, i)` takes the ROW COUNT**, because `wt_def_h_closed` is `284/n`.
+  A tab going from two rows to three moves every `def_go(2, 1)` onto the new
+  third row. Seven call sites needed the bump.
+- **The tap does not miss.** `def_go(2, 1)` on a three row page computes a `y`
+  inside the third row, so it hits a real control and opens a real page that
+  renders and photographs perfectly. Every `save()` after it captures the wrong
+  screen, and the walk fails at whatever needle it reaches — which is why the
+  failures MOVE between runs and why not one of them named the page that was
+  actually missed. Four rows still fit (`WT_WIDE_Y` bottoms at 384 against
+  `WT_CONTENT_BOTTOM` 398), so the next row added gets the same trap with no
+  layout complaint to warn anybody.
+
+So `sim/sim_tmp.sh` stamps every sim build with the commit it came from and how
+many files under `main/`, `sim/` and `i18n/` were uncommitted at the time. It
+cannot prevent any of the above. What it does is stop the failure being
+attributed to the reader's own diff, which is where the entire cost was — the
+diagnosis, not the bug. `docs/` is excluded deliberately: it is regenerated
+constantly and compiled into nothing, so counting it would print "dirty" on
+every run and mean nothing by the second day.
+
+**Before blaming a walk failure on your diff, read that line.** If it says
+uncommitted files, ask who is in the tree before reading anything else. The
+house rule about running the same binary three times catches shared SCRATCH
+state, where the failures move; this one moves too, and running it three times
+tells you nothing except that somebody is still typing.
+
 ## Motion
 
 **Every tappable thing on this device already moves.** `wt_tap_feedback` sinks

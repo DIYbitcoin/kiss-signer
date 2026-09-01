@@ -57,3 +57,38 @@ _kiss_reap_sim_tmp() {
     return 0
 }
 _kiss_reap_sim_tmp || true
+
+# What tree this build came from, printed once per build.
+#
+# Two runs of check_screen_coverage.py 29 seconds apart gave exit 0 with no
+# failures and exit 1 with twelve, and the twelve were read as a flaky gate and
+# reported to the owner as one. They were not. Somebody else was editing the
+# same checkout: a settings tab had gained a third row and the walk's def_go(n,
+# i) call sites, which take the ROW COUNT, had not been bumped yet. The tap did
+# not miss -- def_go(2, 1) computes a y inside what is now the third row, so it
+# hit a real control and opened a real page, and every save() after it
+# photographed the wrong screen until a needle failed somewhere unrelated.
+#
+# KISS_SIM_TMP above stops two runs sharing a fake card. Nothing stopped two
+# people sharing the SOURCE, and a gate failing out of a half-saved tree looks
+# exactly like a regression in the reader's own diff. One line cannot prevent
+# that; it can stop the failure being attributed to the wrong tree, which is
+# where the whole cost was.
+#
+# main/, sim/ and i18n/ only. docs/ is regenerated constantly and is not
+# compiled into anything here, so counting it would print "dirty" on every run
+# and mean nothing by the second day.
+_kiss_tree_stamp() {
+    command -v git >/dev/null 2>&1 || return 0
+    git rev-parse --git-dir >/dev/null 2>&1 || return 0
+    local head n
+    head=$(git rev-parse --short HEAD 2>/dev/null) || return 0
+    n=$(git status --porcelain -- main sim i18n 2>/dev/null | grep -c . || true)
+    if [ "${n:-0}" -gt 0 ]; then
+        echo "sim: built from $head with $n uncommitted file(s) under main/ sim/ i18n/"
+        echo "sim: a failure below may belong to that edit and not to your own"
+    else
+        echo "sim: built from $head, main/ sim/ i18n/ clean"
+    fi
+}
+_kiss_tree_stamp || true
