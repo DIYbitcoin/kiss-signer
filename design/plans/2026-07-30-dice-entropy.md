@@ -1,6 +1,6 @@
 # Dice Entropy Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> Worked through step by step; steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add a dice-only, off-device-verifiable seed path beside the existing camera+taps path: `seed = BIP39(SHA256(digit string))`.
 
@@ -8,7 +8,7 @@
 
 **Tech Stack:** C (ESP-IDF component + host sim), libwally (`wally_sha256`), LVGL for UI. Host tests via `sim/build_test.sh` → `/tmp/kisstest`.
 
-**Spec:** `docs/superpowers/specs/2026-07-30-dice-entropy-design.md`
+**Spec:** `design/specs/2026-07-30-dice-entropy-design.md`
 
 **Reconciliation note (decide before Task 4):** The spec defaults dice creation to 24 words for quantum margin, but the codebase always creates 12 words (128-bit) and reserves 24 for restore. This plan follows the codebase (creation = 12 words, floor 50 rolls) for consistency; the module supports 24 (floor 99) either way, so switching the creation default later is a one-line change. Confirm 12 vs 24 for the dice creation path before Task 4.
 
@@ -45,7 +45,7 @@ Create `main/kiss_dice.h`:
 // Source: physical d6 rolls the owner enters by hand. Off-device entropy: the
 // seed is BIP39(SHA256(the digit string)), so it can be recomputed on any
 // machine and verified against what the device showed. No RNG in this path.
-// See docs/superpowers/specs/2026-07-30-dice-entropy-design.md for the threat
+// See design/specs/2026-07-30-dice-entropy-design.md for the threat
 // model. Mirrors kiss_tapent: pure, no UI, host-testable.
 #pragma once
 #include <stdint.h>
@@ -180,7 +180,7 @@ Create `main/kiss_dice.c`:
 
 ```c
 // dice entropy: the verifiable path.
-// See docs/superpowers/specs/2026-07-30-dice-entropy-design.md
+// See design/specs/2026-07-30-dice-entropy-design.md
 #include "kiss_dice.h"
 
 #include <string.h>

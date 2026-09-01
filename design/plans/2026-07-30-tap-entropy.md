@@ -1,6 +1,6 @@
 # Tap Entropy Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> Worked through step by step; steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make every new wallet's seed depend on a third entropy source — the timing of the user's own taps — so that no single manufacturer's RNG can determine a wallet.
 

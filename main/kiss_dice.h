@@ -1,7 +1,7 @@
 // Source: a physical d6 or a coin, entered by hand. Off-device entropy: the
 // seed is BIP39(SHA256(the digit string)), so it can be recomputed on any
 // machine and verified against what the device showed. No RNG in this path.
-// See docs/superpowers/specs/2026-07-30-dice-entropy-design.md for the threat
+// See design/specs/2026-07-30-dice-entropy-design.md for the threat
 // model. Mirrors kiss_tapent: pure, no UI, host-testable.
 //
 // Base 2 is the same path, not a second one. A coin records '0' and '1', so

@@ -2730,7 +2730,7 @@ static void restore_screen(void)
 // drawn blind from the cut up word list, typed on the restore keyboard above,
 // then a last word picked from the checksum valid candidates. That word joins s_w
 // and the flow rejoins words_screen -> quiz -> store like every other mode.
-// See docs/superpowers/specs/2026-08-04-cards-lastword-design.md
+// See design/specs/2026-08-04-cards-lastword-design.md
 
 static void cards_cancel_cb(lv_event_t *e)
 {

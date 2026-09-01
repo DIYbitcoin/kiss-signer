@@ -1,6 +1,6 @@
 # On-device Signature Fingerprint Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> Worked through step by step; steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** After signing, show a short `SIGNATURE` fingerprint of the signature bytes on both signed screens, so two independently trusted units are compared by eye instead of by diffing files.
 

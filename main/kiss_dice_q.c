@@ -1,5 +1,5 @@
 // dice roll quality: judge the raw digits BEFORE the hash whitens them.
-// See docs/superpowers/specs/2026-07-30-dice-entropy-design.md.
+// See design/specs/2026-07-30-dice-entropy-design.md.
 //
 // Deliberately a separate file from kiss_dice.c: that one pulls in
 // wally_crypto.h and is stubbed out by the simulator, while this one needs no
