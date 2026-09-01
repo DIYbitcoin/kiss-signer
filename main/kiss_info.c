@@ -1029,9 +1029,13 @@ static void wtab_paper(void)
 {
     const bool ok = kiss_ui_backup_checked();
 
+    // NO SUB. It said "paper only. no photo, no file." and the gate one tap
+    // later says "on paper, in order. never a photo, never a file." -- the
+    // same instruction, one screen early, which is the restatement this
+    // page's body was already cut for. It belongs where the words are about
+    // to be on the glass, not on the row that opens the gate.
     wt_row_wide(w_pane, WT_WIDE_Y(0), &(wt_wide_t){
         .label = tr(STR_I_WROW_SHOW),
-        .sub   = tr(STR_I_WROW_SHOW_SUB),
         .kind  = WT_WIDE_OPEN,
         .cb    = words_show_cb,
     });

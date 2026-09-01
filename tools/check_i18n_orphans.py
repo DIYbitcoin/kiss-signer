@@ -101,6 +101,11 @@ BACKLOG = frozenset({
     # The scan key gate: its hold said the title over again in a lane the
     # words could not fit, so it shares HOLD TO SHOW with the word grid.
     "STR_R_SP_SHOW",
+    # SEED WORDS, the PAPER tab: the SHOW THEM row's sub said "paper only. no
+    # photo, no file." and the gate one tap later says the same instruction in
+    # full. A row that restates the screen it opens is the thing this page's
+    # body was already cut for.
+    "STR_I_WROW_SHOW_SUB",
     # Subtitles retired by the trails pass: every opened-from page now names
     # its path at y=70 instead of restating its title, its content or a value
     # the screen already shows. Each waits for the sweep like the rest.

@@ -4537,11 +4537,15 @@ int main(void) {
   // joined the swipe idiom with the others and no other stop swipes it.
   for (int i = 0; i <= 8; i++) { touch(500 - i * 14, 250); pump(3); }
   release(); pump(50);                             // swipe -> ENCRYPTED
-  must_show("words/swipe to encrypted", tr(STR_I_KEF_W2_H));
+  // The needles are the two ROW NAMES, one per tab. They used to be the group
+  // note and the SHOW THEM sub, which were the two strings this pass removed
+  // -- a needle pointed at copy is a needle that dies when the copy is cut,
+  // and a swipe test that cannot fail is a swipe test that proves nothing.
+  must_show("words/swipe to encrypted", tr(STR_I_WROW_HOLDS));
   save("/tmp/sim_words_enc.ppm");                  // what it holds, and whose
   for (int i = 0; i <= 8; i++) { touch(300 + i * 14, 250); pump(3); }
   release(); pump(50);                             // swipe back -> PAPER
-  must_show("words/swipe back to paper", tr(STR_I_WROW_SHOW_SUB));
+  must_show("words/swipe back to paper", tr(STR_I_WROW_CHECK));
   // VERIFY MY COPY: type the stored dev mnemonic (11x abandon + about).
   // 'abandon' = 'a','b' -> suggestion[0]; 'about' = 'a','b','o' -> suggestion[0].
   words_row(1);                         // Check my copy -> intro
