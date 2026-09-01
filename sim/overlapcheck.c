@@ -1495,8 +1495,26 @@ static void oc_check_cut(const char *tag)
         if (!oc_lang_is_en() &&
             (strcmp(s_cut_kind[i], "words") == 0 ||
              strcmp(s_cut_kind[i], "long") == 0 ||
+             strcmp(s_cut_kind[i], "mark") == 0 ||
              strcmp(s_cut_kind[i], "widow") == 0))
             continue;
+        if (strcmp(s_cut_kind[i], "mark") == 0) {
+            snprintf(sig, sizeof sig, "MARK|%s", s_cut_txt[i]);
+            if (s_cut_lane[i])
+                snprintf(detail, sizeof detail,
+                         "MARK     the caption \"%s\" is %d words -- a "
+                         "caption NAMES the figure under it, and the limit "
+                         "is %d because it is drawn at font14",
+                         s_cut_txt[i], s_cut_want[i], s_cut_lane[i]);
+            else
+                snprintf(detail, sizeof detail,
+                         "MARK     the caption \"%s\" opens a clause, so it "
+                         "is a sentence and not a name -- and it is drawn at "
+                         "font14, which is the mark size",
+                         s_cut_txt[i]);
+            oc_report_one(tag, sig, detail);
+            continue;
+        }
         if (strcmp(s_cut_kind[i], "words") == 0) {
             snprintf(sig, sizeof sig, "READ|words|%s", s_cut_txt[i]);
             snprintf(detail, sizeof detail,
@@ -2420,6 +2438,29 @@ static int oc_selftest_read(const char *name, const char *kind,
     return got == want_finding ? 0 : 1;
 }
 
+// MARK goes through a real wt_value_card, not through the sink: the rule IS
+// the measure -- a word count and a list of words that cannot begin a name --
+// so driving the sink would prove only that the reporter still prints. The
+// two that fire are the two strings that came off the bench, and the two that
+// must not are the string that fixed one of them and the longest caption on
+// the device that was always right.
+static int oc_selftest_mark(const char *name, const char *cap,
+                            bool want_finding)
+{
+    lv_obj_t *scr = wt_screen(NULL, "SELFTEST", NULL);
+    lv_screen_load(scr);
+    s_cut_n = 0; s_findings = 0; s_seen_n = 0;
+    wt_value_card(scr, cap, "A VALUE", 48, 118, 704, true);
+    lv_refr_now(NULL);
+    oc_check_cut("selftest");
+
+    bool got = s_findings > 0;
+    printf("  %-46s %s (%d finding%s)\n", name,
+           got == want_finding ? "ok" : "FAILED", s_findings,
+           s_findings == 1 ? "" : "s");
+    return got == want_finding ? 0 : 1;
+}
+
 // INK builds the exact shape it forbids and the exact shape it must ignore:
 // a kit paragraph whose group colour is the accent, and the same paragraph in
 // body ink. Both through wt_body_para, so the check is exercised against what
@@ -2553,6 +2594,29 @@ int oc_selftest(void)
                             "coordinator", 4, false);
     if (bad != was) printf("READ self test: %d case(s) wrong\n", bad - was);
     else            printf("READ self test: 3 cases, all as expected\n");
+    printf("\n");
+
+    was = bad;
+    printf("MARK check self test\n");
+    bad += oc_selftest_mark("a caption opening a clause, fires",
+                            "ONCE YOU SIGN", true);
+    bad += oc_selftest_mark("a caption that is a question, fires",
+                            "WHO CAN SEE IT", true);
+    // The COUNT half, on its own. Both bench strings open a clause, so
+    // without this the length limit could be dead and every case above would
+    // still say ok -- which is the whole reason this self test exists.
+    bad += oc_selftest_mark("five words and no clause word, fires",
+                            "TOTAL AMOUNT SENT TO THEM", true);
+    // ...and the four word NAME the count used to red at three, which is the
+    // string that set the limit. It ships on the firmware signature screen.
+    bad += oc_selftest_mark("a four word name, clear",
+                            "VERSION ON THE CARD", false);
+    bad += oc_selftest_mark("the caption that fixed it, clear",
+                            "THIS PAYMENT", false);
+    bad += oc_selftest_mark("the longest one that was always right, clear",
+                            "USED OF TOTAL", false);
+    if (bad != was) printf("MARK self test: %d case(s) wrong\n", bad - was);
+    else            printf("MARK self test: 6 cases, all as expected\n");
     printf("\n");
 
     was = bad;

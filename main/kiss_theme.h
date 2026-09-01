@@ -405,6 +405,13 @@ void wt_fit_set_sink(wt_fit_sink_t fn);
 //   "long"  a word over three syllables in the same place, outside a
 //           TECHNICAL line, where the real terms are allowed to be as long as
 //           the standard made them. `want` is the syllable count.
+//   "mark"  a wt_value_card CAPTION that is a clause rather than a name. The
+//           caption is font14 because it is an eyebrow over a figure --
+//           FINGERPRINT over a fingerprint -- so prose in that slot puts the
+//           half an owner has to READ in the mark size. Nothing overflows and
+//           no font is chosen, so every fit helper above is happy and blind.
+//           `want` is the word count; `lane` is WT_CAP_MAX_WORDS, or 0 when
+//           the tell was the leading word rather than the length.
 //   "widow" a body that wraps to TWO lines and leaves a stub on the second.
 //           `want` is that line's width, `lane` the body's. Nothing in the
 //           source says a paragraph is two words too long -- the string looks
@@ -425,6 +432,18 @@ typedef void (*wt_screen_sink_t)(const char *title);
 void wt_screen_set_sink(wt_screen_sink_t fn);
 #define WT_READ_MAX_WORDS 14
 #define WT_READ_MAX_SYLL   3
+// A caption NAMES the figure under it, and the count is the BACKSTOP half:
+// the leading-word list is what catches the two that came off the bench, and
+// both of those are three and four words long.
+//
+// FOUR, not three, and the first run of this check is why. Three caught
+// "VERSION ON THE CARD" over 99.0.0 on the firmware signature screen -- a
+// noun phrase, naming exactly what is under it, reading correctly at font14.
+// A limit that reds a correct name is a limit nobody acts on, and the fix
+// would have been to shorten a string shipped in 21 locales to satisfy a
+// number invented the same afternoon. Five words is where a caption stops
+// being a name: SOURCE 1 WHAT YOU POINT AT is six.
+#define WT_CAP_MAX_WORDS   4
 #endif
 lv_obj_t *wt_section(lv_obj_t *scr, const char *txt, int x, int y);  // column caption
 

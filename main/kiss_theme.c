@@ -350,6 +350,71 @@ static void wt_term_report(const char *body, int want, int floor_y)
     if (s_cut_sink) s_cut_sink("term", body, want, floor_y);
 }
 
+// A word that cannot begin a NAME. Each of these opens a clause, and the word
+// after it settles nothing -- by the time one has been read the caption is a
+// sentence, whatever follows.
+static const char *const WT_CAP_CLAUSE[] = {
+    "WHO", "WHAT", "WHEN", "WHERE", "WHY", "HOW", "WHICH", "WHETHER",
+    "ONCE", "AFTER", "BEFORE", "UNTIL", "WHILE", "SINCE", "IF",
+};
+
+// wt_value_card's CAPTION, which is a MARK and is drawn at font14 for that
+// reason: an eyebrow naming the figure under it, the way FINGERPRINT names a
+// fingerprint. Hand that slot a clause and the half of the card an owner has
+// to READ is set in the mark size -- the same rule the fit helpers above
+// exist to enforce, broken from the other end, and invisible to every one of
+// them because nothing overflowed and no font was chosen.
+//
+// It shipped that way and came straight off the bench: "why is WHO CAN SEE IT
+// so tiny and ANYONE, FOREVER so big", about ONCE YOU SIGN over NOBODY CAN
+// REDIRECT IT and WHO CAN SEE IT over ANYONE, FOREVER.
+//
+// BOTH tells are needed and neither is redundant. No length separates these:
+// the captions that were right run one to three words (USED OF TOTAL,
+// RECIPIENT GETS, SEED WORDS) and the two that were wrong were three and
+// four. So a count catches WHO CAN SEE IT and only the leading word catches
+// ONCE YOU SIGN.
+//
+// Scoped to the VALUE CARD on purpose. wt_row's sub-line and the entropy
+// screen's SOURCE 1 WHAT YOU POINT AT are also font14 captions, and both are
+// headers over a body that carries the content -- here the caption and the
+// value are the whole card, so prose in the caption has nowhere else to be
+// read. English only, like "words" and "long" above.
+static void wt_cap_measure(const char *txt)
+{
+    if (!s_cut_sink || !txt || !*txt) return;
+    int words = 0;
+    char first[16];
+    int flen = 0;
+    const char *p = txt;
+    while (*p) {
+        const char *w = p;
+        bool has_alpha = false;
+        while (*p && *p != ' ' && *p != '\n') {
+            if ((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z'))
+                has_alpha = true;
+            p++;
+        }
+        if (has_alpha && ++words == 1) {
+            int n = (int)(p - w);
+            if (n > (int)sizeof first - 1) n = (int)sizeof first - 1;
+            for (int i = 0; i < n; i++) {
+                const char c = w[i];
+                first[flen++] = (c >= 'a' && c <= 'z') ? (char)(c - 32) : c;
+            }
+            first[flen] = 0;
+        }
+        while (*p == ' ' || *p == '\n') p++;
+    }
+    for (unsigned i = 0; i < sizeof WT_CAP_CLAUSE / sizeof WT_CAP_CLAUSE[0]; i++)
+        if (strcmp(first, WT_CAP_CLAUSE[i]) == 0) {
+            s_cut_sink("mark", txt, words, 0);
+            return;
+        }
+    if (words > WT_CAP_MAX_WORDS)
+        s_cut_sink("mark", txt, words, WT_CAP_MAX_WORDS);
+}
+
 // One pass over a body: the longest sentence, and the longest word. Sentences
 // break on . ! ? and on a newline, because a paragraph break ends one too.
 static void wt_read_measure(const char *txt)
@@ -409,6 +474,7 @@ static void wt_read_measure(const char *txt)
 // reached the device build undeclared, which only the device compiler saw.
 #define wt_read_measure(txt_) ((void)0)
 #define wt_term_report(b_, w_, f_) ((void)0)
+#define wt_cap_measure(txt_) ((void)0)
 #endif
 
 // The ladder, without the report. For text that is the OWNER'S and not the
@@ -5791,6 +5857,7 @@ lv_obj_t *wt_value_card(lv_obj_t *scr, const char *cap, const char *val,
     // came off the bench as barely visible. Nine call sites in four files draw
     // FINGERPRINT through here, so this has to be the theme's decision or the
     // same caption reads as four different marks.
+    wt_cap_measure(cap);
     lv_obj_t *c = wt_lbl(card, cap, 16, 12, wt_font14(), wt_accent());
     lv_obj_add_flag(c, WT_FLAG_ACCENT);
     lv_obj_set_style_text_letter_space(c, 1, 0);

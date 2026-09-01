@@ -64,6 +64,7 @@ if [ $? -ne 0 ] ||
     ! printf '%s\n' "$st" | grep -q 'ROLE self test: 4 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'LADDER self test: 2 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'READ self test: 3 cases, all as expected' ||
+    ! printf '%s\n' "$st" | grep -q 'MARK self test: 6 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'WIDOW self test: 2 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'CLIPX self test: 2 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'DOTS self test: 2 cases, all as expected' ||
