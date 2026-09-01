@@ -5,13 +5,7 @@
 set -e
 cd "$(dirname "$0")/.."
 
-# Where this build's binary goes. KISS_SIM_TMP is the same root the fake card,
-# the seed files and the captured frames use (main/kiss_simpath.h) -- unset it
-# is /tmp, exactly as before. It is here as well as in the C because two people
-# building at once wrote each other's binary, and the loser then ran a walk over
-# somebody else's code and reported findings about it.
-KISS_SIM_TMP="${KISS_SIM_TMP:-/tmp}"
-mkdir -p "$KISS_SIM_TMP"
+. sim/sim_tmp.sh
 
 WALLY=components/libwally-core
 clang -O1 -Wall -Wextra -Wno-unused-parameter -Wno-implicit-const-int-float-conversion -Wno-missing-field-initializers -Wno-deprecated-declarations -g \
