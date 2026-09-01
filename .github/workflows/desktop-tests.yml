@@ -49,6 +49,18 @@ jobs:
       - name: the words on screen match the glossary
         run: python3 tools/check_vocab.py
 
+      # Both of these existed, both passed, and NEITHER was invoked by any
+      # workflow or build script -- so nothing kept them passing. check_glyphs
+      # covers the blind spot kiss_theme.h names twice in its own words: a
+      # codepoint missing from the generated fonts draws a blank box about half
+      # a line wide, and draws it IDENTICALLY in the simulator, so no frame, no
+      # walk and no overlap check has ever had an opinion about it. It is caught
+      # on glass or it is not caught.
+      - name: every icon the firmware names is in the fonts
+        run: |
+          GLYPHCHECK_SELFTEST=1 python3 tools/check_glyphs.py
+          python3 tools/check_mono_glyphs.py
+
       - name: crypto tests (BIP39 vector + PSBT suite)
         run: |
           bash sim/build_test.sh
