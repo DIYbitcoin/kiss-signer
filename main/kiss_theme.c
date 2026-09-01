@@ -1072,7 +1072,14 @@ static lv_obj_t *round_chip(lv_obj_t *parent, const char *symbol,
     // "?" four rungs under the NEVER CHECKED it sits beside is a speck with a
     // circle drawn round it, and the circle was doing all the work. 21 still
     // clears the rim by 4px each side.
-    lv_obj_set_style_text_font(label, wt_font_mono21(), 0);
+    //
+    // GUARDED, not mono21 flat. The mono faces are ASCII and two of this
+    // function's three callers hand it an LV_SYMBOL: the QR card's zoom cue
+    // and the zoom overlay's close button were both drawing LVGL's missing
+    // glyph box -- a hollow rectangle inside a ring, on every screen with a QR
+    // on it, on the device and in every captured frame identically. The "?"
+    // is ASCII and keeps mono21; a symbol takes the sans face that carries it.
+    lv_obj_set_style_text_font(label, wt_chrome21(symbol), 0);
     lv_obj_center(label);
     return chip;
 }
