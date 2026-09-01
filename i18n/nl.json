@@ -492,6 +492,7 @@
   "S_C_DUSTIN": "dust-aanval",
   "S_C_GAPCH": "wisselgeld buiten bereik #%u",
   "S_C_HIGHFEE": "hoge kosten",
+  "S_C_HIGHFEE_PCT": "%llu%% of the send",
   "S_C_MERGE": "gekoppelde munten",
   "S_C_REVIEW": "BEKIJKEN",
   "S_C_SMALLCH": "mini-wisselgeld",

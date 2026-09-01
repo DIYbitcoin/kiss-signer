@@ -2251,8 +2251,41 @@ static uint16_t caution_rows(uint16_t f, const char **parts, uint16_t *bits, int
     // was the one reason that put the fee row's own number in doubt -- a row that
     // says "the figure below may be wrong" is a refusal wearing a checkbox, and
     // it is one now.
-    if (n < cap && (f & WPSBT_C_HIGHFEE))
-        { bits[n] = WPSBT_C_HIGHFEE;     parts[n++] = tr(STR_S_C_HIGHFEE); }
+    // The claim, and the NUMBER that made it a claim. "high fee" on its own
+    // asks the reader to take the device's word for it, and the figure it was
+    // judged on was a tab away on DETAILS -- so the one screen that flags the
+    // fee was the one screen that would not say how big it is.
+    //
+    // WHICH number, because kiss_psbt.c raises this on either of two tests: a
+    // fee that is a tenth or more of the payment, or an outsized sat/vB
+    // regardless. Printing the share when the RATE fired would put a small
+    // percentage next to the word "high" and read as a contradiction, so each
+    // test states its own evidence. Integer percent: this only fires at 10 and
+    // above, and a tenth of a percent changes nobody's decision.
+    //
+    // "of the send" and not "of what you send", which is what the DETAILS deck
+    // says with a whole lane to itself. The bar carries the leading caution
+    // plus "+N" for the rest, and that line is 475px: the longer phrase pushed
+    // it to 35 characters, past what font23 holds, so wt_note_fit dropped the
+    // sentence to font14 and the TINY check said so. The preposition is what
+    // gave way -- naming what the percentage is OF is the whole point of
+    // printing it, and a share of nothing in particular is exactly the reading
+    // "0% of inputs" gets on other signers.
+    if (n < cap && (f & WPSBT_C_HIGHFEE)) {
+        static char hf[96];
+        char fig[48];
+        if (s_sum.send_sats > 0 && s_sum.fee_sats * 10 >= s_sum.send_sats)
+            snprintf(fig, sizeof fig, tr(STR_S_C_HIGHFEE_PCT),
+                     (unsigned long long)(s_sum.fee_sats * 100 / s_sum.send_sats));
+        else
+            snprintf(fig, sizeof fig, tr(STR_S_FEERATE_FMT),
+                     (unsigned)(s_sum.fee_rate_x10 / 10),
+                     (unsigned)(s_sum.fee_rate_x10 % 10));
+        // Two spaces, the join tr_sym uses: the claim is translated and the
+        // figure is translated, and nothing in between needs to be.
+        snprintf(hf, sizeof hf, "%s  %s", tr(STR_S_C_HIGHFEE), fig);
+        bits[n] = WPSBT_C_HIGHFEE;       parts[n++] = hf;
+    }
     if (n < cap && (f & WPSBT_C_DUST_INPUT))
         { bits[n] = WPSBT_C_DUST_INPUT;  parts[n++] = tr(STR_S_C_DUSTIN); }
     // input-side, so it sits with the dust row rather than with the change ones.
@@ -2426,17 +2459,19 @@ static void cautions_screen(void)
         // hundred lines up has it right, which is what the pair looked like on
         // glass: an amber triangle beside an accent count in the corner, and an
         // accent triangle beside ink text on the bar under the graph.
-        sg_lbl(row, done ? LV_SYMBOL_OK : LV_SYMBOL_WARNING, SG_PAD, 16,
+        sg_lbl(row, done ? LV_SYMBOL_OK : LV_SYMBOL_WARNING, SG_PAD, 14,
                wt_font23(), done ? OK_COL : WARN_COL);
         lv_obj_t *t = lv_label_create(row);
-        lv_obj_set_pos(t, 52, 19);
+        lv_obj_set_pos(t, 52, 15);
         lv_obj_set_style_text_color(t, done ? MUT_COL : INK_COL, 0);
-        // A caution row's 24px lane, which is the BOX deciding rather than the
-        // copy -- the same case the FIT gate carves out by height. The row
-        // carries a mark, a sentence and an I UNDERSTAND control on one line,
-        // and WHY FLAGGED behind the "?" is where the same caution is written
-        // out at font23.
-        wt_note_fit(t, parts[i], 491 - 16, 24);
+        // 30px, not 24. A caution IS a sentence and the house rule puts a
+        // sentence at font23 -- and at 24 the tallest rung that fits is
+        // font14, so every caution on this device was being read at the size
+        // reserved for chip labels and unit suffixes. The row is 56 tall and
+        // the text starts at 15, so 30 clears its own box with room; the FIT
+        // gate's carve-out for a 24px lane was the box deciding, and the box
+        // was wrong.
+        wt_note_fit(t, parts[i], 491 - 16, 30);
         wt_tiny_ok(t);
 
         lv_obj_t *ctl;
@@ -2963,7 +2998,7 @@ static void verify_screen(lv_obj_t *parent)
         sg_rule(24, SG_BAR_Y_G + SG_BAR_H, 752, 1);
         // The MARK keeps the amber -- see the row page's own mark for the rule
         // and for what running a glyph through wt_ink_for looked like.
-        sg_lbl(bar, all_done ? LV_SYMBOL_OK : LV_SYMBOL_WARNING, SG_PAD, 10,
+        sg_lbl(bar, all_done ? LV_SYMBOL_OK : LV_SYMBOL_WARNING, SG_PAD, 7,
                wt_font23(), all_done ? OK_COL : WARN_COL);
         // "+N" carries the rest of the list without a string to translate: the
         // header chip already states the total, so this only has to say that
@@ -2971,9 +3006,12 @@ static void verify_screen(lv_obj_t *parent)
         if (np > 1) snprintf(buf, sizeof buf, "%s   +%u", parts[0], (unsigned)(np - 1));
         else        snprintf(buf, sizeof buf, "%s", parts[0]);
         lv_obj_t *t = lv_label_create(bar);
-        lv_obj_set_pos(t, 52, 13);
+        lv_obj_set_pos(t, 52, 8);
         lv_obj_set_style_text_color(t, all_done ? MUT_COL : INK_COL, 0);
-        wt_note_fit(t, buf, 491 - 16, 24);
+        // See the row page's own note: 30, because a caution is a sentence and
+        // 24 could only ever hold font14. The bar is 44 tall and this starts at
+        // 8, so the line box ends at 38 with 6 to spare.
+        wt_note_fit(t, buf, 491 - 16, 30);
         // The sentence is the LINK, not the bar: the bar carries the ack
         // control too, and a tap that could either explain a word or approve
         // a caution is a tap nobody should have to aim.
@@ -3123,9 +3161,17 @@ static void verify_screen(lv_obj_t *parent)
         // a repeat -- it is the term in the sum the reader checks the fee with.
         // With several recipients the words come back, because then the hero is
         // a total and no single row owns it.
+        // The recipient row is the MARK alone. It carried "RECIPIENT GETS" on
+        // every row at every count, so a three recipient spend printed the same
+        // two words three times down a 344px column -- and the rows that are
+        // NOT recipients are the ones a reader has to tell apart, which is what
+        // the fee's scissors and the change's return arrow already do. What is
+        // left is the rule the house style already states: prefer a mark to a
+        // word wherever the mark is unambiguous. The word is still on the
+        // screen once, in the caption over the hero, which is where a single
+        // recipient's amount is named anyway.
         char sbuf[80], fbuf[80], cbuf[80];
-        snprintf(sbuf, sizeof sbuf, "%s  %s", GLOSS_ICONS[1],
-                 tr(STR_S_SENDING_CAP));
+        snprintf(sbuf, sizeof sbuf, "%s", GLOSS_ICONS[1]);
         snprintf(fbuf, sizeof fbuf, "%s  %s", GLOSS_ICONS[4], tr(STR_S_FEE));
         // The change strand names its INDEX when there is one change output,
         // which is every ordinary transaction. The amount coming back was on
@@ -3283,7 +3329,7 @@ static void verify_screen(lv_obj_t *parent)
         // question: the chip explains a word, and this is half the arithmetic
         // the screen exists for.
         char intot[32] = "";
-        int tot_w = 0, tot_x = 0, tot_y = 0;
+        int tot_w = 0, tot_x = 0, tot_y = 0, tot_unit_w = 0;
         if (n_in > 1) {
             lv_point_t ts;
             const lv_font_t *f14 = wt_font14(), *f23 = wt_font_mono23();
@@ -3291,6 +3337,20 @@ static void verify_screen(lv_obj_t *parent)
             lv_text_get_size(&ts, intot, f23, 0, 0, LV_COORD_MAX,
                              LV_TEXT_FLAG_NONE);
             tot_w = ts.x + 12;
+            // ...and the UNIT, which nothing on the input side carried. The
+            // column under this figure is five bare numbers with no word near
+            // them, and the only "sats" on the screen was beside the hero --
+            // a different figure, four lines up, in a different face. It came
+            // back from the bench as "what are they, sat amounts?".
+            //
+            // Here and not on every row: this is the head of the column and the
+            // sum of everything under it, so one word labels all five. Measured
+            // into tot_w so the chip clamp below still knows how wide this half
+            // of the caption line is.
+            lv_text_get_size(&ts, wt_denom_unit(), f14, 0, 0, LV_COORD_MAX,
+                             LV_TEXT_FLAG_NONE);
+            tot_unit_w = ts.x + 8;
+            tot_w += tot_unit_w;
             tot_y = 150 + (lv_font_get_line_height(f14) - f14->base_line)
                         - (lv_font_get_line_height(f23) - f23->base_line);
         }
@@ -3338,22 +3398,34 @@ static void verify_screen(lv_obj_t *parent)
 
         // The page counter, on the caption line the graph already has. "2/3" --
         // N_PARTS_FMT, digits and a slash, deliberately locale neutral and
-        // already the QR part counter. Declared font14: it is a COUNTER, which
-        // is what that size is for.
+        // already the QR part counter.
+        //
+        // mono23 in the ACCENT, not font14 muted. It was declared a counter and
+        // sized as one, and a counter is the wrong thing for it to be: it is
+        // the only thing on the screen that says destinations exist below the
+        // fold, and the read-to-the-end gate will not arm the slide until they
+        // have been seen. So it is a figure the reader is meant to act on, and
+        // it wears the accent every other control on this screen does.
+        //
+        // Its baseline, not its top: this shares a line with a font14 caption
+        // and the two faces have different heights, exactly as the input total
+        // 40 lines down does.
         if (wt_bundle_pages(bg) > 1) {
             char pc[16];
             snprintf(pc, sizeof pc, tr(STR_N_PARTS_FMT),
                      wt_bundle_page(bg) + 1, wt_bundle_pages(bg));
-            lv_obj_t *pl = s_page_lbl = sg_lbl(s_scr, pc, 0, 150,
-                                               wt_font14(), MUT_COL);
-            lv_obj_set_style_text_letter_space(pl, 2, 0);
+            const lv_font_t *pf14 = wt_font14(), *pf23 = wt_font_mono23();
+            const int py = 150 + (lv_font_get_line_height(pf14) - pf14->base_line)
+                               - (lv_font_get_line_height(pf23) - pf23->base_line);
+            lv_obj_t *pl = s_page_lbl = sg_lbl(s_scr, pc, 0, py,
+                                               pf23, wt_accent());
+            lv_obj_add_flag(pl, WT_FLAG_ACCENT);
             lv_obj_update_layout(pl);
             // Right-aligned at 738, not 776: the LOCK that marks a signed
             // graph sits at 748 on this same row, and it is built in a state
             // this one is not, so a counter measured against the margin lands
             // on it the moment both appear. 10 clear of it, always.
             lv_obj_set_x(pl, 738 - lv_obj_get_width(pl));
-            wt_tiny_ok(pl);
         }
 
         // AFTER the graph, deliberately. The chip's box runs 144..174 and the
@@ -3379,6 +3451,13 @@ static void verify_screen(lv_obj_t *parent)
             lv_obj_t *tot = sg_lbl(s_scr, intot, tot_x, tot_y,
                                    wt_font_mono23(), INK_COL);
             wt_denom_bind(tot);
+            lv_obj_update_layout(tot);
+            // The unit rides the figure's own top edge rather than its
+            // baseline: it is font14 beside mono23 and the pair reads as one
+            // amount, the same way the hero's "sats" sits beside its number.
+            sg_lbl(s_scr, wt_denom_unit(),
+                   tot_x + lv_obj_get_width(tot) + 8, 150,
+                   wt_font14(), MUT_COL);
         }
 
         // NO ADDRESS CARD, at any recipient count. This screen had TWO

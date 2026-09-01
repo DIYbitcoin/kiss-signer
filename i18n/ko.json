@@ -492,6 +492,7 @@
   "S_C_DUSTIN": "더스트 공격",
   "S_C_GAPCH": "닿지 않는 거스름돈 #%u",
   "S_C_HIGHFEE": "높은 수수료",
+  "S_C_HIGHFEE_PCT": "%llu%% of the send",
   "S_C_MERGE": "코인 연결",
   "S_C_REVIEW": "확인",
   "S_C_SMALLCH": "초소액 잔돈",

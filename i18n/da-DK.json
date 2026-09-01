@@ -492,6 +492,7 @@
   "S_C_DUSTIN": "støvangreb",
   "S_C_GAPCH": "byttepenge uden for rækkevidde #%u",
   "S_C_HIGHFEE": "højt gebyr",
+  "S_C_HIGHFEE_PCT": "%llu%% of the send",
   "S_C_MERGE": "koblede mønter",
   "S_C_REVIEW": "GENNEMSE",
   "S_C_SMALLCH": "meget små byttepenge",

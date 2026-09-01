@@ -492,6 +492,7 @@
   "S_C_DUSTIN": "støvangrep",
   "S_C_GAPCH": "vekselpenger utenfor rekkevidde #%u",
   "S_C_HIGHFEE": "høyt gebyr",
+  "S_C_HIGHFEE_PCT": "%llu%% of the send",
   "S_C_MERGE": "koblede mynter",
   "S_C_REVIEW": "SE GJENNOM",
   "S_C_SMALLCH": "svært liten veksel",

@@ -182,6 +182,10 @@ UNTRANSLATED_OK = {
     # title line, and the caption on the card it opens. Born under the
     # English-only rule; English in the other twenty until the sweep.
     "S_LOCK_AFTER_FMT", "S_D_LT_CAP",
+    # The share of the payment that made a fee "high", said on the caution that
+    # says it. Born under the English-only rule; English in the other twenty
+    # until the sweep.
+    "S_C_HIGHFEE_PCT",
     # The SIGN term cards. Born under the English-only rule; English in the
     # other twenty until the sweep.
     "T_PSBT_CAP", "T_PSBT_VAL", "T_PSBT_PLAIN", "T_PSBT_TERM",

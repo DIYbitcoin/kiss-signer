@@ -492,6 +492,7 @@
   "S_C_DUSTIN": "tấn công bụi",
   "S_C_GAPCH": "tiền thừa ngoài tầm #%u",
   "S_C_HIGHFEE": "phí cao",
+  "S_C_HIGHFEE_PCT": "%llu%% of the send",
   "S_C_MERGE": "tiền bị liên kết",
   "S_C_REVIEW": "XEM LẠI",
   "S_C_SMALLCH": "tiền thừa li ti",

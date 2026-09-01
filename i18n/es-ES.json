@@ -492,6 +492,7 @@
   "S_C_DUSTIN": "ataque de polvo",
   "S_C_GAPCH": "cambio fuera de alcance #%u",
   "S_C_HIGHFEE": "comisión alta",
+  "S_C_HIGHFEE_PCT": "%llu%% of the send",
   "S_C_MERGE": "monedas vinculadas",
   "S_C_REVIEW": "REVISAR",
   "S_C_SMALLCH": "cambio diminuto",

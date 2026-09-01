@@ -492,6 +492,7 @@
   "S_C_DUSTIN": "atak pyłowy",
   "S_C_GAPCH": "reszta poza zasięgiem #%u",
   "S_C_HIGHFEE": "wysoka opłata",
+  "S_C_HIGHFEE_PCT": "%llu%% of the send",
   "S_C_MERGE": "powiązane monety",
   "S_C_REVIEW": "PRZEJRZYJ",
   "S_C_SMALLCH": "drobna reszta",

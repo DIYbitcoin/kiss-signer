@@ -492,6 +492,7 @@
   "S_C_DUSTIN": "prašinski napad",
   "S_C_GAPCH": "ostatak izvan dosega #%u",
   "S_C_HIGHFEE": "visoka naknada",
+  "S_C_HIGHFEE_PCT": "%llu%% of the send",
   "S_C_MERGE": "povezani novčići",
   "S_C_REVIEW": "PREGLEDAJ",
   "S_C_SMALLCH": "vrlo mali ostatak",

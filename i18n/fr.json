@@ -492,6 +492,7 @@
   "S_C_DUSTIN": "attaque par poussière",
   "S_C_GAPCH": "monnaie hors de portée #%u",
   "S_C_HIGHFEE": "frais élevés",
+  "S_C_HIGHFEE_PCT": "%llu%% of the send",
   "S_C_MERGE": "pièces liées",
   "S_C_REVIEW": "EXAMINER",
   "S_C_SMALLCH": "monnaie minuscule",

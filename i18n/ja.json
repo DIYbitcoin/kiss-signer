@@ -492,6 +492,7 @@
   "S_C_DUSTIN": "ダスト攻撃",
   "S_C_GAPCH": "届かない範囲のおつり #%u",
   "S_C_HIGHFEE": "高額な手数料",
+  "S_C_HIGHFEE_PCT": "%llu%% of the send",
   "S_C_MERGE": "コインの連結",
   "S_C_REVIEW": "内容を見る",
   "S_C_SMALLCH": "極小のお釣り",

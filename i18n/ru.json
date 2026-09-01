@@ -492,6 +492,7 @@
   "S_C_DUSTIN": "пылевая атака",
   "S_C_GAPCH": "сдача вне досягаемости #%u",
   "S_C_HIGHFEE": "высокая комиссия",
+  "S_C_HIGHFEE_PCT": "%llu%% of the send",
   "S_C_MERGE": "связанные монеты",
   "S_C_REVIEW": "ПРОСМОТР",
   "S_C_SMALLCH": "крошечная сдача",

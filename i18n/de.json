@@ -492,6 +492,7 @@
   "S_C_DUSTIN": "Staub-Angriff",
   "S_C_GAPCH": "wechselgeld ausser reichweite #%u",
   "S_C_HIGHFEE": "hohe Gebühr",
+  "S_C_HIGHFEE_PCT": "%llu%% of the send",
   "S_C_MERGE": "verknüpfte Münzen",
   "S_C_REVIEW": "ANSEHEN",
   "S_C_SMALLCH": "Mini-Wechselgeld",

@@ -492,6 +492,7 @@
   "S_C_DUSTIN": "ataque de poeira",
   "S_C_GAPCH": "troco fora de alcance #%u",
   "S_C_HIGHFEE": "taxa alta",
+  "S_C_HIGHFEE_PCT": "%llu%% of the send",
   "S_C_MERGE": "moedas ligadas",
   "S_C_REVIEW": "REVER",
   "S_C_SMALLCH": "troco minúsculo",

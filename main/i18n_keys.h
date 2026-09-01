@@ -495,6 +495,7 @@ enum {
     STR_S_C_DUSTIN,
     STR_S_C_GAPCH,
     STR_S_C_HIGHFEE,
+    STR_S_C_HIGHFEE_PCT,
     STR_S_C_MERGE,
     STR_S_C_REVIEW,
     STR_S_C_SMALLCH,

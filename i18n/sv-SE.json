@@ -492,6 +492,7 @@
   "S_C_DUSTIN": "dammattack",
   "S_C_GAPCH": "växel utom räckhåll #%u",
   "S_C_HIGHFEE": "hög avgift",
+  "S_C_HIGHFEE_PCT": "%llu%% of the send",
   "S_C_MERGE": "länkade mynt",
   "S_C_REVIEW": "GRANSKA",
   "S_C_SMALLCH": "ytterst liten växel",

@@ -492,6 +492,7 @@
   "S_C_DUSTIN": "toz saldırısı",
   "S_C_GAPCH": "erişilemez para üstü #%u",
   "S_C_HIGHFEE": "yüksek ücret",
+  "S_C_HIGHFEE_PCT": "%llu%% of the send",
   "S_C_MERGE": "bağlanan coinler",
   "S_C_REVIEW": "İNCELE",
   "S_C_SMALLCH": "minik para üstü",

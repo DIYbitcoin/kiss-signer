@@ -492,6 +492,7 @@
   "S_C_DUSTIN": "prachový útok",
   "S_C_GAPCH": "drobné mimo dosah #%u",
   "S_C_HIGHFEE": "vysoký poplatek",
+  "S_C_HIGHFEE_PCT": "%llu%% of the send",
   "S_C_MERGE": "spojené mince",
   "S_C_REVIEW": "ZKONTROLOVAT",
   "S_C_SMALLCH": "velmi malé drobné",
