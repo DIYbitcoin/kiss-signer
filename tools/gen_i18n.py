@@ -170,6 +170,11 @@ UNTRANSLATED_OK = {
     # page taught the method and the caveat and never the good outcome. Born
     # under the English-only rule; English in the other twenty until the sweep.
     "W_RNG_FAIR_H", "W_RNG_FAIR_B",
+    # The SIGNED screen's own row: the lock's label, the subtitle, the file
+    # caption and the three steps that replaced the two-line note. Born under
+    # the English-only rule; English in the other twenty until the sweep.
+    "S_OUTS_FIXED", "S_DONE_SUB2", "S_FILE_CAP",
+    "S_STEP_TAKE", "S_STEP_OPEN", "S_STEP_CAST",
     # The SIGN term cards. Born under the English-only rule; English in the
     # other twenty until the sweep.
     "T_PSBT_CAP", "T_PSBT_VAL", "T_PSBT_PLAIN", "T_PSBT_TERM",

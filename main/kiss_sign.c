@@ -607,6 +607,18 @@ static lv_obj_t *sig_code_chip(lv_obj_t *row, const char *code)
     return c;
 }
 
+// "XXXX XXXX": the eight hex of the signature, uppercased and split in two,
+// which is how it gets read out loud and how it lines up against a second
+// signer's. One formatter, because the panel and both exit screens print it.
+static void sig_fp_code(char *out, size_t len)
+{
+    snprintf(out, len, "%c%c%c%c %c%c%c%c",
+             toupper((unsigned char)s_sig_fp[0]), toupper((unsigned char)s_sig_fp[1]),
+             toupper((unsigned char)s_sig_fp[2]), toupper((unsigned char)s_sig_fp[3]),
+             toupper((unsigned char)s_sig_fp[4]), toupper((unsigned char)s_sig_fp[5]),
+             toupper((unsigned char)s_sig_fp[6]), toupper((unsigned char)s_sig_fp[7]));
+}
+
 static void sig_fp_help_cb(lv_event_t *e)
 {
     (void)e;
@@ -621,11 +633,7 @@ static void sig_fp_help_cb(lv_event_t *e)
     // not a step for everyone), so this panel is where it lives now.
     if (s_sig_fp[0]) {
         char code[12];
-        snprintf(code, sizeof code, "%c%c%c%c %c%c%c%c",
-                 toupper((unsigned char)s_sig_fp[0]), toupper((unsigned char)s_sig_fp[1]),
-                 toupper((unsigned char)s_sig_fp[2]), toupper((unsigned char)s_sig_fp[3]),
-                 toupper((unsigned char)s_sig_fp[4]), toupper((unsigned char)s_sig_fp[5]),
-                 toupper((unsigned char)s_sig_fp[6]), toupper((unsigned char)s_sig_fp[7]));
+        sig_fp_code(code, sizeof code);
         lv_obj_t *own = mk_lbl(code, 0, 74, wt_font_mono23(), INK_COL);
         lv_obj_update_layout(own);
         lv_obj_set_x(own, (800 - lv_obj_get_width(own)) / 2);
@@ -680,6 +688,47 @@ static void sig_fp_open_cb(lv_event_t *e)
     sig_fp_help_cb(NULL);
 }
 
+// round_chip's diameter. Not exported by the kit, and the pair has to be
+// measured before it is drawn so a right aligned caller knows where to start.
+#define SIG_CHIP_D 30
+
+// The signature code and the "?" that opens its panel, as one pair.
+//
+// DECIDED: the code is a VALUE on the exit screens again, and it is accent.
+// beta7 moved it into the panel and left "SIGNATURE" as a caption with nothing
+// under it -- on the screens whose whole job is to hand back the one thing a
+// second signer can be checked against. The panel was the right home for the
+// TEACHING and was never the right home for the fact. The ring and the glyph
+// take the accent with the code: they are one thing, and a grey chip beside an
+// accent value read as two.
+static int sig_pair_w(const lv_font_t *f)
+{
+    if (!s_sig_fp[0]) return SIG_CHIP_D;       // caption and the "?", nothing to show
+    char code[12];
+    sig_fp_code(code, sizeof code);
+    lv_point_t sz;
+    lv_text_get_size(&sz, code, f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    return sz.x + 14 + SIG_CHIP_D;
+}
+
+static void sig_value_pair(lv_obj_t *par, int x, int y, bool from_qr,
+                           const lv_font_t *f)
+{
+    int cx = x;
+    if (s_sig_fp[0]) {
+        char code[12];
+        sig_fp_code(code, sizeof code);
+        lv_obj_t *v = wt_lbl(par, code, x, y, f, wt_accent());
+        lv_obj_add_flag(v, WT_FLAG_ACCENT);
+        lv_obj_update_layout(v);
+        cx = x + lv_obj_get_width(v) + 14;
+    }
+    // Centred on the value's line rather than sharing its top: the ring is
+    // 30px and a mono21 line is 26, so one y for both sat the chip a rung low.
+    wt_help_chip(par, cx, y + (lv_font_get_line_height(f) - SIG_CHIP_D) / 2,
+                 wt_accent(), sig_fp_open_cb, from_qr ? (void *)1 : NULL);
+}
+
 static void draw_sig_chip(int x, int y, bool from_qr)
 {
     if (!s_sig_fp[0]) return;
@@ -705,7 +754,10 @@ static void draw_sig_chip(int x, int y, bool from_qr)
 // make the answer harder to find, which is ADDENDUM-02 rule 3.
 static void done_summary(int y)
 {
-    const int H = 104;
+    // 148, up from 104. The two amounts are one fact and where the money went
+    // is another; stacked 8px apart on a 104px card they read as three lines
+    // of the same thing. A WT_DIV rule and its own row says which is which.
+    const int H = 148;
     lv_obj_t *c = wt_card(s_scr, 48, y, 704, H);
 
     // Recipient and fee side by side, because they are the two halves of the
@@ -716,7 +768,13 @@ static void done_summary(int y)
     };
     for (int i = 0; i < 2; i++) {
         char a[40], b[64];
-        wt_lbl(c, cells[i].icon, cells[i].x, 16, wt_font14(), MUT_COL);
+        // The marks take the accent now. The 48px tick that used to be the
+        // only accent on this screen is gone (see signed_title_row), so the
+        // colour is free -- and these are the same three marks, in the same
+        // order, the verify screen lit before the signature existed.
+        lv_obj_t *ic = wt_lbl(c, cells[i].icon, cells[i].x, 16, wt_font14(),
+                              wt_accent());
+        lv_obj_add_flag(ic, WT_FLAG_ACCENT);
         wt_lbl(c, tr(cells[i].str), cells[i].x + 26, 14, wt_font14(), MUT_COL);
         wt_fmt_amount(cells[i].sats, a, sizeof a);
         snprintf(b, sizeof b, "%s %s", a, wt_denom_unit());
@@ -747,22 +805,200 @@ static void done_summary(int y)
         if (s_sum.outs[i].is_change) { n_ours++; continue; }
         if (!n_recip++) only = i;
     }
+    wt_line_rule(c, 14, 92, 704 - 28);
     if (n_recip == 1) {
         // mono23. This is WHERE the money went, on the screen that confirms it
         // went -- an owner reads it against their coordinator, so it is not a
         // mark and font14 is not its size. The GPS glyph beside it IS a mark
         // and keeps font14.
-        wt_lbl(c, LV_SYMBOL_GPS, 14, 78, wt_font14(), MUT_COL);
+        lv_obj_t *pin = wt_lbl(c, LV_SYMBOL_GPS, 14, 116, wt_font14(),
+                               wt_accent());
+        lv_obj_add_flag(pin, WT_FLAG_ACCENT);
+        // wt_addr_short already lights the last eight characters in the
+        // accent, which is what this row is FOR -- the tail is what an owner
+        // reads against their coordinator. Nothing to wrap here.
         lv_obj_t *ad = wt_addr_short(c, s_sum.outs[only].addr, wt_font_mono23());
-        lv_obj_set_pos(ad, 40, 70);
+        lv_obj_set_pos(ad, 40, 108);
     } else if (n_recip > 1) {
         char b[80];
         snprintf(b, sizeof b, tr(STR_S_D_OUTPUTS_FMT),
                  (unsigned)s_sum.n_out, (unsigned)n_ours);
-        wt_lbl(c, LV_SYMBOL_LIST, 14, 76, wt_font14(), MUT_COL);
-        lv_obj_t *l = wt_lbl(c, b, 40, 76, wt_font14(), MUT_COL);
+        lv_obj_t *lm = wt_lbl(c, LV_SYMBOL_LIST, 14, 114, wt_font14(),
+                              wt_accent());
+        lv_obj_add_flag(lm, WT_FLAG_ACCENT);
+        // font23, matching the address this row stands in for. The single
+        // recipient branch above draws WHERE the money went at mono23 and this
+        // is the same fact counted, so at font14 the card said one of its two
+        // destinations facts in a mark's size. Sans, not mono: it is a
+        // translated string and the mono set has no CJK.
+        lv_obj_t *l = wt_lbl(c, b, 40, 110, wt_font23(), MUT_COL);
         lv_obj_set_width(l, 640);
         lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+    }
+}
+
+// The tick, the word, and the condition it was reached under, on one row.
+//
+// DECIDED: the montserrat48 tick at y=236 and the padlock beside it are GONE,
+// and the tick joins the title. SIGNED was claimed three times on this screen
+// -- the page title, that 48px checkmark, and a note under it -- while the two
+// facts an owner actually leaves with, which file and what to do next, had no
+// room. One claim, once, on the row that already carries the word. The lock
+// keeps its meaning beside it: where this can go is settled.
+static void signed_title_row(void)
+{
+    // Measured before anything is placed. The title has to be re-fitted to
+    // the lane the marks leave, and fitting it after the move would put the
+    // trailing pair wherever the old width happened to end.
+    lv_point_t ts, ks, os;
+    lv_text_get_size(&ts, LV_SYMBOL_OK, wt_font34(), 0, 0, LV_COORD_MAX,
+                     LV_TEXT_FLAG_NONE);
+    // The lock a rung UP from its caption. wt_chrome_head sets a page title at
+    // 28, and the LADDER gate's whole point is that a font14 glyph beside a
+    // line that big is a speck rather than a mark -- it reported this one four
+    // rungs under SIGNED. font23 is the shape the kit's own explainer rows use.
+    lv_text_get_size(&ks, WT_ICON_LOCK, wt_font23(), 0, 0, LV_COORD_MAX,
+                     LV_TEXT_FLAG_NONE);
+    lv_text_get_size(&os, tr(STR_S_OUTS_FIXED), wt_font14(), 0, 0,
+                     LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+
+    const int cx = 48 + ts.x + 14;                   // where the word starts
+    // The lane the WORD gets: what is left after the tick before it and the
+    // cursor, the lock and its label after it.
+    wt_title_fit(s_scr, 752 - cx - (12 + 10 + 14 + ks.x + 8 + os.x));
+
+    mk_lbl(LV_SYMBOL_OK, 48, 18, wt_font34(), OK_COL);
+    lv_obj_t *cap = wt_screen_title(s_scr);
+    if (!cap) return;
+    lv_obj_set_x(cap, cx);
+    lv_obj_update_layout(cap);
+
+    // The cursor came with the chrome head and was measured off the title's
+    // OLD x=48, so it is sitting in the middle of the word now. Moved, not
+    // dropped: it is the accent's one appearance on a page head and it belongs
+    // to the contract, and the frame this row came from did not know about it.
+    int after = cx + lv_obj_get_width(cap);
+    lv_obj_t *cur = wt_screen_cursor(s_scr);
+    if (cur) {
+        lv_obj_set_x(cur, after + 12);
+        // The STYLE width, not lv_obj_get_width: nothing has laid this screen
+        // out yet and obj->coords is still zero, which is the same read
+        // wt_title_cursor records getting wrong on its own x.
+        after += 12 + lv_obj_get_style_width(cur, LV_PART_MAIN);
+    }
+
+    // Centred on the title's line, not hung off its top: font14 beside font34
+    // sharing a y sits the pair up on the capitals with nothing under them.
+    const int ky = 18 + (lv_obj_get_height(cap) -
+                         lv_font_get_line_height(wt_font14())) / 2;
+    const int kx = after + 14;
+    lv_obj_t *lk = mk_lbl(WT_ICON_LOCK, kx,
+                          18 + (lv_obj_get_height(cap) -
+                                lv_font_get_line_height(wt_font23())) / 2,
+                          wt_font23(), wt_accent());
+    lv_obj_add_flag(lk, WT_FLAG_ACCENT);
+    mk_lbl(tr(STR_S_OUTS_FIXED), kx + ks.x + 8, ky, wt_font14(), MUT_COL);
+}
+
+// The file that was written and the code that proves it: two facts, one card.
+//
+// The filename used to be a centred font28 line with 110px of nothing under it
+// and the SIGNATURE caption floating below that. A caption on the left and its
+// value on the right is how every other fact on this device is drawn, and it
+// fits both of them in 96px.
+static void done_artifact(const char *outname, int y)
+{
+    const int W = 704, PAD = 18, R = W - PAD;
+    lv_obj_t *c = wt_card(s_scr, 48, y, W, 96);
+    wt_line_rule(c, PAD, 47, W - PAD * 2);
+
+    lv_obj_t *cap = wt_lbl(c, tr(STR_S_FILE_CAP), PAD, 14, wt_font14(), MUT_COL);
+    lv_obj_update_layout(cap);
+
+    // The guarded face, not mono21 flat: a card can carry a name this device
+    // did not write, and the mono set has no CJK -- a filename outside it
+    // would draw a row of placeholder boxes on the one screen a name is read
+    // back to a coordinator from.
+    //
+    // FOLDED to the lane the caption leaves, keeping the tail. The reader is
+    // checking WHICH file was written and a coordinator export shares its
+    // whole head with every other one it made; DOT gave
+    // "zzzz-MANY-recipients-export-from-the-c...". Bounded because signed_name
+    // clamps to 63 bytes and unbounded at font28 that was ~900px of text laid
+    // out on an 800px panel, running off BOTH edges.
+    const lv_font_t *nf = wt_chrome21(outname);
+    char fold[SD_NAME_LEN + 8];
+    wt_name_fold(outname, nf, R - (PAD + lv_obj_get_width(cap) + 20),
+                 fold, sizeof fold);
+    lv_obj_t *fn = wt_lbl(c, fold, 0, 10, nf, INK_COL);
+    lv_obj_update_layout(fn);
+    lv_obj_set_x(fn, R - lv_obj_get_width(fn));
+
+    wt_lbl(c, tr(STR_S_SIG_FP_CAP), PAD, 62, wt_font14(), MUT_COL);
+    const lv_font_t *cf = wt_font_mono21();
+    sig_value_pair(c, R - sig_pair_w(cf), 58, false, cf);
+}
+
+// Three steps, and only the first one happens here.
+//
+// DECIDED: the two-line note is gone. "put the card back in Sparrow, then
+// broadcast" was the whole point of the screen set in a 14px note, and it ran
+// three separate actions together in one sentence -- so a reader standing at
+// the device had to work out which of them was theirs to do NOW. Numbered and
+// split, with step 1 lit and the other two not, the strip says where this
+// device's part ends without spending a word on it.
+static void done_steps(void)
+{
+    static const int steps[3] = { STR_S_STEP_TAKE, STR_S_STEP_OPEN,
+                                  STR_S_STEP_CAST };
+    const lv_font_t *f = wt_font23();
+    const int lh = lv_font_get_line_height(f);
+    // Bottom anchored, not pinned to the frame's y=374. font23's line box is
+    // 29 in Latin and taller in CJK, and this strip is the last thing above
+    // the action band -- measured down from WT_CONTENT_BOTTOM it can never
+    // cross it, and in English it lands within a pixel of the frame.
+    const int ly = WT_CONTENT_BOTTOM - lh;
+    const int sy = ly + lh / 2 - 10;
+
+    // The gap is what the labels leave, not a constant: the English strip
+    // measures about 600 of the 704 lane and a longer locale would walk the
+    // third cell off the right edge. Shared out, it closes instead.
+    lv_point_t sz[3];
+    int wsum = 0;
+    for (int i = 0; i < 3; i++) {
+        lv_text_get_size(&sz[i], tr(steps[i]), f, 0, 0, LV_COORD_MAX,
+                         LV_TEXT_FLAG_NONE);
+        wsum += sz[i].x;
+    }
+    int gap = (704 - 3 * 30 - wsum) / 2;
+    if (gap < 10) gap = 10;
+    if (gap > 26) gap = 26;
+
+    int x = 48;
+    for (int i = 0; i < 3; i++) {
+        const bool lit = (i == 0);
+        lv_obj_t *sq = lv_obj_create(s_scr);
+        lv_obj_remove_style_all(sq);
+        lv_obj_set_pos(sq, x, sy);
+        lv_obj_set_size(sq, 20, 20);
+        lv_obj_remove_flag(sq, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_remove_flag(sq, LV_OBJ_FLAG_SCROLLABLE);
+        if (lit) {
+            lv_obj_set_style_bg_color(sq, wt_accent(), 0);
+            lv_obj_set_style_bg_opa(sq, LV_OPA_COVER, 0);
+            lv_obj_add_flag(sq, WT_FLAG_ACCENT_FILL);
+        } else {
+            lv_obj_set_style_border_width(sq, 1, 0);
+            lv_obj_set_style_border_color(sq, WT_EDGE, 0);
+        }
+        lv_obj_t *n = lv_label_create(sq);
+        lv_label_set_text_fmt(n, "%d", i + 1);
+        lv_obj_set_style_text_font(n, wt_font_mono14(), 0);
+        lv_obj_set_style_text_color(n, lit ? WT_BG : MUT_COL, 0);
+        lv_obj_center(n);
+
+        mk_lbl(tr(steps[i]), x + 30, ly, f, lit ? INK_COL : MUT_COL);
+        x += 30 + sz[i].x + gap;
     }
 }
 
@@ -772,12 +1008,11 @@ static void done_screen(const char *outname)
     lv_obj_delete(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
     s_inert[0] = NULL; s_page_lbl = NULL;
-    // Two lines, drawn here rather than by wt_screen: "return this card to
-    // Sparrow, load the -signed.psbt file, then broadcast" is the whole point
-    // of the screen and does not fit one line at a readable size. Nothing is
-    // above the checkmark at y=150, so the second line costs nothing.
-    mk_screen(parent, tr(STR_S_SIGNED_T), NULL);
-    wt_note(s_scr, tr(STR_S_DONE_SD_SUB), 48, 66, 704, 48);
+    // The subtitle says what the signature COVERS, which is the one thing the
+    // screen could not say before: S_DONE_SD_SUB's three instructions moved
+    // into the steps strip at the foot, where they are three things again.
+    mk_screen(parent, tr(STR_S_SIGNED_T), tr(STR_S_DONE_SUB2));
+    signed_title_row();
 
     // ---- what was signed ------------------------------------------------
     //
@@ -790,46 +1025,10 @@ static void done_screen(const char *outname)
     // Every string here already shipped. The amounts are wt_denom_bind, so a
     // tap still flips the whole device between sats and BTC on this screen too.
     // The address is the same fold RECEIVE and the verify screen draw.
-    done_summary(120);
+    done_summary(100);
+    done_artifact(outname, 262);
+    done_steps();
 
-    lv_obj_t *big = mk_lbl(LV_SYMBOL_OK, 0, 236, &lv_font_montserrat_48, OK_COL);
-    lv_obj_align(big, LV_ALIGN_TOP_MID, 0, 236);
-    // The padlock comes with it. It went up over the output column the moment
-    // the finger went down, meaning "the destinations are settled", and then
-    // left with the screen at the one moment that was most true. Two marks,
-    // two claims: the lock says where this can go is fixed, the tick says a
-    // signature now exists over it. Beside rather than under, at the smaller
-    // rung, because the tick is the answer and this is the condition it was
-    // reached under.
-    lv_obj_t *lk = mk_lbl(WT_ICON_LOCK, 0, 248, wt_font28(), MUT_COL);
-    lv_obj_align_to(lk, big, LV_ALIGN_OUT_LEFT_MID, -18, 0);
-    // Bounded, because signed_name clamps to 63 bytes and nothing here did.
-    // At font28 that is roughly 900px of text laid out on an 800px panel with
-    // no width and no long mode set, so a long name ran off BOTH edges of the
-    // one screen an owner reads a filename back to a coordinator from -- and
-    // took its own first and last characters with it, which are the two an
-    // eye actually uses to match a name against a card.
-    //
-    // DOT, not a smaller font. wt_note_fit and its siblings would have shrunk
-    // this to font14 and reported nothing, which is the failure mode the house
-    // rules name: a fit helper landing on font14 means the string is too long
-    // for the space, and a filename is not copy that can be cut.
-    // FOLDED to the lane, keeping the tail: the reader is checking WHICH file
-    // was written, and a coordinator export shares its whole head with every
-    // other one it made. DOT gave "zzzz-MANY-recipients-export-from-the-c...".
-    char fold[SD_NAME_LEN + 8];
-    wt_name_fold(outname, wt_font28(), 704, fold, sizeof fold);
-    lv_obj_t *fn = mk_lbl(fold, 48, 300, wt_font28(), INK_COL);
-    // Width AND height. DOT on a content-sized label wraps first and dots only
-    // once it runs out of lines, so bounding the width alone turned the name
-    // into two centred lines that ran straight through the SIGNATURE chip 36px
-    // below -- a different way of being unreadable, and one that also took the
-    // chip with it. One line is the whole budget here.
-    lv_obj_set_size(fn, 704, lv_font_get_line_height(wt_font28()));
-    lv_label_set_long_mode(fn, LV_LABEL_LONG_DOT);
-    lv_obj_set_style_text_align(fn, LV_TEXT_ALIGN_CENTER, 0);
-    // The signature fingerprint, centred under the filename, with its ? panel.
-    draw_sig_chip(296, 336, false);
     // S_SAVED_NOTE went with the space it was filling. "saved to the card" sat
     // under a filename ending in .psbt, on a screen whose subtitle already says
     // to take the card back -- the copy rule about restating a value sitting

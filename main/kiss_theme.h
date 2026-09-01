@@ -1060,6 +1060,12 @@ lv_obj_t *wt_help_mark(lv_obj_t *par, int x, int y);
 // handoff asks for the delete, and a delete that duplicates the framework is
 // dead code that reads like a safety net.
 lv_obj_t *wt_title_cursor(lv_obj_t *scr);
+// The cursor a wt_chrome_head already built, for a screen that then moves the
+// title out from under it -- the SIGNED page puts a tick before the word, so
+// the block measured off x=48 lands in the middle of it. Same tagged lookup
+// wt_screen_title uses, and for the same reason: the cursor is not at a child
+// index anything may rely on.
+lv_obj_t *wt_screen_cursor(lv_obj_t *scr);
 
 // The bracketed tab row's shared geometry (wt_tabs_flex draws it now; the
 // fixed-pitch wt_brackets strip it replaced is gone).

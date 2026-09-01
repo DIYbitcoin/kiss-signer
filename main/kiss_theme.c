@@ -30,6 +30,11 @@ static const char WT_HELPTAB_TAG[] = "wt_help_tab";
 // counting children -- the sign screen turns SLIDE TO SIGN into SIGNING.
 static const char WT_SLIDELBL_TAG[] = "wt_slide_label";
 static const char WT_TITLE_TAG[]  = "wt_title";
+// The blinking block after the title, tagged for the same reason the title is:
+// a screen that puts something ELSE on the title row moves the title, and the
+// cursor was measured off the title's old x. Reaching for it by child index
+// is the mistake kiss_theme.h's note on wt_screen_title already records.
+static const char WT_CURSOR_TAG[] = "wt_cursor";
 static const char WT_SUB_TAG[]    = "wt_subtitle";
 
 // The screen system's glyph guard and its guarded faces (defined with the
@@ -811,6 +816,11 @@ lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub)
 lv_obj_t *wt_screen_title(lv_obj_t *scr)
 {
     return wt_tagged(scr, WT_TITLE_TAG);
+}
+
+lv_obj_t *wt_screen_cursor(lv_obj_t *scr)
+{
+    return wt_tagged(scr, WT_CURSOR_TAG);
 }
 
 void wt_title_fit(lv_obj_t *scr, int w)
@@ -3063,6 +3073,7 @@ lv_obj_t *wt_title_cursor(lv_obj_t *scr)
                      LV_COORD_MAX, LV_TEXT_FLAG_NONE);
     lv_obj_t *cur = lv_obj_create(scr);
     lv_obj_remove_style_all(cur);
+    lv_obj_set_user_data(cur, (void *)WT_CURSOR_TAG);
     lv_obj_set_size(cur, 10, 22);
     // Centred on the title's cap height rather than its box: a font34 line box
     // carries descender room no capital reaches into, so centring on the box

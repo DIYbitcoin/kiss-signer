@@ -3443,13 +3443,16 @@ int main(void) {
   // then cascades through every BACK after it.
   pump(110);                                        // past REVEAL_MS: writes SD
   save("/tmp/sim_sign_done.ppm");
-  // The chip is pinned at a fixed x now (kiss_sign.c draw_sig_chip): chip
-  // first, translated caption trailing, so this tap holds in all 21 locales.
-  // It moved down with everything else when the summary card took the band at
-  // 120: draw_sig_chip(296, 336) puts its centre here.
-  // The code itself moved INTO the panel this opens -- the next frame must
-  // show it above the two example rows.
-  touch(311, 351); pump(3); release(); pump(6);     // ? beside SIGNATURE -> panel
+  // By the glyph, not by pixel. The chip is right aligned against the artifact
+  // card's edge now, so its x is whatever the code's width leaves -- a number
+  // that changes with the font the locale picked. The failure mode of getting
+  // this wrong is the quiet one: the tap misses, every later save() photographs
+  // the screen it was already on, and the sweep comes back clean.
+  //
+  // The code is on the screen AND in the panel now. The panel keeps it because
+  // it is where the comparison is taught; the next frame must show it above
+  // the two example rows.
+  tap_label_exact("?");                             // ? beside SIGNATURE -> panel
   save("/tmp/sim_sign_sigcheck.ppm");
   tap_str(STR_C_BACK, 3, 6);     // BACK -> signed screen again
   tap_str(STR_C_DONE, 3, 6);     // DONE -> home
