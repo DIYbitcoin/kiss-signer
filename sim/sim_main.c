@@ -4043,6 +4043,18 @@ int main(void) {
   save("/tmp/sim_qr_sigcheck.ppm");
   tap_str(STR_C_BACK, 3, 8);                        // BACK -> the QR screen again
   must_show("qr screen after the signature panel", tr(STR_S_EASY_SCAN));
+  // EASY SCAN was ON when the panel was opened and must still be on. The
+  // rebuild used to reset it, silently, on the one screen where the control
+  // exists because a phone could not read the fast loop -- and a frame alone
+  // cannot say so, because a toggle that came back off looks exactly like a
+  // toggle nobody pressed. The word carries WT_FLAG_ACCENT when it is on.
+  {
+    lv_obj_t *w = find_label_obj_exact(lv_screen_active(), tr(STR_S_EASY_SCAN));
+    if (!w || !lv_obj_has_flag(w, WT_FLAG_ACCENT)) {
+      printf("FAIL: EASY SCAN came back OFF from the signature panel\n");
+      g_walk_fails++;
+    }
+  }
   save("/tmp/sim_qr_out_back.ppm");
   tap_str(STR_C_DONE, 3, 6);     // DONE -> home
   save("/tmp/sim_qr_end.ppm");

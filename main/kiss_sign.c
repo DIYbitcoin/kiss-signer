@@ -177,7 +177,9 @@ static lv_obj_t *s_ez_act;
 static char s_sig_fp[9];               // fingerprint of the just-signed PSBT (8 hex)
 static char s_done_name[SD_NAME_LEN + 8]; // saved outname, so the ? panel can rebuild
 
-static void qr_out_screen(size_t sw);
+// `rebuild` is the way BACK from the signature panel: the same bytes, the same
+// screen, built again. What the OWNER set on it comes back with it.
+static void qr_out_screen(size_t sw, bool rebuild);
 static void mo_stop(void);            // the arrival motion, torn down with SIGN
 static size_t s_qr_sw;            // signed length, kept so help can rebuild the QR screen
 static bool s_help_from_qr;       // which signed screen the SIGNATURE panel returns to
@@ -593,7 +595,7 @@ static void done_screen(const char *outname);
 static void sig_help_back_cb(lv_event_t *e)
 {
     (void)e;
-    if (s_help_from_qr) qr_out_screen(s_qr_sw);
+    if (s_help_from_qr) qr_out_screen(s_qr_sw, true);
     else                done_screen(s_done_name);
 }
 
@@ -1659,7 +1661,7 @@ static void finish_sign_cb(lv_timer_t *t)
     const size_t sw = s_signed_len;
     if (s_src == SRC_QR) {                       // came by QR: goes back by QR
         s_qr_sw = sw;
-        qr_out_screen(sw);
+        qr_out_screen(sw, false);
         mo_start(lv_obj_get_parent(s_scr), sw);
         return;
     }
@@ -3985,14 +3987,25 @@ static void qr_ez_cb(lv_event_t *e)
     qr_tick(NULL);
 }
 
-static void qr_out_screen(size_t sw)
+static void qr_out_screen(size_t sw, bool rebuild)
 {
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
     lv_obj_delete(s_scr); s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
     s_inert[0] = NULL; s_page_lbl = NULL;
 
-    s_qr_ez = false;
+    // EASY SCAN survives the round trip through the signature panel. It did
+    // not: this reset ran on every build of the screen, and the only other
+    // caller is the BACK out of the "?" -- so an owner whose phone could not
+    // catch the loop turned the control on, opened the explainer to find out
+    // what the code was for, came back, and the control was off again with
+    // nothing on the glass saying why or that anything had happened.
+    //
+    // The part COUNTER still starts over, and that is not the same bug: the
+    // encoder is rebuilt here, so the next frame really is part one. A counter
+    // carried across a fresh encoder would print a number the square on screen
+    // does not match, on the page a transaction leaves by.
+    if (!rebuild) s_qr_ez = false;
     s_out_len = sw;
     if (qr_enc_start() != 0) {
         mk_chrome(parent, tr(STR_S_FAIL_T));
@@ -4073,7 +4086,11 @@ static void qr_out_screen(size_t sw)
     // at full width and full size.
     if (n > 1) {
         wt_note(s_scr, tr(STR_S_QR_LOOP), 430, 210, 322, 29);
-        s_qr_tmr = lv_timer_create(qr_tick, 250, NULL);
+        // The same two periods qr_ez_cb uses. Hardcoded 250 here was harmless
+        // while the control could only be off at build time; it is the second
+        // half of carrying it across, and without it EASY SCAN would come back
+        // ticked with the fast loop it exists to slow down.
+        s_qr_tmr = lv_timer_create(qr_tick, s_qr_ez ? 600 : 250, NULL);
     }
     wt_standing(s_scr, tr(STR_S_NO_NETWORK), WT_OK, false);
     s_ez_act = wt_word_action(s_scr, LV_SYMBOL_OK, tr(STR_S_EASY_SCAN), true,
