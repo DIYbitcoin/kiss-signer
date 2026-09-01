@@ -60,6 +60,27 @@ jobs:
           fi
           echo "clean"
 
+      # The trailer half again, in prose. Two commits describing the REMOVAL of
+      # a directory named after a tool named it five times between them, and
+      # every check in this lane passed: they all looked for trailers. The rule
+      # is that the actor is never the subject, and a path is a subject. The
+      # commit-msg hook refuses these before they are written; this is the
+      # backstop for a clone that never ran tools/install_hooks.sh.
+      - name: commit messages name no tool in prose
+        run: |
+          set -u
+          BAD=$(git log $RANGE --format='%H%n%B%n--%n' 2>/dev/null \
+                | grep -inE -e '(superpowers|copilot|cursor|chatgpt|aider|devin)' \
+                            -e '\bclaude\b|\banthropic\b' -e '\.claude/' \
+                            -e '\bagentic\b|\bsub-?agent\b' \
+                | grep -viE 'claude\.md' || :)
+          if [ -n "$BAD" ]; then
+            echo "::error::a commit message names a tool in prose. CLAUDE.md: the actor is never the subject."
+            echo "$BAD"
+            exit 1
+          fi
+          echo "clean"
+
       # The trailer was only ever the obvious half. CLAUDE.md says the rule is
       # that the ACTOR IS NEVER THE SUBJECT, and prose survived the first two
       # sweeps -- so did a PATH: docs/superpowers/ held ten tracked plan files
