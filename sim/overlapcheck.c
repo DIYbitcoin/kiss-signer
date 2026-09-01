@@ -1004,11 +1004,14 @@ static int oc_content_coverage(void)
 // screen number seventeen from ever being written. Shrink only -- delete the
 // line when the screen is rebuilt, and the run prints how many are left.
 //
-// Two kinds are on it and they leave by different doors.
+// Two kinds went on it and they left by different doors.
 //
-// The TERM TAKEOVERS are the ones this check was written for, and
-// design_handoff_explainers rebuilds them: a title, a round badge, two lines
-// and 260px of nothing. sim_sign_term_sighash is the clearest.
+// The TERM TAKEOVERS are the ones this check was written for -- a title, a
+// round badge, two lines and 260px of nothing -- and they are GONE. Both took
+// a value card carrying the claim their sentence never got to: what sighash
+// ALL prevents once you sign, and who sees a merge and for how long. 36% and
+// 32% of the lane became 58% and 54%. Neither needed a new shape, only the
+// `cap`/`val` band wt_explain_open has always drawn.
 //
 // The rest say ONE thing and mean the space: an erase that finished, a card
 // that could not be read, a backup whose version is wrong. Their weight is the
@@ -1016,9 +1019,6 @@ static int oc_content_coverage(void)
 // seriously. They are here rather than exempted because "deliberately sparse"
 // is a judgement, and a judgement in a gate is a carve-out that grows.
 static const char *OC_VOID_BACKLOG[] = {
-    // the term takeovers -- Part 4 deletes these
-    "sim_sign_term_sighash",
-    "sim_sign_merge_why",
     // one thing, said loudly, with the room to mean it
     "sim_amnesic_qrbad",
     "sim_duress_pick",

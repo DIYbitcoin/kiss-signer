@@ -1247,6 +1247,21 @@ static void caution_help_cb(lv_event_t *e)
         .icons  = icons,
         .icons_count = (size_t)ni,
     };
+    // ONE reason means the card is ABOUT it, and a single grid line under a
+    // title left 250px of nothing -- VOID, and the second of the two screens
+    // that check was written for. The claim goes in a value card above the
+    // line: the line carries the mechanism and the count, this carries what
+    // the payment hands out, which is the thing being asked to be accepted.
+    //
+    // Merge only, and a second reason here is a second `if` rather than a
+    // table -- five claims in an array with four of them NULL reads as a
+    // design instead of as the one card that needed it. The others arrive
+    // with their own figure already on the screen behind: a fee rate, a
+    // change amount, an address index.
+    if (ni == 1 && (f & WPSBT_C_MERGE_INS)) {
+        x.cap = tr(STR_S_WHY_MERGE_CAP);
+        x.val = tr(STR_S_WHY_MERGE_VAL);
+    }
     wt_explain_open(s_scr, &x);
 }
 
@@ -2776,6 +2791,7 @@ static void det_term_cb(lv_event_t *e)
     static char term[64];
     static char vbuf[24];
     const char *body = NULL, *icon = NULL, *tterm = NULL, *val = NULL;
+    const char *cap = NULL;
     wpsbt_details_t det;
     const bool have = (kiss_psbt_details(&det) == 0);
 
@@ -2816,6 +2832,14 @@ static void det_term_cb(lv_event_t *e)
     case DT_SIGHASH:
         body = wt_split_colon(tr(STR_S_D_SIGHASH), head, sizeof head);
         icon = LV_SYMBOL_OK;
+        // ...and what that BUYS the reader, framed, because the card was a
+        // title over two lines of grey and 250px of nothing -- the shape the
+        // VOID check was written to find, on the least known term the strip
+        // carries. The body says what the signature covers; this says what
+        // covering it prevents, which is the part an owner is here for and
+        // the one thing the sentence never got to.
+        cap = tr(STR_S_D_SH_CAP);
+        val = tr(STR_S_D_SH_VAL);
         break;
     case DT_RBF:
         body = wt_split_colon(s_sum.rbf ? tr(STR_S_D_RBF_ON)
@@ -2831,6 +2855,7 @@ static void det_term_cb(lv_event_t *e)
     wt_explain_t x = {
         .title      = head,
         .icon       = icon,
+        .cap        = cap,
         .val        = val,
         .body       = body ? body : "",
         .term       = tterm,

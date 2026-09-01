@@ -165,6 +165,10 @@ UNTRANSLATED_OK = {
     # ownership mismatch and the wrong network. Born under the English-only
     # rule; English in the other twenty until the sweep.
     "S_STOP_ASKS", "S_STOP_FP_B", "S_STOP_NOFP_B", "S_STOP_NET_B",
+    # The claim each of the two sparse SIGN explainers was missing: what
+    # sighash ALL buys you, and what a merge hands out. Born under the
+    # English-only rule; English in the other twenty until the sweep.
+    "S_D_SH_CAP", "S_D_SH_VAL", "S_WHY_MERGE_CAP", "S_WHY_MERGE_VAL",
     # The SIGN term cards. Born under the English-only rule; English in the
     # other twenty until the sweep.
     "T_PSBT_CAP", "T_PSBT_VAL", "T_PSBT_PLAIN", "T_PSBT_TERM",
