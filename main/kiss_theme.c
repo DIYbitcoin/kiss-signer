@@ -2358,7 +2358,14 @@ lv_obj_t *wt_row_x(lv_obj_t *scr, const char *icon, const char *label,
 {
     // A NULL sf means two different things depending on the height, so the
     // answer has to be taken before the default lands on it: on a standard row
-    // it is font14, on a tall one it is "measure the box and pick".
+    // it is font23, on a tall one it is "measure the box and pick".
+    //
+    // It said font14 until now, and that was the carve-out CLAUDE.md removed:
+    // a sub-line is a SENTENCE -- "not real bitcoin", "opens your real keys"
+    // -- and every teaching line on the settings page is one, so exempting
+    // sub-lines exempted that page's entire body copy. The default moved and
+    // the comment did not, which is enough to send the next reader looking for
+    // a font14 slot that has not existed for some time. One did.
     const bool sf_auto = (sf == NULL);
     const int rowh = h > 0 ? h : WT_ROW_H;
     if (!sf) sf = wt_font23();
