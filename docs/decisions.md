@@ -10,7 +10,7 @@ construction.
 route to the comment that answers it, which is how seven findings were filed
 and withdrawn in one review pass.
 
-20 decisions.
+21 decisions.
 
 ## `main/kiss_duress_ui.c`
 
@@ -56,19 +56,25 @@ It was on the band from every pane, including the [ ? ] explainer, on the argume
 
 The first tab carrying one, in strip order, so the chip lands on the leftmost mark and the owner works rightwards. It used to be hard coded to BACKUP on the strength of a comment saying both counted conditions lived there; that stopped being true the moment duress joined the count, and a chip that jumps past a lit dot is worse than one that does not move.
 
-[`main/kiss_settings.c:1743`](../main/kiss_settings.c#L1743)
+[`main/kiss_settings.c:1747`](../main/kiss_settings.c#L1747)
+
+### the SECOND door onto AUDIT, and the row is duplicated rather than moved
+
+The tab was two rows of STATE on purpose and the third one it lost was a DEFINITION that did nothing when pressed -- this one is neither. "How were these made" is a question about the SEED, and the seed is on this tab; the same row stays on SECURITY, where somebody asking whether to trust the device goes. The screens behind it -- HOW YOUR KEYS WERE MADE and RANDOMNESS AUDIT -- are the best teaching pair on the device and an outside reader could not find either. They guessed this tab, which is the evidence for putting a door here.
+
+[`main/kiss_settings.c:1995`](../main/kiss_settings.c#L1995)
 
 ### these tabs keep their NOUNS and are not renamed after the jobs they hold
 
 The proposal was HOW IT SIGNS / WHAT IT KEEPS / HOW IT PROVES / WHAT IT IS, and it does not fit: the five-up strip is 620px, the shipped labels measure 612 of it, and those four plus NO UNDO measure 920. Three hundred pixels over is not a layout to tune. The only form that fits is single verbs -- SIGNS / KEEPS / PROVES / IS, 500px -- and "IS" is not a word to put on a tab an owner is looking for something in. Verbs without subjects read worse than the nouns they would replace, for a reader who bought their first signing device last week. The miscategorisation the proposal was built on is also gone: it argued that storage sat on SECURITY while recovery words sat on BACKUP, so checking a backup crossed two tabs. STORAGE is on BACKUP beside SEED WORDS, which is one job on one tab.
 
-[`main/kiss_settings.c:2218`](../main/kiss_settings.c#L2218)
+[`main/kiss_settings.c:2229`](../main/kiss_settings.c#L2229)
 
 ### language and theme live on the BAND, moved there out of the DEVICE tab
 
 The band's centre: LANGUAGE and THEME, out of the DEVICE tab. The language control needs no caption -- its label IS the active language's own name, stripped of the regional qualifier ("ESPANOL (ESPANA)" -> "ESPANOL") because the picker's flag carries the variant. A WORD ACTION with a GLOBE, not an arrow action. It was a forward arrow, which is the mark the SCREEN'S OWN action wears -- so the one control on the band that picks between 21 languages was signed exactly like a "go on", and came back from the bench as "should have some icon better than an arrow, no?". A globe says what the control is before its word is read, in every one of those 21 languages at once.
 
-[`main/kiss_settings.c:2279`](../main/kiss_settings.c#L2279)
+[`main/kiss_settings.c:2290`](../main/kiss_settings.c#L2290)
 
 ## `main/kiss_setup.c`
 
@@ -102,19 +108,19 @@ This is the one place the "no screen without an exit" rule is deliberately not a
 
 Both bits set draws the dust row only, and caution_all_bits reads back through here, so the gate asks for the rows the owner can see and stays consistent. Splitting them was considered and dropped. It takes the stack to six on a page built for five (SG_ROW_MAX, and the ceiling argument above), and it buys a second row saying "tiny change" beside a row already saying "dust change" -- the same sentence about the same fault, for a two change output transaction almost no coordinator builds. What is lost is real and it is one line of a soft privacy caution, not a claim about where the money goes.
 
-[`main/kiss_sign.c:1546`](../main/kiss_sign.c#L1546)
+[`main/kiss_sign.c:1561`](../main/kiss_sign.c#L1561)
 
 ### the sign review band does NOT name the transaction's file; that line was cut rather than fixed
 
 NO FILENAME HERE, and no "camera" either. Both were cut rather than fixed. The reader tapped that name on the file list one screen back, or watched the camera assemble the transaction, so the line restated what they had just done -- which is the copy rule's own example of a string to cut. And a filename is the COORDINATOR'S bookkeeping, not a fact about the payment: what says this is the right transaction is the amount and the destination, and both are on this screen at full size. A name in the corner never checked anything. What it cost to keep was the whole band. The line ran under the title beside the signed badge, the network chip and the fingerprint, and it was the only unlabelled string among them. It also carried two defects for as long as it existed: set in the smallest face on the device, and, once that was corrected, handing a translated phrase to a filename tail-fold so a scanned transaction read "scan...ansaction" on the screen where a payment is approved. fx survives because the badge and the chip above measure their lane against it: they may not run back under the title.
 
-[`main/kiss_sign.c:1824`](../main/kiss_sign.c#L1824)
+[`main/kiss_sign.c:1839`](../main/kiss_sign.c#L1839)
 
 ### this toggle's mark stays VISIBLE when it is off, dimmed rather than transparent
 
 The two-state word action hides its mark elsewhere and that is right where a PAIR of them sits side by side -- the dice screen -- because the pair is the affordance. This one stands alone in a left aligned column, and hidden-but-still-occupying-space gave it no affordance at all AND pushed its word 33px inside the column's edge, so it read as a centred heading rather than a control. An inert mark says both things at once: there is a switch here, and it is not on.
 
-[`main/kiss_sign.c:3221`](../main/kiss_sign.c#L3221)
+[`main/kiss_sign.c:3246`](../main/kiss_sign.c#L3246)
 
 ## `main/kiss_theme.c`
 
@@ -122,13 +128,13 @@ The two-state word action hides its mark elsewhere and that is right where a PAI
 
 THE FLOOR IS 21, NOT 14, which is the same floor wt_body_para has and for the same reason: font14 is for MARKS -- chip labels, unit suffixes, chevrons -- and every string in this grid is a SENTENCE an owner reads before signing. WHY FLAGGED is the case that proves it: five caution rows explaining why a payment was flagged, all of them at the size this device keeps for punctuation. mono21 only where the copy CAN be mono, which is what the body ladder asks too. Where it cannot, the rung stays 23 and the overflow is reported rather than shrunk away -- copy too long for its box is copy to cut, and a silent drop is what hid this for the grid's whole life.
 
-[`main/kiss_theme.c:6327`](../main/kiss_theme.c#L6327)
+[`main/kiss_theme.c:6349`](../main/kiss_theme.c#L6349)
 
 ## `main/kiss_theme.h`
 
 ### the destructive group is a TAB with its own tint and cross-fade, not a row buried on another page
 
-[`main/kiss_theme.h:868`](../main/kiss_theme.h#L868)
+[`main/kiss_theme.h:873`](../main/kiss_theme.h#L873)
 
 ## `main/main.c`
 
