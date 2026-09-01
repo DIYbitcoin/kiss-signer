@@ -56,6 +56,14 @@ jobs:
       # a line wide, and draws it IDENTICALLY in the simulator, so no frame, no
       # walk and no overlap check has ever had an opinion about it. It is caught
       # on glass or it is not caught.
+      # The gate for the gates. Two checkers sat in tools/ that no workflow, no
+      # script and no line of CLAUDE.md invoked -- not failing, absent, which
+      # looks exactly like green. This asks whether each one is RUN, not
+      # whether it is listed.
+      - name: every checker in tools/ is run by something
+        run: |
+          GATECHECK_SELFTEST=1 python3 tools/check_gates.py
+
       - name: every icon the firmware names is in the fonts
         run: |
           GLYPHCHECK_SELFTEST=1 python3 tools/check_glyphs.py

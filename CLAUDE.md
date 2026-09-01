@@ -322,6 +322,7 @@ python3 tools/check_i18n_orphans.py                # keys nothing references
 python3 tools/check_vocab.py                       # the words on screen vs the glossary
 GLYPHCHECK_SELFTEST=1 python3 tools/check_glyphs.py  # an icon with no glyph in the fonts
 python3 tools/check_mono_glyphs.py                 # the same, for the mono faces
+GATECHECK_SELFTEST=1 python3 tools/check_gates.py  # a checker nothing runs
 python3 tools/check_layout_reads.py                # a measurement taken before a layout
 python3 tools/check_sim_fresh.py                   # the published wasm vs the tree
 python3 tools/check_docs_fresh.py                  # how far the pictures trail the screens
@@ -373,7 +374,11 @@ simulator, so no frame, no walk and no overlap check has ever had an opinion
 about it. Four other checkers are absent from this list and that is fine --
 `check_cur_link.py` runs inside `sim/build_test.sh`, `check_flash_budget.py` and
 `check_fw_version.py` inside the release scripts, `check_sim_taps.py` in CI. The
-test is not "is it listed", it is "does anything run it".
+test is not "is it listed", it is "does anything run it" -- and
+`check_gates.py` is that question, asked mechanically, so this cannot be found
+by hand a third time. It counts CLAUDE.md as a runner on purpose: a command a
+person is told to run IS run, and that is the whole lane for the gates the
+owner drives by hand between commits.
 
 ### More than one of you at a time
 
