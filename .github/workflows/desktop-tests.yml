@@ -64,11 +64,6 @@ jobs:
         run: |
           GATECHECK_SELFTEST=1 python3 tools/check_gates.py
 
-      - name: every icon the firmware names is in the fonts
-        run: |
-          GLYPHCHECK_SELFTEST=1 python3 tools/check_glyphs.py
-          python3 tools/check_mono_glyphs.py
-
       - name: crypto tests (BIP39 vector + PSBT suite)
         run: |
           bash sim/build_test.sh
@@ -118,6 +113,19 @@ jobs:
           echo "dependencies.lock pins lvgl/lvgl $LV"
           git clone -q -c advice.detachedHead=false --depth 1 --branch "v$LV" \
             https://github.com/lvgl/lvgl.git managed_components/lvgl__lvgl
+
+      # AFTER the fetch, and that is the whole reason it sits here rather than
+      # up with the other python checks: check_glyphs.py reads LVGL's own
+      # lv_symbol_def.h out of managed_components, which is gitignored and does
+      # not exist until the clone above. Wired in above it, the gate died
+      # FileNotFoundError on its first run, every later step without
+      # `if: always()` was SKIPPED -- the fetch among them -- and the four that
+      # do carry it failed on the LVGL nothing had cloned. Six red steps and
+      # one cause, none of them the step that broke.
+      - name: every icon the firmware names is in the fonts
+        run: |
+          GLYPHCHECK_SELFTEST=1 python3 tools/check_glyphs.py
+          python3 tools/check_mono_glyphs.py
 
       # ENGLISH ONLY while the UI is being rebuilt, for the reason CLAUDE.md
       # gives and with the cost it names. Every screen that gets rebuilt
