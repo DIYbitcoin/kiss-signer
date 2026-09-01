@@ -651,6 +651,7 @@ void kiss_payee_forget_session(void) {}
 void kiss_payee_batch_begin(void) {}
 void kiss_payee_batch_end(void) {}
 
+static uint32_t s_sim_locktime;   // what the last load said, for the details stub
 int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
   memset(s, 0, sizeof *s);
   s->testnet = s_sim_testnet != 0;
@@ -782,6 +783,7 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
   }
   s_sim_n_in = s->n_in;
   s_sim_in_sats = s->in_sats;
+  s_sim_locktime = s->locktime;
   return 0;
 }
 int kiss_psbt_details(wpsbt_details_t *d) {
@@ -804,7 +806,10 @@ int kiss_psbt_details(wpsbt_details_t *d) {
   //
   // S_D_MANYIN_FMT needs n_total > n_in, which no fixture reaches yet; the
   // twenty-input one arrives with the elision and restores it.
-  d->version = 2; d->locktime = 0; d->txid_final = true;
+  // Carried from the loaded summary, not fixed at zero: the badge on the verify
+  // screen and the DETAILS deck's own row are the same fact, and a stub that
+  // disagreed with itself put "locktime 0" one tap under "BLOCK 5127853".
+  d->version = 2; d->locktime = s_sim_locktime; d->txid_final = true;
   d->n_total = s_sim_n_in ? s_sim_n_in : 1;
   d->n_in = d->n_total > WPSBT_MAX_INS ? WPSBT_MAX_INS : d->n_total;
   snprintf(d->txid, sizeof d->txid, "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08");
@@ -3689,6 +3694,15 @@ int main(void) {
   touch(328, 282); pump(3); release(); pump(8);     // zzzz-MANY (row 2) -> verify
   save("/tmp/sim_sign_many.ppm");                   // 5 recipients, HOLD inert
   must_show("many recipients", "bc1q 00g3  \xE2\x80\xA6  g3zy g3h8 ffkz");
+  // The locktime badge and the mark beside it. A badge nothing taps is a badge
+  // no gate has an opinion about, and this one is the whole point of promoting
+  // the fact off the DETAILS deck: the block is on the glass and what a block
+  // means is one tap away.
+  must_show("locktime badge", "BLOCK 5127853");
+  touch(386, 40); pump(3); release(); pump(40);   // the card fades in
+  save("/tmp/sim_sign_locktime.ppm");               // what a locktime IS
+  must_show("locktime card", "locktime");
+  touch(400, WT_ACTION_Y + 20); pump(3); release(); pump(8);   // OK
   if (kiss_sign_test_armed()) {
     printf("FAIL: HOLD TO SIGN was live with recipients still under the fold\n");
     return 1;

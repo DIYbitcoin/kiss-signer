@@ -1872,6 +1872,12 @@ static void repaint_verify(void);
 // returns to DETAILS drops an owner who came from the graph somewhere they
 // were not.
 static bool s_terms_from_verify;
+// The DETAILS deck's explainer cards, declared here because the verify screen
+// opens one of them too: the locktime badge on the title line is the same fact
+// as the deck's locktime row, so it opens the same card rather than a second
+// wording of it.
+enum { DT_FEE = 0, DT_LOCKTIME, DT_SIGHASH, DT_RBF, DT_TXID };
+static void det_term_cb(lv_event_t *e);
 static void details_cb(lv_event_t *e);
 static void details_open_cb(lv_event_t *e);   // fresh entry: lands on INPUTS
 static void verify_screen(lv_obj_t *parent);
@@ -2541,7 +2547,7 @@ static void verify_screen(lv_obj_t *parent)
                 lv_obj_delete(nb);
             }
         }
-        // WHEN it can be sent, when that is not "now". A locktime that binds
+        // WHEN it can be sent, when that is not now. A locktime that binds
         // makes an ordinary looking payment unbroadcastable until the block it
         // names, and every figure on this screen is silent about it -- it was
         // one line on the DETAILS deck's third tab, which is where a fact goes
@@ -2570,12 +2576,40 @@ static void verify_screen(lv_obj_t *parent)
             // smaller reserve, because the 60 above is the width the FILENAME
             // needed and this screen no longer draws one. What is left is
             // clearance from the title, and 12 is that. At 60 the badge never
-            // appeared at all: the network chip and a five digit block leave
-            // about 19px of this lane, so the fact would have been promoted off
-            // the DETAILS deck and onto a screen that then dropped it.
-            if (fr - lw - 12 - fx >= 12) {
+            // appeared at all.
+            //
+            // The mark is reserved FIRST so it lands to the RIGHT of the badge
+            // it explains. This chain fills right to left, so a "?" placed
+            // after the badge sits BEFORE it -- which is how it drew, a help
+            // mark leading the thing it is about.
+            //
+            // 30px, and this is the tightest line on the device: the badge read
+            // "NOT BEFORE 5127853" and left 22px of lane beside the network
+            // chip, which is not 42, so the mark could never draw on testnet --
+            // the walk runs there and photographed a badge with no way in. The
+            // word came off the badge instead of the mark: the lock and the
+            // block number are the FACT, and "not before" is the explanation,
+            // which is what the card says. On a line that still runs out -- a
+            // locale whose word for SIGN is long -- the mark gives way and the
+            // badge stays tappable.
+            const bool q_fits = (fr - 30 - 12 - lw - 12 - fx >= 12);
+            if (q_fits || fr - lw - 12 - fx >= 12) {
+                if (q_fits) {
+                    wt_help_chip(s_scr, fr - 30, 26, MUT_COL,
+                                 det_term_cb, (void *)(uintptr_t)DT_LOCKTIME);
+                    fr -= 30 + 12;
+                }
                 lv_obj_set_pos(lb, fr - lw, 26);
                 fr -= lw + 12;
+                // The badge opens the card too, so the pair is one target: a
+                // lock and a block number says WHEN and not WHAT, and locktime
+                // is the least known word on the strip. It is the SAME card the
+                // DETAILS deck's own locktime row opens -- no key, no second
+                // wording.
+                lv_obj_add_flag(lb, LV_OBJ_FLAG_CLICKABLE);
+                lv_obj_set_ext_click_area(lb, 8);
+                lv_obj_add_event_cb(lb, det_term_cb, LV_EVENT_CLICKED,
+                                    (void *)(uintptr_t)DT_LOCKTIME);
             } else {
                 lv_obj_delete(lb);
             }
@@ -3554,8 +3588,6 @@ static int det_h(lv_obj_t *o)
 }
 
 
-enum { DT_FEE = 0, DT_LOCKTIME, DT_SIGHASH, DT_RBF, DT_TXID };
-
 static void det_term_cb(lv_event_t *e)
 {
     const int which = (int)(uintptr_t)lv_event_get_user_data(e);
@@ -3569,10 +3601,25 @@ static void det_term_cb(lv_event_t *e)
 
     switch (which) {
     case DT_LOCKTIME:
-        body = wt_split_colon(have && det.locktime ? tr(STR_S_D_LT_NONZERO)
-                                                   : tr(STR_S_D_LT_ZERO),
+        // The SUMMARY's locktime, not the details struct's. Both are read from
+        // the same transaction in the same pass, but this card is opened from
+        // the verify screen too -- by the badge on its title line -- and
+        // kiss_psbt_details may refuse, which drew "locktime 0: can confirm any
+        // time" under a badge naming the block it cannot confirm before. One
+        // fact, one source.
+        body = wt_split_colon(s_sum.locktime ? tr(STR_S_D_LT_NONZERO)
+                                             : tr(STR_S_D_LT_ZERO),
                               head, sizeof head);
         icon = WT_ICON_LOCK;
+        // ...and WHICH block, framed, plus the phrase the badge no longer has
+        // room for. Without it the card was a title over one line of grey and
+        // 250px of nothing -- the VOID shape -- opened from a badge whose whole
+        // content is a number the card then never mentioned.
+        if (s_sum.locktime) {
+            snprintf(vbuf, sizeof vbuf, "%u", (unsigned)s_sum.locktime);
+            cap = tr(STR_S_D_LT_CAP);
+            val = vbuf;
+        }
         break;
     case DT_TXID:
         // The note that used to sit under the id, in the column. It is an

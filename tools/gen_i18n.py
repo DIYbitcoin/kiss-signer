@@ -178,9 +178,10 @@ UNTRANSLATED_OK = {
     # ...and the caption under the arrival motion. Born under the
     # English-only rule; English in the other twenty until the sweep.
     "S_MOTION_CAP",
-    # The block a locked transaction has to wait for. Born under the
+    # The block a locked transaction has to wait for -- the badge on the sign
+    # title line, and the caption on the card it opens. Born under the
     # English-only rule; English in the other twenty until the sweep.
-    "S_LOCK_AFTER_FMT",
+    "S_LOCK_AFTER_FMT", "S_D_LT_CAP",
     # The SIGN term cards. Born under the English-only rule; English in the
     # other twenty until the sweep.
     "T_PSBT_CAP", "T_PSBT_VAL", "T_PSBT_PLAIN", "T_PSBT_TERM",
