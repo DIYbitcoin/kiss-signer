@@ -4340,7 +4340,15 @@ int main(void) {
   must_show("seed words help", tr(STR_W_WHATSEED_S));
   tap_str(STR_C_OK, 3, 8);
 
-  def_go(2, 1);                                      // storage row -> the chooser
+  // AUDIT's second door, the one on the tab that holds the seed. The first is
+  // photographed from SECURITY further down; what is only true here is the
+  // trail, which names the tab it was opened from rather than a fixed one.
+  def_row(3, 2);                                     // audit row -> the chooser
+  save("/tmp/sim_audit_from_backup.ppm");
+  must_show("audit/from backup", tr(STR_W_MADE_T));
+  tap_str(STR_C_BACK, 3, 8);                         // -> settings, still BACKUP
+
+  def_go(3, 1);                                      // storage row -> the chooser
   save("/tmp/sim_storage_choose.ppm");               // three modes, FLASH ticked
   // Same page, encryption ON: the storage row's sub-line stops cautioning. The
   // shim used to be hardcoded 0, so only the cautioned render existed.
@@ -4406,7 +4414,7 @@ int main(void) {
   tap_str(STR_C_BACK, 3, 8);                        // -> Settings, DEVICE tab
 
   set_tab(SET_BACKUP);
-  def_go(2, 1);                                      // -> the chooser
+  def_go(3, 1);                                      // -> the chooser
   set_row(1);                                        // SD CARD -> confirmation
   save("/tmp/sim_storage_confirm_sd.ppm");
   tap_str(STR_G_STORAGE_HOLD_MOVE, 30, 6);    // no travel: no migration
@@ -4429,7 +4437,7 @@ int main(void) {
   tap_str(STR_C_BACK, 3, 8);                        // -> THIS DEVICE
   tap_str(STR_C_BACK, 3, 8);                        // -> Settings
   set_tab(SET_BACKUP);
-  def_go(2, 1);
+  def_go(3, 1);
   set_row(0);                                        // FLASH
   slide_fire(STR_G_STORAGE_HOLD_MOVE);
   tap_str(STR_C_OK, 3, 8);     // back on FLASH
@@ -4443,7 +4451,7 @@ int main(void) {
   // STORAGE NOT CHANGED: the destination never became durable, so the keys
   // are still exactly where they were. Mode write fails, nothing is published.
   s_sim_move_rc = WSEED_ERR_SD_IO;
-  def_go(2, 1);
+  def_go(3, 1);
   set_row(1);                                        // SD CARD -> confirmation
   slide_fire(STR_G_STORAGE_HOLD_MOVE);
   save("/tmp/sim_storage_fail.ppm");
@@ -4457,14 +4465,14 @@ int main(void) {
   // old copy could not be removed. Two copies, never zero -- which is why this
   // is amber and not the red above, and why it must never say "not changed".
   s_sim_move_rc = WSEED_ERR_CLEANUP;
-  def_go(2, 1);
+  def_go(3, 1);
   set_row(1);                                        // SD CARD
   slide_fire(STR_G_STORAGE_HOLD_MOVE);
   save("/tmp/sim_storage_cleanup.ppm");
   must_show("storage cleanup", tr(STR_G_STORAGE_CLEANUP_T));
   tap_str(STR_C_OK, 3, 8);     // OK -> Settings, now on SD
   // ...and back to FLASH, which is what the rest of the walk is written for.
-  def_go(2, 1);
+  def_go(3, 1);
   set_row(0);                                        // FLASH
   slide_fire(STR_G_STORAGE_HOLD_MOVE);
   tap_str(STR_C_OK, 3, 8);
@@ -4473,7 +4481,7 @@ int main(void) {
   // CANCEL on the confirmation. It lands back on the CHOOSER, not on
   // SETTINGS: the owner was picking a destination, changing their mind about
   // one of the three is not changing their mind about the question.
-  def_go(2, 1);
+  def_go(3, 1);
   set_row(2);                                        // AMNESIC -> confirmation
   save("/tmp/sim_storage_confirm_amnesic.ppm");
   tap_str(STR_C_CANCEL, 3, 8);

@@ -1088,8 +1088,12 @@ static void audit_open_cb(lv_event_t *e)
     wt_chrome_head(s_scr);
     {
         char trail[96];
+        // The tab it was opened FROM, not a fixed one: the row sits on BACKUP
+        // as well now, and a trail naming the other tab sends an owner back
+        // through a page they were never on.
         snprintf(trail, sizeof trail, "%s / %s", tr(STR_G_T),
-                 tr(STR_I_TAB_SECURITY));
+                 tr(s_tab == TAB_BACKUP ? STR_I_TAB_BACKUP
+                                        : STR_I_TAB_SECURITY));
         wt_trail(s_scr, WT_ICON_SHIELD, trail, false);
     }
     // The standing claim in the ACCENT, not WT_DIM. It is the one thing this
@@ -1972,7 +1976,7 @@ static void tab_backup(void)
     // catch without reading anything.
     bool warn = words_unencrypted();
 
-    wt_def_t defs[2] = {
+    wt_def_t defs[3] = {
         // A word AND a lamp: in the GREEN theme the accent is byte identical
         // to WT_OK, so colour alone stops carrying meaning. No fingerprint in
         // the sub any more -- the bench said it does not help here, and the
@@ -1988,14 +1992,21 @@ static void tab_backup(void)
           .sub = tr(ssub), .sub_col = warn ? WT_WARN : (lv_color_t){0},
           .lamp = warn, .lamp_col = WT_WARN, .lamp_pulse = warn,
           .go = store_open_cb },
+        // DECIDED: the SECOND door onto AUDIT, and the row is duplicated
+        // rather than moved. The tab was two rows of STATE on purpose and the
+        // third one it lost was a DEFINITION that did nothing when pressed --
+        // this one is neither. "How were these made" is a question about the
+        // SEED, and the seed is on this tab; the same row stays on SECURITY,
+        // where somebody asking whether to trust the device goes.
+        //
+        // The screens behind it -- HOW YOUR KEYS WERE MADE and RANDOMNESS
+        // AUDIT -- are the best teaching pair on the device and an outside
+        // reader could not find either. They guessed this tab, which is the
+        // evidence for putting a door here.
+        { .cap = tr(STR_I_ROW_AUDIT), .val = "",
+          .sub = tr(STR_I_AUDIT_SUB), .go = audit_open_cb },
     };
-    // TWO rows. The third was a DEFINITION -- what rebuilds these keys -- and
-    // it was the only grow-in-place row on any tab of this page, which is why
-    // it read as a button that did not do anything. It said what the "?"
-    // beside SEED WORDS already opens and already ships in 21 locales: 12 or
-    // 24 ordered words, a BIP39 mnemonic, and any compatible signer opens
-    // them. One fact, one place, and the tab is two rows of STATE again.
-    lv_obj_t *list = def_list(defs, 2);
+    lv_obj_t *list = def_list(defs, 3);
     // A "?" beside SEED WORDS, opening what a seed actually IS. The bench
     // asked for exactly this: "there should be a ? mark next to seed words
     // which when tapped explains bip39 mnemonic". The explainer is the one
