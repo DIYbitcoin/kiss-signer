@@ -7634,6 +7634,15 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
                              LV_TEXT_FLAG_NONE);
             wid += ts.x + 8;                  // + bundle_row's pad_column
         }
+        // The unit rides the amount's own string on a one-coin spend; measure
+        // the pair, not the figure, or the strands start under the word.
+        if (n_in == 1) {
+            char u[24];
+            snprintf(u, sizeof u, " %s", wt_denom_unit());
+            lv_text_get_size(&ts, u, in_f, 0, 0, LV_COORD_MAX,
+                             LV_TEXT_FLAG_NONE);
+            wid += ts.x;
+        }
         if (wid > lane) lane = wid;
     }
     if (lane > BLANE_MAX) lane = BLANE_MAX;
@@ -7673,6 +7682,21 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
         const bool acc = in[i].signed_ok;
         lv_obj_t *row = bundle_row(box, 0, ry - in_lh / 2, lane, true);
         wt_fmt_amount(in[i].sats, amt, sizeof amt);
+        // One input is the whole input side, and it was the only figure in the
+        // graph with no word anywhere near it: the caller puts the unit on the
+        // input TOTAL, and with one coin there is no separate total to put it
+        // on. It came back from the bench as "what are they, sat amounts?".
+        //
+        // In the amount's OWN string, not a label beside it. A second object
+        // per input row is not affordable here -- the LVGL pool peaks at 84%
+        // on this screen, and the label allocation returned NULL, which the
+        // walk found as a segfault two screens later rather than as an error.
+        // So the unit rides the same face as the figure, which the lane
+        // measurement above already accounts for.
+        if (n_in == 1) {
+            size_t al = strlen(amt);
+            snprintf(amt + al, sizeof amt - al, " %s", wt_denom_unit());
+        }
         if (in[i].label)                      // the group row: words, then the total
             b->note[k] = bundle_txt(row, in[i].label, wt_font14(),
                                     acc ? wt_accent() : WT_MUT, acc);
@@ -7687,6 +7711,9 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
                                   acc ? wt_accent()
                                       : (n_in == 1 ? WT_INK : WT_MUT), acc);
         wt_denom_bind(b->amount[k]);   // every figure is the switch, not one
+        // The unit, on the one-coin row only. Muted and outside the repaint
+        // arrays on purpose: it is a suffix, not a figure, so it stays WT_MUT
+        // when the signature lands exactly as the hero's own "sats" does.
         b->n_line++;
     }
 

@@ -2892,12 +2892,17 @@ static void verify_screen(lv_obj_t *parent)
     {
         lv_obj_t *cap = sg_lbl(s_scr, one_recip ? tr(STR_S_SENDING_CAP)
                                                 : tr(STR_S_TOTAL_LEAVING),
-                               24, 78, wt_font14(), MUT_COL);
+                               24, 72, wt_font14(), MUT_COL);
         lv_obj_set_style_text_letter_space(cap, 2, 0);
 
+        // 86 and not 92: the hero's 52px row ended at 144 and the INPUTS /
+        // OUTPUTS captions start at 150, so the biggest figure on the device
+        // sat six pixels off the line naming the columns under it. Six back
+        // from the header rule at 64 buys twelve, and the caption above it
+        // still clears the rule by eight.
         lv_obj_t *row = lv_obj_create(s_scr);
         lv_obj_remove_style_all(row);
-        lv_obj_set_pos(row, 24, 92);
+        lv_obj_set_pos(row, 24, 86);
         lv_obj_set_size(row, 760, 52);
         lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
         lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START,
@@ -3170,20 +3175,33 @@ static void verify_screen(lv_obj_t *parent)
         // word wherever the mark is unambiguous. The word is still on the
         // screen once, in the caption over the hero, which is where a single
         // recipient's amount is named anyway.
-        char sbuf[80], fbuf[80], cbuf[80];
+        // cbuf is the long one: a mark, the glossary's own CHANGE term (up to
+        // 63 bytes of translated text), and an address index of up to ten
+        // digits. 80 could not hold the worst case and -Wformat-truncation
+        // said so -- on the device compiler, which is the only lane that
+        // implements it.
+        char sbuf[80], fbuf[80], cbuf[104];
         snprintf(sbuf, sizeof sbuf, "%s", GLOSS_ICONS[1]);
         snprintf(fbuf, sizeof fbuf, "%s  %s", GLOSS_ICONS[4], tr(STR_S_FEE));
-        // The change strand names its INDEX when there is one change output,
-        // which is every ordinary transaction. The amount coming back was on
-        // this screen and where it landed was not, so an owner could read the
-        // whole graph and still not know their change had been parked at
-        // #99999 where no coordinator scans -- the whole of TX-17. One buffer
-        // serves every change strand, so with more than one the bare word
-        // stays rather than have them all claim the first one's number.
-        if (change_n == 1) {
-            uint32_t ci = 0;
+        // The change strand names its INDEX only when the index is the thing
+        // wrong with it. It was added because an owner could read the whole
+        // graph and still not know their change had been parked at #99999
+        // where no coordinator scans -- the whole of TX-17 -- and then printed
+        // on every transaction, so an ordinary spend carried "#0" next to the
+        // word CHANGE: a number that means nothing until it means everything,
+        // which is the copy rule's own case for cutting a string.
+        //
+        // WPSBT_GAP_INDEX is the bar kiss_psbt.c raises the caution at, read
+        // here rather than off the caution flag so the row and the strand agree
+        // about WHICH output earned it -- with two change outputs the flag is
+        // set for the transaction and the number belongs to one of them. One
+        // buffer serves every change strand, so with more than one the bare
+        // word stays rather than have them all claim the first one's number.
+        uint32_t ci = 0;
+        if (change_n == 1)
             for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS; i++)
                 if (s_sum.outs[i].is_change) { ci = s_sum.outs[i].index; break; }
+        if (ci >= WPSBT_GAP_INDEX) {
             snprintf(cbuf, sizeof cbuf, "%s  %s  #%u", GLOSS_ICONS[2],
                      gloss_term(2), (unsigned)ci);
         } else {
