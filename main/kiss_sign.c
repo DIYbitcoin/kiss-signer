@@ -2189,6 +2189,12 @@ static void verify_gesture_cb(lv_event_t *e)
 #define SG_BAR_H      44
 // The graph's box. 118 tall on a clean screen; 110 when the caution bar is
 // under it, which is the 8px the bar's band needs back.
+// The caption line's right edge, and the lane held for the page counter beside
+// it. 738 is 10 clear of the LOCK that marks a signed graph at 748; 57 is the
+// widest counter ("9/9" at mono23) plus its gap, reserved whether or not one is
+// drawn so OUTPUTS does not move when a transaction gains a page.
+#define SG_CAP_R     738
+#define SG_CAP_CNT    57
 #define SG_GRAPH_Y   172
 #define SG_GRAPH_H   118
 #define SG_GRAPH_H_C 110
@@ -3379,10 +3385,19 @@ static void verify_screen(lv_obj_t *parent)
             tot_y = 150 + (lv_font_get_line_height(f14) - f14->base_line)
                         - (lv_font_get_line_height(f23) - f23->base_line);
         }
-        s_coins_chip_x = 24 + capw + 8;
-        const int chip_max = 448 - tot_w - 30;
-        if (s_coins_chip_x > chip_max) s_coins_chip_x = chip_max;
-        tot_x = s_coins_chip_x + 30 + 12;
+        // ---- the caption line, in three slots -----------------------------
+        // INPUTS pinned left, the TOTAL centred, OUTPUTS pinned right. It was
+        // INPUTS at 24, OUTPUTS at a hardcoded 464 and the total at "caption
+        // width + 42" -- and that 42 was a slot reserved for a chip that has
+        // since been deleted, so the one figure between the two captions
+        // landed wherever the widest translation of the word SIGNED left it.
+        // Three anchors now, and the middle one is measured against the other
+        // two rather than against a leftover.
+        //
+        // OUTPUTS keeps the same right edge whether or not a page counter
+        // exists, so the word does not move when a transaction gains a page.
+        // Its lane clears the counter, and the counter clears the LOCK that
+        // lands at 748 on this row once there is a signature.
         // OUTPUTS, which is what it is called. This read "WHERE IT GOES" --
         // a plain English paraphrase, over a column whose own rows carry the
         // OUTPUTS mark, opposite a caption saying INPUTS, on a screen whose
@@ -3393,9 +3408,19 @@ static void verify_screen(lv_obj_t *parent)
         // From the glossary's own line rather than a key of its own: the term
         // is already translated 21 times and gloss_term(2) has been lifting
         // CHANGE out of it for as long as the change row has existed.
-        lv_obj_t *rc = sg_lbl(s_scr, gloss_term(1), 464, 150,
+        lv_obj_t *rc = sg_lbl(s_scr, gloss_term(1), 0, 150,
                               wt_font14(), MUT_COL);
         lv_obj_set_style_text_letter_space(rc, 2, 0);
+        lv_obj_update_layout(rc);
+        const int out_x = SG_CAP_R - SG_CAP_CNT - lv_obj_get_width(rc);
+        lv_obj_set_x(rc, out_x);
+        // capw is the WIDEST the left caption will ever be -- it becomes
+        // SIGNING and then ALL n COINS SIGNED -- so the centre does not move
+        // when the word under the finger changes.
+        const int mid_l = 24 + capw + 12, mid_r = out_x - 12;
+        tot_x = mid_l + (mid_r - mid_l - tot_w) / 2;
+        if (tot_x < mid_l) tot_x = mid_l;      // a wide locale: left anchored
+        s_coins_chip_x = mid_l;
 
         // With one recipient the address card takes the band under the graph.
         // With several there is no card -- every destination is a row up here
