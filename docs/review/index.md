@@ -72,6 +72,10 @@ GREEN accent, English, mainnet. ADDENDUM-02's axis, the one MONO hides because M
 
 `sim_vfy_wrong_net`
 
+![green, 09a home testnet](green/09a-home-testnet.png)
+
+`sim_home_testnet`
+
 ![green, 10 receive first](green/10-receive-first.png)
 
 `sim_recv1`
@@ -167,6 +171,10 @@ The test networks, MONO, English. The walk already captures these near the end a
 ![testnet, 09 verify wrong net](testnet/09-verify-wrong-net.png)
 
 `sim_vfy_wrong_net`
+
+![testnet, 09a home testnet](testnet/09a-home-testnet.png)
+
+`sim_home_testnet`
 
 ![testnet, 10 receive first](testnet/10-receive-first.png)
 

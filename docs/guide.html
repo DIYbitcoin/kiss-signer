@@ -363,6 +363,14 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
       <section class="doc-card reveal" id="firstboot">
         <p class="eyebrow">05 / hand it to anyone</p>
         <h2>Getting in the first time</h2>
+        <p>
+          Three rules before the steps, because the device will not stop to say
+          them: <strong>every passphrase opens keys</strong>, so there is no
+          "wrong passphrase" error and never will be;
+          <strong>the fingerprint</strong> on the home screen is how you tell
+          which keys you opened; and <strong>this signer is never online</strong>,
+          so your coordinator does all the talking to the network.
+        </p>
         <ol>
           <li>You get a fruit game. It really plays. Hand it to anyone.</li>
           <li>
@@ -371,15 +379,15 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
             remaining letters stretching well to the right.
           </li>
           <li>
-            Type a <strong>passphrase</strong>. Any passphrase opens <em>a</em>
-            wallet; only yours opens <em>yours</em>. Recognise your wallet by the
-            fingerprint shown after entry; there is deliberately no "wrong
-            passphrase" error.
+            Type a <strong>passphrase</strong>. Yours opens your keys; another one
+            opens a different, empty set. The fingerprint after entry is which
+            set you got.
           </li>
           <li>
-            First time: Settings &rarr; <strong>CREATE NEW WALLET</strong>. Pick a
-            word count, feed the camera a detailed scene for entropy, write the
-            words on paper, pass the word quiz, set your passphrase.
+            First time: <strong>SET UP THIS SIGNER</strong> &rarr;
+            <strong>NEW SEED WORDS</strong>. Pick where the randomness comes
+            from, write the seed words on paper, pass the quiz, choose where
+            they are kept, set your passphrase.
           </li>
           <li>
             After creation, KISS offers an optional
@@ -390,17 +398,19 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
             strongest check before funding.
           </li>
           <li>
-            Later, <strong>Settings &rarr; RECOVERY WORDS</strong> lets you show
-            the words behind a warning or run <strong>VERIFY WORDS</strong>
-            without revealing the stored copy. A wrong or missing word is
-            reported by position. Neither check alters the seed.
+            Later, <strong>SETTINGS &rarr; BACKUP &rarr; SEED WORDS</strong>
+            lets you SHOW THEM behind a warning, or CHECK MY COPY against your
+            paper without revealing the stored set. A wrong or missing word is
+            reported by position. Neither check alters anything.
           </li>
           <li>
-            Stay on <strong>TESTNET</strong> (Settings) while you learn. Coins:
-            coinfaucet.eu.
+            Rehearse on <strong>TESTNET</strong>
+            (SETTINGS &rarr; SIGNER &rarr; NETWORK) while you learn: free coins
+            from coinfaucet.eu, the same screens, nothing at stake. The chip
+            beside the home title says TESTNET until you switch back.
           </li>
           <li>
-            Pair a coordinator: <strong>Wallet &rarr; PAIR COORDINATOR</strong>,
+            Pair a coordinator: <strong>KEYS &rarr; PAIR COORDINATOR</strong>,
             pick DESKTOP (Sparrow, descriptor) or MOBILE (BlueWallet, zpub).
             The app watches and broadcasts. It cannot sign by itself, and the
             device verifies and signs PSBTs via camera QR or <code>.psbt</code>

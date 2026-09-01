@@ -6,6 +6,12 @@
 
 The checks to make before this signer holds anything you care about. Every screenshot here is a frame the simulator rendered from the current firmware, so what you see is what the device draws.
 
+Three rules first. Everything below assumes them.
+
+1. Every passphrase opens keys. There is no wrong passphrase error, and there never will be.
+2. The fingerprint on the home screen is how you tell which keys you opened. Write yours down once.
+3. This signer is never online. Your coordinator does all the talking to the network.
+
 ## Returning from Fruit Island
 
 The signer has no icon and no launcher. You get back to it by drawing the letters K, I, S, S on the game menu with a fingertip. Nothing on the screen invites you to, and a wrong gesture does nothing at all.
@@ -20,9 +26,9 @@ Draw K, I, S, S anywhere on the menu. On a signer with no spare set up, that ope
 
 ![KISS screen: signer home](shots/03-signer-home.png)
 
-Your recovery words and your exact passphrase together make these keys. A different passphrase silently opens different keys, so check the fingerprint is the one you expect.
+Your recovery words and your exact passphrase together make these keys, and the fingerprint here is what those keys are called.
 
-This only works if you wrote the fingerprint down. Do it once, on the same piece of paper as your recovery words: the eight character code on this screen. Every passphrase is valid, so a typo never shows an error, it just opens a different and empty set of keys. If the code here ever differs from your paper, you typed the passphrase wrong. Lock and try again.
+Write it down once, on the same piece of paper as your recovery words: the eight character code on this screen. If the code here ever differs from your paper, you typed the passphrase wrong. Lock and try again.
 
 ## Choosing where the recovery words live
 
@@ -91,6 +97,14 @@ VERIFY re-derives whatever address you type in. Green means KISS found it in the
 ![KISS screen: verify wrong net](shots/09-verify-wrong-net.png)
 
 A well-formed address from the wrong network fails red. So does an address that is simply not one of yours.
+
+## Practising on testnet first
+
+Testnet coins are free and buy nothing, so the whole loop can be rehearsed with nothing at stake. SETTINGS > SIGNER switches the network, and the same seed words open a separate set of keys there.
+
+![KISS screen: home testnet](shots/09a-home-testnet.png)
+
+The chip beside the title says TESTNET for as long as the signer is on it, and every address it hands out starts tb1. Point your coordinator at the same network, fill it from a testnet faucet, then run the loop you will run for real: verify an address, receive, sign, broadcast. Switch back the same way afterwards and check the chip is gone before anything real arrives.
 
 ## Receiving a tiny test payment
 

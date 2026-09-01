@@ -203,13 +203,16 @@ The game is what boots. A secret gesture on the game menu opens the signer
 
 ## Day to day
 
-Pair with an online coordinator app: **WALLET → PAIR COORDINATOR**, then pick
+Pair with an online coordinator app: **KEYS → PAIR COORDINATOR**, then pick
 DESKTOP (descriptor, for Sparrow) or MOBILE (zpub, for BlueWallet). The app
 watches the chain and builds transactions; KISS only ever sees the PSBT, shows
 you exactly what it spends, and signs. Keys never leave the device.
 
-First time? Do a practice run before trusting the setup with real coins:
-send a tiny amount in, then back out again.
+First time? Rehearse on testnet before trusting the setup with real coins.
+**SETTINGS → SIGNER → NETWORK** switches it, testnet coins are free from a
+faucet, and the screens are the ones you will use for real: receive, verify,
+sign, broadcast. Switch back when the chip beside the home title is the only
+thing you still have to check.
 
 > [!NOTE]
 > BlueWallet labels the imported wallet **"watch-only." That is expected**: it
@@ -253,7 +256,14 @@ never a silent block:
 Address reuse is handled differently, because it has to be. KISS never sees the
 chain, so it cannot know which of your addresses were actually paid. Rather than
 guess, RECEIVE hands you a fresh address each time and keeps a standing reminder
-to use a new one per payment. Reusing an address links your payments together.
+to use a new one per payment. Reuse lets anyone reading the chain link your
+payments.
+
+**Silent payments** (BIP352) skip that problem: the SILENT tab holds one address
+you can hand out forever, and the sender's software turns it into a fresh on
+chain address for each payment, so nothing links them in public. Pairing hands
+your coordinator only a scan key, which finds those payments and cannot spend
+them.
 
 When a caution fires, the sign button is gated behind an **I UNDERSTAND** tap,
 and a **?** opens a plain words card explaining exactly why. Tap **?** anywhere a
