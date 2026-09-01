@@ -2882,7 +2882,12 @@ int main(void) {
   // so the stroke crosses the tab boundary onto THIS ADDRESS.
   for (int i = 0; i <= 8; i++) { touch(300 + i * 14, 250); pump(3); }
   release(); pump(40);
-  must_show("recv/deck crossed to tab 0", tr(STR_S_CMP_8));
+  // The index caption, not the compare line. That line is gone: it was an
+  // instruction about a different job standing where the address block's
+  // expand mark should have been, and a needle on copy dies the day the copy
+  // does. STR_R_ADDR_N_FMT is a format, so the needle is the tab's own state
+  // word beside it.
+  must_show("recv/deck crossed to tab 0", tr(STR_R_ENLARGE));
   save("/tmp/sim_recv_deck_home.ppm");
   tap_str(STR_R_ALL_ADDR, 3, 40);       // back in by the strip: remembered page
   // A line HELD, so one frame shows the accent rail and the pressed wash --
@@ -2915,7 +2920,7 @@ int main(void) {
   // pixel into the action band -- a CONTENT finding that looks exactly like a
   // layout bug and is a walk that photographed too early. Same 560ms that
   // caught the outgoing pane on another stop.
-  touch(500, 254); pump(3); release(); pump(40);   // the path digits -> explainer
+  touch(500, 360); pump(3); release(); pump(40);   // the path digits -> explainer
   save("/tmp/sim_recv_path_help.ppm");
   tap_str(STR_C_OK, 3, 6);
   tap_str(STR_R_NEXT_ADDR, 3, 8);     // NEXT ADDRESS -> next unused index

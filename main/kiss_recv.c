@@ -115,8 +115,8 @@ static lv_obj_t *s_state_chip, *s_chain_lbl;
 // recv_refresh rebuilds the spans on every NEXT, so both have to outlive one
 // refresh: the spans are children of the card and are placed against the
 // caption, which is a child of the card too.
-static lv_obj_t *s_addr_card, *s_cmp_lbl;
-static lv_obj_t *s_addr_more;   // "FULL ADDRESS" / "SHORT", the fold's own label
+static lv_obj_t *s_addr_card;
+static lv_obj_t *s_addr_more;   // the PLUS beside the address: it opens here
 static lv_obj_t *s_sp_path_lbl, *s_sp_path_sec, *s_sp_toggle_act;
 // The card behind the silent-payment address and its path. Sized by
 // sp_addr_render, because the folded and full views are wildly different
@@ -162,7 +162,7 @@ static void close_cb(lv_event_t *e) {
   s_sp_toggle_act = s_sp_addr_hit = NULL;
   s_sp_card = NULL;
   s_state_chip = s_chain_lbl = NULL;
-  s_addr_card = s_cmp_lbl = s_addr_more = NULL;
+  s_addr_card = s_addr_more = NULL;
   s_next_act = s_vfy_act = s_addr_hit = NULL;
   s_idx_chev = s_lamp_dot = s_lamp_lbl = NULL;
   if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
@@ -915,6 +915,11 @@ static void recv_refresh(void) {
       wt_group4(addr, grouped, sizeof grouped);
       s_addr_sg = wt_addr_spans(par, grouped, RECV_COL_W, wt_font_mono23());
       lv_obj_set_pos(s_addr_sg, RECV_COL_X, 160);
+      // The mark says "there is more here", and open is where there is not.
+      // It also sits in the lane the wrapped form takes: left visible it
+      // overlaps the address's own first line, which is what TEXT and GROWTH
+      // both reported the moment it was added.
+      if (s_addr_more) lv_obj_add_flag(s_addr_more, LV_OBJ_FLAG_HIDDEN);
     } else {
       // ONE object, one line, never wrapped -- the same rule every address on
       // this device follows. 456 at mono23 holds the fold with room; if a
@@ -922,22 +927,9 @@ static void recv_refresh(void) {
       // block and never the font size.
       s_addr_sg = wt_addr_short(par, addr, wt_font_mono23());
       lv_obj_set_pos(s_addr_sg, RECV_COL_X, 160);
+      if (s_addr_more) lv_obj_remove_flag(s_addr_more, LV_OBJ_FLAG_HIDDEN);
     }
   }
-  // The caption goes with the address it captions: "compare the lit
-  // characters" under a state word is an instruction with no object -- and
-  // under the FULL form it sits wherever the wrap ends.
-  if (s_cmp_lbl) {
-    if (rc != 0) lv_obj_add_flag(s_cmp_lbl, LV_OBJ_FLAG_HIDDEN);
-    else {
-      lv_obj_remove_flag(s_cmp_lbl, LV_OBJ_FLAG_HIDDEN);
-      if (s_addr_sg) {
-        lv_obj_update_layout(s_addr_sg);
-        lv_obj_set_y(s_cmp_lbl, 160 + lv_obj_get_height(s_addr_sg) + 8);
-      }
-    }
-  }
-
   if (s_idx_lbl) {
     lv_label_set_text_fmt(s_idx_lbl, tr(STR_R_ADDR_N_FMT), (unsigned)s_idx);
     lv_obj_update_layout(s_idx_lbl);
@@ -953,7 +945,7 @@ static void recv_refresh(void) {
     // Right-aligned against the "?" mark inside its own row.
     lv_obj_set_pos(s_path_lbl,
                    RECV_COL_W - 19 - 2 - 10 - lv_obj_get_width(s_path_lbl),
-                   (34 - lv_font_get_line_height(wt_font_mono18())) / 2);
+                   (38 - lv_font_get_line_height(wt_font_mono23())) / 2);
   }
 
   if ((int)s_idx > s_seen_high) s_seen_high = (int)s_idx;   // seeds next open's landing
@@ -1148,7 +1140,7 @@ static void recv_tab_build(void) {
   // The old pane took the popover and its catcher with it.
   const int X = 48, W = 704;
   s_qr = s_addr_sg = s_idx_lbl = s_path_lbl = s_lock_note = NULL;
-  s_cmp_lbl = s_lamp_dot = s_lamp_lbl = s_idx_chev = NULL;
+  s_lamp_dot = s_lamp_lbl = s_idx_chev = NULL;
   s_addr_hit = NULL;
   s_state_chip = NULL;
   recv_band_vis();
@@ -1211,11 +1203,12 @@ static void recv_tab_build(void) {
     // and "ADDRESS #12" are different widths, and so is every locale's word
     // for address. A fixed x drew the mark through the index.
     //
-    // THE PLUS, and it does not bounce. A chevron promises a drawer that
-    // opens under it and this opens a page; the plus is the mark the def-row
-    // idiom already uses for "there is more here", and a control that has to
-    // move forever to be found is a control in the wrong place.
-    lv_obj_t *cv = wt_lbl(ih, LV_SYMBOL_PLUS, 0, 5, wt_font23(), wt_accent());
+    // A CHEVRON here, and the plus moved to the address block below. This row
+    // opens ALL ADDRESSES -- a PAGE -- and the chevron is what this device
+    // says that with everywhere else; the plus is what it says "there is more
+    // here, under your finger" with, which is the address, not this. The two
+    // marks were the wrong way round and the tab had no expand sign at all.
+    lv_obj_t *cv = wt_lbl(ih, LV_SYMBOL_RIGHT, 0, 5, wt_font23(), wt_accent());
     lv_obj_add_flag(cv, WT_FLAG_ACCENT);
     s_idx_chev = cv;
 
@@ -1232,11 +1225,6 @@ static void recv_tab_build(void) {
     // A readout, not a control. Tapping it does nothing on purpose.
     s_lamp_lbl = wt_lbl(p, "", 0, 120, wt_font_mono23(), WT_OK);
 
-    s_cmp_lbl = wt_lbl(p, tr(STR_S_CMP_8), RECV_COL_X, 198, wt_font23(),
-                       WT_DIM);
-    lv_obj_set_width(s_cmp_lbl, RECV_COL_W);
-    lv_label_set_long_mode(s_cmp_lbl, LV_LABEL_LONG_DOT);
-
     // The whole address block is ONE tap target: folded to whole and back.
     // This tab is the only place on the device a full receive address renders
     // as text; everything else folds and points here. Built before refresh so
@@ -1250,6 +1238,15 @@ static void recv_tab_build(void) {
     lv_obj_set_style_translate_x(s_addr_hit, 0, 0);
     lv_obj_set_style_translate_x(s_addr_hit, 4, LV_STATE_PRESSED);
     lv_obj_add_event_cb(s_addr_hit, addr_toggle_cb, LV_EVENT_CLICKED, NULL);
+    // THE MARK, on the side of the block it belongs to. The short address is
+    // the one thing on this tab that opens under the finger and the only sign
+    // saying so was a caption beside it reading "compare the lit characters"
+    // -- an instruction about a different job, doing the work of an
+    // affordance. The plus is the kit's own "there is more here", the same
+    // one the def rows wear, and it is what the address block was missing.
+    s_addr_more = wt_lbl(p, LV_SYMBOL_PLUS, RECV_COL_X + RECV_COL_W - 22, 156,
+                         wt_font23(), wt_accent());
+    lv_obj_add_flag(s_addr_more, WT_FLAG_ACCENT);
 
     // The derivation path, reduced to what the bench asked for: the digits,
     // quietly, with the "?" beside them -- no caption row, no second typeface.
@@ -1257,12 +1254,14 @@ static void recv_tab_build(void) {
     // the mark is the sign that says so.
     lv_obj_t *ph = lv_obj_create(p);
     lv_obj_remove_style_all(ph);
-    // 240, under the compare line, not 356. At 356 this row ended 8px above
-    // the action band and put a 30px chip inside a thumb's width of BACK --
-    // with 150px of the column doing nothing above it. A help mark that close
-    // to the way out is a mark nobody dares aim at.
-    lv_obj_set_pos(ph, RECV_COL_X, 240);
-    lv_obj_set_size(ph, RECV_COL_W, 34);
+    // 342, level with TAP TO ENLARGE in the left column, so the two quiet
+    // controls sit on one line at the foot of the page instead of one of them
+    // floating in the middle of the column. It ends at 380, which is 18 clear
+    // of the action band -- the reason it was pulled up from 356 was that a
+    // help chip 8px above BACK is a mark nobody dares aim at, and that still
+    // holds.
+    lv_obj_set_pos(ph, RECV_COL_X, 342);
+    lv_obj_set_size(ph, RECV_COL_W, 38);
     lv_obj_remove_flag(ph, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(ph, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(ph, path_help_cb, LV_EVENT_CLICKED, NULL);
@@ -1273,8 +1272,11 @@ static void recv_tab_build(void) {
     // and it came back from the bench as "tiny ass question mark (make it
     // bigger)". The whole line still takes the tap -- the chip is the sign
     // that says so, at the size the rest of the device signs a question.
-    wt_help_chip(ph, RECV_COL_W - 30 - 2, 2, wt_accent(), path_help_cb, NULL);
-    s_path_lbl = wt_lbl(ph, "", 0, 0, wt_font_mono18(), WT_DIM);
+    wt_help_chip(ph, RECV_COL_W - 30 - 2, 4, wt_accent(), path_help_cb, NULL);
+    // mono23, not mono18. It is DATA and it is quiet, but it was the
+    // smallest text on the page and it is the line an owner reads against
+    // their coordinator.
+    s_path_lbl = wt_lbl(ph, "", 0, 0, wt_font_mono23(), WT_DIM);
 
     recv_refresh();
     return;
