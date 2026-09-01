@@ -372,7 +372,7 @@ export KISS_SIM_TMP=/tmp/kiss-$$    # your own card, frames and binaries
 ```
 
 The two walk gates do this for themselves and clean up after, so they run beside
-each other and beside `kisstest`. `docs/house-rules.md` has the account of what
+each other and beside `kisstest`. `HOUSE-RULES.md` has the account of what
 this cost before it was fixed, and the two bugs found on the way.
 
 `check_screen_coverage.py` answers the question the others cannot: **which
