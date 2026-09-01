@@ -507,7 +507,7 @@
   "R_SP_SHOW": "HOLD INDE: VIS NØGLEN",
   "R_SP_SHOW_FULL": "HELE ADRESSEN",
   "R_SP_SHOW_SHORT": "KORT ADRESSE",
-  "R_SP_WARN_B": "koordinatoren får kun den PRIVATE scanningsnøgle.\ndel kun med en betroet Silent Payments-koordinator.\n\nny adgangsfrase giver en anden nøgle.",
+  "R_SP_WARN_B": "koordinatoren får kun den PRIVATE scanningsnøgle.\n\nny adgangsfrase giver en anden nøgle.",
   "R_SP_WARN_S": "læs dette, før du deler den",
   "R_SP_WHY_B": "for privatlivets skyld laver afsenderens tegnebog den om til en ny engangsadresse %s... til den betaling.",
   "R_SP_WHY_T": "HVORFOR DU SER %s",

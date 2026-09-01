@@ -755,8 +755,8 @@ static void sp_key_warn_cb(lv_event_t *e)
         .sentence = tr(STR_K_SPGATE_SENT),
         .para     = para,
         .warn     = note,
-        .surv_cap = tr(STR_C_SURVIVES),     .surv = tr(STR_K_SPGATE_SURV),
-        .goes_cap = tr(STR_C_NOT_SURVIVES), .goes = tr(STR_K_SPGATE_GOES),
+        .surv = tr(STR_K_SPGATE_SURV),
+        .goes = tr(STR_K_SPGATE_GOES),
         .stop     = false,
     };
     wt_gate(s_scr, &g);
@@ -924,8 +924,8 @@ static void words_gate_screen(void)
         .mark     = LV_SYMBOL_EYE_OPEN,
         .sentence = tr(STR_W_SHOW_SENT),
         .para     = tr(STR_I_WORDS_S),
-        .surv_cap = tr(STR_C_SURVIVES),     .surv = tr(STR_W_SHOW_SURV),
-        .goes_cap = tr(STR_C_NOT_SURVIVES), .goes = tr(STR_W_SHOW_GOES),
+        .surv = tr(STR_W_SHOW_SURV),
+        .goes = tr(STR_W_SHOW_GOES),
         .stop     = false,
     };
     wt_gate(s_scr, &g);

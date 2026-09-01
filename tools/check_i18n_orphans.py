@@ -106,6 +106,11 @@ BACKLOG = frozenset({
     # full. A row that restates the screen it opens is the thing this page's
     # body was already cut for.
     "STR_I_WROW_SHOW_SUB",
+    # The gate shape's second caption. WHAT SURVIVES and WHAT DOES NOT spent a
+    # 168px lane saying what a tick and a cross say, and that lane was why the
+    # answers themselves could not leave mono18. WHAT SURVIVES survives: the
+    # wipe screen's explainer still uses it as a fact caption.
+    "STR_C_NOT_SURVIVES",
     # SEED WORDS, the ENCRYPTED tab: two HEADS of a two block explainer whose
     # bodies were deleted, left wired up as a row sub and a group note. The
     # row asked "what is in it" instead of answering, and the tab ended on

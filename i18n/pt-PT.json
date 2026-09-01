@@ -507,7 +507,7 @@
   "R_SP_SHOW": "MANTER PREMIDO PARA MOSTRAR",
   "R_SP_SHOW_FULL": "COMPLETO",
   "R_SP_SHOW_SHORT": "CURTO",
-  "R_SP_WARN_B": "a coordenadora recebe só a chave de leitura PRIVADA.\npartilhe só com coordenadora Silent Payments fiável.\n\nnova passphrase cria outra chave.",
+  "R_SP_WARN_B": "a coordenadora recebe só a chave de leitura PRIVADA.\n\nnova passphrase cria outra chave.",
   "R_SP_WARN_S": "leia isto antes de partilhar",
   "R_SP_WHY_B": "por privacidade, a carteira de quem paga transforma-o num endereço %s... novo e de uso único para aquele pagamento.",
   "R_SP_WHY_T": "PORQUE VÊ %s",

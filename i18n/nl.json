@@ -507,7 +507,7 @@
   "R_SP_SHOW": "LANG INDRUKKEN: SCAN-KEY",
   "R_SP_SHOW_FULL": "VOLLEDIG ADRES",
   "R_SP_SHOW_SHORT": "KORT ADRES",
-  "R_SP_WARN_B": "de coördinator krijgt alleen deze PRIVÉ scansleutel.\nalleen delen met een vertrouwde Silent Payments-coördinator.\n\nnieuwe passphrase = andere sleutel.",
+  "R_SP_WARN_B": "de coördinator krijgt alleen deze PRIVÉ scansleutel.\n\nnieuwe passphrase = andere sleutel.",
   "R_SP_WARN_S": "lees dit voordat je hem deelt",
   "R_SP_WHY_B": "voor privacy maakt de wallet van de verzender er een nieuw eenmalig %s... adres van voor die betaling.",
   "R_SP_WHY_T": "WAAROM JE %s ZIET",

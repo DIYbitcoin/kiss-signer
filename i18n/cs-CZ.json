@@ -507,7 +507,7 @@
   "R_SP_SHOW": "PODRŽET: ZOBRAZIT KLÍČ",
   "R_SP_SHOW_FULL": "CELÁ ADRESA",
   "R_SP_SHOW_SHORT": "ZKRÁCENÁ ADRESA",
-  "R_SP_WARN_B": "koordinátor dostane jen SOUKROMÝ skenovací klíč.\nsdílej jen s důvěryhodným koordinátorem Silent Payments.\n\nnová přístupová fráze vytvoří jiný klíč.",
+  "R_SP_WARN_B": "koordinátor dostane jen SOUKROMÝ skenovací klíč.\n\nnová přístupová fráze vytvoří jiný klíč.",
   "R_SP_WARN_S": "přečti si to, než ho budeš sdílet",
   "R_SP_WHY_B": "kvůli soukromí z ní peněženka odesílatele udělá novou jednorázovou adresu %s... pro tu platbu.",
   "R_SP_WHY_T": "PROČ VIDÍTE %s",

@@ -507,7 +507,7 @@
   "R_SP_SHOW": "GIỮ ĐỂ HIỆN KHÓA QUÉT",
   "R_SP_SHOW_FULL": "ĐỊA CHỈ ĐẦY ĐỦ",
   "R_SP_SHOW_SHORT": "ĐỊA CHỈ RÚT GỌN",
-  "R_SP_WARN_B": "ứng dụng điều phối chỉ nhận khóa quét RIÊNG TƯ này.\nchỉ chia sẻ với ví tin cậy hỗ trợ Silent Payments.\n\ncụm mật khẩu mới tạo khóa khác.",
+  "R_SP_WARN_B": "ứng dụng điều phối chỉ nhận khóa quét RIÊNG TƯ này.\n\ncụm mật khẩu mới tạo khóa khác.",
   "R_SP_WARN_S": "đọc điều này trước khi chia sẻ",
   "R_SP_WHY_B": "vì riêng tư, ví của người gửi biến nó thành một địa chỉ %s... mới, dùng một lần cho khoản đó.",
   "R_SP_WHY_T": "VÌ SAO BẠN THẤY %s",

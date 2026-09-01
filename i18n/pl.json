@@ -507,7 +507,7 @@
   "R_SP_SHOW": "PRZYTRZYMAJ: POKAŻ KLUCZ",
   "R_SP_SHOW_FULL": "PEŁNY ADRES",
   "R_SP_SHOW_SHORT": "SKRÓCONY ADRES",
-  "R_SP_WARN_B": "koordynator dostaje tylko PRYWATNY klucz skanujący.\nudostępnij tylko zaufanemu koordynatorowi Silent Payments.\n\nnowa fraza dostępu tworzy inny klucz.",
+  "R_SP_WARN_B": "koordynator dostaje tylko PRYWATNY klucz skanujący.\n\nnowa fraza dostępu tworzy inny klucz.",
   "R_SP_WARN_S": "przeczytaj to, zanim go udostępnisz",
   "R_SP_WHY_B": "dla prywatności portfel nadawcy zamienia go na nowy jednorazowy adres %s... dla tej płatności.",
   "R_SP_WHY_T": "DLACZEGO WIDZISZ %s",

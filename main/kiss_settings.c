@@ -521,8 +521,7 @@ static void storage_confirm_screen(int target)
                              : STR_G_STOGATE_SENT_FLASH),
         .para     = para,
         .warn     = note,
-        .surv_cap = tr(STR_C_SURVIVES),     .surv = tr(STR_G_STOGATE_SURV),
-        .goes_cap = tr(STR_C_NOT_SURVIVES),
+        .surv = tr(STR_G_STOGATE_SURV),
         .goes     = tr(amn ? STR_G_STOGATE_GOES_AMN : STR_G_STOGATE_GOES),
         .stop     = false,
     };
@@ -1418,8 +1417,8 @@ static void erase_screen(void)
         .para     = para,
         .warn     = kiss_ui_backup_checked() ? NULL
                                              : tr(STR_I_WORDS_UNVERIFIED),
-        .surv_cap = tr(STR_C_SURVIVES),   .surv = surv,
-        .goes_cap = tr(STR_C_NOT_SURVIVES), .goes = goes,
+        .surv = surv,
+        .goes = goes,
         .stop     = true,
     };
     wt_gate(s_scr, &g);

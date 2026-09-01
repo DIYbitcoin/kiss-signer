@@ -507,7 +507,7 @@
   "R_SP_SHOW": "GÖSTERMEK İÇİN BASILI TUT",
   "R_SP_SHOW_FULL": "TAM ADRES",
   "R_SP_SHOW_SHORT": "KISA ADRES",
-  "R_SP_WARN_B": "koordinatör yalnızca bu ÖZEL tarama anahtarını alır.\nsadece güvenilir bir Silent Payments koordinatörüyle paylaşın.\n\nyeni bir Passphrase farklı bir anahtar üretir.",
+  "R_SP_WARN_B": "koordinatör yalnızca bu ÖZEL tarama anahtarını alır.\n\nyeni bir Passphrase farklı bir anahtar üretir.",
   "R_SP_WARN_S": "paylaşmadan önce bunu oku",
   "R_SP_WHY_B": "gizlilik için gönderenin cüzdanı bunu o ödemeye özel, tek kullanımlık yeni bir %s... adresine dönüştürür.",
   "R_SP_WHY_T": "NEDEN %s GÖRÜYORSUNUZ",

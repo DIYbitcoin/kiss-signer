@@ -507,7 +507,7 @@
   "R_SP_SHOW": "TIENI PREMUTO PER MOSTRARE",
   "R_SP_SHOW_FULL": "COMPLETO",
   "R_SP_SHOW_SHORT": "BREVE",
-  "R_SP_WARN_B": "il coordinatore riceve solo questa chiave PRIVATA.\ncondividila solo con un coordinatore fidato.\n\nuna nuova passphrase crea una chiave diversa.",
+  "R_SP_WARN_B": "il coordinatore riceve solo questa chiave PRIVATA.\n\nuna nuova passphrase crea una chiave diversa.",
   "R_SP_WARN_S": "leggi questo prima di condividerla",
   "R_SP_WHY_B": "per privacy il portafoglio di chi paga lo trasforma in un indirizzo %s... nuovo e monouso per quel pagamento.",
   "R_SP_WHY_T": "PERCHÉ VEDI %s",

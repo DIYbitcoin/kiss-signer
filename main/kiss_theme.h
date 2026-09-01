@@ -1308,10 +1308,13 @@ void wt_def_row_read(lv_obj_t *list, int idx);
 typedef struct {
     const char *mark;       // the gate's glyph; NULL takes WT_ICON_ERASE
     const char *sentence;   // one line, mono28, the danger ink
-    const char *para;       // two lines max at 690, mono18, WT_MUT
+    const char *para;       // the body at 690, laddered 23 -> 18 with the facts
     const char *warn;       // optional one-liner under the para, WT_WARN
-    const char *surv_cap, *surv;   // WHAT SURVIVES, and its answer
-    const char *goes_cap, *goes;   // WHAT DOES NOT, and its answer
+    // The two answers, each behind a MARK rather than a caption. WHAT SURVIVES
+    // and WHAT DOES NOT cost a 168px lane to say what a tick and a cross say,
+    // and that lane is what kept the answers themselves at mono18.
+    const char *surv;       // behind a tick
+    const char *goes;       // behind a cross
     bool        stop;
 } wt_gate_t;
 void wt_gate(lv_obj_t *scr, const wt_gate_t *g);

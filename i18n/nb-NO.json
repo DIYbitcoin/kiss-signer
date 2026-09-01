@@ -507,7 +507,7 @@
   "R_SP_SHOW": "HOLD INNE: VIS NØKKELEN",
   "R_SP_SHOW_FULL": "HELE ADRESSEN",
   "R_SP_SHOW_SHORT": "KORT ADRESSE",
-  "R_SP_WARN_B": "koordinatoren får bare den PRIVATE skannenøkkelen.\ndel bare med en betrodd Silent Payments-koordinator.\n\nny passordfrase gir en annen nøkkel.",
+  "R_SP_WARN_B": "koordinatoren får bare den PRIVATE skannenøkkelen.\n\nny passordfrase gir en annen nøkkel.",
   "R_SP_WARN_S": "les dette før du deler den",
   "R_SP_WHY_B": "av hensyn til personvern gjør avsenderens lommebok den om til en ny engangsadresse %s... for den betalingen.",
   "R_SP_WHY_T": "HVORFOR DU SER %s",

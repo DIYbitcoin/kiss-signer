@@ -4721,65 +4721,121 @@ void wt_gate(lv_obj_t *scr, const wt_gate_t *g)
     lv_obj_set_height(s, lv_font_get_line_height(sf));
     lv_label_set_long_mode(s, LV_LABEL_LONG_DOT);
 
-    const lv_font_t *pf = chrome18(g->para);
-    lv_obj_t *p = wt_lbl(scr, g->para, WT_LANE_X, 176, pf, WT_MUT);
-    lv_obj_set_width(p, 690);
-    lv_label_set_long_mode(p, LV_LABEL_LONG_WRAP);
+    // ---- everything from here down was PINNED, and that was the bug -------
+    //
+    // The paragraph sat at y=176 in chrome18, the rule at 260, and the two
+    // facts at 278 and 318, whatever any of them measured. Two things came
+    // out of that. The SHOW gate -- one short paragraph, no warn line -- had
+    // 36px of nothing under a body set two rungs below the sentence above it,
+    // reported from the bench as tiny text on a screen with room to spare.
+    // The scan key gate has the opposite problem and its warn line ran into
+    // the rule.
+    //
+    // So: measure, and take the largest rung the WHOLE block fits at. One
+    // rung for the paragraph and both facts together, because they are one
+    // thing to read and a screen that sets them at sizes chosen separately
+    // reads as three decisions. The warn line is not in the ladder -- it was
+    // raised to 23 on its own after "THAT TEXT SHOULD BE BIGGER ITS FUCKING
+    // TINY" and it does not go back down.
+    // 170, 12, 12, 6 -- and every one of those numbers is the arithmetic of
+    // fitting a one line paragraph AND a one line warn at the reading rung.
+    // At 176 with 18px gaps the block needs 107px of chrome and leaves 53 for
+    // the copy, which is one line at mono23 and nothing else: every gate that
+    // carries a warn was forced to the floor by the gaps alone. These leave
+    // 74, which is exactly a line, the 12px step and the warn.
+    const int TOP   = 170;
+    const int GAP   = 12;                      // above and below the rule
+    const int FGAP  = 6;                       // between the two facts
+    const int FLOOR = WT_ACTION_Y_SLIDE - 8;   // nothing may touch the slide
+    const int PARA_W = 690;
+    const int MARK_W = 34;                     // the tick's lane, fixed
+    const bool has_warn = g->warn && *g->warn;
+    const lv_font_t *wf = has_warn ? chrome23(g->warn) : NULL;
+    const lv_font_t *mkf = wt_font23();
 
-    if (g->warn && *g->warn) {
+    const lv_font_t *pf = NULL, *f0 = NULL, *f1 = NULL;
+    int ph = 0, wh = 0, h0 = 0, h1 = 0;
+    for (int rung = 0; rung < 2; rung++) {
+        pf = rung ? chrome18(g->para) : chrome23(g->para);
+        f0 = rung ? chrome18(g->surv) : chrome23(g->surv);
+        f1 = rung ? chrome18(g->goes) : chrome23(g->goes);
+        lv_point_t ps;
+        lv_text_get_size(&ps, g->para, pf, 0, 0, PARA_W, LV_TEXT_FLAG_NONE);
+        ph = ps.y;
+        wh = 0;
+        if (has_warn) {
+            lv_point_t ws;
+            lv_text_get_size(&ws, g->warn, wf, 0, 0, PARA_W - MARK_W,
+                             LV_TEXT_FLAG_NONE);
+            wh = 12 + ws.y;
+        }
+        h0 = lv_font_get_line_height(f0);
+        h1 = lv_font_get_line_height(f1);
+        if (TOP + ph + wh + GAP + GAP + h0 + FGAP + h1 <= FLOOR)
+            break;
+        // The floor is chrome18, which is where every one of these screens
+        // already was. Landing on it means the COPY is too long for the space
+        // between the sentence and the slide, which is what the sink is for:
+        // silent was the old behaviour and it is what let four text runs sit
+        // two rungs small with nothing to say so.
+        if (rung == 1)
+            WT_FIT_GAVE_UP("gate", g->para, PARA_W, FLOOR - TOP);
+    }
+
+    int y = TOP;
+    lv_obj_t *p = wt_lbl(scr, g->para, WT_LANE_X, y, pf, WT_MUT);
+    lv_obj_set_width(p, PARA_W);
+    lv_label_set_long_mode(p, LV_LABEL_LONG_WRAP);
+    y += ph;
+
+    if (has_warn) {
         // The one amber line a stop gate may carry: a caution the owner can
         // still walk back and fix -- paper never checked -- sitting beside
         // the red it might spare them.
-        lv_point_t ps;
-        lv_text_get_size(&ps, g->para, pf, 0, 0, 690, LV_TEXT_FLAG_NONE);
+        //
         // The GLYPH is its own label so it can stay amber while the sentence
         // takes the accent. Composed into one string they could only ever be
         // one colour, and the colour the bench wants on the words is not the
         // colour it wants on the mark.
-        const lv_font_t *mkf = wt_font23();
-        lv_obj_t *wm = wt_lbl(scr, LV_SYMBOL_WARNING, WT_LANE_X,
-                              176 + ps.y + 12, mkf, WT_WARN);
+        lv_obj_t *wm = wt_lbl(scr, LV_SYMBOL_WARNING, WT_LANE_X, y + 12,
+                              mkf, WT_WARN);
         lv_obj_update_layout(wm);
-        const int wmx = lv_obj_get_width(wm) + 12;
-        char wtxt[128];
-        snprintf(wtxt, sizeof wtxt, "%s", g->warn);
-        // font23, not font14. This is the ONE sentence the gate exists to
-        // make somebody read, and it was set two rungs under the paragraph
-        // above it -- the smallest text on a screen about a caution. "THAT
-        // TEXT SHOULD BE BIGGER ITS FUCKING TINY". No fit helper was involved
-        // and none could have caught it: the size was written in.
-        const lv_font_t *wf = chrome23(wtxt);
-        lv_obj_t *w = wt_lbl(scr, wtxt, WT_LANE_X + wmx, 176 + ps.y + 12,
-                             wf, g->stop ? WT_STOP_INK : wt_accent());
+        lv_obj_t *w = wt_lbl(scr, g->warn, WT_LANE_X + MARK_W, y + 12, wf,
+                             g->stop ? WT_STOP_INK : wt_accent());
         if (!g->stop) lv_obj_add_flag(w, WT_FLAG_ACCENT);
-        lv_obj_set_y(wm, 176 + ps.y + 12 +
-                         (lv_font_get_line_height(wf) -
-                          lv_obj_get_height(wm)) / 2);
-        lv_obj_set_width(w, 690 - wmx);
+        lv_obj_set_y(wm, y + 12 + (lv_font_get_line_height(wf) -
+                                   lv_obj_get_height(wm)) / 2);
+        lv_obj_set_width(w, PARA_W - MARK_W);
         lv_label_set_long_mode(w, LV_LABEL_LONG_WRAP);
+        y += wh;
     }
 
-    wt_line_rule(scr, WT_LANE_X, 260, WT_LANE_W);
+    y += GAP;
+    wt_line_rule(scr, WT_LANE_X, y, WT_LANE_W);
+    y += GAP;
 
     // The two lines that ARE the shape: what survives this, and what does
-    // not. Caption lane 168, fixed; the answers in ink.
-    const struct { const char *cap, *val; } facts[2] = {
-        { g->surv_cap, g->surv }, { g->goes_cap, g->goes },
+    // not. A TICK and a CROSS, not two captions. WHAT SURVIVES and WHAT DOES
+    // NOT were spending a 168px lane on words a mark says without them, and
+    // that lane was the reason the answers themselves could not grow: "the
+    // old stored copy, once the new one verifies" needs 630px at mono23 and
+    // had 522. Both glyphs are already in SYMS, so nothing rebuilds.
+    const struct { const char *sym; lv_color_t col; const char *val;
+                   const lv_font_t *f; int h; } facts[2] = {
+        { LV_SYMBOL_OK,    WT_OK,                          g->surv, f0, h0 },
+        { LV_SYMBOL_CLOSE, g->stop ? WT_STOP : WT_MUT,     g->goes, f1, h1 },
     };
     for (int i = 0; i < 2; i++) {
-        int y = i == 0 ? 278 : 318;
-        const lv_font_t *cf = chrome18(facts[i].cap);
-        lv_obj_t *cap = wt_lbl(scr, facts[i].cap, WT_LANE_X, y, cf, WT_MUT);
-        lv_obj_set_style_text_letter_space(cap, 2, 0);
-        lv_obj_set_width(cap, 168);
-        lv_obj_set_height(cap, lv_font_get_line_height(cf));
-        lv_label_set_long_mode(cap, LV_LABEL_LONG_DOT);
-        const lv_font_t *vf = chrome18(facts[i].val);
-        lv_obj_t *val = wt_lbl(scr, facts[i].val, WT_LANE_X + 168 + 14, y,
-                               vf, WT_INK);
-        lv_obj_set_width(val, WT_LANE_W - 168 - 14);
-        lv_obj_set_height(val, lv_font_get_line_height(vf));
+        lv_obj_t *m = wt_lbl(scr, facts[i].sym, WT_LANE_X, y, mkf,
+                             facts[i].col);
+        lv_obj_update_layout(m);
+        lv_obj_set_y(m, y + (facts[i].h - lv_obj_get_height(m)) / 2);
+        lv_obj_t *val = wt_lbl(scr, facts[i].val, WT_LANE_X + MARK_W, y,
+                               facts[i].f, WT_INK);
+        lv_obj_set_width(val, WT_LANE_W - MARK_W);
+        lv_obj_set_height(val, facts[i].h);
         lv_label_set_long_mode(val, LV_LABEL_LONG_DOT);
+        y += facts[i].h + FGAP;
     }
 }
 

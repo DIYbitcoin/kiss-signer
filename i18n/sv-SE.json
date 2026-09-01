@@ -507,7 +507,7 @@
   "R_SP_SHOW": "HÅLL INNE FÖR ATT VISA",
   "R_SP_SHOW_FULL": "HELA ADRESSEN",
   "R_SP_SHOW_SHORT": "KORT ADRESS",
-  "R_SP_WARN_B": "koordinatorn får bara den PRIVATA skanningsnyckeln.\ndela bara med en betrodd koordinator för Silent Payments.\n\nny lösenfras ger en annan nyckel.",
+  "R_SP_WARN_B": "koordinatorn får bara den PRIVATA skanningsnyckeln.\n\nny lösenfras ger en annan nyckel.",
   "R_SP_WARN_S": "läs det här innan du delar den",
   "R_SP_WHY_B": "för integritetens skull gör avsändarens plånbok om den till en ny engångsadress %s... för just den betalningen.",
   "R_SP_WHY_T": "VARFÖR DU SER %s",

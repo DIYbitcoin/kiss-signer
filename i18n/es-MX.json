@@ -507,7 +507,7 @@
   "R_SP_SHOW": "MANTÉN PULSADO PARA VER",
   "R_SP_SHOW_FULL": "COMPLETA",
   "R_SP_SHOW_SHORT": "CORTA",
-  "R_SP_WARN_B": "el coordinador recibe solo la clave de escaneo PRIVADA.\ncompártela solo con un coordinador Silent Payments confiable.\n\nuna nueva passphrase crea otra clave.",
+  "R_SP_WARN_B": "el coordinador recibe solo la clave de escaneo PRIVADA.\n\nuna nueva passphrase crea otra clave.",
   "R_SP_WARN_S": "lee esto antes de compartirla",
   "R_SP_WHY_B": "por privacidad, el coordinador del emisor la convierte en una dirección %s... nueva y de un solo uso para ese pago.",
   "R_SP_WHY_T": "POR QUÉ VES %s",

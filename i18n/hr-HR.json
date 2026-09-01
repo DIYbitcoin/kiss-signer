@@ -507,7 +507,7 @@
   "R_SP_SHOW": "DRŽI: PRIKAŽI KLJUČ",
   "R_SP_SHOW_FULL": "CIJELA ADRESA",
   "R_SP_SHOW_SHORT": "SKRAĆENA ADRESA",
-  "R_SP_WARN_B": "koordinator dobiva samo PRIVATNI ključ skeniranja.\ndijeli ga samo s pouzdanim Silent Payments koordinatorom.\n\nnova kodna fraza stvara drugi ključ.",
+  "R_SP_WARN_B": "koordinator dobiva samo PRIVATNI ključ skeniranja.\n\nnova kodna fraza stvara drugi ključ.",
   "R_SP_WARN_S": "pročitaj ovo prije nego ga podijeliš",
   "R_SP_WHY_B": "zbog privatnosti novčanik pošiljatelja od nje radi novu jednokratnu adresu %s... za tu uplatu.",
   "R_SP_WHY_T": "ZAŠTO VIDITE %s",

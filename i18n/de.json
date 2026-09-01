@@ -507,7 +507,7 @@
   "R_SP_SHOW": "ZUM ZEIGEN HALTEN",
   "R_SP_SHOW_FULL": "VOLLE ADRESSE",
   "R_SP_SHOW_SHORT": "KURZE ADRESSE",
-  "R_SP_WARN_B": "Koordinator erhält nur den PRIVATEN Scan-Schlüssel.\nnur mit vertrautem Silent-Payments-Koordinator teilen.\n\nneue Passphrase = anderer Schlüssel.",
+  "R_SP_WARN_B": "Koordinator erhält nur den PRIVATEN Scan-Schlüssel.\n\nneue Passphrase = anderer Schlüssel.",
   "R_SP_WARN_S": "lies das, bevor du ihn teilst",
   "R_SP_WHY_B": "für die Privatsphäre macht die Koordinator des Senders daraus eine neue Einmaladresse %s... für diese Zahlung.",
   "R_SP_WHY_T": "WARUM DU %s SIEHST",

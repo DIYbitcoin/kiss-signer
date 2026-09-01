@@ -507,7 +507,7 @@
   "R_SP_SHOW": "MAINTENIR POUR AFFICHER",
   "R_SP_SHOW_FULL": "ADRESSE COMPLÈTE",
   "R_SP_SHOW_SHORT": "ADRESSE COURTE",
-  "R_SP_WARN_B": "le coordinateur ne reçoit que cette clé de scan PRIVÉE.\nne la partagez qu'à un coordinateur Silent Payments fiable.\n\nune nouvelle phrase secrète crée une autre clé.",
+  "R_SP_WARN_B": "le coordinateur ne reçoit que cette clé de scan PRIVÉE.\n\nune nouvelle phrase secrète crée une autre clé.",
   "R_SP_WARN_S": "lis ceci avant de la partager",
   "R_SP_WHY_B": "pour la confidentialité, le portefeuille de l'envoyeur en fait une adresse %s... neuve et unique pour ce paiement.",
   "R_SP_WHY_T": "POURQUOI TU VOIS %s",
