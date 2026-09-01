@@ -858,13 +858,36 @@ def write_stamp():
     On the release line that check is fatal, so the missing evidence would
     have been unfixable except by editing a PNG.
 
-    The sha is HEAD at render time. If the tree was dirty the frames show more
-    than HEAD does, which is the honest reading either way: the pictures are
-    at least as new as this commit.
+    The sha is the last commit that touched a SCREEN -- main/ and
+    sim/sim_main.c -- and not HEAD, which is what it used to be.
+
+    HEAD does not terminate. Writing HEAD makes the stamp differ from the
+    committed one the moment any commit lands, so make_web_release.sh sees a
+    dirty docs/shots, says "commit them, then rerun", and that commit moves
+    HEAD again. The next run stamps the commit that was just made. There is no
+    exit: a stamp can never equal a commit that does not exist until the stamp
+    is committed, so the release line could only ever be crossed with
+    SKIP_SHOTS=1. It cost two full release runs before anyone read the second
+    message closely enough to notice it was the first one again.
+
+    The screen commit terminates, and measures the same thing. It is what
+    tools/check_docs_fresh.py compares against -- UI commits newer than the
+    stamp -- so nothing downstream changes meaning. And the commit that saves
+    the stamp touches neither main/ nor sim/sim_main.c, so the next run writes
+    the same sha and the tree comes back clean.
+
+    A tree with no screen commits at all falls back to HEAD. If the tree was
+    dirty the frames show more than any commit does, which is the honest
+    reading either way: the pictures are at least as new as this one.
     """
-    sha = subprocess.run(["git", "-C", ROOT, "rev-parse", "HEAD"],
-                         capture_output=True, text=True)
-    if sha.returncode != 0:
+    sha = subprocess.run(
+        ["git", "-C", ROOT, "log", "-1", "--format=%H", "--",
+         "main/", "sim/sim_main.c"],
+        capture_output=True, text=True)
+    if sha.returncode != 0 or not sha.stdout.strip():
+        sha = subprocess.run(["git", "-C", ROOT, "rev-parse", "HEAD"],
+                             capture_output=True, text=True)
+    if sha.returncode != 0 or not sha.stdout.strip():
         return
     path = os.path.join(OUT, ".rendered")
     with open(path, "w") as f:
