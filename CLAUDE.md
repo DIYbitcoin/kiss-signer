@@ -355,6 +355,7 @@ GLYPHCHECK_SELFTEST=1 python3 tools/check_glyphs.py  # an icon with no glyph in 
 python3 tools/check_mono_glyphs.py                 # the same, for the mono faces
 GATECHECK_SELFTEST=1 python3 tools/check_gates.py  # a checker nothing runs
 python3 tools/check_layout_reads.py                # a measurement taken before a layout
+python3 tools/check_lv_conf.py                     # the sim's LVGL config vs the device's
 python3 tools/check_sim_fresh.py                   # the published wasm vs the tree
 python3 tools/check_docs_fresh.py                  # how far the pictures trail the screens
 

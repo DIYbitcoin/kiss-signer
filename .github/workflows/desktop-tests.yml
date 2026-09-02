@@ -90,6 +90,15 @@ jobs:
         run: |
           GATECHECK_SELFTEST=1 python3 tools/check_gates.py
 
+      # sim/lv_conf.h overrides five LVGL settings and each one mirrors a
+      # Kconfig line the device actually reads. Move one and nothing fails:
+      # the sim keeps the old value and every heap number measured in it
+      # stops describing the firmware. The pair has no other keeper.
+      - name: the sim's LVGL config still matches the device's
+        if: always()
+        run: |
+          LVCONF_SELFTEST=1 python3 tools/check_lv_conf.py
+
       - name: crypto tests (BIP39 vector + PSBT suite)
         run: |
           bash sim/build_test.sh
