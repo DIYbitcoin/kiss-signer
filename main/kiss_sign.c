@@ -2714,7 +2714,33 @@ static void verify_screen(lv_obj_t *parent)
             // which is what the card says. On a line that still runs out -- a
             // locale whose word for SIGN is long -- the mark gives way and the
             // badge stays tappable.
-            const bool q_fits = (fr - 30 - 12 - lw - 12 - fx >= 12);
+            bool q_fits = (fr - 30 - 12 - lw - 12 - fx >= 12);
+            // ...and when even the badge alone will not fit, the WORD goes
+            // and the mark and the number stay. German is the case: "SIGN" is
+            // SIGNIEREN, five characters longer, which is about 95px off the
+            // front of this line, and the badge missed by under twenty. It was
+            // deleted, so a German owner signing a time locked payment was
+            // never told -- and the walk asserts the badge, so it FAILED there
+            // and stopped, leaving every stop after it unchecked in de, and in
+            // any other locale with a long word for SIGN.
+            //
+            // Same move the comment above records, one step further: the lock
+            // and the block number are the fact, "BLOCK" is the label, and the
+            // card one tap away is where the word is taught. A number under a
+            // lock is not ambiguous on a line that also carries the network
+            // and the fingerprint.
+            if (!q_fits && fr - lw - 12 - fx < 12) {
+                char ln[40], lnm[64];
+                snprintf(ln, sizeof ln, "%s  %u", WT_ICON_LOCK,
+                         (unsigned)s_sum.locktime);
+                snprintf(lnm, sizeof lnm, "%s  #%02X%02X%02X %u#", WT_ICON_LOCK,
+                         MUT_COL.red, MUT_COL.green, MUT_COL.blue,
+                         (unsigned)s_sum.locktime);
+                lv_label_set_text(lb, lnm);
+                lv_obj_update_layout(lb);
+                lw = lv_obj_get_width(lb);
+                q_fits = (fr - 30 - 12 - lw - 12 - fx >= 12);
+            }
             if (q_fits || fr - lw - 12 - fx >= 12) {
                 if (q_fits) {
                     wt_help_chip(s_scr, fr - 30, 26, wt_accent(),

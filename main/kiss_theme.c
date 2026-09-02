@@ -4154,14 +4154,37 @@ int wt_facts_in(lv_obj_t *par, int x, int y, int w,
         // caption and its icon read as chrome hung off a grey headline, and
         // the mark -- which rule 4 says every row carries -- ended up the
         // smallest thing in a row it is supposed to open.
+        // The biggest rung the caption FITS at, floor 23. English captions
+        // are three or four short words and sit at 28; a translated one runs
+        // half again as long -- WENN SIE ES VERGESSEN, NICHT GESPEICHERT --
+        // and 296px of mono28 is about fifteen characters. Pinned at 28 those
+        // shipped ellipsised, which says nothing and looks like nothing.
+        //
+        // 23 is the floor and not a rung below it, because 23 is what the
+        // VALUE is set at: a caption that dropped further would put the big
+        // type back on the right, which is the thing this row was just
+        // rebuilt to stop. So the pair is "caption bigger" in English and
+        // "caption equal" where the language is long, and never the other way
+        // round.
         const lv_font_t *cf = chrome28(facts[i].cap);
+        {
+            lv_point_t cs;
+            lv_text_get_size(&cs, facts[i].cap, cf, 2, 0, LV_COORD_MAX,
+                             LV_TEXT_FLAG_NONE);
+            if (cs.x > WT_FACT_CAP_W - 4) cf = chrome23(facts[i].cap);
+        }
         if (facts[i].icon) {
             // Its own label, never composed into the caption: an icon in a
             // chrome string falls out of the mono face and drags the whole
             // label down a rung.
             const lv_color_t mc = col_or(facts[i].icon_col, wt_accent());
+            // The mark rides the caption's rung. A 28px icon beside a 23px
+            // caption is the same inversion one line up, in the other
+            // direction.
             lv_obj_t *ic = wt_lbl(scr, facts[i].icon, x, y - 1,
-                                  wt_font28(), mc);
+                                  cf == chrome23(facts[i].cap) ? wt_font23()
+                                                               : wt_font28(),
+                                  mc);
             // Only an accent mark repaints with the theme. A caution's amber
             // is a severity and never becomes the accent's colour.
             if (lv_color_eq(mc, wt_accent()))

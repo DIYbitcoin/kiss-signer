@@ -3846,7 +3846,12 @@ int main(void) {
   // no gate has an opinion about, and this one is the whole point of promoting
   // the fact off the DETAILS deck: the block is on the glass and what a block
   // means is one tap away.
-  must_show("locktime badge", "BLOCK 5127853");
+  // The NUMBER, not the sentence. kiss_sign.c drops the word "BLOCK" off this
+  // badge on a line that has run out of lane -- a locale whose word for SIGN
+  // is long, which is de, nl, ru and cs-CZ -- and keeps the lock and the
+  // block, because that pair is the fact and the card one tap away teaches
+  // the word. An English needle asserted the degraded form did not exist.
+  must_show("locktime badge", "5127853");
   touch(386, 40); pump(3); release(); pump(40);   // the card fades in
   save("/tmp/sim_sign_locktime.ppm");               // what a locktime IS
   must_show("locktime card", "locktime");
