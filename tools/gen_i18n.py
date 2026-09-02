@@ -8,8 +8,10 @@ fall back to English with a warning (useful mid-development).
 Emits (all marked GENERATED, never hand-edit):
   main/i18n_keys.h        enum STR_<KEY> ... STR_N
   main/i18n_tables.c      one const table per locale + the locale index
-  tools/fonts/glyphs_*.txt  sorted non-ASCII codepoints per font class,
-                            consumed by tools/fonts/gen_fonts.sh (M2)
+  tools/fonts/glyphs_{ja,ko,zh}.txt  sorted non-ASCII codepoints per CJK font
+                            class, consumed by tools/fonts/gen_fonts.sh (M2).
+                            There is deliberately no glyphs_lat.txt: see the
+                            note beside the emitter below.
 
 Hard checks (exit 1): key-set mismatch, printf-specifier sequence mismatch
 vs English (lv_vsnprintf has no positional args, so order is law), em/en
@@ -634,7 +636,17 @@ def main():
         cs.update(ch for ch in native if ord(ch) > 0x7F)
         for k in keys:
             cs.update(ch for ch in tables[ident][k] if ord(ch) > 0x7F)
+    # NOT lat. gen_fonts.sh builds the Latin faces from the hardcoded LAT range
+    # list (0x20-0x7E, 0xA0-0xFF, 0x100-0x17F, ...) passed as -r, and cats
+    # glyphs_$L.txt only inside its `for L in ja ko zh` loops -- so glyphs_lat.txt
+    # had no reader anywhere in the repo. It looked like a signal and was not:
+    # a translation adding oe gained a character in that file, forced nothing,
+    # and cost a false "the device draws a blank box" before the cmap was read.
+    # The question it seemed to answer is already answered, as a hard error and
+    # not a diff to eyeball -- lat_covered() above, at the per-string check.
     for fc, cs in classes.items():
+        if fc == "lat":
+            continue
         txt = "".join(sorted(cs))
         (fontdir / f"glyphs_{fc}.txt").write_text(txt + "\n", encoding="utf-8")
         print(f"glyphs_{fc}.txt: {len(cs)} non-ASCII glyphs")

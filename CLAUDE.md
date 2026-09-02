@@ -645,14 +645,38 @@ for f in sorted(glob.glob('tools/fonts/glyphs_*.txt')):
     print(f, 'gained', ''.join(g) or 'none')"
 ```
 
-A gained CJK glyph means a font rebuild across four scripts. **Reword instead.**
+A gained CJK glyph means a font rebuild across three scripts. **Reword
+instead.** The check is CJK only, and that is the whole of it: `ja`, `ko`, `zh`.
 
 **`glyphs_tile_*.txt` do not count and the filter above skips them.**
 `gen_fonts.sh` does not read them — it stopped when 23px became a body rung and
 the CJK 23px faces took the full `glyphs_$L.txt` instead. They are still written
 out, so an unfiltered glob reports gains that force nothing: renaming the home
 tile to "Signer" showed `末端` and `器` gained while the real sets gained
-nothing, and no rebuild was needed. Check the four real sets, not all seven.
+nothing, and no rebuild was needed.
+
+**There is no `glyphs_lat.txt` any more, and it was the more expensive of the
+two.** The tile sets at least announce themselves as a special case; the lat set
+sat in the list of REAL ones, so a gain there read as authoritative. It had no
+reader anywhere in the repo: `gen_fonts.sh` builds the Latin faces from the
+hardcoded `LAT` range list passed as `-r`, and only `cat`s `glyphs_$L.txt`
+inside its `for L in ja ko zh` loops. A French string adding `œ` therefore
+gained a character in a file nothing consumes, and it was reported as a defect
+— "the device draws a blank box" — on top of a `grep` for the literal `0x153`
+in the generated fonts, which found nothing and proved nothing, because a dense
+`FORMAT0_TINY` range needs no `unicode_list` entry. `œ` is `U+0153`, inside
+`0x100-0x17F`, and had been in every Latin face all along.
+
+Two lessons, and only the second is about fonts:
+
+- **A generated file with no consumer is worse than no file.** It cannot fail,
+  so it is never wrong, so it is believed. `gen_i18n.py` no longer writes it.
+- **Latin coverage is already a hard error, not a diff to read.**
+  `lat_covered()` in `tools/gen_i18n.py` checks every string in every Latin
+  locale against those same ranges and appends to `errors`, because a label
+  whose glyphs are all missing hard-hangs LVGL 9.5. That is the mechanism. The
+  glyph-gain check above never was one — it is a prompt to go and look, and it
+  only has anything to say about CJK.
 
 ## Device test verdict
 
