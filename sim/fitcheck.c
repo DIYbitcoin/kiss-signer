@@ -357,33 +357,28 @@ static const row_t ROWS[] = {
 // "it / set/erase" came off the same way: it was Italian's "Cancella questo
 // portafoglio" overshooting by seven pixels, and the two NO UNDO rows have
 // since merged into one, so the label it named is gone.
+// EMPTY, and collected rather than left standing. Every entry here named a
+// locale whose row label overshot its lane by a few pixels, and every one of
+// them said the fix was the same thing: shorter copy, from a translation
+// sweep that had not happened yet. It has now. All ten "set/storage" entries
+// and all nine that arrived with the mono faces were de, es, fr, it, nl, pt,
+// ru and tr, and the sweep cut each of those labels to fit -- ALMACENAJE for
+// ALMACENAMIENTO, TIPO INDIRIZZO for TIPO DI INDIRIZZO, ПАМЯТЬ for ХРАНЕНИЕ.
+//
+// Measured before deleting, not assumed: the full 21 locale run reports
+// "row labels ellipsised: 0 backlogged, 0 new". A backlog nothing fires on is
+// a list of excuses for defects that no longer exist, and the next person to
+// read it would take it for work outstanding.
 static const struct { const char *lang, *surface; } ROW_BACKLOG[] = {
-    { "de",    "set/storage" },
-    { "es-ES", "set/storage" },
-    { "es-MX", "set/storage" },
-    { "fr",    "set/storage" },
-    { "it",    "set/storage" },
-    { "nl",    "set/storage" },
-    { "pt-BR", "set/storage" },
-    { "pt-PT", "set/storage" },
-    { "ru",    "set/storage" },
-    { "tr",    "set/storage" },
-    // Arrived with the mono faces: the fixed-pitch body runs ~8% wider than
-    // the sans it replaced, and these translations were already within a few
-    // px of their lane. English fits everywhere; the shorter copy is the
-    // sweep's, like everything above.
-    { "es-ES", "set/endwords" }, { "es-ES", "set/type" },
-    { "es-MX", "set/endwords" }, { "es-MX", "set/type" },
-    { "it",    "set/type" },
-    { "pt-BR", "set/endwords" }, { "pt-BR", "set/type" },
-    { "pt-PT", "set/endwords" }, { "pt-PT", "set/type" },
+    { NULL, NULL },   // keep the array non-empty; row_backlogged skips NULL
 };
 #define NROW_BACKLOG ((int)(sizeof ROW_BACKLOG / sizeof ROW_BACKLOG[0]))
 
 static bool row_backlogged(const char *lang, const char *surface)
 {
     for (int i = 0; i < NROW_BACKLOG; i++)
-        if (strcmp(ROW_BACKLOG[i].lang, lang) == 0 &&
+        if (ROW_BACKLOG[i].lang &&
+            strcmp(ROW_BACKLOG[i].lang, lang) == 0 &&
             strcmp(ROW_BACKLOG[i].surface, surface) == 0)
             return true;
     return false;
