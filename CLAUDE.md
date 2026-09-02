@@ -553,6 +553,25 @@ If the change has no walk stop, add one to `sim/sim_main.c` first. That is the
 same edit that makes the 21-locale gate see it, so there is no version of this
 worth skipping.
 
+**And when you do not know WHICH screen you changed, ask.** The walk writes
+about 500 frames and nothing compared them across runs -- `check_sim_taps`
+compares neighbours inside ONE run, which answers a different question. So an
+edit to shared kit moved screens nobody opened.
+
+```bash
+python3 tools/contact_sheet.py --update    # this run is the baseline
+# ...edit, rebuild, walk again...
+python3 tools/contact_sheet.py             # only the frames that moved, as a page
+```
+
+One string changed reports one frame out of 513. It is not a gate: it never
+fails, excuses nothing and has no backlog, which is why it is not named
+`check_*` and why `check_gates.py` does not count it. It exists because every
+gate here is defined by what it EXCUSES, and four defects in one session --
+a body at font14, an output column half stood down, an accent that survived a
+theme change, two flags on one bit -- were invisible to all of them and three
+were caught by a person looking at a frame.
+
 Never hand back a draft of strings, copy or translations to be reviewed. Do the
 work and show the result.
 
