@@ -335,11 +335,26 @@ def card_strings():
 # read under the copy rules.
 DOCS = [
     "README.md",
+    "SECURITY.md",
     "docs/index.html",
     "docs/guide.html",
     "docs/verify-release.html",
     "docs/walkthrough.md",
+    "docs/blind-draw.md",
 ]
+
+# CHANGELOG.md is deliberately NOT here, and this is the reason rather than an
+# oversight. It carries about forty-five uses of the word, and the entry that
+# announced the vocabulary itself -- "this is a signing device, what it holds
+# is keys, and a wallet is the thing your coordinator watches" -- is one of
+# them. Every entry above it uses the new words because it was written after;
+# every entry below uses the old ones because it was written before. Sweeping
+# it would make the history claim this device always said keys, which is the
+# one thing the changelog exists to be honest about.
+#
+# ROADMAP.md is out for a weaker reason worth stating too: it is a table of
+# what is planned, and its uses are wallet TYPES ("taproot key path wallet"),
+# which is the coordinator's sense. If it grows prose an owner reads, add it.
 
 # Three of the eight rules, and the five left out are left out on purpose.
 #
@@ -375,6 +390,12 @@ DOCS_ALLOW = {
     "the imported wallet": "BlueWallet's own label, quoted",
     "lets your wallet find those payments":
         "the coordinator scanning for silent payments",
+    # The other legitimate sense, and the one W_WHATSEED_B is already allowed
+    # for on the glass: every BIP39 wallet that exists, said about the shared
+    # wordlist rather than about this box.
+    "every wallet on earth": "every BIP39 wallet there is, not this one",
+    "every wallet project": "every BIP39 implementation, not this one",
+    "no wallet will accept": "no BIP39 implementation, not this one",
 }
 
 # NOTE: the WALLET rule is `\bwallet\b`, so it does not see the plural. The
