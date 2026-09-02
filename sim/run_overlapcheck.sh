@@ -60,6 +60,7 @@ if [ $? -ne 0 ] ||
     ! printf '%s\n' "$st" | grep -q 'RAGGED self test: 2 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'AMBER self test: 2 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'WALL self test: 2 cases, all as expected' ||
+    ! printf '%s\n' "$st" | grep -q 'STALE self test: 2 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'LAYER self test: 3 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'ROLE self test: 4 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'LADDER self test: 2 cases, all as expected' ||
@@ -271,7 +272,7 @@ echo "text overlap gate: $total findings across ${#langs[@]} locales"
 # where the accent is WT_INK and the check has nothing to look at. So the same
 # walk runs once per themed accent, in English.
 echo
-echo "theme role gate: 3 accents"
+echo "theme role + stale gate: 3 accents"
 echo
 roletotal=0
 for a in GREEN CYPHERPINK ORANGE; do
@@ -296,14 +297,19 @@ for a in GREEN CYPHERPINK ORANGE; do
     if ! heap_note "$a" "$out"; then
         died="$died SIM_ACCENT=$a(no-heap)"
     fi
-    r=$(printf '%s\n' "$out" | grep -c '^  ROLE')
+    # STALE is counted HERE and not in the locale loop, because it is the only
+    # check that needs the accent to CHANGE and the accent sweep is the only
+    # place it does. It also cannot see anything in the MONO run, whose accent
+    # is WT_INK -- half the device is legitimately WT_INK, so the old colour
+    # would match everything.
+    r=$(printf '%s\n' "$out" | grep -cE '^  (ROLE|STALE)')
     roletotal=$((roletotal + r))
     [ "$rc" -gt "$worst" ] && worst=$rc
     if [ "$rc" -ne 0 ] && [ "$r" -eq 0 ]; then died="$died SIM_ACCENT=$a(rc=$rc)"; fi
 
     if [ "$r" -gt 0 ]; then
         printf '%-12s %3d findings\n' "$a" "$r"
-        printf '%s\n' "$out" | grep -E '^  ROLE' | sed 's/^/  /'
+        printf '%s\n' "$out" | grep -E '^  (ROLE|STALE)' | sed 's/^/  /'
         echo
     else
         printf '%-12s clean\n' "$a"
@@ -311,7 +317,7 @@ for a in GREEN CYPHERPINK ORANGE; do
 done
 
 echo
-echo "theme role gate: $roletotal findings across 3 accents"
+echo "theme role + stale gate: $roletotal findings across 3 accents"
 total=$((total + roletotal))
 
 # The heap verdict, AFTER the sweep and with its own message. Never through

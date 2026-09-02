@@ -2016,6 +2016,151 @@ static void oc_check_ragged(const char *tag)
     }
 }
 
+
+// ---- 10. STALE: the accent a screen kept after the theme moved -------------
+//
+// wt_accent_set changes the accent with the screen already up, and
+// wt_accent_restyle repaints every FLAGGED object under it. Anything wearing
+// the accent WITHOUT a flag keeps the old colour, and nothing has ever noticed:
+// a build, a rendered frame and the three-accent sweep at the bottom of
+// run_overlapcheck.sh all BUILD the screen under one accent and never change
+// it. The only thing that has ever caught one is a person looking at a screen
+// they had just switched the theme on.
+//
+// Three were live on the sign screen at once:
+//
+//   the folded address's lit tail   a spangroup -- the SPANS carry the colour,
+//                                   and a text colour on the group is invisible
+//   the change row's word           an accent BAKED into recolor markup, which
+//                                   no flag can reach
+//   the TESTNET chip                wt_state_chip, so every state chip there is
+//
+// The first two are invisible to oc_colours_of, which reads an object's own
+// style properties and neither of those keeps its colour there. That is the
+// whole reason this is not four lines inside the ROLE check.
+//
+// IT ASKS ABOUT THE OLD COLOUR, NOT ABOUT FLAGS. "Accent-coloured means
+// flagged" was the first rule written here and it reported 86 objects across
+// the walk, because the theme control lives on the Settings band and REBUILDS
+// its page -- so for most screens the flag buys nothing and its absence is not
+// a defect. What is load bearing is the handful of screens that take the change
+// in place, and those are exactly the stops that FOLLOW one: the accent at this
+// stop differs from the accent at the last, so anything still wearing the old
+// one is a thing the restyle did not reach. No rule to keep in step with the
+// product, and no backlog of things nobody is going to fix.
+static int        s_stale_prev = -1;
+static uint32_t   s_stale_prev_hex;
+
+// Shrink only, like BARE and WALL. One entry, and it is a CHOICE rather than
+// an oversight: kiss_sign.c carries the reasoning in full. The flag was tried
+// on the sign header's key mark and accent_walk repainting that RECOLOR label
+// inside a 236px flex chip crashed on every non-MONO accent. What it costs is
+// a mark in the old accent until the next rebuild, which repaint_verify does
+// on every acknowledgement and every page turn -- and that was judged the
+// smaller of the two.
+static const char *OC_STALE_BACKLOG[] = {
+    // The key is "<frame>|<text>". Two things an entry written by eye gets
+    // wrong: the frame keeps its .ppm, which is what oc_short_tag hands back,
+    // and the text OPENS WITH THE GLYPH -- a printed report shows U+F084 as
+    // blank, so it reads as leading spaces and matches nothing.
+    "sim_sign_accent.ppm|" WT_ICON_KEY "  #7A869C SIGNING AS#",
+    NULL,
+};
+static bool s_stale_hit[sizeof OC_STALE_BACKLOG / sizeof OC_STALE_BACKLOG[0]];
+
+static bool oc_stale_excused(const char *key)
+{
+    for (unsigned i = 0; i < sizeof OC_STALE_BACKLOG / sizeof OC_STALE_BACKLOG[0]; i++)
+        if (OC_STALE_BACKLOG[i] && strstr(key, OC_STALE_BACKLOG[i]))
+            { s_stale_hit[i] = true; return true; }
+    return false;
+}
+
+static void oc_stale_report(const char *tag, lv_obj_t *o, const char *where,
+                            const char *why)
+{
+    char t[96], key[224], sig[192], detail[400];
+    oc_text(o, t, sizeof t);
+    snprintf(key, sizeof key, "%s|%s", oc_short_tag(tag), t);
+    if (oc_stale_excused(key)) return;
+    snprintf(sig, sizeof sig, "STALE|%s|%s", t, where);
+    snprintf(detail, sizeof detail,
+             "STALE    \"%s\" still wears the OLD accent in its %s after the "
+             "theme changed with this screen up -- %s",
+             t, where, why);
+    oc_report_one(tag, sig, detail);
+}
+
+static void oc_check_stale(const char *tag)
+{
+    const int cur = wt_accent_get();
+    const lv_color_t ac = wt_accent();
+    const uint32_t curhex = ((uint32_t)ac.red << 16) | ((uint32_t)ac.green << 8) | ac.blue;
+    const int prev = s_stale_prev;
+    const uint32_t oldhex = s_stale_prev_hex;
+    s_stale_prev = cur;
+    s_stale_prev_hex = curhex;
+    if (prev < 0 || prev == cur) return;          // no change to be stale from
+
+    // MONO's accent is WT_INK, and half the device is legitimately WT_INK.
+    // A status colour is the same trap from the other side -- GREEN's accent
+    // is WT_OK to the byte, which the theme gate declares.
+    if (cde_same(oldhex, ((uint32_t)WT_INK.red << 16) |
+                         ((uint32_t)WT_INK.green << 8) | WT_INK.blue)) return;
+    for (int k = 0; k < OC_NSTATUS; k++)
+        if (cde_same(oldhex, OC_STATUS[k].hex)) return;
+
+    char hex[8];
+    snprintf(hex, sizeof hex, "#%02X%02X%02X",
+             (unsigned)(oldhex >> 16) & 0xFF, (unsigned)(oldhex >> 8) & 0xFF,
+             (unsigned)oldhex & 0xFF);
+
+    for (int i = 0; i < s_n; i++) {
+        oc_node_t *n = &s_node[i];
+        if (n->buried) continue;
+        lv_obj_t *o = n->obj;
+
+        oc_colour_t col[OC_MAX_COLOURS];
+        const int nc = oc_colours_of(o, n->is_label, col, OC_MAX_COLOURS);
+        for (int c = 0; c < nc; c++)
+            if (cde_same(col[c].hex, oldhex))
+                oc_stale_report(tag, o, col[c].where,
+                                "wt_accent_restyle did not reach it");
+
+        // A SPANGROUP keeps its colours in the spans, so a text colour on the
+        // group is invisible. accent_walk repaints the LAST span, which is the
+        // lit tail of every address on the device by construction -- but only
+        // when the group carries the flag.
+        if (lv_obj_check_type(o, &lv_spangroup_class)) {
+            const uint32_t sn = lv_spangroup_get_span_count(o);
+            for (uint32_t k = 0; k < sn; k++) {
+                lv_span_t *sp = lv_spangroup_get_child(o, (int32_t)k);
+                lv_style_value_t v;
+                if (!sp || lv_style_get_prop(lv_span_get_style(sp),
+                                             LV_STYLE_TEXT_COLOR, &v)
+                               != LV_STYLE_RES_FOUND) continue;
+                const uint32_t h = ((uint32_t)v.color.red << 16) |
+                                   ((uint32_t)v.color.green << 8) | v.color.blue;
+                if (cde_same(h, oldhex))
+                    oc_stale_report(tag, o, "span",
+                                    "no flag reaches a spangroup's spans");
+            }
+        }
+
+        // MARKUP. `#RRGGBB text#` inside a recolor label is a colour written
+        // into a STRING, and nothing repaints a string -- so there is no flag
+        // that fixes this one. The way out is the one kiss_theme.c states in
+        // its own words: put the accent on the OBJECT, and pin the markup to a
+        // colour that never moves.
+        if (n->is_label && lv_label_get_recolor(o)) {
+            const char *txt = lv_label_get_text(o);
+            if (txt && strstr(txt, hex))
+                oc_stale_report(tag, o, "markup",
+                                "an accent baked into a string cannot be repainted");
+        }
+    }
+}
+
 static void oc_check_layer(const char *tag);   // defined with the entry points
 
 static int oc_selftest_case(const char *name, int accent,
@@ -2050,6 +2195,49 @@ static int oc_selftest_case(const char *name, int accent,
     printf("  %-46s %s (%d finding%s)\n", name,
            got == want_finding ? "ok" : "FAILED", s_findings,
            s_findings == 1 ? "" : "s");
+    return got == want_finding ? 0 : 1;
+}
+
+
+// STALE fires only on a stop that FOLLOWS an accent change, which the walk
+// does in exactly two places -- so a clean sweep proves nothing about it
+// unless the check is shown to still report. Two labels in the accent, one
+// flagged and one not: the flagged one must survive the change and the bare
+// one must be caught. A check that fired on everything would fail the first
+// case exactly as a dead one fails the second.
+static int oc_selftest_stale(const char *name, bool flagged, bool want_finding)
+{
+    wt_accent_set(WT_ACC_PINK);
+    lv_obj_t *scr = lv_obj_create(NULL);
+    lv_screen_load(scr);
+    lv_obj_set_style_bg_color(scr, WT_BG, LV_PART_MAIN);
+    lv_obj_t *l = wt_lbl(scr, "ACCENTED", 40, 40, wt_font23(), wt_accent());
+    if (flagged) lv_obj_add_flag(l, WT_FLAG_ACCENT);
+    lv_refr_now(NULL);
+
+    // Prime the check with the accent this screen was BUILT under, the way a
+    // preceding stop would, then change it exactly as the walk does.
+    s_stale_prev = -1;
+    s_n = 0; s_findings = 0; s_seen_n = 0;
+    lv_area_t full = { 0, 0, LV_HOR_RES - 1, LV_VER_RES - 1 };
+    oc_collect(scr, full, false);
+    oc_mark_buried();
+    oc_check_stale("selftest-prime");
+
+    wt_accent_set(WT_ACC_ORANGE);
+    wt_accent_restyle(scr);
+    lv_refr_now(NULL);
+    s_n = 0; s_findings = 0; s_seen_n = 0;
+    oc_collect(scr, full, false);
+    oc_mark_buried();
+    oc_check_stale("selftest");
+
+    bool got = s_findings > 0;
+    printf("  %-46s %s (%d finding%s)\n", name,
+           got == want_finding ? "ok" : "FAILED", s_findings,
+           s_findings == 1 ? "" : "s");
+    wt_accent_set(WT_ACC_MONO);
+    s_stale_prev = -1;
     return got == want_finding ? 0 : 1;
 }
 
@@ -2703,6 +2891,13 @@ int oc_selftest(void)
     else     printf("WALL self test: 2 cases, all as expected\n");
     printf("\n");
 
+    printf("STALE check self test\n");
+    bad += oc_selftest_stale("accent label with no flag, fires", false, true);
+    bad += oc_selftest_stale("the same label flagged, clear", true, false);
+    if (bad) printf("STALE self test: %d case(s) wrong\n", bad);
+    else     printf("STALE self test: 2 cases, all as expected\n");
+    printf("\n");
+
     printf("LAYER check self test\n");
     {
         // Nothing lives on either layer in the product today, which is the same
@@ -3013,6 +3208,7 @@ void oc_check(const char *tag)
     oc_check_wrap_growth(tag);
     oc_check_clipped(tag);
     oc_check_colour_roles(tag);
+    oc_check_stale(tag);
     oc_check_bare(tag);
     oc_check_wall(tag);
     oc_check_exit(tag);
