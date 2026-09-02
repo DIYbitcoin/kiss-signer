@@ -341,7 +341,15 @@ the sweep, exactly as `sim/osdcheck.c` says beside its own SIM_LANG filter. A
 gate that is red for a reason nobody is acting on is a gate nobody reads, and
 this block was the last place still telling people to run it that way.
 
+**All of it in one command: `bash tools/preflight.sh`.** The block below is
+the list; that script is the list plus the four things only CI ever ran, and
+it prints a table rather than stopping at the first failure. It exists because
+`sim/check_sd_psbts.sh` broke on an include, was invisible to everyone working
+by hand, and sat red across THIRTEEN consecutive pushes.
+
 ```bash
+bash tools/preflight.sh                                    # all of the below
+
 bash sim/build_test.sh && /tmp/kisstest                    # unit tests
 bash sim/build_fitcheck.sh && SIM_LANG=en /tmp/kissfit     # text fit
 bash sim/build_themecheck.sh && /tmp/kisstheme             # accent vs status colour
