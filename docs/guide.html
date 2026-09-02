@@ -444,7 +444,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           </figure>
           <figure>
             <img src="media/export-descriptor.png" alt="KISS descriptor QR for Sparrow">
-            <figcaption><b>02</b>Pair Sparrow: Wallet &rarr; PAIR COORDINATOR
+            <figcaption><b>02</b>Pair Sparrow: KEYS &rarr; PAIR COORDINATOR
               &rarr; DESKTOP. In Sparrow, create an Airgapped Hardware Wallet
               and scan this descriptor.</figcaption>
           </figure>
@@ -463,7 +463,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
             <img src="media/sign-verify.png" alt="KISS transaction verification screen">
             <figcaption><b>05</b>Practice spending: build the return payment in
               Sparrow, move its PSBT by QR or SD, compare RECIPIENT GETS,
-              NETWORK FEE, TOTAL LEAVING WALLET, outputs and change, then hold
+              NETWORK FEE, TOTAL LEAVING, outputs and change, then hold
               to sign. Return the signed PSBT to Sparrow and
               <strong>broadcast there</strong>.</figcaption>
           </figure>
@@ -547,7 +547,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
 
         <h3>FLASH</h3>
         <p>
-          The words stay on the device and it unlocks on its own. On the normal
+          Your seed words stay on the device and it unlocks on its own. On the normal
           beta they are written <strong>in the clear</strong>, so someone with
           the device and the right equipment can read them out of the chip. On a
           flash-encrypted build the same mode stores them encrypted. The device

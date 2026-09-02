@@ -74,24 +74,25 @@ SECTIONS = [
           "Lock and try again."),
      ]),
 
-    ("Choosing where the recovery words live",
+    ("Choosing where the recovery words are kept",
      "Storage is chosen while keys are created or restored, and it can be "
      "changed later from an unlocked signer. All three modes are offered on "
      "every build; the passphrase, never stored here, is what guards your real "
-     "keys whichever mode holds the words.",
+     "keys whichever mode holds them.",
      [
          ("03a-setup-storage", "sim_setup_storage",
           "Setup asks what remains after you power off, before the recovery "
-          "words are committed. FLASH keeps the words on this device (they open "
-          "the decoy if it is taken); AMNESIC keeps nothing; SD CARD seals the "
-          "words to a card only this signer can open."),
+          "words are committed. FLASH keeps the seed words on this device (they "
+          "open the decoy if it is taken); AMNESIC keeps nothing; SD CARD seals "
+          "the seed words to a card only this signer can open."),
          # sim_storage_pop was the popover 5482bc7 removed ("nothing floats
          # over the page"); the caption below was rewritten for the inline row
          # that replaced it and the frame name was left behind, so the shot has
          # been unbuildable since. sim_storage_choose IS that screen.
          ("03b-settings-storage", "sim_storage_choose",
           "SETTINGS → BACKUP states the current mode on the row and opens this "
-          "to change it: three modes, each saying where the words end up, with "
+          "to change it: three modes, each saying where the seed words end up, "
+          "with "
           "the one in force ticked. Moving between them still requires a "
           "deliberate hold and verifies the destination before removing the "
           "source."),
@@ -236,7 +237,8 @@ SECTIONS = [
      [
          ("17-audit", "sim_audit_choose",
           "HOW YOUR KEYS WERE MADE reads back the source this signer "
-          "recorded when the seed was made: dice, coin flips, the camera and "
+          "recorded when the seed words were made: dice, coin flips, the camera "
+          "and "
           "your taps, a blind draw, or brought in from somewhere else. It is "
           "the one fact about a set of keys you cannot recover by looking at "
           "the seed words."),

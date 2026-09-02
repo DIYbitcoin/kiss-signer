@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The words on screen, against i18n/GLOSSARY.md.
+"""The words on screen and in the docs, against i18n/GLOSSARY.md.
 
 Why this is a script and not a paragraph
 ----------------------------------------
@@ -29,6 +29,13 @@ glossary already admits are unconverted. New findings fail. A backlog entry
 that stops firing is reported so the list can only shrink. VOCAB_SELFTEST=1
 proves every rule still fires, because a sweep that reports nothing means
 nothing unless a dead rule would have been caught.
+
+Three surfaces, not one. i18n/en.json is the glass. The tracked paths and the
+walk's save() names are where the next string comes from. And DOCS is the
+pages an owner reads before they own the device -- README.md and the
+published pages under docs/ -- which had no rule enforced on them at all
+until this lane, and had drifted accordingly. See DOCS_RULES for why the
+docs read under three of the eight rules rather than all of them.
 """
 import json
 import os
@@ -310,6 +317,134 @@ def card_strings():
     return out
 
 
+# ---- docs/: the pages an owner reads BEFORE they own the device ---------
+#
+# The gate read i18n/en.json, the tracked paths and the walk's save() names,
+# and that is the glass plus the names the glass came from. It never read a
+# word of prose, so README.md and the published pages under docs/ -- the only
+# KISS most people will ever see -- were the one owner-facing surface with no
+# rule enforced on it at all. They had drifted exactly where you would expect:
+# nine sentences calling this device or its keys a wallet, a storage section
+# headed "where the words live" in three places, and two UI paths quoting a
+# tab named WALLET that the device has called KEYS for as long as I_T has
+# existed. A doc that names a tab wrong is worse than one that reads oddly:
+# the reader taps and there is nothing there.
+#
+# Same contract as CARD above -- owner-facing copy only. Specs, decisions.md,
+# the audit and the plans are prose for whoever maintains this, and are not
+# read under the copy rules.
+DOCS = [
+    "README.md",
+    "docs/index.html",
+    "docs/guide.html",
+    "docs/verify-release.html",
+    "docs/walkthrough.md",
+]
+
+# Three of the eight rules, and the five left out are left out on purpose.
+#
+# LONG-SENTENCE and LONG-WORD are calibrated for a screen read standing up,
+# once, by somebody deciding something. A guide is read sitting down with the
+# device in front of you: 78 long words and 64 long sentences, almost all of
+# them ordinary. A rule that fires 142 times on correct prose is a rule
+# nobody reads, which is the failure this file's own docstring names.
+#
+# METAPHOR and BARE-SEED are narrower misses but the same shape. Prose about
+# a build says "artifacts live on the Releases tab", "read live from eFuse",
+# "the pad that sits behind it" -- the ordinary computer senses of words that
+# only mislead when a screen uses them about seed words. And "no dev seed in
+# the binary", "BIP39 processes the mnemonic into a binary seed" are the
+# technical senses BARE-SEED's own why already excuses in code and comments.
+# Both would need five or six ALLOW entries to say nothing new.
+#
+# What is left is the three that caught every real defect in the sweep that
+# added this lane, and that cannot be right in prose and wrong on glass.
+DOCS_RULES = ["WALLET", "BARE-WORDS", "COINED-WORDS"]
+
+# Stripped before the rules run, exactly as PROPER is, because these are the
+# coordinator's object: a key set and the coins it watches, which is the ONE
+# surviving use of the word. Narrow phrases rather than a bare "wallet" --
+# "your wallet" alone would excuse the next sentence that calls this box one.
+#
+# Shrink-only, like a rule's BACKLOG: a phrase that stops appearing is
+# reported so the list cannot outlive the sentences it was written for.
+DOCS_ALLOW = {
+    "online wallet": "the coordinator's object, watching the chain",
+    "watch-only wallet": "what a coordinator calls the import it gets",
+    "any other wallet that reads": "any coordinator, generically",
+    "the imported wallet": "BlueWallet's own label, quoted",
+    "lets your wallet find those payments":
+        "the coordinator scanning for silent payments",
+}
+
+# NOTE: the WALLET rule is `\bwallet\b`, so it does not see the plural. The
+# three plural uses in docs/index.html ("test wallets only", "disposable
+# wallets only") are all the coordinator sense and correct, so widening it
+# today would buy one ALLOW entry per correct sentence and nothing else.
+# Written down rather than fixed, so the next person deciding knows it was a
+# decision.
+
+
+def _html_text(raw):
+    """Visible prose from a page. Code is not copy: a command, a filename or
+    a JSON key inside <code> or <pre> is quoted machine text, and reading it
+    under the copy rules would fire on every one of them."""
+    raw = re.sub(r"(?is)<!--.*?-->", " ", raw)
+    raw = re.sub(r"(?is)<(script|style|pre|code)\b.*?</\1>", " ", raw)
+    # alt= is read out loud to somebody who cannot see the picture, so it is
+    # copy in every sense that matters here.
+    alts = re.findall(r'(?i)\balt="([^"]*)"', raw)
+    return "\n".join(alts) + "\n" + re.sub(r"(?is)<[^>]+>", "\n", raw)
+
+
+def _md_text(raw):
+    raw = re.sub(r"(?is)<!--.*?-->", " ", raw)
+    raw = re.sub(r"(?s)```.*?```", " ", raw)
+    raw = re.sub(r"`[^`]*`", " ", raw)
+    raw = re.sub(r"!\[([^\]]*)\]\([^)]*\)", r"\1", raw)      # alt text stays
+    raw = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", raw)       # link text stays
+    return raw
+
+
+def docs_strings():
+    """{path:line -> one line of prose} for every owner-facing document.
+
+    A line rather than a sentence: the key has to name a place a person can
+    open, and "docs/guide.html:447" does that where a sentence index does
+    not."""
+    out = {}
+    for rel in DOCS:
+        f = ROOT / rel
+        if not f.exists():
+            continue
+        raw = f.read_text(encoding="utf-8")
+        text = _html_text(raw) if rel.endswith(".html") else _md_text(raw)
+        for i, line in enumerate(text.split("\n"), 1):
+            line = re.sub(r"\s+", " ", line).strip()
+            if len(line) > 2:
+                out["%s:%d" % (rel, i)] = line
+    return out
+
+
+def scan_docs():
+    """[(rule, key, text)] for the docs lane, plus ALLOW phrases gone stale."""
+    rules = [r for r in RULES if r.name in DOCS_RULES]
+    found, seen = [], set()
+    for key, text in sorted(docs_strings().items()):
+        probe = text
+        for name in PROPER:
+            probe = probe.replace(name, " ")
+        for phrase in DOCS_ALLOW:
+            if re.search(re.escape(phrase), probe, re.I):
+                seen.add(phrase)
+                probe = re.sub(re.escape(phrase), " ", probe, flags=re.I)
+        for rule in rules:
+            if rule.search(probe):
+                found.append((rule, key, text))
+    stale = sorted(set(DOCS_ALLOW) - seen)
+    return found, stale
+
+
 def scan(strings):
     """[(rule, key, text)] for every fresh finding, plus stale backlog keys."""
     found, stale = [], []
@@ -360,6 +495,35 @@ def selftest():
               "docs/media/signer-home.png", file=sys.stderr)
         bad += 1
 
+    # The docs lane fails its own way: it can only report what the extractor
+    # hands it, so an extractor that quietly returns nothing -- a tag shape
+    # that eats the body, a renamed file -- is a green sweep over an unread
+    # surface. Assert that it reads prose, that it does NOT read the shell
+    # commands beside it, and that the lane still fires.
+    docs = docs_strings()
+    if len(docs) < 200:
+        print(f"SELFTEST: the docs lane extracted {len(docs)} lines, which is "
+              f"too few to be reading {len(DOCS)} documents", file=sys.stderr)
+        bad += 1
+    if any("esptool --chip" in t for t in docs.values()):
+        print("SELFTEST: the docs lane is reading fenced commands as copy",
+              file=sys.stderr)
+        bad += 1
+    if not any("passphrase" in t.lower() for t in docs.values()):
+        print("SELFTEST: the docs lane read no prose at all", file=sys.stderr)
+        bad += 1
+    lane = [r for r in RULES if r.name in DOCS_RULES]
+    if not any(r.search("KEYS \u2192 BACKUP opens the wallet on this device")
+               for r in lane):
+        print("SELFTEST: the docs lane no longer fires on a page calling this "
+              "device a wallet", file=sys.stderr)
+        bad += 1
+    if any(r.search("KEYS \u2192 BACKUP opens the keys on this device")
+           for r in lane):
+        print("SELFTEST: the docs lane fires on the FIXED sentence",
+              file=sys.stderr)
+        bad += 1
+
     print(f"vocabulary selftest: {len(RULES)} rules, {bad} broken")
     return 1 if bad else 0
 
@@ -376,6 +540,7 @@ def main():
     strings.update(card_strings())
     found, stale = scan(strings)
     named = scan_names()
+    doc_found, doc_stale = scan_docs()
 
     backlogged = sum(len(r.backlog) for r in RULES)
     for rule, label, name in named:
@@ -386,14 +551,24 @@ def main():
         print(f"ERROR: {rule.name} {key}: {text[:72]!r}\n"
               f"    -> {rule.instead}\n"
               f"       {rule.why}", file=sys.stderr)
+    for rule, key, text in doc_found:
+        print(f"ERROR: {rule.name} {key}: {text[:72]!r}\n"
+              f"    -> {rule.instead}\n"
+              f"       {rule.why}", file=sys.stderr)
     for rule, key in stale:
         print(f"note: {rule.name} backlog entry {key} no longer fires -- "
               f"drop it from tools/check_vocab.py")
+    for phrase in doc_stale:
+        print(f"note: DOCS_ALLOW {phrase!r} no longer appears in any "
+              f"document -- drop it from tools/check_vocab.py")
 
     print(f"vocabulary: {len(strings)} strings, {len(found)} new, "
           f"{backlogged} backlogged, {len(stale)} backlog entries to retire")
     print(f"vocabulary: {len(names())} names checked, {len(named)} bad")
-    return 1 if (found or named) else 0
+    print(f"vocabulary: {len(docs_strings())} lines of docs prose, "
+          f"{len(doc_found)} bad, {len(DOCS_ALLOW)} allowed, "
+          f"{len(doc_stale)} allow entries to retire")
+    return 1 if (found or named or doc_found) else 0
 
 
 if __name__ == "__main__":

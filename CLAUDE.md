@@ -349,7 +349,7 @@ bash sim/build_osdcheck.sh && SIM_LANG=en /tmp/kissosd     # on-video overlay te
 bash sim/build_sim.sh && OVERLAPCHECK_LANGS=en bash sim/run_overlapcheck.sh   # screen walk
 python3 tools/check_screen_coverage.py             # screens no gate sees
 python3 tools/check_i18n_orphans.py                # keys nothing references
-python3 tools/check_vocab.py                       # the words on screen vs the glossary
+python3 tools/check_vocab.py                       # the words on screen and in the docs
 python3 tools/check_stop_reasons.py                # a refusal with no words in 21 locales
 GLYPHCHECK_SELFTEST=1 python3 tools/check_glyphs.py  # an icon with no glyph in the fonts
 python3 tools/check_mono_glyphs.py                 # the same, for the mono faces

@@ -48,11 +48,11 @@ a Bitcoin signer hidden under a Tetris game.
 > The current release is named in [`VERSION`](VERSION) and the
 > [changelog](CHANGELOG.md).
 
-- **Recovery words + passphrase derive your wallet.** The ordered words are
+- **Recovery words + passphrase derive your keys.** The ordered words are
   commonly called a "seed phrase"; technically, BIP39 processes the mnemonic
   sentence and passphrase into a binary seed. The passphrase is typed fresh
-  every time and never stored. An empty passphrase uses the base wallet; any
-  non-empty entry changes the derived wallet. Every entry is valid, so there is
+  every time and never stored. An empty passphrase uses the base keys; any
+  non-empty entry changes the derived keys. Every entry is valid, so there is
   no "wrong passphrase" error. A strong passphrase can protect funds if the
   words are exposed, but an attacker can test passphrase guesses offline.
 - **Airgapped by hardware:** transactions move by animated QR (BC-UR) or SD
@@ -60,7 +60,7 @@ a Bitcoin signer hidden under a Tetris game.
   chip is held in reset from the first instruction, every boot, and no
   wireless stack is compiled in: the release build fails if any radio or
   networking code links.
-- **Online wallet compatible:** pairing offers Sparrow on desktop (descriptor)
+- **Coordinator compatible:** pairing offers Sparrow on desktop (descriptor)
   and BlueWallet on mobile (zpub), and any other coordinator that reads a
   descriptor or a zpub will work. The coordinator watches balances, builds
   transactions and broadcasts. It cannot sign or authorize anything by itself.
@@ -108,10 +108,10 @@ shasum -a 256 --ignore-missing -c SHA256SUMS   # macOS (Linux: sha256sum)
 > trustworthy as this README.
 
 > [!WARNING]
-> This writes the whole chip, **including the wallet storage area**. A seed
-> already on the device is erased; in SD mode the device key is erased too, so
-> an existing `kiss-seed.enc` card becomes unopenable. Have your paper words
-> and passphrase in hand before flashing a device that holds a wallet.
+> This writes the whole chip, **including the area that holds your keys**. Seed
+> words already on the device are erased; in SD mode the device key is erased too, so
+> an existing `kiss-seed.enc` card becomes unopenable. Have your seed words
+> on paper and your passphrase in hand before flashing a device that holds keys.
 
 **3. Flash** (macOS / Linux / WSL / Git Bash. On plain Windows, put the
 `esptool` command on one line without the `\` continuations):
@@ -152,8 +152,8 @@ the same in more detail.
 
 > [!WARNING]
 > Same as step 3 above: installing writes the whole chip and **erases any
-> wallet already on the device** (and the device key an SD card seed depends
-> on). Paper words and passphrase in hand first.
+> keys already on the device** (and the device key an SD card seed depends
+> on). Seed words on paper and passphrase in hand first.
 
 > [!NOTE]
 > This is the only way to flash from a browser with the network off. The page
@@ -167,15 +167,15 @@ The game is what boots. A secret gesture on the game menu opens the signer
 
 <table>
 <tr>
-<td align="center"><img src="docs/readme/setup-1-choose.png" alt="Set up your wallet: create new or restore" width="400"></td>
+<td align="center"><img src="docs/readme/setup-1-choose.png" alt="Set up this signer: create new keys or restore" width="400"></td>
 <td align="center"><img src="docs/readme/setup-2-words.png" alt="Write down the 12 recovery words" width="400"></td>
 </tr>
 <tr>
-<td align="center"><sub>Create a new wallet, or restore from words</sub></td>
+<td align="center"><sub>Create new keys, or restore from seed words</sub></td>
 <td align="center"><sub>Write the 12 recovery words on paper; the same passphrase is also required</sub></td>
 </tr>
 <tr>
-<td align="center"><img src="docs/readme/setup-3-quiz.png" alt="Quiz proves the words were written down" width="400"></td>
+<td align="center"><img src="docs/readme/setup-3-quiz.png" alt="Quiz proves the seed words were written down" width="400"></td>
 <td align="center"><img src="docs/readme/setup-4-passphrase.png" alt="Create your passphrase" width="400"></td>
 </tr>
 <tr>
@@ -185,20 +185,20 @@ The game is what boots. A secret gesture on the game menu opens the signer
 </table>
 
 > [!TIP]
-> **Before you fund it, verify your backup.** WALLET → BACKUP WORDS → **VERIFY
-> MY COPY** has you type your words from paper; the device confirms they rebuild
-> this exact wallet and never shows the stored words. A wrong or missing word is
+> **Before you fund it, verify your backup.** KEYS → BACKUP → SEED WORDS →
+> **CHECK MY COPY** has you type your seed words from paper; the device confirms
+> they rebuild these exact keys and never shows the stored seed words. A wrong or missing word is
 > reported by position ("word #N"). Bad backups lose more coins than bad signers
 > do, so it is worth the two minutes.
 >
 > **Then write the fingerprint on the same piece of paper.** Every passphrase is
-> valid, so a typo never shows an error, it silently opens a different and empty
-> wallet. The eight character code on the home screen is the only way to notice.
+> valid, so a typo never shows an error, it silently opens different, empty
+> keys. The eight character code on the home screen is the only way to notice.
 > If it ever differs from your paper, you typed the passphrase wrong.
 
 <div align="center">
 <img src="docs/readme/verify-backup.png" alt="Backup verified: every word matched" width="400"><br>
-<sub><b>Verify my copy</b>: type the paper words, the device confirms without revealing them</sub>
+<sub><b>Check my copy</b>: type your seed words from paper, the device confirms without revealing them</sub>
 </div>
 
 ## Day to day
@@ -295,7 +295,7 @@ the repo is public. They cover:
 - **Simulator & tests.** Every screen in a browser, and the test suite, no hardware
 
 [**Walkthrough**](docs/walkthrough.md) covers the five things to do before the
-wallet holds anything you care about: getting back in from the game, pairing
+signer holds anything you care about: getting back in from the game, pairing
 Sparrow, verifying a receive address, taking a test payment, and signing one.
 
 Every screenshot in this README and in the docs is a frame the simulator
