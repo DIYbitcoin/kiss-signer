@@ -90,15 +90,6 @@ jobs:
         run: |
           GATECHECK_SELFTEST=1 python3 tools/check_gates.py
 
-      # sim/lv_conf.h overrides five LVGL settings and each one mirrors a
-      # Kconfig line the device actually reads. Move one and nothing fails:
-      # the sim keeps the old value and every heap number measured in it
-      # stops describing the firmware. The pair has no other keeper.
-      - name: the sim's LVGL config still matches the device's
-        if: always()
-        run: |
-          LVCONF_SELFTEST=1 python3 tools/check_lv_conf.py
-
       - name: crypto tests (BIP39 vector + PSBT suite)
         run: |
           bash sim/build_test.sh
@@ -167,6 +158,21 @@ jobs:
         run: |
           GLYPHCHECK_SELFTEST=1 python3 tools/check_glyphs.py
           python3 tools/check_mono_glyphs.py
+
+      # sim/lv_conf.h overrides five LVGL settings and each one mirrors a
+      # Kconfig line the device actually reads. Move one and nothing fails:
+      # the sim keeps the old value and every heap number measured in it
+      # stops describing the firmware. The pair has no other keeper.
+      #
+      # AFTER the fetch, for the reason the step above it gives: this reads
+      # lv_conf_template.h out of managed_components to see divergences it was
+      # not told about, and that file does not exist until the clone. Wired in
+      # with the other python checks, it died FileNotFoundError -- which is the
+      # same mistake, made again, two steps from the comment describing it.
+      - name: the sim's LVGL config still matches the device's
+        if: always()
+        run: |
+          LVCONF_SELFTEST=1 python3 tools/check_lv_conf.py
 
       # ENGLISH ONLY while the UI is being rebuilt, for the reason CLAUDE.md
       # gives and with the cost it names. Every screen that gets rebuilt

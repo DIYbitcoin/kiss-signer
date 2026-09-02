@@ -50,7 +50,15 @@ DEFINE = re.compile(r"^\s*#\s*define\s+(LV_[A-Z0-9_]+)\s+(.*)$")
 
 
 def read(rel):
-    with open(os.path.join(ROOT, rel), encoding="utf-8") as f:
+    """The file, or a plain word about the one that is not in a fresh clone."""
+    path = os.path.join(ROOT, rel)
+    if rel == TEMPLATE and not os.path.exists(path):
+        print(f"{TEMPLATE} is not here. managed_components/ is gitignored and\n"
+              "the IDF component manager populates it during a device build, so\n"
+              "a fresh clone has no LVGL yet. Build the sim once, or clone the\n"
+              "version dependencies.lock pins, then run this again.", file=sys.stderr)
+        sys.exit(2)
+    with open(path, encoding="utf-8") as f:
         return f.read()
 
 
