@@ -533,13 +533,20 @@ static int row_label_budget(const row_t *r)
 // so there is no rung to fall off -- a long locale gets wider, and the
 // overlap walk is the gate that sees a collision.
 
-// sign/why is built at runtime from up to three reasons plus the footer; the
-// worst case (all three flagged) is what has to fit.
+// sign/why is built at runtime from up to FIVE reasons, and the worst case is
+// all five flagged. Three of them plus a footer was the old shape, and this
+// stayed behind when 43847834 gave every line its own action and dropped
+// S_WHY_FOOT: the key went, this reference did not, and sim/fitcheck.c has
+// not COMPILED since -- so the whole type-size ratchet was absent, in the one
+// state that looks nothing like a red gate. Mirror kiss_sign.c's builder, and
+// keep mirroring it: a reason added there and not here is measured by nothing.
 static void compose_why(char *out, size_t cap)
 {
-    snprintf(out, cap, "%s\n%s\n%s\n\n%s",
-             tr(STR_S_WHY_HIGHFEE), tr(STR_S_WHY_DUSTIN),
-             tr(STR_S_WHY_TINYCH), tr(STR_S_WHY_FOOT));
+    char merge[256];
+    snprintf(merge, sizeof merge, tr(STR_S_WHY_MERGE_FMT), 9u);
+    snprintf(out, cap, "%s\n%s\n%s\n%s\n%s",
+             tr(STR_S_WHY_HIGHFEE), tr(STR_S_WHY_DUSTIN), merge,
+             tr(STR_S_WHY_GAPCH), tr(STR_S_WHY_TINYCH));
 }
 
 // wt_group4 blocks a string in fours for comparison against a coordinator, so

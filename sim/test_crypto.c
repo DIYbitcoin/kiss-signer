@@ -1192,6 +1192,12 @@ int main(int argc, char **argv) {
     chki("sighash load rc", kiss_psbt_load(pb, pl, &sum), 0);
     chki("sighash STOP", sum.status, WPSBT_STOP);
     chkb("sighash reason says sighash", strstr(sum.reason, "sighash") != NULL);
+    // The one refusal above that never asserted the refusal. Every sibling in
+    // this block ends on a sign-refused line and this one stopped at the
+    // verdict, so nothing here covered the gate that matters: STOP reaches
+    // kiss_psbt_sign through s_status, and a signature over a sighash this
+    // signer does not sign is the whole failure the load gate exists to stop.
+    chkb("sighash sign refused", kiss_psbt_sign(sb, sizeof sb, &sw) != 0);
     kiss_psbt_free();
 
     pl = mk_psbt(MUT_UNKNOWN, pb, sizeof pb);

@@ -514,7 +514,18 @@ static const char *tr_reason(const char *r)
         {"input amounts not proven", STR_S_C_UNPROVEN},
         {"input amount over 21M BTC (corrupt)", STR_P_AMT_HUGE_IN},
         {"input script does not re-derive", STR_P_IN_NO_DERIVE},
+        // Its sibling: both verdicts come out of the same rederive_matches
+        // call, one for a script that will not rebuild and one for a keypath
+        // naming a pubkey that does not derive. Neither is fixable from the
+        // device, so the owner does the same thing about both, and the pair
+        // stays distinct where that is worth something -- the serial log,
+        // which writes the raw reason. NOT STR_P_NOT_MINE: that string owns
+        // the fingerprint panel below, and a pubkey mismatch can carry a
+        // fingerprint that matches, which would draw two identical
+        // fingerprints under a refusal saying they differ.
+        {"input derivation pubkey does not match", STR_P_IN_NO_DERIVE},
         {"too many outputs to verify safely", STR_P_TOO_MANY_VERIFY},
+        {"too many input addresses to count safely", STR_P_TOO_MANY_VERIFY},
         {"output amount over 21M BTC (corrupt)", STR_P_AMT_HUGE_OUT},
         {"change address does not re-derive", STR_P_CHANGE_NO_DERIVE},
         {"outputs exceed inputs", STR_P_OUT_GT_IN},
@@ -534,12 +545,20 @@ static const char *tr_reason(const char *r)
         {"too many inputs for silent payments", STR_P_SP_DERIVE},
         {"malformed SP output info", STR_P_SP_INFO},
         {"malformed SP output label", STR_P_SP_INFO},
+        {"SP label without output info", STR_P_SP_INFO},
         {"malformed transaction (v2 fields)", STR_P_MALFORMED_TX},
         {"malformed transaction (v2 extract)", STR_P_MALFORMED_TX},
         {"malformed transaction", STR_P_MALFORMED_TX},
     };
     for (size_t i = 0; i < sizeof MAP / sizeof MAP[0]; i++)
         if (strcmp(r, MAP[i].en) == 0) return tr(MAP[i].id);
+    // A reason with no entry here reaches the refusal screen as the C string
+    // itself: developer English, in every one of the 21 locales, on the one
+    // screen whose whole job is telling an owner why their money is not
+    // moving. Three were in that state at once and none of them looked like
+    // a bug in the source, so tools/check_stop_reasons.py asks the question
+    // mechanically now. Kept as a fallback rather than an abort: showing the
+    // raw reason still beats showing nothing.
     return r;
 }
 

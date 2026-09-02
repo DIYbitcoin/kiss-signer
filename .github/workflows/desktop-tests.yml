@@ -49,6 +49,13 @@ jobs:
       - name: the words on screen match the glossary
         run: python3 tools/check_vocab.py
 
+      # tr_reason ends `return r;`, so a refusal it has no entry for shows
+      # the C string itself -- developer English, in all 21 locales, on the
+      # screen that exists to say why an owner's money is not moving. Three
+      # were in that state at once and every gate was green.
+      - name: every refusal has words in every language
+        run: python3 tools/check_stop_reasons.py
+
       # Both of these existed, both passed, and NEITHER was invoked by any
       # workflow or build script -- so nothing kept them passing. check_glyphs
       # covers the blind spot kiss_theme.h names twice in its own words: a
