@@ -1957,8 +1957,13 @@ static void caution_help_cb(lv_event_t *e)
 {
     (void)e;
     // sized for the longest translations (Cyrillic/CJK run 2-3 bytes per char);
-    // every append clamps o because snprintf returns the WOULD-BE length
-    char body[1792];
+    // every append clamps o because snprintf returns the WOULD-BE length.
+    // Static rather than on the stack: it is 1792 bytes of the main task's
+    // 20KB in a callback that can run under a deep LVGL event chain, and the
+    // card is opened from one task, one tap at a time. Nothing sensitive
+    // outlives the call -- the merge line carries a COUNT of addresses, not
+    // an address, and every other line is a fixed translated sentence.
+    static char body[1792];
     size_t o = 0;
     const char *icons[SG_ROW_MAX];   // one per reason this card can explain
     int ni = 0;
