@@ -463,7 +463,7 @@ jobs:
         if: always()
         run: |
           bash sim/build_fitcheck.sh
-          SIM_LANG=en /tmp/kissfit
+          FITCHECK_SELFTEST=1 SIM_LANG=en /tmp/kissfit
 
       # The fit report above measures strings; this measures SCREENS. It builds
       # every wallet screen the scripted walk reaches, in all 21 locales, and

@@ -351,7 +351,7 @@ by hand, and sat red across THIRTEEN consecutive pushes.
 bash tools/preflight.sh                                    # all of the below
 
 bash sim/build_test.sh && /tmp/kisstest                    # unit tests
-bash sim/build_fitcheck.sh && SIM_LANG=en /tmp/kissfit     # text fit
+bash sim/build_fitcheck.sh && FITCHECK_SELFTEST=1 SIM_LANG=en /tmp/kissfit  # text fit
 bash sim/build_themecheck.sh && /tmp/kisstheme             # accent vs status colour
 bash sim/build_osdcheck.sh && SIM_LANG=en /tmp/kissosd     # on-video overlay text
 bash sim/build_sim.sh && OVERLAPCHECK_LANGS=en bash sim/run_overlapcheck.sh   # screen walk

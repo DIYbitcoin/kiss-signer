@@ -124,7 +124,7 @@ run "parser fuzz (ASAN + UBSAN)" \
     "bash sim/build_fuzz.sh && \"\$KISS_SIM_TMP/kissfuzz\" | tee \"\$KISS_SIM_TMP/fuzz.log\" \
      && grep -q 'ALL FUZZ PASS' \"\$KISS_SIM_TMP/fuzz.log\""
 
-run "text fit" "bash sim/build_fitcheck.sh && SIM_LANG=en \"\$KISS_SIM_TMP/kissfit\""
+run "text fit" "bash sim/build_fitcheck.sh && FITCHECK_SELFTEST=1 SIM_LANG=en \"\$KISS_SIM_TMP/kissfit\""
 run "accent vs status colour" "bash sim/build_themecheck.sh && \"\$KISS_SIM_TMP/kisstheme\""
 run "on-video overlay text" "bash sim/build_osdcheck.sh && SIM_LANG=en \"\$KISS_SIM_TMP/kissosd\""
 

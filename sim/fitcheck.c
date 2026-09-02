@@ -523,6 +523,61 @@ static int row_label_budget(const row_t *r)
     return right - vw - 14;
 }
 
+// ---- the measurements, in one place so the selftest exercises the gate ----
+//
+// Every one of these was written inline in main. Pulling them out is not
+// tidying: a selftest that measures with its own copy of the arithmetic
+// proves the copy works, which is the failure this file already had once in
+// a worse form -- it did not COMPILE for a stretch (43847834, a reference to
+// a deleted key), and a gate that never runs looks exactly like a gate that
+// passes. Now that ROW_BACKLOG is a bare sentinel, "0 backlogged, 0 new" is
+// also what a check that stopped measuring would print.
+
+// The rung wt_body_font picks for a slot: 28, 23 or 14.
+static int slot_rung(const char *txt, int w, int h)
+{
+    const lv_font_t *f = wt_body_font(txt, w, h);
+    return f == wt_font28() ? 28 : f == wt_font23() ? 23 : 14;
+}
+
+// A wt_row label is font23 on ONE line, a sub is font14 on one line, and both
+// ellipsise past their budget -- so width on an unbounded lane is the whole
+// question for each.
+static int text_px(const char *txt, const lv_font_t *f)
+{
+    lv_point_t sz;
+    lv_text_get_size(&sz, txt, f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    return (int)sz.x;
+}
+
+// Present in the face, and with real ink in it rather than a placeholder box.
+static bool icon_inked(const lv_font_t *f, uint32_t cp)
+{
+    lv_font_glyph_dsc_t g;
+    return lv_font_get_glyph_dsc(f, &g, cp, 0) && g.box_w != 0 && g.adv_w != 0;
+}
+
+// What wt_title_fit lands on for this title in this lane. Builds and deletes
+// the real widgets, because the picker's answer depends on what else is in
+// the header row.
+static const lv_font_t *title_pick(const char *txt, int lane, bool chrome,
+                                   int *letter_space)
+{
+    lv_obj_t *scr = wt_screen(lv_screen_active(), txt, NULL);
+    if (chrome) wt_chrome_head(scr);
+    wt_title_fit(scr, lane);
+    lv_obj_t *cap = wt_screen_title(scr);
+    const lv_font_t *picked = lv_obj_get_style_text_font(cap, 0);
+    if (letter_space) *letter_space = lv_obj_get_style_text_letter_space(cap, 0);
+    lv_obj_delete(scr);
+    return picked;
+}
+
+static bool title_is_smallest(const lv_font_t *f)
+{
+    return f == wt_font_mono18() || f == wt_font23();
+}
+
 // The pill lane is gone with the pills. Every action is an arrow or word
 // action now: a content-sized single line at chrome23 that never re-fonts,
 // so there is no rung to fall off -- a long locale gets wider, and the
@@ -711,6 +766,96 @@ static int check_addr_lift(void)
     return bad;
 }
 
+// ---- FITCHECK_SELFTEST=1: prove each measurement still REPORTS -------------
+//
+// Every check in this file is defined by what it EXCUSES, so a clean sweep
+// says nothing on its own. That was tolerable while ROW_BACKLOG held nineteen
+// entries: the run printed them, and a number that moves is a number that is
+// being computed. The backlog is a bare sentinel now, and "row labels
+// ellipsised: 0 backlogged, 0 new" is a line a gate that stopped measuring
+// would print WORD FOR WORD.
+//
+// Both directions, every case. A check that fires on everything passes the
+// must-fire half exactly as a dead one passes the must-not, so neither half
+// is worth having alone. The shapes go through the helpers above, which is
+// the same code the sweep runs -- a selftest with its own arithmetic tests
+// its own arithmetic.
+static int selftest(void)
+{
+    int cases = 0, bad = 0;
+#define CHK(what, cond) do {                                   \
+        cases++;                                               \
+        if (!(cond)) { printf("  selftest FAIL: %s\n", (what)); bad++; } \
+    } while (0)
+
+    // Long enough to overrun every lane on this device, short enough that no
+    // budget below has to be invented to make the point.
+    static const char LONG[] =
+        "a sentence far too long for any row label on this device to hold";
+    const int BUDGET = 200;
+
+    // slot rung -- the font14 ratchet
+    CHK("a long body in a small box falls to font14",
+        slot_rung(LONG, 300, 40) == 14);
+    CHK("a short body in a tall box does not",
+        slot_rung("ok", 600, 200) != 14);
+
+    // row label and sub width -- the two faces the rows are pinned to
+    CHK("a long label overruns its budget at font23",
+        text_px(LONG, wt_font23()) > BUDGET);
+    CHK("a short label does not",
+        text_px("ok", wt_font23()) <= BUDGET);
+    CHK("a long sub overruns its budget at font14",
+        text_px(LONG, wt_font14()) > BUDGET);
+    CHK("a short sub does not",
+        text_px("ok", wt_font14()) <= BUDGET);
+    CHK("the same string measures wider at font23 than at font14",
+        text_px(LONG, wt_font23()) > text_px(LONG, wt_font14()));
+
+    // the backlogs. ROW_BACKLOG is {NULL, NULL} now, so the lookup has to
+    // survive the sentinel AND match nothing; ROWSUB_BACKLOG still holds
+    // entries, so it has to still find one. An emptied backlog whose lookup
+    // silently matched everything would excuse the whole check.
+    CHK("the emptied row backlog matches a surface it used to hold",
+        !row_backlogged("de", "set/storage"));
+    CHK("the emptied row backlog matches nothing else either",
+        !row_backlogged("xx", "no-such-surface"));
+    CHK("the sub backlog still finds a known entry",
+        rowsub_backlogged("nb-NO", "set/duress"));
+    CHK("the sub backlog rejects an unknown surface",
+        !rowsub_backlogged("nb-NO", "no-such-surface"));
+
+    // kit icons. WT_ICON_* are all 3-byte UTF-8, decoded here the way the
+    // sweep decodes them. U+E000 opens the private use area: nothing this
+    // repo generates puts a glyph there.
+    const unsigned char *k = (const unsigned char *)WT_ICON_KEY;
+    const uint32_t keycp = ((uint32_t)(k[0] & 0x0Fu) << 12) |
+                           ((uint32_t)(k[1] & 0x3Fu) << 6) | (k[2] & 0x3Fu);
+    CHK("a kit icon is inked at font23", icon_inked(wt_font23(), keycp));
+    CHK("a kit icon is inked at font34", icon_inked(wt_font34(), keycp));
+    CHK("a codepoint no face has is not inked",
+        !icon_inked(wt_font23(), 0xE000));
+
+    // screen titles -- the real widgets and the real picker
+    CHK("a long title in a narrow lane lands on the smallest rung",
+        title_is_smallest(title_pick(LONG, 300, true, NULL)));
+    CHK("a short title in a full lane does not",
+        !title_is_smallest(title_pick("OK", 704, true, NULL)));
+
+#undef CHK
+    // A case deleted is a case that stops failing, and a selftest that
+    // quietly shrinks is the thing it was written to prevent one level up.
+    // Raise this WITH the case, never to make a run go green.
+    enum { FIT_SELFTEST_CASES = 16 };
+    if (cases != FIT_SELFTEST_CASES) {
+        printf("  selftest FAIL: %d cases, expected %d -- a case was removed\n",
+               cases, FIT_SELFTEST_CASES);
+        bad++;
+    }
+    printf("fit selftest: %d cases, %d broken\n", cases, bad);
+    return bad ? 1 : 0;
+}
+
 int main(int argc, char **argv)
 {
     lv_init();
@@ -718,6 +863,10 @@ int main(int argc, char **argv)
     lv_display_t *d = lv_display_create(800, 480);
     lv_display_set_color_format(d, LV_COLOR_FORMAT_RGB565);
     lv_display_set_buffers(d, buf, NULL, sizeof buf, LV_DISPLAY_RENDER_MODE_PARTIAL);
+
+    // Before the sweep, not instead of it: the sweep's answer is only worth
+    // reading once the measurements behind it have been shown to still fire.
+    if (getenv("FITCHECK_SELFTEST") && selftest()) return 1;
 
     int total_small = 0, key_small = 0, nfail = 0, en_small = 0;
     int row_cut = 0, row_known = 0;
@@ -752,10 +901,9 @@ int main(int argc, char **argv)
             if (SLOTS[i].key < 0) { compose_why(composed, sizeof composed); txt = composed; }
             else                  { txt = tr(SLOTS[i].key); }
 
-            const lv_font_t *f = wt_body_font(txt, SLOTS[i].w, SLOTS[i].h);
             // Only font14 counts as a failure now. 23 is a real reading size,
             // and the notes wedged between controls can never reach 28.
-            int rung = f == wt_font28() ? 28 : f == wt_font23() ? 23 : 14;
+            int rung = slot_rung(txt, SLOTS[i].w, SLOTS[i].h);
             int bad  = rung == 14 && !SLOTS[i].may_be_small;
             if (bad) small++;
             // how far the copy overflows at 23 is what a translator must delete
@@ -789,18 +937,16 @@ int main(int argc, char **argv)
         for (int i = 0; i < NROW; i++) {
             const char *txt = tr(ROWS[i].key);
             int budget = row_label_budget(&ROWS[i]);
-            lv_point_t sz;
-            lv_text_get_size(&sz, txt, wt_font23(), 0, 0, LV_COORD_MAX,
-                             LV_TEXT_FLAG_NONE);
+            const int px = text_px(txt, wt_font23());
             rlines[i][0] = '\0';
-            if ((int)sz.x > budget) {
+            if (px > budget) {
                 rbad++;
                 bool known = row_backlogged(li->code, ROWS[i].surface);
                 if (known) row_known++;
                 else       row_cut++;
                 snprintf(rlines[i], sizeof rlines[i],
                          "  row  %-15s %3dpx / %3dpx  %s  \"%s\"",
-                         ROWS[i].surface, (int)sz.x, budget,
+                         ROWS[i].surface, px, budget,
                          known ? "ellipsis (backlog)" : "ELLIPSIS", txt);
             }
         }
@@ -827,18 +973,16 @@ int main(int argc, char **argv)
             snprintf(built, sizeof built, "%s%s",
                      SUBROWS[i].pfx ? SUBROWS[i].pfx : "", body);
             int budget = row_label_budget(r);
-            lv_point_t sz;
-            lv_text_get_size(&sz, built, wt_font14(), 0, 0, LV_COORD_MAX,
-                             LV_TEXT_FLAG_NONE);
+            const int px = text_px(built, wt_font14());
             slines[i][0] = '\0';
-            if ((int)sz.x > budget) {
+            if (px > budget) {
                 sbad++;
                 bool known = rowsub_backlogged(li->code, SUBROWS[i].surface);
                 if (known) sub_known++;
                 else       sub_cut++;
                 snprintf(slines[i], sizeof slines[i],
                          "  sub  %-15s %3dpx / %3dpx  %s  \"%s\"",
-                         SUBROWS[i].surface, (int)sz.x, budget,
+                         SUBROWS[i].surface, px, budget,
                          known ? "ellipsis (backlog)" : "ELLIPSIS", built);
             }
         }
@@ -895,14 +1039,15 @@ int main(int argc, char **argv)
         uint32_t cp = ((u[0] & 0x0Fu) << 12) |     // every WT_ICON_* is 3-byte
                       ((u[1] & 0x3Fu) << 6) | (u[2] & 0x3Fu);
         for (size_t j = 0; j < sizeof FACES / sizeof *FACES; j++) {
+            if (icon_inked(FACES[j].f, cp)) continue;
+            // Only now is the distinction worth the second lookup: absent
+            // from the chain, or present as an empty placeholder box.
             lv_font_glyph_dsc_t g;
             bool ok = lv_font_get_glyph_dsc(FACES[j].f, &g, cp, 0);
-            if (!ok || g.box_w == 0 || g.adv_w == 0) {
-                printf("FAIL: %s (U+%04X) %s in %s\n", ICONS[i].name,
-                       (unsigned)cp, ok ? "is blank" : "is MISSING",
-                       FACES[j].name);
-                icon_bad++;
-            }
+            printf("FAIL: %s (U+%04X) %s in %s\n", ICONS[i].name,
+                   (unsigned)cp, ok ? "is blank" : "is MISSING",
+                   FACES[j].name);
+            icon_bad++;
         }
     }
     if (icon_bad) {
@@ -1009,16 +1154,11 @@ int main(int argc, char **argv)
                 if (only && strcmp(only, i18n_lang_info(l)->code) != 0) continue;
                 i18n_set_lang(l);
                 const char *txt = tr(TITLE_SLOTS[t].key);
-                lv_obj_t *scr = wt_screen(lv_screen_active(), txt, NULL);
-                if (TITLE_SLOTS[t].chrome) wt_chrome_head(scr);
-                wt_title_fit(scr, TITLE_SLOTS[t].lane);
-                lv_obj_t *cap = wt_screen_title(scr);
-                const lv_font_t *picked = lv_obj_get_style_text_font(cap, 0);
-                const bool smallest = picked == wt_font_mono18() ||
-                                      picked == wt_font23();
-                if (smallest) {
+                int ls = 0;
+                const lv_font_t *picked = title_pick(txt, TITLE_SLOTS[t].lane,
+                                                     TITLE_SLOTS[t].chrome, &ls);
+                if (title_is_smallest(picked)) {
                     lv_point_t sz;
-                    const int ls = lv_obj_get_style_text_letter_space(cap, 0);
                     lv_text_get_size(&sz, txt, picked, ls, 0, LV_COORD_MAX,
                                      LV_TEXT_FLAG_NONE);
                     printf("  title %-11s %-6s smallest  %dpx / %dpx  FAIL\n",
@@ -1026,7 +1166,6 @@ int main(int argc, char **argv)
                            sz.x, TITLE_SLOTS[t].lane);
                     title_small++;
                 }
-                lv_obj_delete(scr);
             }
         }
         printf("screen titles: %d lane(s), %d title-locale pair(s) at smallest rung\n",
