@@ -461,6 +461,43 @@ UNTRANSLATED_OK = {
 }
 
 
+# The generated tables are written only on a clean run, so an ERROR used to
+# leave the LAST GOOD ONES on disk: exit 1, a message nobody had to read, and
+# main/i18n_tables.c still full of yesterday's strings. Everything downstream
+# then measured a build that no longer matched i18n/*.json -- the sim, the fit
+# gate, the walk, the 21 locale sweep -- and each of them reported clean about
+# strings that were not on the device. It cost a wrong reading in the middle of
+# the translation sweep: two locales had been applied, the generator had
+# refused on a THIRD, and the gates were still showing the wording from before
+# any of them.
+#
+# So a refusal now POISONS the tables instead of leaving them. One #error line
+# on top of the file they already are: nothing is lost, git diff shows one
+# added line, no build can succeed, and the next clean run overwrites the whole
+# file and takes the line with it. A gate that cannot be ignored is the only
+# kind worth having here -- exactly the argument the attribution hook makes.
+POISON = "#error i18n tables are STALE"
+
+
+def poison(why):
+    f = ROOT / "main" / "i18n_tables.c"
+    if not f.exists():
+        return
+    cur = f.read_text(encoding="utf-8")
+    if cur.startswith(POISON):
+        return
+    f.write_text(
+        f"{POISON} -- gen_i18n.py refused to write them.\n"
+        f"// {why}\n"
+        f"// Fix the string above, run tools/gen_i18n.py again, and this file\n"
+        f"// is rewritten without these lines. Nothing below has changed; it is\n"
+        f"// the last good build, which is why it must not compile.\n" + cur,
+        encoding="utf-8")
+    print("gen_i18n: main/i18n_tables.c POISONED -- it holds the last good "
+          "strings, so nothing may build against it until this is fixed",
+          file=sys.stderr)
+
+
 def main():
     errors = []
     warnings = []
@@ -544,6 +581,7 @@ def main():
     if errors:
         for e in errors:
             print(f"ERROR: {e}", file=sys.stderr)
+        poison(errors[0])
         return 1
 
     # ---- main/i18n_keys.h ----
