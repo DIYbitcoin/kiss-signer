@@ -361,6 +361,7 @@ python3 tools/check_vocab.py                       # the words on screen and in 
 python3 tools/check_stop_reasons.py                # a refusal with no words in 21 locales
 GLYPHCHECK_SELFTEST=1 python3 tools/check_glyphs.py  # an icon with no glyph in the fonts
 python3 tools/check_mono_glyphs.py                 # the same, for the mono faces
+python3 tools/check_text_glyphs.py                 # a STRING with no glyph, in any locale
 GATECHECK_SELFTEST=1 python3 tools/check_gates.py  # a checker nothing runs
 python3 tools/check_layout_reads.py                # a measurement taken before a layout
 python3 tools/check_lv_conf.py                     # the sim's LVGL config vs the device's
