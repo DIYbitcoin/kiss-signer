@@ -652,9 +652,29 @@ static void sig_fp_help_cb(lv_event_t *e)
 {
     (void)e;
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
-    lv_obj_delete(s_scr); s_scr = NULL; s_sign_lbl = NULL;
+    // EVERY cached child is dropped BEFORE the delete, never after.
+    //
+    // lv_obj_delete is synchronous and sends LV_EVENT_DELETE as it goes. The
+    // slide bar's hold_press_cb answers that event, and it reaches back here
+    // through hold_reset -> sign_slide_move, whose first line is
+    // `if (s_graph) wt_bundle_hold(s_graph, ...)`. With the assignments after
+    // the delete, s_graph is still a non NULL pointer to a child the same
+    // delete has already freed, so the guard passes and the read is a use
+    // after free -- ASAN, on the Turkish walk:
+    //
+    //   heap-use-after-free  lv_obj_get_event_count <- wt_bundle_hold
+    //     <- sign_slide_move <- hold_reset <- hold_press_cb
+    //     <- obj_delete_core <- lv_obj_delete <- glossary_cb
+    //   freed by: obj_delete_core, the same lv_obj_delete
+    //
+    // Nulled first, the guard does what it was written to do. Locale
+    // dependent only by accident: it needs the slide to be mid gesture when
+    // the page goes, and how long the text is decides that.
+    lv_obj_t *dying = s_scr;
+    s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
     s_inert[0] = NULL; s_page_lbl = NULL;
+    lv_obj_delete(dying);
     mk_screen(parent, tr(STR_S_SIG_FP_HELP_T), NULL);
 
     // This device's own code first, real and big. It is on the screen behind
@@ -1045,9 +1065,29 @@ static void done_steps(void)
 static void done_screen(const char *outname)
 {
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
-    lv_obj_delete(s_scr); s_scr = NULL; s_sign_lbl = NULL;
+    // EVERY cached child is dropped BEFORE the delete, never after.
+    //
+    // lv_obj_delete is synchronous and sends LV_EVENT_DELETE as it goes. The
+    // slide bar's hold_press_cb answers that event, and it reaches back here
+    // through hold_reset -> sign_slide_move, whose first line is
+    // `if (s_graph) wt_bundle_hold(s_graph, ...)`. With the assignments after
+    // the delete, s_graph is still a non NULL pointer to a child the same
+    // delete has already freed, so the guard passes and the read is a use
+    // after free -- ASAN, on the Turkish walk:
+    //
+    //   heap-use-after-free  lv_obj_get_event_count <- wt_bundle_hold
+    //     <- sign_slide_move <- hold_reset <- hold_press_cb
+    //     <- obj_delete_core <- lv_obj_delete <- glossary_cb
+    //   freed by: obj_delete_core, the same lv_obj_delete
+    //
+    // Nulled first, the guard does what it was written to do. Locale
+    // dependent only by accident: it needs the slide to be mid gesture when
+    // the page goes, and how long the text is decides that.
+    lv_obj_t *dying = s_scr;
+    s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
     s_inert[0] = NULL; s_page_lbl = NULL;
+    lv_obj_delete(dying);
     // The subtitle says what the signature COVERS, which is the one thing the
     // screen could not say before: S_DONE_SD_SUB's three instructions moved
     // into the steps strip at the foot, where they are three things again.
@@ -1120,9 +1160,29 @@ static void fail_body(const char *why)
 static void fail_screen(const char *why)
 {
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
-    lv_obj_delete(s_scr); s_scr = NULL; s_sign_lbl = NULL;
+    // EVERY cached child is dropped BEFORE the delete, never after.
+    //
+    // lv_obj_delete is synchronous and sends LV_EVENT_DELETE as it goes. The
+    // slide bar's hold_press_cb answers that event, and it reaches back here
+    // through hold_reset -> sign_slide_move, whose first line is
+    // `if (s_graph) wt_bundle_hold(s_graph, ...)`. With the assignments after
+    // the delete, s_graph is still a non NULL pointer to a child the same
+    // delete has already freed, so the guard passes and the read is a use
+    // after free -- ASAN, on the Turkish walk:
+    //
+    //   heap-use-after-free  lv_obj_get_event_count <- wt_bundle_hold
+    //     <- sign_slide_move <- hold_reset <- hold_press_cb
+    //     <- obj_delete_core <- lv_obj_delete <- glossary_cb
+    //   freed by: obj_delete_core, the same lv_obj_delete
+    //
+    // Nulled first, the guard does what it was written to do. Locale
+    // dependent only by accident: it needs the slide to be mid gesture when
+    // the page goes, and how long the text is decides that.
+    lv_obj_t *dying = s_scr;
+    s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
     s_inert[0] = NULL; s_page_lbl = NULL;
+    lv_obj_delete(dying);
     mk_chrome(parent, tr(STR_S_FAIL_T));
     char trail[96];
     snprintf(trail, sizeof trail, "%s / %s", tr(STR_S_T),
@@ -3853,9 +3913,29 @@ static void sign_term_more(int id)
     kiss_terms_leaving();
 
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
-    lv_obj_delete(s_scr); s_scr = NULL; s_sign_lbl = NULL;
+    // EVERY cached child is dropped BEFORE the delete, never after.
+    //
+    // lv_obj_delete is synchronous and sends LV_EVENT_DELETE as it goes. The
+    // slide bar's hold_press_cb answers that event, and it reaches back here
+    // through hold_reset -> sign_slide_move, whose first line is
+    // `if (s_graph) wt_bundle_hold(s_graph, ...)`. With the assignments after
+    // the delete, s_graph is still a non NULL pointer to a child the same
+    // delete has already freed, so the guard passes and the read is a use
+    // after free -- ASAN, on the Turkish walk:
+    //
+    //   heap-use-after-free  lv_obj_get_event_count <- wt_bundle_hold
+    //     <- sign_slide_move <- hold_reset <- hold_press_cb
+    //     <- obj_delete_core <- lv_obj_delete <- glossary_cb
+    //   freed by: obj_delete_core, the same lv_obj_delete
+    //
+    // Nulled first, the guard does what it was written to do. Locale
+    // dependent only by accident: it needs the slide to be mid gesture when
+    // the page goes, and how long the text is decides that.
+    lv_obj_t *dying = s_scr;
+    s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
     s_inert[0] = NULL; s_page_lbl = NULL;
+    lv_obj_delete(dying);
     mk_screen(parent, tr(STR_T_FEE_CAP), NULL);
     wt_trail(s_scr, WT_ICON_WHAT, tr(STR_S_GLOSSARY_T), false);
 
@@ -3924,9 +4004,29 @@ static void glossary_cb(lv_event_t *e)
     // so a reader meets the word their coordinator uses and leaves knowing
     // what it means rather than what this device decided to call it.
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
-    lv_obj_delete(s_scr); s_scr = NULL; s_sign_lbl = NULL;
+    // EVERY cached child is dropped BEFORE the delete, never after.
+    //
+    // lv_obj_delete is synchronous and sends LV_EVENT_DELETE as it goes. The
+    // slide bar's hold_press_cb answers that event, and it reaches back here
+    // through hold_reset -> sign_slide_move, whose first line is
+    // `if (s_graph) wt_bundle_hold(s_graph, ...)`. With the assignments after
+    // the delete, s_graph is still a non NULL pointer to a child the same
+    // delete has already freed, so the guard passes and the read is a use
+    // after free -- ASAN, on the Turkish walk:
+    //
+    //   heap-use-after-free  lv_obj_get_event_count <- wt_bundle_hold
+    //     <- sign_slide_move <- hold_reset <- hold_press_cb
+    //     <- obj_delete_core <- lv_obj_delete <- glossary_cb
+    //   freed by: obj_delete_core, the same lv_obj_delete
+    //
+    // Nulled first, the guard does what it was written to do. Locale
+    // dependent only by accident: it needs the slide to be mid gesture when
+    // the page goes, and how long the text is decides that.
+    lv_obj_t *dying = s_scr;
+    s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
     s_inert[0] = NULL; s_page_lbl = NULL;
+    lv_obj_delete(dying);
     mk_screen(parent, tr(STR_S_GLOSSARY_T), NULL);
     // The trail names the PAGE THIS CAME FROM and nothing else. TERMS is the
     // title now, and a trail repeating it is the restatement the copy rule
@@ -4471,9 +4571,29 @@ static void qr_ez_cb(lv_event_t *e)
 static void qr_out_screen(size_t sw, bool rebuild)
 {
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
-    lv_obj_delete(s_scr); s_scr = NULL; s_sign_lbl = NULL;
+    // EVERY cached child is dropped BEFORE the delete, never after.
+    //
+    // lv_obj_delete is synchronous and sends LV_EVENT_DELETE as it goes. The
+    // slide bar's hold_press_cb answers that event, and it reaches back here
+    // through hold_reset -> sign_slide_move, whose first line is
+    // `if (s_graph) wt_bundle_hold(s_graph, ...)`. With the assignments after
+    // the delete, s_graph is still a non NULL pointer to a child the same
+    // delete has already freed, so the guard passes and the read is a use
+    // after free -- ASAN, on the Turkish walk:
+    //
+    //   heap-use-after-free  lv_obj_get_event_count <- wt_bundle_hold
+    //     <- sign_slide_move <- hold_reset <- hold_press_cb
+    //     <- obj_delete_core <- lv_obj_delete <- glossary_cb
+    //   freed by: obj_delete_core, the same lv_obj_delete
+    //
+    // Nulled first, the guard does what it was written to do. Locale
+    // dependent only by accident: it needs the slide to be mid gesture when
+    // the page goes, and how long the text is decides that.
+    lv_obj_t *dying = s_scr;
+    s_scr = NULL; s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
     s_inert[0] = NULL; s_page_lbl = NULL;
+    lv_obj_delete(dying);
 
     // EASY SCAN survives the round trip through the signature panel. It did
     // not: this reset ran on every build of the screen, and the only other
