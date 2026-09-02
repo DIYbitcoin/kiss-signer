@@ -841,7 +841,7 @@
   "W_VINTRO_W2_B": "seu papel as abre",
   "W_VINTRO_W2_H": "NUNCA MOSTRA",
   "W_VOK_B": "guarde offline e em privado.\npalavras seed + passphrase restauram estas chaves.",
-  "W_VOK_B_NP": "keep it offline and private.\nthese seed words restore these keys.",
+  "W_VOK_B_NP": "guarde offline e em privado.\nestas palavras seed restauram estas chaves.",
   "W_VOK_FP": "escreva este código ao lado das suas palavras.",
   "W_VOK_MATCH": "todas as palavras coincidem",
   "W_VOK_S": "a passphrase não entra nesta conferência",

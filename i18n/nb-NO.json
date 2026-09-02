@@ -841,7 +841,7 @@
   "W_VINTRO_W2_B": "papiret ditt åpner dem",
   "W_VINTRO_W2_H": "VISER ALDRI",
   "W_VOK_B": "oppbevar det offline og privat.\nseed-ord + passordfrase gjenoppretter disse nøklene.",
-  "W_VOK_B_NP": "keep it offline and private.\nthese seed words restore these keys.",
+  "W_VOK_B_NP": "oppbevar det offline og privat.\ndisse seed-ordene gjenoppretter disse nøklene.",
   "W_VOK_FP": "skriv denne koden ved siden av ordene dine.",
   "W_VOK_MATCH": "alle ordene stemte",
   "W_VOK_S": "passordfrasen er ikke med i denne sjekken",

@@ -841,7 +841,7 @@
   "W_VINTRO_W2_B": "váš papír je otevírá",
   "W_VINTRO_W2_H": "NIKDY NEUKAZUJE",
   "W_VOK_B": "uchovej to offline a v soukromí.\nslova seedu + fráze obnoví tyto klíče.",
-  "W_VOK_B_NP": "keep it offline and private.\nthese seed words restore these keys.",
+  "W_VOK_B_NP": "uchovej to offline a v soukromí.\ntato slova seedu obnoví tyto klíče.",
   "W_VOK_FP": "napiš tento kód vedle svých slov.",
   "W_VOK_MATCH": "všechna slova se shodovala",
   "W_VOK_S": "přístupová fráze do téhle kontroly nepatří",

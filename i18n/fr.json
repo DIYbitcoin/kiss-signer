@@ -841,7 +841,7 @@
   "W_VINTRO_W2_B": "votre papier les ouvre",
   "W_VINTRO_W2_H": "NE MONTRE JAMAIS",
   "W_VOK_B": "garde-le hors ligne et privé.\nmots de seed + phrase secrète restaurent ces clés.",
-  "W_VOK_B_NP": "keep it offline and private.\nthese seed words restore these keys.",
+  "W_VOK_B_NP": "garde-le hors ligne et privé.\nces mots de seed restaurent ces clés.",
   "W_VOK_FP": "écrivez ce code à côté de vos mots.",
   "W_VOK_MATCH": "chaque mot correspond",
   "W_VOK_S": "la phrase secrète ne fait pas partie de ce contrôle",

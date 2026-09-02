@@ -841,7 +841,7 @@
   "W_VINTRO_W2_B": "Ihr Papier öffnet sie",
   "W_VINTRO_W2_H": "ZEIGT NIE",
   "W_VOK_B": "bewahre es offline und privat auf.\nSeed-Wörter + Passphrase holen diese Schlüssel zurück.",
-  "W_VOK_B_NP": "keep it offline and private.\nthese seed words restore these keys.",
+  "W_VOK_B_NP": "bewahre es offline und privat auf.\ndiese Seed-Wörter holen diese Schlüssel zurück.",
   "W_VOK_FP": "schreibe diesen Code neben deine Wörter.",
   "W_VOK_MATCH": "jedes Wort stimmt",
   "W_VOK_S": "die Passphrase gehört nicht zu dieser Prüfung",

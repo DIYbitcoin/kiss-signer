@@ -841,7 +841,7 @@
   "W_VINTRO_W2_B": "kâğıdınız onları açar",
   "W_VINTRO_W2_H": "ASLA GÖSTERMEZ",
   "W_VOK_B": "çevrimdışı ve gizli saklayın.\nseed kelimeleri + parola bu anahtarları geri getirir.",
-  "W_VOK_B_NP": "keep it offline and private.\nthese seed words restore these keys.",
+  "W_VOK_B_NP": "çevrimdışı ve gizli saklayın.\nbu seed kelimeleri bu anahtarları geri getirir.",
   "W_VOK_FP": "bu kodu kelimelerinin yanına yaz.",
   "W_VOK_MATCH": "her kelime eşleşti",
   "W_VOK_S": "Passphrase bu denetimin parçası değil",

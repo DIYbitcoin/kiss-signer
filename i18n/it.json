@@ -841,7 +841,7 @@
   "W_VINTRO_W2_B": "la tua carta le apre",
   "W_VINTRO_W2_H": "NON MOSTRA MAI",
   "W_VOK_B": "tienilo offline e privato.\nparole seed + passphrase ripristinano queste chiavi.",
-  "W_VOK_B_NP": "keep it offline and private.\nthese seed words restore these keys.",
+  "W_VOK_B_NP": "tienilo offline e privato.\nqueste parole seed ripristinano queste chiavi.",
   "W_VOK_FP": "scrivi questo codice accanto alle tue parole.",
   "W_VOK_MATCH": "tutte le parole coincidono",
   "W_VOK_S": "la passphrase non fa parte di questo controllo",

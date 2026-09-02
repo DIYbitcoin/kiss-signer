@@ -1726,7 +1726,7 @@ static const char *const tbl_de[STR_N] = {
     [STR_W_WRITE_S] = "Seed-Wörter + diese Passphrase stellen diese Schlüssel wieder her",
     [STR_W_WRITE_T] = "SCHREIB SIE AUF",
     [STR_W_WROTE] = "ICH HABE SIE NOTIERT",
-    [STR_W_VOK_B_NP] = "keep it offline and private.\nthese seed words restore these keys.",
+    [STR_W_VOK_B_NP] = "bewahre es offline und privat auf.\ndiese Seed-Wörter holen diese Schlüssel zurück.",
 };
 
 static const char *const tbl_es[STR_N] = {
@@ -2590,7 +2590,7 @@ static const char *const tbl_es[STR_N] = {
     [STR_W_WRITE_S] = "palabras + esta passphrase restauran estas claves",
     [STR_W_WRITE_T] = "ANÓTALAS",
     [STR_W_WROTE] = "YA LAS ANOTÉ",
-    [STR_W_VOK_B_NP] = "keep it offline and private.\nthese seed words restore these keys.",
+    [STR_W_VOK_B_NP] = "guárdalo offline y en privado.\nestas palabras semilla restauran estas llaves.",
 };
 
 static const char *const tbl_fr[STR_N] = {
@@ -3454,7 +3454,7 @@ static const char *const tbl_fr[STR_N] = {
     [STR_W_WRITE_S] = "mots + cette phrase secrète restaurent ces clés",
     [STR_W_WRITE_T] = "NOTE-LES",
     [STR_W_WROTE] = "JE LES AI NOTÉS",
-    [STR_W_VOK_B_NP] = "keep it offline and private.\nthese seed words restore these keys.",
+    [STR_W_VOK_B_NP] = "garde-le hors ligne et privé.\nces mots de seed restaurent ces clés.",
 };
 
 static const char *const tbl_it[STR_N] = {
@@ -4318,7 +4318,7 @@ static const char *const tbl_it[STR_N] = {
     [STR_W_WRITE_S] = "parole seed + questa passphrase riaprono le chiavi",
     [STR_W_WRITE_T] = "SCRIVILE SU CARTA",
     [STR_W_WROTE] = "LE HO SCRITTE",
-    [STR_W_VOK_B_NP] = "keep it offline and private.\nthese seed words restore these keys.",
+    [STR_W_VOK_B_NP] = "tienilo offline e privato.\nqueste parole seed ripristinano queste chiavi.",
 };
 
 static const char *const tbl_ja[STR_N] = {
@@ -5182,7 +5182,7 @@ static const char *const tbl_ja[STR_N] = {
     [STR_W_WRITE_S] = "シードフレーズ + 同じパスフレーズでこの鍵を復元できます",
     [STR_W_WRITE_T] = "書き留めてください",
     [STR_W_WROTE] = "書き留めました",
-    [STR_W_VOK_B_NP] = "keep it offline and private.\nthese seed words restore these keys.",
+    [STR_W_VOK_B_NP] = "オフラインで安全に保管を。\nこのシードフレーズで復元できます。",
 };
 
 static const char *const tbl_ko[STR_N] = {
@@ -6046,7 +6046,7 @@ static const char *const tbl_ko[STR_N] = {
     [STR_W_WRITE_S] = "시드 문구 + 같은 패스프레이즈가 이 키를 되살립니다",
     [STR_W_WRITE_T] = "적어 두세요",
     [STR_W_WROTE] = "다 적었습니다",
-    [STR_W_VOK_B_NP] = "keep it offline and private.\nthese seed words restore these keys.",
+    [STR_W_VOK_B_NP] = "오프라인에 안전하게 보관하세요.\n이 시드 문구가 이 키를 되살립니다.",
 };
 
 static const char *const tbl_nl[STR_N] = {
@@ -6910,7 +6910,7 @@ static const char *const tbl_nl[STR_N] = {
     [STR_W_WRITE_S] = "seed-woorden + deze wachtwoordzin openen ze weer",
     [STR_W_WRITE_T] = "SCHRIJF ZE OP",
     [STR_W_WROTE] = "IK HEB ZE GENOTEERD",
-    [STR_W_VOK_B_NP] = "keep it offline and private.\nthese seed words restore these keys.",
+    [STR_W_VOK_B_NP] = "bewaar het offline en prive.\ndeze seed woorden herstellen deze sleutels.",
 };
 
 static const char *const tbl_pl[STR_N] = {
@@ -7774,7 +7774,7 @@ static const char *const tbl_pl[STR_N] = {
     [STR_W_WRITE_S] = "słowa + ta fraza dostępu przywracają te klucze",
     [STR_W_WRITE_T] = "ZAPISZ JE",
     [STR_W_WROTE] = "ZAPISAŁEM JE",
-    [STR_W_VOK_B_NP] = "keep it offline and private.\nthese seed words restore these keys.",
+    [STR_W_VOK_B_NP] = "trzymaj offline i prywatnie.\nte słowa seed odtworzą te klucze.",
 };
 
 static const char *const tbl_pt[STR_N] = {
@@ -8638,7 +8638,7 @@ static const char *const tbl_pt[STR_N] = {
     [STR_W_WRITE_S] = "palavras + esta passphrase restauram estas chaves",
     [STR_W_WRITE_T] = "ANOTE ESTAS PALAVRAS",
     [STR_W_WROTE] = "JÁ ANOTEI",
-    [STR_W_VOK_B_NP] = "keep it offline and private.\nthese seed words restore these keys.",
+    [STR_W_VOK_B_NP] = "guarde offline e em sigilo.\nestas palavras seed restauram estas chaves.",
 };
 
 static const char *const tbl_ru[STR_N] = {
@@ -9502,7 +9502,7 @@ static const char *const tbl_ru[STR_N] = {
     [STR_W_WRITE_S] = "сид-фраза + эта кодовая фраза вернут эти ключи",
     [STR_W_WRITE_T] = "ЗАПИШИТЕ ИХ",
     [STR_W_WROTE] = "Я ИХ ЗАПИСАЛ",
-    [STR_W_VOK_B_NP] = "keep it offline and private.\nthese seed words restore these keys.",
+    [STR_W_VOK_B_NP] = "храните ее офлайн и в тайне.\nэта сид-фраза восстановит эти ключи.",
 };
 
 static const char *const tbl_tr[STR_N] = {
@@ -10366,7 +10366,7 @@ static const char *const tbl_tr[STR_N] = {
     [STR_W_WRITE_S] = "kelimeler + bu passphrase bu anahtarları geri getirir",
     [STR_W_WRITE_T] = "BUNLARI YAZIN",
     [STR_W_WROTE] = "YAZDIM",
-    [STR_W_VOK_B_NP] = "keep it offline and private.\nthese seed words restore these keys.",
+    [STR_W_VOK_B_NP] = "çevrimdışı ve gizli saklayın.\nbu seed kelimeleri bu anahtarları geri getirir.",
 };
 
 static const char *const tbl_vi[STR_N] = {
@@ -11230,7 +11230,7 @@ static const char *const tbl_vi[STR_N] = {
     [STR_W_WRITE_S] = "cụm từ + cụm mật khẩu này khôi phục các khóa",
     [STR_W_WRITE_T] = "GHI LẠI NGAY",
     [STR_W_WROTE] = "TÔI ĐÃ GHI XONG",
-    [STR_W_VOK_B_NP] = "keep it offline and private.\nthese seed words restore these keys.",
+    [STR_W_VOK_B_NP] = "giữ ngoại tuyến và riêng tư.\nnhững từ seed này khôi phục bộ khóa này.",
 };
 
 static const char *const tbl_zh[STR_N] = {
@@ -12094,7 +12094,7 @@ static const char *const tbl_zh[STR_N] = {
     [STR_W_WRITE_S] = "助记词 + 同一个密码短语可以恢复这组密钥",
     [STR_W_WRITE_T] = "抄下这些词",
     [STR_W_WROTE] = "我已抄好",
-    [STR_W_VOK_B_NP] = "keep it offline and private.\nthese seed words restore these keys.",
+    [STR_W_VOK_B_NP] = "离线保存，不要外传。\n这组助记词可以恢复这组密钥。",
 };
 
 static const char *const tbl_es_es[STR_N] = {
@@ -12958,7 +12958,7 @@ static const char *const tbl_es_es[STR_N] = {
     [STR_W_WRITE_S] = "palabras + esta passphrase restauran estas claves",
     [STR_W_WRITE_T] = "ANÓTALAS",
     [STR_W_WROTE] = "YA LAS ANOTÉ",
-    [STR_W_VOK_B_NP] = "keep it offline and private.\nthese seed words restore these keys.",
+    [STR_W_VOK_B_NP] = "guárdalo offline y en privado.\nestas palabras semilla restauran estas claves.",
 };
 
 static const char *const tbl_pt_pt[STR_N] = {
@@ -13822,7 +13822,7 @@ static const char *const tbl_pt_pt[STR_N] = {
     [STR_W_WRITE_S] = "palavras + esta passphrase restauram estas chaves",
     [STR_W_WRITE_T] = "ANOTE ESTAS PALAVRAS",
     [STR_W_WROTE] = "JÁ ANOTEI",
-    [STR_W_VOK_B_NP] = "keep it offline and private.\nthese seed words restore these keys.",
+    [STR_W_VOK_B_NP] = "guarde offline e em privado.\nestas palavras seed restauram estas chaves.",
 };
 
 static const char *const tbl_nb[STR_N] = {
@@ -14686,7 +14686,7 @@ static const char *const tbl_nb[STR_N] = {
     [STR_W_WRITE_S] = "ord + denne passordfrasen gjenoppretter nøklene",
     [STR_W_WRITE_T] = "SKRIV DISSE NED",
     [STR_W_WROTE] = "JEG SKREV DEM NED",
-    [STR_W_VOK_B_NP] = "keep it offline and private.\nthese seed words restore these keys.",
+    [STR_W_VOK_B_NP] = "oppbevar det offline og privat.\ndisse seed-ordene gjenoppretter disse nøklene.",
 };
 
 static const char *const tbl_sv[STR_N] = {
@@ -16414,7 +16414,7 @@ static const char *const tbl_da[STR_N] = {
     [STR_W_WRITE_S] = "ord + denne adgangsfrase gendanner disse nøgler",
     [STR_W_WRITE_T] = "SKRIV DISSE NED",
     [STR_W_WROTE] = "JEG SKREV DEM NED",
-    [STR_W_VOK_B_NP] = "keep it offline and private.\nthese seed words restore these keys.",
+    [STR_W_VOK_B_NP] = "opbevar det offline og privat.\ndisse seed-ord gendanner disse nøgler.",
 };
 
 static const char *const tbl_cs[STR_N] = {
@@ -17278,7 +17278,7 @@ static const char *const tbl_cs[STR_N] = {
     [STR_W_WRITE_S] = "slova + tato fráze obnoví tyto klíče",
     [STR_W_WRITE_T] = "ZAPIŠTE SI TATO SLOVA",
     [STR_W_WROTE] = "SLOVA JSEM SI ZAPSAL(A)",
-    [STR_W_VOK_B_NP] = "keep it offline and private.\nthese seed words restore these keys.",
+    [STR_W_VOK_B_NP] = "uchovej to offline a v soukromí.\ntato slova seedu obnoví tyto klíče.",
 };
 
 static const char *const tbl_hr[STR_N] = {
@@ -18142,7 +18142,7 @@ static const char *const tbl_hr[STR_N] = {
     [STR_W_WRITE_S] = "seed riječi + ista fraza vraćaju ove ključeve",
     [STR_W_WRITE_T] = "ZAPIŠITE OVE RIJEČI",
     [STR_W_WROTE] = "ZAPISAO/LA SAM IH",
-    [STR_W_VOK_B_NP] = "keep it offline and private.\nthese seed words restore these keys.",
+    [STR_W_VOK_B_NP] = "čuvaj to offline i privatno.\nove seed riječi vraćaju ove ključeve.",
 };
 
 const char *const *const i18n_tables[I18N_LANG_N] = {

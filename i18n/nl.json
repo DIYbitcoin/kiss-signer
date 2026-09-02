@@ -841,7 +841,7 @@
   "W_VINTRO_W2_B": "jouw papier opent ze",
   "W_VINTRO_W2_H": "TOONT NOOIT",
   "W_VOK_B": "bewaar het offline en prive.\nseed woorden + passphrase herstellen deze sleutels.",
-  "W_VOK_B_NP": "keep it offline and private.\nthese seed words restore these keys.",
+  "W_VOK_B_NP": "bewaar het offline en prive.\ndeze seed woorden herstellen deze sleutels.",
   "W_VOK_FP": "schrijf deze code naast je woorden.",
   "W_VOK_MATCH": "elk woord klopt",
   "W_VOK_S": "de wachtwoordzin hoort niet bij deze controle",

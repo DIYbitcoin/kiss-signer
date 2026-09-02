@@ -841,7 +841,7 @@
   "W_VINTRO_W2_B": "设备只回答对或不对，从不显示已保存的词。",
   "W_VINTRO_W2_H": "从不做什么",
   "W_VOK_B": "离线保存，不要外传。\n助记词 + 密码短语可以恢复这组密钥。",
-  "W_VOK_B_NP": "keep it offline and private.\nthese seed words restore these keys.",
+  "W_VOK_B_NP": "离线保存，不要外传。\n这组助记词可以恢复这组密钥。",
   "W_VOK_FP": "把这个码写在助记词旁边。",
   "W_VOK_MATCH": "每个词都吻合",
   "W_VOK_S": "口令不属于这次核对",

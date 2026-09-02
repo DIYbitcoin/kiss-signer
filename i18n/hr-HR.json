@@ -841,7 +841,7 @@
   "W_VINTRO_W2_B": "kaže samo slaže se ili ne. spremljene riječi ne pokazuje.",
   "W_VINTRO_W2_H": "što nikad ne radi",
   "W_VOK_B": "čuvaj to offline i privatno.\nseed riječi + fraza vraćaju ove ključeve.",
-  "W_VOK_B_NP": "keep it offline and private.\nthese seed words restore these keys.",
+  "W_VOK_B_NP": "čuvaj to offline i privatno.\nove seed riječi vraćaju ove ključeve.",
   "W_VOK_FP": "zapiši ovaj kod pored svojih riječi.",
   "W_VOK_MATCH": "svaka riječ se podudara",
   "W_VOK_S": "kodna fraza nije dio ove provjere",

@@ -841,7 +841,7 @@
   "W_VINTRO_W2_B": "giấy của bạn mở được chúng",
   "W_VINTRO_W2_H": "KHÔNG BAO GIỜ HIỆN",
   "W_VOK_B": "giữ ngoại tuyến và riêng tư.\ntừ seed + mật khẩu khôi phục bộ khóa này.",
-  "W_VOK_B_NP": "keep it offline and private.\nthese seed words restore these keys.",
+  "W_VOK_B_NP": "giữ ngoại tuyến và riêng tư.\nnhững từ seed này khôi phục bộ khóa này.",
   "W_VOK_FP": "viết mã này cạnh các từ của bạn.",
   "W_VOK_MATCH": "mọi từ đều khớp",
   "W_VOK_S": "cụm mật khẩu không nằm trong lần kiểm này",

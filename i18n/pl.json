@@ -841,7 +841,7 @@
   "W_VINTRO_W2_B": "twój papier je otwiera",
   "W_VINTRO_W2_H": "NIGDY NIE POKAZUJE",
   "W_VOK_B": "trzymaj offline i prywatnie.\nsłowa seed + fraza odtworzą te klucze.",
-  "W_VOK_B_NP": "keep it offline and private.\nthese seed words restore these keys.",
+  "W_VOK_B_NP": "trzymaj offline i prywatnie.\nte słowa seed odtworzą te klucze.",
   "W_VOK_FP": "zapisz ten kod obok swoich słów.",
   "W_VOK_MATCH": "każde słowo się zgadza",
   "W_VOK_S": "fraza dostępu nie należy do tej kontroli",
