@@ -8035,6 +8035,72 @@ static void bundle_repaint(wt_bundle_t *b, int k, lv_color_t line_col,
     }
 }
 
+// The folded address stands down with the row it belongs to.
+//
+// It is a SPANGROUP, so bundle_repaint above never reached it -- the spans
+// carry their own colours and a text colour on the group is invisible, exactly
+// like the line colour case that comment already describes. Until this existed
+// the output column half dimmed: the amount and the note went to WT_EDGE while
+// the address beside them kept a WT_MUT head and a full strength accent tail.
+//
+// From the bench, holding the slide on a twenty input merge: "why is this
+// screen so blurry". That is what half a column at one ink and half at another
+// looks like -- not a state, a rendering fault. The stand down is meant to say
+// the destinations are settled, and an address is the most destination-like
+// thing on the row.
+//
+// wt_addr_short returns a plain label for anything under 20 characters -- a
+// locked-session message, an error string -- so the type is checked rather
+// than assumed.
+static void bundle_fold_ink(wt_bundle_t *b, int i, bool dim)
+{
+    lv_obj_t *sg = (i >= 0 && i < WT_BUNDLE_MAX) ? b->fold[i] : NULL;
+    if (!sg || !lv_obj_check_type(sg, &lv_spangroup_class)) return;
+    const uint32_t n = lv_spangroup_get_span_count(sg);
+    for (uint32_t k = 0; k < n; k++) {
+        lv_span_t *sp = lv_spangroup_get_child(sg, (int32_t)k);
+        if (!sp) continue;
+        // The LAST span is the lit one by construction -- the same fact
+        // accent_walk relies on for every address on this device.
+        const bool lit = (k + 1 == n);
+        lv_style_set_text_color(lv_span_get_style(sp),
+                                dim ? WT_EDGE : (lit ? wt_accent() : WT_MUT));
+    }
+    if (n) lv_spangroup_refresh(sg);
+}
+
+// The note's WORDS follow the row too, and they are the second half of the same
+// defect the fold had. An output note is a RECOLOR label: the object's own
+// colour carries the MARK so a theme change repaints it, and the words are
+// pinned by `#RRGGBB ...#` markup a few characters into the string. So
+// bundle_repaint's text colour moved the scissors and left NETWORK FEE where it
+// was -- measured at WT_MUT (123,133,156) with the amount beside it at WT_EDGE
+// (41,48,65), on a row that is supposed to have stood down.
+//
+// The six hex digits are patched in place rather than the string rebuilt: the
+// label owns the only copy of its own words -- out[i].label is the caller's and
+// is not kept -- and turning recolor OFF is not an option, LVGL then draws the
+// markup as literal text.
+//
+// The FIRST '#' is always the colour opener: the mark carries no '#', and a
+// literal one in the words is doubled by the builder above.
+static void bundle_note_ink(wt_bundle_t *b, int k, lv_color_t c)
+{
+    lv_obj_t *n = b->note[k];
+    if (!n) return;
+    char buf[192];
+    snprintf(buf, sizeof buf, "%s", lv_label_get_text(n));
+    char *h = strchr(buf, '#');
+    if (!h || strlen(h) < 7) return;          // a plain note: the colour did it
+    static const char HEX[] = "0123456789ABCDEF";
+    const uint8_t v[3] = { c.red, c.green, c.blue };
+    for (int i = 0; i < 3; i++) {
+        h[1 + i * 2] = HEX[(v[i] >> 4) & 0xF];
+        h[2 + i * 2] = HEX[v[i] & 0xF];
+    }
+    lv_label_set_text(n, buf);
+}
+
 // The junction, sized and placed from one radius. Its centre never moves; only
 // the radius does, so the grow and the retract are the same line of arithmetic.
 static void bundle_dot_r(wt_bundle_t *b, int r)
@@ -8132,12 +8198,20 @@ void wt_bundle_state(lv_obj_t *bundle, int state)
             bundle_repaint(b, k, is_in ? WT_MUT : WT_EDGE,
                            is_in ? (b->n_in == 1 ? WT_INK : WT_MUT) : WT_EDGE,
                            false, false);
+            if (!is_in) {
+                bundle_fold_ink(b, k - (int)b->out0, true);
+                bundle_note_ink(b, k, WT_EDGE);
+            }
         } else if (state == WT_BUNDLE_SIGNING) {
             // Inputs at full strength, outputs stood down. The note rows go with
             // their side: a silent payment's claim is about an output, so it
             // dims with the output it belongs to.
             bundle_repaint(b, k, is_in ? WT_INK : WT_EDGE,
                            is_in ? WT_INK : WT_EDGE, false, false);
+            if (!is_in) {
+                bundle_fold_ink(b, k - (int)b->out0, true);
+                bundle_note_ink(b, k, WT_EDGE);
+            }
         } else if (state == WT_BUNDLE_SIGNED && is_in) {
             bundle_repaint(b, k, wt_accent(), wt_accent(), true, true);
         } else if (!is_in) {
@@ -8152,12 +8226,18 @@ void wt_bundle_state(lv_obj_t *bundle, int state)
             bundle_repaint(b, k, bundle_col(b->role[k], b->flag[k], false),
                            acc ? wt_accent() : (b->amount[k] ? WT_INK : WT_MUT),
                            acc && !b->flag[k], acc);
+            bundle_fold_ink(b, k - (int)b->out0, false);
             live_out = true;   // the page dim below is what this just undid
             // The note's own colour is its MARK, which is the accent on every
             // row -- its words carry WT_MUT in markup. bundle_repaint paints
             // the note with the amount, so this puts the mark back.
-            if (b->note[k])
+            if (b->note[k]) {
                 lv_obj_set_style_text_color(b->note[k], wt_accent(), 0);
+                // ...and its WORDS back to what they were built with: WT_MUT,
+                // or the accent on the one row whose subject is money coming
+                // back. Same test the builder used.
+                bundle_note_ink(b, k, acc ? wt_accent() : WT_MUT);
+            }
         } else {
             // An input at rest, taken from its role rather than assumed to be
             // muted: a flagged one wears WT_WARN and has to come back to it
