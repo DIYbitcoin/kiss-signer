@@ -34,6 +34,41 @@ QUIET=0
 export KISS_SIM_TMP="${KISS_SIM_TMP:-/tmp/kiss-preflight-$$}"
 mkdir -p "$KISS_SIM_TMP"
 LOGS="$KISS_SIM_TMP/preflight-logs"
+
+# PREFLIGHT_LANGS -- which locales the three locale aware gates look at.
+#
+# Default en, because CLAUDE.md's i18n rule pins the daily lane to English
+# while the screens are still moving. That rule names the cost it accepts:
+# the full sweep catches real faults and they wait for the translation pass.
+#
+# The translation pass is now happening, so the wait is over for any locale
+# that has landed, and this is how it gets checked as it lands rather than at
+# the end:
+#
+#   PREFLIGHT_LANGS="tr vi" bash tools/preflight.sh    # the two just swept
+#   PREFLIGHT_LANGS=all     bash tools/preflight.sh    # all 21, the slow one
+#
+# fit and osd take ONE locale each through SIM_LANG, so a list loops them; the
+# walk takes the whole list at once because run_overlapcheck.sh parses it. For
+# "all" every one of the three is left UNSET, which is what each of them reads
+# as the full sweep -- not a list this file would have to keep in step with
+# i18n/.
+PREFLIGHT_LANGS="${PREFLIGHT_LANGS:-en}"
+if [ "$PREFLIGHT_LANGS" = "all" ]; then
+    PF_LANG_LIST=""
+    for f in i18n/*.json; do
+        b=$(basename "$f" .json)
+        PF_LANG_LIST="$PF_LANG_LIST $b"
+    done
+    PF_SWEEP=1
+else
+    PF_LANG_LIST="$PREFLIGHT_LANGS"
+    PF_SWEEP=0
+    for b in $PF_LANG_LIST; do
+        [ -f "i18n/$b.json" ] || { echo "preflight: no such locale: $b" >&2; exit 2; }
+    done
+fi
+
 mkdir -p "$LOGS"
 
 NAMES=()
@@ -124,14 +159,33 @@ run "parser fuzz (ASAN + UBSAN)" \
     "bash sim/build_fuzz.sh && \"\$KISS_SIM_TMP/kissfuzz\" | tee \"\$KISS_SIM_TMP/fuzz.log\" \
      && grep -q 'ALL FUZZ PASS' \"\$KISS_SIM_TMP/fuzz.log\""
 
-run "text fit" "bash sim/build_fitcheck.sh && FITCHECK_SELFTEST=1 SIM_LANG=en \"\$KISS_SIM_TMP/kissfit\""
+run "text fit (build)" "bash sim/build_fitcheck.sh"
+if [ "$PF_SWEEP" = 1 ]; then
+    run "text fit (all 21)" "FITCHECK_SELFTEST=1 \"\$KISS_SIM_TMP/kissfit\""
+else
+    for L in $PF_LANG_LIST; do
+        run "text fit ($L)" "FITCHECK_SELFTEST=1 SIM_LANG=$L \"\$KISS_SIM_TMP/kissfit\""
+    done
+fi
 run "accent vs status colour" "bash sim/build_themecheck.sh && \"\$KISS_SIM_TMP/kisstheme\""
-run "on-video overlay text" "bash sim/build_osdcheck.sh && SIM_LANG=en \"\$KISS_SIM_TMP/kissosd\""
+run "on-video overlay text (build)" "bash sim/build_osdcheck.sh"
+if [ "$PF_SWEEP" = 1 ]; then
+    run "on-video overlay text (all 21)" "\"\$KISS_SIM_TMP/kissosd\""
+else
+    for L in $PF_LANG_LIST; do
+        run "on-video overlay text ($L)" "SIM_LANG=$L \"\$KISS_SIM_TMP/kissosd\""
+    done
+fi
 
 # The walk last: it is the slowest, and every check above tells you something
 # useful about a tree the walk would only derail on.
-run "screen walk (en)" \
-    "bash sim/build_sim.sh && OVERLAPCHECK_LANGS=en bash sim/run_overlapcheck.sh"
+if [ "$PF_SWEEP" = 1 ]; then
+    run "screen walk (all 21)" \
+        "bash sim/build_sim.sh && bash sim/run_overlapcheck.sh"
+else
+    run "screen walk ($PF_LANG_LIST)" \
+        "bash sim/build_sim.sh && OVERLAPCHECK_LANGS=\"$PF_LANG_LIST\" bash sim/run_overlapcheck.sh"
+fi
 run "screens no gate sees" "python3 tools/check_screen_coverage.py"
 # AFTER the walk, and not with the other pure python above it: it compares the
 # frames the walk saves, and preflight gives every run a fresh KISS_SIM_TMP, so
