@@ -2687,6 +2687,35 @@ static void verify_screen(lv_obj_t *parent)
         // exactly that. Reserving the width out of fr first is the mechanism
         // this line already has, and the filename shrinks for it like it does
         // for the signed badge above.
+        // DECIDED: the NETWORK badge yields its lane to the LOCKTIME badge,
+        // not the other way round. Both are placed out of the same right to
+        // left fr chain and both used to end in a bare lv_obj_delete when the
+        // line ran out -- and on a long title the one that lost was always the
+        // locktime, because it is placed last.
+        //
+        // That is backwards, and each block's own comment says so. The network
+        // drops "because the network is on the DETAILS deck as well, so
+        // dropping it here costs the reader a tap, not the fact". The locktime
+        // badge EXISTS because its deck row is "where a fact goes to be
+        // unread" -- it was added to get that fact off the third tab and onto
+        // the glass. So dropping the locktime costs the fact, and dropping the
+        // network costs a tap.
+        //
+        // Measured, not theoretical: on the Dutch and Russian sign screens the
+        // title, the network chip and the fingerprint left the locktime badge
+        // under its 12px clearance even in the degraded form below, so it took
+        // the else branch and an owner signing a time locked payment was never
+        // told. The German case in the comment further down is the same bug
+        // caught one locale earlier and fixed only as far as German needed.
+        //
+        // The trade only arises on TESTNET, because that is the only time a
+        // network chip is drawn at all, and it fails in the safe direction.
+        // A missing network chip is what MAINNET looks like, so an owner who
+        // loses it reads the screen as more serious than it is and is more
+        // careful, not less. A missing locktime is the opposite: the payment
+        // reads as spendable now, and it is not.
+        lv_obj_t *net_badge = NULL;
+        int net_w = 0;
         if (s_sum.testnet) {
             // The name alone. It read "TESTNET, practice coins", which is a
             // name and a caption crammed onto a chip that has no caption
@@ -2712,6 +2741,8 @@ static void verify_screen(lv_obj_t *parent)
             if (fr - nw - 12 - fx >= 60) {
                 lv_obj_set_pos(nb, fr - nw, 26);
                 fr -= nw + 12;
+                net_badge = nb;
+                net_w = nw;
             } else {
                 lv_obj_delete(nb);
             }
@@ -2799,6 +2830,19 @@ static void verify_screen(lv_obj_t *parent)
                 lv_label_set_text(lb, lnm);
                 lv_obj_update_layout(lb);
                 lw = lv_obj_get_width(lb);
+                q_fits = (fr - 30 - 12 - lw - 12 - fx >= 12);
+            }
+            // LAST, and only once the word has already gone: take the
+            // network's lane back. Its chip is the widest thing on this line
+            // that is not the title, and it is the one whose own comment
+            // volunteers that it can go. Reclaiming it is what stops the
+            // else branch below from ever eating the locktime on a locale
+            // whose word for SIGN is long -- nl and ru today, and whichever
+            // one is long next.
+            if (!q_fits && fr - lw - 12 - fx < 12 && net_badge) {
+                lv_obj_delete(net_badge);
+                net_badge = NULL;
+                fr += net_w + 12;
                 q_fits = (fr - 30 - 12 - lw - 12 - fx >= 12);
             }
             if (q_fits || fr - lw - 12 - fx >= 12) {
