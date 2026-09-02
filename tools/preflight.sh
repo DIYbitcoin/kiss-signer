@@ -33,6 +33,12 @@ QUIET=0
 # refusal is the failure this avoids rather than reports.
 export KISS_SIM_TMP="${KISS_SIM_TMP:-/tmp/kiss-preflight-$$}"
 mkdir -p "$KISS_SIM_TMP"
+
+# Warnings are errors for everything this script builds. Every sim/build_*.sh
+# is clean today and the desktop CI lane sets the same variable, so a warning
+# that appears here is one somebody is about to push. sim/sim_tmp.sh says why
+# it is opt in rather than always on.
+export KISS_WERROR=1
 LOGS="$KISS_SIM_TMP/preflight-logs"
 
 # PREFLIGHT_LANGS -- which locales the three locale aware gates look at.

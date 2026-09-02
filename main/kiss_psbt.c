@@ -752,6 +752,16 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     }
 
     const struct wally_tx *tx = psbt_tx();
+    // A v0 PSBT carries its transaction and wally refuses one without it, and
+    // the v2 extract above is checked -- so this should not be reachable. It
+    // is one branch in the parser every hostile file goes through, and the
+    // same call is already NULL checked in kiss_psbt_details(), so the two
+    // sites now agree rather than one of them being a crash.
+    if (!tx) {
+        stop(s, "malformed transaction");
+        s_status = s->status;
+        return 0;
+    }
     s->locktime = tx->locktime;
 
     // TERMINAL, not a flag on the way past. This used to stop() and carry on
@@ -1134,17 +1144,17 @@ static void txid_hex(const uint8_t h[32], char out[65])
 
 int kiss_psbt_details(wpsbt_details_t *d)
 {
+    const struct wally_tx *tx = psbt_tx();
     // a STOPped transaction failed verification — its raw fields must not be
     // presented under a page that says "verified" (and there is nothing to
     // decide: the signer already refused)
-    if (!d || !s_psbt || !psbt_tx() || s_status == WPSBT_STOP)
+    if (!d || !s_psbt || !tx || s_status == WPSBT_STOP)
         return -1;
     const struct ext_key *master = kiss_session_master();
     if (!master)
         return -1;
     memset(d, 0, sizeof *d);
 
-    const struct wally_tx *tx = psbt_tx();
     d->version = tx->version;
     d->locktime = tx->locktime;
 

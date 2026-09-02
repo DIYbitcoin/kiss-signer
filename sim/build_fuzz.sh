@@ -8,7 +8,7 @@ cd "$(dirname "$0")/.."
 . sim/sim_tmp.sh
 
 WALLY=components/libwally-core
-clang -O1 -Wall -Wextra -Wno-unused-parameter -Wno-implicit-const-int-float-conversion -Wno-missing-field-initializers -Wno-deprecated-declarations -g \
+clang ${KISS_WERROR:+-Werror} -O1 -Wall -Wextra -Wno-unused-parameter -Wno-implicit-const-int-float-conversion -Wno-missing-field-initializers -Wno-deprecated-declarations -g \
   -fsanitize=address,undefined -fno-sanitize-recover=undefined \
   -fno-omit-frame-pointer \
   -DNDEBUG=1 -DBUILD_MINIMAL=1 -DECMULT_WINDOW_SIZE=8 \

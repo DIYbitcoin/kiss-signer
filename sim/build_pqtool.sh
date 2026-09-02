@@ -6,7 +6,7 @@
 set -e
 cd "$(dirname "$0")/.."
 . sim/sim_tmp.sh
-clang -O2 -Wall -Wextra \
+clang ${KISS_WERROR:+-Werror} -O2 -Wall -Wextra \
   -DPQ_SHA256_COMPRESS_HOOK=1 \
   -Imain -Icomponents/slhdsa -Icomponents/slhdsa/upstream \
   components/slhdsa/pq_hw_sha.c \

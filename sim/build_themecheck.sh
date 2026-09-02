@@ -13,7 +13,7 @@ SRCS=$(find "$LVGL/src" -name '*.c' \
   ! -path '*/drivers/*' \
   ! -path '*/libs/freetype/*' ! -path '*/libs/ffmpeg/*' ! -path '*/libs/rlottie/*' \
   ! -path '*test*' ! -path '*demos*' ! -path '*examples*')
-clang -O1 -Wall -Wextra -Wno-unused-parameter -Wno-implicit-const-int-float-conversion -Wno-missing-field-initializers -Wno-deprecated-declarations -DSIMULATOR -DLV_CONF_INCLUDE_SIMPLE -DLV_LVGL_H_INCLUDE_SIMPLE \
+clang ${KISS_WERROR:+-Werror} -O1 -Wall -Wextra -Wno-unused-parameter -Wno-implicit-const-int-float-conversion -Wno-missing-field-initializers -Wno-deprecated-declarations -DSIMULATOR -DLV_CONF_INCLUDE_SIMPLE -DLV_LVGL_H_INCLUDE_SIMPLE \
   -I"$LVGL" -Isim -Imain \
   $SRCS main/kiss_theme.c main/kiss_terms.c main/i18n.c main/i18n_tables.c main/font_kiss_*.c \
   sim/themecheck.c \

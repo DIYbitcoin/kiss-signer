@@ -38,14 +38,7 @@
 #define KISS_VERSION_STR "dev"
 #endif
 
-// main.c: closes any wallet screen and runs the seed wizard, then the
-// type-twice login. Lets Settings reach CREATE NEW / RESTORE after first boot.
-void kiss_begin_setup(void);
-// main.c: re-sync the home TESTNET badge after the network is changed here.
-void kiss_home_refresh(void);
-// main.c: after a wipe, lock straight back to the game (the wallet no longer
-// exists; the next KISS unlock lands in first-boot setup).
-void kiss_wiped_lock(void);
+#include "main.h"   // kiss_begin_setup, kiss_home_refresh, kiss_wiped_lock
 
 #define BG_COL   WT_BG
 #define INK_COL  WT_INK

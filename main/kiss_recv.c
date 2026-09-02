@@ -348,7 +348,7 @@ static void vfy_result(const char *txt, size_t len) {
     // and what the device is set to in one sentence. "mainnet" and "testnet"
     // are Bitcoin proper nouns and stay untranslated; every locale already
     // uses those two words as English in this file.
-    char buf[256];
+    char netb[256];                    // not 'buf': the one at the top is 200
     // The address's side cannot be narrowed past "testnet": a tb1 address is
     // the same string on all three test chains. Ours can, and it is the half a
     // reader acts on.
@@ -356,8 +356,8 @@ static void vfy_result(const char *txt, size_t len) {
     const char *wall_net = kiss_network() == KISS_NET_SIGNET ? "signet"
                          : kiss_testnet()                    ? "testnet"
                                                              : "mainnet";
-    snprintf(buf, sizeof buf, tr(STR_R_WRONG_NET_B), addr_net, wall_net);
-    wt_wrap(s_scr, buf, 48, note_y, 700, WT_CONTENT_BOTTOM - note_y);
+    snprintf(netb, sizeof netb, tr(STR_R_WRONG_NET_B), addr_net, wall_net);
+    wt_wrap(s_scr, netb, 48, note_y, 700, WT_CONTENT_BOTTOM - note_y);
   } else {
     wt_lbl(s_scr, tr_sym(LV_SYMBOL_CLOSE, STR_R_INVALID),
            48, 130, wt_font28(), WT_STOP);
@@ -1068,7 +1068,12 @@ static void path_help_cb(lv_event_t *e) {
   wt_explain_open(s_scr, &x);
 }
 
+#ifdef SIMULATOR
+// Sim only, and the header says so too. Defined unconditionally it was a
+// device symbol with no prototype anywhere -- which is what -Wmissing-
+// prototypes found, and it was shipping the seam into the firmware as well.
 void kiss_recv_sim_open_path_help(void) { path_help_cb(NULL); }
+#endif
 
 static void enlarge_cb(lv_event_t *e) { (void)e; wt_qr_zoom(s_qr); }
 

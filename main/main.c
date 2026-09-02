@@ -41,6 +41,7 @@
 #include "kiss_scan.h"
 #include "kiss_settings.h"
 #include "kiss_fw_ui.h"
+#include "main.h"   // what this file exports; see the note there
 #include "kiss_fw.h"   // kiss_fw_mark_valid: release the previous slot
 #include "kiss_info.h"
 #include "kiss_setup.h"
@@ -2896,7 +2897,12 @@ static void game_tick(lv_timer_t *t) {
     // attempt (only when none is present) can briefly block, but the home art is
     // static so a hitch never shows.
     static int s_sd_tick; static bool s_sd_present; static int s_sd_toast;
-    static bool s_sd_badge_live;                     // SD mode + card in: breathe it
+    // NO LOCAL COPY of s_sd_badge_live. There was one here, and it shadowed
+    // the file scope flag at the top of this file -- so sd_badge_sync() set
+    // that one and the breathe below read this one, which nothing ever
+    // assigned. The badge has never breathed on a device. It renders
+    // identically in the simulator, so no frame, walk or overlap check
+    // could have had an opinion; -Wshadow on the device build found it.
     if (!cam_on && ++s_sd_tick >= 90) {              // poll ~1.5s at TICK_MS
       s_sd_tick = 0;
       bool present = platform_sd_probe() != 0;
@@ -2956,11 +2962,11 @@ static void game_tick(lv_timer_t *t) {
       s_fp_pend = false;
       fp_card_open();
     } else if (!pressed && s_prev_press && s_tile_pend) {          // finger lifted: open
-      int t = s_tile_pend;
+      int tile = s_tile_pend;                        // not 't': that is the timer
       s_tile_pend = 0;
-      if (t == 1) kiss_sign_open(lv_screen_active());
-      else if (t == 2) kiss_recv_open(lv_screen_active());
-      else if (t == 3) kiss_info_open(lv_screen_active());
+      if (tile == 1) kiss_sign_open(lv_screen_active());
+      else if (tile == 2) kiss_recv_open(lv_screen_active());
+      else if (tile == 3) kiss_info_open(lv_screen_active());
       else kiss_settings_open(lv_screen_active());
     }
     if (!pressed) s_zoom_drag = false;

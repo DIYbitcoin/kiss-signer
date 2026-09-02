@@ -9,6 +9,19 @@
 # label they can recognise -- kiss-p4, kiss-qr, kiss-plan1 -- and then the
 # session ends. 83 roots reached 28G that way, which is a seventh of the disk,
 # and every byte of it rebuilds in seconds.
+# KISS_WERROR -- every sim/build_*.sh turns its warnings into errors when this
+# is set, and none of them does when it is not. Every one of them is clean
+# today, so this costs nothing and holds that.
+#
+# Opt in rather than always on, because the same clang invocation compiles 463
+# vendored LVGL sources and the amalgamated libwally. An Apple clang update
+# adding one warning to somebody else's code must never be able to block the
+# daily build here -- only to redden the lane where a person is reading a
+# verdict. tools/preflight.sh and the desktop CI lane set it; a plain
+# `bash sim/build_sim.sh` does not.
+#
+#   KISS_WERROR=1 bash sim/build_test.sh
+#
 KISS_SIM_TMP="${KISS_SIM_TMP:-/tmp}"
 mkdir -p "$KISS_SIM_TMP"
 

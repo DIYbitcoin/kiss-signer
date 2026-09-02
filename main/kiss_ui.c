@@ -20,9 +20,9 @@
 #include "kiss_theme.h"
 #include "kiss_wipe.h"  // secret wipes survive dead-store elimination
 
+#include "main.h"   // radio_is_held
 #ifndef SIMULATOR
 #include "esp_efuse.h"
-bool radio_is_held(void);   // main.c: reads back the C6 reset pad (GPIO54)
 #endif
 #ifndef KISS_VERSION_STR
 #define KISS_VERSION_STR "dev"

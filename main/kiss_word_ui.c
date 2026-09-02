@@ -538,6 +538,7 @@ static void stage_build(int stage)
     case ST_CONFIRM: confirm_screen();    break;
     case ST_DONE:    done_screen();       break;
     case ST_FAIL:    fail_screen();       break;
+    default:         break;               // no such stage: leave the screen closed
     }
 }
 

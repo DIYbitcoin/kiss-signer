@@ -28,6 +28,10 @@ on:
 jobs:
   desktop:
     runs-on: ubuntu-latest
+    # Warnings are errors for every clang build below, the same as
+    # tools/preflight.sh sets before a push. sim/sim_tmp.sh has the why.
+    env:
+      KISS_WERROR: 1
     steps:
       # Full history: the docs freshness check counts commits between the
       # pictures and the screens, and a shallow clone has neither to count.

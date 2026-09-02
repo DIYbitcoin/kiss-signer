@@ -44,10 +44,7 @@
 #include "esp_timer.h"       // esp_timer_get_time
 #endif
 
-// main.c owns the full replacement/setup hand-off (including the type-twice
-// passphrase ritual). The missing-SD recovery action must use that path rather
-// than treating restored words like an ordinary one-passphrase unlock.
-void kiss_begin_setup(void);
+#include "main.h"   // kiss_begin_setup owns the whole hand-off; see the note there
 
 #define BG_COL   WT_BG
 #define INK_COL  WT_INK

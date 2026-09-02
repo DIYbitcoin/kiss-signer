@@ -271,7 +271,7 @@ int qrt_parser_feed(qrt_parser_t *p, const char *data, size_t len) {
 
     if (p->fmt != QRT_FMT_NONE && p->fmt != kind) return -1;
 
-    int rc = -1;
+    int rc = -1;                 // no arm ran: a refusal, which is the safe answer
     switch (kind) {
     case QRT_FMT_STATIC:
         if (p->complete) { rc = 0; break; }
@@ -294,6 +294,7 @@ int qrt_parser_feed(qrt_parser_t *p, const char *data, size_t len) {
     case QRT_FMT_UR:
         rc = feed_ur(p, data, len);
         break;
+    default: break;              // kind comes from the branch above: unreachable
     }
     if (rc == 0 && p->fmt == QRT_FMT_NONE) p->fmt = kind;
     if (rc == QRT_FEED_TOO_BIG) p->too_big = true;
