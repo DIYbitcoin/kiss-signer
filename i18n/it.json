@@ -587,6 +587,8 @@
   "S_STOP_FP_B": "CHIAVI SBAGLIATE: una passphrase diversa apre chiavi diverse. blocca e sblocca, poi controlla.\n\nABBINAMENTO SBAGLIATO: un coordinatore che guarda altre chiavi.",
   "S_STOP_NET_B": "queste chiavi sono su un'altra rete. cambiala in IMPOSTAZIONI > FIRMATARIO, oppure costruisci la transazione sulla rete di queste chiavi.",
   "S_STOP_NOFP_B": "il tuo coordinatore non ha inviato informazioni sulle chiavi con questa transazione, quindi non c'era nulla da confrontare. abbinalo di nuovo e ricostruisci la transazione.",
+  "S_STOP_NOSIG": "nothing was signed",
+  "S_STOP_REDO": "build it again",
   "S_T": "FIRMA",
   "S_TOTAL_LEAVING": "TOTALE IN USCITA",
   "S_TY_LEGACY": "Legacy",

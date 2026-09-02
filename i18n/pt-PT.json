@@ -587,6 +587,8 @@
   "S_STOP_FP_B": "CHAVES ERRADAS: outra passphrase abre outras chaves. bloqueie e desbloqueie com a certa.\n\nEMPARELHAMENTO ERRADO: um coordenador que recebeu uma chave solta em vez do descritor completo inventa este código.",
   "S_STOP_NET_B": "estas chaves estão noutra rede. mude em DEFINIÇÕES > ASSINADOR, ou monte a transação na rede que estas chaves usam.",
   "S_STOP_NOFP_B": "o seu coordenador não enviou informação de chaves com esta transação, por isso não havia com o que comparar. emparelhe de novo e refaça a transação.",
+  "S_STOP_NOSIG": "nothing was signed",
+  "S_STOP_REDO": "build it again",
   "S_T": "ASSINAR",
   "S_TOTAL_LEAVING": "TOTAL A SAIR",
   "S_TY_LEGACY": "Legacy",

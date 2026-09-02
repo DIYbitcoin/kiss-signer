@@ -587,6 +587,8 @@
   "S_STOP_FP_B": "ŠPATNÉ KLÍČE: jiná přístupová fráze otevírá jiné klíče. zamkněte a odemkněte tou správnou.\n\nŠPATNÉ PÁROVÁNÍ: koordinátor, který dostal holý klíč místo celého deskriptoru, si tento kód vymyslí.",
   "S_STOP_NET_B": "tyto klíče jsou na jiné síti. přepněte ji v NASTAVENÍ > PODEPISOVAČ, nebo transakci sestavte na síti, kterou tyto klíče používají.",
   "S_STOP_NOFP_B": "váš koordinátor k této transakci neposlal žádné informace o klíčích, takže nebylo co porovnat. spárujte ho znovu a transakci sestavte znovu.",
+  "S_STOP_NOSIG": "nothing was signed",
+  "S_STOP_REDO": "build it again",
   "S_T": "PODEPSAT",
   "S_TOTAL_LEAVING": "CELKEM ODCHÁZÍ",
   "S_TY_LEGACY": "Legacy",

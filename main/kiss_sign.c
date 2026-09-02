@@ -2878,8 +2878,13 @@ static void verify_screen(lv_obj_t *parent)
         // every claim on this device wears, in the STOP colour. The red
         // panel was the last bordered box on this flow and it went with the
         // others.
+        // font28, not 23. This is the only sentence on the screen and the one
+        // the owner is here to read; it was set one rung under the body text
+        // of every explainer on the device. The lane is 728 and the longest
+        // translated verdict wraps to two lines at this rung, which is what
+        // the band under the title is for.
         lv_obj_t *r = sg_lbl(s_scr, tr_reason(s_sum.reason), 48, 96,
-                             wt_font23(), STOP_COL);
+                             wt_font28(), STOP_COL);
         lv_obj_set_width(r, 728);
         lv_label_set_long_mode(r, LV_LABEL_LONG_WRAP);
         lv_obj_update_layout(r);
@@ -2942,7 +2947,37 @@ static void verify_screen(lv_obj_t *parent)
             lv_obj_update_layout(card);
             by += lv_obj_get_height(card) + 20;
         }
-        if (body) wt_body_para(s_scr, body, by);
+        if (body) {
+            wt_body_para(s_scr, body, by);
+        } else {
+            // A refusal with no remedy used to END here: one red line under
+            // the title and 258px of glass down to BACK. That is the shape
+            // rule 1 exists to stop, and about thirty of the reasons in
+            // kiss_psbt.c land on it -- every sighash, every malformed
+            // transaction, every silent-payment failure, the script that will
+            // not derive again.
+            //
+            // The four with a body get an instruction because there IS one.
+            // These get the two things that are true of all of them, which is
+            // not the same as inventing a remedy: no signature was made, and
+            // the only actor who can change the transaction is the one that
+            // built it. That second row is what S_WHY_FOOT used to say from
+            // the bottom of the caution card; it was retired there because
+            // every caution grew its own action, and this screen is the case
+            // where the coordinator really is the whole answer.
+            //
+            // Captions and marks are borrowed, not authored: SIGNATURE is the
+            // row label the signed screen uses and COORDINATOR is the sign
+            // help's own first fact, mark included, so the two screens agree
+            // about who does what.
+            const wt_fact_t f[2] = {
+                { .cap = tr(STR_S_ROW_SIGNATURE), .val = tr(STR_S_STOP_NOSIG),
+                  .icon = WT_ICON_SIGN },
+                { .cap = tr(STR_S_HELP_F1C), .val = tr(STR_S_STOP_REDO),
+                  .icon = LV_SYMBOL_SETTINGS },
+            };
+            wt_facts(s_scr, by, f, 2);
+        }
         // Same 776 lane, so the same exit as verify.
         wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, SG_BACK_X140,
                         WT_ACTION_Y, 140, true,

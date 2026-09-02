@@ -587,6 +587,8 @@
   "S_STOP_FP_B": "ZŁE KLUCZE: inna fraza dostępu otwiera inne klucze. zablokuj i odblokuj właściwą.\n\nZŁE PAROWANIE: koordynator, który dostał goły klucz zamiast pełnego deskryptora, wymyśla ten kod.",
   "S_STOP_NET_B": "te klucze są w innej sieci. zmień ją w USTAWIENIA > PODPISUJĄCY, albo zbuduj transakcję w sieci tych kluczy.",
   "S_STOP_NOFP_B": "twój koordynator nie przysłał z tą transakcją żadnych informacji o kluczach, więc nie było z czym porównać. sparuj go ponownie i zbuduj transakcję od nowa.",
+  "S_STOP_NOSIG": "nothing was signed",
+  "S_STOP_REDO": "build it again",
   "S_T": "PODPISZ",
   "S_TOTAL_LEAVING": "ŁĄCZNIE WYCHODZI",
   "S_TY_LEGACY": "Legacy",

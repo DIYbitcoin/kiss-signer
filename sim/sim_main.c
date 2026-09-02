@@ -686,6 +686,11 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
     s->in0_keypaths = 0;
     s->status = WPSBT_STOP;
     snprintf(s->reason, sizeof s->reason, "input is not this wallet's");
+  } else if (len >= 5 && memmem(bytes, len, "SHASH", 5)) {
+    // A refusal stop_body has no answer for, which is nearly all of them. The
+    // screen behind it is the two facts and no instruction.
+    s->status = WPSBT_STOP;
+    snprintf(s->reason, sizeof s->reason, "sighash is not ALL");
   } else if (len >= 4 && memmem(bytes, len, "STOP", 4)) {
     s->status = WPSBT_STOP;
     snprintf(s->reason, sizeof s->reason, "input amount unverifiable");
@@ -2224,6 +2229,13 @@ static void sd_write_psbt_fixtures(void)
     // refuses outright, which is the only way to reach the "not a valid PSBT"
     // screen and the fix line under it.
     { "zzzzzz-GARBLE.psbt", "GARBLE" },
+    // ...and this one last of all, same reason. A refusal with NO remedy:
+    // stop_body answers four reasons and every other one of the thirty odd in
+    // kiss_psbt.c falls through it, so this is the only fixture that reaches
+    // the branch those thirty take. Without it the walk photographs the two
+    // refusals that DO carry an instruction and nothing has ever rendered the
+    // shape the rest of them wear.
+    { "zzzzzzz-SIGHASH.psbt", "SHASH" },
   };
   for (unsigned i = 0; i < sizeof FIXTURES / sizeof FIXTURES[0]; i++) {
     char p[256];
@@ -3683,7 +3695,35 @@ int main(void) {
     }
     must_show("file list back on page one", "payment-01");
   }
-  // warn-COMBO leads page two now: nine files, three a page.
+  // The refusal with nothing to DO about it. Every stop above this one carries
+  // an instruction from stop_body, so the branch the OTHER thirty reasons take
+  // -- verdict, then the two facts that are true of all of them -- had never
+  // been rendered by anything. Same swipe-until-found and same page count-back
+  // as GARBLE above, for the same reason: the stops below tap by position.
+  {
+    int fwd = 0;
+    bool got = false;
+    for (; fwd < 6 && !got; ) {
+      got = tap_lit("SIGHASH", 3, 12);
+      if (got) break;
+      for (int i = 0; i <= 8; i++) { touch(500 - i * 14, 250); pump(3); }
+      release(); pump(30);
+      fwd++;
+    }
+    if (!got) { printf("FAIL: the bodyless refusal was never reachable\n"); return 1; }
+    save("/tmp/sim_sign_stop_plain.ppm");
+    must_show("refusal with no remedy says nothing was signed",
+              tr(STR_S_STOP_NOSIG));
+    must_show("refusal with no remedy names the coordinator",
+              tr(STR_S_STOP_REDO));
+    tap_str(STR_C_BACK, 3, 6);                      // -> the list, page `fwd`
+    for (int pg = 0; pg < fwd; pg++) {
+      for (int i = 0; i <= 8; i++) { touch(300 + i * 14, 250); pump(3); }
+      release(); pump(30);
+    }
+    must_show("file list back on page one again", "payment-01");
+  }
+  // warn-COMBO leads page two now: ten files, three a page.
   for (int i = 0; i <= 8; i++) { touch(500 - i * 14, 250); pump(3); }
   release(); pump(30);                              // swipe left -> page 2
   touch(328, 150); pump(3); release(); pump(8);     // COMBO file -> stacked cautions
@@ -4276,7 +4316,7 @@ int main(void) {
   set_tab(SET_BACKUP);
   save("/tmp/sim_settings_backup.ppm");             // paper unchecked, storage on plain flash
   set_tab(SET_DEVICE);
-  save("/tmp/sim_settings_device.ppm");             // two 142px rows: firmware, this device
+  save("/tmp/sim_settings_device.ppm");             // firmware, this device, audit, terms
   set_tab(SET_NOUNDO);
   save("/tmp/sim_settings_noundo.ppm");             // one card, its reason, one button
 
@@ -4454,7 +4494,7 @@ int main(void) {
     lv_text_get_size(&vs, v, wt_chrome23(v), 0, 0, LV_COORD_MAX,
                      LV_TEXT_FLAG_NONE);
     // Row 0 carries a lamp, so the value starts 20 past DEF_VAL_X.
-    touch(48 + 238 + 20 + vs.x + 14 + 15, SET_DEF_Y(3, 0));
+    touch(48 + 238 + 20 + vs.x + 14 + 15, SET_DEF_Y(2, 0));
     pump(3); release(); pump(8);
   }
   pump(25);                                          // the card animates in
@@ -4462,15 +4502,11 @@ int main(void) {
   must_show("seed words help", tr(STR_W_WHATSEED_S));
   tap_str(STR_C_OK, 3, 8);
 
-  // AUDIT's second door, the one on the tab that holds the seed. The first is
-  // photographed from SECURITY further down; what is only true here is the
-  // trail, which names the tab it was opened from rather than a fixed one.
-  def_row(3, 2);                                     // audit row -> the chooser
-  save("/tmp/sim_audit_from_backup.ppm");
-  must_show("audit/from backup", tr(STR_W_MADE_T));
-  tap_str(STR_C_BACK, 3, 8);                         // -> settings, still BACKUP
+  // AUDIT's second door WAS here, on the tab that holds the seed, and the
+  // stop photographed the trail naming the tab it was opened from. There is
+  // one door now and it is on DEVICE, so there is one trail and one stop.
 
-  def_go(3, 1);                                      // storage row -> the chooser
+  def_go(2, 1);                                      // storage row -> the chooser
   save("/tmp/sim_storage_choose.ppm");               // three modes, FLASH ticked
   // Same page, encryption ON: the storage row's sub-line stops cautioning. The
   // shim used to be hardcoded 0, so only the cautioned render existed.
@@ -4493,7 +4529,7 @@ int main(void) {
   //
   // TERMS first -- all ten cards, five to a page, the reference for an owner
   // who wants to READ the words rather than meet them one screen at a time.
-  def_row(3, 2);
+  def_row(4, 3);
   pump(30);
   save("/tmp/sim_terms_p1.ppm");                     // SEED WORDS .. CHANGE
   // By the VALUE: "SEED WORDS" is a caption several screens carry, and a
@@ -4514,7 +4550,7 @@ int main(void) {
   must_show("terms/page three", tr(STR_T_DECOY_CAP));
   tap_str(STR_C_BACK, 3, 20);                        // -> Settings, DEVICE tab
   set_tab(SET_DEVICE);
-  def_row(3, 1);                                     // This device -> the facts
+  def_row(4, 1);                                     // This device -> the facts
   // The five rows enter on a 42ms stagger, so the frame has to wait for the
   // last one: saving straight after the tap photographed two rows and three
   // ghosts, which is a picture of the animation rather than of the page.
@@ -4536,7 +4572,7 @@ int main(void) {
   tap_str(STR_C_BACK, 3, 8);                        // -> Settings, DEVICE tab
 
   set_tab(SET_BACKUP);
-  def_go(3, 1);                                      // -> the chooser
+  def_go(2, 1);                                      // -> the chooser
   set_row(1);                                        // SD CARD -> confirmation
   save("/tmp/sim_storage_confirm_sd.ppm");
   tap_str(STR_G_STORAGE_HOLD_MOVE, 30, 6);    // no travel: no migration
@@ -4552,14 +4588,14 @@ int main(void) {
   touch(670, 240); pump(3); release(); pump(6);     // Settings tile -> Settings
   // CARD INFO while the words live on the card: the sealed row, green tick.
   set_tab(SET_DEVICE);
-  def_row(3, 1);
+  def_row(4, 1);
   touch(SET_LABEL_X, SET_DEV_CARD_Y); pump(3); release(); pump(8);
   save("/tmp/sim_sdinfo_sealed.ppm");               // kiss-seed.enc, present
   must_show("sdinfo/sealed", SDSEED_FILENAME);
   tap_str(STR_C_BACK, 3, 8);                        // -> THIS DEVICE
   tap_str(STR_C_BACK, 3, 8);                        // -> Settings
   set_tab(SET_BACKUP);
-  def_go(3, 1);
+  def_go(2, 1);
   set_row(0);                                        // FLASH
   slide_fire(STR_G_STORAGE_HOLD_MOVE);
   tap_str(STR_C_OK, 3, 8);     // back on FLASH
@@ -4573,7 +4609,7 @@ int main(void) {
   // STORAGE NOT CHANGED: the destination never became durable, so the keys
   // are still exactly where they were. Mode write fails, nothing is published.
   s_sim_move_rc = WSEED_ERR_SD_IO;
-  def_go(3, 1);
+  def_go(2, 1);
   set_row(1);                                        // SD CARD -> confirmation
   slide_fire(STR_G_STORAGE_HOLD_MOVE);
   save("/tmp/sim_storage_fail.ppm");
@@ -4587,14 +4623,14 @@ int main(void) {
   // old copy could not be removed. Two copies, never zero -- which is why this
   // is amber and not the red above, and why it must never say "not changed".
   s_sim_move_rc = WSEED_ERR_CLEANUP;
-  def_go(3, 1);
+  def_go(2, 1);
   set_row(1);                                        // SD CARD
   slide_fire(STR_G_STORAGE_HOLD_MOVE);
   save("/tmp/sim_storage_cleanup.ppm");
   must_show("storage cleanup", tr(STR_G_STORAGE_CLEANUP_T));
   tap_str(STR_C_OK, 3, 8);     // OK -> Settings, now on SD
   // ...and back to FLASH, which is what the rest of the walk is written for.
-  def_go(3, 1);
+  def_go(2, 1);
   set_row(0);                                        // FLASH
   slide_fire(STR_G_STORAGE_HOLD_MOVE);
   tap_str(STR_C_OK, 3, 8);
@@ -4603,7 +4639,7 @@ int main(void) {
   // CANCEL on the confirmation. It lands back on the CHOOSER, not on
   // SETTINGS: the owner was picking a destination, changing their mind about
   // one of the three is not changing their mind about the question.
-  def_go(3, 1);
+  def_go(2, 1);
   set_row(2);                                        // AMNESIC -> confirmation
   save("/tmp/sim_storage_confirm_amnesic.ppm");
   tap_str(STR_C_CANCEL, 3, 8);
@@ -4631,11 +4667,11 @@ int main(void) {
   // screen before the tap rather than inside a list the tap has to open.
   set_tab(SET_SECURITY);
   save("/tmp/sim_settings_hist_on.ppm");             // ENABLED, "settings and..."
-  def_go(3, 1);                                      // flip -> DISABLED, applied
+  def_go(2, 1);                                      // flip -> DISABLED, applied
   save("/tmp/sim_settings_hist_off.ppm");            // the value and the sub flipped
   must_show("persist off", tr(STR_G_HIST_OFF_BTN));
   must_show("persist off sub", tr(STR_I_POP_NOTHING));
-  def_go(3, 1);                                      // flip back -> ENABLED
+  def_go(2, 1);                                      // flip back -> ENABLED
   must_show("persist on", tr(STR_G_HIST_ON_BTN));
 
   // ...and the state where the switch has nothing to switch. AMNESIC keeps
@@ -4651,7 +4687,7 @@ int main(void) {
     pump(8);
     save("/tmp/sim_settings_persist_dead.ppm");      // UNAVAILABLE, in ink
     must_show("persist dead", tr(STR_I_PERSIST_DEAD_VAL));
-    def_row(3, 1); pump(30);                         // the definition opens in place
+    def_row(2, 1); pump(30);                         // the definition opens in place
     save("/tmp/sim_settings_persist_why.ppm");       // the reason, ghosts above and below
     must_show("persist dead reason", tr(STR_I_PERSIST_DEAD_PLAIN));
     s_sim_mode = was;
@@ -4899,7 +4935,7 @@ int main(void) {
   // over, so a leak shows up as the firmware screen drawn on top of a live
   // settings page.
   set_tab(SET_DEVICE);
-  def_row(3, 0);                                    // Firmware -> the update screen
+  def_row(4, 0);                                    // Firmware -> the update screen
   pump(FW_SETTLE);                                  // the body and the row arrive late
   save("/tmp/sim_settings_fw.ppm");                 // reached from settings, not directly
   touch(WT_EXIT_X + 70, WT_ACTION_Y + 26); pump(3); release(); pump(8);  // BACK -> settings
@@ -5861,7 +5897,7 @@ int main(void) {
   }
   touch(670, 240); pump(3); release(); pump(8);     // Settings tile
   set_tab(SET_DEVICE);
-  def_row(3, 0);                                    // Firmware
+  def_row(4, 0);                                    // Firmware
   save("/tmp/sim_fw_before_autolock.ppm");          // up, with the clock running
   if (!kiss_fw_ui_active()) {
     printf("FAIL: firmware screen not open before the auto-lock test\n");
@@ -6021,8 +6057,8 @@ int main(void) {
   // The stub stream is deterministic and rewound here, so the finished frame
   // always shows the score test_rngq.c pinned as golden: 105.920, EVEN.
   sim_rng_rewind();
-  set_tab(SET_SECURITY);
-  def_row(3, 2);                      // Audit -> the chooser
+  set_tab(SET_DEVICE);
+  def_row(4, 2);                      // Audit -> the chooser
   save("/tmp/sim_audit_choose.ppm");                // two rows, each stated
   // HOW YOUR KEYS WERE MADE. Nothing is forced here: the record is written by
   // the same funnel the device writes it from, so this photographs whatever the
@@ -6079,8 +6115,8 @@ int main(void) {
   // in. NO SOURCE in the provenance row, the right block carries the refusal
   // and there is no START to tap.
   s_sim_trng = false;
-  set_tab(SET_SECURITY);
-  def_row(3, 2);                      // Audit -> the chooser
+  set_tab(SET_DEVICE);
+  def_row(4, 2);                      // Audit -> the chooser
   tap_str(STR_W_RNG_T, 3, 8);         // RANDOMNESS AUDIT row -> intro
   save("/tmp/sim_rng_nosource.ppm");                // refusal: no START action
   must_show("rng/nosource", tr(STR_W_RNG_OFF));
@@ -6088,7 +6124,7 @@ int main(void) {
   s_sim_trng = true;
 
   set_tab(SET_SECURITY);
-  def_row(3, 0);                                    // Duress -> the two ways in
+  def_row(2, 0);                                    // Duress -> the two ways in
   save("/tmp/sim_settings_duress.ppm");             // chips + the rule, in words
   // The chip states the RULE, not a chosen mark. Twenty locales still said
   // "YOUR STROKE" here long after the picker was deleted, which is exactly
@@ -6103,7 +6139,7 @@ int main(void) {
   must_show("waysin/how", tr(STR_GD_PICK_REAL_T));  // the same rule, same words
   tap_str(STR_GD_SKIP, 3, 20);         // NOT NOW -> Settings
   set_tab(SET_SECURITY);
-  def_row(3, 0);                                    // Duress -> the two ways in
+  def_row(2, 0);                                    // Duress -> the two ways in
   tap_str(STR_GD_WORD_PILL, 3, 8);     // open custom letters
   save("/tmp/sim_gword_write.ppm");                 // blank field, no printed word
   draw_own_letters();
@@ -6122,7 +6158,7 @@ int main(void) {
   save("/tmp/sim_gword_done.ppm");                  // the two ways in, redrawn
   tap_str(STR_C_OK, 3, 8);     // OK (552..752) -> Settings
   set_tab(SET_SECURITY);
-  def_row(3, 0);                                    // Duress again
+  def_row(2, 0);                                    // Duress again
   save("/tmp/sim_settings_duress_set.ppm");         // the chip now reads LETTERS
   // Put KISS back before anything else in this walk draws it. gw_stored_set
   // is what BACK TO KISS calls, and leaving the owner's letters in place here

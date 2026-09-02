@@ -587,6 +587,8 @@
   "S_STOP_FP_B": "FORKERTE NØGLER: en anden adgangsfrase åbner andre nøgler. lås, og lås så op med den rigtige.\n\nFORKERT PARRING: en koordinator der fik en bar nøgle i stedet for hele deskriptoren finder på denne kode.",
   "S_STOP_NET_B": "disse nøgler er på et andet netværk. skift det i INDSTILLINGER > SIGNERING, eller byg transaktionen på det netværk nøglerne bruger.",
   "S_STOP_NOFP_B": "din koordinator sendte ingen nøgleoplysninger med denne transaktion, så der var intet at tjekke nøglerne mod. par den igen, og byg transaktionen på ny.",
+  "S_STOP_NOSIG": "nothing was signed",
+  "S_STOP_REDO": "build it again",
   "S_T": "SIGNER",
   "S_TOTAL_LEAVING": "I ALT UD",
   "S_TY_LEGACY": "Legacy",

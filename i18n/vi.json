@@ -587,6 +587,8 @@
   "S_STOP_FP_B": "SAI KHOÁ: cụm mật khẩu khác mở khoá khác. khoá lại, rồi mở bằng cụm đúng.\n\nGHÉP SAI: coordinator được đưa khoá trần thay vì descriptor đầy đủ sẽ tự bịa ra mã này.",
   "S_STOP_NET_B": "các khoá này ở mạng khác. đổi trong CÀI ĐẶT > THIẾT BỊ KÝ, hoặc dựng giao dịch trên mạng mà khoá này dùng.",
   "S_STOP_NOFP_B": "coordinator của bạn không gửi thông tin khoá kèm giao dịch này, nên không có gì để đối chiếu. ghép nối lại rồi dựng lại giao dịch.",
+  "S_STOP_NOSIG": "nothing was signed",
+  "S_STOP_REDO": "build it again",
   "S_T": "KÝ",
   "S_TOTAL_LEAVING": "TỔNG TIỀN RỜI ĐI",
   "S_TY_LEGACY": "Legacy",

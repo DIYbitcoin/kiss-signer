@@ -587,6 +587,8 @@
   "S_STOP_FP_B": "密钥不对：不同的密码短语打开不同的密钥。先锁上，再用正确的解锁。\n\n配对不对：只拿到裸密钥、没拿到完整描述符的协调器，会自己编出这个码。",
   "S_STOP_NET_B": "这些密钥在另一个网络上。在 设置 > 签名器 里切换，或者在这些密钥所在的网络上构建交易。",
   "S_STOP_NOFP_B": "你的协调器没有随这笔交易发来密钥信息，所以没有可对照的东西。重新配对，然后重建这笔交易。",
+  "S_STOP_NOSIG": "nothing was signed",
+  "S_STOP_REDO": "build it again",
   "S_T": "签名",
   "S_TOTAL_LEAVING": "离开的总额",
   "S_TY_LEGACY": "Legacy",

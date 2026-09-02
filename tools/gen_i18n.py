@@ -194,6 +194,11 @@ UNTRANSLATED_OK = {
     # what REMOVE FILES costs before the slide. Born under the English-only
     # rule; English in the other twenty until the sweep.
     "S_FIX_SD", "S_RM_PERMANENT",
+    # What a refusal with no remedy says instead of 258px of nothing:
+    # no signature was made, and the coordinator builds it again. Born
+    # under the English-only rule; English in the other twenty until the
+    # sweep.
+    "S_STOP_NOSIG", "S_STOP_REDO",
     # The SIGN term cards. Born under the English-only rule; English in the
     # other twenty until the sweep.
     "T_PSBT_CAP", "T_PSBT_VAL", "T_PSBT_PLAIN", "T_PSBT_TERM",

@@ -587,6 +587,8 @@
   "S_STOP_FP_B": "CLAVES EQUIVOCADAS: otra passphrase abre otras claves. bloquea y desbloquea con la correcta.\n\nEMPAREJADO MAL: un coordinador al que dieron una clave suelta en vez del descriptor completo se inventa este código.",
   "S_STOP_NET_B": "estas claves están en otra red. cámbiala en AJUSTES > FIRMANTE, o construye la transacción en la red que usan estas claves.",
   "S_STOP_NOFP_B": "tu coordinador no envió información de claves con esta transacción, así que no había nada con que comparar. empareja otra vez y reconstruye la transacción.",
+  "S_STOP_NOSIG": "nothing was signed",
+  "S_STOP_REDO": "build it again",
   "S_T": "FIRMAR",
   "S_TOTAL_LEAVING": "TOTAL QUE SALE",
   "S_TY_LEGACY": "Legacy",

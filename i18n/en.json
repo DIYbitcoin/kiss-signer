@@ -587,6 +587,8 @@
   "S_STOP_FP_B": "WRONG KEYS: another passphrase opens other keys. unlock with the right one.\n\nWRONG PAIRING: a coordinator was given a bare key, not a descriptor.",
   "S_STOP_NET_B": "these keys are on a different network. switch it in SETTINGS > SIGNER, or build the transaction on the network these keys use.",
   "S_STOP_NOFP_B": "your coordinator sent no key information with this transaction, so there was nothing to check these keys against. pair it again, then rebuild the transaction.",
+  "S_STOP_NOSIG": "nothing was signed",
+  "S_STOP_REDO": "build it again",
   "S_T": "SIGN",
   "S_TOTAL_LEAVING": "TOTAL LEAVING",
   "S_TY_LEGACY": "Legacy",

@@ -587,6 +587,8 @@
   "S_STOP_FP_B": "KRIVI KLJUČEVI: druga kodna fraza otvara druge ključeve. zaključajte pa otključajte pravom.\n\nKRIVO UPARIVANJE: koordinator koji je dobio goli ključ umjesto punog deskriptora izmisli ovaj kod.",
   "S_STOP_NET_B": "ovi ključevi su na drugoj mreži. promijenite je u POSTAVKE > POTPISNIK, ili sastavite transakciju na mreži koju ti ključevi koriste.",
   "S_STOP_NOFP_B": "vaš koordinator uz ovu transakciju nije poslao podatke o ključevima, pa se nije imalo s čim usporediti. uparite ga ponovno i ponovno sastavite transakciju.",
+  "S_STOP_NOSIG": "nothing was signed",
+  "S_STOP_REDO": "build it again",
   "S_T": "POTPIŠI",
   "S_TOTAL_LEAVING": "UKUPNO IZLAZI",
   "S_TY_LEGACY": "Legacy",

@@ -587,6 +587,8 @@
   "S_STOP_FP_B": "FEIL NØKLER: en annen passordfrase åpner andre nøkler. lås, og lås så opp med den riktige.\n\nFEIL PARING: en koordinator som fikk en bar nøkkel i stedet for hele deskriptoren finner på denne koden.",
   "S_STOP_NET_B": "disse nøklene er på et annet nettverk. bytt det i INNSTILLINGER > SIGNERER, eller bygg transaksjonen på nettverket nøklene bruker.",
   "S_STOP_NOFP_B": "koordinatoren din sendte ingen nøkkelinformasjon med denne transaksjonen, så det var ingenting å sjekke mot. par den igjen, og bygg transaksjonen på nytt.",
+  "S_STOP_NOSIG": "nothing was signed",
+  "S_STOP_REDO": "build it again",
   "S_T": "SIGNER",
   "S_TOTAL_LEAVING": "TOTALT UT",
   "S_TY_LEGACY": "Legacy",
