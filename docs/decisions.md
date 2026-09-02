@@ -10,7 +10,7 @@ construction.
 route to the comment that answers it, which is how seven findings were filed
 and withdrawn in one review pass.
 
-30 decisions.
+31 decisions.
 
 ## `main/kiss_duress_ui.c`
 
@@ -34,7 +34,13 @@ ONE segment. It was "KEYS / COORDINATOR" and the second half restates the title 
 
 One taproot input is in fact enough: BIP341 hashes every input amount into THAT input's sighash, so any lie about any amount invalidates its signature, and the two session attack cannot assemble a tx where every signature verifies. So a spend of one received silent payment beside one P2WPKH coin that carries its full previous transaction is provably honest and is refused anyway. Left strict on purpose. The cost of the strict form is that a rare transaction comes back to the coordinator to be rebuilt with the prev txs attached, which is what BIP174 asks for and what Core, Sparrow and Electrum already send. The cost of the loose form, if the reasoning above is wrong in one case nobody has thought of, is a fee the owner cannot see going to a miner. Those are not the same size, and this is the one gate in the file whose whole subject is a number that cannot be checked afterwards.
 
-[`main/kiss_psbt.c:980`](../main/kiss_psbt.c#L980)
+[`main/kiss_psbt.c:981`](../main/kiss_psbt.c#L981)
+
+### this concatenated into a 4096 byte automatic and hashed once, with an overflow flag returning -1 if the signatures did not fit
+
+The buffer was a fifth of the main task's 20KB stack, claimed in the frame that runs immediately after signing, where libwally is already deep -- and it was sized for a PSBT this device cannot be handed: the sign screen reads into QRT_MAX_PSBT (4096) TOTAL, framing included, so the signature bytes alone can never come near 4096 and the overflow branch was unreachable. Streaming spends 112 bytes, has nothing to overflow, and drops the branch. Byte-identical output, held by the golden vector in test_crypto.c.
+
+[`main/kiss_psbt.c:1334`](../main/kiss_psbt.c#L1334)
 
 ## `main/kiss_recv.c`
 

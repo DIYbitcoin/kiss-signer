@@ -18,6 +18,7 @@
 #include <wally_script.h>
 #include <wally_transaction.h>
 
+#include "sha256/sha256.h"   // streaming sha256, bundled with components/cUR
 #include "kiss_crypto.h"
 #include "kiss_sp.h"
 
@@ -1326,34 +1327,42 @@ int kiss_psbt_sig_fingerprint(const uint8_t *signed_psbt, size_t len,
     struct wally_psbt *p = NULL;
     if (wally_psbt_from_bytes(signed_psbt, len, 0, &p) != WALLY_OK || !p)
         return -1;
-    // Accumulate the signature bytes in input order, then hash once. Signatures
-    // only: the whole point is that a signer producing the same signatures
-    // agrees, whatever its PSBT framing.
-    uint8_t acc[4096];
-    size_t n = 0;
-    int any = 0, overflow = 0;
-    for (size_t i = 0; i < p->num_inputs && !overflow; i++) {
+    // Hash the signature bytes in input order, fed in as they are found.
+    // Signatures only: the whole point is that a signer producing the same
+    // signatures agrees, whatever its PSBT framing.
+    //
+    // DECIDED: this concatenated into a 4096 byte automatic and hashed once,
+    // with an overflow flag returning -1 if the signatures did not fit. The
+    // buffer was a fifth of the main task's 20KB stack, claimed in the frame
+    // that runs immediately after signing, where libwally is already deep --
+    // and it was sized for a PSBT this device cannot be handed: the sign
+    // screen reads into QRT_MAX_PSBT (4096) TOTAL, framing included, so the
+    // signature bytes alone can never come near 4096 and the overflow branch
+    // was unreachable. Streaming spends 112 bytes, has nothing to overflow,
+    // and drops the branch. Byte-identical output, held by the golden vector
+    // in test_crypto.c.
+    CRYAL_SHA256_CTX sha;
+    ur_bundled_sha256_init(&sha);
+    int any = 0;
+    for (size_t i = 0; i < p->num_inputs; i++) {
         const struct wally_map *sigs = &p->inputs[i].signatures;
         for (size_t j = 0; j < sigs->num_items; j++) {
             const struct wally_map_item *it = &sigs->items[j];
-            if (n + it->value_len > sizeof acc) { overflow = 1; break; }
-            memcpy(acc + n, it->value, it->value_len);
-            n += it->value_len; any = 1;
+            ur_bundled_sha256_update(&sha, it->value, it->value_len);
+            any = 1;
         }
         const struct wally_map_item *tap =
             wally_map_get_integer(&p->inputs[i].psbt_fields, 0x13);
-        if (!overflow && tap && (tap->value_len == 64 || tap->value_len == 65)) {
-            if (n + tap->value_len > sizeof acc) { overflow = 1; }
-            else { memcpy(acc + n, tap->value, tap->value_len); n += tap->value_len; any = 1; }
+        if (tap && (tap->value_len == 64 || tap->value_len == 65)) {
+            ur_bundled_sha256_update(&sha, tap->value, tap->value_len);
+            any = 1;
         }
     }
     wally_psbt_free(p);
-    if (overflow || !any) { wally_bzero(acc, sizeof acc); return -1; }
+    if (!any) { wally_bzero(&sha, sizeof sha); return -1; }
     uint8_t h[32];
-    int rc = wally_sha256(acc, n, h, 32);
-    wally_bzero(acc, sizeof acc);
-    if (rc != WALLY_OK)
-        return -1;
+    ur_bundled_sha256_final(&sha, h);
+    wally_bzero(&sha, sizeof sha);
     static const char HEX[] = "0123456789abcdef";
     for (int k = 0; k < 4; k++) {
         out[k * 2]     = HEX[h[k] >> 4];
