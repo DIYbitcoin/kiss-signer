@@ -3309,6 +3309,25 @@ int oc_report(void)
         printf("[overlap] %s: %d strings still on the FIT backlog\n",
                lang, fit_left);
     }
+    {
+        // STALE is the one backlog whose verdict is NOT this run's to give.
+        // It needs the accent to CHANGE, only the accent sweep changes it, and
+        // it is blind in the MONO run whose accent is WT_INK -- so an entry
+        // unmatched here may match in another pass, and "never matched a stop"
+        // would be a lie two runs out of three. Report what THIS run saw and
+        // let run_overlapcheck.sh decide across all three.
+        //
+        // Written because s_stale_hit was set and never read: every other
+        // backlog in this file says when an entry stopped excusing anything,
+        // and this one silently kept it forever. That is how a list of
+        // excuses outlives the defects it was written for.
+        for (unsigned i = 0; i < sizeof OC_STALE_BACKLOG / sizeof OC_STALE_BACKLOG[0]; i++) {
+            if (!OC_STALE_BACKLOG[i]) continue;
+            printf("[overlap] %s: STALE backlog entry %s |%s|\n",
+                   lang, s_stale_hit[i] ? "matched" : "unmatched",
+                   OC_STALE_BACKLOG[i]);
+        }
+    }
 
     for (int i = 0; i < s_seen_n; i++)
         if (s_seen_hits[i] > 1)

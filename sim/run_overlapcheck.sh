@@ -275,6 +275,7 @@ echo
 echo "theme role + stale gate: 3 accents"
 echo
 roletotal=0
+stale_seen=""          # set -u: the accent loop appends to it
 for a in GREEN CYPHERPINK ORANGE; do
     # A fresh card here too. The locale loop above has done this since the walk
     # started tapping actions by label, and this loop never did -- so each accent
@@ -286,6 +287,10 @@ for a in GREEN CYPHERPINK ORANGE; do
     rm -rf "$KISS_SIM_TMP/simsd"
     out=$(SIM_ACCENT="$a" "$KISS_SIM_TMP/kissoverlap" 2>&1)
     rc=$?
+    # Each run says which STALE backlog entries IT matched. The verdict is
+    # taken after the loop; see the block below for why it cannot be taken here.
+    stale_seen="$stale_seen
+$(printf '%s\n' "$out" | grep -o 'STALE backlog entry [a-z]* |.*|')"
     sline=$(summary_of "$out")
     n=$(printf '%s\n' "$sline" | sed -n \
         's/^\[overlap\] [^:]*: \([0-9][0-9]*\) stops checked, [0-9][0-9]* game frames skipped, \([0-9][0-9]*\) distinct findings$/\2/p')
@@ -319,6 +324,32 @@ done
 echo
 echo "theme role + stale gate: $roletotal findings across 3 accents"
 total=$((total + roletotal))
+
+# Whether a STALE exemption is still earning its place is the SWEEP's verdict,
+# never one run's. The check needs the accent to CHANGE, so a live entry goes
+# unmatched in passes where its screen is not repainted: the single entry on
+# the list today matches under CYPHERPINK and ORANGE and NOT under GREEN. A per
+# run "never matched a stop" message -- which is what every other backlog in
+# overlapcheck.c prints -- would have told somebody to delete a live exemption
+# in one run out of three.
+#
+# This exists because s_stale_hit was set and never read, so this backlog was
+# the one that could never be collected. Printed, not failed, exactly like the
+# others: a list of excuses going stale is a thing to see, not a build break.
+stale_dead=$(printf '%s\n' "$stale_seen" |
+    sed -n 's/^STALE backlog entry [a-z]* |\(.*\)|$/\1/p' | sort -u |
+    while IFS= read -r e; do
+        [ -n "$e" ] || continue
+        printf '%s\n' "$stale_seen" | grep -qF "STALE backlog entry matched |$e|" || printf '%s\n' "$e"
+    done)
+stale_n=$(printf '%s\n' "$stale_seen" |
+    sed -n 's/^STALE backlog entry [a-z]* |\(.*\)|$/\1/p' | sort -u | grep -c .)
+if [ -n "$stale_dead" ]; then
+    echo
+    echo "STALE backlog entries that matched under NO accent -- cut them:"
+    printf '%s\n' "$stale_dead" | sed 's/^/  /'
+fi
+echo "STALE backlog: $stale_n entry(s), $(printf '%s\n' "$stale_dead" | grep -c .) excusing nothing" 
 
 # The heap verdict, AFTER the sweep and with its own message. Never through
 # kissoverlap's exit code: that code already means two things (findings, and a
