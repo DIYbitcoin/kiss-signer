@@ -122,49 +122,49 @@ This is the one place the "no screen without an exit" rule is deliberately not a
 
 beta7 moved it into the panel and left "SIGNATURE" as a caption with nothing under it -- on the screens whose whole job is to hand back the one thing a second signer can be checked against. The panel was the right home for the TEACHING and was never the right home for the fact. The ring and the glyph take the accent with the code: they are one thing, and a grey chip beside an accent value read as two.
 
-[`main/kiss_sign.c:733`](../main/kiss_sign.c#L733)
+[`main/kiss_sign.c:753`](../main/kiss_sign.c#L753)
 
 ### the montserrat48 tick at y=236 and the padlock beside it are GONE, and the tick joins the title
 
 SIGNED was claimed three times on this screen -- the page title, that 48px checkmark, and a note under it -- while the two facts an owner actually leaves with, which file and what to do next, had no room. One claim, once, on the row that already carries the word. The lock keeps its meaning beside it: where this can go is settled.
 
-[`main/kiss_sign.c:874`](../main/kiss_sign.c#L874)
+[`main/kiss_sign.c:894`](../main/kiss_sign.c#L894)
 
 ### the two-line note is gone
 
 "put the card back in Sparrow, then broadcast" was the whole point of the screen set in a 14px note, and it ran three separate actions together in one sentence -- so a reader standing at the device had to work out which of them was theirs to do NOW. Numbered and split, with step 1 lit and the other two not, the strip says where this device's part ends without spending a word on it.
 
-[`main/kiss_sign.c:984`](../main/kiss_sign.c#L984)
+[`main/kiss_sign.c:1004`](../main/kiss_sign.c#L1004)
 
 ### any press anywhere ends the motion at once, and nothing ever waits on it
 
 The exit screen is already built and DONE is already live underneath -- the motion is drawn OVER a finished screen rather than in front of one being prepared, so a skip is a delete and not a fast forward. Same rule the drift-home timer was deleted for: a filename an owner is reading back must never be mid scramble, and a screen that will not let go reads as a crash.
 
-[`main/kiss_sign.c:1328`](../main/kiss_sign.c#L1328)
+[`main/kiss_sign.c:1388`](../main/kiss_sign.c#L1388)
 
 ### the motion draws the REAL s_out base64 and the REAL s_sig_fp, never invented bytes
 
 A motion that scrambles plausible looking characters and resolves to something else is a lie told by the one screen whose whole job is to hand back something checkable, and an owner who photographed the frame and compared it would find it. The first row genuinely reads cHNidP8B.
 
-[`main/kiss_sign.c:1344`](../main/kiss_sign.c#L1344)
+[`main/kiss_sign.c:1404`](../main/kiss_sign.c#L1404)
 
 ### the two change rows are exclusive and the dust one wins, even though kiss_psbt.c raises them PER OUTPUT and can therefore set both -- one change output under the dust floor and a second between the floor and 5000
 
 Both bits set draws the dust row only, and caution_all_bits reads back through here, so the gate asks for the rows the owner can see and stays consistent. Splitting them was considered and dropped. It takes the stack to six on a page built for five (SG_ROW_MAX, and the ceiling argument above), and it buys a second row saying "tiny change" beside a row already saying "dust change" -- the same sentence about the same fault, for a two change output transaction almost no coordinator builds. What is lost is real and it is one line of a soft privacy caution, not a claim about where the money goes.
 
-[`main/kiss_sign.c:2375`](../main/kiss_sign.c#L2375)
+[`main/kiss_sign.c:2435`](../main/kiss_sign.c#L2435)
 
 ### the sign review band does NOT name the transaction's file; that line was cut rather than fixed
 
 NO FILENAME HERE, and no "camera" either. Both were cut rather than fixed. The reader tapped that name on the file list one screen back, or watched the camera assemble the transaction, so the line restated what they had just done -- which is the copy rule's own example of a string to cut. And a filename is the COORDINATOR'S bookkeeping, not a fact about the payment: what says this is the right transaction is the amount and the destination, and both are on this screen at full size. A name in the corner never checked anything. What it cost to keep was the whole band. The line ran under the title beside the signed badge, the network chip and the fingerprint, and it was the only unlabelled string among them. It also carried two defects for as long as it existed: set in the smallest face on the device, and, once that was corrected, handing a translated phrase to a filename tail-fold so a scanned transaction read "scan...ansaction" on the screen where a payment is approved. fx survives because the badge and the chip above measure their lane against it: they may not run back under the title.
 
-[`main/kiss_sign.c:2768`](../main/kiss_sign.c#L2768)
+[`main/kiss_sign.c:2828`](../main/kiss_sign.c#L2828)
 
 ### this toggle's mark stays VISIBLE when it is off, dimmed rather than transparent
 
 The two-state word action hides its mark elsewhere and that is right where a PAIR of them sits side by side -- the dice screen -- because the pair is the affordance. This one stands alone in a left aligned column, and hidden-but-still-occupying-space gave it no affordance at all AND pushed its word 33px inside the column's edge, so it read as a centred heading rather than a control. An inert mark says both things at once: there is a switch here, and it is not on.
 
-[`main/kiss_sign.c:4435`](../main/kiss_sign.c#L4435)
+[`main/kiss_sign.c:4535`](../main/kiss_sign.c#L4535)
 
 ## `main/kiss_theme.c`
 
