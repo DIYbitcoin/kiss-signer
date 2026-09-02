@@ -35,18 +35,35 @@ jobs:
         with:
           fetch-depth: 0
 
+      # EVERY CHECK BELOW THAT NEEDS NOTHING BUILT RUNS, EVEN AFTER ONE FAILS.
+      # A step with no `if: always()` is SKIPPED once anything before it goes
+      # red, and a skipped step reads exactly like a passing one in the summary
+      # a person actually looks at. sim/fitcheck.c stopped COMPILING when
+      # 43847834 retired S_WHY_FOOT and left its reference behind; that turned
+      # this job red, and for five commits it also silenced twenty two answers
+      # that had nothing to do with it -- among them check_sim_taps, which
+      # exists to catch a scripted gesture that did nothing and had one waiting.
+      #
+      # The build and walk chain keeps the default on purpose: those steps
+      # genuinely depend on the one before, and running them anyway turns one
+      # cause into a wall of consequences, which is its own way of not being
+      # read.
       - name: i18n generator drift
+        if: always()
         run: |
           python3 tools/gen_i18n.py
           git diff --exit-code -- main/i18n_keys.h main/i18n_tables.c 'tools/fonts/glyphs_*.txt'
 
       - name: no new unreferenced i18n keys
+        if: always()
         run: python3 tools/check_i18n_orphans.py
 
       - name: the decisions index matches the comments it is built from
+        if: always()
         run: python3 tools/gen_decisions.py --check
 
       - name: the words on screen match the glossary
+        if: always()
         run: python3 tools/check_vocab.py
 
       # tr_reason ends `return r;`, so a refusal it has no entry for shows
@@ -54,6 +71,7 @@ jobs:
       # screen that exists to say why an owner's money is not moving. Three
       # were in that state at once and every gate was green.
       - name: every refusal has words in every language
+        if: always()
         run: python3 tools/check_stop_reasons.py
 
       # Both of these existed, both passed, and NEITHER was invoked by any
@@ -68,6 +86,7 @@ jobs:
       # looks exactly like green. This asks whether each one is RUN, not
       # whether it is listed.
       - name: every checker in tools/ is run by something
+        if: always()
         run: |
           GATECHECK_SELFTEST=1 python3 tools/check_gates.py
 
@@ -114,7 +133,12 @@ jobs:
       # managed_components/ is gitignored (the IDF component manager populates
       # it during device builds), so fetch LVGL ourselves at the exact version
       # dependencies.lock pins for the device.
+      # if: always(), because the two steps BELOW have it -- the same
+      # reasoning the SDL2 install carries further down. Guarding a check
+      # and not what it needs is how a log ends on a missing dependency
+      # instead of the failure that caused it.
       - name: fetch LVGL for the sim
+        if: always()
         run: |
           LV=$(awk '/^  lvgl\/lvgl:/{f=1} f&&/version:/{print $2; exit}' dependencies.lock)
           echo "dependencies.lock pins lvgl/lvgl $LV"
@@ -130,6 +154,7 @@ jobs:
       # do carry it failed on the LVGL nothing had cloned. Six red steps and
       # one cause, none of them the step that broke.
       - name: every icon the firmware names is in the fonts
+        if: always()
         run: |
           GLYPHCHECK_SELFTEST=1 python3 tools/check_glyphs.py
           python3 tools/check_mono_glyphs.py
@@ -150,7 +175,10 @@ jobs:
       # and differ in French is exactly the class these two caught, and it now
       # waits for the translation sweep. Put ja and ru back the day the
       # wording settles.
+      # if: always(), because check_sim_taps below reads the frames this
+      # step writes. Skipped, it leaves that check with nothing to compare.
       - name: sim smoke walk (en)
+        if: always()
         run: |
           bash sim/build_sim.sh
           for L in en; do
@@ -181,6 +209,7 @@ jobs:
       # 2min->5min auto-lock change left the wipe and amnesic-mode steps dead
       # for four commits. Identical consecutive frames mean a dead interaction.
       - name: simulator taps still hit something
+        if: always()
         run: python3 tools/check_sim_taps.py
 
       # The PUBLISHED simulator is the first link a visitor clicks, and the
@@ -196,6 +225,7 @@ jobs:
       # binary contains the strings this tree ships, which needs no toolchain
       # at all and catches the failure that actually happened.
       - name: the published simulator is from this tree
+        if: always()
         run: python3 tools/check_sim_fresh.py
 
       # The step above asks whether a tap changed the screen. This asks the
@@ -240,6 +270,7 @@ jobs:
       # needed no handling -- which is how wt_def_row_help's whole body was a
       # no-op for its entire life with every rendering gate green.
       - name: no measurement before its layout
+        if: always()
         run: |
           python3 tools/check_layout_reads.py --selftest
           python3 tools/check_layout_reads.py
@@ -250,6 +281,7 @@ jobs:
       # compare pixels, because zlib versions differ and a flaky docs job
       # teaches people to ignore the docs job.
       - name: docs screenshots manifest
+        if: always()
         run: python3 tools/gen_docs_shots.py --check
 
       # The manifest above proves every picture still resolves to a frame. It
@@ -260,6 +292,7 @@ jobs:
       # belongs at the end of a batch, not in every UI commit. It fails on the
       # way to main, where a stale picture is what ships.
       - name: docs freshness
+        if: always()
         run: |
           python3 tools/check_docs_fresh.py --selftest
           python3 tools/check_docs_fresh.py
