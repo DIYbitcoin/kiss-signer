@@ -4558,7 +4558,7 @@ int main(void) {
   // By the VALUE: "SEED WORDS" is a caption several screens carry, and a
   // needle two keys share passes on whichever shows either.
   must_show("terms/page one", tr(STR_T_SEED_VAL));
-  must_not_show("terms/page one has no page two", tr(STR_T_DECOY_CAP));
+  must_not_show("terms/page one has no page two", tr(STR_T_DECOY_VAL));
   // A left stroke turns the page. Not a scroll: wt_screen is deliberately
   // not scrollable, and a scrolling list eats every stroke a few pixels in.
   // FOUR to a page, so ten terms are three pages and THE DECOY is on the
@@ -4570,7 +4570,15 @@ int main(void) {
   for (int i = 0; i <= 8; i++) { touch(500 - i * 14, 250); pump(3); }
   release(); pump(40);
   save("/tmp/sim_terms_p3.ppm");                     // ENTROPY, THE DECOY
-  must_show("terms/page three", tr(STR_T_DECOY_CAP));
+  // By the VALUE here too, for the reason page one already gives, and it is
+  // not hypothetical: THE DECOY and DECOY are one word in EIGHT locales --
+  // cs-CZ, hr-HR, ja, ko, pl, ru, tr and zh-CN all render T_DECOY_CAP and
+  // D_SPARE identically, because none of them has a definite article to carry
+  // the difference English does. Turkish is where it was caught: both are
+  // "YEM", so the needle passed on whichever screen showed either, and the
+  // ambiguity guard failed the run rather than let it. T_DECOY_VAL is unique
+  // in all 21 and sits on the same card.
+  must_show("terms/page three", tr(STR_T_DECOY_VAL));
   tap_str(STR_C_BACK, 3, 20);                        // -> Settings, DEVICE tab
   set_tab(SET_DEVICE);
   def_row(3, 1);                                     // This device -> the facts
