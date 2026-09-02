@@ -1269,7 +1269,21 @@ typedef struct {
 // of saying two things for a year and it was two paragraphs of grey in a
 // 344px column, which is a wall with a rule down the side of it. Returns the
 // y it finished at.
+//
+// The caption lane. Fixed, and the same on the page and inside a card,
+// because a caption lane that moved from screen to screen would stop being
+// one lane. It was 214 while the caption was set at chrome23; the caption is
+// the larger face now, so the lane grew with it and the value -- a rung
+// smaller -- gives the width back.
+#define WT_FACT_CAP_W 300
+// The glass an explainer leaves between its last fact and the band above the
+// action row. One number, so every teaching page ends in the same place.
+#define WT_FACT_BAND_GAP 22
 int wt_facts(lv_obj_t *scr, int y, const wt_fact_t *facts, int n);
+// How tall n rows will be, so a caller can place the block against the
+// bottom of its content instead of the top. Same arithmetic wt_facts_in
+// walks, asked without building anything.
+int wt_facts_height(const wt_fact_t *facts, int n);
 // The same rows inside something that is not the page: a card, a pane. (x, w)
 // replace the content lane, and the caption keeps its 214px because a caption
 // lane that moved from screen to screen would stop being one lane.
@@ -1282,6 +1296,15 @@ void wt_explain(lv_obj_t *scr, const char *headline, const char *para,
 // emphasis). `hi` must appear verbatim in `para`; absent, this is wt_explain.
 void wt_explain_hi(lv_obj_t *scr, const char *headline, const char *para,
                    const char *hi, const wt_fact_t *facts, int n);
+// The same page on a screen whose band is not at WT_CONTENT_BOTTOM. The rows
+// hang from `bottom`, so pass WT_ACTION_Y_SLIDE on a screen carrying a slide.
+//
+// A builder names its own line rather than asking the tree: it has not placed
+// the band yet, and a page reached by BACK is built while the page it came
+// from is still waiting on lv_obj_delete_async, so the tree would answer with
+// the old screen's geometry. Same rule wt_is_slide_band states at length.
+void wt_explain_to(lv_obj_t *scr, const char *headline, const char *para,
+                   const wt_fact_t *facts, int n, int bottom);
 
 // The in-place definition (Part 3). Tap a row and its explanation opens where
 // the row already is; the others collapse to 34px ghosts to make the room.

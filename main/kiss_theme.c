@@ -2088,6 +2088,13 @@ lv_obj_t *wt_addr_short(lv_obj_t *par, const char *addr, const lv_font_t *f)
     addr_span(sg, key, false);
     addr_span(sg, mid, false);
     addr_span(sg, tail, true);
+    // The same flag addr_spans sets, and for the same reason: a span carries
+    // its own style, so accent_walk has a spangroup branch that repaints the
+    // LAST one -- which is this tail by construction. Without the flag it was
+    // skipped, and the folded addresses on the sign graph were the one accent
+    // painted thing on the device a theme change left behind. In GREEN the
+    // whole screen went green and "g3zy g3h8 ffkz" stayed MONO blue.
+    lv_obj_add_flag(sg, WT_FLAG_ACCENT);
     lv_spangroup_refresh(sg);
     return sg;
 }
@@ -4019,8 +4026,21 @@ static lv_obj_t *head_stop(lv_obj_t *scr, const char *txt, int x, int y,
 static lv_obj_t *body_spans_hi(lv_obj_t *par, const char *txt, int x, int y,
                                const lv_font_t *f, int w, const char *hi);
 
-void wt_explain_hi(lv_obj_t *scr, const char *headline, const char *para,
-                   const char *hi, const wt_fact_t *facts, int n)
+int wt_facts_height(const wt_fact_t *facts, int n)
+{
+    int h = 0;
+    for (int i = 0; i < n && facts; i++) {
+        const int lh = LV_MAX(
+            lv_font_get_line_height(chrome28(facts[i].cap)),
+            lv_font_get_line_height(chrome23(facts[i].val)));
+        h += lh + 14;
+    }
+    return h ? h - 14 : 0;      // no pad under the last row
+}
+
+static void explain_to(lv_obj_t *scr, const char *headline, const char *para,
+                       const char *hi, const wt_fact_t *facts, int n,
+                       int bottom)
 {
     const lv_font_t *hf = explain_head_font(headline, WT_LANE_W);
     // The headline is a sentence and its stop wears the accent too, which
@@ -4075,7 +4095,32 @@ void wt_explain_hi(lv_obj_t *scr, const char *headline, const char *para,
     const int floor_y = WT_EXPLAIN_PARA_Y +
                         para_lines * lv_font_get_line_height(pf) + 14;
     if (y < floor_y) y = floor_y;
+    // ...and then the block HANGS from the band rather than resting on the
+    // paragraph. It rested on the paragraph, which put two facts on the KEF
+    // screen with 27px of glass under them and 43px of glass over them, and
+    // the bench asked for them "slightly moved down, close to the lower
+    // band". Every explainer on the device had the same gap, in the amount
+    // its own paragraph did not use.
+    //
+    // Hanging is not less consistent than resting -- it is the same promise
+    // measured from the other end, and it is the end an owner's eye actually
+    // lands on, because the band under it does not move. The floor above
+    // still wins if a long paragraph would otherwise be printed through.
+    const int hang = bottom - WT_FACT_BAND_GAP - wt_facts_height(facts, n);
+    if (hang > y) y = hang;
     wt_facts(scr, y, facts, n);
+}
+
+void wt_explain_hi(lv_obj_t *scr, const char *headline, const char *para,
+                   const char *hi, const wt_fact_t *facts, int n)
+{
+    explain_to(scr, headline, para, hi, facts, n, WT_CONTENT_BOTTOM);
+}
+
+void wt_explain_to(lv_obj_t *scr, const char *headline, const char *para,
+                   const wt_fact_t *facts, int n, int bottom)
+{
+    explain_to(scr, headline, para, NULL, facts, n, bottom);
 }
 
 // The rows themselves, so a screen whose top band is already a card can
@@ -4098,14 +4143,25 @@ int wt_facts_in(lv_obj_t *par, int x, int y, int w,
     const int cap_x = marks ? x + 38 : x;
 
     for (int i = 0; i < n && facts; i++) {
-        const lv_font_t *cf = chrome23(facts[i].cap);
+        // The CAPTION is the big one, and the value beside it is a rung
+        // smaller. It shipped the other way round -- caption and mark at 23,
+        // value at 28 -- and came off the bench as "the text to the right
+        // cannot be bigger than the text on the left with the icons".
+        //
+        // The bench is right and the reason is what the row IS. A caption
+        // names the fact and its mark is part of the name; the value answers
+        // it. Setting the answer larger than the question made the accent
+        // caption and its icon read as chrome hung off a grey headline, and
+        // the mark -- which rule 4 says every row carries -- ended up the
+        // smallest thing in a row it is supposed to open.
+        const lv_font_t *cf = chrome28(facts[i].cap);
         if (facts[i].icon) {
             // Its own label, never composed into the caption: an icon in a
             // chrome string falls out of the mono face and drags the whole
             // label down a rung.
             const lv_color_t mc = col_or(facts[i].icon_col, wt_accent());
             lv_obj_t *ic = wt_lbl(scr, facts[i].icon, x, y - 1,
-                                  wt_font23(), mc);
+                                  wt_font28(), mc);
             // Only an accent mark repaints with the theme. A caution's amber
             // is a severity and never becomes the accent's colour.
             if (lv_color_eq(mc, wt_accent()))
@@ -4125,25 +4181,33 @@ int wt_facts_in(lv_obj_t *par, int x, int y, int w,
         // The caption went from mono21 to mono23 in this pass and the lane
         // did not, which took WHAT IT SHARES from fitting to "WHAT IT SH..."
         // with nothing anywhere saying so.
-        wt_sub_measure("cap", facts[i].cap, cf, 2, 214 - 4);
-        lv_obj_set_width(cap, 214);
+        wt_sub_measure("cap", facts[i].cap, cf, 2, WT_FACT_CAP_W - 4);
+        lv_obj_set_width(cap, WT_FACT_CAP_W);
         lv_obj_set_height(cap, lv_font_get_line_height(cf));
         lv_label_set_long_mode(cap, LV_LABEL_LONG_DOT);
-        const lv_font_t *vf = chrome28(facts[i].val);
+        const lv_font_t *vf = chrome23(facts[i].val);
         // 14 of gutter, the pad every other pair on this device sits on. The
         // value started where the caption's box ended, so a caption using its
         // whole lane touched the value beside it.
-        const int vx = cap_x + 214 + 14;
+        const int vx = cap_x + WT_FACT_CAP_W + 14;
         wt_sub_measure("fact", facts[i].val, vf, 0, right - vx);
-        lv_obj_t *val = wt_lbl(scr, facts[i].val, vx, y - 2, vf,
+        // Centred in the caption's line box rather than sharing its top: the
+        // two faces are a rung apart now, and a smaller label pinned to the
+        // same y sits high enough to read as a superscript.
+        const int vdy = (lv_font_get_line_height(cf) -
+                         lv_font_get_line_height(vf)) / 2;
+        lv_obj_t *val = wt_lbl(scr, facts[i].val, vx, y + vdy, vf,
                                WT_MUT);
         lv_obj_set_width(val, right - vx);
         lv_obj_set_height(val, lv_font_get_line_height(vf));
         lv_label_set_long_mode(val, LV_LABEL_LONG_DOT);
-        // The pitch follows the VALUE, which is now the tallest thing in the
-        // row. Pinning it to the caption's face is how a row count that fits
-        // at 23 stops fitting the moment the value goes up a rung.
-        y += lv_font_get_line_height(vf) + 14;
+        // The pitch follows the TALLER of the two, whichever that is. It
+        // followed the value while the value was the big one, and that is a
+        // pin to whichever face happens to be larger today: swapping the two
+        // rungs would otherwise have stacked every row 5px into the one above.
+        const int lh = LV_MAX(lv_font_get_line_height(cf),
+                              lv_font_get_line_height(vf));
+        y += lh + 14;
     }
     return y;
 }
@@ -4227,7 +4291,15 @@ static void def_apply(wt_defs_t *d, int k, int mode)
         // A caution VALUE takes the accent: its lamp is the amber, and the
         // lamp is what the eye lands on first anyway.
         lv_color_t vc = col_or(r->def.val_col, WT_INK);
-        if (lv_color_eq(vc, WT_WARN)) vc = wt_accent();
+        const bool lifted = lv_color_eq(vc, WT_WARN);
+        if (lifted) vc = wt_accent();
+        // ...and it must be REPAINTED, because it is the accent now. A caution
+        // that is lifted into the theme's colour and then not flagged is
+        // correct once and stale for every theme after -- TESTNET and "not
+        // real bitcoin" both sat in the old accent on a settings page that
+        // had just changed it, with the chevrons beside them repainted.
+        if (lifted && mode != DEF_GHOST) lv_obj_add_flag(r->val, WT_FLAG_ACCENT);
+        else                             lv_obj_remove_flag(r->val, WT_FLAG_ACCENT);
         lv_obj_set_style_text_color(r->val, mode == DEF_GHOST ? WT_DIM : vc, 0);
     }
     lv_obj_set_style_text_color(r->cap, mode == DEF_GHOST ? WT_DIM : WT_MUT,
@@ -4583,8 +4655,11 @@ static lv_obj_t *def_list_build(lv_obj_t *scr, const wt_def_t *defs, int n,
                 // to DISABLED) shortens it under copy that fitted a moment ago.
                 wt_sub_measure("sub", defs[k].sub, sf, 0, lane);
                 lv_color_t sc = col_or(defs[k].sub_col, WT_DIM);
-                if (lv_color_eq(sc, WT_WARN)) sc = wt_accent();
+                const bool lift = lv_color_eq(sc, WT_WARN);
+                if (lift) sc = wt_accent();
                 r->sub = wt_lbl(row, defs[k].sub, 0, 0, sf, sc);
+                // Same lift, same requirement: see the value above.
+                if (lift) lv_obj_add_flag(r->sub, WT_FLAG_ACCENT);
                 lv_obj_set_width(r->sub, lane);
                 lv_obj_set_height(r->sub, lv_font_get_line_height(sf));
                 lv_obj_set_style_text_align(r->sub, LV_TEXT_ALIGN_RIGHT, 0);
@@ -5101,6 +5176,11 @@ lv_obj_t *wt_row_wide(lv_obj_t *scr, int y, const wt_wide_t *r)
     lv_color_t ink  = inert ? WT_DIM : WT_MUT;
     lv_color_t subc = inert ? WT_DIM : wt_ink_for(col_or(r->sub_col, WT_DIM));
     lv_color_t vcol = inert ? WT_DIM : wt_ink_for(col_or(r->vcol, WT_INK));
+    // wt_ink_for hands a caution's WORDS the accent, so either of these can BE
+    // the accent -- and then it has to be repainted like everything else that
+    // is. The def rows above wear the same lift and needed the same flag.
+    const bool sub_acc = lv_color_eq(subc, wt_accent());
+    const bool val_acc = lv_color_eq(vcol, wt_accent());
 
     // THE CONTROL FIRST, so the sub-line's lane can be measured against what
     // is actually there. Sizing the sub to the row and hoping is how a
@@ -5161,6 +5241,7 @@ lv_obj_t *wt_row_wide(lv_obj_t *scr, int y, const wt_wide_t *r)
         }
         if (r->val && *r->val) {
             lv_obj_t *v = wt_lbl(chip, r->val, 0, 0, vf, vcol);
+            if (val_acc) lv_obj_add_flag(v, WT_FLAG_ACCENT);
             lv_obj_align(v, LV_ALIGN_LEFT_MID, vx, 0);
         }
         lv_obj_t *ch = wt_lbl(chip, mark, 0, 0, cf, wt_accent());
@@ -5179,6 +5260,7 @@ lv_obj_t *wt_row_wide(lv_obj_t *scr, int y, const wt_wide_t *r)
         }
         if (r->val && *r->val) {
             lv_obj_t *v = wt_lbl(row, r->val, 0, 0, vf, vcol);
+            if (val_acc) lv_obj_add_flag(v, WT_FLAG_ACCENT);
             lv_obj_align(v, LV_ALIGN_RIGHT_MID, right - WT_WIDE_W, 0);
             lv_obj_set_user_data(v, (void *)WT_ROW_CTRL_TAG);
             right -= vs.x + 12;
@@ -5214,6 +5296,7 @@ lv_obj_t *wt_row_wide(lv_obj_t *scr, int y, const wt_wide_t *r)
         if (sw < 40) sw = 40;
         wt_sub_measure("sub", r->sub, sf, 0, sw);
         lv_obj_t *s = wt_lbl(row, r->sub, sx, 0, sf, subc);
+        if (sub_acc) lv_obj_add_flag(s, WT_FLAG_ACCENT);
         lv_obj_set_width(s, sw);
         lv_obj_set_height(s, lv_font_get_line_height(sf));
         lv_label_set_long_mode(s, LV_LABEL_LONG_DOT);
@@ -6783,6 +6866,21 @@ void wt_state_chip_set(lv_obj_t *chip, const char *txt, lv_color_t col)
     lv_obj_set_style_text_color(chip, ink, 0);
     lv_obj_set_style_border_color(chip, ink, 0);
     lv_obj_set_style_bg_color(chip, ink, 0);
+    // wt_ink_for hands a caution's WORDS the accent and leaves the GLYPH at the
+    // severity, so this label's own colour IS the accent on every chip that
+    // carries one -- and nothing repainted it. TESTNET sat in MONO blue on a
+    // GREEN sign screen, beside a strand and a slide that had both moved. It is
+    // the kit's chip, so that was every state chip on the device.
+    //
+    // Conditional, because the ink is only the accent when it is: a chip whose
+    // colour needs no lift keeps its own, and flagging that one would paint a
+    // status colour with the theme.
+    //
+    // The MARK's colour is baked into the markup above and is right to be:
+    // that is the severity, which does not move with the theme -- the same
+    // direction the bundle note rows take.
+    if (lv_color_eq(ink, wt_accent())) lv_obj_add_flag(chip, WT_FLAG_ACCENT);
+    else                               lv_obj_remove_flag(chip, WT_FLAG_ACCENT);
     lv_obj_update_layout(chip);
 }
 
@@ -7853,8 +7951,25 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
             // subject is money coming BACK, and the bench asked for the whole
             // of it lit rather than the figure alone -- in the theme's colour,
             // which is what the accent has always been.
-            const lv_color_t wc = acc ? wt_accent() : WT_MUT;
-            if (out[i].label && o + 2 < sizeof m) {
+            // NO MARKUP ON THE CHANGE ROW. The comment above states the rule
+            // -- the object's own colour is the accent and a theme change
+            // repaints it, the words are pinned to WT_MUT by markup "which
+            // never goes stale because WT_MUT never moves" -- and the change
+            // row broke it by pinning its words to wt_accent() instead, which
+            // is exactly the string with the accent baked into it that the
+            // rule exists to prevent. It was still MONO blue on a GREEN
+            // screen, beside a strand that had repainted correctly.
+            //
+            // The change row wants its MARK and its WORD both in the accent,
+            // and that is what a plain label already is: no markup, the whole
+            // string takes the object's colour, and WT_FLAG_ACCENT repaints
+            // all of it. bundle_note_ink then finds no '#' and leaves it to
+            // the object colour, which is the right answer for a stand down
+            // too.
+            const lv_color_t wc = WT_MUT;
+            if (acc) {
+                /* whole label in the accent: mark and word together */
+            } else if (out[i].label && o + 2 < sizeof m) {
                 o += (size_t)snprintf(m + o, sizeof m - o, "  #%02X%02X%02X ",
                                       wc.red, wc.green, wc.blue);
                 // '#' opens a colour run, so a literal one -- the change row's
@@ -7867,8 +7982,10 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
                 if (o + 2 < sizeof m) m[o++] = '#';
                 m[o] = 0;
             }
+            if (acc && out[i].label && o + 2 < sizeof m)
+                snprintf(m + o, sizeof m - o, "  %s", out[i].label);
             b->note[k] = bundle_txt(line, m, wt_font14(), wt_accent(), true);
-            lv_label_set_recolor(b->note[k], true);
+            if (!acc) lv_label_set_recolor(b->note[k], true);
         } else if (out[i].label) {
             b->note[k] = bundle_txt(line, out[i].label, wt_font14(),
                                     WT_MUT, false);
@@ -8066,6 +8183,11 @@ static void bundle_fold_ink(wt_bundle_t *b, int i, bool dim)
         lv_style_set_text_color(lv_span_get_style(sp),
                                 dim ? WT_EDGE : (lit ? wt_accent() : WT_MUT));
     }
+    // And the FLAG follows the ink. A theme switched while a finger is down
+    // would otherwise walk this group and paint the tail back up to the new
+    // accent, one lit run in a column that has stood down.
+    if (dim) lv_obj_remove_flag(sg, WT_FLAG_ACCENT);
+    else     lv_obj_add_flag(sg, WT_FLAG_ACCENT);
     if (n) lv_spangroup_refresh(sg);
 }
 
