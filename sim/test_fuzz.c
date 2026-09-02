@@ -59,7 +59,7 @@ static void chkb(const char *name, int ok) {
 }
 
 // xorshift32: deterministic junk (re-seeded in main for reproducibility)
-static uint32_t s_rng = 0xC0FFEE01u;
+static uint32_t s_rng;              // seeded in main from FUZZ_SEED
 static uint32_t rnd(void) {
     uint32_t x = s_rng;
     x ^= x << 13; x ^= x >> 17; x ^= x << 5;
@@ -313,9 +313,15 @@ static int mk_ur_part(char *out, size_t outsz, uint32_t seq_num, uint32_t seq_le
     return (n > 0 && (size_t)n < outsz) ? n : -1;
 }
 
+// The seed, in one place, so the run can say which one it used. It is a
+// constant and not a clock: every run of this harness is the same run, and a
+// failure here reproduces by checking out the commit and running it again.
+#define FUZZ_SEED 0xC0FFEE01u
+
 int main(void)
 {
-    s_rng = 0xC0FFEE01u;
+    s_rng = FUZZ_SEED;
+    printf("fuzz seed: 0x%08X (fixed)\n", (unsigned)FUZZ_SEED);
     kiss_seed_store("abandon abandon abandon abandon abandon abandon "
                       "abandon abandon abandon abandon abandon about");
     kiss_set_network(0);

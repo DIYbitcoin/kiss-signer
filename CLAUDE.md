@@ -374,6 +374,22 @@ docker run --rm -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory \
   espressif/idf:v6.0.1 idf.py -B /project/build-docker build     # the device compiler
 ```
 
+**That command is also the lint lane.** `main/CMakeLists.txt` passes fifteen
+more warnings to this component and IDF already passes `-Werror`, so a hit is
+a build failure rather than a line to read. The comment beside the block says
+what each one found and, longer, what was rejected and why -- read that before
+adding one. There is no lint lane on the desktop side and cannot be a useful
+one: clang answers `-Wformat-truncation` and `-Wstringop-truncation` with
+"unknown warning option" and compiles on.
+
+What the desktop lane does have is `KISS_WERROR=1`, which turns every
+`sim/build_*.sh` warning into an error. `tools/preflight.sh` and the CI job
+set it; the commands above do not, so a build you run by hand still finishes.
+
+`clang --analyze` is worth an occasional pass and is not a gate -- it ships
+with the host clang, needs nothing installed, and takes about twenty seconds
+over the crypto sources. HOUSE-RULES.md has the invocation.
+
 **Nothing runs these for you.** There was a `pre-push` hook that ran the whole
 list, and it is gone: `.github/workflows/desktop-tests.yml` runs every one of
 them plus a fuzz pass, a sanitized walk and the installer checks the hook never

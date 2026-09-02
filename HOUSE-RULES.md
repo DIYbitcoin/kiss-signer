@@ -85,6 +85,33 @@ caption passed all six gates and every desktop test, and was caught by this
 command alone — after a push, because it was not on the list. `-Wformat-truncation`
 is the family, and clang does not implement it.
 
+So that command is where the lint lives, and there is no second one:
+`main/CMakeLists.txt` hands this component fifteen more warnings -- `-Wshadow`,
+`-Wnull-dereference`, `-Wmissing-prototypes` and the cheap ones around them --
+PRIVATE, so the vendored components never see them. The rejected list in that
+comment is the longer half and the useful one: `-Wundef` is 1022 hits inside
+IDF headers, `-Wformat-truncation=2` is 28 deliberate snprintf folds, and
+level 1 is already on and is the one that catches the accident above.
+
+The first thing `-Wshadow` found had shipped: `game_tick` declared its own
+`s_sd_badge_live` over the file scope flag, so `sd_badge_sync()` set one and
+the breathe read the other. The SD badge had never breathed, and it renders
+identically in the simulator.
+
+Two things that are NOT that command:
+
+```bash
+KISS_WERROR=1 bash sim/build_sim.sh    # warnings are errors on the desktop too
+clang --analyze -Imain -Isim -Icomponents/cUR/src main/kiss_psbt.c
+```
+
+The first is what `tools/preflight.sh` and the CI job set for every build they
+run; a build you start by hand still only warns, because the same invocation
+compiles 463 vendored LVGL sources and an upstream clang update must not be
+able to stop your work. The second is the host analyzer, which is not a gate
+and is worth twenty seconds now and then -- it reads paths rather than lines,
+and the last pass over the crypto sources returned exactly one thing.
+
 `check_glyphs.py` answers a different one, and it is the blind spot this
 file names twice in `main/kiss_theme.h` -- above `wt_row_x` and above
 `wt_tabs`, in the same words: *a wrong pick survives every gate and is

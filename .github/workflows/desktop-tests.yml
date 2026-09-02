@@ -532,7 +532,12 @@ jobs:
 
       - name: BlueWallet QR interop round-trip
         run: |
-          (cd tools/bw_interop && npm install --no-audit --no-fund)
+          # ci, not install: package.json pins the two direct deps exactly and
+          # the lock file pins the 68 transitive ones. `npm install` would
+          # re-resolve the ^ranges under them on every run, so the interop
+          # claim would be against a slightly different BlueWallet stack each
+          # time, which is the one thing this rig exists to hold still.
+          (cd tools/bw_interop && npm ci --no-audit --no-fund)
           bash tools/bw_interop/run.sh
 
       # The PSBT fixtures are the ones carried to the device on a card, and the
