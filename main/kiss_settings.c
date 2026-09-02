@@ -1903,7 +1903,7 @@ static void tab_security(void)
     bool amnesic = kiss_seed_mode() == WSEED_MODE_AMNESIC;
     bool on = kiss_persist_enabled();
 
-    wt_def_t defs[3] = {
+    wt_def_t defs[2] = {
         // Amber NOT SET beside "opens real keys" is the whole lesson; the
         // lamp breathes until the mark exists, the same beat as the tab dot.
         { .cap = tr(STR_I_ROW_WAYSIN),
@@ -1927,13 +1927,8 @@ static void tab_security(void)
                   .val = tr(on ? STR_G_HIST_ON_BTN : STR_G_HIST_OFF_BTN),
                   .sub = tr(on ? STR_I_HIST_SHORT : STR_I_POP_NOTHING),
                   .mark = LV_SYMBOL_LOOP, .go = persist_cb },
-        // No value: AUDIT has no state to report, so what it is FOR rides
-        // the sub lane. A phrase in the value lane wraps into the chevron --
-        // the value never yields, so it has to be short or absent.
-        { .cap = tr(STR_I_ROW_AUDIT), .val = "",
-          .sub = tr(STR_I_AUDIT_SUB), .go = audit_open_cb },
     };
-    def_list(defs, 3);
+    def_list(defs, 2);
 }
 
 // What a seed IS, on the row that names one. STR_W_WHATSEED_* is the setup
@@ -1976,7 +1971,7 @@ static void tab_backup(void)
     // catch without reading anything.
     bool warn = words_unencrypted();
 
-    wt_def_t defs[3] = {
+    wt_def_t defs[2] = {
         // A word AND a lamp: in the GREEN theme the accent is byte identical
         // to WT_OK, so colour alone stops carrying meaning. No fingerprint in
         // the sub any more -- the bench said it does not help here, and the
@@ -1992,21 +1987,8 @@ static void tab_backup(void)
           .sub = tr(ssub), .sub_col = warn ? WT_WARN : (lv_color_t){0},
           .lamp = warn, .lamp_col = WT_WARN, .lamp_pulse = warn,
           .go = store_open_cb },
-        // DECIDED: the SECOND door onto AUDIT, and the row is duplicated
-        // rather than moved. The tab was two rows of STATE on purpose and the
-        // third one it lost was a DEFINITION that did nothing when pressed --
-        // this one is neither. "How were these made" is a question about the
-        // SEED, and the seed is on this tab; the same row stays on SECURITY,
-        // where somebody asking whether to trust the device goes.
-        //
-        // The screens behind it -- HOW YOUR KEYS WERE MADE and RANDOMNESS
-        // AUDIT -- are the best teaching pair on the device and an outside
-        // reader could not find either. They guessed this tab, which is the
-        // evidence for putting a door here.
-        { .cap = tr(STR_I_ROW_AUDIT), .val = "",
-          .sub = tr(STR_I_AUDIT_SUB), .go = audit_open_cb },
     };
-    lv_obj_t *list = def_list(defs, 3);
+    lv_obj_t *list = def_list(defs, 2);
     // A "?" beside SEED WORDS, opening what a seed actually IS. The bench
     // asked for exactly this: "there should be a ? mark next to seed words
     // which when tapped explains bip39 mnemonic". The explainer is the one
@@ -2035,7 +2017,7 @@ static void tab_device(void)
         snprintf(terms_count, sizeof terms_count, "%s",
                  tr(STR_I_TERMS_ALL_READ));
 
-    wt_def_t defs[3] = {
+    wt_def_t defs[4] = {
         // The version is a FACT, in the page's own ink. It was amber once,
         // with no predicate behind it -- amber on this page means a dot and
         // a count, both of which this row has never had.
@@ -2046,6 +2028,26 @@ static void tab_device(void)
         // already printed by kiss_build_id_make on the screen behind it.
         { .cap = tr(STR_I_ROW_DEVICE), .val = "",
           .sub = tr(STR_I_ROW_DEVICE_SUB), .go = device_open_cb },
+        // DECIDED: ONE door onto AUDIT, and it is here. There were two -- the
+        // row sat on SECURITY, where somebody asking whether to trust the box
+        // goes, and was duplicated onto BACKUP because "how were these made"
+        // is a question about the seed and an outside reader guessed that tab.
+        // Both arguments are still true and neither survives what they cost
+        // together: from the bench, "why the fuck now is there TWO audit
+        // button in SETTINGS screens, should only be one under DEVICE tab".
+        // A settings page that lists the same row twice reads as a page that
+        // does not know what it holds, and the reader who cannot find a screen
+        // is not helped by finding it twice.
+        //
+        // DEVICE and not either of the two: what is behind the row is HOW YOUR
+        // KEYS WERE MADE and the RANDOMNESS AUDIT, which are facts about this
+        // box and the chip in it, beside FIRMWARE and THIS DEVICE.
+        //
+        // No value: AUDIT has no state to report, so what it is FOR rides the
+        // sub lane. A phrase in the value lane wraps into the chevron -- the
+        // value never yields, so it has to be short or absent.
+        { .cap = tr(STR_I_ROW_AUDIT), .val = "",
+          .sub = tr(STR_I_AUDIT_SUB), .go = audit_open_cb },
         // TERMS. A CHEVRON, not a plus: it leaves the page, so it takes the
         // glyph that means leaves the page. The value is a count because a
         // reference nobody has read and one they have finished are different
@@ -2057,7 +2059,7 @@ static void tab_device(void)
         { .cap = tr(STR_I_ROW_TERMS), .val = terms_count,
           .sub = tr(STR_I_ROW_TERMS_SUB), .go = terms_open_cb },
     };
-    def_list(defs, kiss_session_decoy() ? 2 : 3);
+    def_list(defs, kiss_session_decoy() ? 3 : 4);
 }
 
 static void tab_noundo(void)
