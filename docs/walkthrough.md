@@ -6,6 +6,8 @@
 
 The checks to make before this signer holds anything you care about. Every screenshot here is a frame the simulator rendered from the current firmware, so what you see is what the device draws.
 
+This is the device in order, screen by screen. [The guide](guide.html) covers the same ground by topic: verify, build, flash, storage.
+
 Three rules first. Everything below assumes them.
 
 1. Every passphrase opens keys. There is no wrong passphrase error, and there never will be.

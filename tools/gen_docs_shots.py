@@ -686,6 +686,13 @@ def write_md():
            "from the current firmware, so what you see is what the device "
            "draws.",
            "",
+           # The sibling. docs/guide.html covers the same device organised by
+           # topic, and neither file named the other, so a reader who found one
+           # could not tell whether the other was stale or the same text twice.
+           "This is the device in order, screen by screen. "
+           "[The guide](guide.html) covers the same ground by topic: verify, "
+           "build, flash, storage.",
+           "",
            # The three rules every page below assumes. They were each stated
            # somewhere in the middle of a step, which is where a reader who
            # opens the device before the docs never meets them: the first one
