@@ -1,4 +1,4 @@
-# Blind draw: seed words you drew yourself
+# Blind draw: a key pair out of seed words you drew yourself
 
 The device can create keys three ways. The camera and the dice both ask a
 machine to produce randomness and ask you to trust it. **BLIND DRAW** does not.
@@ -118,8 +118,8 @@ essentially never makes:
 | --- | --- |
 | The same word repeatedly | There is no secret at all. Anyone can type it. |
 | A short run typed over and over | Same problem, wearing a disguise. |
-| Words sitting side by side on the list | The stack was never really mixed. |
-| Words in alphabetical order | The order was half the secret. Sorting spent it. |
+| Entries side by side on the list | The stack was never really mixed. |
+| Entries in alphabetical order | The order was half the secret. Sorting spent it. |
 | More repeats than a full bag would give | Suggests the bag was not full. |
 
 The first two are **refused outright** — those phrases carry nothing. The rest
@@ -127,6 +127,6 @@ are **warnings** you can read and then overrule, because each of them can happen
 by chance to an honest draw, just very rarely.
 
 What none of this can catch is a draw that merely looks random: a phrase you
-memorised, a line from a song, words you picked while trying to feel
+memorised, a line from a song, choices you made while trying to feel
 unpredictable. Human beings are not able to do this, and no check on the device
 can tell the difference. Only a blind draw is random.

@@ -55,6 +55,13 @@ PROPER = [
 ]
 
 
+SEP = "\x00"   # a unit break that is not a line break; see _strip_html
+
+# Tags that sit inside a sentence rather than around one.
+INLINE = ["a", "b", "i", "em", "strong", "span", "sub", "sup", "small",
+          "abbr", "kbd", "mark", "u", "s", "q", "cite", "time", "var"]
+
+
 class Rule:
     def __init__(self, name, pattern, instead, why, allow=(), backlog=(),
                  fires_on="", clean=""):
@@ -136,17 +143,55 @@ def long_word(text):
     return None
 
 
+# What "words" is allowed to mean when it is not the seed. Written as a list
+# rather than folded into one regex because each entry is a different claim
+# and the next person has to be able to disagree with one of them.
+#
+# The rule started as `(your|the|these|those|my) words` and the owner widened
+# it: never bare "words", always "seed words" or "BIP39 mnemonic phrase".
+# That is a
+# rule about the NAME, and a name does not stop being the name because the
+# determiner in front of it changed -- "SHOW WORDS AGAIN", "how many words?"
+# and "Words that rebuild your keys" all named the thing and none of them
+# matched the old pattern.
+WORDS_OK = (
+    r"seed", r"recovery",                       # the name, said in full
+    r"plain",                                   # "plain words card", the tone
+    r"\d+", r"English",                         # the 2048 on the list
+)
+# ... and the phrases where the list, not the seed, is the subject. Only
+# docs/blind-draw.md needs these: it is the page about making the list.
+WORDS_OK_AFTER = (r"out\b", r"on the list\b")
+
+
+def bare_words(text):
+    """Bare "words" where the name belongs. Returns the offending phrase."""
+    for m in re.finditer(r"\bwords\b", text, re.I):
+        before = text[:m.start()].rstrip()
+        if any(re.search(r"(?i)\b%s$" % w, before) for w in WORDS_OK):
+            continue
+        after = text[m.end():].lstrip()
+        if any(re.match(r"(?i)%s" % w, after) for w in WORDS_OK_AFTER):
+            continue
+        return text[max(0, m.start() - 24):m.end() + 8].strip()
+    return None
+
+
 RULES = [
-    Rule(
+    Measure(
         "BARE-WORDS",
-        r"\b(?:your|the|these|those|my)\s+words\b",
-        'say "seed words" (what they are) or "recovery words" (the backup)',
+        bare_words,
+        'say "seed words" (what they are), "recovery words" (the backup) or '
+        '"BIP39 mnemonic phrase"',
         'GLOSSARY.md: bare "words" reads as a house term and has to be '
-        "unlearned the first time an owner opens anything else",
-        # GLOSSARY.md's "not yet converted" list was six strings and is
-        # empty: they were measured and converted rather than excused.
-        fires_on="A locked copy of your words.",
-        clean="A locked copy of your seed words.",
+        "unlearned the first time an owner opens anything else. It is the "
+        "name of the thing, so it is written in full every time",
+        allow={
+            "L_WEAK_ACK": "the PASSPHRASE, not the seed: a few words you "
+                          "remember beat one short one",
+        },
+        fires_on="SHOW WORDS AGAIN",
+        clean="SHOW SEED WORDS AGAIN",
     ),
     Rule(
         "COINED-WORDS",
@@ -368,7 +413,7 @@ DOCS = [
 # a build says "artifacts live on the Releases tab", "read live from eFuse",
 # "the pad that sits behind it" -- the ordinary computer senses of words that
 # only mislead when a screen uses them about seed words. And "no dev seed in
-# the binary", "BIP39 processes the mnemonic into a binary seed" are the
+# the binary", "BIP39 turns the mnemonic phrase into a binary seed" are the
 # technical senses BARE-SEED's own why already excuses in code and comments.
 # Both would need five or six ALLOW entries to say nothing new.
 #
@@ -406,25 +451,49 @@ DOCS_ALLOW = {
 # decision.
 
 
-def _html_text(raw):
-    """Visible prose from a page. Code is not copy: a command, a filename or
-    a JSON key inside <code> or <pre> is quoted machine text, and reading it
-    under the copy rules would fire on every one of them."""
-    raw = re.sub(r"(?is)<!--.*?-->", " ", raw)
-    raw = re.sub(r"(?is)<(script|style|pre|code)\b.*?</\1>", " ", raw)
-    # alt= is read out loud to somebody who cannot see the picture, so it is
-    # copy in every sense that matters here.
-    alts = re.findall(r'(?i)\balt="([^"]*)"', raw)
-    return "\n".join(alts) + "\n" + re.sub(r"(?is)<[^>]+>", "\n", raw)
+def _blank(m):
+    """Delete a match but keep its newlines. Every removal below spans lines
+    -- a fenced block, a <pre>, an HTML comment -- and collapsing one to a
+    space renumbers every line after it, so the file:line a finding reports
+    stops naming the line the word is on. Three findings pointed at a `serve`
+    command, a fee bullet and a table rule before this existed."""
+    return "\n" * m.group(0).count("\n")
+
+
+def _strip_html(raw):
+    """Tags out, prose in, and every line still where it was.
+
+    alt= is put back in PLACE rather than collected at the top, because a
+    finding has to name the line the word is on: hoisting the alt text
+    renumbers the whole file. It is copy either way -- it is what somebody
+    who cannot see the picture is read instead."""
+    raw = re.sub(r"(?is)<!--.*?-->", _blank, raw)
+    raw = re.sub(r"(?is)<(script|style|pre|code)\b.*?</\1>", _blank, raw)
+    raw = re.sub(r'(?i)<img\b[^>]*?\balt="([^"]*)"[^>]*>', r" \1 ", raw)
+    # An INLINE tag becomes a space and a BLOCK tag a newline. Turning every
+    # tag into a newline splits "Seed <strong>words</strong>" into two lines
+    # and the second one reads as a bare "words" that nobody wrote.
+    raw = re.sub(r"(?is)</?(%s)\b[^>]*>" % "|".join(INLINE), " ", raw)
+    # A block tag ends the unit but must NOT add a line: turning it into a
+    # newline grew README by 71 lines and docs/index.html by 205, and every
+    # file:line after the first tag named the wrong place. SEP is the break;
+    # only real newlines count as lines.
+    return re.sub(r"(?is)<[^>]+>",
+                  lambda m: SEP + "\n" * m.group(0).count("\n"), raw)
 
 
 def _md_text(raw):
-    raw = re.sub(r"(?is)<!--.*?-->", " ", raw)
-    raw = re.sub(r"(?s)```.*?```", " ", raw)
-    raw = re.sub(r"`[^`]*`", " ", raw)
-    raw = re.sub(r"!\[([^\]]*)\]\([^)]*\)", r"\1", raw)      # alt text stays
-    raw = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", raw)       # link text stays
-    return raw
+    raw = re.sub(r"(?s)```.*?```", _blank, raw)
+    raw = re.sub(r"`[^`\n]*`", " ", raw)       # one line: [^`]* eats newlines
+    raw = re.sub(r"!\[([^\]\n]*)\]\([^)\n]*\)", r"\1", raw)   # alt text stays
+    raw = re.sub(r"\[([^\]\n]*)\]\([^)\n]*\)", r"\1", raw)    # link text stays
+    # A blockquote marker is punctuation, not a word. Left in, it lands
+    # between "Seed" and "words" when a [!WARNING] block wraps.
+    raw = re.sub(r"(?m)^[ \t]{0,3}>[ \t]?", "", raw)   # \s would eat the newline
+    # README embeds raw HTML for its picture tables, so the same pass runs
+    # here: without it an <img src="setup-2-words.png"> reads as prose and
+    # the gate reports a filename as a bare "words".
+    return _strip_html(raw)
 
 
 def docs_strings():
@@ -439,11 +508,39 @@ def docs_strings():
         if not f.exists():
             continue
         raw = f.read_text(encoding="utf-8")
-        text = _html_text(raw) if rel.endswith(".html") else _md_text(raw)
+        text = _strip_html(raw) if rel.endswith(".html") else _md_text(raw)
+        # A PARAGRAPH, not a line. Prose is hard wrapped, so "Seed\nwords
+        # already on the device" is one sentence written correctly and two
+        # lines, the second of which opens with a bare "words". Reading a
+        # line at a time invents that defect and then demands an ALLOW entry
+        # to excuse it. The key still names the line the paragraph starts on,
+        # because a person has to be able to open it.
+        start, buf = 0, []
+        units = []
         for i, line in enumerate(text.split("\n"), 1):
+            for frag in line.split(SEP):
+                units.append((i, frag))
+            if SEP in line:
+                units.append((i, ""))     # a block tag ends the paragraph
+        for i, line in units:
             line = re.sub(r"\s+", " ", line).strip()
-            if len(line) > 2:
-                out["%s:%d" % (rel, i)] = line
+            # A table row, a list item or a heading is its own unit and never
+            # wraps, so joining one to the line above only moves the reported
+            # line number away from the word being reported on.
+            if line and buf and re.match(r"[|\-*#<]|\d+\.", line):
+                out["%s:%d" % (rel, start)] = " ".join(buf)
+                start, buf = i, [line]
+                continue
+            if line:
+                if not buf:
+                    start = i
+                buf.append(line)
+                continue
+            if buf and len(" ".join(buf)) > 2:
+                out["%s:%d" % (rel, start)] = " ".join(buf)
+            buf = []
+        if buf and len(" ".join(buf)) > 2:
+            out["%s:%d" % (rel, start)] = " ".join(buf)
     return out
 
 
@@ -521,6 +618,25 @@ def selftest():
     # that eats the body, a renamed file -- is a green sweep over an unread
     # surface. Assert that it reads prose, that it does NOT read the shell
     # commands beside it, and that the lane still fires.
+    # Every extractor here is line preserving, and that is not a nicety: the
+    # whole value of this lane is a file:line somebody can open. It broke four
+    # separate ways while it was being written -- a fenced block collapsed to
+    # a space, an inline-code regex that ate newlines, a block tag that ADDED
+    # one, a multi-line <meta> that swallowed three -- and each time the gate
+    # still reported, pointing at a `serve` command or a fee bullet. So the
+    # invariant is asserted rather than trusted.
+    for rel in DOCS:
+        f = ROOT / rel
+        if not f.exists():
+            continue
+        raw = f.read_text(encoding="utf-8")
+        text = _strip_html(raw) if rel.endswith(".html") else _md_text(raw)
+        if raw.count("\n") != text.count("\n"):
+            print(f"SELFTEST: extracting {rel} moved its lines "
+                  f"({raw.count(chr(10))} -> {text.count(chr(10))}), so every "
+                  f"file:line it reports names the wrong line", file=sys.stderr)
+            bad += 1
+
     docs = docs_strings()
     if len(docs) < 200:
         print(f"SELFTEST: the docs lane extracted {len(docs)} lines, which is "

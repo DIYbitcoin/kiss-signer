@@ -48,13 +48,14 @@ a Bitcoin signer hidden under a Tetris game.
 > The current release is named in [`VERSION`](VERSION) and the
 > [changelog](CHANGELOG.md).
 
-- **Recovery words + passphrase derive your keys.** The ordered words are
-  commonly called a "seed phrase"; technically, BIP39 processes the mnemonic
-  sentence and passphrase into a binary seed. The passphrase is typed fresh
-  every time and never stored. An empty passphrase uses the base keys; any
-  non-empty entry changes the derived keys. Every entry is valid, so there is
-  no "wrong passphrase" error. A strong passphrase can protect funds if the
-  words are exposed, but an attacker can test passphrase guesses offline.
+- **Seed words + passphrase derive your keys.** The ordered seed words are
+  commonly called a "seed phrase" or a BIP39 mnemonic phrase; technically,
+  BIP39 turns that phrase and the passphrase into a binary seed. The
+  passphrase is typed fresh every time and never stored. An empty passphrase
+  uses the base keys; any non-empty entry changes the derived keys. Every
+  entry is valid, so there is no "wrong passphrase" error. A strong passphrase
+  can protect funds if the seed words are exposed, but an attacker can test
+  passphrase guesses offline.
 - **Airgapped by hardware:** transactions move by animated QR (BC-UR) or SD
   card. The ESP32-P4 running KISS has no radio. The device's ESP32-C6 radio
   chip is held in reset from the first instruction, every boot, and no
@@ -273,7 +274,7 @@ on the home screen, to learn as you go.
 <table>
 <tr>
 <td align="center"><img src="docs/readme/warn-caution.png" alt="Sign screen showing stacked cautions and an I UNDERSTAND gate" width="400"></td>
-<td align="center"><img src="docs/readme/learn-card.png" alt="Fingerprint explainer card with a WORDS + PASSPHRASE to FINGERPRINT diagram" width="400"></td>
+<td align="center"><img src="docs/readme/learn-card.png" alt="Fingerprint explainer card with a SEED WORDS + PASSPHRASE to FINGERPRINT diagram" width="400"></td>
 </tr>
 <tr>
 <td align="center"><sub><b>Cautions stack</b>: a short summary, a <b>?</b> for why, and <b>I UNDERSTAND</b> before you can sign</sub></td>
