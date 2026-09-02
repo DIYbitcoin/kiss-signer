@@ -90,6 +90,15 @@ jobs:
         run: |
           GATECHECK_SELFTEST=1 python3 tools/check_gates.py
 
+      # preflight.sh claims to be this whole lane in one command, and that
+      # claim is the only reason a green preflight means anything. It was
+      # false the day it landed. This asks it mechanically, the way
+      # check_gates.py asks whether a checker is run by anything at all.
+      - name: preflight still covers this lane
+        if: always()
+        run: |
+          CHECKPREFLIGHT_SELFTEST=1 python3 tools/check_preflight.py
+
       - name: crypto tests (BIP39 vector + PSBT suite)
         run: |
           bash sim/build_test.sh

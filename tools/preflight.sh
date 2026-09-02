@@ -64,6 +64,10 @@ echo
 echo "preflight: scratch is $KISS_SIM_TMP"
 echo
 
+# --- does this file still cover the CI lane -------------------------------
+# First, because every other line below is only worth what its coverage is.
+run "this script still covers the CI lane" "CHECKPREFLIGHT_SELFTEST=1 python3 tools/check_preflight.py"
+
 # --- the words and the keys, cheapest first ------------------------------
 # gen_i18n.py has no --check: it WRITES. CI can regenerate and diff because its
 # tree is disposable; this one is shared, and the first run of this script
@@ -92,6 +96,11 @@ run "a measurement before its layout" \
 run "the sim's LVGL config vs the device's" "LVCONF_SELFTEST=1 python3 tools/check_lv_conf.py"
 run "the decisions index vs the comments" "python3 tools/gen_decisions.py --check"
 run "the published wasm vs the tree" "python3 tools/check_sim_fresh.py"
+run "installer artifacts vs VERSION" "python3 tools/check_installer_version.py"
+# Both --check only: they read and report, they do not regenerate. That is the
+# whole reason they can sit here rather than in the skip list.
+run "every picture resolves to a frame" "python3 tools/gen_docs_shots.py --check"
+run "the offline installer packs what the page loads" "python3 tools/make_offline_zip.py --check"
 run "how far the pictures trail the screens" \
     "python3 tools/check_docs_fresh.py --selftest && python3 tools/check_docs_fresh.py"
 
@@ -124,6 +133,11 @@ run "on-video overlay text" "bash sim/build_osdcheck.sh && SIM_LANG=en \"\$KISS_
 run "screen walk (en)" \
     "bash sim/build_sim.sh && OVERLAPCHECK_LANGS=en bash sim/run_overlapcheck.sh"
 run "screens no gate sees" "python3 tools/check_screen_coverage.py"
+# AFTER the walk, and not with the other pure python above it: it compares the
+# frames the walk saves, and preflight gives every run a fresh KISS_SIM_TMP, so
+# ahead of the walk the scratch is empty and it exits 1 every time. CI puts it
+# here for the same reason, in the comment on its own smoke walk step.
+run "a walk tap that hits nothing" "python3 tools/check_sim_taps.py"
 
 # --- the table ------------------------------------------------------------
 echo
