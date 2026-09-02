@@ -1,6 +1,7 @@
 # assets/ — source art + generators
 
-The firmware's image sources (`main/sprites.c`, `main/menu_img.c`, `main/gameover_img.c`) are
+The firmware's image sources (`main/sprites.c`, `main/menu_img.c`, `main/gameover_img.c`,
+`main/kiss_img.c`, `main/flag_imgs.c`, `main/game_bg.c`) are
 **generated**, not hand-edited. This directory holds the generators and their source PNGs so the
 build is reproducible.
 
@@ -11,6 +12,9 @@ From the repo root, with the image venv on PATH (numpy + pillow):
 /tmp/spritevenv/bin/python assets/generators/convert_fruit.py    # -> main/sprites.{c,h}
 /tmp/spritevenv/bin/python assets/generators/menu_mock.py        # -> main/menu_img.{c,h}  (+ /tmp/menu_mock.png preview)
 /tmp/spritevenv/bin/python assets/generators/gameover_mock.py    # -> main/gameover_img.{c,h} (+ /tmp/gameover_mock.png preview)
+/tmp/spritevenv/bin/python assets/generators/kiss_mock.py        # -> main/kiss_img.{c,h} + main/tile_lbls.{c,h} (+ /tmp/kiss_mock.png preview)
+/tmp/spritevenv/bin/python assets/generators/flag_imgs.py        # -> main/flag_imgs.{c,h}  (+ /tmp/flags_mock.png preview)
+python3 assets/generators/game_bg.py                             # -> main/game_bg.{c,h}   (stdlib only, no venv)
 ```
 
 Each generator resolves paths relative to its own location, so it works from any checkout.
@@ -21,6 +25,12 @@ Always eyeball the `/tmp/*_mock.png` previews (and `/tmp/newfruit_sheet.png`) be
   whole fruit + procedural apple/pineapple cross-sections; `emoji/bomb.png` + `emoji/collision.png`.
 - `generators/menu_mock.py` — baked 480x800 menu scene (RGB565). Uses `emoji/` fruit accents.
 - `generators/gameover_mock.py` — baked game-over scene + NEW BEST ribbon. Uses `emoji/` accents.
+- `generators/scene.py` — the shared synthwave backdrop both mock generators import. Not run directly.
+- `generators/kiss_mock.py` — baked 800x480 home screen (RGB565) plus the tile labels beside it.
+  Uses `twemoji/1f48b.png`.
+- `generators/flag_imgs.py` — one RGB565A8 flag per language that has one, and the lookup table in
+  `main/i18n.h` enum order. Uses `twemoji/flags/` (CC-BY 4.0, see `twemoji/README.md`).
+- `generators/game_bg.py` — the 46px tiled gameplay backdrop. Draws it in code; no source PNG.
 - `fruit-pack/Items/` — the 10 CC0 pack PNGs actually referenced (of 43).
 - `emoji/` — the 6 emoji PNGs actually referenced.
 
@@ -44,3 +54,7 @@ The menu/game-over generators render text with **Arial Rounded Bold**
 intentionally **not** vendored. On a machine without it, the generators will fail at
 `ImageFont.truetype`; substitute a free rounded face (e.g. Baloo 2 / Fredoka / Nunito, all OFL) and
 expect slightly different letterforms.
+
+`kiss_mock.py` reaches for Futura, then Arial, then Menlo, and falls back to Pillow's built-in
+face rather than failing — so on a machine without them it produces a readable home screen with
+the wrong letterforms. Eyeball `/tmp/kiss_mock.png` before committing what it wrote.
