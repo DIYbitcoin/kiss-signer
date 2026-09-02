@@ -447,32 +447,28 @@ static const sub_t SUBROWS[] = {
 // Parked for the translation sweep (decided 2026-08-18): every entry here is
 // translation-bound and English fits everywhere, so the sweep is where these
 // get their shorter copy and this list shrinks there, not before.
+// EMPTY, collected the way ROW_BACKLOG was and for the same reason. Thirty
+// two entries across seventeen locales, every one of them parked on the same
+// sentence: "translation-bound, English fits everywhere, the sweep is where
+// these get their shorter copy and this list shrinks there, not before."
+// The sweep has now been through all seventeen.
+//
+// set/words came off in the last four the same way each time -- the sub is a
+// mark, two spaces, eight hex digits of fingerprint and then a sentence, and
+// I_WORDS_VERIFIED_FMT was a sentence where English is two words. It is
+// "tjekket · %s", "sjekket · %s", "kollad · %s", "provjereno · %s" now, and
+// each of those took its row from 342-366px in a 317px lane to inside it.
+//
+// The mono-face cluster came off too, which was the open question: the file
+// said those six arrived because the fixed-pitch faces run ~8% wider on the
+// same sub, a LANE problem rather than a copy-length one, and they might
+// have survived shorter copy. They did not -- cutting the format string took
+// more than the faces had added.
+//
+// Measured before deleting: the full 21 locale run reports "row subs
+// ellipsised: 0 backlogged, 0 new".
 static const struct { const char *lang, *surface; } ROWSUB_BACKLOG[] = {
-    { "cs-CZ", "set/duress" },  { "cs-CZ", "set/words" },
-    { "da-DK", "set/duress" },
-    { "de",    "set/duress" },  { "de",    "set/words" },
-    { "es-ES", "set/duress" },
-    { "es-MX", "set/duress" },
-    { "fr",    "set/duress" },
-    { "hr-HR", "set/duress" },  { "hr-HR", "set/words" },
-    { "it",    "set/duress" },
-    { "nb-NO", "set/duress" },  { "nb-NO", "set/words" },
-    { "nl",    "set/duress" },  { "nl",    "set/words" },
-    { "pl",    "set/duress" },  { "pl",    "set/words" },
-    { "pt-BR", "set/duress" },  { "pt-BR", "set/words" },
-    { "pt-PT", "set/duress" },  { "pt-PT", "set/words" },
-    { "ru",    "set/duress" },  { "ru",    "set/words" },
-    { "sv-SE", "set/duress" },  { "sv-SE", "set/words" },
-    { "tr",    "set/duress" },
-    { "vi",    "set/duress" },  { "vi",    "set/words" },
-    // Arrived with the mono faces, same fingerprint-then-sentence sub as the
-    // set/words entries above -- ~8% wider glyphs took the last few px.
-    { "da-DK", "set/words" },
-    { "es-ES", "set/words" },
-    { "es-MX", "set/words" },
-    { "fr",    "set/words" },
-    { "it",    "set/words" },
-    { "tr",    "set/words" },
+    { NULL, NULL },   // keep the array non-empty; rowsub_backlogged skips NULL
 };
 #define NSUBROW_BACKLOG \
     ((int)(sizeof ROWSUB_BACKLOG / sizeof ROWSUB_BACKLOG[0]))
@@ -480,7 +476,8 @@ static const struct { const char *lang, *surface; } ROWSUB_BACKLOG[] = {
 static bool rowsub_backlogged(const char *lang, const char *surface)
 {
     for (int i = 0; i < NSUBROW_BACKLOG; i++)
-        if (strcmp(ROWSUB_BACKLOG[i].lang, lang) == 0 &&
+        if (ROWSUB_BACKLOG[i].lang &&
+            strcmp(ROWSUB_BACKLOG[i].lang, lang) == 0 &&
             strcmp(ROWSUB_BACKLOG[i].surface, surface) == 0)
             return true;
     return false;
@@ -820,10 +817,10 @@ static int selftest(void)
         !row_backlogged("de", "set/storage"));
     CHK("the emptied row backlog matches nothing else either",
         !row_backlogged("xx", "no-such-surface"));
-    CHK("the sub backlog still finds a known entry",
-        rowsub_backlogged("nb-NO", "set/duress"));
-    CHK("the sub backlog rejects an unknown surface",
-        !rowsub_backlogged("nb-NO", "no-such-surface"));
+    CHK("the emptied sub backlog matches a surface it used to hold",
+        !rowsub_backlogged("nb-NO", "set/duress"));
+    CHK("the emptied sub backlog matches nothing else either",
+        !rowsub_backlogged("xx", "no-such-surface"));
 
     // kit icons. WT_ICON_* are all 3-byte UTF-8, decoded here the way the
     // sweep decodes them. U+E000 opens the private use area: nothing this
