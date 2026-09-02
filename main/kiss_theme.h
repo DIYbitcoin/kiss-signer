@@ -760,7 +760,40 @@ void      wt_state_chip_set(lv_obj_t *chip, const char *txt, lv_color_t col);
 //                          LV_PART_MAIN only -- a scrollbar painted with the
 //                          accent and no flag is correct once and stale for
 //                          every theme after.
-#define WT_FLAG_ACCENT_SCROLL LV_OBJ_FLAG_USER_1
+// LAYOUT_2, and it has to be something other than USER_1. It WAS USER_1 --
+// the same bit as WT_FLAG_ACCENT, three lines of comment above it describing
+// a separate channel. All four USER bits were already spoken for, so the flag
+// that arrived last silently became an alias for the one that arrived first:
+// every scrollbar-flagged list also had its LV_PART_MAIN text colour set on a
+// theme change, and every one of the hundreds of accent-flagged objects had a
+// scrollbar colour set on a part most of them do not have. Neither is visible,
+// which is exactly why it survived -- an aliased flag fails silently in both
+// directions by construction.
+//
+// LVGL reads LAYOUT_2 in one place, lv_obj.c's flag setter, where changing it
+// marks the layout dirty. wt_list_scrollbar adds it once while the list is
+// being built and never removes it, so the cost is one invalidation on a tree
+// that is about to be laid out anyway.
+//
+// NOT a WIDGET bit: WIDGET_1 is WT_FLAG_TINY_OK here AND
+// LV_MSGBOX_FLAG_AUTO_PARENT in LVGL, WIDGET_2 is WT_FLAG_ACCENT_STOPS. This
+// device builds no msgbox, so that pair is quiet today and is not somewhere to
+// put a third meaning.
+#define WT_FLAG_ACCENT_SCROLL LV_OBJ_FLAG_LAYOUT_2
+
+// The seven flags above must live on seven different bits, and until now
+// nothing said so -- two of them shared one for as long as the second existed.
+// A sum equals an OR exactly when no bit is set twice, so this is the whole
+// check, and it fails at COMPILE time rather than as a repaint nobody sees.
+#define WT_FLAGS_OR  (WT_FLAG_TINY_OK | WT_FLAG_ACCENT_STOPS | WT_FLAG_ACCENT | \
+                      WT_FLAG_ACCENT_BORDER | WT_FLAG_ACCENT_BG | \
+                      WT_FLAG_ACCENT_FILL | WT_FLAG_ACCENT_SCROLL)
+#define WT_FLAGS_SUM ((unsigned)WT_FLAG_TINY_OK + (unsigned)WT_FLAG_ACCENT_STOPS + \
+                      (unsigned)WT_FLAG_ACCENT + (unsigned)WT_FLAG_ACCENT_BORDER + \
+                      (unsigned)WT_FLAG_ACCENT_BG + (unsigned)WT_FLAG_ACCENT_FILL + \
+                      (unsigned)WT_FLAG_ACCENT_SCROLL)
+_Static_assert((unsigned)WT_FLAGS_OR == WT_FLAGS_SUM,
+               "two WT_FLAG_* share a bit: one silently aliases the other");
 // Repaint every flagged object under scr. Call after wt_accent_set.
 void wt_accent_restyle(lv_obj_t *scr);
 
