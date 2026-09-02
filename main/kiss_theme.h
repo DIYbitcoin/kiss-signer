@@ -1277,8 +1277,9 @@ typedef struct {
 // smaller -- gives the width back.
 #define WT_FACT_CAP_W 300
 // The glass an explainer leaves between its last fact and the band above the
-// action row. One number, so every teaching page ends in the same place.
-#define WT_FACT_BAND_GAP 22
+// action row. One number, so every teaching page ends in the same place, and
+// 14 because 14 is the pad the rows already sit on between themselves.
+#define WT_FACT_BAND_GAP 14
 int wt_facts(lv_obj_t *scr, int y, const wt_fact_t *facts, int n);
 // How tall n rows will be, so a caller can place the block against the
 // bottom of its content instead of the top. Same arithmetic wt_facts_in

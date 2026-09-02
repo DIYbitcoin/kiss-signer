@@ -1430,8 +1430,12 @@ static void kef_warn_screen(lv_event_t *e)
     // not these keys. The passphrase is wiped at login by design
     // (kiss_crypto.h), so it is not in there and no future version can
     // quietly put it there.
-    wt_explain(s_scr, tr(STR_I_KEF_HEAD),
-               tr(pp ? STR_I_KEF_EXP_B : STR_I_KEF_EXP_B_NP), facts, 2);
+    // WT_ACTION_Y_SLIDE, not the default bottom: the band is 344 here
+    // because of the slide, so an explainer hanging from WT_CONTENT_BOTTOM
+    // would put its second fact behind it.
+    wt_explain_to(s_scr, tr(STR_I_KEF_HEAD),
+                  tr(pp ? STR_I_KEF_EXP_B : STR_I_KEF_EXP_B_NP), facts, 2,
+                  WT_ACTION_Y_SLIDE);
 
     // Making the envelope puts the keys on the glass as a QR one screen
     // later, so the entry is a deliberate slide, the scan-key precedent.
