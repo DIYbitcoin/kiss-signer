@@ -60,7 +60,7 @@ a Bitcoin signer hidden under a Tetris game.
   chip is held in reset from the first instruction, every boot, and no
   wireless stack is compiled in: the release build fails if any radio or
   networking code links.
-- **Coordinator compatible:** pairing offers Sparrow on desktop (descriptor)
+- **Online wallet compatible:** pairing offers Sparrow on desktop (descriptor)
   and BlueWallet on mobile (zpub), and any other coordinator that reads a
   descriptor or a zpub will work. The coordinator watches balances, builds
   transactions and broadcasts. It cannot sign or authorize anything by itself.
