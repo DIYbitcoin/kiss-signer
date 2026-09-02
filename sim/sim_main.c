@@ -4316,7 +4316,7 @@ int main(void) {
   set_tab(SET_BACKUP);
   save("/tmp/sim_settings_backup.ppm");             // paper unchecked, storage on plain flash
   set_tab(SET_DEVICE);
-  save("/tmp/sim_settings_device.ppm");             // firmware, this device, audit, terms
+  save("/tmp/sim_settings_device.ppm");             // firmware, this device, terms
   set_tab(SET_NOUNDO);
   save("/tmp/sim_settings_noundo.ppm");             // one card, its reason, one button
 
@@ -4529,7 +4529,7 @@ int main(void) {
   //
   // TERMS first -- all ten cards, five to a page, the reference for an owner
   // who wants to READ the words rather than meet them one screen at a time.
-  def_row(4, 3);
+  def_row(3, 2);
   pump(30);
   save("/tmp/sim_terms_p1.ppm");                     // SEED WORDS .. CHANGE
   // By the VALUE: "SEED WORDS" is a caption several screens carry, and a
@@ -4550,7 +4550,7 @@ int main(void) {
   must_show("terms/page three", tr(STR_T_DECOY_CAP));
   tap_str(STR_C_BACK, 3, 20);                        // -> Settings, DEVICE tab
   set_tab(SET_DEVICE);
-  def_row(4, 1);                                     // This device -> the facts
+  def_row(3, 1);                                     // This device -> the facts
   // The five rows enter on a 42ms stagger, so the frame has to wait for the
   // last one: saving straight after the tap photographed two rows and three
   // ghosts, which is a picture of the animation rather than of the page.
@@ -4588,7 +4588,7 @@ int main(void) {
   touch(670, 240); pump(3); release(); pump(6);     // Settings tile -> Settings
   // CARD INFO while the words live on the card: the sealed row, green tick.
   set_tab(SET_DEVICE);
-  def_row(4, 1);
+  def_row(3, 1);
   touch(SET_LABEL_X, SET_DEV_CARD_Y); pump(3); release(); pump(8);
   save("/tmp/sim_sdinfo_sealed.ppm");               // kiss-seed.enc, present
   must_show("sdinfo/sealed", SDSEED_FILENAME);
@@ -4667,11 +4667,11 @@ int main(void) {
   // screen before the tap rather than inside a list the tap has to open.
   set_tab(SET_SECURITY);
   save("/tmp/sim_settings_hist_on.ppm");             // ENABLED, "settings and..."
-  def_go(2, 1);                                      // flip -> DISABLED, applied
+  def_go(3, 1);                                      // flip -> DISABLED, applied
   save("/tmp/sim_settings_hist_off.ppm");            // the value and the sub flipped
   must_show("persist off", tr(STR_G_HIST_OFF_BTN));
   must_show("persist off sub", tr(STR_I_POP_NOTHING));
-  def_go(2, 1);                                      // flip back -> ENABLED
+  def_go(3, 1);                                      // flip back -> ENABLED
   must_show("persist on", tr(STR_G_HIST_ON_BTN));
 
   // ...and the state where the switch has nothing to switch. AMNESIC keeps
@@ -4687,7 +4687,7 @@ int main(void) {
     pump(8);
     save("/tmp/sim_settings_persist_dead.ppm");      // UNAVAILABLE, in ink
     must_show("persist dead", tr(STR_I_PERSIST_DEAD_VAL));
-    def_row(2, 1); pump(30);                         // the definition opens in place
+    def_row(3, 1); pump(30);                         // the definition opens in place
     save("/tmp/sim_settings_persist_why.ppm");       // the reason, ghosts above and below
     must_show("persist dead reason", tr(STR_I_PERSIST_DEAD_PLAIN));
     s_sim_mode = was;
@@ -4935,7 +4935,7 @@ int main(void) {
   // over, so a leak shows up as the firmware screen drawn on top of a live
   // settings page.
   set_tab(SET_DEVICE);
-  def_row(4, 0);                                    // Firmware -> the update screen
+  def_row(3, 0);                                    // Firmware -> the update screen
   pump(FW_SETTLE);                                  // the body and the row arrive late
   save("/tmp/sim_settings_fw.ppm");                 // reached from settings, not directly
   touch(WT_EXIT_X + 70, WT_ACTION_Y + 26); pump(3); release(); pump(8);  // BACK -> settings
@@ -5897,7 +5897,7 @@ int main(void) {
   }
   touch(670, 240); pump(3); release(); pump(8);     // Settings tile
   set_tab(SET_DEVICE);
-  def_row(4, 0);                                    // Firmware
+  def_row(3, 0);                                    // Firmware
   save("/tmp/sim_fw_before_autolock.ppm");          // up, with the clock running
   if (!kiss_fw_ui_active()) {
     printf("FAIL: firmware screen not open before the auto-lock test\n");
@@ -6057,8 +6057,8 @@ int main(void) {
   // The stub stream is deterministic and rewound here, so the finished frame
   // always shows the score test_rngq.c pinned as golden: 105.920, EVEN.
   sim_rng_rewind();
-  set_tab(SET_DEVICE);
-  def_row(4, 2);                      // Audit -> the chooser
+  set_tab(SET_SECURITY);
+  def_row(3, 2);                      // Audit -> the chooser
   save("/tmp/sim_audit_choose.ppm");                // two rows, each stated
   // HOW YOUR KEYS WERE MADE. Nothing is forced here: the record is written by
   // the same funnel the device writes it from, so this photographs whatever the
@@ -6115,8 +6115,8 @@ int main(void) {
   // in. NO SOURCE in the provenance row, the right block carries the refusal
   // and there is no START to tap.
   s_sim_trng = false;
-  set_tab(SET_DEVICE);
-  def_row(4, 2);                      // Audit -> the chooser
+  set_tab(SET_SECURITY);
+  def_row(3, 2);                      // Audit -> the chooser
   tap_str(STR_W_RNG_T, 3, 8);         // RANDOMNESS AUDIT row -> intro
   save("/tmp/sim_rng_nosource.ppm");                // refusal: no START action
   must_show("rng/nosource", tr(STR_W_RNG_OFF));
@@ -6124,7 +6124,7 @@ int main(void) {
   s_sim_trng = true;
 
   set_tab(SET_SECURITY);
-  def_row(2, 0);                                    // Duress -> the two ways in
+  def_row(3, 0);                                    // Duress -> the two ways in
   save("/tmp/sim_settings_duress.ppm");             // chips + the rule, in words
   // The chip states the RULE, not a chosen mark. Twenty locales still said
   // "YOUR STROKE" here long after the picker was deleted, which is exactly
@@ -6139,7 +6139,7 @@ int main(void) {
   must_show("waysin/how", tr(STR_GD_PICK_REAL_T));  // the same rule, same words
   tap_str(STR_GD_SKIP, 3, 20);         // NOT NOW -> Settings
   set_tab(SET_SECURITY);
-  def_row(2, 0);                                    // Duress -> the two ways in
+  def_row(3, 0);                                    // Duress -> the two ways in
   tap_str(STR_GD_WORD_PILL, 3, 8);     // open custom letters
   save("/tmp/sim_gword_write.ppm");                 // blank field, no printed word
   draw_own_letters();
@@ -6158,7 +6158,7 @@ int main(void) {
   save("/tmp/sim_gword_done.ppm");                  // the two ways in, redrawn
   tap_str(STR_C_OK, 3, 8);     // OK (552..752) -> Settings
   set_tab(SET_SECURITY);
-  def_row(2, 0);                                    // Duress again
+  def_row(3, 0);                                    // Duress again
   save("/tmp/sim_settings_duress_set.ppm");         // the chip now reads LETTERS
   // Put KISS back before anything else in this walk draws it. gw_stored_set
   // is what BACK TO KISS calls, and leaving the owner's letters in place here

@@ -66,23 +66,23 @@ The first tab carrying one, in strip order, so the chip lands on the leftmost ma
 
 [`main/kiss_settings.c:1747`](../main/kiss_settings.c#L1747)
 
-### ONE door onto AUDIT, and it is here
+### ONE door onto AUDIT, and it is this one
 
-There were two -- the row sat on SECURITY, where somebody asking whether to trust the box goes, and was duplicated onto BACKUP because "how were these made" is a question about the seed and an outside reader guessed that tab. Both arguments are still true and neither survives what they cost together: from the bench, "why the fuck now is there TWO audit button in SETTINGS screens, should only be one under DEVICE tab". A settings page that lists the same row twice reads as a page that does not know what it holds, and the reader who cannot find a screen is not helped by finding it twice. DEVICE and not either of the two: what is behind the row is HOW YOUR KEYS WERE MADE and the RANDOMNESS AUDIT, which are facts about this box and the chip in it, beside FIRMWARE and THIS DEVICE. No value: AUDIT has no state to report, so what it is FOR rides the sub lane. A phrase in the value lane wraps into the chevron -- the value never yields, so it has to be short or absent.
+The row was duplicated onto BACKUP because "how were these made" is a question about the seed and an outside reader guessed that tab; that argument is still true and did not survive what the pair cost. From the bench, "why the fuck now is there TWO audit button in SETTINGS screens" -- a settings page that lists the same row twice reads as a page that does not know what it holds, and a reader who cannot find a screen is not helped by finding it twice. It was moved to DEVICE for one commit on the reasoning that HOW YOUR KEYS WERE MADE and the RANDOMNESS AUDIT are facts about this box. Wrong tab: what an owner does with them is decide whether to TRUST the box, which is what SECURITY is for, and it is where the row has always been. DEVICE is FIRMWARE, THIS DEVICE and TERMS, and it is three rows again. No value: AUDIT has no state to report, so what it is FOR rides the sub lane. A phrase in the value lane wraps into the chevron -- the value never yields, so it has to be short or absent.
 
-[`main/kiss_settings.c:2031`](../main/kiss_settings.c#L2031)
+[`main/kiss_settings.c:1930`](../main/kiss_settings.c#L1930)
 
 ### these tabs keep their NOUNS and are not renamed after the jobs they hold
 
 The proposal was HOW IT SIGNS / WHAT IT KEEPS / HOW IT PROVES / WHAT IT IS, and it does not fit: the five-up strip is 620px, the shipped labels measure 612 of it, and those four plus NO UNDO measure 920. Three hundred pixels over is not a layout to tune. The only form that fits is single verbs -- SIGNS / KEEPS / PROVES / IS, 500px -- and "IS" is not a word to put on a tab an owner is looking for something in. Verbs without subjects read worse than the nouns they would replace, for a reader who bought their first signing device last week. The miscategorisation the proposal was built on is also gone: it argued that storage sat on SECURITY while recovery words sat on BACKUP, so checking a backup crossed two tabs. STORAGE is on BACKUP beside SEED WORDS, which is one job on one tab.
 
-[`main/kiss_settings.c:2231`](../main/kiss_settings.c#L2231)
+[`main/kiss_settings.c:2232`](../main/kiss_settings.c#L2232)
 
 ### language and theme live on the BAND, moved there out of the DEVICE tab
 
 The band's centre: LANGUAGE and THEME, out of the DEVICE tab. The language control needs no caption -- its label IS the active language's own name, stripped of the regional qualifier ("ESPANOL (ESPANA)" -> "ESPANOL") because the picker's flag carries the variant. A WORD ACTION with a GLOBE, not an arrow action. It was a forward arrow, which is the mark the SCREEN'S OWN action wears -- so the one control on the band that picks between 21 languages was signed exactly like a "go on", and came back from the bench as "should have some icon better than an arrow, no?". A globe says what the control is before its word is read, in every one of those 21 languages at once.
 
-[`main/kiss_settings.c:2292`](../main/kiss_settings.c#L2292)
+[`main/kiss_settings.c:2293`](../main/kiss_settings.c#L2293)
 
 ## `main/kiss_setup.c`
 
@@ -146,19 +146,19 @@ A motion that scrambles plausible looking characters and resolves to something e
 
 Both bits set draws the dust row only, and caution_all_bits reads back through here, so the gate asks for the rows the owner can see and stays consistent. Splitting them was considered and dropped. It takes the stack to six on a page built for five (SG_ROW_MAX, and the ceiling argument above), and it buys a second row saying "tiny change" beside a row already saying "dust change" -- the same sentence about the same fault, for a two change output transaction almost no coordinator builds. What is lost is real and it is one line of a soft privacy caution, not a claim about where the money goes.
 
-[`main/kiss_sign.c:2370`](../main/kiss_sign.c#L2370)
+[`main/kiss_sign.c:2375`](../main/kiss_sign.c#L2375)
 
 ### the sign review band does NOT name the transaction's file; that line was cut rather than fixed
 
 NO FILENAME HERE, and no "camera" either. Both were cut rather than fixed. The reader tapped that name on the file list one screen back, or watched the camera assemble the transaction, so the line restated what they had just done -- which is the copy rule's own example of a string to cut. And a filename is the COORDINATOR'S bookkeeping, not a fact about the payment: what says this is the right transaction is the amount and the destination, and both are on this screen at full size. A name in the corner never checked anything. What it cost to keep was the whole band. The line ran under the title beside the signed badge, the network chip and the fingerprint, and it was the only unlabelled string among them. It also carried two defects for as long as it existed: set in the smallest face on the device, and, once that was corrected, handing a translated phrase to a filename tail-fold so a scanned transaction read "scan...ansaction" on the screen where a payment is approved. fx survives because the badge and the chip above measure their lane against it: they may not run back under the title.
 
-[`main/kiss_sign.c:2737`](../main/kiss_sign.c#L2737)
+[`main/kiss_sign.c:2742`](../main/kiss_sign.c#L2742)
 
 ### this toggle's mark stays VISIBLE when it is off, dimmed rather than transparent
 
 The two-state word action hides its mark elsewhere and that is right where a PAIR of them sits side by side -- the dice screen -- because the pair is the affordance. This one stands alone in a left aligned column, and hidden-but-still-occupying-space gave it no affordance at all AND pushed its word 33px inside the column's edge, so it read as a centred heading rather than a control. An inert mark says both things at once: there is a switch here, and it is not on.
 
-[`main/kiss_sign.c:4404`](../main/kiss_sign.c#L4404)
+[`main/kiss_sign.c:4409`](../main/kiss_sign.c#L4409)
 
 ## `main/kiss_theme.c`
 
