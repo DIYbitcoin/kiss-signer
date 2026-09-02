@@ -3936,6 +3936,24 @@ int main(void) {
   // dashed line on the device. The accent drawn over it has to be dashed too --
   // sixteen coins committing must not become one coin committing halfway
   // through a hold.
+  // SETTLE FIRST, and this is not decoration. An acknowledgement REPAINTS the
+  // verify screen -- the one thing in the app that replaces a live screen
+  // without deleting it -- and a press that lands while that is running is
+  // dropped by the slider. Without this pump the grip and the drag below did
+  // nothing at all: act_for found the action, the coordinates were identical
+  // to the working stop 400 lines up, armed was 1, and the knob stayed at rest.
+  //
+  // The frame this stop exists for is the accent drawn over the DASHED strand
+  // mid hold, which is the only dashed line on the device, so it had never
+  // been photographed. check_sim_taps is exactly the check for a gesture that
+  // did nothing, and it never got to run: it has no `if: always()`, so six
+  // steps failing in front of it on CI SKIPPED it, for as long as those were
+  // red. A skipped step is not a green one and the summary does not say which
+  // it was.
+  //
+  // pump(8) after a release is the documented number and it is right for a
+  // TAP. A gesture after a repaint is the case it does not cover.
+  pump(30);
   slide_grip(STR_S_HOLD_TO_SIGN); slide_go(155);
   save("/tmp/sim_sign_merge_hold.ppm");
   // 78 frames, not 8: a lift short of the end banks the travel for 800ms and
