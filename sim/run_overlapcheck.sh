@@ -217,7 +217,17 @@ for l in "${langs[@]}"; do
     [ "$rc" -gt "$worst" ] && worst=$rc
     if [ "$rc" -ne 0 ] && [ "${n:-0}" -eq 0 ]; then died="$died SIM_LANG=$l(rc=$rc)"; fi
 
-    if [ "$n" -gt 0 ]; then
+    # An EMPTY $n is a locale whose run produced no summary line, which is a
+    # walk that died rather than a walk that found nothing. It was reaching
+    # this test unguarded -- two lines above, the same variable is read as
+    # ${n:-0} -- so the shell errored with "integer expression expected" and
+    # fell through to the else, printing the word CLEAN for a locale nothing
+    # had successfully checked. died= already records it and the verdict at
+    # the end is correct; this line was the one saying otherwise, and it is
+    # the line a person reads.
+    if [ -z "$n" ]; then
+        printf '%-8s NO SUMMARY -- the walk did not finish\n' "$l"
+    elif [ "$n" -gt 0 ]; then
         printf '%-8s %3d findings\n' "$l" "$n"
         printf '%s\n' "$out" | grep -E '^  (TEXT|CONTENT|GROWTH|CLIPPED|ROLE|BARE|WALL|FIT|CUT|TINY|AMBER|RAGGED|LAYER|TERM|READ|LADDER|PATH|WIDOW|CLIPX|DOTS)' | sed 's/^/  /'
         echo
