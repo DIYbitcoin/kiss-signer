@@ -369,19 +369,35 @@ static const row_t ROWS[] = {
 // "row labels ellipsised: 0 backlogged, 0 new". A backlog nothing fires on is
 // a list of excuses for defects that no longer exist, and the next person to
 // read it would take it for work outstanding.
-static const struct { const char *lang, *surface; } ROW_BACKLOG[] = {
-    { NULL, NULL },   // keep the array non-empty; row_backlogged skips NULL
+// Named, and the scan takes its list as an argument, so the selftest can hand
+// it one with something IN it. Both live lists are a bare sentinel now, and an
+// emptied list can only ever answer "no" -- which is exactly what a lookup
+// hardcoded to `return false` answers. Every must-not-match case passes either
+// way, so with only the live lists to test against, the half of this that
+// EXCUSES findings had nothing holding it up.
+typedef struct { const char *lang, *surface; } backlog_t;
+
+// The NULL guard skips the sentinel and keeps going; it does not end the scan.
+// A fixture with the sentinel FIRST is what pins that difference.
+static bool backlogged(const backlog_t *list, int n,
+                       const char *lang, const char *surface)
+{
+    for (int i = 0; i < n; i++)
+        if (list[i].lang &&
+            strcmp(list[i].lang, lang) == 0 &&
+            strcmp(list[i].surface, surface) == 0)
+            return true;
+    return false;
+}
+
+static const backlog_t ROW_BACKLOG[] = {
+    { NULL, NULL },   // keep the array non-empty; backlogged skips NULL
 };
 #define NROW_BACKLOG ((int)(sizeof ROW_BACKLOG / sizeof ROW_BACKLOG[0]))
 
 static bool row_backlogged(const char *lang, const char *surface)
 {
-    for (int i = 0; i < NROW_BACKLOG; i++)
-        if (ROW_BACKLOG[i].lang &&
-            strcmp(ROW_BACKLOG[i].lang, lang) == 0 &&
-            strcmp(ROW_BACKLOG[i].surface, surface) == 0)
-            return true;
-    return false;
+    return backlogged(ROW_BACKLOG, NROW_BACKLOG, lang, surface);
 }
 
 // The SUB-LINE under a row label, which had the same blind spot the labels had
@@ -467,20 +483,15 @@ static const sub_t SUBROWS[] = {
 //
 // Measured before deleting: the full 21 locale run reports "row subs
 // ellipsised: 0 backlogged, 0 new".
-static const struct { const char *lang, *surface; } ROWSUB_BACKLOG[] = {
-    { NULL, NULL },   // keep the array non-empty; rowsub_backlogged skips NULL
+static const backlog_t ROWSUB_BACKLOG[] = {
+    { NULL, NULL },   // keep the array non-empty; backlogged skips NULL
 };
 #define NSUBROW_BACKLOG \
     ((int)(sizeof ROWSUB_BACKLOG / sizeof ROWSUB_BACKLOG[0]))
 
 static bool rowsub_backlogged(const char *lang, const char *surface)
 {
-    for (int i = 0; i < NSUBROW_BACKLOG; i++)
-        if (ROWSUB_BACKLOG[i].lang &&
-            strcmp(ROWSUB_BACKLOG[i].lang, lang) == 0 &&
-            strcmp(ROWSUB_BACKLOG[i].surface, surface) == 0)
-            return true;
-    return false;
+    return backlogged(ROWSUB_BACKLOG, NSUBROW_BACKLOG, lang, surface);
 }
 
 static const row_t *row_by_surface(const char *surface)
@@ -809,10 +820,11 @@ static int selftest(void)
     CHK("the same string measures wider at font23 than at font14",
         text_px(LONG, wt_font23()) > text_px(LONG, wt_font14()));
 
-    // the backlogs. ROW_BACKLOG is {NULL, NULL} now, so the lookup has to
-    // survive the sentinel AND match nothing; ROWSUB_BACKLOG still holds
-    // entries, so it has to still find one. An emptied backlog whose lookup
-    // silently matched everything would excuse the whole check.
+    // The backlogs. BOTH are a bare {NULL, NULL} sentinel now, so the live
+    // lists can only answer "no" -- and a lookup hardcoded to `return false`
+    // answers "no" to everything. The four cases below would all pass against
+    // such a lookup, and it is the lookup that EXCUSES findings, so they are
+    // the cheap half. The fixture underneath is the half that costs something.
     CHK("the emptied row backlog matches a surface it used to hold",
         !row_backlogged("de", "set/storage"));
     CHK("the emptied row backlog matches nothing else either",
@@ -821,6 +833,30 @@ static int selftest(void)
         !rowsub_backlogged("nb-NO", "set/duress"));
     CHK("the emptied sub backlog matches nothing else either",
         !rowsub_backlogged("xx", "no-such-surface"));
+
+    // A list with something in it, which neither live list is any more. This
+    // is the only thing here that fails if the scan stops matching, and it
+    // goes through the same backlogged() the two wrappers call.
+    static const backlog_t FIXTURE[] = {
+        { "xx-XX", "fixture/row" },
+        { NULL, NULL },
+    };
+    CHK("a lookup finds an entry that is present",
+        backlogged(FIXTURE, 2, "xx-XX", "fixture/row"));
+    CHK("a lookup rejects a lang the list does not name",
+        !backlogged(FIXTURE, 2, "yy-YY", "fixture/row"));
+    CHK("a lookup rejects a surface the list does not name",
+        !backlogged(FIXTURE, 2, "xx-XX", "fixture/other"));
+
+    // Sentinel FIRST: the NULL guard must skip it and carry on, not stop. Get
+    // that wrong and an emptied list silently excuses nothing while a list
+    // that grows an entry after its sentinel silently excuses nothing either.
+    static const backlog_t SENTINEL_FIRST[] = {
+        { NULL, NULL },
+        { "xx-XX", "fixture/row" },
+    };
+    CHK("the NULL guard skips the sentinel rather than ending the scan",
+        backlogged(SENTINEL_FIRST, 2, "xx-XX", "fixture/row"));
 
     // kit icons. WT_ICON_* are all 3-byte UTF-8, decoded here the way the
     // sweep decodes them. U+E000 opens the private use area: nothing this
@@ -843,7 +879,7 @@ static int selftest(void)
     // A case deleted is a case that stops failing, and a selftest that
     // quietly shrinks is the thing it was written to prevent one level up.
     // Raise this WITH the case, never to make a run go green.
-    enum { FIT_SELFTEST_CASES = 16 };
+    enum { FIT_SELFTEST_CASES = 20 };
     if (cases != FIT_SELFTEST_CASES) {
         printf("  selftest FAIL: %d cases, expected %d -- a case was removed\n",
                cases, FIT_SELFTEST_CASES);
