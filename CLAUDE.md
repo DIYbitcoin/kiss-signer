@@ -642,6 +642,37 @@ glyph, which is most of what it is for).
 So the other twenty keep the previous wording, the device shows it, and no gate
 looks at them. That is the accepted state until the sweep.
 
+### Cutting a locale's copy to its lanes
+
+`tools/lane_budget.py <findings-file> <locale>` turns a saved
+`run_overlapcheck.sh` into the only thing the work actually needs: one row per
+KEY, with the number of characters the copy has to fit in.
+
+    python3 tools/lane_budget.py /tmp/fr.txt fr
+    D_WORDS   row label  20ch -> keep 12ch (cut 8, lane 210px)
+
+The gate names a pixel lane and quotes the string as RENDERED -- truncated,
+joined across hand-set line breaks, sometimes already wearing an ellipsis. Three
+locales were cut by hand before this existed, and each one started with the same
+half hour: work out which key each finding is, divide width by length to get
+this script's pixels per character, turn the lane into a budget. That is
+arithmetic and it is the same arithmetic every time.
+
+The budget is derived per finding from that finding's own width, so it carries
+the locale's real glyph width rather than an assumption about Latin or Cyrillic.
+Rows it cannot name print `?`: the string is built at runtime, and those are the
+only ones worth thinking about.
+
+Two things it does not know, and both have bitten:
+
+- **A shorter string can collide.** `gen_i18n.py` refuses duplicates, so the
+  check is free -- but four Russian cuts landed on a string another key already
+  had, one of them the tab directly above the row. Read its complaint.
+- **An anchor is not cuttable.** `кодовая фраза`, `phrase secrète` and
+  `Seed-Wörter` overflow lanes sized for English and are the glossary's own
+  terms. The rule is to cut a different word and never the name; where the name
+  IS the string, the lane is what is wrong. Leave it and say so.
+
 Prefer reusing a key that already ships in 21 locales over adding one. Most
 lessons this device needs to teach are already written and translated, and
 locked to a single path — check before authoring. Adding a key is a real cost

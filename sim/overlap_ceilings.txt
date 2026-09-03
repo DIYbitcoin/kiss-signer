@@ -25,7 +25,7 @@ da-DK 46
 de 70
 es-ES 84
 es-MX 84
-fr 94
+fr 65
 hr-HR 51
 it 74
 ja 11
