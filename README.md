@@ -48,37 +48,26 @@ a Bitcoin signer hidden under a Tetris game.
 > The current release is named in [`VERSION`](VERSION) and the
 > [changelog](CHANGELOG.md).
 
-- **Seed words + passphrase derive your keys.** The ordered seed words are
-  commonly called a "seed phrase" or a BIP39 mnemonic phrase; technically,
-  BIP39 turns that phrase and the passphrase into a binary seed. The
-  passphrase is typed fresh every time and never stored. An empty passphrase
-  uses the base keys; any non-empty entry changes the derived keys. Every
-  entry is valid, so there is no "wrong passphrase" error. A strong passphrase
-  can protect funds if the seed words are exposed, but an attacker can test
-  passphrase guesses offline.
-- **Airgapped by hardware:** transactions move by animated QR (BC-UR) or SD
-  card. The ESP32-P4 running KISS has no radio. The device's ESP32-C6 radio
-  chip is held in reset from the first instruction, every boot, and no
-  wireless stack is compiled in: the release build fails if any radio or
-  networking code links.
-- **Online wallet compatible:** pairing offers Sparrow on desktop (descriptor)
-  and BlueWallet on mobile (zpub), and any other coordinator that reads a
-  descriptor or a zpub will work. The coordinator watches balances, builds
-  transactions and broadcasts. It cannot sign or authorize anything by itself.
-  KISS stays offline, verifies the PSBT, and signs only what it can fully show.
-- **Shows everything, warns in plain words, teaches as you go:** before you sign,
-  every amount, the fee, and each change output are re-derived and shown on the
-  device. It flags an unusually high fee, and a tiny "dust" coin or change that
-  hurts your privacy, each as a soft caution you acknowledge rather than a
-  silent surprise. Address reuse is different: KISS cannot see the chain, so
-  RECEIVE keeps a standing reminder instead of guessing which addresses were
-  paid. A **?** on any unfamiliar term opens a short plain words card, with a
-  small diagram where a picture helps.
+- **Seed words + passphrase derive your keys.** The passphrase is typed fresh
+  every time and never stored. Every entry is valid, so there is no wrong
+  passphrase error: a different one quietly opens different keys. It protects
+  you if your paper is found, but a thief holding the paper can guess at it
+  offline, so make it a long one.
+- **Airgapped by hardware.** Transactions move by animated QR or SD card. The
+  radio chip is held in reset from the first instruction of every boot, and the
+  release build fails if any networking code links into it.
+- **Works with the coordinator you already use.** Pairing offers Sparrow on
+  desktop and BlueWallet on mobile, and anything else that reads a descriptor or
+  a zpub. The coordinator watches balances and builds payments; it cannot sign.
+- **Shows everything before you sign.** Every amount, the fee and the change are
+  worked out again on the device and shown. It cautions on a high fee, on dust,
+  and on change that hurts your privacy. A **?** on any unfamiliar word opens a
+  plain words card.
 
 Runs on the Guition **JC4880P443C** dev board: ESP32-P4, 480×800 MIPI-DSI
 touch panel, camera, SD card slot. No soldering.
 
-## Install (beta)
+## 📦 Install (beta)
 
 For this beta, use the signed artifacts attached to the
 [latest GitHub Release](https://github.com/kkdao/kiss-signer/releases/latest).
@@ -135,7 +124,7 @@ esptool --chip esp32p4 -p <port> -b 460800 \
 
 Stuck on any step? The [docs](docs/) walk through each one per OS.
 
-### No internet where you flash
+### 🌐 No internet where you flash
 
 Every release also carries `kiss-signer-VERSION-offline.zip`, around 6 MB: the
 install page, the firmware and the signed hashes in one download. Get it on a
@@ -151,48 +140,25 @@ Unzip it, run `serve.command` (macOS), `serve.bat` (Windows) or `./serve.sh`
 that one computer only and reaches nothing else. `00-START-HERE.txt` inside says
 the same in more detail.
 
-### Upgrading with no computer at all
+### ⬆️ Upgrading with no computer at all
 
-Once a signer is running, it can take its next firmware off the SD card, so an
-upgrade needs no cable and no browser. Every release carries a second image for
-this: `kiss-signer-VERSION-update.bin`.
+A running signer takes its next firmware off the SD card, so an upgrade needs no
+cable and no browser. Use `kiss-signer-VERSION-update.bin`: check its hash
+against `SHA256SUMS`, copy it to the card, then SETTINGS > FIRMWARE. The screen
+shows the version on the device beside the one on the card, so you can see which
+replaces which. Slide to install and leave it plugged in; the screen goes dark
+while the flash is written and the backlight climbing back is the progress bar.
 
-1. Check it against the signed manifest the same way as anything else:
-   `shasum -a 256 --ignore-missing -c SHA256SUMS`.
-2. Copy it to the SD card. The name does not matter, the contents do.
-3. On the signer: SETTINGS > FIRMWARE. It reads the card and shows the version
-   on the device beside the version on the card, so you can see which is
-   replacing which before you decide.
-4. Slide to install, and leave it plugged in. The screen goes dark while the
-   flash is written; the backlight climbing back to full is the progress bar.
+**Use the `-update.bin`, not the plain `.bin`.** The plain one is for flashing
+over USB and starts with a bootloader, so the signer looks in the wrong place
+and reports nothing to install.
 
-**It is the `-update.bin` you want, not the plain `.bin`.** The plain one is a
-merged image for flashing over USB at offset 0: it starts with a bootloader, so
-the signer looks for the firmware description 32 bytes in, finds the wrong
-thing, and reports that there is nothing to install.
+The device checks both signatures itself, ECDSA and post quantum, before
+anything becomes bootable. A release older than that second signature is refused
+with the reason. If an update does not start, the signer keeps the firmware it
+already had.
 
-**The device checks the signature itself, twice.** An update must carry both an
-ECDSA signature and a post quantum one (SLH-DSA-SHA2-128s) over the same bytes,
-and both are verified before anything becomes bootable. A release published
-before that second signature existed carries only one, so this firmware refuses
-it and says which signature was missing rather than claiming the download is
-corrupt.
-
-If an update does not start, the device keeps the firmware it already had. The
-bootloader rolls back to it rather than leaving you with a signer that will not
-come up.
-
-> [!WARNING]
-> Same as step 3 above: installing writes the whole chip and **erases any
-> keys already on the device** (and the device key an SD card seed depends
-> on). Seed words on paper and passphrase in hand first.
-
-> [!NOTE]
-> This is the only way to flash from a browser with the network off. The page
-> hosted on GitHub Pages fetches itself while you use it, so pulling the plug
-> halfway leaves you with a page that cannot finish.
-
-## First boot
+## 🔑 First boot
 
 The game is what boots. A secret gesture on the game menu opens the signer
 (covered in the docs), then setup takes two minutes:
@@ -217,28 +183,32 @@ The game is what boots. A secret gesture on the game menu opens the signer
 </table>
 
 > [!TIP]
-> **Before you fund it, verify your backup.** KEYS → BACKUP → SEED WORDS →
-> **CHECK MY COPY** has you type your seed words from paper; the device confirms
-> they rebuild these exact keys and never shows the stored seed words. A wrong or missing word is
-> reported by position ("word #N"). Bad backups lose more coins than bad signers
-> do, so it is worth the two minutes.
+> **Verify your backup before you fund it.** KEYS > BACKUP > SEED WORDS >
+> **CHECK MY COPY** has you type your paper back; the device confirms it rebuilds
+> these keys, names any wrong word by position, and never shows the stored ones.
+> Bad backups lose more coins than bad signers do.
 >
-> **Then write the fingerprint on the same piece of paper.** Every passphrase is
-> valid, so a typo never shows an error, it silently opens different, empty
-> keys. The eight character code on the home screen is the only way to notice.
-> If it ever differs from your paper, you typed the passphrase wrong.
+> **Then write the fingerprint on the same paper.** A mistyped passphrase never
+> errors, it silently opens different, empty keys, and that eight character code
+> on the home screen is the only way to notice.
 
 <div align="center">
 <img src="docs/readme/verify-backup.png" alt="Backup verified: every word matched" width="400"><br>
 <sub><b>Check my copy</b>: type your seed words from paper, the device confirms without revealing them</sub>
 </div>
 
-## Day to day
+## 💸 Day to day
 
-Pair with an online coordinator app: **KEYS → PAIR COORDINATOR**, then pick
-DESKTOP (descriptor, for Sparrow) or MOBILE (zpub, for BlueWallet). The app
-watches the chain and builds transactions; KISS only ever sees the PSBT, shows
-you exactly what it spends, and signs. Keys never leave the device.
+Pair with an online coordinator: **KEYS > PAIR COORDINATOR**, then DESKTOP
+(descriptor, for Sparrow) or MOBILE (zpub, for BlueWallet). Two machines, and
+neither trusts the other:
+
+| | |
+| --- | --- |
+| **The coordinator** | watches the chain, hands out addresses, builds the payment, broadcasts the signed one |
+| **KISS** | holds the keys, shows you what the payment really spends, signs |
+
+It never sees more than a PSBT, and the keys never leave it.
 
 First time? Rehearse on testnet before trusting the setup with real coins.
 **SETTINGS → SIGNER → NETWORK** switches it, testnet coins are free from a
@@ -273,7 +243,7 @@ thing you still have to check.
 </tr>
 </table>
 
-### Warnings and learning, on the device
+### ⚠️ Warnings and learning, on the device
 
 Before every signature KISS re-derives the whole transaction on its own screen
 and calls out anything worth a second look, always a caution you acknowledge,
@@ -313,7 +283,7 @@ on the home screen, to learn as you go.
 </tr>
 </table>
 
-## Docs
+## 📚 Docs
 
 The full guides live in [`docs/`](docs/) for now and move to GitHub Pages once
 the repo is public. They cover:
@@ -338,7 +308,7 @@ saving.
 
 What changed between releases is in the [changelog](CHANGELOG.md).
 
-## Build from source
+## 🔨 Build from source
 
 Only requirement is Docker; builds are reproducible, so your hashes must match
 [CI](.github/workflows/reproducible-build.yml)'s:
@@ -347,7 +317,7 @@ Only requirement is Docker; builds are reproducible, so your hashes must match
 tools/build_release.sh     # verified release build -> build-release/
 ```
 
-## Reproducible builds
+## ✅ Reproducible builds
 
 Do not trust a firmware download just because it is attached to a release.
 KISS release builds are rebuilt by GitHub Actions, and the same commit should
@@ -365,7 +335,7 @@ Compare those hashes with the matching GitHub Actions run. For final funded
 devices, use `tools/build_encrypted_release.sh` and compare the encrypted-release
 hashes instead.
 
-## Flash encryption, the final signer build
+## 🔒 Flash encryption, the final signer build
 
 `tools/build_encrypted_release.sh` builds the hardened profile: flash
 encryption in release mode plus NVS encryption, so the stored seed cannot be
@@ -377,7 +347,7 @@ read out of the chip.
 > only firmware path). Fresh final signer device only. Read the
 > [docs](docs/guide.html) twice before touching it.
 
-## License
+## 📄 License
 
 KISS Signer's original source code and documentation are licensed under the
 [MIT License](LICENSE). Vendored third party components and assets keep
