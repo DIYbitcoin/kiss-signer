@@ -262,7 +262,7 @@
   "I_ROW_ENDWORDS": "Radera orden",
   "I_ROW_FW": "FAST PROGRAMVARA",
   "I_ROW_HISTORY": "SPARA",
-  "I_ROW_KEF": "KRYPTERAD SÄKERHETSKOPIA",
+  "I_ROW_KEF": "KRYPTERAD BACKUP",
   "I_ROW_KEF_SUB": "en extra kopia, krypterad",
   "I_ROW_KEF_SUB_FMT": "en QR, eller %02X%02X%02X%02X.kef",
   "I_ROW_NETWORK": "NÄTVERK",
