@@ -5,23 +5,38 @@
 # no allowance and the push lane keeps it at zero. See the ceiling block in
 # sim/run_overlapcheck.sh for why the translations get a number at all.
 #
-cs-CZ 17
-da-DK 31
-de 103
-es-ES 64
-es-MX 65
-fr 88
-hr-HR 36
-it 44
-ja 6
-ko 2
-nb-NO 32
-nl 50
-pl 51
-pt-BR 46
-pt-PT 55
-ru 62
-sv-SE 43
-tr 47
-vi 38
-zh-CN 2
+# THESE NUMBERS WENT UP ONCE, ON PURPOSE, and this block is the "say so in
+# the commit" the runner asks for. Every number here except the German
+# one was measured on a walk that DIED before the end. A dead walk prints "clean"
+# for every stop it never reached, so the old ceilings were not ceilings on
+# what a locale renders -- they were ceilings on the fraction of the walk it
+# survived. Twenty locales could not finish one until the crash, the
+# ambiguous needles, the ellipsised row name, the fullwidth colon and the
+# never-sparse file list were all out of the way.
+#
+# So these are the first honest measurement, not a regression: the same
+# screens, counted to the end for the first time. German is the control --
+# it always finished, and it is the only line that went DOWN, 103 to 100.
+#
+# They are a ratchet from here and the rule is unchanged. The next number
+# that moves goes down.
+cs-CZ 33
+da-DK 46
+de 100
+es-ES 84
+es-MX 84
+fr 94
+hr-HR 51
+it 74
+ja 11
+ko 4
+nb-NO 63
+nl 106
+pl 80
+pt-BR 74
+pt-PT 79
+ru 109
+sv-SE 91
+tr 70
+vi 56
+zh-CN 10
