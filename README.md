@@ -137,7 +137,7 @@ Stuck on any step? The [docs](docs/) walk through each one per OS.
 
 ### No internet where you flash
 
-Every release also carries `kiss-signer-VERSION-offline.zip`, about 4 MB: the
+Every release also carries `kiss-signer-VERSION-offline.zip`, around 6 MB: the
 install page, the firmware and the signed hashes in one download. Get it on a
 machine that has a network, check its signature, then move it to the machine
 that does not:
@@ -150,6 +150,37 @@ Unzip it, run `serve.command` (macOS), `serve.bat` (Windows) or `./serve.sh`
 (Linux), and open the address it prints in Chrome, Brave or Edge. It serves to
 that one computer only and reaches nothing else. `00-START-HERE.txt` inside says
 the same in more detail.
+
+### Upgrading with no computer at all
+
+Once a signer is running, it can take its next firmware off the SD card, so an
+upgrade needs no cable and no browser. Every release carries a second image for
+this: `kiss-signer-VERSION-update.bin`.
+
+1. Check it against the signed manifest the same way as anything else:
+   `shasum -a 256 --ignore-missing -c SHA256SUMS`.
+2. Copy it to the SD card. The name does not matter, the contents do.
+3. On the signer: SETTINGS > FIRMWARE. It reads the card and shows the version
+   on the device beside the version on the card, so you can see which is
+   replacing which before you decide.
+4. Slide to install, and leave it plugged in. The screen goes dark while the
+   flash is written; the backlight climbing back to full is the progress bar.
+
+**It is the `-update.bin` you want, not the plain `.bin`.** The plain one is a
+merged image for flashing over USB at offset 0: it starts with a bootloader, so
+the signer looks for the firmware description 32 bytes in, finds the wrong
+thing, and reports that there is nothing to install.
+
+**The device checks the signature itself, twice.** An update must carry both an
+ECDSA signature and a post quantum one (SLH-DSA-SHA2-128s) over the same bytes,
+and both are verified before anything becomes bootable. A release published
+before that second signature existed carries only one, so this firmware refuses
+it and says which signature was missing rather than claiming the download is
+corrupt.
+
+If an update does not start, the device keeps the firmware it already had. The
+bootloader rolls back to it rather than leaving you with a signer that will not
+come up.
 
 > [!WARNING]
 > Same as step 3 above: installing writes the whole chip and **erases any
