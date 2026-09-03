@@ -79,11 +79,6 @@
       </section>
 
       <section class="install-card reveal" id="install" aria-label="Firmware install">
-        <!-- PARKED with the button below. app.js runs the verify panel only
-             when every one of these elements AND the install button exist, so
-             leaving them here without it printed "loading build" and three
-             rows of "checking" for ever: a check that never starts, wearing
-             the face of one still running.
         <div class="verify-line">
           <div class="verify-light pending" id="verify-light"></div>
           <div>
@@ -99,30 +94,12 @@
             I&rsquo;m starting with a wallet that holds nothing.
           </span>
         </label>
-        -->
 
         <div class="install-actions">
-          <!--
           <button class="flash-button" id="locked-button" type="button" disabled>
             Connect and install (checking&hellip;)
           </button>
-          -->
 
-          <!-- PARKED while beta8 is prepared, which is the documented second
-               state in tools/check_installer_version.py: the artifacts under
-               docs/installer/ describe the beta7 binary, VERSION and every
-               screenshot in this repository are beta8, and a visitor who
-               flashed from here would land on screens the docs no longer
-               show. That is the beta6-to-beta7 bug the check was written for.
-
-               It comes back with the artifacts, not by hand: run
-               tools/make_web_release.sh from a signed release build and
-               uncomment this. Editing the version strings alone ships a page
-               that fails its own hash check, because release.json carries the
-               sha256 and size of one specific binary.
-
-               Commented-out markup is what "pulled" means to the check, and
-               app.js treats a missing button as parked rather than broken.
           <esp-web-install-button id="install-button" class="is-hidden" manifest="installer/manifest.json">
             <button slot="activate" class="flash-button" type="button">
               Connect and install
@@ -135,14 +112,6 @@
               This needs to be served over HTTPS, or from localhost.
             </span>
           </esp-web-install-button>
-          -->
-          <p class="power-note" id="install-parked">
-            The browser installer is off while the next build is prepared. The
-            signed firmware and its checksums are on the
-            <a href="https://github.com/kkdao/kiss-signer/releases">releases page</a>,
-            and <a href="guide.html#esptool">the guide</a> has the esptool
-            command to write it.
-          </p>
         </div>
 
         <div class="card-rule"></div>
