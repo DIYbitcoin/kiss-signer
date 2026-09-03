@@ -3,10 +3,10 @@
   "product": "KISS Signer",
   "board": "Guition JC4880P443C",
   "chipFamily": "ESP32-P4",
-  "version": "0.1.0-beta7",
-  "commit": "v0.1.0-beta6-82-g58ed74c",
+  "version": "0.1.0-beta8",
+  "commit": "v0.1.0-beta7-973-g65e1375a",
   "status": "beta",
-  "generated": "2026-07-29",
+  "generated": "2026-09-03",
   "authenticity": {
     "signed": true,
     "signatureStatus": "pgp",
@@ -22,32 +22,39 @@
     "size": "16MB"
   },
   "browserFirmware": {
-    "path": "firmware/kiss-signer-0.1.0-beta7.bin",
+    "path": "firmware/kiss-signer-0.1.0-beta8.bin",
     "offset": 0,
-    "size": 7586944,
-    "sha256": "4573cf973ef5eb78a6fca9e9c5cc1702df882cb1eb699c366d0a56ce2baae11f"
+    "size": 5181440,
+    "sha256": "d96e57b4f83dbf7187ca82933c26b1c2d37096a17adb568ccab7020cdcbced9d"
   },
   "sourceParts": [
     {
       "name": "bootloader",
       "sourcePath": "build-release/bootloader/bootloader.bin",
       "offset": 8192,
-      "size": 22992,
-      "sha256": "91f9e4ac25797f09ac0889773568fccd6a56fba085c39f763cd98192e243fdd3"
+      "size": 20768,
+      "sha256": "7efa53dc6e2309662aa426d2e77e0506d1fa7a923218675b4da8d55b3fe4fc0d"
     },
     {
       "name": "partition table",
       "sourcePath": "build-release/partition_table/partition-table.bin",
-      "offset": 32768,
+      "offset": 65536,
       "size": 3072,
-      "sha256": "3d2823faa69057aef2e36f3fc1e1a022d1366c16bc4cbce3ac1b38332de392a6"
+      "sha256": "fdf93d4861300dffb24e77681e33762d500f40629f2b7909a1f2262b439997f0"
+    },
+    {
+      "name": "ota data",
+      "sourcePath": "build-release/ota_data_initial.bin",
+      "offset": 98304,
+      "size": 8192,
+      "sha256": "7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f"
     },
     {
       "name": "application",
       "sourcePath": "build-release/guition_kiss_bringup.bin",
-      "offset": 65536,
-      "size": 7521408,
-      "sha256": "b08d44e6d3703289f22c8217f7f0352d8ba0b17aa75e7a2ae88a69235d267d0c"
+      "offset": 131072,
+      "size": 5050368,
+      "sha256": "00739c36e681e79a71fffb9b2935a98c8e7b38b686045c85ae9a3ad0bb7e520d"
     }
   ],
   "warnings": [
