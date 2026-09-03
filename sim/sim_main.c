@@ -4751,7 +4751,13 @@ int main(void) {
   save("/tmp/sim_words_enc.ppm");                  // what it holds, and whose
   for (int i = 0; i <= 8; i++) { touch(300 + i * 14, 250); pump(3); }
   release(); pump(50);                             // swipe back -> PAPER
-  must_show("words/swipe back to paper", tr(STR_I_WROW_CHECK));
+  // By the ABSENCE of the other tab's row name, not the presence of this
+  // one. CHECK MY COPY and VERIFY BACKUP are one string in Polish -- the row
+  // and the title of the screen it opens, which is fair in Polish and fatal
+  // to a needle. CONTENTS is unique in all 21 and belongs to the tab we just
+  // left, so its going is what the swipe has to prove. It can still fail: the
+  // must_show above put it on screen two lines ago.
+  must_not_show("words/swipe back to paper", tr(STR_I_WROW_HOLDS));
   // VERIFY MY COPY: type the stored dev mnemonic (11x abandon + about).
   // 'abandon' = 'a','b' -> suggestion[0]; 'about' = 'a','b','o' -> suggestion[0].
   words_row(0);                         // Check my copy -> intro
@@ -6606,7 +6612,14 @@ int main(void) {
       lv_area_t a; lv_obj_get_coords(hp, &a);
       slide_at((a.x1 + a.x2) / 2, (a.y1 + a.y2) / 2, 165);
       save("/tmp/sim_fw_hold_mid.ppm");             // fill part way, KEEP SLIDING
-      must_show("fw/holding", tr(STR_G_FW_KEEP_HOLDING));
+      // The RESTING label is gone, which is the swap this frame exists to
+      // catch. KEEP SLIDING cannot be the needle: Italian and Norwegian
+      // render it and the dice screen's KEEP GOING as one word, CONTINUA and
+      // FORTSETT, so the assertion cannot say which screen it is on. The two
+      // never share a screen, so the copy is fine and only the needle was
+      // wrong. SLIDE TO INSTALL is unique in all 21 and is what the label
+      // said one frame ago.
+      must_not_show("fw/holding", tr(STR_G_FW_HOLD));
       release();
       // THE PAUSE WINDOW. A lift short of the end banks the travel for 800ms
       // instead of throwing it away, and the label stops instructing and
