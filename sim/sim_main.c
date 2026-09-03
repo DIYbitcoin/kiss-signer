@@ -3615,8 +3615,16 @@ int main(void) {
     // is never one label's text. Same split in every locale, so this stays
     // locale independent.
     {
-      const char *b = strstr(tr(STR_S_PAYEE_HELP), ": ");
-      must_show("paid before, why", b ? b + 2 : tr(STR_S_PAYEE_HELP));
+      // Split by the SAME function the screen splits with, not by a strstr
+      // for ": ". Chinese writes a FULLWIDTH COLON, U+FF1A, and puts no space
+      // after it, so the ASCII search found nothing, fell back to asserting
+      // the WHOLE string, and could never match: the two halves are in
+      // separate labels by construction. wt_split_colon already knows about
+      // U+FF1A -- kiss_theme.c handles both -- so the screen was right and
+      // only this line was guessing at what it had done.
+      char head[128];
+      const char *b = wt_split_colon(tr(STR_S_PAYEE_HELP), head, sizeof head);
+      must_show("paid before, why", b ? b : tr(STR_S_PAYEE_HELP));
     }
     tap_str(STR_C_OK, 3, 6);
     tap_str(STR_C_BACK, 3, 6);   // BACK -> the file list
@@ -4063,9 +4071,24 @@ int main(void) {
 
   // The SPARSE list: two files, so no pager -- the rows keep their pitch and
   // the sort hint takes the count line's slot, the only branch with the room
-  // to say it. Nothing after this leg reads the two files removed here.
+  // to say it. Nothing after this leg reads any of these: sd_clear_psbts()
+  // is twenty lines down.
+  //
+  // FOUR removals, because the fixture set outgrew the two. This leg went on
+  // asserting the hint while the card still held four files, which is the
+  // PAGER branch -- so the one branch this stop exists to photograph had
+  // never once been drawn. It passed anyway, and the way it passed is worth
+  // recording: must_show falls back to the needle's head when a label is
+  // ellipsised, the head of "unsigned first, then A to Z." is "unsigned
+  // first", and the pager line reads "files 1 to 3 of 4, unsigned first" --
+  // so the fallback matched a DIFFERENT string and then reported the miss as
+  // a CUT finding that did not exist. Dutch is the locale that caught it,
+  // because it says "niet-ondertekend eerst" in the count line and
+  // "ongetekend eerst" in the hint, and no head of one is inside the other.
   sd_unlink("zzz-UNPRV.psbt");
   sd_unlink("zzzzz-MERGE.psbt");
+  sd_unlink("zzzzzz-GARBLE.psbt");
+  sd_unlink("zzzzzzz-SIGHASH.psbt");
   touch(130, 240); pump(3); release(); pump(6);     // Sign tile -> the page
   tap_str(STR_S_FROM_SD, 3, 30);                    // SD CARD tab -> the list
   save("/tmp/sim_sign_files_few.ppm");              // 2 rows + the hint line
