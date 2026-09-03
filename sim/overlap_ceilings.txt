@@ -35,7 +35,7 @@ nl 56
 pl 80
 pt-BR 74
 pt-PT 79
-ru 109
+ru 54
 sv-SE 91
 tr 70
 vi 56
