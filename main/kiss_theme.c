@@ -6035,8 +6035,21 @@ lv_obj_t *wt_value_card(lv_obj_t *scr, const char *cap, const char *val,
     lv_obj_update_layout(c);
 
     int vy = 12 + lv_obj_get_height(c) + 8;
+    // THE FACE IS ASKED, not assumed. The mono faces carry ASCII plus three
+    // marks and NOTHING else, so an unconditional wt_font_mono here draws
+    // LVGL's placeholder box for every character outside that set -- and the
+    // value on this card is a translated WORD as often as it is a fingerprint.
+    // Russian was five empty boxes where the dice source should be, on the one
+    // screen that says how an owner's keys were made; Swedish read KRYPTERAD
+    // S[]KERHETSKOPIA. Fifteen locales put non ASCII through this call.
+    //
+    // chrome23/chrome28 are the guard the rest of the chrome already uses, and
+    // this is exactly what they are for: mono when mono can draw it, the
+    // native face when it cannot. A fingerprint, an address and a block number
+    // are ASCII and keep the mono they were given; only words fall back, which
+    // is the half that was never comparable character by character anyway.
     lv_obj_t *v = wt_lbl(card, val, 16, vy,
-                         big ? wt_font_mono28() : wt_font_mono23(), WT_INK);
+                         big ? chrome28(val) : chrome23(val), WT_INK);
     lv_obj_set_style_text_letter_space(v, 2, 0);
     lv_obj_set_width(v, w - 32);
     lv_obj_set_style_text_align(v, LV_TEXT_ALIGN_CENTER, 0);
