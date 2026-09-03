@@ -79,7 +79,20 @@ def main() -> int:
     en, tr = load(loc)
     idx = index(tr)
     rows, seen = [], set()
+    # A 21 locale sweep is one file with every locale's findings in it, under a
+    # "<locale>  N findings" header each. Reading the whole file would hand a
+    # French budget a German string, so the section is tracked and everything
+    # outside this locale's is skipped. A single locale run has one section and
+    # falls through the same code.
+    section = None
+    head = re.compile(r'^([a-z]{2}(?:-[A-Z]{2})?)\s+(?:\d+ findings|clean|NO SUMMARY)')
     for line in open(path, encoding="utf-8", errors="replace"):
+        h = head.match(line)
+        if h:
+            section = h.group(1)
+            continue
+        if section is not None and section != loc:
+            continue
         m = CUT.search(line)
         if m:
             kind, s, want, lane = m.group(1), m.group(2), int(m.group(3)), int(m.group(4))

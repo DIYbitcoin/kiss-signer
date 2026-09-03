@@ -4,7 +4,7 @@ All notable, user-facing changes to KISS Signer. Dates are ISO (YYYY-MM-DD).
 This is a Bitcoin signer, so entries are written so a non-developer can tell what
 changed and why it matters. Versions follow the firmware tags.
 
-## [0.1.0-beta8], 2026-08-31
+## [0.1.0-beta8], 2026-09-03
 
 Every screen on this device was redrawn. Beta7 was a set of pages that each
 solved their own layout; this is one system. Words are set in one typeface and
@@ -21,6 +21,13 @@ the one that will actually be paid, and the difference goes to a miner. The
 signer now proves those amounts whenever the transaction lets it, and says so
 plainly when it cannot. Found and fixed first by odudex in Krux (release
 26.08.0); the reading of the attack and the wording of the warning are theirs.
+
+And the device speaks twenty one languages again. Every screen was rebuilt
+during this release, so every translation was describing screens that no longer
+existed; all twenty have been rewritten against the English that actually ships,
+and then cut again to fit the space each string is given. That second pass found
+things no gate had ever reported, because until it ran, most languages could not
+even be walked end to end.
 
 ### Removed
 
@@ -43,6 +50,33 @@ plainly when it cannot. Found and fixed first by odudex in Krux (release
 
 ### Fixed
 
+- **The sign screen could crash while you were reading it.** Opening the
+  glossary from a payment closed the page underneath before the slide bar had
+  finished with it, and the device read memory that was already gone. It showed
+  up in Turkish because the crash needs the slide to be mid gesture when the
+  page changes, and how long the text is decides that, but nothing about it was
+  Turkish. Any language could have hit it.
+- **A time locked payment said nothing about being time locked, in Dutch and
+  Russian.** The badge that names the block a payment cannot be sent before was
+  dropped whenever the title line ran out of room, and those two languages have
+  a long word for SIGN. The network chip gives up its place now instead: it is
+  the one that can go, because the network is on the DETAILS page as well and
+  the locktime badge exists precisely because its own DETAILS row was too easy
+  to miss.
+- **Five blank boxes where Russian should have said how your keys were made.**
+  The value on that card was drawn in the face this device keeps for things you
+  compare character by character, and that face carries no Cyrillic, no accents
+  and no CJK. Swedish read S[]KERHETSKOPIA on the same card. It asks for a face
+  that can draw the value now; a fingerprint or an address still gets the old
+  one, because those are the things worth comparing.
+- **The BACKUP VERIFIED screen was in English in nineteen languages.** It had
+  been since the string was added: the English was copied into every locale
+  file, so it looked translated to every check that asks which strings are stale.
+- **A Vietnamese heading was the same words as the button beside it.** On the
+  firmware downgrade confirm, the heading and the BACK action both read QUAY LẠI.
+- **German named software that does not exist.** The screen that tells you what
+  to pair with said BlueKoordinator, where the product is BlueWallet. A pass
+  that replaced the word wallet with coordinator took the proper noun with it.
 - **The amount of every coin is now read from the transaction that created it**,
   whenever your coordinator sends that transaction along. That previous
   transaction has to hash to the exact coin being spent, so its amount cannot be
@@ -75,6 +109,14 @@ plainly when it cannot. Found and fixed first by odudex in Krux (release
 
 ### Changed
 
+- **Text that used to be cut off mid word now fits.** Roughly four hundred
+  places across the twenty translations were longer than the space they had, so
+  the device either clipped them at the edge or replaced their second half with
+  dots. The confirm bars were the worst of it: SLIDE TO INSTALL is three words
+  in English and five in Polish, and there is no smaller readable size to fall
+  back to, so every language now says it in a shorter shape. Where the shorter
+  word was also the more correct one, it was taken: several languages were still
+  saying their term for recovery words on screens that mean seed words.
 - **KEYS, RECEIVE, SETTINGS, SIGN, the words screen and FIRMWARE were rebuilt on
   one system.** KEYS opens with the fingerprint across the top in two blocks of
   four, which is how a person reads eight characters aloud, and names who to
