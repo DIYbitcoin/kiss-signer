@@ -35,7 +35,8 @@ inventing.
 | the figure it is about, framed | `wt_value_card(scr, cap, val, x, y, w, big)` |
 | a panel to group content | `wt_card(scr, x, y, w, h)` |
 | a relationship, drawn | `wt_diagram_row` + `wt_chip` + `wt_diagram_op`, or `wt_diagram_fp` / `wt_diagram_verify` / `wt_diagram_pair` |
-| two claims, not one paragraph | `wt_why_block(scr, head, body, x, y, w, max_h, f, col)` |
+| two claims, not one paragraph | `wt_facts(scr, y, facts, n)` — a caption, a mark and a one-line value each |
+| a page that explains itself | `wt_explain(scr, headline, para, facts, n)` — headline, one paragraph, the rows above |
 | a list of settings or facts | `wt_row` / `wt_row_x` / `wt_row_head` |
 | the camera | `wt_viewfinder` |
 | actions | `wt_arrow_action` on the band, `wt_word_action` in a row |
@@ -44,22 +45,31 @@ Rules:
 
 1. **Something framed, above the action row.** A bare paragraph is never the
    only content. A pill does not count — it is the action, not the subject.
-2. **Split claims, do not stack them.** Two `wt_why_block`s side by side at
-   `x = 48` and `x = 408`, `w = 344`, `y = 232`, `max_h = WT_CONTENT_BOTTOM - 232`.
-   Accent rule on how it works, `WT_WARN` on where it goes wrong. This geometry
-   is proven on the fingerprint reveal, the passphrase intro and the backup
-   check — copy it rather than inventing a third layout.
-   When the blocks have headings, size the shared body with
-   `wt_body_font2_head(h1, b1, h2, b2, w, max_h)`. It measures the headings.
-   **Never `wt_body_font2` with a hand-subtracted budget.** Four call sites did
-   it anyway, long after this paragraph was written: three passed
-   `BH - 46 - 8`, one passed a bare `112`, which is the same 54px of a 166px
-   budget given away in all 21 locales. That is a third of the room, and a third
-   of the room is the difference between font23 and font14.
+2. **Split claims, do not stack them.** A claim is a `wt_facts` row: a caption
+   in the accent, a mark before it, and a value on ONE line at font28. Two or
+   three of them under a headline and a single paragraph is `wt_explain`, and
+   that is the shape of every screen an owner reads.
+
+   **The pair of ruled blocks is gone, and so is the code.** `wt_why_block`
+   drew two columns of grey with a coloured bar down the side of each, at
+   `x = 48` and `x = 408`, `w = 344` — the shape this table used to send people
+   to. It came back off the bench three separate rounds, ending with *"basically
+   any page with those vertical lines on the side"*, and the last sixteen
+   screens wearing it were rebuilt in one pass. `wt_why_block`, `wt_why_body`,
+   `wt_body_font2` and `wt_body_font2_head` were deleted with it; do not
+   reintroduce a third arrangement.
+
+   What survives is the MEASURING, in `wt_body_para` / `wt_body_para_to`: the
+   largest rung the whole body fits at, one label per paragraph, and a report
+   through the FIT sink when even the floor will not hold it. Never subtract a
+   guessed heading height from a budget — four call sites did, three passing
+   `BH - 46 - 8` and one a bare `112`, giving away 54px of a 166px budget in
+   all 21 locales. A third of the room is the difference between font23 and
+   font14.
 
    **font14 is metadata: chip labels, unit suffixes, chevrons. MARKS. Nothing
    an owner has to READ is ever font14.** It has now been reported from the
-   bench four separate times, and the third was not a `wt_body_font2` budget at all
+   bench four separate times, and the third was not a body budget at all
    — it was the SIGNED screen's "what to do next" line, the single most
    important sentence on that screen, set through `wt_note` in a 48px box it
    could not fit at any larger size.
@@ -112,13 +122,38 @@ Rules:
    ~38px. A three paragraph body pays it twice. **When a screen renders smaller
    than it should, count its paragraphs before you cut words**: merging two is
    usually worth more than any rewrite, and it is what finally moved the seed
-   explainer off font14. Instrument the ladder in `wt_why_body` rather than
+   explainer off font14. Instrument the ladder in `wt_body_para` rather than
    estimating — every hand estimate in this file's history has been wrong.
 4. **Marks before words.** Every chip and row label carries an icon.
 5. **Only glyphs already in `SYMS`** (`tools/fonts/gen_fonts.sh`). Anything else
    forces a font rebuild across four scripts. Available at every size: all
    `LV_SYMBOL_*` plus `WT_ICON_QR/KEY/SECRET/SD/LOCK/REPLACE`.
 6. **Nothing crosses `WT_CONTENT_BOTTOM` (398).**
+
+### A defect seen in a frame is a hypothesis
+
+**Check `docs/decisions.md` for the screen before filing one, and read the
+builder's comment if it is listed. If the comment answers it, the finding is
+retracted, not argued.**
+
+Seven findings were filed and withdrawn in a single review pass, and every one
+of them was already answered in a comment a few lines above the code that
+drew it: the KEYS tab strip, the dice fills, the RECEIVE caption picker, the
+storage chooser's pairing, the attention dots' routing, the band's language and
+theme controls, and the stop tab. The screens were right and the reasoning was
+invisible, so every reviewer re-derived the same wrong conclusions and every
+reply was spent refuting them.
+
+The comment beside the code stays the source of truth -- a second hand written
+copy goes stale the first time one changes. `docs/decisions.md` is GENERATED
+from `// DECIDED:` markers by `tools/gen_decisions.py`, with `file:line` links,
+and a drift gate in `desktop-tests.yml` keeps it honest. Mark **reversals
+only**: X was tried, it was wrong, Y is why. A marker on every interesting
+comment produces a document nobody reads, which is the same as not having one.
+
+The rule points at the generated page and not at the comment on purpose. A
+reviewer holding a frame has no idea which file drew it, which is exactly how
+all seven happened.
 
 ## Vocabulary
 
@@ -150,6 +185,36 @@ a reader has to unlearn the first time they read anything else.
 `i18n/GLOSSARY.md` is the authority and has the 21 locale anchors — check it
 before naming anything.
 
+### BITCOIN simple, not simple simple
+
+**The plain English paraphrase of a Bitcoin word is not the simple version of
+it. It is a house term with extra steps, and it is worse than the word.** The
+owner has said this more times than either of us has counted, shouting the last
+one, and it keeps happening because the Copy rules below read like a licence for
+it — "no four syllable word", "said the way somebody would say it out loud".
+They are not. They are about SENTENCES. A NAME is settled by the Vocabulary rule
+above, and the answer is whatever Sparrow, Nunchuk and mempool.space already
+call it.
+
+The sign screen headed its output column **"WHERE IT GOES"**. Three plain words,
+no jargon, and every one of them wrong: the column beside it says **INPUTS**,
+the glossary one tap away teaches **OUTPUTS**, `GLOSS_ICONS[1]` is the OUTPUTS
+mark, and the DETAILS deck's own tab is called OUTPUTS. So the screen taught a
+paraphrase in the one place its own pair was already on the glass, and the
+reader had to learn the real word somewhere else anyway. It says OUTPUTS, from
+`gloss_term(1)` — the glossary's own line, already translated 21 times, no key.
+
+**"DESTINATIONS" was the next thing reached for and is the same mistake.** It is
+not what a coordinator calls them either, and it is not more honest for the fee
+row or the change row than the word that actually covers all three.
+
+The test, before inventing anything: **what does the coordinator on the owner's
+laptop call this?** If it has a name there, that is the name. Reach for plain
+words for the SENTENCE around it, never for the name itself — the Copy rule
+already says so in its own words, *"the name in full, every time; when the line
+will not fit, cut a different word, never the name"*, and that rule is not only
+about seed words.
+
 The three that got tangled, and cost a full sweep to untangle:
 
 | | |
@@ -162,6 +227,33 @@ Recovery words + passphrase → **keys**; the fingerprint is what those keys are
 **called**; the **signer** is the box; the **wallet** is what a coordinator
 sees. A sentence like "an empty wallet on a signer" is describing two different
 things and needs rewriting.
+
+### The thing has a name. Write the name.
+
+**"seed words".** Not "your words", not "the words", not "paper words". The
+glossary already said so — *bare "words", used as if it named the thing,
+reads as a house term and has to be unlearned the first time an owner opens
+anything else* — and the LOCKED BACKUP explainer was written **"A locked copy
+of your words"**, corrected to **"Keep your paper words too"**, and only
+reached "seed words" after the owner asked for it twice, shouting the second
+time. Two invented terms in a row, on the screen where an owner decides
+whether a second copy of their seed words gets made.
+
+The failure is not carelessness about one word, it is a habit: reaching for a
+shorter phrase because the line has to fit. **When the name does not fit, cut
+another word, never the name.** "Keep your seed words on paper too" did not
+fit in two lines; "Seed words still go on paper" does, and says the same
+thing. The name was never the part to give up.
+
+So `tools/check_vocab.py` now reads `i18n/en.json` and fails on it, wired into
+`desktop-tests.yml` beside the orphan check. Four rules — BARE-WORDS,
+COINED-WORDS (any modifier bolted onto `words`), BARE-SEED, WALLET — each with
+the ALLOW list of uses that are correct and why (Sparrow's own menu path, the
+sender's wallet), and a shrink-only BACKLOG holding the six strings GLOSSARY.md
+already lists as unconverted. `VOCAB_SELFTEST=1` asserts every rule still fires
+on the string it was written for AND stays quiet on the string that fixed it,
+and the gate refuses to report at all if a rule is dead. Both strings above
+fail it.
 
 Same rule for everything else on screen: storage is **storage**, not "where
 your words live". If a mainstream signer has a word for it, use that word.
@@ -190,10 +282,52 @@ instruction on the screen. In twenty locales it is still *Karte*, *tarjeta*,
 
 ## Copy
 
-- No hyphens in English wallet or explainer text.
+**Ordinary Bitcoin and computer words, said the way somebody would say them
+out loud.** The reader is somebody who bought their first signing device last
+week. They are standing up, reading once, deciding something. They are not
+reading for pleasure and nothing on the glass is worth being clever in.
+
+**The test: if the owner can reply "what does that mean?", it is wrong.** That
+is not hypothetical, it is what happened to *"Optional. Never instead of
+paper."* -- five words, no jargon, and it still had to be explained, because
+an instruction phrased as the negation of something else makes the reader do
+the work. It says *"Optional. Seed words still go on paper."* now.
+
+- **Say what to DO.** Not what not to do, not what it is not instead of.
+- **A sentence is under fourteen words**, because that is what anybody says
+  in one breath.
+- **No metaphor.** Data does not sit, live, travel or sleep anywhere.
+  "It can sit where plain words could not" was written on this screen and is
+  two failures in one line.
+- **No four syllable word** that Bitcoin or a computer did not already make
+  the reader learn. `coordinator` and `derivation` earn their length;
+  nothing else on this device does.
+- **The name in full, every time** -- see the Vocabulary rule above. When the
+  line will not fit, cut a different word, never the name.
+- No hyphens in English screen or explainer text.
 - Cut any string that restates the title, or a value sitting next to it.
 - Headings in a pair are parallel: "not stored" / "not recoverable".
 - Prefer a mark to a word wherever the mark is unambiguous.
+
+`python3 tools/check_vocab.py` fails on the mechanical half of this --
+APHORISM, LONG-SENTENCE, LONG-WORD alongside the naming rules -- and every
+one of those three rules is there because a string in this session tripped
+it. The half it cannot see is whether the sentence sounds like a person, and
+that is what reading it aloud is for. Do that before the commit, not after
+the owner asks.
+
+The record of one screen, because the shape of the failure repeats: the
+LOCKED BACKUP explainer went
+
+| | |
+| --- | --- |
+| shipped | "A QR only your password opens." | 
+| then | "A locked copy of your words." |
+| then | "Optional. Never instead of paper." |
+| landed | "A locked copy of your seed words." / "Optional. Seed words still go on paper." |
+
+Four rounds, three of them spent on the owner asking for plain words and the
+right name. Every one of the first three was shorter, cleverer, and worse.
 
 ## Gates
 
@@ -207,25 +341,67 @@ the sweep, exactly as `sim/osdcheck.c` says beside its own SIM_LANG filter. A
 gate that is red for a reason nobody is acting on is a gate nobody reads, and
 this block was the last place still telling people to run it that way.
 
+**All of it in one command: `bash tools/preflight.sh`.** The block below is
+the list; that script is the list plus the four things only CI ever ran, and
+it prints a table rather than stopping at the first failure. It exists because
+`sim/check_sd_psbts.sh` broke on an include, was invisible to everyone working
+by hand, and sat red across THIRTEEN consecutive pushes.
+
 ```bash
+bash tools/preflight.sh                                    # all of the below
+
 bash sim/build_test.sh && /tmp/kisstest                    # unit tests
-bash sim/build_fitcheck.sh && SIM_LANG=en /tmp/kissfit     # text fit
+bash sim/build_fitcheck.sh && FITCHECK_SELFTEST=1 SIM_LANG=en /tmp/kissfit  # text fit
 bash sim/build_themecheck.sh && /tmp/kisstheme             # accent vs status colour
 bash sim/build_osdcheck.sh && SIM_LANG=en /tmp/kissosd     # on-video overlay text
 bash sim/build_sim.sh && OVERLAPCHECK_LANGS=en bash sim/run_overlapcheck.sh   # screen walk
 python3 tools/check_screen_coverage.py             # screens no gate sees
 python3 tools/check_i18n_orphans.py                # keys nothing references
+python3 tools/check_vocab.py                       # the words on screen and in the docs
+python3 tools/check_stop_reasons.py                # a refusal with no words in 21 locales
+GLYPHCHECK_SELFTEST=1 python3 tools/check_glyphs.py  # an icon with no glyph in the fonts
+python3 tools/check_mono_glyphs.py                 # the same, for the mono faces
+python3 tools/check_text_glyphs.py                 # a STRING with no glyph, in any locale
+GATECHECK_SELFTEST=1 python3 tools/check_gates.py  # a checker nothing runs
 python3 tools/check_layout_reads.py                # a measurement taken before a layout
+python3 tools/check_lv_conf.py                     # the sim's LVGL config vs the device's
+python3 tools/check_preflight.py                   # a CI step preflight.sh does not run
 python3 tools/check_sim_fresh.py                   # the published wasm vs the tree
+python3 tools/check_docs_fresh.py                  # how far the pictures trail the screens
 
 docker run --rm -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory \
   -e GIT_CONFIG_VALUE_0=/project -v "$PWD":/project -w /project \
   espressif/idf:v6.0.1 idf.py -B /project/build-docker build     # the device compiler
 ```
 
-`.git/hooks/pre-push` runs every one of those bar the device compiler, in that
-order and for their exit codes. `bash tools/install_hooks.sh` puts it there,
-along with the attribution hook; a fresh clone has neither until it is run.
+**That command is also the lint lane.** `main/CMakeLists.txt` passes fifteen
+more warnings to this component and IDF already passes `-Werror`, so a hit is
+a build failure rather than a line to read. The comment beside the block says
+what each one found and, longer, what was rejected and why -- read that before
+adding one. There is no lint lane on the desktop side and cannot be a useful
+one: clang answers `-Wformat-truncation` and `-Wstringop-truncation` with
+"unknown warning option" and compiles on.
+
+What the desktop lane does have is `KISS_WERROR=1`, which turns every
+`sim/build_*.sh` warning into an error. `tools/preflight.sh` and the CI job
+set it; the commands above do not, so a build you run by hand still finishes.
+
+`clang --analyze` is worth an occasional pass and is not a gate -- it ships
+with the host clang, needs nothing installed, and takes about twenty seconds
+over the crypto sources. HOUSE-RULES.md has the invocation.
+
+**Nothing runs these for you.** There was a `pre-push` hook that ran the whole
+list, and it is gone: `.github/workflows/desktop-tests.yml` runs every one of
+them plus a fuzz pass, a sanitized walk and the installer checks the hook never
+touched, so it was a duplicate that held a push for three minutes behind a UI
+with nowhere to print why it was refusing. Run them while you are working,
+which is where they catch things, and read the CI result before calling
+anything done.
+
+`bash tools/install_hooks.sh` installs the ONE hook that is still worth
+having -- `commit-msg`, which strips the attribution trailer. That one cannot
+be caught after the fact: a trailer that reaches GitHub is permanent. A fresh
+clone has no hooks until it is run.
 
 **`-B /project/build-docker`, not `/tmp/idfbuild`.** `/tmp` is inside the
 container and `--rm` throws it away, so the build directory never survives:
@@ -236,6 +412,30 @@ incremental and takes seconds. And if a run is interrupted, **the container
 keeps building** -- `docker ps` and `docker kill` it, or three full rebuilds end
 up fighting over the same RAM and one of them comes back as exit 137.
 
+**`build-release/` is not that directory and `idf.py` must never be pointed at
+it.** It belongs to `tools/build_release.sh`, which builds with a DIFFERENT
+config -- `-DSDKCONFIG=/project/sdkconfig.release -DKISS_RELEASE=1`, WARN level
+logs and signed-app verification ON -- and then signs the app on the host. A
+plain `idf.py -B build-release build` re-configures it to the default sdkconfig
+and relinks over objects compiled under the release one.
+
+The result boots into `abort()` at 2031 ms, every cycle, before `app_main` is
+reached. There is nothing in the build output to see: it finished, exit 0, no
+warnings, and the version string it reports is correct. The clean container
+build of the same commit ran for twelve seconds with zero resets, so the
+defect was never in the tree.
+
+**And it was flashed with every part hash verified.** esptool wrote four parts
+at the right offsets, read each one back and printed "Hash of data verified",
+and the board still could not boot. **A verified flash proves the bytes on the
+chip match the file. It proves nothing about whether the file was linked from
+a coherent object tree**, which is the failure that actually happens -- so
+"esptool verified it" is not evidence a build is sound, and the only thing
+that is, is the boot log.
+
+When a release build looks wrong, `rm -rf build-release` and go through
+`tools/build_release.sh`. Never incrementally.
+
 **The device compiler is on this list, not only in a paragraph further down.**
 It was documented as required for anything touching `main/` and was not among
 the commands anyone runs, which is how a 64 byte buffer holding a 160 byte
@@ -244,6 +444,23 @@ is the only lane with `-Wformat-truncation`: the desktop build is clang, clang
 does not implement it, and on macOS `gcc` is clang too. Three more silent
 truncations turned up the day `KISS_SIM_TMP` landed, so it is a class rather
 than an incident.
+
+**And the two glyph checks are on it for the same reason, one step worse.**
+`check_glyphs.py` and `check_mono_glyphs.py` were written, they self test, they
+pass -- and until now NOTHING invoked them: not a workflow, not a build script,
+not this list. A gate nothing runs is a gate that does not exist, and this one
+covers what `kiss_theme.h` names twice in its own words, *a wrong pick survives
+every gate and is caught on glass*: a codepoint missing from the generated fonts
+draws a blank box about half a line wide, and draws it IDENTICALLY in the
+simulator, so no frame, no walk and no overlap check has ever had an opinion
+about it. Four other checkers are absent from this list and that is fine --
+`check_cur_link.py` runs inside `sim/build_test.sh`, `check_flash_budget.py` and
+`check_fw_version.py` inside the release scripts, `check_sim_taps.py` in CI. The
+test is not "is it listed", it is "does anything run it" -- and
+`check_gates.py` is that question, asked mechanically, so this cannot be found
+by hand a third time. It counts CLAUDE.md as a runner on purpose: a command a
+person is told to run IS run, and that is the whole lane for the gates the
+owner drives by hand between commits.
 
 ### More than one of you at a time
 
@@ -257,7 +474,7 @@ export KISS_SIM_TMP=/tmp/kiss-$$    # your own card, frames and binaries
 ```
 
 The two walk gates do this for themselves and clean up after, so they run beside
-each other and beside `kisstest`. `docs/house-rules.md` has the account of what
+each other and beside `kisstest`. `HOUSE-RULES.md` has the account of what
 this cost before it was fixed, and the two bugs found on the way.
 
 `check_screen_coverage.py` answers the question the others cannot: **which
@@ -297,15 +514,29 @@ Two harness numbers, both measured, neither about the device: a drag needs
 `release()`. At `pump(4)` the lift is seen but the next press is folded into
 it, so strokes merge and fall through.
 
+**`OVERLAPCHECK_SIZES=1` prints every rendered label with its font**, which is
+the only way to ask "show me everything small" — each check is defined by what
+it EXCUSES, so a clean sweep says nothing about what the exemptions cover. The
+sweep that found the four remaining font14 sentences was
+`OVERLAPCHECK_SIZES=1 SIM_LANG=en /tmp/kissoverlap | grep '^\[size\]'`, sorted
+by font. 745 labels came back at font14 and 143 were distinct; almost all were
+marks, and the four that were not had each been let through by a different
+exemption.
+
 `overlapcheck` asks nine questions per stop: TEXT, CONTENT, GROWTH, CLIPPED,
 ROLE, **BARE**, **WALL**, **FIT** and **CUT**. The first two of those four are
 rule 1 above, enforced; the last two are the font14 rule and what replaced it:
 
-- **BARE** — a wide paragraph and no framed element at all.
+- **BARE** — a wide paragraph and no framed element at all. "Wide" is 560px
+  and "a paragraph" is 90px, which is three lines — so a claim short enough to
+  read is never one. It counted a why-block's 3px rule bar until that shape was
+  retired, and thirteen screens were reported the moment it went: every one of
+  them had been rebuilt AROUND the rule. They were fixed by cutting the copy
+  until no single claim was a wall, not by drawing a box around one.
 - **WALL** — a wide paragraph where every frame on the screen is a box drawn
   *around* it. A `wt_card` full of `wt_wraph` passes BARE and is still a wall of
-  text; this is the check that says so. A chip, a badge, a row, a value card or
-  a why-block rule anywhere else on the screen clears it.
+  text; this is the check that says so. A chip, a badge, a row or a value card
+  anywhere else on the screen clears it.
 - **FIT** — `wt_note_fit` gave up and set font14. It picks the biggest font
   that FITS, so it is silent by construction: the string never looks like a
   bug in the source, and this has come off the bench three separate times. It
@@ -347,6 +578,25 @@ sips -s format png /tmp/sim_<stop>.ppm --out /tmp/x.png
 If the change has no walk stop, add one to `sim/sim_main.c` first. That is the
 same edit that makes the 21-locale gate see it, so there is no version of this
 worth skipping.
+
+**And when you do not know WHICH screen you changed, ask.** The walk writes
+about 500 frames and nothing compared them across runs -- `check_sim_taps`
+compares neighbours inside ONE run, which answers a different question. So an
+edit to shared kit moved screens nobody opened.
+
+```bash
+python3 tools/contact_sheet.py --update    # this run is the baseline
+# ...edit, rebuild, walk again...
+python3 tools/contact_sheet.py             # only the frames that moved, as a page
+```
+
+One string changed reports one frame out of 513. It is not a gate: it never
+fails, excuses nothing and has no backlog, which is why it is not named
+`check_*` and why `check_gates.py` does not count it. It exists because every
+gate here is defined by what it EXCUSES, and four defects in one session --
+a body at font14, an output column half stood down, an accent that survived a
+theme change, two flags on one bit -- were invisible to all of them and three
+were caught by a person looking at a frame.
 
 Never hand back a draft of strings, copy or translations to be reviewed. Do the
 work and show the result.
@@ -392,6 +642,37 @@ glyph, which is most of what it is for).
 So the other twenty keep the previous wording, the device shows it, and no gate
 looks at them. That is the accepted state until the sweep.
 
+### Cutting a locale's copy to its lanes
+
+`tools/lane_budget.py <findings-file> <locale>` turns a saved
+`run_overlapcheck.sh` into the only thing the work actually needs: one row per
+KEY, with the number of characters the copy has to fit in.
+
+    python3 tools/lane_budget.py /tmp/fr.txt fr
+    D_WORDS   row label  20ch -> keep 12ch (cut 8, lane 210px)
+
+The gate names a pixel lane and quotes the string as RENDERED -- truncated,
+joined across hand-set line breaks, sometimes already wearing an ellipsis. Three
+locales were cut by hand before this existed, and each one started with the same
+half hour: work out which key each finding is, divide width by length to get
+this script's pixels per character, turn the lane into a budget. That is
+arithmetic and it is the same arithmetic every time.
+
+The budget is derived per finding from that finding's own width, so it carries
+the locale's real glyph width rather than an assumption about Latin or Cyrillic.
+Rows it cannot name print `?`: the string is built at runtime, and those are the
+only ones worth thinking about.
+
+Two things it does not know, and both have bitten:
+
+- **A shorter string can collide.** `gen_i18n.py` refuses duplicates, so the
+  check is free -- but four Russian cuts landed on a string another key already
+  had, one of them the tab directly above the row. Read its complaint.
+- **An anchor is not cuttable.** `кодовая фраза`, `phrase secrète` and
+  `Seed-Wörter` overflow lanes sized for English and are the glossary's own
+  terms. The rule is to cut a different word and never the name; where the name
+  IS the string, the lane is what is wrong. Leave it and say so.
+
 Prefer reusing a key that already ships in 21 locales over adding one. Most
 lessons this device needs to teach are already written and translated, and
 locked to a single path — check before authoring. Adding a key is a real cost
@@ -413,14 +694,38 @@ for f in sorted(glob.glob('tools/fonts/glyphs_*.txt')):
     print(f, 'gained', ''.join(g) or 'none')"
 ```
 
-A gained CJK glyph means a font rebuild across four scripts. **Reword instead.**
+A gained CJK glyph means a font rebuild across three scripts. **Reword
+instead.** The check is CJK only, and that is the whole of it: `ja`, `ko`, `zh`.
 
 **`glyphs_tile_*.txt` do not count and the filter above skips them.**
 `gen_fonts.sh` does not read them — it stopped when 23px became a body rung and
 the CJK 23px faces took the full `glyphs_$L.txt` instead. They are still written
 out, so an unfiltered glob reports gains that force nothing: renaming the home
 tile to "Signer" showed `末端` and `器` gained while the real sets gained
-nothing, and no rebuild was needed. Check the four real sets, not all seven.
+nothing, and no rebuild was needed.
+
+**There is no `glyphs_lat.txt` any more, and it was the more expensive of the
+two.** The tile sets at least announce themselves as a special case; the lat set
+sat in the list of REAL ones, so a gain there read as authoritative. It had no
+reader anywhere in the repo: `gen_fonts.sh` builds the Latin faces from the
+hardcoded `LAT` range list passed as `-r`, and only `cat`s `glyphs_$L.txt`
+inside its `for L in ja ko zh` loops. A French string adding `œ` therefore
+gained a character in a file nothing consumes, and it was reported as a defect
+— "the device draws a blank box" — on top of a `grep` for the literal `0x153`
+in the generated fonts, which found nothing and proved nothing, because a dense
+`FORMAT0_TINY` range needs no `unicode_list` entry. `œ` is `U+0153`, inside
+`0x100-0x17F`, and had been in every Latin face all along.
+
+Two lessons, and only the second is about fonts:
+
+- **A generated file with no consumer is worse than no file.** It cannot fail,
+  so it is never wrong, so it is believed. `gen_i18n.py` no longer writes it.
+- **Latin coverage is already a hard error, not a diff to read.**
+  `lat_covered()` in `tools/gen_i18n.py` checks every string in every Latin
+  locale against those same ranges and appends to `errors`, because a label
+  whose glyphs are all missing hard-hangs LVGL 9.5. That is the mechanism. The
+  glyph-gain check above never was one — it is a prompt to go and look, and it
+  only has anything to say about CJK.
 
 ## Device test verdict
 

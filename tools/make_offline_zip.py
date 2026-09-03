@@ -47,7 +47,7 @@ DOCS = ROOT / "docs"
 # Everything below is docs-relative and lands under site/ in the zip.
 #
 # An explicit list, not `git ls-files docs`: the firmware bin is tracked, so
-# asking git would sweep in shots/, review/ and superpowers/ as well, and would
+# asking git would sweep in shots/ and review/ as well, and would
 # quietly grow the download every time someone adds a document.
 SITE_REQUIRED = [
     # index.html is NOT copied. The hosted page sells the product: hero, feature
@@ -72,7 +72,7 @@ SITE_REQUIRED = [
     "fonts/LICENSE-IBMPlexMono.txt",
     "fonts/LICENSE-IoskeleyMono.txt",
     "media/game-menu.png",
-    "media/wallet-home.png",
+    "media/signer-home.png",
     "media/export-descriptor.png",
     "media/passphrase-warning.png",
     "media/qr-scan.png",

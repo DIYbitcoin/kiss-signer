@@ -12,7 +12,19 @@ bool kiss_setup_active(void);
 // device confirms they match, without revealing them. Reuses the restore
 // keypad; never stages or alters the seed. done_cb fires on exit. (Reached from
 // the wallet's BACKUP screen, not first-boot.)
-void kiss_setup_open_verify(lv_obj_t *parent, void (*done_cb)(void));
+//
+// `with_pass` adds the SECOND LEG: once the words match, the exact passphrase
+// is asked for and must rederive the open keys' fingerprint. Without it the
+// check proves the paper alone, which is half of what an owner needs -- the
+// screen then prints a fingerprint the checked words cannot reproduce on
+// their own. The setup rehearsal passes false because kiss_ui.c runs its own
+// passphrase leg after its warning screen.
+void kiss_setup_open_verify(lv_obj_t *parent, void (*done_cb)(void),
+                            bool with_pass);
+
+// True when the most recent open_verify(with_pass) also proved the passphrase:
+// the words AND the passphrase together rederived the fingerprint on screen.
+bool kiss_setup_verify_full(void);
 
 // Result of the most recently completed/cancelled open_verify flow. Reset to
 // false each time verification opens; true only after every word matched.

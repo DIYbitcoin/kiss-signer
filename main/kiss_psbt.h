@@ -93,6 +93,21 @@ typedef struct {
     uint32_t fee_rate_x10;   // sat/vB * 10 (one decimal, no floats on device)
     bool     rbf;
     uint32_t locktime;
+    // The locktime BINDS: nonzero, and some input leaves its sequence short of
+    // 0xFFFFFFFF, which is what makes a node enforce it. Then the transaction
+    // cannot be broadcast before the block it names, and every amount on the
+    // screen is silent about that.
+    //
+    // A fact and never a caution, which is the whole reason it is a bool here
+    // and not a WPSBT_C_ bit. A signer is offline and cannot know the chain
+    // tip, so it cannot tell a coordinator's ordinary anti-fee-sniping
+    // locktime -- roughly the current height, on nearly every spend Core and
+    // Sparrow build -- from a lock set months out. Warning about the pair
+    // would warn about almost every real transaction, which is the fatigue the
+    // fee-rate and RBF thresholds in this file already refuse to spend. So the
+    // screen STATES the block and lets the owner, who does know roughly where
+    // the chain is, decide whether it is near.
+    bool     lock_binds;
     uint32_t n_unknown;      // unknown/proprietary PSBT fields (global+in+out)
     uint32_t n_sp;           // silent payment outputs among outs[]
     uint32_t n_sp_in;        // BIP376 inputs that spend a received silent payment

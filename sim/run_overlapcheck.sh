@@ -52,15 +52,23 @@ echo
 st=$(OVERLAPCHECK_SELFTEST=1 "$KISS_SIM_TMP/kissoverlap" 2>&1)
 if [ $? -ne 0 ] ||
     ! printf '%s\n' "$st" | grep -q 'CUT self test: 4 cases, all as expected' ||
+    ! printf '%s\n' "$st" | grep -q 'INK self test: 2 cases, all as expected' ||
+    ! printf '%s\n' "$st" | grep -q 'EXIT self test: 2 cases, all as expected' ||
+    ! printf '%s\n' "$st" | grep -q 'VOID self test: 2 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'FIT self test: 2 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'TINY self test: 3 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'RAGGED self test: 2 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'AMBER self test: 2 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'WALL self test: 2 cases, all as expected' ||
+    ! printf '%s\n' "$st" | grep -q 'STALE self test: 2 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'LAYER self test: 3 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'ROLE self test: 4 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'LADDER self test: 2 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'READ self test: 3 cases, all as expected' ||
+    ! printf '%s\n' "$st" | grep -q 'MARK self test: 6 cases, all as expected' ||
+    ! printf '%s\n' "$st" | grep -q 'WIDOW self test: 2 cases, all as expected' ||
+    ! printf '%s\n' "$st" | grep -q 'CLIPX self test: 2 cases, all as expected' ||
+    ! printf '%s\n' "$st" | grep -q 'DOTS self test: 2 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'TERM self test: 1 case, all as expected'; then
     echo
     echo "FAILED: the self test no longer reports its expected markers, so a"
@@ -123,7 +131,7 @@ summary=""
 # itself is a compile-time constant, so the checks are a tolerance against the
 # first run's total and a floor: a run that measured a different pool (a 64K
 # build, or a dead monitor) falls outside both.
-heap_max=0; heap_total=""; heap_who=""; heap_peak_total=0
+heap_max=0; heap_total=""; heap_who=""; heap_peak_total=0; heap_frag=0
 heap_note() {
     local who="$1" out="$2" line tot used
     line=$(printf '%s\n' "$out" | grep -m1 '^\[lvheap\]') || return 1
@@ -133,6 +141,9 @@ heap_note() {
     # disables the ceiling silently.
     tot=$(printf '%s\n' "$line" | awk '{print $3}')
     used=$(printf '%s\n' "$line" | awk '{print $7}')
+    # $9 is "57%" -- kept for the failure message only, never ratcheted.
+    local fr; fr=$(printf '%s\n' "$line" | awk '{print $9}' | tr -d '%')
+    case "$fr" in ''|*[!0-9]*) fr=0;; esac
     case "$used" in ''|*[!0-9]*) return 1;; esac
     case "$tot" in ''|*[!0-9]*) return 1;; esac
     if [ -n "$heap_total" ]; then
@@ -163,7 +174,7 @@ heap_note() {
     # byte count: TLSF's reported denominator wobbles by a header or two.
     if [ "$heap_peak_total" -eq 0 ] ||
        [ $(( used * heap_peak_total )) -gt $(( heap_max * tot )) ]; then
-        heap_max=$used; heap_who=$who; heap_peak_total=$tot
+        heap_max=$used; heap_who=$who; heap_peak_total=$tot; heap_frag=$fr
     fi
     return 0
 }
@@ -206,9 +217,19 @@ for l in "${langs[@]}"; do
     [ "$rc" -gt "$worst" ] && worst=$rc
     if [ "$rc" -ne 0 ] && [ "${n:-0}" -eq 0 ]; then died="$died SIM_LANG=$l(rc=$rc)"; fi
 
-    if [ "$n" -gt 0 ]; then
+    # An EMPTY $n is a locale whose run produced no summary line, which is a
+    # walk that died rather than a walk that found nothing. It was reaching
+    # this test unguarded -- two lines above, the same variable is read as
+    # ${n:-0} -- so the shell errored with "integer expression expected" and
+    # fell through to the else, printing the word CLEAN for a locale nothing
+    # had successfully checked. died= already records it and the verdict at
+    # the end is correct; this line was the one saying otherwise, and it is
+    # the line a person reads.
+    if [ -z "$n" ]; then
+        printf '%-8s NO SUMMARY -- the walk did not finish\n' "$l"
+    elif [ "$n" -gt 0 ]; then
         printf '%-8s %3d findings\n' "$l" "$n"
-        printf '%s\n' "$out" | grep -E '^  (TEXT|CONTENT|GROWTH|CLIPPED|ROLE|BARE|WALL|FIT|CUT|TINY|AMBER|RAGGED|LAYER|TERM|READ|LADDER|PATH)' | sed 's/^/  /'
+        printf '%s\n' "$out" | grep -E '^  (TEXT|CONTENT|GROWTH|CLIPPED|ROLE|BARE|WALL|FIT|CUT|TINY|AMBER|RAGGED|LAYER|TERM|READ|LADDER|PATH|WIDOW|CLIPX|DOTS)' | sed 's/^/  /'
         echo
     else
         printf '%-8s clean\n' "$l"
@@ -261,9 +282,10 @@ echo "text overlap gate: $total findings across ${#langs[@]} locales"
 # where the accent is WT_INK and the check has nothing to look at. So the same
 # walk runs once per themed accent, in English.
 echo
-echo "theme role gate: 3 accents"
+echo "theme role + stale gate: 3 accents"
 echo
 roletotal=0
+stale_seen=""          # set -u: the accent loop appends to it
 for a in GREEN CYPHERPINK ORANGE; do
     # A fresh card here too. The locale loop above has done this since the walk
     # started tapping actions by label, and this loop never did -- so each accent
@@ -275,6 +297,10 @@ for a in GREEN CYPHERPINK ORANGE; do
     rm -rf "$KISS_SIM_TMP/simsd"
     out=$(SIM_ACCENT="$a" "$KISS_SIM_TMP/kissoverlap" 2>&1)
     rc=$?
+    # Each run says which STALE backlog entries IT matched. The verdict is
+    # taken after the loop; see the block below for why it cannot be taken here.
+    stale_seen="$stale_seen
+$(printf '%s\n' "$out" | grep -o 'STALE backlog entry [a-z]* |.*|')"
     sline=$(summary_of "$out")
     n=$(printf '%s\n' "$sline" | sed -n \
         's/^\[overlap\] [^:]*: \([0-9][0-9]*\) stops checked, [0-9][0-9]* game frames skipped, \([0-9][0-9]*\) distinct findings$/\2/p')
@@ -286,14 +312,19 @@ for a in GREEN CYPHERPINK ORANGE; do
     if ! heap_note "$a" "$out"; then
         died="$died SIM_ACCENT=$a(no-heap)"
     fi
-    r=$(printf '%s\n' "$out" | grep -c '^  ROLE')
+    # STALE is counted HERE and not in the locale loop, because it is the only
+    # check that needs the accent to CHANGE and the accent sweep is the only
+    # place it does. It also cannot see anything in the MONO run, whose accent
+    # is WT_INK -- half the device is legitimately WT_INK, so the old colour
+    # would match everything.
+    r=$(printf '%s\n' "$out" | grep -cE '^  (ROLE|STALE)')
     roletotal=$((roletotal + r))
     [ "$rc" -gt "$worst" ] && worst=$rc
     if [ "$rc" -ne 0 ] && [ "$r" -eq 0 ]; then died="$died SIM_ACCENT=$a(rc=$rc)"; fi
 
     if [ "$r" -gt 0 ]; then
         printf '%-12s %3d findings\n' "$a" "$r"
-        printf '%s\n' "$out" | grep -E '^  ROLE' | sed 's/^/  /'
+        printf '%s\n' "$out" | grep -E '^  (ROLE|STALE)' | sed 's/^/  /'
         echo
     else
         printf '%-12s clean\n' "$a"
@@ -301,8 +332,34 @@ for a in GREEN CYPHERPINK ORANGE; do
 done
 
 echo
-echo "theme role gate: $roletotal findings across 3 accents"
+echo "theme role + stale gate: $roletotal findings across 3 accents"
 total=$((total + roletotal))
+
+# Whether a STALE exemption is still earning its place is the SWEEP's verdict,
+# never one run's. The check needs the accent to CHANGE, so a live entry goes
+# unmatched in passes where its screen is not repainted: the single entry on
+# the list today matches under CYPHERPINK and ORANGE and NOT under GREEN. A per
+# run "never matched a stop" message -- which is what every other backlog in
+# overlapcheck.c prints -- would have told somebody to delete a live exemption
+# in one run out of three.
+#
+# This exists because s_stale_hit was set and never read, so this backlog was
+# the one that could never be collected. Printed, not failed, exactly like the
+# others: a list of excuses going stale is a thing to see, not a build break.
+stale_dead=$(printf '%s\n' "$stale_seen" |
+    sed -n 's/^STALE backlog entry [a-z]* |\(.*\)|$/\1/p' | sort -u |
+    while IFS= read -r e; do
+        [ -n "$e" ] || continue
+        printf '%s\n' "$stale_seen" | grep -qF "STALE backlog entry matched |$e|" || printf '%s\n' "$e"
+    done)
+stale_n=$(printf '%s\n' "$stale_seen" |
+    sed -n 's/^STALE backlog entry [a-z]* |\(.*\)|$/\1/p' | sort -u | grep -c .)
+if [ -n "$stale_dead" ]; then
+    echo
+    echo "STALE backlog entries that matched under NO accent -- cut them:"
+    printf '%s\n' "$stale_dead" | sed 's/^/  /'
+fi
+echo "STALE backlog: $stale_n entry(s), $(printf '%s\n' "$stale_dead" | grep -c .) excusing nothing" 
 
 # The heap verdict, AFTER the sweep and with its own message. Never through
 # kissoverlap's exit code: that code already means two things (findings, and a
@@ -312,7 +369,25 @@ total=$((total + roletotal))
 # division could round 90.9% down to 90% and pass the very ceiling it exists
 # to stop. The denominator is the pool reading of the run that SET the peak,
 # not the last run's (heap_peak_total, recorded in heap_note).
-HEAP_MAX_PCT="${HEAP_MAX_PCT:-90}"
+# 88, not 90, and the two points are the whole gate.
+#
+# 90 passed a tree that could not build a screen. On 2026-08-31 adding sixteen
+# objects to the twenty input SIGN > DETAILS page did not fail: lv_obj_create
+# handed back NULL and the next create segfaulted, or lv_refr_now spun at 100%
+# CPU forever with no output. The peak at the time was 110968 of 126344, which
+# is 87.8% -- comfortably under a 90% ceiling, and comfortably unable to build
+# the page. A ceiling above the observed failure is not a ceiling.
+#
+# Fragmentation is why 12% free was not 12% usable. frag_pct sits at 57% and
+# the comment above is right that it is a single-instant sample, so it is
+# still not ratcheted -- but it IS printed in the failure, because "peak 87%"
+# on its own suggests headroom that a 57% fragmented TLSF pool does not have.
+#
+# 85 is the number this should be and the tree cannot hold it yet. Getting
+# there is object count on whatever screen owns the peak, not a bigger pool:
+# the pool matches the device and raising it here would only move the assert
+# onto hardware.
+HEAP_MAX_PCT="${HEAP_MAX_PCT:-88}"
 heap_ok=1
 if [ "${heap_peak_total:-0}" -gt 0 ]; then
     heap_pct=$(( heap_max * 1000 / heap_peak_total / 10 ))
@@ -361,10 +436,13 @@ fi
 # assert -- an infinite loop on the device -- so the margin is the point.
 if [ "$heap_ok" -eq 0 ]; then
     echo
-    echo "FAILED: LVGL heap peaked above the ${HEAP_MAX_PCT}% ceiling (peak ${heap_pct}%, $heap_max of $heap_peak_total, worst in $heap_who)."
-    echo "A failed lv_malloc mid-render is an LVGL assert, which on the device"
-    echo "is an infinite loop. Reduce what a screen builds, or raise the pool"
-    echo "in BOTH sim/lv_conf.h and CONFIG_LV_MEM_SIZE_KILOBYTES deliberately."
+    echo "FAILED: LVGL heap peaked above the ${HEAP_MAX_PCT}% ceiling (peak ${heap_pct}%, $heap_max of $heap_peak_total, worst in $heap_who, frag ${heap_frag}%)."
+    echo "Past the edge LVGL does not report anything: lv_obj_create hands back"
+    echo "NULL and the next create segfaults, or lv_refr_now spins at 100% CPU"
+    echo "forever. Both were reproduced at 87.8% of this pool, so the free"
+    echo "percentage above is not headroom -- read it with the fragmentation."
+    echo "Reduce what a screen BUILDS. Raising the pool in sim/lv_conf.h and"
+    echo "CONFIG_LV_MEM_SIZE_KILOBYTES only moves the assert onto hardware."
     exit 1
 fi
 

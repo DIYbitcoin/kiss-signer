@@ -24,6 +24,13 @@
 // that passes review can still be serialized and returned after signing.
 #define QRT_MAX_SIGNED_PSBT   9108
 
+// Base64 of a byte run, NUL terminated, into a caller's buffer. `cap` must
+// hold ((n + 2) / 3) * 4 + 1. It is the transport's own encoder and it is
+// exported for one other caller: the signed screen's arrival motion draws the
+// REAL transaction, and the standard text form of a PSBT is base64 -- what
+// Sparrow puts on the clipboard, and what starts cHNidP8B.
+int qrt_b64_encode(const uint8_t *in, size_t n, char *out, size_t cap);
+
 // ---- decode: feed scanned QR payloads until complete ----
 typedef struct qrt_parser qrt_parser_t;
 

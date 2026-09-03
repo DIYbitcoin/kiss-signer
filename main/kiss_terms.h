@@ -46,6 +46,9 @@ typedef enum {
     KISS_TERM_ACCOUNT,
     KISS_TERM_ENTROPY,
     KISS_TERM_DECOY,
+    // Appended, never inserted: the enum is NVS storage order (above), so a
+    // new term goes on the end or every bit means a different word.
+    KISS_TERM_KEY,
     KISS_TERM_N
 } kiss_term_t;
 bool kiss_term_read(int id);
@@ -79,7 +82,15 @@ lv_obj_t *kiss_terms_list_at(lv_obj_t *scr, const int *ids, int n, int open_id);
 //
 // The + hint waits until the [ ? ] hint is spent: two new marks arrived in one
 // pass and only one of them is taught at a time.
-void kiss_terms_hint(lv_obj_t *scr);
+//
+// (ids, n) is the SCOPE this screen is responsible for, not the rows it has
+// drawn: the settings page pages the full reference five at a time and still
+// owns all of it, while the sign and pairing glossaries own three terms and
+// two. It used to count the whole device on all three, so a page showing two
+// terms reported eight unread and pointed nowhere -- "its not clear where is
+// left to read". Counted this way the number and the unread dots under it are
+// the same claim, and the answer to where is: look down.
+void kiss_terms_hint(lv_obj_t *scr, const int *ids, int n);
 
 // PAGE TWO, the one addition the def-row idiom needed. A term whose value is
 // an artefact (a descriptor, 150 characters) or a figure with arithmetic
@@ -103,8 +114,8 @@ void kiss_terms_turned(void);
 // The four sets that have a tab today. Each is `const int[]` plus its count,
 // so a page passes one pair and nothing else knows the order.
 extern const int KISS_TERMS_SIGN[3];      // PSBT, THE FEE, CHANGE
-extern const int KISS_TERMS_KEYS[2];      // FINGERPRINT, ACCOUNT
-extern const int KISS_TERMS_PAIR[2];      // DESCRIPTOR, FINGERPRINT
+extern const int KISS_TERMS_KEYS[3];      // PRIVATE KEY, FINGERPRINT, ACCOUNT
+extern const int KISS_TERMS_PAIR[3];      // PRIVATE KEY, DESCRIPTOR, FINGERPRINT
 extern const int KISS_TERMS_RECV[1];      // ACCOUNT
 // All ten, for the SETTINGS reference. THE DECOY is in this list, which is
 // why the row that opens it is absent in a decoy session.

@@ -34,14 +34,23 @@ jobs:
       # GIT_CONFIG_* marks /project safe: the checkout is owned by the runner
       # user, the container builds as another, and idf.py reads git for the
       # version it bakes in.
-      - name: Build firmware (Docker ESP-IDF v6.0.1, committed sdkconfig)
+      # The toolchain by DIGEST, from tools/idf_image.sh, which is where both
+      # release lanes already take it. A tag is mutable: espressif/idf:v6.0.1
+      # can be repushed, and then this lane compiles with a different compiler
+      # than the one that produced the published hashes, with nothing in the
+      # log to say which half moved. The digest is printed for the same reason
+      # -- a build's trust anchor that only exists in a file nobody opened
+      # while reading the log is not visible.
+      - name: Build firmware (Docker ESP-IDF, committed sdkconfig)
         run: |
+          . tools/idf_image.sh
+          echo "toolchain: $KISS_IDF_IMAGE"
           docker run --rm \
             -e GIT_CONFIG_COUNT=1 \
             -e GIT_CONFIG_KEY_0=safe.directory \
             -e GIT_CONFIG_VALUE_0=/project \
             -v "$PWD":/project -w /project \
-            espressif/idf:v6.0.1 \
+            "$KISS_IDF_IMAGE" \
             idf.py -B build -DKISS_COMMIT="$(git rev-parse --short HEAD)" build
 
       - name: Image size

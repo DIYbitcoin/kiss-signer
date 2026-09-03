@@ -5,9 +5,8 @@
 # so "signed" and "checked" cannot drift apart between the two. See sim/pq_tool.c.
 set -e
 cd "$(dirname "$0")/.."
-KISS_SIM_TMP="${KISS_SIM_TMP:-/tmp}"
-mkdir -p "$KISS_SIM_TMP"
-clang -O2 -Wall -Wextra \
+. sim/sim_tmp.sh
+clang ${KISS_WERROR:+-Werror} -O2 -Wall -Wextra \
   -DPQ_SHA256_COMPRESS_HOOK=1 \
   -Imain -Icomponents/slhdsa -Icomponents/slhdsa/upstream \
   components/slhdsa/pq_hw_sha.c \

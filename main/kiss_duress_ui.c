@@ -1,3 +1,9 @@
+// DECIDED: this family calls it the DECOY, not the spare. It was twelve
+// strings of "spare" against four of "decoy", and "spare" reads as a BACKUP
+// of the real keys -- which is the one thing it is not, and a dangerous thing
+// for an owner to believe about keys they are about to hand over. See
+// i18n/GLOSSARY.md. The key names still say SPARE; only what an owner reads
+// changed.
 // See kiss_duress_ui.h. Four acts: teach it, say to fund the spare, pick your
 // stroke, draw it twice.
 //
@@ -319,7 +325,21 @@ static void stage_build(int stage)
         s_scr = wt_screen(s_parent, tr(STR_GD_INTRO_T), tr(STR_GD_INTRO_S));
         wt_chrome_head(s_scr);
         diagram_two_ways();
-        wt_why_body(s_scr, tr(STR_GD_INTRO_B), 250, wt_primary(), false);
+        // The claim under the picture, as rows: what the spare is, what the
+        // swipe does, and the word for the whole idea. It was one wide grey
+        // paragraph -- the last of them on this flow -- and two of its three
+        // sentences are said by the diagram directly above it.
+        {
+            wt_fact_t facts[3] = {
+                { .cap = tr(STR_D_SPARE), .val = tr(STR_GD_INTRO_B),
+                  .icon = WT_ICON_SECRET },
+                { .cap = tr(STR_GD_PICK_REAL_T),
+                  .val = tr(STR_I_WAYSIN_SHORT), .icon = LV_SYMBOL_EDIT },
+                { .cap = tr(STR_G_TECHNICAL), .val = tr(STR_T_DECOY_TERM),
+                  .icon = LV_SYMBOL_LIST },
+            };
+            wt_facts(s_scr, 232, facts, 3);
+        }
         // Three controls on the standard row. The TALL row and the group fit
         // existed for pill boxes whose labels had to wrap inside fixed widths;
         // the arrow actions are content-sized single lines at chrome23, so
@@ -367,7 +387,7 @@ static void stage_build(int stage)
         wt_diagram_op(row, LV_SYMBOL_RIGHT);
         chip_icon(row, WT_ICON_KEY, tr(STR_D_OWN_FP), true);
         // Two claims, two columns: it really works, and an empty one is a tell.
-        wt_why_body(s_scr, tr(STR_GD_FUND_B), 190, WT_WARN, true);
+        wt_body_para(s_scr, tr(STR_GD_FUND_B), 190);
         // Same rationale as ST_INTRO, opposite wallet -- and that is the whole
         // point of the pair. ST_INTRO's action opens THIS screen, which is about
         // the spare, so it says SPARE. This action opens ST_DONE, which
@@ -396,15 +416,19 @@ static void stage_build(int stage)
         wt_diagram_op(row, LV_SYMBOL_RIGHT);
         chip_icon(row, WT_ICON_KEY, tr(STR_D_REAL), true);
 
-        const int BY = 208, BW = 344, BH = WT_CONTENT_BOTTOM - BY;
-        const char *b1 = tr(STR_L_FP_NOTE_NOPASS);   // seed words alone
-        const char *b2 = tr(STR_W_WRITE_S);          // seed words + passphrase
-        // _head, never a hand-subtracted budget: this screen has headings, and
-        // measuring them is the difference between font23 and font14 here.
-        const lv_font_t *f = wt_body_font2_head(tr(STR_D_SPARE), b1,
-                                                tr(STR_D_REAL),  b2, BW - 14, BH);
-        wt_why_block(s_scr, tr(STR_D_SPARE), b1,  48, BY, BW, BH, f, WT_WARN);
-        wt_why_block(s_scr, tr(STR_D_REAL),  b2, 408, BY, BW, BH, f, wt_accent());
+        // The two halves of the rule as rows under the chips that draw it:
+        // what the words alone open, and what the words plus the passphrase
+        // open. Both values already ship -- the fingerprint reveal says the
+        // first and the BACKUP tab says the second -- so the screen teaches
+        // one rule in the device's own words rather than a second copy of it.
+        wt_fact_t facts[2] = {
+            { .cap = tr(STR_D_SPARE), .val = tr(STR_L_FP_NOTE_NOPASS),
+              .icon = WT_ICON_SECRET,
+              .icon_col = WT_WARN },
+            { .cap = tr(STR_D_REAL), .val = tr(STR_I_RESTORE_VAL),
+              .icon = WT_ICON_KEY },
+        };
+        wt_facts(s_scr, 208, facts, 2);
 
         // The same resolve the sign flow's cautions wear: a tick and the
         // words, nothing drawn around them. SKIP leaves, so it points back.
@@ -505,7 +529,7 @@ static void stage_build(int stage)
         chip_icon(row, WT_ICON_LOCK, tr(STR_D_PASSPHRASE), false);
         wt_diagram_op(row, LV_SYMBOL_RIGHT);
         wt_chip(row, tr(STR_GD_OFF), false);
-        wt_why_body(s_scr, tr(STR_GD_NOPASS_B), 190, WT_WARN, true);
+        wt_body_para(s_scr, tr(STR_GD_NOPASS_B), 190);
         // The missing layer is ADDABLE, and this is the room for it. The
         // body above already says the rest: add a passphrase and the current
         // keys become the spare. The add-later login runs the wizard's
@@ -536,7 +560,7 @@ static void stage_build(int stage)
         // only what the diagram cannot say — the stroke routes, it does not
         // unlock, and this is the last screen in the flow that says so.
         diagram_two_ways();
-        wt_why_body(s_scr, tr(STR_GD_DONE_B), 250, WT_OK, true);
+        wt_body_para(s_scr, tr(STR_GD_DONE_B), 250);
         // The drawing is offered HERE, at the end of the flow, and that is the
         // whole of the discoverability fix. kiss_word_ui_open had exactly one
         // caller in the shipped firmware -- a third pill on a Settings page --

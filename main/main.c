@@ -41,11 +41,13 @@
 #include "kiss_scan.h"
 #include "kiss_settings.h"
 #include "kiss_fw_ui.h"
+#include "main.h"   // what this file exports; see the note there
 #include "kiss_fw.h"   // kiss_fw_mark_valid: release the previous slot
 #include "kiss_info.h"
 #include "kiss_setup.h"
 #include "kiss_seed.h"
 #include "kiss_crypto.h"
+#include "kiss_cryptobench.h"
 #include "kiss_theme.h"
 #include "kiss_panel.h"
 #include "kiss_duress.h"
@@ -243,19 +245,16 @@ static lv_obj_t *s_home;         // baked KISS Signer menu (visual shell only, f
 #define N_MOTES 5
 static lv_obj_t *s_mote[N_MOTES];  // ambient idle life: dim dots drifting up
 static lv_obj_t *s_tile_ttl[4];            // live tile labels (settle in on unlock)
-static lv_obj_t *s_next_lbl;               // the one step this signer has not taken
-// One number, two placements: built here and re-aligned after every text
-// change, because the label is content sized and a translation of a different
-// width would otherwise stay centred on the old one.
-// 340, not 346. "pair a coordinator, then verify an address" is two steps and
-// it WRAPS to two lines, which at 346 put the second one 4px past
-// WT_CONTENT_BOTTOM -- the overlap gate found it the first time the pre-push
-// hook ran in strict mode. The line moved rather than the copy: this is the
-// only place on the device that says what to do next, and both halves of it
-// are things the owner has not done yet. There is room -- the tiles end at
-// 330 and this leaves 16 above the text -- and none below, which is why 340
-// and not 336.
-#define HOME_NEXT_Y 340
+// DECIDED: the home carries NO next-step line. It said "check your paper
+// against these keys" until the paper was checked, then "pair a coordinator,
+// then verify an address" until one had spoken, and it came off the bench as a
+// first-time-user walkthrough on the screen the owner looks at every day. The
+// order it was teaching is in docs/walkthrough.md, which is where the owner
+// asked for it to live -- the same argument that took the passphrase line off
+// this screen, a few paragraphs down in kiss_home_build().
+//
+// The tiles are the home. A signer that keeps suggesting the next thing is a
+// signer that never finishes setting itself up.
 // tile title string ids, in tile order (sign, receive, keys, settings).
 // STR_H_TILE_WALLET is a legacy KEY NAME whose value has been "Keys" for a
 // while; renaming the key would touch all 21 locale files for nothing.
@@ -1842,41 +1841,8 @@ static void sd_badge_sync(bool present) {
   }
 }
 
-// The step, or nothing. Read on every refresh rather than cached: the paper
-// can be checked and a coordinator can speak inside one unlocked session, and
-// both of those land here through the refresh the screens that change them
-// already call.
-static void next_step_sync(void) {
-  if (!s_next_lbl) return;
-  uint8_t fp[4];
-  kiss_ui_last_fp(fp);
-  const bool have_keys = (fp[0] | fp[1] | fp[2] | fp[3]) != 0;
-  int chigh; uint32_t cheight;
-  const char *step = NULL;
-  if (have_keys) {
-    if (!kiss_ui_backup_checked())
-      step = tr(STR_H_NEXT_BACKUP);
-    else if (!kiss_usage_chain_known(fp, kiss_testnet() ? 1 : 0, kiss_script(),
-                                     &chigh, &cheight))
-      step = tr(STR_H_NEXT_PAIR);
-  }
-  if (!step) { lv_obj_add_flag(s_next_lbl, LV_OBJ_FLAG_HIDDEN); return; }
-  // The font too, not just the text: a language change reaches the home
-  // through this call and CJK wants its own face, the same reason the tile
-  // titles re-set theirs.
-  lv_obj_set_style_text_font(s_next_lbl, wt_font23(), 0);
-  char buf[128];
-  snprintf(buf, sizeof buf, "%s  %s", LV_SYMBOL_RIGHT, step);
-  lv_label_set_text(s_next_lbl, buf);
-  lv_obj_clear_flag(s_next_lbl, LV_OBJ_FLAG_HIDDEN);
-  // Re-align after the text: the label is content sized, so a translation of a
-  // different width would otherwise stay centred on the old one.
-  lv_obj_align(s_next_lbl, LV_ALIGN_TOP_MID, 0, HOME_NEXT_Y);
-}
-
 void kiss_home_refresh(void) {
   kiss_home_restyle();
-  next_step_sync();
   sd_badge_sync(platform_sd_probe() != 0);
   if (!s_net_lbl) return;
   if (kiss_testnet()) {
@@ -2292,6 +2258,23 @@ static int unlock_kind(void) {
     int k = WDR_NONE;
     if (used > 0 && n - used <= 1)
       k = kiss_duress_route_marked(true, n - used == 1);
+    // DECIDED: a draw that can no longer become the word is cleared HERE, on
+    // the lift, not left to the 3s idle. The word is the FIRST stored.strokes
+    // strokes of the buffer, so once that many have been drawn without
+    // matching, no later stroke can change the answer -- and every attempt
+    // after it appended to the corpse instead of starting fresh. The device
+    // then answered to nothing at all until the owner put their hand down for
+    // a full three seconds, which is not what a person does between two tries.
+    //
+    // Reported from the bench as a signer that would not open to its own
+    // word. The log showed the strokes counting 1..17 across five attempts,
+    // 2.5s apart, and never resetting. The heuristic that catches an abandoned
+    // KISS is switched OFF whenever a word is stored -- it is built on the
+    // letters being drawn left to right, which a custom word is not -- so the
+    // idle was the only clear there was.
+    if (k == WDR_NONE && !s_cover_pending && s_strokes >= stored.strokes) {
+      s_gn = 0; s_strokes = 0;
+    }
 #ifdef SIMULATOR
     if (k != WDR_NONE) g_last_unlock_kind = k;
 #endif
@@ -2663,6 +2646,32 @@ static void game_tick(lv_timer_t *t) {
   bool lock_held_off = false;
   for (size_t i = 0; i < N_SCREENS; i++)
     if (SCREENS[i].holds_lock_off && SCREENS[i].active()) { lock_held_off = true; break; }
+  // A screen closing UNDER THE FINGER hands the game a finger it never saw go
+  // down. CANCEL on the setup wizard is the case that shows it: the tap
+  // deletes the wizard, this gate goes false on the same release, and the game
+  // reads a lone lift as "a tap on the menu" and starts playing. So a keyless
+  // owner who backed out of setup did not land on the cover at all -- they
+  // landed in a round of Fruit Island, one step further from the signer than
+  // the fault everyone was describing.
+  //
+  // General rather than a carve-out for the wizard: every screen with
+  // holds_lock_off can be closed by a control near the bottom of the glass,
+  // and each one was a single release away from the same thing.
+  //
+  // s_gest_swallow ONLY while the finger is still down. The flag is cleared on
+  // the next LIFT, so arming it after the finger is already up leaves it
+  // waiting to eat the owner's next stroke -- and on this screen that stroke
+  // is the first leg of their unlock word. Once the hand is off the glass
+  // there is nothing left to swallow: dropping s_prev_press says "that lift
+  // was not a tap" for this release only, and nothing carries into the next.
+  static bool s_prev_held;
+  if (s_prev_held && !lock_held_off) {
+    s_gn = 0; s_strokes = 0;
+    cover_pending_clear();
+    if (pressed) s_gest_swallow = true;  // that finger belonged to the screen
+    else         s_prev_press = false;   // it already left: not a tap either
+  }
+  s_prev_held = lock_held_off;
   if (lock_held_off) {                                        // login/wizard own the touch
     // The menu is buried; its fruit must stop drifting. This is the hook and not
     // the menu panel's hidden flag because the wizard opens OVER the menu with
@@ -2799,20 +2808,42 @@ static void game_tick(lv_timer_t *t) {
       lv_obj_set_style_bg_opa(s_lock_warn, LV_OPA_60, 0);
       lv_obj_add_flag(s_lock_warn, LV_OBJ_FLAG_CLICKABLE);
       lv_obj_remove_flag(s_lock_warn, LV_OBJ_FLAG_SCROLLABLE);
+      // A BAR, not a pill, and the full width of the glass. The pill was
+      // 420px hard coded with the label centred inside it, and the English
+      // string measures 420px at font23 -- so it shipped reading "ocking
+      // soon. tap to stay open", clipped at BOTH ends, and every locale
+      // longer than English was worse. A box sized to a number is a box that
+      // fits one string; this one is sized to the screen, so nothing it is
+      // handed can overflow it.
+      //
+      // It also stops being an outlined rounded rectangle. That shape is
+      // gone from this device and the bar wears what the chrome strip wears:
+      // panel fill, one hairline where it meets the page, and the warning
+      // colour carried by the mark and the words rather than by a border
+      // drawn around them.
       lv_obj_t *card = lv_obj_create(s_lock_warn);
       lv_obj_remove_style_all(card);
-      lv_obj_set_size(card, 420, 56);
-      lv_obj_align(card, LV_ALIGN_TOP_MID, 0, 8);
-      lv_obj_set_style_radius(card, 10, 0);
+      lv_obj_set_size(card, LV_PCT(100), 56);
+      lv_obj_align(card, LV_ALIGN_TOP_MID, 0, 0);
       lv_obj_set_style_bg_color(card, WT_PANEL, 0);
       lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
-      lv_obj_set_style_border_width(card, 2, 0);
-      lv_obj_set_style_border_color(card, WT_WARN, 0);
+      lv_obj_set_style_border_width(card, 1, 0);
+      lv_obj_set_style_border_color(card, WT_HAIR, 0);
+      lv_obj_set_style_border_side(card, LV_BORDER_SIDE_BOTTOM, 0);
+      lv_obj_set_flex_flow(card, LV_FLEX_FLOW_ROW);
+      lv_obj_set_flex_align(card, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
+                            LV_FLEX_ALIGN_CENTER);
+      lv_obj_set_style_pad_column(card, 12, 0);
       lv_obj_remove_flag(card, LV_OBJ_FLAG_CLICKABLE);
       lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
-      lv_obj_t *l = wt_lbl(card, tr(STR_C_LOCK_SOON), 0, 0,
-                           wt_font23(), WT_WARN);
-      lv_obj_center(l);
+      lv_obj_t *mk = lv_label_create(card);          // marks before words
+      lv_label_set_text(mk, LV_SYMBOL_WARNING);
+      lv_obj_set_style_text_font(mk, wt_font23(), 0);
+      lv_obj_set_style_text_color(mk, WT_WARN, 0);
+      lv_obj_t *l = lv_label_create(card);
+      lv_label_set_text(l, tr(STR_C_LOCK_SOON));
+      lv_obj_set_style_text_font(l, wt_font23(), 0);
+      lv_obj_set_style_text_color(l, WT_WARN, 0);
     }
     // The scan screen gets one escape that does NOT go through LVGL. Its own
     // CLOSE is an LVGL control, and while the camera streams it is painted over
@@ -2866,7 +2897,12 @@ static void game_tick(lv_timer_t *t) {
     // attempt (only when none is present) can briefly block, but the home art is
     // static so a hitch never shows.
     static int s_sd_tick; static bool s_sd_present; static int s_sd_toast;
-    static bool s_sd_badge_live;                     // SD mode + card in: breathe it
+    // NO LOCAL COPY of s_sd_badge_live. There was one here, and it shadowed
+    // the file scope flag at the top of this file -- so sd_badge_sync() set
+    // that one and the breathe below read this one, which nothing ever
+    // assigned. The badge has never breathed on a device. It renders
+    // identically in the simulator, so no frame, walk or overlap check
+    // could have had an opinion; -Wshadow on the device build found it.
     if (!cam_on && ++s_sd_tick >= 90) {              // poll ~1.5s at TICK_MS
       s_sd_tick = 0;
       bool present = platform_sd_probe() != 0;
@@ -2926,11 +2962,11 @@ static void game_tick(lv_timer_t *t) {
       s_fp_pend = false;
       fp_card_open();
     } else if (!pressed && s_prev_press && s_tile_pend) {          // finger lifted: open
-      int t = s_tile_pend;
+      int tile = s_tile_pend;                        // not 't': that is the timer
       s_tile_pend = 0;
-      if (t == 1) kiss_sign_open(lv_screen_active());
-      else if (t == 2) kiss_recv_open(lv_screen_active());
-      else if (t == 3) kiss_info_open(lv_screen_active());
+      if (tile == 1) kiss_sign_open(lv_screen_active());
+      else if (tile == 2) kiss_recv_open(lv_screen_active());
+      else if (tile == 3) kiss_info_open(lv_screen_active());
       else kiss_settings_open(lv_screen_active());
     }
     if (!pressed) s_zoom_drag = false;
@@ -3256,6 +3292,14 @@ static void storage_locked_screen(lv_obj_t *root,
 // what proves it is reached.
 static bool s_storage_blocked;
 
+#ifdef SIMULATOR
+// Test seam, simulator only. The walk needs to tell "back on the cover MENU"
+// from "playing a round", and the menu is baked artwork with no label in it --
+// so a frame proves nothing a needle can read, which is exactly how CANCEL
+// starting a game survived every gate this project has.
+int kiss_game_state_for_test(void) { return s_state; }
+#endif
+
 void build_game(void) {  // non-static: the simulator harness calls this too
   // The baked art lives in flash as RLE and its descriptors start empty, so
   // this has to run before the first lv_image_set_src below (kiss_art.h says
@@ -3556,55 +3600,6 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   // wizard that configures it, not standing under the tiles of a signer
   // somebody may have been made to open.
 
-  // ONE next step, in the band under the tiles.
-  //
-  // The order that matters is written down in docs/walkthrough.md -- check the
-  // paper, pair a coordinator, verify an address on the device, then move a
-  // little money -- and the device said none of it. Four equal tiles is a menu,
-  // and a menu tells a newcomer what they CAN do without ever saying which of
-  // it comes first. The step this line names is the one that catches a
-  // computer showing an address that is not yours, and it is worth nothing
-  // once the money is already sent.
-  //
-  // Two facts, both already stored and both already read elsewhere on this
-  // device: kiss_ui_backup_checked() is the question SETTINGS asks about the
-  // paper, and kiss_usage_chain_known() is the only honest signal this signer
-  // has for "a coordinator has spoken", which kiss_info.c already treats as
-  // paired-ness. So this adds no state; it reads what two screens read.
-  //
-  // MUTED, and no all-good version. Accent here would be the GREEN that is
-  // byte identical to WT_OK on one theme, which would dress a suggestion up as
-  // something the device has checked -- exactly what task 6 of the UX
-  // acceptance walks the flows looking for. And a badge that is always on
-  // screen is a badge nobody reads, which is why the settings attention chip
-  // has no "all clear" state either: when both steps are done this is hidden
-  // and the band goes back to being empty.
-  //
-  // NOTHING HERE NAMES THE SECOND DOOR. The line the band used to carry did,
-  // and the reasoning that removed it is a few paragraphs up and still holds.
-  // Pairing and paper are not that: every signer of this kind wants both, and
-  // saying so singles nobody out.
-  s_next_lbl = lv_label_create(s_home);
-  lv_label_set_text(s_next_lbl, "");
-  lv_obj_set_style_text_font(s_next_lbl, wt_font23(), 0);
-  lv_obj_set_style_text_color(s_next_lbl, lv_color_hex(0x7A869C), 0);
-  lv_obj_set_style_text_align(s_next_lbl, LV_TEXT_ALIGN_CENTER, 0);
-  // The lane, and WRAP rather than DOT. A one-line label pinned with LONG_DOT
-  // is the CUT fault: it loses its second half and rewrites its own text to
-  // say so, which a walk of the finished tree cannot see. Wrapping instead
-  // means a translation too long for one line pushes past WT_CONTENT_BOTTOM,
-  // where the screen walk reports it as what it is -- copy that needs cutting
-  // at the sweep, not a sentence quietly missing its end.
-  lv_obj_set_width(s_next_lbl, 704);
-  lv_label_set_long_mode(s_next_lbl, LV_LABEL_LONG_WRAP);
-  lv_obj_add_flag(s_next_lbl, LV_OBJ_FLAG_HIDDEN);
-  // 346, measured rather than estimated. The tiles end at 333 and the theme
-  // cluster starts at 408, so the band is real -- but the 23px rung's LINE BOX
-  // is 49px on the Latin face, not the ~31 the glyph height suggests, and 352
-  // put the bottom of it 4px past WT_CONTENT_BOTTOM. The screen walk said so;
-  // no estimate in this file's history has ever been right about a line box.
-  lv_obj_align(s_next_lbl, LV_ALIGN_TOP_MID, 0, HOME_NEXT_Y);
-
   // Tile labels, live + translated. The 23px title carries the whole action;
   // the former 14px subtitle duplicated it and was unreadable at arm's length.
   for (int i = 0; i < 4; i++) {
@@ -3657,7 +3652,7 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   lv_obj_set_style_bg_opa(s_saver_hint, 110, 0);            // subtle dark backing so it reads on any backdrop
   lv_obj_set_style_pad_hor(s_saver_hint, 24, 0);
   lv_obj_set_style_pad_ver(s_saver_hint, 11, 0);
-  lv_obj_set_style_radius(s_saver_hint, 20, 0);
+  lv_obj_set_style_radius(s_saver_hint, 4, 0);   // a bubble is a pill too
   lv_obj_align(s_saver_hint, LV_ALIGN_BOTTOM_MID, 0, -64);
   lv_obj_add_flag(s_saver_hint, LV_OBJ_FLAG_HIDDEN);
   // The pulse starts with the saver and dies with it (saver_hint_pulse /
@@ -3720,6 +3715,11 @@ void app_main(void) {
   // confirming it anyway made the refusal permanent instead of temporary.
   int src = kiss_sign_selftest();
   ESP_LOGI(TAG, "signing selftest: %s (stage %d)", src == 0 ? "PASS" : "FAIL", src);
+  // What every blocking crypto call actually costs on this board, printed at
+  // every non release boot. It adds about a second here and it is the only
+  // check in the tree that can see a derivation running in software -- no
+  // desktop gate compiles the accelerator at all. See kiss_cryptobench.h.
+  kiss_cryptobench_run();
   display_start();
   backlight_on();
   touch_start();

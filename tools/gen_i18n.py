@@ -8,8 +8,10 @@ fall back to English with a warning (useful mid-development).
 Emits (all marked GENERATED, never hand-edit):
   main/i18n_keys.h        enum STR_<KEY> ... STR_N
   main/i18n_tables.c      one const table per locale + the locale index
-  tools/fonts/glyphs_*.txt  sorted non-ASCII codepoints per font class,
-                            consumed by tools/fonts/gen_fonts.sh (M2)
+  tools/fonts/glyphs_{ja,ko,zh}.txt  sorted non-ASCII codepoints per CJK font
+                            class, consumed by tools/fonts/gen_fonts.sh (M2).
+                            There is deliberately no glyphs_lat.txt: see the
+                            note beside the emitter below.
 
 Hard checks (exit 1): key-set mismatch, printf-specifier sequence mismatch
 vs English (lv_vsnprintf has no positional args, so order is law), em/en
@@ -137,9 +139,6 @@ UNTRANSLATED_OK = {
     "H_UNREAD_FMT", "H_MORE", "T_FEE2_HEAD", "T_FEE2_C1", "T_FEE2_C2",
     "T_FEE2_C3", "T_FEE2_B", "T_FEE2_VB", "T_FEE2_SPV",
     "T_WATCH_P2_HEAD", "T_WATCH_P2_B",
-    # The home's one next step. Born under the English-only rule; English in
-    # the other twenty until the sweep.
-    "H_NEXT_BACKUP", "H_NEXT_PAIR",
     # The second first-run hint, for the row that grows. Born under the
     # English-only rule; English in the other twenty until the sweep.
     "H_HINT_ROW",
@@ -156,6 +155,7 @@ UNTRANSLATED_OK = {
     "T_PATH_CAP", "T_PATH_VAL", "T_PATH_PLAIN",
     "T_RNG_CAP", "T_RNG_VAL", "T_RNG_PLAIN", "T_RNG_TERM",
     "T_DECOY_CAP", "T_DECOY_VAL", "T_DECOY_PLAIN", "T_DECOY_TERM",
+    "T_KEY_CAP", "T_KEY_VAL", "T_KEY_PLAIN", "T_KEY_TERM",
     # The locked backup screen, moved onto the explainer shape. Born under the
     # English-only rule; English in the other twenty until the sweep.
     "I_KEF_HEAD", "I_KEF_EXP_B", "I_KEF_EXP_B_NP", "I_KEF_F1_C",
@@ -164,6 +164,43 @@ UNTRANSLATED_OK = {
     # ownership mismatch and the wrong network. Born under the English-only
     # rule; English in the other twenty until the sweep.
     "S_STOP_ASKS", "S_STOP_FP_B", "S_STOP_NOFP_B", "S_STOP_NET_B",
+    # The claim each of the two sparse SIGN explainers was missing: what
+    # sighash ALL buys you, and what a merge hands out. Born under the
+    # English-only rule; English in the other twenty until the sweep.
+    "S_D_SH_CAP", "S_D_SH_VAL", "S_WHY_MERGE_CAP", "S_WHY_MERGE_VAL",
+    # What a pass on the randomness audit LOOKS like, said in a line -- the
+    # page taught the method and the caveat and never the good outcome. Born
+    # under the English-only rule; English in the other twenty until the sweep.
+    "W_RNG_FAIR_H", "W_RNG_FAIR_B",
+    # The SIGNED screen's own row: the lock's label, the subtitle, the file
+    # caption and the three steps that replaced the two-line note. Born under
+    # the English-only rule; English in the other twenty until the sweep.
+    "S_OUTS_FIXED", "S_DONE_SUB2", "S_FILE_CAP",
+    "S_STEP_TAKE", "S_STEP_OPEN", "S_STEP_CAST",
+    # ...and the caption under the arrival motion. Born under the
+    # English-only rule; English in the other twenty until the sweep.
+    "S_MOTION_CAP",
+    # The block a locked transaction has to wait for -- the badge on the sign
+    # title line, and the caption on the card it opens. Born under the
+    # English-only rule; English in the other twenty until the sweep.
+    "S_LOCK_AFTER_FMT", "S_D_LT_CAP",
+    # The share of the payment that made a fee "high", said on the caution that
+    # says it. Born under the English-only rule; English in the other twenty
+    # until the sweep.
+    "S_C_HIGHFEE_PCT",
+    # The word over the input side's total, which was a bare figure floating
+    # between the caption and the graph. Born under the English-only rule;
+    # English in the other twenty until the sweep.
+    "S_IN_TOTAL",
+    # Where to put the file when a card holds none this device can read, and
+    # what REMOVE FILES costs before the slide. Born under the English-only
+    # rule; English in the other twenty until the sweep.
+    "S_FIX_SD", "S_RM_PERMANENT",
+    # What a refusal with no remedy says instead of 258px of nothing:
+    # no signature was made, and the coordinator builds it again. Born
+    # under the English-only rule; English in the other twenty until the
+    # sweep.
+    "S_STOP_NOSIG", "S_STOP_REDO",
     # The SIGN term cards. Born under the English-only rule; English in the
     # other twenty until the sweep.
     "T_PSBT_CAP", "T_PSBT_VAL", "T_PSBT_PLAIN", "T_PSBT_TERM",
@@ -225,6 +262,10 @@ UNTRANSLATED_OK = {
     "I_KEF_MAKE_BTN", "I_KEF_SHOW_S", "I_KEF_SHOW_NOTE", "I_KEF_SD_BTN",
     "W_KEF_BAD_T", "W_KEF_BAD_S", "W_KEF_BAD_B",
     "W_KEF_SD_T", "W_KEF_SD_S", "W_KEF_SD_EMPTY", "W_KEF_SD_NONE_B",
+    # The verified screen's body for a signer with NO passphrase: the same two
+    # claims without naming one the owner does not have. Born under the
+    # English-only rule.
+    "W_VOK_B_NP",
     # What the envelope does NOT hold, shown only when a passphrase is in use.
     # Born under the English-only rule, like the block it sits in.
     "I_KEF_PP_H", "I_KEF_PP_B", "I_KEF_WARN_S_PP",
@@ -253,7 +294,7 @@ UNTRANSLATED_OK = {
     # R_NEVER_HANDED, R_HANDED_ALREADY, R_SP_BTN and S_CMP_8 all ship already.
     # These eighteen are the ones with no equivalent.
     "K_FP_SUB", "K_CAP_PAIRING", "K_PAIR_SUB", "K_SP_SUB",
-    "K_EXPL_COORD", "G_TEST_CHIP", "R_TAB_THIS", "R_ENLARGE", "R_PATH_CAP",
+    "K_EXPL_COORD", "R_TAB_THIS", "R_ENLARGE", "R_PATH_CAP",
     "R_NEXT_ADDR", "R_LIST_COUNT", "R_TAB_SP", "R_ONE_EACH_SHORT", "R_USED_NOTE",
     "R_SP_ADDR_CAP", "R_SP_QR_SUB", "R_SP_EXPORT", "R_EXPL_SP",
     # RECEIVE's [ ? ] explainer, the last page to grow the mark. Born under
@@ -323,11 +364,12 @@ UNTRANSLATED_OK = {
     "W_RNG_NOSRC_B", "W_RNG_GO", "W_RNG_AGAIN",
     "W_RNG_CHI_CAP", "W_RNG_RANGE_CAP",
     "W_RNG_EVEN", "W_RNG_TOOEVEN", "W_RNG_RETRY", "W_RNG_PASS_NOTE",
-    # The third network and the chooser that names all three. Born under the
-    # English-only rule, like the KEF block above: the other twenty carry the
-    # English as a placeholder the sweep replaces.
-    "I_NET_SIGNET", "R_ON_SIGNET",
-    "I_NET_MAIN_NOTE", "I_NET_TEST_NOTE", "I_NET_SIGNET_NOTE",
+    # The third network's own line on RECEIVE. Born under the English-only
+    # rule, like the KEF block above: the other twenty carry the English as a
+    # placeholder the sweep replaces. Its five siblings went when the chains
+    # stopped being named four different ways -- kiss_net_name_of() prints the
+    # name now, untranslated, because a chain's name is a proper noun.
+    "R_ON_SIGNET",
     # The history switch: the Settings row, its chooser and the two truths the
     # ON row can tell. Born under the English-only rule, like the KEF block
     # above: the other twenty carry the English until the sweep.
@@ -421,6 +463,43 @@ UNTRANSLATED_OK = {
 }
 
 
+# The generated tables are written only on a clean run, so an ERROR used to
+# leave the LAST GOOD ONES on disk: exit 1, a message nobody had to read, and
+# main/i18n_tables.c still full of yesterday's strings. Everything downstream
+# then measured a build that no longer matched i18n/*.json -- the sim, the fit
+# gate, the walk, the 21 locale sweep -- and each of them reported clean about
+# strings that were not on the device. It cost a wrong reading in the middle of
+# the translation sweep: two locales had been applied, the generator had
+# refused on a THIRD, and the gates were still showing the wording from before
+# any of them.
+#
+# So a refusal now POISONS the tables instead of leaving them. One #error line
+# on top of the file they already are: nothing is lost, git diff shows one
+# added line, no build can succeed, and the next clean run overwrites the whole
+# file and takes the line with it. A gate that cannot be ignored is the only
+# kind worth having here -- exactly the argument the attribution hook makes.
+POISON = "#error i18n tables are STALE"
+
+
+def poison(why):
+    f = ROOT / "main" / "i18n_tables.c"
+    if not f.exists():
+        return
+    cur = f.read_text(encoding="utf-8")
+    if cur.startswith(POISON):
+        return
+    f.write_text(
+        f"{POISON} -- gen_i18n.py refused to write them.\n"
+        f"// {why}\n"
+        f"// Fix the string above, run tools/gen_i18n.py again, and this file\n"
+        f"// is rewritten without these lines. Nothing below has changed; it is\n"
+        f"// the last good build, which is why it must not compile.\n" + cur,
+        encoding="utf-8")
+    print("gen_i18n: main/i18n_tables.c POISONED -- it holds the last good "
+          "strings, so nothing may build against it until this is fixed",
+          file=sys.stderr)
+
+
 def main():
     errors = []
     warnings = []
@@ -504,6 +583,7 @@ def main():
     if errors:
         for e in errors:
             print(f"ERROR: {e}", file=sys.stderr)
+        poison(errors[0])
         return 1
 
     # ---- main/i18n_keys.h ----
@@ -556,12 +636,22 @@ def main():
         cs.update(ch for ch in native if ord(ch) > 0x7F)
         for k in keys:
             cs.update(ch for ch in tables[ident][k] if ord(ch) > 0x7F)
+    # NOT lat. gen_fonts.sh builds the Latin faces from the hardcoded LAT range
+    # list (0x20-0x7E, 0xA0-0xFF, 0x100-0x17F, ...) passed as -r, and cats
+    # glyphs_$L.txt only inside its `for L in ja ko zh` loops -- so glyphs_lat.txt
+    # had no reader anywhere in the repo. It looked like a signal and was not:
+    # a translation adding oe gained a character in that file, forced nothing,
+    # and cost a false "the device draws a blank box" before the cmap was read.
+    # The question it seemed to answer is already answered, as a hard error and
+    # not a diff to eyeball -- lat_covered() above, at the per-string check.
     for fc, cs in classes.items():
+        if fc == "lat":
+            continue
         txt = "".join(sorted(cs))
         (fontdir / f"glyphs_{fc}.txt").write_text(txt + "\n", encoding="utf-8")
         print(f"glyphs_{fc}.txt: {len(cs)} non-ASCII glyphs")
 
-    # tile-title glyphs (H_TILE_*) for the 23px wallet-home fonts: keep these
+    # tile-title glyphs (H_TILE_*) for the 23px home fonts: keep these
     # subsets tiny, the 23px size exists only for the four home tiles
     for stem, ident, fc, _nat in LOCALES:
         if fc == "lat":

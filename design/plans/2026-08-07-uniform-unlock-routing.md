@@ -1,6 +1,6 @@
 # Uniform Unlock Routing Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> Worked through step by step; steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make a configured device and a factory fresh one answer every unlock gesture identically, so the device stops disclosing that a hidden wallet exists.
 

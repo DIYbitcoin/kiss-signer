@@ -67,7 +67,7 @@ void       wt_lock_565(int *r5, int *g6, int *b5);
 // Montserrat (ASCII HUD only). 40/48pt stay built-in (digits/symbols only).
 const lv_font_t *wt_font14(void);
 const lv_font_t *wt_font14_for_lang(int lang);  // native-name rows in the language picker
-const lv_font_t *wt_font23(void);   // wallet-home tile titles (baked-art size)
+const lv_font_t *wt_font23(void);   // home tile titles (baked-art size)
 const lv_font_t *wt_font28(void);
 // Page titles + primary buttons. Latin/Cyrillic get a real 34px face;
 // CJK locales get 28 (no CJK face exists at 34, and CJK glyphs already
@@ -405,11 +405,45 @@ void wt_fit_set_sink(wt_fit_sink_t fn);
 //   "long"  a word over three syllables in the same place, outside a
 //           TECHNICAL line, where the real terms are allowed to be as long as
 //           the standard made them. `want` is the syllable count.
+//   "mark"  a wt_value_card CAPTION that is a clause rather than a name. The
+//           caption is font14 because it is an eyebrow over a figure --
+//           FINGERPRINT over a fingerprint -- so prose in that slot puts the
+//           half an owner has to READ in the mark size. Nothing overflows and
+//           no font is chosen, so every fit helper above is happy and blind.
+//           `want` is the word count; `lane` is WT_CAP_MAX_WORDS, or 0 when
+//           the tell was the leading word rather than the length.
+//   "widow" a body that wraps to TWO lines and leaves a stub on the second.
+//           `want` is that line's width, `lane` the body's. Nothing in the
+//           source says a paragraph is two words too long -- the string looks
+//           fine and every fit helper is happy -- and the settings explainer
+//           shipped "Keys come from your seed words and / passphrase." that
+//           way. English only, like the two above: the wrap is simulated the
+//           way LVGL breaks Latin text.
 typedef void (*wt_cut_sink_t)(const char *kind, const char *txt,
                               int want, int lane);
 void wt_cut_set_sink(wt_cut_sink_t fn);
+
+// Called at the TOP of wt_screen, before it allocates anything, with the
+// title it is about to build. The gate uses it to sample the LVGL heap at the
+// one moment no settled-screen check can reach: while the screen being
+// replaced is still fully resident and its replacement has started. NULL in
+// firmware, one null check on the way in.
+typedef void (*wt_screen_sink_t)(const char *title);
+void wt_screen_set_sink(wt_screen_sink_t fn);
 #define WT_READ_MAX_WORDS 14
 #define WT_READ_MAX_SYLL   3
+// A caption NAMES the figure under it, and the count is the BACKSTOP half:
+// the leading-word list is what catches the two that came off the bench, and
+// both of those are three and four words long.
+//
+// FOUR, not three, and the first run of this check is why. Three caught
+// "VERSION ON THE CARD" over 99.0.0 on the firmware signature screen -- a
+// noun phrase, naming exactly what is under it, reading correctly at font14.
+// A limit that reds a correct name is a limit nobody acts on, and the fix
+// would have been to shorten a string shipped in 21 locales to satisfy a
+// number invented the same afternoon. Five words is where a caption stops
+// being a name: SOURCE 1 WHAT YOU POINT AT is six.
+#define WT_CAP_MAX_WORDS   4
 #endif
 lv_obj_t *wt_section(lv_obj_t *scr, const char *txt, int x, int y);  // column caption
 
@@ -484,13 +518,19 @@ lv_obj_t *wt_diagram_airgap(lv_obj_t *parent);
 // signature exists. Colour is never the only cue for any of them -- each row
 // carries the glossary's own mark for what it is, so the fee is told from the
 // send by a pair of scissors and not by a shade of white.
-// WT_STRAND_LINKED is an input on a spend wide enough to raise the coins
-// linked caution. It is the same strand in WT_WARN, and it is the caution
-// DRAWN: the convergence on the junction is what the warning is describing, so
-// the screen can point at it instead of asking the reader to picture it.
+// A FLAGGED strand is the same strand in WT_WARN, and it is the caution DRAWN:
+// the thing the warning is about, pointed at, instead of a sentence asking the
+// reader to picture it. It is a flag and not a role because every role can be
+// flagged and the role still has to survive -- a flagged change output is still
+// change, and it goes back to the accent the moment the hold begins.
+//
+// It replaced WT_STRAND_LINKED, which was the linked-inputs caution wearing the
+// same amber as its own private role. One caution had a colour and the other
+// four did not, so a fee that was most of the transaction drew exactly like a
+// fee that was nothing, and dust change drew like change.
+//
 // Appended, never inserted -- these are stored in the widget by value.
-enum { WT_STRAND_IN = 0, WT_STRAND_SEND, WT_STRAND_FEE, WT_STRAND_CHANGE,
-       WT_STRAND_LINKED };
+enum { WT_STRAND_IN = 0, WT_STRAND_SEND, WT_STRAND_FEE, WT_STRAND_CHANGE };
 
 // Strands the graph can hold in total. Five is what the elision leaves on the
 // input side at any coin count (first two, the group, last two). The output
@@ -503,9 +543,16 @@ enum { WT_STRAND_IN = 0, WT_STRAND_SEND, WT_STRAND_FEE, WT_STRAND_CHANGE,
 
 typedef struct {
     uint64_t    sats;
+    // The row's MARK, its own object so it can take the accent while the words
+    // beside it stay muted. It used to be the first two characters of `label`,
+    // which made the pair one label and one colour -- so a change row wearing
+    // the accent wore it on the word CHANGE as well, and the marks that are
+    // not change could not wear it at all.
+    const char *mark;
     const char *label;      // the words beside the amount; NULL for a bare input
     uint8_t     role;       // WT_STRAND_*
     bool        signed_ok;  // repaint this strand in wt_accent(): its signature landed
+    bool        flagged;    // a caution points AT this strand: draw it in WT_WARN
     bool        is_group;   // the elided middle: dashed, and holds group_n coins
     uint16_t    group_n;
     // A row that reserves its place and its words but has no strand and no
@@ -654,6 +701,13 @@ lv_obj_t *wt_addr_short(lv_obj_t *par, const char *addr, const lv_font_t *f);
 // than an object. Mono is not optional on the result: the fold only helps if the
 // characters either side of the ellipsis are readable one at a time.
 void wt_addr_fold(const char *addr, char *out, size_t len);
+// A NAME folded to a pixel lane, keeping its tail. A filename is DATA and the
+// end of it is the half that tells two files apart -- "payment-01.psbt" and
+// "payment-02.psbt" are the same string until the last six characters, so
+// LONG_DOT's head-only "payment-0..." names neither. Writes `name` unchanged
+// when it already fits. Returns out.
+const char *wt_name_fold(const char *name, const lv_font_t *f, int lane,
+                         char *out, size_t len);
 // A status badge: `col` border, 5 percent `col` fill, radius 100, label at
 // font14 in `col` with 1px tracking. Sizes itself to its text. This is what a
 // state reads as in the design review, and it is not a control: no press states,
@@ -669,6 +723,14 @@ void      wt_state_chip_set(lv_obj_t *chip, const char *txt, lv_color_t col);
 // Objects that wear the accent and must be repainted when it changes. A user
 // flag rather than a list, because eyebrows and chevrons are built by shared
 // helpers in six files and any list of them is a list that goes stale.
+// A paragraph spangroup whose FULL STOPS wear the accent, and nothing else.
+//
+// Its own flag, because WT_FLAG_ACCENT paints the object's whole text and a
+// paragraph's ordinary runs carry no span style of their own -- they inherit
+// the group's colour, which is what lets a caller recolour one the way it
+// recoloured the label this replaced. Flagged as ACCENT, a theme change turned
+// EVERY SENTENCE on the device the accent colour. Only the stops.
+#define WT_FLAG_ACCENT_STOPS LV_OBJ_FLAG_WIDGET_2
 #define WT_FLAG_ACCENT LV_OBJ_FLAG_USER_1
 // The accent is not always TEXT. A flag that only ever meant "repaint the text
 // colour" silently did nothing on the two objects that carry the accent without
@@ -698,7 +760,40 @@ void      wt_state_chip_set(lv_obj_t *chip, const char *txt, lv_color_t col);
 //                          LV_PART_MAIN only -- a scrollbar painted with the
 //                          accent and no flag is correct once and stale for
 //                          every theme after.
-#define WT_FLAG_ACCENT_SCROLL LV_OBJ_FLAG_USER_1
+// LAYOUT_2, and it has to be something other than USER_1. It WAS USER_1 --
+// the same bit as WT_FLAG_ACCENT, three lines of comment above it describing
+// a separate channel. All four USER bits were already spoken for, so the flag
+// that arrived last silently became an alias for the one that arrived first:
+// every scrollbar-flagged list also had its LV_PART_MAIN text colour set on a
+// theme change, and every one of the hundreds of accent-flagged objects had a
+// scrollbar colour set on a part most of them do not have. Neither is visible,
+// which is exactly why it survived -- an aliased flag fails silently in both
+// directions by construction.
+//
+// LVGL reads LAYOUT_2 in one place, lv_obj.c's flag setter, where changing it
+// marks the layout dirty. wt_list_scrollbar adds it once while the list is
+// being built and never removes it, so the cost is one invalidation on a tree
+// that is about to be laid out anyway.
+//
+// NOT a WIDGET bit: WIDGET_1 is WT_FLAG_TINY_OK here AND
+// LV_MSGBOX_FLAG_AUTO_PARENT in LVGL, WIDGET_2 is WT_FLAG_ACCENT_STOPS. This
+// device builds no msgbox, so that pair is quiet today and is not somewhere to
+// put a third meaning.
+#define WT_FLAG_ACCENT_SCROLL LV_OBJ_FLAG_LAYOUT_2
+
+// The seven flags above must live on seven different bits, and until now
+// nothing said so -- two of them shared one for as long as the second existed.
+// A sum equals an OR exactly when no bit is set twice, so this is the whole
+// check, and it fails at COMPILE time rather than as a repaint nobody sees.
+#define WT_FLAGS_OR  (WT_FLAG_TINY_OK | WT_FLAG_ACCENT_STOPS | WT_FLAG_ACCENT | \
+                      WT_FLAG_ACCENT_BORDER | WT_FLAG_ACCENT_BG | \
+                      WT_FLAG_ACCENT_FILL | WT_FLAG_ACCENT_SCROLL)
+#define WT_FLAGS_SUM ((unsigned)WT_FLAG_TINY_OK + (unsigned)WT_FLAG_ACCENT_STOPS + \
+                      (unsigned)WT_FLAG_ACCENT + (unsigned)WT_FLAG_ACCENT_BORDER + \
+                      (unsigned)WT_FLAG_ACCENT_BG + (unsigned)WT_FLAG_ACCENT_FILL + \
+                      (unsigned)WT_FLAG_ACCENT_SCROLL)
+_Static_assert((unsigned)WT_FLAGS_OR == WT_FLAGS_SUM,
+               "two WT_FLAG_* share a bit: one silently aliases the other");
 // Repaint every flagged object under scr. Call after wt_accent_set.
 void wt_accent_restyle(lv_obj_t *scr);
 
@@ -720,6 +815,11 @@ lv_obj_t *wt_row_head(lv_obj_t *scr, const char *txt, int x, int y, int w);
 // the extra four pixels only bought air inside the card. Redraw 05 draws 56 for
 // its smaller type; 64 is the same proportion at the type this device has.
 #define WT_ROW_H 64
+// The air between a row's label and its sub-line, on a TALL row only. A 64px
+// row has none to give: its label owns 7..37 and its sub owns the rest. A
+// CHOICE row is 94 and had the same 3px, which reads as one block of text
+// rather than a heading and a line under it.
+#define WT_ROW_SUB_GAP 10
 // Severity of a row CARD, applied after wt_row builds it. Redraw 05 tints the
 // whole box rather than one note inside it, so a group reads before its words
 // do: green for a state already satisfied, amber for a warning about the
@@ -835,6 +935,8 @@ typedef struct {
     const char *icon;
     const char *label;
     bool        dot;    // a 7px WT_WARN mark: something in this group wants reading
+    // DECIDED: the destructive group is a TAB with its own tint and cross-fade, not a row
+    // buried on another page.
     bool        stop;   // the destructive group, in WT_STOP_INK on a WT_STOP tint
 } wt_tab_t;
 // Builds `n` tabs left to right from (x, y); the one at `sel` wears the
@@ -1004,6 +1106,12 @@ lv_obj_t *wt_help_mark(lv_obj_t *par, int x, int y);
 // handoff asks for the delete, and a delete that duplicates the framework is
 // dead code that reads like a safety net.
 lv_obj_t *wt_title_cursor(lv_obj_t *scr);
+// The cursor a wt_chrome_head already built, for a screen that then moves the
+// title out from under it -- the SIGNED page puts a tick before the word, so
+// the block measured off x=48 lands in the middle of it. Same tagged lookup
+// wt_screen_title uses, and for the same reason: the cursor is not at a child
+// index anything may rely on.
+lv_obj_t *wt_screen_cursor(lv_obj_t *scr);
 
 // The bracketed tab row's shared geometry (wt_tabs_flex draws it now; the
 // fixed-pitch wt_brackets strip it replaced is gone).
@@ -1122,15 +1230,22 @@ lv_obj_t *wt_standing(lv_obj_t *scr, const char *txt, lv_color_t col,
 // pinned by its RIGHT edge to x=752 -- the mark's rendered width varies with
 // the glyph metrics, so a computed left edge drifts. All three parts wear the
 // accent in every state; unlike a content tab its brackets never dim, because
-// it is always available.
+// it is always available. The MARK is font23 and not the font14 every other
+// mark wears -- see the body -- and the tab carries a 12px ext click area, so
+// the target is 87x54 while the drawing stays inside the 30px strip.
 //
-// `hint`: until [ ? ] has been opened once on this device, the mark breathes
-// and the band's left lane carries this lowercase line -- but only a page
-// whose left lane is empty may say it, so a page with its own action passes
-// NULL and keeps the breathing mark alone. The kit stays string-free: the
-// caller translates. Both stop for good on the first open, wherever it
-// happens: the tab flips wt_help_seen itself, then calls `cb` to let the
-// page swap its lane for the explainer.
+// The tab BREATHES on the attention dots' rhythm -- 100..255 over 1200ms,
+// wt_dot_breathe's own values -- whenever it has something to say: until
+// [ ? ] has been opened once on this device, and on any page whose count is
+// above zero. Still means read.
+//
+// `hint`: the first-run half also puts this lowercase line in the band's left
+// lane -- but only a page whose left lane is empty may say it, so a page with
+// its own action passes NULL and keeps the breathing mark alone. The kit stays
+// string-free: the caller translates. The line and the first-run breathe both
+// stop for good on the first open, wherever it happens: the tab flips
+// wt_help_seen itself, then calls `cb` to let the page swap its lane for the
+// explainer. A count's breathe outlives that and ends when the count does.
 lv_obj_t *wt_help_tab(lv_obj_t *scr, const char *hint,
                       lv_event_cb_t cb, void *ud);
 // The same tab with a COUNT: [ ? 3 ] means three of this page's terms have
@@ -1170,7 +1285,44 @@ typedef struct {
     const char *cap;   // upper case, mono21 ls2, the accent
     const char *val;   // mono23, WT_MUT
     const char *icon;  // optional SYMS glyph; NULL for no mark
+    // The MARK's colour, and only the mark's: a caution keeps its captions
+    // and values in the page's own inks and lets the glyph carry the
+    // severity. Zero takes the accent, so every existing three field
+    // initialiser is unchanged. Same rule wt_gate states at length -- one
+    // amber thing on a screen an owner can still walk back from.
+    lv_color_t  icon_col;
 } wt_fact_t;
+// The fact ROWS on their own, at a y the caller picks: a caption on a 214px
+// lane that never wraps, its mark, and the value beside it. wt_explain draws
+// its own headline and paragraph and then calls this; a screen whose top band
+// is already a card -- a histogram, an equation, a fingerprint -- calls it
+// directly under the card and gets the identical rows.
+//
+// It is what replaced the two wt_why_blocks. That pair was the device's way
+// of saying two things for a year and it was two paragraphs of grey in a
+// 344px column, which is a wall with a rule down the side of it. Returns the
+// y it finished at.
+//
+// The caption lane. Fixed, and the same on the page and inside a card,
+// because a caption lane that moved from screen to screen would stop being
+// one lane. It was 214 while the caption was set at chrome23; the caption is
+// the larger face now, so the lane grew with it and the value -- a rung
+// smaller -- gives the width back.
+#define WT_FACT_CAP_W 300
+// The glass an explainer leaves between its last fact and the band above the
+// action row. One number, so every teaching page ends in the same place, and
+// 14 because 14 is the pad the rows already sit on between themselves.
+#define WT_FACT_BAND_GAP 14
+int wt_facts(lv_obj_t *scr, int y, const wt_fact_t *facts, int n);
+// How tall n rows will be, so a caller can place the block against the
+// bottom of its content instead of the top. Same arithmetic wt_facts_in
+// walks, asked without building anything.
+int wt_facts_height(const wt_fact_t *facts, int n);
+// The same rows inside something that is not the page: a card, a pane. (x, w)
+// replace the content lane, and the caption keeps its 214px because a caption
+// lane that moved from screen to screen would stop being one lane.
+int wt_facts_in(lv_obj_t *par, int x, int y, int w,
+                const wt_fact_t *facts, int n);
 void wt_explain(lv_obj_t *scr, const char *headline, const char *para,
                 const wt_fact_t *facts, int n);
 // The same page with ONE term of the paragraph emphasized -- rendered in INK
@@ -1178,6 +1330,15 @@ void wt_explain(lv_obj_t *scr, const char *headline, const char *para,
 // emphasis). `hi` must appear verbatim in `para`; absent, this is wt_explain.
 void wt_explain_hi(lv_obj_t *scr, const char *headline, const char *para,
                    const char *hi, const wt_fact_t *facts, int n);
+// The same page on a screen whose band is not at WT_CONTENT_BOTTOM. The rows
+// hang from `bottom`, so pass WT_ACTION_Y_SLIDE on a screen carrying a slide.
+//
+// A builder names its own line rather than asking the tree: it has not placed
+// the band yet, and a page reached by BACK is built while the page it came
+// from is still waiting on lv_obj_delete_async, so the tree would answer with
+// the old screen's geometry. Same rule wt_is_slide_band states at length.
+void wt_explain_to(lv_obj_t *scr, const char *headline, const char *para,
+                   const wt_fact_t *facts, int n, int bottom);
 
 // The in-place definition (Part 3). Tap a row and its explanation opens where
 // the row already is; the others collapse to 34px ghosts to make the room.
@@ -1262,10 +1423,13 @@ void wt_def_row_read(lv_obj_t *list, int idx);
 typedef struct {
     const char *mark;       // the gate's glyph; NULL takes WT_ICON_ERASE
     const char *sentence;   // one line, mono28, the danger ink
-    const char *para;       // two lines max at 690, mono18, WT_MUT
+    const char *para;       // the body at 690, laddered 23 -> 18 with the facts
     const char *warn;       // optional one-liner under the para, WT_WARN
-    const char *surv_cap, *surv;   // WHAT SURVIVES, and its answer
-    const char *goes_cap, *goes;   // WHAT DOES NOT, and its answer
+    // The two answers, each behind a MARK rather than a caption. WHAT SURVIVES
+    // and WHAT DOES NOT cost a 168px lane to say what a tick and a cross say,
+    // and that lane is what kept the answers themselves at mono18.
+    const char *surv;       // behind a tick
+    const char *goes;       // behind a cross
     bool        stop;
 } wt_gate_t;
 void wt_gate(lv_obj_t *scr, const wt_gate_t *g);
@@ -1454,41 +1618,24 @@ lv_obj_t *wt_alert_chip(lv_obj_t *scr, const char *txt,
 lv_obj_t *wt_value_card(lv_obj_t *scr, const char *cap, const char *val,
                         int x, int y, int w, bool big);
 
-// A note with a coloured rule down its left edge: optional heading in WT_INK,
-// body in WT_MUT, a 3px bar in `col`. The review's "why it matters" and "how
-// you'll use it" pattern. Two of these side by side turn a centred paragraph
-// nobody reads into two claims somebody can, which is the whole reason it
-// exists. Pass head as NULL for body only. Pass f as NULL to take the largest
-// size that fits `max_h`, so a short claim reads big and a long translation
-// shrinks rather than overflowing; pass a font to make several blocks share one
-// size. Returns the block so the caller can measure it.
-// One shared size for a PAIR of blocks: the smaller of the two rungs, since
-// the taller half decides whether either fits. Never pick by strlen.
-const lv_font_t *wt_body_font2(const char *a, const char *b, int w, int max_h);
-// Same, for a pair of why-blocks WITH headings. Measures the headings rather
-// than charging the caller a constant for the worst case they might reach.
-// The heading rung a why-block body implies: font14 only when the body is.
-const lv_font_t *wt_why_head_font(const lv_font_t *body);
-const lv_font_t *wt_body_font2_head(const char *h1, const char *b1,
-                                    const char *h2, const char *b2,
-                                    int w, int max_h);
 
-lv_obj_t *wt_why_block(lv_obj_t *scr, const char *head, const char *body,
-                       int x, int y, int w, int max_h, const lv_font_t *f,
-                       lv_color_t col);
+// THE BODY. Splits the string on its blank lines, picks the largest rung the
+// whole thing fits at, and draws one label per paragraph on the content lane
+// from `y` down to `bottom` (WT_CONTENT_BOTTOM for the short form). A body
+// that will not fit at the floor is reported through the FIT sink rather than
+// shrunk further: the copy is what has to give.
+//
+// One paragraph, one label, deliberately. A single label holding two claims
+// and the blank line between them is a wall of text to the BARE gate and to a
+// reader, however short each claim is.
+//
+// There used to be a second arrangement -- two grey columns with a coloured
+// rule down the side of each -- and it is gone. Two claims are a pair of
+// wt_facts rows now: a caption, a mark, and a value the owner can read in one
+// line. The rule was the thing the bench kept sending back.
+void wt_body_para_to(lv_obj_t *par, const char *body, int y, int bottom);
+void wt_body_para(lv_obj_t *par, const char *body, int y);
 
-// A whole explainer body as ruled blocks, filling the room from `y` down to
-// WT_CONTENT_BOTTOM. Splits the string on its blank lines and picks whichever
-// of full width or two balanced columns reads best at the largest font that
-// fits, so a screen gets the reveal screen's arrangement without hand placing
-// anything. `sev` colours the first block (accent, or a status colour when the
-// screen is a warning); the second is always WT_MUT.
-//
-// Costs nothing to translate: it splits copy that already exists.
-// `two_col`: true on a full screen, where 2+ paragraphs should become two
-// columns rather than one wide block; false on the explainer overlay, whose
-// full width arrangement is tuned and approved.
-//
 // The term line under a definition or an explainer body: the LABEL on a fixed
 // 150px lane at chrome23 ls2 WT_MUT, then the real term beside it at ls 0 in
 // the accent. One line, never wrapping -- a term that would wrap gets a
@@ -1504,18 +1651,6 @@ lv_obj_t *wt_term_line(lv_obj_t *par, const char *label, const char *term,
                        int x, int y, int w);
 
 
-// THE FLOOR IS 21, and 23 where the body cannot be set in mono. There is no
-// font14 rung: a body is what an owner READS and 14 is what this device sets
-// MARKS in. A body too long for its room reports through the fit sink instead
-// of shrinking out of sight, so the copy is what gives.
-void wt_why_body(lv_obj_t *par, const char *body, int y, lv_color_t sev,
-                 bool two_col);
-// The same, stopping at `bottom` instead of WT_CONTENT_BOTTOM, for a page
-// that puts something UNDER the body -- a term line, a page-2 rule. Passing
-// the real floor is what keeps the body measuring against the line it will
-// land on rather than against the room it happens to be in.
-void wt_why_body_to(lv_obj_t *par, const char *body, int y, int bottom,
-                    lv_color_t sev, bool two_col);
 
 // ---- the explainer card, behind every "?" on the device ----
 // Title top left like any other page, an optional icon badge on the title's row,

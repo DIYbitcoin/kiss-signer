@@ -4,15 +4,30 @@ All notable, user-facing changes to KISS Signer. Dates are ISO (YYYY-MM-DD).
 This is a Bitcoin signer, so entries are written so a non-developer can tell what
 changed and why it matters. Versions follow the firmware tags.
 
-## [Unreleased]
+## [0.1.0-beta8], 2026-09-03
 
-The fee on the screen. A signature over a SegWit coin only covers *that* coin's
-amount, so a coordinator can understate what the other coins are worth, the
-device subtracts and shows a fee lower than the one that will actually be paid,
-and the difference goes to a miner. The signer now proves those amounts whenever
-the transaction lets it, and says so plainly when it cannot. Found and fixed
-first by odudex in Krux (release 26.08.0); the reading of the attack and the
-wording of the warning are theirs.
+Every screen on this device was redrawn. Beta7 was a set of pages that each
+solved their own layout; this is one system. Words are set in one typeface and
+the things you check character by character in another, a fact is a line that
+opens its own explanation where it stands, an action is an arrow on the band at
+the bottom, and nothing is drawn inside a box any more. Every page with
+something to teach carries a "?" in the same corner, and the ten terms this
+device has to explain are written once and read from one table.
+
+The other half of the release is the fee on the screen. A signature over a
+SegWit coin only covers *that* coin's amount, so a coordinator can understate
+what the other coins are worth, the device subtracts and shows a fee lower than
+the one that will actually be paid, and the difference goes to a miner. The
+signer now proves those amounts whenever the transaction lets it, and says so
+plainly when it cannot. Found and fixed first by odudex in Krux (release
+26.08.0); the reading of the attack and the wording of the warning are theirs.
+
+And the device speaks twenty one languages again. Every screen was rebuilt
+during this release, so every translation was describing screens that no longer
+existed; all twenty have been rewritten against the English that actually ships,
+and then cut again to fit the space each string is given. That second pass found
+things no gate had ever reported, because until it ran, most languages could not
+even be walked end to end.
 
 ### Removed
 
@@ -35,6 +50,33 @@ wording of the warning are theirs.
 
 ### Fixed
 
+- **The sign screen could crash while you were reading it.** Opening the
+  glossary from a payment closed the page underneath before the slide bar had
+  finished with it, and the device read memory that was already gone. It showed
+  up in Turkish because the crash needs the slide to be mid gesture when the
+  page changes, and how long the text is decides that, but nothing about it was
+  Turkish. Any language could have hit it.
+- **A time locked payment said nothing about being time locked, in Dutch and
+  Russian.** The badge that names the block a payment cannot be sent before was
+  dropped whenever the title line ran out of room, and those two languages have
+  a long word for SIGN. The network chip gives up its place now instead: it is
+  the one that can go, because the network is on the DETAILS page as well and
+  the locktime badge exists precisely because its own DETAILS row was too easy
+  to miss.
+- **Five blank boxes where Russian should have said how your keys were made.**
+  The value on that card was drawn in the face this device keeps for things you
+  compare character by character, and that face carries no Cyrillic, no accents
+  and no CJK. Swedish read S[]KERHETSKOPIA on the same card. It asks for a face
+  that can draw the value now; a fingerprint or an address still gets the old
+  one, because those are the things worth comparing.
+- **The BACKUP VERIFIED screen was in English in nineteen languages.** It had
+  been since the string was added: the English was copied into every locale
+  file, so it looked translated to every check that asks which strings are stale.
+- **A Vietnamese heading was the same words as the button beside it.** On the
+  firmware downgrade confirm, the heading and the BACK action both read QUAY LẠI.
+- **German named software that does not exist.** The screen that tells you what
+  to pair with said BlueKoordinator, where the product is BlueWallet. A pass
+  that replaced the word wallet with coordinator took the proper noun with it.
 - **The amount of every coin is now read from the transaction that created it**,
   whenever your coordinator sends that transaction along. That previous
   transaction has to hash to the exact coin being spent, so its amount cannot be
@@ -42,20 +84,47 @@ wording of the warning are theirs.
   at the coordinator's word even when the proof was sitting in the same file.
 - **A coordinator that contradicts itself about a coin is refused**, rather than
   the signer picking whichever number it read first.
+- **Recovery words no longer sit in freed memory after a QR is read.** The QR
+  decoder's scratch space holds whatever it just decoded, and what it just
+  decoded can be a seed. That block went back to the allocator without being
+  wiped, so the words survived in freed memory for as long as nothing else
+  claimed it. It is zeroed now, before the block is handed back. Found in an
+  audit of this repository.
+- **The silent payment scan key no longer sits in freed memory after its screen
+  closes.** The same shape one page over, with a private key in it: the export
+  screen handed the key to a label, and the label's own copy was freed unwiped
+  when the screen went away. Every copy is zeroed now, on both ways out,
+  including the idle lock.
+- **A refused erase no longer leaves half the gesture spent.** Erasing takes two
+  strokes. When the erase itself failed, the message saying so was drawn over
+  the confirm screen, and dismissing it uncovered a slide still holding the
+  first stroke, so one more finished the job. A refused attempt costs both
+  strokes again. It was found by a sweep in Polish; in English the walk's second
+  stroke happened to land on empty glass.
+- **RECEIVE had two address pickers and they disagreed about which address you
+  meant.** A short list under the caption and the full ALL ADDRESSES page kept
+  separate positions, so paging one and coming back to the other showed the
+  wrong index. There is one picker now, and the page it opens on is computed
+  from the address you are looking at.
 
 ### Changed
 
-- **The camera audit is gone.** It took one photo, hashed it, turned the hash
-  into twelve real recovery words and wrote the photo to the card so you could
-  repeat the sum on a computer. What it proved was true and narrow: that this
-  device derives words from what you give it and nothing else. What it also did
-  was hand you a genuine, spendable set of words made from a completely unjudged
-  photo, on a device where every other way of making a seed now checks its
-  input. A lens cap made a wallet. It was labelled public and never for funds,
-  and a label is not a safeguard. The RANDOMNESS AUDIT, which counts 5000
-  numbers from the chip and scores the spread, is untouched and is now what the
-  AUDIT door opens.
-
+- **Text that used to be cut off mid word now fits.** Roughly four hundred
+  places across the twenty translations were longer than the space they had, so
+  the device either clipped them at the edge or replaced their second half with
+  dots. The confirm bars were the worst of it: SLIDE TO INSTALL is three words
+  in English and five in Polish, and there is no smaller readable size to fall
+  back to, so every language now says it in a shorter shape. Where the shorter
+  word was also the more correct one, it was taken: several languages were still
+  saying their term for recovery words on screens that mean seed words.
+- **KEYS, RECEIVE, SETTINGS, SIGN, the words screen and FIRMWARE were rebuilt on
+  one system.** KEYS opens with the fingerprint across the top in two blocks of
+  four, which is how a person reads eight characters aloud, and names who to
+  check it against. RECEIVE is three tabs and the address unfolds where it
+  stands. SIGN's DETAILS became one subject per tab. The teaching lines in
+  settings are sentences at a size you can read rather than fine print, which
+  was the single most repeated complaint about the old screens. Nothing about
+  how a key is derived or a transaction is signed changed with any of it.
 - **A passphrase the device thinks is guessable is refused, not warned about.**
   Creating one used to put USE ANYWAY under a card explaining that a short
   passphrase is easier to guess, selected, at the moment in setup you are least
@@ -140,6 +209,62 @@ wording of the warning are theirs.
   sealed card are now mixed with a measurement of the device's own timing,
   which does not run through that generator and so cannot fail with it. Cards
   written before this still open: a device keeps the key it already minted.
+- **One confirm gesture, everywhere.** Every press and hold became a slide:
+  press the bar, drag right, the fill follows your finger, and the action fires
+  when you lift at the far end. It replaces timers of 900 to 2000 milliseconds
+  on showing the words, showing the scan key, moving storage, erasing,
+  installing firmware, changing the duress word, writing an encrypted backup,
+  deleting a file, and SLIDE TO SIGN. What counts is how far the finger
+  travelled rather than where it landed, so a brush against the end of the bar
+  completes nothing.
+- **Erasing takes two strokes, in opposite directions.** It is the one action on
+  this device with no undo, and it was guarded by a two second hold, which a
+  thumb resting in a pocket satisfies exactly as well as a decision does. The
+  first stroke runs left to right and parks, the word becomes ONCE MORE, the
+  second comes back the other way, and the erase happens when you lift.
+- **The recovery words are shown as a grid you can read aloud.** Twelve to a
+  sheet in three columns of four, the number small and the word carrying, which
+  is the shape of the thing you are copying onto paper one line at a time.
+  Getting there is an amber gate like every other caution on the device, the
+  sheets go forward only, and DONE appears on the last one, so leaving happens
+  after you have seen every word. The band says who can spend these coins for as
+  long as they are up.
+- **The scan key export has one door, and it is KEYS.** It used to be reachable
+  from RECEIVE as well, and an export of a private key with two entry points is
+  two consent flows to keep in step. RECEIVE still tells you the export exists
+  and where it lives. Sharing it now stands behind the same amber gate as the
+  words.
+- **Taproot signatures are plain BIP340, so somebody else can reproduce them.**
+  Firmware that chooses its nonces badly can leak the seed through the
+  signatures it produces, and the defence, a nonce fixed by the key and the
+  message, is only worth something if you can check it: sign the same
+  transaction on a signer you trust independently and compare the bytes. This
+  signer used a nonce rule of its own, so the only thing that could check it was
+  another KISS, on the one path where an outside check is worth the most. It now
+  uses the standard rule with the standard empty auxiliary input, so any BIP340
+  signer holding the same key produces the same signature. Silent payment
+  signatures come out with different bytes than before; no key, no address and
+  no transaction is affected.
+- **The BIP39 test vector is accepted, and nothing else that carries no secret.**
+  "abandon" eleven times and "about" is printed on every BIP39 page there is, so
+  keys made from it are keys the whole internet can spend. It was refused along
+  with every other empty seed, and that left this device unable to hold the one
+  seed every test transaction in this repository is built against, on the one
+  flow no simulator can check. The exception is exactly one phrase wide: it is
+  compared as a string, and 32 zero bytes, the 0x80 vector and a phrase of one
+  repeated word are refused exactly as before. Never put coins on it.
+- **The words on screen were made to match the rest of bitcoin.** This is a
+  signing device, what it holds is keys, and a wallet is the thing your
+  coordinator watches. The screens say that consistently now, a coordinator is
+  called a coordinator wherever one is mentioned, and the backup is recovery
+  words rather than a phrase.
+- **The game behind the cover is a game again.** It dealt the same round on every
+  power cycle, the best score died with the power, and the blade cut where the
+  finger was rather than where the stroke went. All three are fixed, and there
+  are waves, a gold fruit worth three seconds of frenzy, and a combo banner.
+- **The DETAILS line about sighash ALL no longer overclaims.** It said signatures
+  cover every amount above. They cover every destination and its amount; the
+  amounts going *in* are the thing this release is about.
 
 ### Added
 
@@ -199,21 +324,6 @@ wording of the warning are theirs.
   wrong last word, tick or cross — and a wrong word can never hide, which is
   why a typo in a restore is always caught.
 
-- **CAMERA AUDIT: the camera path can now be audited on any computer.** The WHY
-  THREE SOURCES card used to end by conceding that all three sources are made
-  by this device and pointing doubters at dice. It now also offers the
-  camera's own answer: a proof run that captures one frame, writes those exact
-  bytes to the SD card as `kiss-proof.bin`, and shows the SHA256 of that file
-  plus the 24 words that hash alone derives to — through the same BIP39 code
-  the real wizard uses. Hash the file on any computer and feed the result to
-  any BIP39 tool (or run `tools/verify_proof.py`): file, hash and words must
-  all agree, or the device lied. The words are burned — they sit on the card
-  in the open, the screen says so in red, and they never touch the quiz or
-  storage. Real seed creation is unchanged: three sources, same mix. Krux
-  showed the way by exposing entropy hashes for off-device checking; the
-  burned-proof shape is ours, since our camera seed mixes sources that no
-  export could ever verify.
-
 - **The dice screen now judges the rolls, not just counts them.** Before, fifty
   presses of one key made a "valid" seed: the hash whitens whatever goes in, so
   the words always look perfect and nothing downstream can tell. Six live
@@ -236,12 +346,42 @@ wording of the warning are theirs.
   address are not affected, and neither is a single coin spend.
 - **DETAILS marks each coin**: a tick where a previous transaction vouched for
   the amount, a struck through eye where it was only claimed.
-
-### Changed
-
-- **The DETAILS line about sighash ALL no longer overclaims.** It said signatures
-  cover every amount above. They cover every destination and its amount; the
-  amounts going *in* are the thing this release is about.
+- **TERMS: the ten words this device has to explain, written once.** PSBT,
+  descriptor, fingerprint, entropy and six more. Each one is written in a single
+  place and shown wherever a page owes the reader that word, so no two screens
+  can explain the same thing differently. The caption is the real term the rest
+  of bitcoin uses, never a plain words substitute invented here, and the plain
+  words are the sentence under it. Settings > DEVICE > TERMS lists all ten with
+  a count of how many you have read, and an unread one carries a dot until you
+  close it. What you have read survives an erase: learning is not a secret, and
+  making somebody read all ten again because they wiped a seed is the worse
+  outcome. A decoy session does not show the list.
+- **Coin flips, beside the dice.** The creation path you enter by hand was dice
+  only, for no better reason than the six keys on the screen, and nobody owns a
+  d6 while everybody owns a coin. 128 flips, recorded as ones and zeroes, judged
+  by the same arithmetic the dice rolls are judged by. The string you typed is
+  the preimage, so hashing it on any computer reproduces exactly what the screen
+  shows.
+- **RECEIVE can be told what your coordinator can see.** A signer has no view of
+  the chain, so UNUSED under an address was a claim this device had no evidence
+  for, on the screen whose whole job is to be trusted. USED still answers from
+  what this signer witnessed, since it signed a spend from that address and
+  spending proves the address was funded. UNUSED now waits for a coordinator:
+  show the coordinator's screen to the camera through RECEIVE > VERIFY, and what
+  it claims is kept beside what the device witnessed rather than merged into it.
+  With nothing to go on, no chip is drawn at all.
+- **A caution when change lands past where your coordinator will look.**
+  Somebody holding only your account xpub can hand back a change address that is
+  genuinely yours but thousands of indices ahead, past the window every
+  coordinator scans. Nothing takes the coins, but they come home to an address
+  nobody is watching, and you are told your money is gone until somebody thinks
+  to rescan deeply. It is a caution rather than a stop for that reason. Found by
+  running the psbt_faker suite against this signer's own parser.
+- **FIRMWARE says which version is replacing which.** Five screens that answer
+  the same question with the same object: the version on the device and the
+  version on the card together, above the offer, above the confirm and above the
+  verdict. "Already running" stopped being an amber warning, because it is the
+  one refusal where you did nothing wrong.
 
 ## [0.1.0-beta7], 2026-07-28
 

@@ -87,7 +87,7 @@ for SZ in 14 28; do
   done
 done
 
-# 23px: the MIDDLE body rung (wt_body_font) as well as the wallet-home tile
+# 23px: the MIDDLE body rung (wt_body_font) as well as the home tile
 # titles. It used to be tile titles only, so the CJK subsets carried just
 # glyphs_tile_*.txt -- about a dozen characters. The moment 23 became a body
 # size that rendered every ja/ko/zh screen as tofu boxes, so these now take the

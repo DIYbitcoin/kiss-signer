@@ -1,9 +1,9 @@
-# Blind draw: making a wallet out of words you drew yourself
+# Blind draw: a key pair out of seed words you drew yourself
 
-The device can create a wallet three ways. The camera and the dice both ask a
+The device can create keys three ways. The camera and the dice both ask a
 machine to produce randomness and ask you to trust it. **BLIND DRAW** does not.
-You draw the words yourself, out of a bag or a shuffled stack, and the device
-only does arithmetic it cannot fake.
+You draw the seed words yourself, out of a bag or a shuffled stack, and the
+device only does arithmetic it cannot fake.
 
 This page is how to make the thing you draw from. The device can tell you to
 print or cut the word list; it cannot hand you one.
@@ -15,7 +15,7 @@ English words. That list is called the **BIP39 wordlist**, it is the same list
 in every wallet on earth, and there is nothing secret about it. You can print
 it, publish it, tattoo it on a wall.
 
-The secret is not the words. The secret is **which** of them came up, and **in
+The secret is not the list. The secret is **which** of them came up, and **in
 what order**. That is the only thing you are creating, and it is the only thing
 you have to protect.
 
@@ -80,10 +80,10 @@ You will notice you only drew 11 words for a 12 word phrase. That is not a
 mistake.
 
 The final word of a recovery phrase is not free. Part of it is a **checksum** —
-a few bits computed from all the words before it, so that a phrase with a typo
-in it fails to load instead of quietly opening the wrong wallet. That is why
-you cannot just draw the last word too: most of the words on the list would
-produce a phrase that no wallet will accept.
+a few bits computed from the eleven before it, so that a phrase with a typo
+in it fails to load instead of quietly opening the wrong keys. That is why
+you cannot just draw the last word too: most of the list would produce a
+phrase that no wallet will accept.
 
 So the device does the arithmetic. It tries all 2048 words against the 11 you
 drew, and shows you every one that produces a valid phrase — **128 of them**
@@ -104,13 +104,13 @@ python3 tools/lastword.py <your eleven words>
 If the device offers a word this does not, or hides one this shows, the
 firmware is not doing what this page says.
 
-**Use a throwaway draw for this, never a real wallet.** This step types your
-words into a computer, and a computer is exactly what this whole mode exists to
-avoid trusting.
+**Use a throwaway draw for this, never your real seed words.** This step types
+your seed words into a computer, and a computer is exactly what this whole
+mode exists to avoid trusting.
 
 ## What the device will refuse, and why
 
-Before your words become a wallet, the device looks at the draw itself. It is
+Before your seed words become keys, the device looks at the draw itself. It is
 not judging your taste, it is checking for the shapes a real blind draw
 essentially never makes:
 
@@ -118,8 +118,8 @@ essentially never makes:
 | --- | --- |
 | The same word repeatedly | There is no secret at all. Anyone can type it. |
 | A short run typed over and over | Same problem, wearing a disguise. |
-| Words sitting side by side on the list | The stack was never really mixed. |
-| Words in alphabetical order | The order was half the secret. Sorting spent it. |
+| Entries side by side on the list | The stack was never really mixed. |
+| Entries in alphabetical order | The order was half the secret. Sorting spent it. |
 | More repeats than a full bag would give | Suggests the bag was not full. |
 
 The first two are **refused outright** — those phrases carry nothing. The rest
@@ -127,6 +127,6 @@ are **warnings** you can read and then overrule, because each of them can happen
 by chance to an honest draw, just very rarely.
 
 What none of this can catch is a draw that merely looks random: a phrase you
-memorised, a line from a song, words you picked while trying to feel
+memorised, a line from a song, choices you made while trying to feel
 unpredictable. Human beings are not able to do this, and no check on the device
 can tell the difference. Only a blind draw is random.

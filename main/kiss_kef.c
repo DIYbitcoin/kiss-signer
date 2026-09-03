@@ -122,3 +122,126 @@ size_t kef_emit_header(uint8_t *out, size_t cap, const uint8_t *id,
     out[4 + id_len] = (uint8_t)iter_raw;
     return need;
 }
+
+// ---- armor -------------------------------------------------------------
+// The same envelope reaches this device three ways and they are all the same
+// bytes. KISS writes the raw bytes into its QR and into its .kef file, and
+// Krux accepts raw, so a KISS backup has always opened there. The other
+// direction did not: Krux armors an envelope as base43 for a QR (a subset of
+// QR alphanumeric mode, so the square stays small) and as base64 for a file,
+// and this reader took raw only. The camera saw the square, the reader said
+// nothing was there, and the owner got the one vague failure a wrong password
+// gets, with nothing to act on. kiss_kef.h promises a Krux backup opens here,
+// so it had to be true in both directions.
+//
+// Base64 is tried before base43 because the two alphabets overlap and a
+// base43 string can be accidentally valid base64. What settles it is that
+// nothing is accepted unless what falls out is an envelope kef_sniff claims:
+// a descriptor, a text mnemonic or a stray QR decodes to bytes that are not
+// one, and falls through to whoever else wants the payload.
+#define B43_ALPHABET "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ$*+-./:"
+
+static int b43_digit(uint8_t c)
+{
+    static const char A[] = B43_ALPHABET;
+    for (int i = 0; i < 43; i++) if ((uint8_t)A[i] == c) return i;
+    return -1;
+}
+
+// Big endian base conversion, the same one Electrum and Krux use: the string
+// is one number in base 43, and leading '0' characters are leading zero
+// bytes rather than digits. Little endian while accumulating, reversed at the
+// end, so the carry appends instead of shifting the whole number every digit.
+static int b43_decode(const uint8_t *in, size_t in_len,
+                      uint8_t *out, size_t out_cap, size_t *out_len)
+{
+    uint8_t num[KEF_MAX_ENV];
+    size_t n = 0;
+
+    for (size_t i = 0; i < in_len; i++) {
+        int d = b43_digit(in[i]);
+        if (d < 0) return -1;
+        uint32_t carry = (uint32_t)d;
+        for (size_t j = 0; j < n; j++) {
+            uint32_t v = (uint32_t)num[j] * 43u + carry;
+            num[j] = (uint8_t)v;
+            carry = v >> 8;
+        }
+        while (carry) {
+            if (n >= sizeof num) return -1;
+            num[n++] = (uint8_t)carry;
+            carry >>= 8;
+        }
+    }
+
+    size_t pad = 0;
+    while (pad < in_len && in[pad] == (uint8_t)'0') pad++;
+    if (pad + n > out_cap) return -1;
+    memset(out, 0, pad);
+    for (size_t i = 0; i < n; i++) out[pad + i] = num[n - 1 - i];
+    *out_len = pad + n;
+    return 0;
+}
+
+static int b64_digit(uint8_t c)
+{
+    if (c >= 'A' && c <= 'Z') return c - 'A';
+    if (c >= 'a' && c <= 'z') return c - 'a' + 26;
+    if (c >= '0' && c <= '9') return c - '0' + 52;
+    if (c == '+') return 62;
+    if (c == '/') return 63;
+    return -1;
+}
+
+static int b64_decode(const uint8_t *in, size_t in_len,
+                      uint8_t *out, size_t out_cap, size_t *out_len)
+{
+    if (in_len == 0 || in_len % 4) return -1;
+    size_t pad = 0;
+    while (pad < 2 && in_len && in[in_len - 1 - pad] == (uint8_t)'=') pad++;
+    size_t need = in_len / 4 * 3 - pad;
+    if (need > out_cap) return -1;
+
+    size_t o = 0;
+    for (size_t i = 0; i + 4 <= in_len; i += 4) {
+        int v[4];
+        for (int k = 0; k < 4; k++) {
+            uint8_t c = in[i + k];
+            v[k] = (c == '=' && i + 4 == in_len) ? 0 : b64_digit(c);
+            if (v[k] < 0) return -1;
+        }
+        uint32_t w = ((uint32_t)v[0] << 18) | ((uint32_t)v[1] << 12)
+                   | ((uint32_t)v[2] << 6)  | (uint32_t)v[3];
+        for (int k = 0; k < 3 && o < need; k++) out[o++] = (uint8_t)(w >> (16 - 8 * k));
+    }
+    *out_len = o;
+    return 0;
+}
+
+int kef_unarmor(const uint8_t *in, size_t in_len,
+                uint8_t *out, size_t out_cap, size_t *out_len)
+{
+    if (!in || !out || !out_len || out_cap == 0) return -1;
+    *out_len = 0;
+    // Base43 grows by about half, so anything this long cannot shrink into an
+    // envelope we handle. It also bounds the O(n^2) conversion above.
+    if (in_len == 0 || in_len > KEF_MAX_ENV * 2) return -1;
+
+    // A file an editor has touched carries a trailing newline; a QR does not.
+    while (in_len && (in[in_len - 1] == '\n' || in[in_len - 1] == '\r' ||
+                      in[in_len - 1] == '\t' || in[in_len - 1] == ' '))
+        in_len--;
+    if (in_len == 0) return -1;
+
+    size_t n = 0;
+    if (b64_decode(in, in_len, out, out_cap, &n) == 0 && kef_sniff(out, n)) {
+        *out_len = n;
+        return 0;
+    }
+    if (b43_decode(in, in_len, out, out_cap, &n) == 0 && kef_sniff(out, n)) {
+        *out_len = n;
+        return 0;
+    }
+    memset(out, 0, out_cap);
+    return -1;
+}

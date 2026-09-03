@@ -6,6 +6,14 @@
 
 The checks to make before this signer holds anything you care about. Every screenshot here is a frame the simulator rendered from the current firmware, so what you see is what the device draws.
 
+This is the device in order, screen by screen. [The guide](guide.html) covers the same ground by topic: verify, build, flash, storage.
+
+Three rules first. Everything below assumes them.
+
+1. Every passphrase opens keys. There is no wrong passphrase error, and there never will be.
+2. The fingerprint on the home screen is how you tell which keys you opened. Write yours down once.
+3. This signer is never online. Your coordinator does all the talking to the network.
+
 ## Returning from Fruit Island
 
 The signer has no icon and no launcher. You get back to it by drawing the letters K, I, S, S on the game menu with a fingertip. Nothing on the screen invites you to, and a wrong gesture does nothing at all.
@@ -20,21 +28,21 @@ Draw K, I, S, S anywhere on the menu. On a signer with no spare set up, that ope
 
 ![KISS screen: signer home](shots/03-signer-home.png)
 
-Your recovery words and your exact passphrase together make these keys. A different passphrase silently opens different keys, so check the fingerprint is the one you expect.
+Your recovery words and your exact passphrase together make these keys, and the fingerprint here is what those keys are called.
 
-This only works if you wrote the fingerprint down. Do it once, on the same piece of paper as your recovery words: the eight character code on this screen. Every passphrase is valid, so a typo never shows an error, it just opens a different and empty set of keys. If the code here ever differs from your paper, you typed the passphrase wrong. Lock and try again.
+Write it down once, on the same piece of paper as your recovery words: the eight character code on this screen. If the code here ever differs from your paper, you typed the passphrase wrong. Lock and try again.
 
-## Choosing where the recovery words live
+## Choosing where the recovery words are kept
 
-Storage is chosen while keys are created or restored, and it can be changed later from an unlocked signer. All three modes are offered on every build; the passphrase, never stored here, is what guards your real keys whichever mode holds the words.
+Storage is chosen while keys are created or restored, and it can be changed later from an unlocked signer. All three modes are offered on every build; the passphrase, never stored here, is what guards your real keys whichever mode holds them.
 
 ![KISS screen: setup storage](shots/03a-setup-storage.png)
 
-Setup asks what remains after you power off, before the recovery words are committed. FLASH keeps the words on this device (they open the decoy if it is taken); AMNESIC keeps nothing; SD CARD seals the words to a card only this signer can open.
+Setup asks what remains after you power off, before the recovery words are committed. FLASH keeps the seed words on this device (they open the decoy if it is taken); AMNESIC keeps nothing; SD CARD seals the seed words to a card only this signer can open.
 
 ![KISS screen: settings storage](shots/03b-settings-storage.png)
 
-SETTINGS → BACKUP states the current mode on the row and opens this to change it: three modes, each saying where the words end up, with the one in force ticked. Moving between them still requires a deliberate hold and verifies the destination before removing the source.
+SETTINGS → BACKUP states the current mode on the row and opens this to change it: three modes, each saying where the seed words end up, with the one in force ticked. Moving between them still requires a deliberate hold and verifies the destination before removing the source.
 
 ![KISS screen: settings](shots/03c-settings.png)
 
@@ -66,7 +74,7 @@ Pairing hands Sparrow a watch-only map of your keys so it can find your addresse
 
 ![KISS screen: keys facts](shots/04-keys-facts.png)
 
-KEYS answers which device you are holding: the fingerprint takes the top third, big enough to check across a desk, and the facts under it open their plain-words definitions in place. The [ ? ] mark explains the page; COORDINATOR is the second tab.
+KEYS is one page about one thing: how a coordinator comes to watch these keys. PAIRING shows it the QR, SCAN KEY hands a silent payments coordinator the key that finds payments without being able to spend them, and FIRST ADDRESS is how you check the pairing landed on the right keys. The [ ? ] mark explains the page.
 
 ![KISS screen: pair sparrow](shots/05-pair-sparrow.png)
 
@@ -91,6 +99,14 @@ VERIFY re-derives whatever address you type in. Green means KISS found it in the
 ![KISS screen: verify wrong net](shots/09-verify-wrong-net.png)
 
 A well-formed address from the wrong network fails red. So does an address that is simply not one of yours.
+
+## Practising on testnet first
+
+Testnet coins are free and buy nothing, so the whole loop can be rehearsed with nothing at stake. SETTINGS > SIGNER switches the network, and the same seed words open a separate set of keys there.
+
+![KISS screen: home testnet](shots/09a-home-testnet.png)
+
+The chip beside the title says TESTNET for as long as the signer is on it, and every address it hands out starts tb1. Point your coordinator at the same network, fill it from a testnet faucet, then run the loop you will run for real: verify an address, receive, sign, broadcast. Switch back the same way afterwards and check the chip is gone before anything real arrives.
 
 ## Receiving a tiny test payment
 
@@ -127,6 +143,18 @@ Signed. The signed file or QR has to go back to Sparrow, and Sparrow broadcasts 
 ![KISS screen: sign qr out](shots/16-sign-qr-out.png)
 
 Handing the signature back by animated QR when there is no SD card. Point Sparrow's webcam at it and let it run; tap the QR if the camera needs larger modules.
+
+## Checking the signer itself
+
+Two questions you can ask this device about its own keys, at any time, with nothing leaving it. SETTINGS > BACKUP > AUDIT, or the same row on SECURITY.
+
+![KISS screen: audit](shots/17-audit.png)
+
+HOW YOUR KEYS WERE MADE reads back the source this signer recorded when the seed words were made: dice, coin flips, the camera and your taps, a blind draw, or brought in from somewhere else. It is the one fact about a set of keys you cannot recover by looking at the seed words.
+
+![KISS screen: audit randomness](shots/18-audit-randomness.png)
+
+RANDOMNESS AUDIT takes 5000 numbers from the chip and counts them into 100 groups. An even spread inside the fair range is what a working chip looks like; it cannot prove the chip is honest, because good software passes the same test, and the screen says so. A fair chip fails this about 1 run in 500, so run it again before worrying.
 
 ---
 

@@ -18,7 +18,7 @@ GREEN accent, English, mainnet. ADDENDUM-02's axis, the one MONO hides because M
 
 ![green, 03 signer home](green/03-signer-home.png)
 
-`sim_wallet`
+`sim_home`
 
 ![green, 03a setup storage](green/03a-setup-storage.png)
 
@@ -50,7 +50,7 @@ GREEN accent, English, mainnet. ADDENDUM-02's axis, the one MONO hides because M
 
 ![green, 04 keys facts](green/04-keys-facts.png)
 
-`sim_winfo`
+`sim_winfo_coord`
 
 ![green, 05 pair sparrow](green/05-pair-sparrow.png)
 
@@ -71,6 +71,10 @@ GREEN accent, English, mainnet. ADDENDUM-02's axis, the one MONO hides because M
 ![green, 09 verify wrong net](green/09-verify-wrong-net.png)
 
 `sim_vfy_wrong_net`
+
+![green, 09a home testnet](green/09a-home-testnet.png)
+
+`sim_home_testnet`
 
 ![green, 10 receive first](green/10-receive-first.png)
 
@@ -100,6 +104,14 @@ GREEN accent, English, mainnet. ADDENDUM-02's axis, the one MONO hides because M
 
 `sim_qr_out1`
 
+![green, 17 audit](green/17-audit.png)
+
+`sim_audit_choose`
+
+![green, 18 audit randomness](green/18-audit-randomness.png)
+
+`sim_rng_result`
+
 ## testnet
 
 The test networks, MONO, English. The walk already captures these near the end and they were published nowhere. SIGNET is a label: the same keys, the same tb1 addresses, a different chain.
@@ -114,7 +126,7 @@ The test networks, MONO, English. The walk already captures these near the end a
 
 ![testnet, 03 signer home](testnet/03-signer-home.png)
 
-`sim_wallet`
+`sim_home`
 
 ![testnet, 03a setup storage](testnet/03a-setup-storage.png)
 
@@ -146,7 +158,7 @@ The test networks, MONO, English. The walk already captures these near the end a
 
 ![testnet, 04 keys facts](testnet/04-keys-facts.png)
 
-`sim_winfo`
+`sim_winfo_coord`
 
 ![testnet, 05 pair sparrow](testnet/05-pair-sparrow.png)
 
@@ -167,6 +179,10 @@ The test networks, MONO, English. The walk already captures these near the end a
 ![testnet, 09 verify wrong net](testnet/09-verify-wrong-net.png)
 
 `sim_vfy_wrong_net`
+
+![testnet, 09a home testnet](testnet/09a-home-testnet.png)
+
+`sim_home_testnet`
 
 ![testnet, 10 receive first](testnet/10-receive-first.png)
 
@@ -196,6 +212,14 @@ The test networks, MONO, English. The walk already captures these near the end a
 
 `sim_qr_out1`
 
+![testnet, 17 audit](testnet/17-audit.png)
+
+`sim_audit_choose`
+
+![testnet, 18 audit randomness](testnet/18-audit-randomness.png)
+
+`sim_rng_result`
+
 ![testnet, t0 network](testnet/t0-network.png)
 
 `sim_settings_tn_first`
@@ -206,11 +230,11 @@ The test networks, MONO, English. The walk already captures these near the end a
 
 ![testnet, t0b signet home](testnet/t0b-signet-home.png)
 
-`sim_wallet_signet`
+`sim_home_signet`
 
 ![testnet, t1 home](testnet/t1-home.png)
 
-`sim_wallet_testnet`
+`sim_home_testnet`
 
 ![testnet, t2 settings](testnet/t2-settings.png)
 

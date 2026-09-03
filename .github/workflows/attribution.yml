@@ -59,3 +59,63 @@ jobs:
             exit 1
           fi
           echo "clean"
+
+      # The trailer half again, in prose. Two commits describing the REMOVAL of
+      # a directory named after a tool named it five times between them, and
+      # every check in this lane passed: they all looked for trailers. The rule
+      # is that the actor is never the subject, and a path is a subject. The
+      # commit-msg hook refuses these before they are written; this is the
+      # backstop for a clone that never ran tools/install_hooks.sh.
+      - name: commit messages name no tool in prose
+        run: |
+          set -u
+          BAD=$(git log $RANGE --format='%H%n%B%n--%n' 2>/dev/null \
+                | grep -inE -e '(superpowers|copilot|cursor|chatgpt|aider|devin)' \
+                            -e '\bclaude\b|\banthropic\b' -e '\.claude/' \
+                            -e '\bagentic\b|\bsub-?agent\b' \
+                | grep -viE 'claude\.md' || :)
+          if [ -n "$BAD" ]; then
+            echo "::error::a commit message names a tool in prose. CLAUDE.md: the actor is never the subject."
+            echo "$BAD"
+            exit 1
+          fi
+          echo "clean"
+
+      # The trailer was only ever the obvious half. CLAUDE.md says the rule is
+      # that the ACTOR IS NEVER THE SUBJECT, and prose survived the first two
+      # sweeps -- so did a PATH: docs/superpowers/ held ten tracked plan files
+      # under a tool's name, four of them opening "For agentic workers:
+      # REQUIRED SUB-SKILL: use superpowers:...", published by Pages, and five
+      # firmware sources carried "// See docs/superpowers/specs/..." in a
+      # comment. Every check above was green the whole time, because none of
+      # them looks at a filename or at a sentence.
+      - name: no tool named in a path or in prose
+        run: |
+          set -u
+          TOOLS='superpowers|claude|anthropic|copilot|cursor|codex|chatgpt|aider|devin'
+          # CLAUDE.md's own name is the one exception the rule states.
+          if git ls-files | grep -iE "(^|/)($TOOLS)" | grep -v '^CLAUDE\.md$'; then
+            echo "::error::a tracked PATH names a tool. CLAUDE.md: no agent or tool is named anywhere in this repository."
+            exit 1
+          fi
+          # Prose. CLAUDE.md names itself and the hooks strip the trailer, so
+          # those are excluded by path exactly as above.
+          if git grep -nIiE "superpowers:|\.claude/|(claude|copilot|cursor|codex|chatgpt) (code|cli)|\bagentic\b|\bsub-?agent\b" \
+               -- . ':(exclude)CLAUDE.md' ':(exclude).github/workflows/attribution.yml' ':(exclude)tools/hooks/*' ':(exclude)tools/install_hooks.sh' ':(exclude).gitignore'; then
+            echo "::error::a tracked file names a tool in prose."
+            exit 1
+          fi
+          echo "clean"
+
+      # Not attribution, the same leak. The plan file that named a tool also
+      # carried /Users/<owner>/... in a folder GitHub Pages serves, so the
+      # owner's account name was published with it.
+      - name: no absolute home path
+        run: |
+          set -u
+          if git grep -nIE '/Users/[a-z0-9_-]+/|/home/[a-z0-9_-]+/' \
+               -- . ':(exclude).github/workflows/attribution.yml'; then
+            echo "::error::an absolute home path in a tracked file."
+            exit 1
+          fi
+          echo "clean"

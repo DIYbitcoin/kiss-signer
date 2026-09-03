@@ -64,13 +64,6 @@ static lv_obj_t *s_band;
 #define FW_ROW2_Y   (FW_ROW1_Y + FW_ROW_H + 4)
 #define FW_CAUTION_Y 192
 
-// The claim pair, in the borderless geometry: two blocks inside the pane
-// rather than the 48/408 columns the card screens use. wt_why_block spends 14
-// on its rule and its padding, which is what the body is measured against.
-#define FW_BLK_W   320
-#define FW_BLK_L_X (FW_TXT_X)
-#define FW_BLK_R_X (FW_TXT_X + 360)
-
 static void fw_screen(void);
 
 static void close_cb(lv_event_t *e)
@@ -295,47 +288,53 @@ static lv_obj_t *fw_trade(int y, const fw_trade_t *t)
 
 // ---- the claim pair --------------------------------------------------------
 
-// How it works on the left, where it goes wrong on the right. Sized with
-// wt_body_font2_head against the REAL budget: the headings are measured, and
-// nothing is subtracted by hand. Every hand-subtracted budget in this file's
-// history threw away a third of the room and landed the body at font14.
-// `bottom` because the two screens that call this do not share one. The
-// confirm carries a slide, so its band starts at 344; the going-dark screen
-// carries nothing at all and keeps the full 398.
-static void fw_claims(int y, int bottom, const char *lh, const char *lb,
-                      lv_color_t lcol)
+// The claim about THIS install on the first row, the one about power on the
+// second. `bottom` is gone with the two wt_why_blocks it used to budget: a
+// fact row is one line at a fixed rung, so there is no budget to get wrong,
+// and the pair used to be the exact shape this file's history kept landing at
+// font14 by hand-subtracting a heading's height from it.
+//
+// No fw_enter on the rows. The stagger existed to bring two blocks in behind
+// the trade above them; two lines of text under a rule that already draws
+// itself in do not need a second entrance, and wt_facts hands back a y rather
+// than the labels.
+static void fw_claims(int y, const char *lcap, const char *lval,
+                      const char *lmark, lv_color_t lcol)
 {
-    const char *rh = tr(STR_G_FW_RISK_H);
-    const char *rb = tr(STR_G_FW_RISK_B);
-    const int h = bottom - y;
-    const lv_font_t *f = wt_body_font2_head(lh, lb, rh, rb, FW_BLK_W - 14, h);
-    lv_obj_t *a = wt_why_block(s_scr, lh, lb, FW_BLK_L_X, y, FW_BLK_W, h, f, lcol);
-    lv_obj_t *b = wt_why_block(s_scr, rh, rb, FW_BLK_R_X, y, FW_BLK_W, h, f,
-                               wt_ink_for(WT_WARN));
-    // 160 and 220, which is what the drawing stages them at. The 190/232 they
-    // ran at is the LINE ladder -- right for a column of rows, 30ms late for a
-    // pair that has no rows above it to follow.
-    fw_enter(a, 260, 160);
-    fw_enter(b, 260, 220);
+    wt_fact_t facts[2] = {
+        { .cap = lcap, .val = lval, .icon = lmark, .icon_col = lcol },
+        { .cap = tr(STR_G_FW_RISK_H), .val = tr(STR_G_FW_RISK_B),
+          .icon = LV_SYMBOL_WARNING,
+          .icon_col = WT_WARN },
+    };
+    wt_facts(s_scr, y, facts, 2);
 }
 
-// What the signature row's "?" answers: what a signature buys, in the two
-// paragraphs the confirm screen already carries in 21 locales. Composed at
-// runtime so the card costs no new key.
+// What the signature row's "?" answers: what a signature buys.
+//
+// ONE paragraph, and the title is the WORD. This card used to compose the
+// signature claim with the power caution -- two paragraphs from the confirm
+// screen, glued at runtime -- and titled itself "ecdsa + post quantum", which
+// is a heading, not a name. When the caution shrank to a fact row's value the
+// card inherited the fragment: "a minute, keep it plugged", alone, under a
+// lower case title, on a card about cryptography.
+//
+// The caution belongs to the screen where the decision is; the standard's own
+// names belong on the TECHNICAL line, which is where every other definition
+// on this device puts them.
 static void sig_row_help_cb(lv_event_t *e)
 {
     (void)e;
-    char body[512];
-    snprintf(body, sizeof body, "%s\n\n%s",
-             tr(STR_G_FW_WHY_B), tr(STR_G_FW_RISK_B));
     wt_explain_t x = {
-        .title  = tr(STR_G_FW_WHY_H),
-        .icon   = WT_ICON_LOCK,
-        .cap    = tr(STR_G_FW_ON_CARD),
-        .val    = s_img.version,
-        .body   = body,
-        .ok_txt = tr(STR_C_OK),
-        .mode   = WT_BODY_PROSE,
+        .title      = tr(STR_G_FW_ROW_SIG),
+        .icon       = WT_ICON_LOCK,
+        .cap        = tr(STR_G_FW_ON_CARD),
+        .val        = s_img.version,
+        .body       = tr(STR_G_FW_WHY_B),
+        .term       = tr(STR_G_FW_WHY_H),
+        .term_label = tr(STR_G_TECHNICAL),
+        .ok_txt     = tr(STR_C_OK),
+        .mode       = WT_BODY_PROSE,
     };
     wt_explain_open(s_scr, &x);
 }
@@ -560,9 +559,15 @@ static void fw_light_band(int y)
     lv_obj_remove_flag(b, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_remove_flag(b, LV_OBJ_FLAG_CLICKABLE);
 
-    lv_obj_t *l = wt_lbl(b, tr(STR_G_FW_BACKLIGHT), WT_LINE_PAD, 18,
-                         wt_font14(), WT_MUT);
-    lv_obj_set_style_text_letter_space(l, 4, 0);
+    // font23 in a 58px band, which had room for it the whole time. This is a
+    // SENTENCE -- it is the one instruction on a screen that goes dark for a
+    // minute, and it was set at font14 with 4px of letter spacing, which is
+    // the treatment a caption lane gets. Nothing an owner has to read is
+    // font14. Spacing drops to 2 because font23 does not need the width and
+    // the string has to stay inside the band.
+    lv_obj_t *l = wt_lbl(b, tr(STR_G_FW_BACKLIGHT), WT_LINE_PAD, 16,
+                         wt_font23(), WT_MUT);
+    lv_obj_set_style_text_letter_space(l, 2, 0);
 
     lv_anim_t a;
     lv_anim_init(&a);
@@ -646,8 +651,8 @@ static void writing_apply(void *ud)
     // erased, and the honest options are finish or lose power, neither of
     // which is a button.
     fw_light_band(156);
-    fw_claims(230, WT_CONTENT_BOTTOM, tr(STR_G_FW_DARK_H),
-              tr(STR_G_FW_DARK_B), wt_accent());
+    fw_claims(230, tr(STR_G_FW_DARK_H), tr(STR_G_FW_DARK_B),
+              LV_SYMBOL_EYE_CLOSE, wt_accent());
 
     // Lit long enough to be read, then dark. This was 30 ms, which is two
     // frames: the screen that tells an owner the panel is about to go dark was
@@ -690,9 +695,16 @@ static void confirm_screen(void)
     // Two claims, not one paragraph. A downgrade swaps the left block for the
     // one that says so and turns its rule amber: on that path the interesting
     // claim is not how the check works but that this goes backwards.
-    fw_claims(186, WT_SLIDE_BOTTOM,
-              tr(down ? STR_G_FW_DOWN_H : STR_G_FW_WHY_H),
-              tr(down ? STR_G_FW_DOWN_B : STR_G_FW_WHY_B),
+    // The signature row says WHAT was checked; its long form is behind the
+    // "?" on the offer, in the card sig_row_help_cb builds. A downgrade swaps
+    // it for the claim that this goes backwards, and takes the amber mark.
+    // 210, not the 186 the blocks started at: the rule fw_rule_in draws at
+    // 192 ran straight through the first row's caption. A block began with a
+    // heading and its body cleared the rule; a row IS its first line.
+    fw_claims(210,
+              tr(down ? STR_G_FW_DOWN_H : STR_G_FW_ROW_SIG),
+              tr(down ? STR_G_FW_DOWN_B : STR_G_FW_WHY_H),
+              down ? LV_SYMBOL_WARNING : LV_SYMBOL_OK,
               down ? WT_WARN : wt_accent());
 
     // 1500 ms, the same as the storage move. The pill is gone and the progress

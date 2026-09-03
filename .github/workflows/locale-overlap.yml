@@ -19,6 +19,13 @@ on:
     - cron: '0 5 * * *'
   workflow_dispatch:
 
+# The same group as locale-walk.yml, so the two nightly sweeps queue rather
+# than overlap when a cron runs late. Not cancelled for the reason given
+# there: half a sweep answers nothing.
+concurrency:
+  group: locale-nightly
+  cancel-in-progress: false
+
 jobs:
   overlap:
     runs-on: ubuntu-latest

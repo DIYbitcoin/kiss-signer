@@ -69,7 +69,7 @@ static int b64_decode(const char *s, size_t len, uint8_t *out, size_t cap, size_
     return 0;
 }
 
-static int b64_encode(const uint8_t *in, size_t n, char *out, size_t cap) {
+int qrt_b64_encode(const uint8_t *in, size_t n, char *out, size_t cap) {
     static const char A[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     size_t need = ((n + 2) / 3) * 4 + 1;
     if (cap < need) return -1;
@@ -271,7 +271,7 @@ int qrt_parser_feed(qrt_parser_t *p, const char *data, size_t len) {
 
     if (p->fmt != QRT_FMT_NONE && p->fmt != kind) return -1;
 
-    int rc = -1;
+    int rc = -1;                 // no arm ran: a refusal, which is the safe answer
     switch (kind) {
     case QRT_FMT_STATIC:
         if (p->complete) { rc = 0; break; }
@@ -294,6 +294,7 @@ int qrt_parser_feed(qrt_parser_t *p, const char *data, size_t len) {
     case QRT_FMT_UR:
         rc = feed_ur(p, data, len);
         break;
+    default: break;              // kind comes from the branch above: unreachable
     }
     if (rc == 0 && p->fmt == QRT_FMT_NONE) p->fmt = kind;
     if (rc == QRT_FEED_TOO_BIG) p->too_big = true;
@@ -403,7 +404,7 @@ qrt_encoder_t *qrt_encoder_new_frag(int fmt, const uint8_t *psbt, size_t len, in
     if (fmt == QRT_FMT_PMOFN || fmt == QRT_FMT_STATIC) {
         size_t cap = ((len + 2) / 3) * 4 + 8;
         e->b64 = malloc(cap);
-        if (!e->b64 || b64_encode(psbt, len, e->b64, cap) != 0) {
+        if (!e->b64 || qrt_b64_encode(psbt, len, e->b64, cap) != 0) {
             // A failed encode may have left it unterminated, so wipe the
             // allocation rather than what strlen would find in it.
             if (e->b64) { kiss_wipe(e->b64, cap); free(e->b64); }

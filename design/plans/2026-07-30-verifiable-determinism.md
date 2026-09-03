@@ -1,7 +1,7 @@
 # Verifiable Determinism — Implementation Plan
 
 **Spec:** `docs/specs/verifiable-determinism.md` (committed, `48f26ab`)
-**On approval:** move this plan to `docs/superpowers/plans/2026-07-30-verifiable-determinism.md`.
+**On approval:** move this plan to `design/plans/2026-07-30-verifiable-determinism.md`.
 
 ## Context
 

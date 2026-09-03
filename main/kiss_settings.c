@@ -38,14 +38,7 @@
 #define KISS_VERSION_STR "dev"
 #endif
 
-// main.c: closes any wallet screen and runs the seed wizard, then the
-// type-twice login. Lets Settings reach CREATE NEW / RESTORE after first boot.
-void kiss_begin_setup(void);
-// main.c: re-sync the home TESTNET badge after the network is changed here.
-void kiss_home_refresh(void);
-// main.c: after a wipe, lock straight back to the game (the wallet no longer
-// exists; the next KISS unlock lands in first-boot setup).
-void kiss_wiped_lock(void);
+#include "main.h"   // kiss_begin_setup, kiss_home_refresh, kiss_wiped_lock
 
 #define BG_COL   WT_BG
 #define INK_COL  WT_INK
@@ -127,6 +120,16 @@ static const char *type_name(int sc)
     case WSCRIPT_NESTED: return tr(STR_S_TY_NESTED);
     default:             return tr(STR_S_TY_NATIVE);
     }
+}
+
+// The home's next-step hint names the one job this signer has not done, and
+// checking a paper copy lives on the BACKUP tab. A named entry rather than an
+// exported tab enum: one caller needs one destination, and a magic int in a
+// header is a thing to get wrong later.
+void kiss_settings_open_backup(lv_obj_t *parent)
+{
+    s_tab = TAB_BACKUP;
+    kiss_settings_open(parent);
 }
 
 bool kiss_settings_active(void) { return s_scr != NULL; }
@@ -511,8 +514,7 @@ static void storage_confirm_screen(int target)
                              : STR_G_STOGATE_SENT_FLASH),
         .para     = para,
         .warn     = note,
-        .surv_cap = tr(STR_C_SURVIVES),     .surv = tr(STR_G_STOGATE_SURV),
-        .goes_cap = tr(STR_C_NOT_SURVIVES),
+        .surv = tr(STR_G_STOGATE_SURV),
         .goes     = tr(amn ? STR_G_STOGATE_GOES_AMN : STR_G_STOGATE_GOES),
         .stop     = false,
     };
@@ -554,14 +556,28 @@ static void sdinfo_screen(void)
         s_scr = wt_screen(s_parent, tr(STR_W_SD_BTN), NULL);
         wt_chrome_head(s_scr);
         wt_trail(s_scr, WT_ICON_SD, tr(STR_I_DEVICE_T), false);
-        const char *lh = tr(STR_G_FW_NOCARD_H), *lb = tr(STR_G_FW_NOCARD_B);
-        const char *rh = tr(STR_G_SD_ABOUT_H), *rb = tr(STR_G_SD_ABOUT_B);
-        const lv_font_t *f = wt_body_font2_head(lh, lb, rh, rb, 344 - 14,
-                                                WT_CONTENT_BOTTOM - 232);
-        wt_why_block(s_scr, lh, lb, 48, 232, 344, WT_CONTENT_BOTTOM - 232,
-                     f, WT_WARN);
-        wt_why_block(s_scr, rh, rb, 408, 232, 344, WT_CONTENT_BOTTOM - 232,
-                     f, wt_accent());
+        // An EMPTY STATE, not a pair of claims: the firmware page's six of
+        // these are a mark, a headline and a line of what to do, and an
+        // empty slot on this page is the same thing. The pair that was here
+        // put "no card" in a coloured column beside a column describing a
+        // screen that is not on the glass.
+        lv_obj_t *g = wt_lbl(s_scr, LV_SYMBOL_WARNING, WT_LANE_X, 124,
+                             wt_font23(), WT_WARN);
+        lv_obj_update_layout(g);
+        lv_obj_t *h = wt_lbl(s_scr, tr(STR_G_FW_NOCARD_H),
+                             WT_LANE_X + lv_obj_get_width(g) + 14, 118,
+                             wt_font28(), wt_ink_for(WT_WARN));
+        lv_obj_add_flag(h, WT_FLAG_ACCENT);
+        lv_obj_t *b = wt_note(s_scr, tr(STR_G_FW_NOCARD_B), WT_LANE_X, 176,
+                              WT_LANE_W, 60);
+        lv_obj_set_style_text_color(b, WT_MUT, 0);
+        // ...and one row saying what the screen behind the empty slot is for,
+        // so an owner who opened it by mistake knows what they were after.
+        wt_fact_t facts[1] = {
+            { .cap = tr(STR_G_SD_ABOUT_H), .val = tr(STR_G_SD_ABOUT_B),
+              .icon = WT_ICON_SD },
+        };
+        wt_facts(s_scr, 260, facts, 1);
         wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, sdinfo_back_cb, NULL);
         return;
     }
@@ -911,17 +927,6 @@ static void persist_cb(lv_event_t *e)
     settings_reopen();
 }
 
-// ---- denomination ----
-static void denom_cb(lv_event_t *e)
-{
-    (void)e;
-    // Two values, so the chip IS the control. A dropdown offering exactly one
-    // alternative is a switch wearing a list's clothes.
-    kiss_settings_set_denom(wt_denom() == WT_DENOM_SATS ? WT_DENOM_BTC
-                                                        : WT_DENOM_SATS);
-    settings_reopen();
-}
-
 // The stroke chooser takes over the screen and hands control back here.
 static void duress_open(void)
 {
@@ -1058,7 +1063,7 @@ static void made_open_cb(lv_event_t *e)
         by = 320;
     }
 
-    wt_why_body(s_scr, note, by, wt_accent(), true);
+    wt_body_para(s_scr, note, by);
     lv_obj_set_ext_click_area(
         wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, made_back_cb, NULL), 10);
 }
@@ -1076,8 +1081,12 @@ static void audit_open_cb(lv_event_t *e)
     wt_chrome_head(s_scr);
     {
         char trail[96];
+        // The tab it was opened FROM, not a fixed one: the row sits on BACKUP
+        // as well now, and a trail naming the other tab sends an owner back
+        // through a page they were never on.
         snprintf(trail, sizeof trail, "%s / %s", tr(STR_G_T),
-                 tr(STR_I_TAB_SECURITY));
+                 tr(s_tab == TAB_BACKUP ? STR_I_TAB_BACKUP
+                                        : STR_I_TAB_SECURITY));
         wt_trail(s_scr, WT_ICON_SHIELD, trail, false);
     }
     // The standing claim in the ACCENT, not WT_DIM. It is the one thing this
@@ -1153,24 +1162,24 @@ static void duress_cb(lv_event_t *e)
 
     // The rule in words, under the chips that state it as a picture. The chips
     // alone read as a STATUS -- "drawing set, swipe set" -- so an owner who has
-    // just set a drawing goes looking for where the swipe is chosen. That
-    // control now exists and HOW IT WORKS below reaches it. The left block says
-    // what the swipe does (yours opens the real keys, anything else the spare),
-    // the right says what it is not (the secret; the passphrase is).
+    // just set a drawing goes looking for where the swipe is chosen.
     //
-    // No headings. Both are sentences lifted whole from screens that already
-    // teach this, and a heading over either would be a new key in 21 locales
-    // for decoration. Accent on how it works, WARN on where it goes wrong --
-    // the proven pair geometry.
+    // Three rows, every value already shipping: what the spare is for, what
+    // the swipe does, and the thing neither of them is. The swipe PICKS a
+    // signer; the passphrase is what OPENS one, and an owner who reads the
+    // chips as a lock has to meet that here.
     {
-        const char *b1 = tr(STR_GD_PICK_REAL_S);
-        const char *b2 = tr(STR_GD_DONE_B);
-        const lv_font_t *f = wt_body_font2(b1, b2, 330,
-                                           WT_CONTENT_BOTTOM - 232);
-        wt_why_block(s_scr, NULL, b1, 48, 232, 344,
-                     WT_CONTENT_BOTTOM - 232, f, wt_accent());
-        wt_why_block(s_scr, NULL, b2, 408, 232, 344,
-                     WT_CONTENT_BOTTOM - 232, f, WT_WARN);
+        wt_fact_t facts[3] = {
+            { .cap = tr(STR_D_SPARE),          .val = tr(STR_GD_SET_SUB),
+              .icon = WT_ICON_SECRET },
+            { .cap = tr(STR_GD_PICK_REAL_T),   .val = tr(STR_I_WAYSIN_SHORT),
+              .icon = LV_SYMBOL_EDIT },
+            { .cap = tr(STR_L_PASSPHRASE_CAP), .val = tr(STR_T_PASS_VAL),
+              .icon = WT_ICON_LOCK },
+        };
+        // 200: the chips end at 155 and the usual 232 left 75px of nothing
+        // between the picture and the words about it.
+        wt_facts(s_scr, 200, facts, 3);
     }
 
     // BACK leftmost, the two actions right aligned to 752. 140 + 270 + 270 with
@@ -1405,8 +1414,8 @@ static void erase_screen(void)
         .para     = para,
         .warn     = kiss_ui_backup_checked() ? NULL
                                              : tr(STR_I_WORDS_UNVERIFIED),
-        .surv_cap = tr(STR_C_SURVIVES),   .surv = surv,
-        .goes_cap = tr(STR_C_NOT_SURVIVES), .goes = goes,
+        .surv = surv,
+        .goes = goes,
         .stop     = true,
     };
     wt_gate(s_scr, &g);
@@ -1595,7 +1604,7 @@ static void terms_build_page(void)
     int n = KISS_TERM_N - first;
     if (n > KISS_TERMS_PER_PAGE) n = KISS_TERMS_PER_PAGE;
     kiss_terms_list(s_terms_body, &KISS_TERMS_ALL[first], n);
-    kiss_terms_hint(s_scr);
+    kiss_terms_hint(s_scr, KISS_TERMS_ALL, KISS_TERM_N);
 
     // DOTS IN THE TRAIL, not a pager line at the lane's foot. A definition
     // list at n=5 fills the whole 284px lane by construction, so a pager
@@ -1728,6 +1737,8 @@ static int attention_count(void)
          + (words_unencrypted() ? 1 : 0);
 }
 
+// DECIDED: the amber dots on the tab strip are the attention chip's ROUTING and
+// cannot be deleted as a duplicate of the count.
 // The first tab carrying one, in strip order, so the chip lands on the leftmost
 // mark and the owner works rightwards. It used to be hard coded to BACKUP on
 // the strength of a comment saying both counted conditions lived there; that
@@ -1909,6 +1920,22 @@ static void tab_security(void)
                   .val = tr(on ? STR_G_HIST_ON_BTN : STR_G_HIST_OFF_BTN),
                   .sub = tr(on ? STR_I_HIST_SHORT : STR_I_POP_NOTHING),
                   .mark = LV_SYMBOL_LOOP, .go = persist_cb },
+        // DECIDED: ONE door onto AUDIT, and it is this one. The row was
+        // duplicated onto BACKUP because "how were these made" is a question
+        // about the seed and an outside reader guessed that tab; that argument
+        // is still true and did not survive what the pair cost. From the
+        // bench, "why the fuck now is there TWO audit button in SETTINGS
+        // screens" -- a settings page that lists the same row twice reads as a
+        // page that does not know what it holds, and a reader who cannot find
+        // a screen is not helped by finding it twice.
+        //
+        // It was moved to DEVICE for one commit on the reasoning that HOW YOUR
+        // KEYS WERE MADE and the RANDOMNESS AUDIT are facts about this box.
+        // Wrong tab: what an owner does with them is decide whether to TRUST
+        // the box, which is what SECURITY is for, and it is where the row has
+        // always been. DEVICE is FIRMWARE, THIS DEVICE and TERMS, and it is
+        // three rows again.
+        //
         // No value: AUDIT has no state to report, so what it is FOR rides
         // the sub lane. A phrase in the value lane wraps into the chevron --
         // the value never yields, so it has to be short or absent.
@@ -1934,6 +1961,11 @@ static void seedwords_help_cb(lv_event_t *e)
         // the title where the reader's eye already is.
         .sub    = tr(STR_W_WHATSEED_S),
         .body   = tr(STR_W_WHATSEED_B),
+        // The real term, on the card that defines the plain one. T_SEED_TERM
+        // already ships in 21 locales beside every other term card, so the
+        // line this overlay was missing costs no key.
+        .term   = tr(STR_T_SEED_TERM),
+        .term_label = tr(STR_G_TECHNICAL),
         .ok_txt = tr(STR_C_OK),
         .mode   = WT_BODY_PROSE,
     };
@@ -1953,7 +1985,7 @@ static void tab_backup(void)
     // catch without reading anything.
     bool warn = words_unencrypted();
 
-    wt_def_t defs[3] = {
+    wt_def_t defs[2] = {
         // A word AND a lamp: in the GREEN theme the accent is byte identical
         // to WT_OK, so colour alone stops carrying meaning. No fingerprint in
         // the sub any more -- the bench said it does not help here, and the
@@ -1969,14 +2001,8 @@ static void tab_backup(void)
           .sub = tr(ssub), .sub_col = warn ? WT_WARN : (lv_color_t){0},
           .lamp = warn, .lamp_col = WT_WARN, .lamp_pulse = warn,
           .go = store_open_cb },
-        // The third row is the one backup fact that matters, as a definition
-        // that opens where it stands: this signer can die and the paper
-        // rebuilds the keys. It replaces the fingerprint card -- the bench:
-        // "no need to show fingerprint there, it doesnt help".
-        { .cap = tr(STR_I_RESTORE_CAP), .val = tr(STR_I_RESTORE_VAL),
-          .plain = tr(STR_I_RESTORE_PLAIN) },
     };
-    lv_obj_t *list = def_list(defs, 3);
+    lv_obj_t *list = def_list(defs, 2);
     // A "?" beside SEED WORDS, opening what a seed actually IS. The bench
     // asked for exactly this: "there should be a ? mark next to seed words
     // which when tapped explains bip39 mnemonic". The explainer is the one
@@ -1987,16 +2013,15 @@ static void tab_backup(void)
 
 static void tab_device(void)
 {
-    // Two rows, not four: LANGUAGE and THEME live on the action band now --
-    // one is its own label, the other is its own preview, and neither earned
-    // a 142px row. What is left is the two that lead somewhere.
-    char unit[16];
-    const char *u = wt_denom_unit();
-    size_t ui = 0;
-    for (; u[ui] && ui + 1 < sizeof unit; ui++)
-        unit[ui] = (u[ui] >= 'a' && u[ui] <= 'z') ? (char)(u[ui] - 32) : u[ui];
-    unit[ui] = 0;
-
+    // LANGUAGE and THEME live on the action band -- one is its own label, the
+    // other is its own preview, and neither earned a 142px row.
+    //
+    // DENOMINATION is gone too, and it is the clearer case: every amount on
+    // the signing screens IS the switch (wt_denom_bind), the tap persists
+    // through the same kiss_settings_set_denom this row called, and the row's
+    // own sub-line said so -- "or tap an amount". A preference with two
+    // values, changed where the number it changes is on the glass, does not
+    // also need a row three screens away.
     char terms_count[64];
     const int tunread = kiss_terms_unread(KISS_TERMS_ALL, KISS_TERM_N);
     if (tunread > 0)
@@ -2006,13 +2031,7 @@ static void tab_device(void)
         snprintf(terms_count, sizeof terms_count, "%s",
                  tr(STR_I_TERMS_ALL_READ));
 
-    wt_def_t defs[4] = {
-        // From SIGNER, where it outranked itself. The sub TEACHES the faster
-        // control instead of restating the value: an owner who learns to tap
-        // the amount never comes back to this row, which is the point.
-        { .cap = tr(STR_I_ROW_DENOM), .val = unit,
-          .sub = tr(STR_I_DENOM_SUB),
-          .mark = LV_SYMBOL_LOOP, .go = denom_cb },
+    wt_def_t defs[3] = {
         // The version is a FACT, in the page's own ink. It was amber once,
         // with no predicate behind it -- amber on this page means a dot and
         // a count, both of which this row has never had.
@@ -2034,7 +2053,7 @@ static void tab_device(void)
         { .cap = tr(STR_I_ROW_TERMS), .val = terms_count,
           .sub = tr(STR_I_ROW_TERMS_SUB), .go = terms_open_cb },
     };
-    def_list(defs, kiss_session_decoy() ? 3 : 4);
+    def_list(defs, kiss_session_decoy() ? 2 : 3);
 }
 
 static void tab_noundo(void)
@@ -2093,23 +2112,22 @@ static void tab_noundo(void)
     // next screen does ask again and does need a held press, and an owner
     // reaches it in one tap -- saying so in advance was the card explaining a
     // screen instead of its own decision.
+    // Two ROWS inside the card, 24 in from its edge, which leaves exactly the
+    // 704 the content lane gets -- so the captions and values line up with
+    // every other pair of claims on the device. The marks carry the split:
+    // the bin on what goes, the page on what stays, and STOP on the bin
+    // because this card is the one place a group is irreversible.
     const int by = 22 + lv_font_get_line_height(wt_font28()) + 8;
-    const int bh = 270 - by - 20 - WT_ACTION_H - 14;
-    const int cw = (WT_WIDE_W - 24 - 24 - 24) / 2;
-    // Each head leads with its mark -- what goes (the bin) and what stays
-    // (the paper). Composed here, sized here: the heads are measured with
-    // their icons in, or the shared body rung would be picked against
-    // narrower heads than the ones drawn.
-    char h1[WT_ICON_TEXT_MAX], h2[WT_ICON_TEXT_MAX];
-    wt_icon_text(h1, sizeof h1, WT_ICON_ERASE, tr(STR_I_ERASE_H1));
-    wt_icon_text(h2, sizeof h2, LV_SYMBOL_FILE, tr(STR_I_ERASE_H2));
-    const lv_font_t *bf = wt_body_font2_head(
-        h1, tr(STR_I_ERASE_B1),
-        h2, tr(STR_I_ERASE_B2), cw, bh);
-    wt_why_block(card, h1, tr(STR_I_ERASE_B1),
-                 24, by, cw, bh, bf, wt_accent());
-    wt_why_block(card, h2, tr(STR_I_ERASE_B2),
-                 24 + cw + 24, by, cw, bh, bf, WT_WARN);
+    {
+        wt_fact_t facts[2] = {
+            { .cap = tr(STR_I_ERASE_H1), .val = tr(STR_I_ERASE_B1),
+              .icon = WT_ICON_ERASE,
+              .icon_col = WT_STOP_INK },
+            { .cap = tr(STR_I_ERASE_H2), .val = tr(STR_I_ERASE_B2),
+              .icon = LV_SYMBOL_FILE },
+        };
+        wt_facts_in(card, 24, by, 704, facts, 2);
+    }
 
     // The action, and NO HOLD on it. The hold stays where it already is, on
     // the confirmation behind it: two gates in a row teaches an owner to grind
@@ -2140,9 +2158,12 @@ static void build_tab(void)
         wt_fact_t facts[3] = {
             // The loop, not the key: SAFE TO TRY is the page's own loop mark
             // making its promise in words -- every pick can be picked back.
-            { tr(STR_G_HELP_F1C), tr(STR_G_HELP_F1V), LV_SYMBOL_LOOP },
-            { tr(STR_G_HELP_F2C), tr(STR_G_HELP_F2V), LV_SYMBOL_BELL },
-            { tr(STR_G_HELP_F3C), tr(STR_G_HELP_F3V), LV_SYMBOL_TRASH },
+            { .cap = tr(STR_G_HELP_F1C), .val = tr(STR_G_HELP_F1V),
+              .icon = LV_SYMBOL_LOOP },
+            { .cap = tr(STR_G_HELP_F2C), .val = tr(STR_G_HELP_F2V),
+              .icon = LV_SYMBOL_BELL },
+            { .cap = tr(STR_G_HELP_F3C), .val = tr(STR_G_HELP_F3V),
+              .icon = LV_SYMBOL_TRASH },
         };
         wt_explain(s_pane, tr(STR_G_HELP_HEAD), tr(STR_G_HELP_BODY), facts,
                    3);
@@ -2201,6 +2222,22 @@ void kiss_settings_open(lv_obj_t *parent)
     // SECURITY while no duress mark is set, BACKUP for either of its two. The
     // chip counts conditions and a tab has one dot, so BACKUP holding both is
     // the one state where the number is larger than the marks.
+    // DECIDED: these tabs keep their NOUNS and are not renamed after the jobs
+    // they hold. The proposal was HOW IT SIGNS / WHAT IT KEEPS / HOW IT PROVES
+    // / WHAT IT IS, and it does not fit: the five-up strip is 620px, the
+    // shipped labels measure 612 of it, and those four plus NO UNDO measure
+    // 920. Three hundred pixels over is not a layout to tune.
+    //
+    // The only form that fits is single verbs -- SIGNS / KEEPS / PROVES / IS,
+    // 500px -- and "IS" is not a word to put on a tab an owner is looking for
+    // something in. Verbs without subjects read worse than the nouns they
+    // would replace, for a reader who bought their first signing device last
+    // week.
+    //
+    // The miscategorisation the proposal was built on is also gone: it argued
+    // that storage sat on SECURITY while recovery words sat on BACKUP, so
+    // checking a backup crossed two tabs. STORAGE is on BACKUP beside SEED
+    // WORDS, which is one job on one tab.
     const wt_tab_t tabs[TAB_N] = {
         { WT_ICON_KEY,        tr(STR_I_TAB_SIGNER),   false,          false },
         { WT_ICON_SHIELD,     tr(STR_I_TAB_SECURITY), duress_unset(), false },
@@ -2246,6 +2283,7 @@ void kiss_settings_open(lv_obj_t *parent)
         wt_alert_chip(s_scr, lab, attn_cb, NULL);
     }
 
+    // DECIDED: language and theme live on the BAND, moved there out of the DEVICE tab.
     // The band's centre: LANGUAGE and THEME, out of the DEVICE tab. The
     // language control needs no caption -- its label IS the active language's
     // own name, stripped of the regional qualifier ("ESPANOL (ESPANA)" ->

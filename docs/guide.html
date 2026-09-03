@@ -187,13 +187,21 @@
           Everything the README summarizes, in full: verifying releases, flashing,
           building from source, the flash-encryption build, and first boot.
         </p>
+        <!-- The two documents are siblings, not copies, and neither said so:
+             this one is organised by topic and the walkthrough is the device in
+             order, one simulator frame per screen. A reader who found one had no
+             way to tell whether the other was stale or a duplicate. -->
+        <p class="lede">
+          Organised by topic. For the device in order, screen by screen, read the
+          <a href="https://github.com/kkdao/kiss-signer/blob/main/docs/walkthrough.md">walkthrough</a>.
+        </p>
         <nav class="toc" aria-label="Sections">
           <a href="#verify">verify</a>
           <a href="#esptool">esptool</a>
           <a href="#source">build from source</a>
           <a href="#encryption">flash encryption</a>
           <a href="#firstboot">first boot</a>
-          <a href="#storage">where the words live</a>
+          <a href="#storage">storage</a>
           <a href="#simulator">simulator</a>
           <a href="#release">cutting a release</a>
           <a href="#hardware">hardware</a>
@@ -271,7 +279,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           skipped this.
         </p>
         <p>
-          The merged image covers the wallet-storage area, so every flash is a clean
+          The merged image covers the area that holds your keys, so every flash is a clean
           start.
         </p>
       </section>
@@ -353,9 +361,9 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           lane's shifted offsets.
         </p>
         <p>
-          Settings and the wallet home show an amber "flash encryption: OFF" line
+          Settings and the signer home show an amber "flash encryption: OFF" line
           read live from eFuse. After the encrypted first boot it flips to a calm
-          "flash encryption: ENABLED", and only then create a wallet you care
+          "flash encryption: ENABLED", and only then create keys you care
           about.
         </p>
       </section>
@@ -363,6 +371,14 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
       <section class="doc-card reveal" id="firstboot">
         <p class="eyebrow">05 / hand it to anyone</p>
         <h2>Getting in the first time</h2>
+        <p>
+          Three rules before the steps, because the device will not stop to say
+          them: <strong>every passphrase opens keys</strong>, so there is no
+          "wrong passphrase" error and never will be;
+          <strong>the fingerprint</strong> on the home screen is how you tell
+          which keys you opened; and <strong>this signer is never online</strong>,
+          so your coordinator does all the talking to the network.
+        </p>
         <ol>
           <li>You get a fruit game. It really plays. Hand it to anyone.</li>
           <li>
@@ -371,15 +387,15 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
             remaining letters stretching well to the right.
           </li>
           <li>
-            Type a <strong>passphrase</strong>. Any passphrase opens <em>a</em>
-            wallet; only yours opens <em>yours</em>. Recognise your wallet by the
-            fingerprint shown after entry; there is deliberately no "wrong
-            passphrase" error.
+            Type a <strong>passphrase</strong>. Yours opens your keys; another one
+            opens a different, empty set. The fingerprint after entry is which
+            set you got.
           </li>
           <li>
-            First time: Settings &rarr; <strong>CREATE NEW WALLET</strong>. Pick a
-            word count, feed the camera a detailed scene for entropy, write the
-            words on paper, pass the word quiz, set your passphrase.
+            First time: <strong>SET UP THIS SIGNER</strong> &rarr;
+            <strong>NEW SEED WORDS</strong>. Pick where the randomness comes
+            from, write the seed words on paper, pass the quiz, choose where
+            they are kept, set your passphrase.
           </li>
           <li>
             After creation, KISS offers an optional
@@ -390,17 +406,19 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
             strongest check before funding.
           </li>
           <li>
-            Later, <strong>Settings &rarr; RECOVERY WORDS</strong> lets you show
-            the words behind a warning or run <strong>VERIFY WORDS</strong>
-            without revealing the stored copy. A wrong or missing word is
-            reported by position. Neither check alters the seed.
+            Later, <strong>SETTINGS &rarr; BACKUP &rarr; SEED WORDS</strong>
+            lets you SHOW THEM behind a warning, or CHECK MY COPY against your
+            paper without revealing the stored set. A wrong or missing word is
+            reported by position. Neither check alters anything.
           </li>
           <li>
-            Stay on <strong>TESTNET</strong> (Settings) while you learn. Coins:
-            coinfaucet.eu.
+            Rehearse on <strong>TESTNET</strong>
+            (SETTINGS &rarr; SIGNER &rarr; NETWORK) while you learn: free coins
+            from coinfaucet.eu, the same screens, nothing at stake. The chip
+            beside the home title says TESTNET until you switch back.
           </li>
           <li>
-            Pair a coordinator: <strong>Wallet &rarr; PAIR COORDINATOR</strong>,
+            Pair a coordinator: <strong>KEYS &rarr; PAIR COORDINATOR</strong>,
             pick DESKTOP (Sparrow, descriptor) or MOBILE (BlueWallet, zpub).
             The app watches and broadcasts. It cannot sign by itself, and the
             device verifies and signs PSBTs via camera QR or <code>.psbt</code>
@@ -415,7 +433,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         <h3>Your first TESTNET round trip</h3>
         <p>
           This is a visual checklist, not an extra wizard. Complete it once with
-          valueless TESTNET coins before using a wallet you care about.
+          valueless TESTNET coins before using keys you care about.
         </p>
         <div class="first-run">
           <figure>
@@ -426,7 +444,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           </figure>
           <figure>
             <img src="media/export-descriptor.png" alt="KISS descriptor QR for Sparrow">
-            <figcaption><b>02</b>Pair Sparrow: Wallet &rarr; PAIR COORDINATOR
+            <figcaption><b>02</b>Pair Sparrow: KEYS &rarr; PAIR COORDINATOR
               &rarr; DESKTOP. In Sparrow, create an Airgapped Hardware Wallet
               and scan this descriptor.</figcaption>
           </figure>
@@ -437,7 +455,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
               Continue only when KISS says it is yours.</figcaption>
           </figure>
           <figure>
-            <img src="media/wallet-home.png" alt="KISS Signer home">
+            <img src="media/signer-home.png" alt="KISS Signer home">
             <figcaption><b>04</b>Practice receiving: send a tiny TESTNET amount
               to that verified address and wait for Sparrow to show it.</figcaption>
           </figure>
@@ -445,7 +463,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
             <img src="media/sign-verify.png" alt="KISS transaction verification screen">
             <figcaption><b>05</b>Practice spending: build the return payment in
               Sparrow, move its PSBT by QR or SD, compare RECIPIENT GETS,
-              NETWORK FEE, TOTAL LEAVING WALLET, outputs and change, then hold
+              NETWORK FEE, TOTAL LEAVING, outputs and change, then hold
               to sign. Return the signed PSBT to Sparrow and
               <strong>broadcast there</strong>.</figcaption>
           </figure>
@@ -453,7 +471,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         <div class="shots">
           <figure>
             <img src="media/passphrase-warning.png" alt="Passphrase warning screen">
-            <figcaption>The passphrase is part of the wallet: lose it, lose the wallet.</figcaption>
+            <figcaption>The passphrase is part of your keys: lose it, lose the keys.</figcaption>
           </figure>
           <figure>
             <img src="media/export-descriptor.png" alt="Descriptor export QR screen">
@@ -513,8 +531,8 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
       </section>
 
       <section class="doc-card reveal" id="storage">
-        <p class="eyebrow">06 / where the words live</p>
-        <h2>Where your recovery words live</h2>
+        <p class="eyebrow">06 / three storage modes</p>
+        <h2>Where your recovery words are kept</h2>
         <p>
           Setup asks this once, and Settings can change it later. All three
           modes are offered on every build. What differs between them is what an
@@ -522,14 +540,14 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         </p>
         <p>
           In every mode your <strong>passphrase is never stored</strong>. It is
-          typed fresh each unlock, and it is what guards the wallet that holds
-          your coins. Recovery words on their own derive the base wallet, not
-          your passphrase wallet.
+          typed fresh each unlock, and it is what guards the keys that hold your
+          coins. Recovery words on their own derive the base keys, not your
+          passphrase keys.
         </p>
 
         <h3>FLASH</h3>
         <p>
-          The words stay on the device and it unlocks on its own. On the normal
+          Your seed words stay on the device and it unlocks on its own. On the normal
           beta they are written <strong>in the clear</strong>, so someone with
           the device and the right equipment can read them out of the chip. On a
           flash-encrypted build the same mode stores them encrypted. The device
@@ -539,8 +557,8 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
 
         <h3>SD CARD</h3>
         <p>
-          The words live on the card as a sealed file that only this device can
-          open, so the card on its own is inert. Insert it before unlocking. The
+          Your seed words are kept on the card as a sealed file that only this
+          device can open, so the card on its own is inert. Insert it before unlocking. The
           split is the point: a lost card gives up nothing, and the device on
           its own holds no copy of the card's contents.
         </p>
@@ -549,13 +567,13 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           the card. Closing it is what flash encryption adds, by protecting the
           device key at rest. Until then, SD is still the stronger of the two
           persistent modes, because FLASH on an unencrypted build stores the
-          words in the clear.
+          seed words in the clear.
         </p>
 
         <h3>AMNESIC</h3>
         <p>
-          Nothing is written anywhere. The words live in RAM for the session and
-          are gone on lock or power off, so you load them again every time, by
+          Nothing is written anywhere. The seed words are held in RAM for the
+          session and are gone on lock or power off, so you load them again every time, by
           typing them or by opening an encrypted backup. A device taken while
           locked holds nothing to find. This is the mode to use for anything
           that matters on beta firmware.
@@ -566,8 +584,8 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           writes the new copy, verifies it, and only then removes the old one.
           Moving a loaded amnesic session to a persistent mode works while it is
           still unlocked; lock it first and there is nothing left in RAM to
-          migrate, so KISS asks you to load the wallet again rather than claim
-          it moved words it no longer has.
+          migrate, so KISS asks you to load your keys again rather than claim
+          it moved seed words it no longer has.
         </div>
       </section>
 
@@ -636,7 +654,7 @@ tools/make_web_release.sh     # merged image + SHA256SUMS + GPG signature
           C6's reset line low, so whatever firmware it shipped with never
           executes, and no wireless stack is compiled into KISS. The release
           checks fail the build if any radio or networking code gets linked.
-          The wallet home and Settings show <code>radio: held in reset</code>,
+          The signer home and Settings show <code>radio: held in reset</code>,
           read back live from the pin, not assumed.
         </p>
         <p>

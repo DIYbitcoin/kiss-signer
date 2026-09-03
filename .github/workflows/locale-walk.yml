@@ -37,6 +37,21 @@ on:
     - cron: '0 4 * * *'
   workflow_dispatch:
 
+# ONE nightly locale sweep at a time, shared with locale-overlap.yml -- the
+# group name is the same string in both files, and that is the only thing that
+# makes two separate workflows queue instead of taking the runners at once.
+#
+# On a quiet night they never meet: the clocks are an hour apart and this
+# walk's 21 legs are capped at 25 minutes each. It is for the nights that are
+# not quiet -- a cron the scheduler holds, or a workflow_dispatch fired while
+# the other is still going.
+#
+# Never cancel. A half finished sweep reports nothing, and neither of these
+# gates anything, so there is nobody to hand a faster red to.
+concurrency:
+  group: locale-nightly
+  cancel-in-progress: false
+
 jobs:
   walk:
     runs-on: ubuntu-latest

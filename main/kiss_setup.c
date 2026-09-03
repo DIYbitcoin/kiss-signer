@@ -44,10 +44,7 @@
 #include "esp_timer.h"       // esp_timer_get_time
 #endif
 
-// main.c owns the full replacement/setup hand-off (including the type-twice
-// passphrase ritual). The missing-SD recovery action must use that path rather
-// than treating restored words like an ordinary one-passphrase unlock.
-void kiss_begin_setup(void);
+#include "main.h"   // kiss_begin_setup owns the whole hand-off; see the note there
 
 #define BG_COL   WT_BG
 #define INK_COL  WT_INK
@@ -70,6 +67,8 @@ static int s_wpage;             // which 12-word page the reveal is showing
 static bool s_restore;
 static bool s_verify;           // reuse the restore keypad to CHECK the paper backup
 static bool s_verify_ok;        // result returned to the caller after this check
+static bool s_verify_pass;      // ...and the passphrase leg was asked for
+static bool s_verify_full;      // ...and it passed: words AND passphrase
 static bool s_load;             // AMNESIC per-session load, not first-boot setup
 static int s_sd_problem;         // WSEED_ERR_* shown by the missing-card gate
 
@@ -152,6 +151,7 @@ static void goto_restore_cb(lv_event_t *e) { (void)e; restore_screen(); }
 bool kiss_setup_active(void) { return s_scr != NULL; }
 
 bool kiss_setup_verify_succeeded(void) { return s_verify_ok; }
+bool kiss_setup_verify_full(void)      { return s_verify_full; }
 
 static void wipe_state(void)
 {
@@ -371,6 +371,50 @@ static void verify_finish_exit(void)
 static void verify_exit_cb(lv_event_t *e)  { (void)e; verify_finish_exit(); }
 static void verify_retry_cb(lv_event_t *e) { (void)e; restore_screen(); }
 
+// ---- the second leg: the passphrase ---------------------------------------
+//
+// The words alone are half a backup. This screen ends by printing the open
+// keys' fingerprint and telling the owner to write it down -- and on a wallet
+// with a passphrase, the words they just checked cannot reproduce that code by
+// themselves. It said so, in its own subtitle: "the passphrase is not part of
+// this check", directly above the code it was asking them to trust. The two
+// halves of the screen contradicted each other and the half they copy onto
+// paper was the unproven one.
+//
+// So it is asked for, fresh, and it has to rederive the same four bytes. The
+// derivation goes BESIDE the live session (kiss_session_prepare ->
+// kiss_session_prepared_fingerprint -> discard), so a wrong answer cannot
+// leave the device holding keys the owner did not open -- which is the only
+// reason this is safe to offer somewhere an owner arrives already unlocked.
+//
+// Nothing is stored. The comparison is between two fingerprints, and the
+// passphrase is wiped with the keyboard.
+static void verify_ok_screen(void);
+
+static int verify_pass_check(const char *pass, size_t len)
+{
+    (void)len;
+    uint8_t got[4] = {0}, want[4] = {0};
+    kiss_ui_last_fp(want);
+    int rc = kiss_session_prepare(pass);
+    if (rc == 0) rc = kiss_session_prepared_fingerprint(got);
+    kiss_session_discard_prepared();
+    if (rc != 0) return -1;
+    // kiss_rehearse_pass_ok, not memcmp: a zeroed `want` must never verify,
+    // and that decision lives where kisstest can reach it.
+    return kiss_rehearse_pass_ok(got, want) ? 0 : -1;
+}
+
+static void verify_pass_done(void)
+{
+    s_verify_full = true;
+    verify_ok_screen();
+}
+
+// CANCEL is not a failure. The words matched and that is worth saying; the
+// screen simply keeps the subtitle admitting the passphrase was not checked.
+static void verify_pass_cancel(void) { verify_ok_screen(); }
+
 static void verify_finish(void)
 {
     char typed[WSEED_MAX_MNEMONIC], stored[WSEED_MAX_MNEMONIC];
@@ -383,7 +427,64 @@ static void verify_finish(void)
 
     if (mism < 0) {
         s_verify_ok = true;
-        mk_screen(tr(STR_W_VOK_T), tr(STR_W_VOK_S));
+        // A wallet with NO passphrase has nothing left to prove -- the words
+        // ARE the whole backup, and asking anyway is the unanswerable prompt
+        // kiss_rehearse.h exists to stop. Same seam, same answer, both routes.
+        //
+        // ...and only when there is an identity to compare against. A zeroed
+        // fingerprint never verifies (kiss_rehearse_pass_ok), so asking for a
+        // passphrase with no keys open is a prompt whose every answer is
+        // refused -- the same unanswerable shape kiss_rehearse exists to stop,
+        // arrived at from the other side.
+        uint8_t held[4];
+        kiss_ui_last_fp(held);
+        if (s_verify_pass && kiss_fp_known(held) &&
+            kiss_rehearse_after_words(kiss_session_decoy()) ==
+                KISS_REHEARSE_NEED_PASSPHRASE) {
+            kiss_ui_verify_pass_open(verify_pass_check, verify_pass_done,
+                                     verify_pass_cancel);
+            return;
+        }
+        verify_ok_screen();
+        return;
+    }
+
+    {
+        char buf[128];   // Cyrillic runs 2 bytes/char: 48 truncated every ru render
+        snprintf(buf, sizeof buf, tr(STR_W_VBAD_FMT), mism + 1);
+        mk_screen(tr(STR_W_VBAD_T), tr(STR_W_VBAD_S));
+        mk_lbl(buf, 48, 150, wt_font28(), STOP_COL);
+        wt_body_para(s_scr, tr(STR_W_VBAD_B), 206);
+        // Typing them again is what this screen is for; DONE is the way out.
+        wt_arrow_action(s_scr, tr(STR_C_DONE), true, false, WT_EXIT_X,
+                        WT_ACTION_Y, 140, true, verify_exit_cb, NULL);
+        wt_arrow_action(s_scr, tr(STR_W_TYPE_AGAIN_BTN), false, true, WT_ACT_X,
+                        WT_ACTION_Y, 300, false, verify_retry_cb, NULL);
+    }
+}
+
+static void verify_ok_screen(void)
+{
+    {
+        // DECIDED: a signer with NO passphrase gets the full verdict and no
+        // disclaimer. This read s_verify_full alone, which is only true when
+        // the passphrase leg actually RAN -- and that leg is skipped outright
+        // when there is no passphrase to check. So a device that has never had
+        // one showed "SEED WORDS VERIFIED" under a subtitle reading "the
+        // passphrase is not part of this check", disclaiming something the
+        // owner does not have and cannot add to the check.
+        //
+        // kiss_rehearse_after_words is the seam that already knows: VERIFIED
+        // means the words alone ARE the whole backup. When they are, and they
+        // matched, the backup is fully verified and there is nothing to
+        // disclaim. The subtitle survives for the case it was written for --
+        // a passphrase in use whose leg was cancelled or not offered.
+        const bool pp_needed =
+            kiss_rehearse_after_words(kiss_session_decoy()) ==
+                KISS_REHEARSE_NEED_PASSPHRASE;
+        const bool full = s_verify_full || !pp_needed;
+        mk_screen(tr(full ? STR_L_BACKUP_VERIFIED : STR_W_VOK_T),
+                  full ? NULL : tr(STR_W_VOK_S));
         mk_lbl(tr_sym(LV_SYMBOL_OK, STR_W_VOK_MATCH), 48, 150,
                wt_font28(), OK_COL);
 
@@ -426,41 +527,43 @@ static void verify_finish(void)
             lv_obj_remove_flag(vcol, LV_OBJ_FLAG_SCROLLABLE);
             wt_diagram_verify(vcol);
         }
-        mk_body(tr(STR_W_VOK_B), 48, fp_known ? 196 : 296, 704,
+        // ...and the body does not name a passphrase either. It said "seed
+        // words + passphrase restore these keys" on a signer that has no
+        // passphrase, which is the same fault as the subtitle above and was
+        // reported in the same breath.
+        mk_body(tr(pp_needed ? STR_W_VOK_B : STR_W_VOK_B_NP),
+                48, fp_known ? 196 : 296, 704,
                 fp_known ? 58 : WT_CONTENT_BOTTOM - 296, MUT_COL);
 
         if (fp_known) {
             char fpbuf[16];
             snprintf(fpbuf, sizeof fpbuf, "%02X%02X%02X%02X",
                      fp[0], fp[1], fp[2], fp[3]);
-            mk_lbl(tr(STR_L_FP_CAP), 48, 268, wt_font14(), MUT_COL);
-            lv_obj_t *f = mk_lbl(fpbuf, 48, 290, wt_font28(), INK_COL);
+            // font23, not font14. FINGERPRINT is a caption an owner READS,
+            // not a mark: it names the eight characters under it, and the
+            // house rule puts a word somebody reads at 23 or above. It was
+            // the smallest thing on a screen whose subject is those eight
+            // characters.
+            mk_lbl(tr(STR_L_FP_CAP), 48, 258, wt_font23(), MUT_COL);
+            lv_obj_t *f = mk_lbl(fpbuf, 48, 292, wt_font28(), INK_COL);
             lv_obj_set_style_text_letter_space(f, 4, 0);
-            // 58, not 48. At 48 this fitted two lines only at font14, which
-            // made the one instruction the screen exists to give the smallest
-            // text on it. 334 + 58 = 392 clears the 398 floor, and a long
-            // translation still falls back to font14 inside the same slot.
+            // ONE LINE, so it lands at font28 rather than font23. It used to
+            // say "this code names the keys open right now. you will see it
+            // again on the home screen." -- two lines defining a word the
+            // caption above already uses and that a bitcoin owner has known
+            // since their first coordinator. What is worth the room is the
+            // CHECK: the coordinator shows this same fingerprint, and a
+            // mismatch means the keys are not the ones being watched.
             //
             // INK, matching setup_warn_screen. Not the accent and not WT_OK:
             // in GREEN theme those are the same colour, and the green tick
             // above is already carrying the status.
-            mk_body(tr(STR_W_VOK_FP), 48, 334, 704, 58, INK_COL);
+            mk_body(tr(STR_W_VOK_FP), 48, 336, 704, 46, INK_COL);
         }
 
         // Only the exit in the bar, so it takes the corner.
         wt_arrow_action(s_scr, tr(STR_C_DONE), false, true, WT_BACK_X,
                         WT_ACTION_Y, 140, true, verify_exit_cb, NULL);
-    } else {
-        char buf[128];   // Cyrillic runs 2 bytes/char: 48 truncated every ru render
-        snprintf(buf, sizeof buf, tr(STR_W_VBAD_FMT), mism + 1);
-        mk_screen(tr(STR_W_VBAD_T), tr(STR_W_VBAD_S));
-        mk_lbl(buf, 48, 150, wt_font28(), STOP_COL);
-        wt_why_body(s_scr, tr(STR_W_VBAD_B), 206, STOP_COL, true);
-        // Typing them again is what this screen is for; DONE is the way out.
-        wt_arrow_action(s_scr, tr(STR_C_DONE), true, false, WT_EXIT_X,
-                        WT_ACTION_Y, 140, true, verify_exit_cb, NULL);
-        wt_arrow_action(s_scr, tr(STR_W_TYPE_AGAIN_BTN), false, true, WT_ACT_X,
-                        WT_ACTION_Y, 300, false, verify_retry_cb, NULL);
     }
 }
 
@@ -468,41 +571,32 @@ static void verify_start_cb(lv_event_t *e) { (void)e; restore_screen(); }
 
 static void verify_intro_screen(void)
 {
-    mk_screen(tr(STR_W_VINTRO_T),
-              tr(STR_W_VINTRO_S));
+    // No subtitle: the trail owns that row, and W_VINTRO_S is the HEADLINE
+    // now -- it was always the sentence this page is about, and a headline is
+    // where the sentence a page is about goes.
+    mk_screen(tr(STR_W_VINTRO_T), NULL);
+    // One word, because the two ways in disagree about the parent: setup's
+    // rehearsal reaches this, and so does KEYS > PAPER > CHECK MY COPY. BACKUP
+    // is true from both.
+    wt_trail(s_scr, WT_ICON_KEY, tr(STR_I_TAB_BACKUP), false);
 
-    // Band one: what the check claims, framed and drawn. The screen used to open
-    // with three stacked grey paragraphs, which is the arrangement a reader
-    // skips on the way to the button -- and this is the screen whose whole point
-    // is that the reader understands what is about to be proven.
-    //
-    // 128..212, matching the passphrase intro and the fingerprint reveal, so the
-    // setup flow keeps one skeleton from screen to screen.
-    lv_obj_t *vcard = wt_card(s_scr, 48, 128, 704, 64);
-    lv_obj_t *vcol = lv_obj_create(vcard);
-    lv_obj_remove_style_all(vcol);
-    lv_obj_set_pos(vcol, 0, 0);
-    lv_obj_set_size(vcol, 704, 84);
-    lv_obj_set_flex_flow(vcol, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(vcol, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
-                          LV_FLEX_ALIGN_CENTER);
-    lv_obj_remove_flag(vcol, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_remove_flag(vcol, LV_OBJ_FLAG_SCROLLABLE);
-    wt_diagram_verify(vcol);
-
-    // Band two: what it proves, and what it will never do. Accent on the claim,
-    // WT_WARN on the limit, the same colour argument every other paired block on
-    // the device makes. HEAD_ROOM budgets the font14 heading wt_why_block draws
-    // above the body; see the identical note on the passphrase intro.
-    {
-        const char *b1 = tr(STR_W_VINTRO_W1_B), *b2 = tr(STR_W_VINTRO_W2_B);
-        const int BW = 344, BY = 204, BH = WT_CONTENT_BOTTOM - BY;
-        const lv_font_t *f = wt_body_font2_head(tr(STR_W_VINTRO_W1_H), b1,
-                                               tr(STR_W_VINTRO_W2_H), b2,
-                                               BW - 14, BH);
-        wt_why_block(s_scr, tr(STR_W_VINTRO_W1_H), b1,  48, BY, BW, BH, f, wt_accent());
-        wt_why_block(s_scr, tr(STR_W_VINTRO_W2_H), b2, 408, BY, BW, BH, f, WARN_COL);
-    }
+    // THE EXPLAIN CONTRACT, the same one the passphrase intro, the seed
+    // explainer and all three [ ? ] pages wear: headline, paragraph, then
+    // labelled facts. What it replaces is the shape those screens were all
+    // moved off -- a card with a diagram in it and two wt_why_blocks under it,
+    // which is the last thing on the device still reading as a different
+    // product. The diagram drew WORDS -> KEYS, which is what the headline
+    // says, so it goes with the blocks and with the wt_body_font2_head
+    // measurement that sized them.
+    wt_fact_t facts[3] = {
+        { .cap = tr(STR_W_VINTRO_W1_H), .val = tr(STR_W_VINTRO_W2_B),
+          .icon = WT_ICON_KEY },
+        { .cap = tr(STR_W_VINTRO_W2_H), .val = tr(STR_I_KEF_WARN_S),
+          .icon = WT_ICON_SECRET },
+        { .cap = tr(STR_G_TECHNICAL), .val = tr(STR_T_SEED_TERM),
+          .icon = LV_SYMBOL_LIST },
+    };
+    wt_explain(s_scr, tr(STR_W_VINTRO_S), tr(STR_W_VINTRO_W1_B), facts, 3);
 
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_EXIT_X,
                     WT_ACTION_Y, 140, true, verify_exit_cb, NULL);
@@ -849,8 +943,14 @@ static void words_screen(void)
     }
     // the one rule that matters while they are copying: loud, under the grid,
     // not buried at the end of the subtitle
-    lv_obj_t *po = mk_lbl(tr(STR_W_PAPER_ONLY), 48, 352,
-                          wt_body_font(tr(STR_W_PAPER_ONLY), 700, 40),
+    //
+    // STR_I_WORDS_S, the SAME sentence the reveal gate in SETTINGS shows. This
+    // was W_PAPER_ONLY -- "paper only. never type or photograph." -- a third
+    // wording of one rule, on the third screen that gives it. Two negations
+    // and no instruction, against "on paper, in order" which says what to do
+    // and adds the part that matters while somebody is copying twelve words.
+    lv_obj_t *po = mk_lbl(tr(STR_I_WORDS_S), 48, 352,
+                          wt_body_font(tr(STR_I_WORDS_S), 700, 40),
                           wt_ink_for(WARN_COL));
     lv_obj_set_width(po, 700);
     lv_label_set_long_mode(po, LV_LABEL_LONG_WRAP);
@@ -2109,20 +2209,22 @@ static void dice_warn_screen(int verdict)
                     dice_need(), &q);
     dice_bars_set(&q);
 
-    // wt_body_font2_HEAD: it measures the two headings instead of a flat
-    // constant. The number here used to be the 166px budget minus 54 for a
-    // heading that MIGHT wrap to two lines, in every locale whether it did or
-    // not -- a third of the budget given away, which is what drops a pair to
-    // font14. docs/house-rules.md rule 2 names it; these were the call sites
-    // still doing it.
-    const lv_font_t *f = wt_body_font2_head(
-        tr(STR_W_DICE_W1_H), tr(STR_W_DICE_W1_B),
-        tr(STR_W_DICE_W2_H), tr(STR_W_DICE_W2_B),
-        330, WT_CONTENT_BOTTOM - 232);
-    wt_why_block(s_scr, tr(STR_W_DICE_W1_H), tr(STR_W_DICE_W1_B),
-                 48, 232, 344, WT_CONTENT_BOTTOM - 232, f, WT_WARN);
-    wt_why_block(s_scr, tr(STR_W_DICE_W2_H), tr(STR_W_DICE_W2_B),
-                 408, 232, 344, WT_CONTENT_BOTTOM - 232, f, wt_accent());
+    // The two claims as ROWS, under the evidence they are about. They were a
+    // pair of wt_why_blocks -- two columns of grey with a rule down the side
+    // of each -- which is the shape the whole device has now moved off. The
+    // subtitle above already names WHAT the judge found, so a claim is one
+    // line: the consequence, and the way out of it.
+    //
+    // The amber is on the MARK and nowhere else, which is wt_gate's own rule
+    // for a screen an owner can still walk back from.
+    wt_fact_t facts[2] = {
+        { .cap = tr(STR_W_DICE_W1_H), .val = tr(STR_W_DICE_W1_B),
+          .icon = LV_SYMBOL_WARNING,
+          .icon_col = WT_WARN },
+        { .cap = tr(STR_W_DICE_W2_H), .val = tr(STR_W_DICE_W2_B),
+          .icon = LV_SYMBOL_LOOP },
+    };
+    wt_facts(s_scr, 232, facts, 2);
 
     // No USE ANYWAY. KEEP GOING keeps the right hand slot it already had, so
     // the muscle memory survives, and it is primary because it is the way
@@ -2199,6 +2301,12 @@ static void dice_screen_build(void)
 
     s_dice_card = wt_card(s_scr, DICE_CARD_X, DICE_CARD_Y, DICE_CARD_W, DICE_CARD_H);
 
+    // DECIDED: the dice keys are drawn in wt_accent() over WT_DIV troughs, not
+    // in a hardcoded blue. They read stronger than the rest of the device only
+    // because six large fills carry the same accent that is hairlines
+    // everywhere else -- area against stroke, not a palette break. There is no
+    // hardcoded colour in this file outside one dim amber.
+    //
     // The keys, each directly over the column it feeds: six for a die, two for
     // a coin.
     //
@@ -2619,7 +2727,7 @@ static void restore_screen(void)
 // drawn blind from the cut up word list, typed on the restore keyboard above,
 // then a last word picked from the checksum valid candidates. That word joins s_w
 // and the flow rejoins words_screen -> quiz -> store like every other mode.
-// See docs/superpowers/specs/2026-08-04-cards-lastword-design.md
+// See design/specs/2026-08-04-cards-lastword-design.md
 
 static void cards_cancel_cb(lv_event_t *e)
 {
@@ -2706,14 +2814,19 @@ static void cards_intro_screen(void)
     // from here.
     wt_help_chip(card, 704 - 44, 12, MUT_COL, cards_help_cb, NULL);
 
+    // How the draw is made, and the one way it stops being a draw -- as rows
+    // under the equation, the same shape every explainer on the device wears
+    // now. The third row is the standard's own word for what a draw produces.
     {
-        const char *b1 = tr(STR_W_CARDS_W1_B), *b2 = tr(STR_W_CARDS_W2_B);
-        const int BW = 344, BY = 204, BH = WT_CONTENT_BOTTOM - BY;
-        const lv_font_t *f = wt_body_font2_head(tr(STR_W_CARDS_W1_H), b1,
-                                               tr(STR_W_CARDS_W2_H), b2,
-                                               BW - 14, BH);
-        wt_why_block(s_scr, tr(STR_W_CARDS_W1_H), b1,  48, BY, BW, BH, f, wt_accent());
-        wt_why_block(s_scr, tr(STR_W_CARDS_W2_H), b2, 408, BY, BW, BH, f, WARN_COL);
+        wt_fact_t facts[3] = {
+            { .cap = tr(STR_W_CARDS_W1_H), .val = tr(STR_W_CARDS_W1_B),
+              .icon = LV_SYMBOL_SHUFFLE },
+            { .cap = tr(STR_W_CARDS_W2_H), .val = tr(STR_W_CARDS_W2_B),
+              .icon = LV_SYMBOL_WARNING, .icon_col = WT_WARN },
+            { .cap = tr(STR_G_TECHNICAL), .val = tr(STR_T_RNG_TERM),
+              .icon = LV_SYMBOL_LIST },
+        };
+        wt_facts(s_scr, 220, facts, 3);
     }
 
     // Back to the METHOD chooser, not the count screen: cards makes 12 and no
@@ -2813,21 +2926,16 @@ static void cards_verdict_screen(int title, lv_color_t col)
     lv_obj_t *card = wt_card(s_scr, 48, 104, 704, 92);
     cards_bars_make(card, col);
 
-    const char *b1 = tr(cards_why_key()), *b2 = tr(STR_W_CARDS_FIX_B);
-    const int BW = 344, BY = 204, BH = WT_CONTENT_BOTTOM - BY;
-    // wt_body_font2_HEAD: it measures the two headings instead of a flat
-    // constant. The number here used to be the 166px budget minus 54 for a
-    // heading that MIGHT wrap to two lines, in every locale whether it did or
-    // not -- a third of the budget given away, which is what drops a pair to
-    // font14. docs/house-rules.md rule 2 names it; these were the call sites
-    // still doing it.
-    const lv_font_t *f = wt_body_font2_head(tr(STR_W_DICE_W1_H), b1,
-                                            tr(STR_W_DICE_W2_H), b2, BW - 14, BH);
-    // Reusing the dice pair's headings: already parallel, already translated,
+    // Reusing the dice pair's captions: already parallel, already translated,
     // and kiss_info.c reuses a dice title off the dice path for the same
-    // reason. The rule colour is the verdict's, the fix is always the accent.
-    wt_why_block(s_scr, tr(STR_W_DICE_W1_H), b1,  48, BY, BW, BH, f, col);
-    wt_why_block(s_scr, tr(STR_W_DICE_W2_H), b2, 408, BY, BW, BH, f, wt_accent());
+    // reason. The MARK carries the verdict's colour; the fix keeps the accent.
+    wt_fact_t facts[2] = {
+        { .cap = tr(STR_W_DICE_W1_H), .val = tr(cards_why_key()),
+          .icon = LV_SYMBOL_WARNING, .icon_col = col },
+        { .cap = tr(STR_W_DICE_W2_H), .val = tr(STR_W_CARDS_FIX_B),
+          .icon = LV_SYMBOL_SHUFFLE },
+    };
+    wt_facts(s_scr, 224, facts, 2);
 
     // CANCEL leaves, START OVER is the way through and takes the corner.
     wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, 48, WT_ACTION_Y,
@@ -2930,16 +3038,18 @@ static void cards_cksum_screen(void)
     lv_obj_set_width(fl, 704);
     lv_obj_set_style_text_align(fl, LV_TEXT_ALIGN_CENTER, 0);
 
+    // What the last word is and what it catches, as rows under the count.
+    // They were two columns of grey; the count line is why these start at 252
+    // rather than the 220 the blind draw's do.
     {
-        const char *b1 = tr(STR_W_CKSUM_W1_B), *b2 = tr(STR_W_CKSUM_W2_B);
-        // 232, not the 204 its siblings moved to: the checksum screen hangs a centred fit line under its card,
-        // so there is nothing to reclaim above this pair.
-        const int BW = 344, BY = 232, BH = WT_CONTENT_BOTTOM - BY;
-        const lv_font_t *f = wt_body_font2_head(tr(STR_W_CKSUM_W1_H), b1,
-                                               tr(STR_W_CKSUM_W2_H), b2,
-                                               BW - 14, BH);
-        wt_why_block(s_scr, tr(STR_W_CKSUM_W1_H), b1,  48, BY, BW, BH, f, wt_accent());
-        wt_why_block(s_scr, tr(STR_W_CKSUM_W2_H), b2, 408, BY, BW, BH, f, WARN_COL);
+        wt_fact_t facts[2] = {
+            { .cap = tr(STR_W_CKSUM_W1_H), .val = tr(STR_W_CKSUM_W1_B),
+              .icon = WT_ICON_KEY },
+            { .cap = tr(STR_W_CKSUM_W2_H), .val = tr(STR_W_CKSUM_W2_B),
+              .icon = LV_SYMBOL_WARNING,
+              .icon_col = WT_WARN },
+        };
+        wt_facts(s_scr, 252, facts, 2);
     }
 
     // 48, not the corner: cards_cancel_cb discards the typed words on one tap.
@@ -3188,6 +3298,8 @@ static void storage_screen(void)
     // Settings. The note is inside its control instead of hidden behind a
     // help card: this choice decides what an attacker or a border search can
     // recover after power-off.
+    // DECIDED: the first boot storage chooser matches the Settings one row for row on
+    // purpose, so neither may be reordered alone.
     // Geometry and OBJECT from WT_CHOICE_* and wt_row_x, matching
     // storage_chooser_screen() in kiss_settings.c row for row. The two screens
     // present the identical choice and must not drift apart again, which is why
@@ -3303,9 +3415,12 @@ static void whatseed_open(void (*ret)(void))
     // the equation did -- the equation could not say WRITE BOTH DOWN or that
     // the words alone open the decoy.
     wt_fact_t facts[3] = {
-        { tr(STR_W_WHATSEED_F1_C), tr(STR_W_WHATSEED_F1_V), LV_SYMBOL_EDIT },
-        { tr(STR_W_WHATSEED_F2_C), tr(STR_W_WHATSEED_F2_V), WT_ICON_SECRET },
-        { tr(STR_G_TECHNICAL),     tr(STR_T_SEED_TERM),     LV_SYMBOL_LIST },
+        { .cap = tr(STR_W_WHATSEED_F1_C), .val = tr(STR_W_WHATSEED_F1_V),
+          .icon = LV_SYMBOL_EDIT },
+        { .cap = tr(STR_W_WHATSEED_F2_C), .val = tr(STR_W_WHATSEED_F2_V),
+          .icon = WT_ICON_SECRET },
+        { .cap = tr(STR_G_TECHNICAL), .val = tr(STR_T_SEED_TERM),
+          .icon = LV_SYMBOL_LIST },
     };
     wt_explain(s_scr, tr(STR_W_WHATSEED_HEAD), tr(STR_W_WHATSEED_B), facts, 3);
 
@@ -3386,8 +3501,30 @@ static void choose_screen(void)
         lv_obj_add_flag(hc, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_add_event_cb(hc, whatseed_cb, LV_EVENT_CLICKED, NULL);
     }
-    wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, WT_BACK_X,
-                    WT_ACTION_Y, 140, true, cancel_cb, NULL);
+    // DECIDED: the FIRST screen of setup has no CANCEL on a signer with no
+    // keys, because there is nothing to cancel to. This is the one place the
+    // "no screen without an exit" rule is deliberately not applied, and the
+    // rule's own case says why: it was written for the WORDS screen, where an
+    // owner mid flow could only go forward or pull the power. Here the two
+    // choices ARE the way on, and the language picker is in the corner.
+    //
+    // What CANCEL did instead was strand people. It closed the wizard onto the
+    // fruit game, and the only route back into a keyless signer is the KISS
+    // draw -- printed on a card in the packaging and nowhere on the glass. So
+    // an owner who backed out of setup, or drew the gesture before knowing
+    // what it opened, was holding a signing device that had become a game.
+    //
+    // The obvious fix is the one that must NOT be built: a way in on the cover
+    // itself. kiss_seed_exists() is false on an AMNESIC signer with no session
+    // loaded and on an SD signer with its card out, so a cover that offers
+    // setup whenever there are no keys wears a signer's name permanently on
+    // the two modes that need the cover most. That is the decoy, gone.
+    //
+    // With keys, CANCEL stays exactly as it was: the wizard is reached from
+    // Settings then, there is a device behind it, and going back is correct.
+    if (kiss_seed_exists())
+        wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, WT_BACK_X,
+                        WT_ACTION_Y, 140, true, cancel_cb, NULL);
 
     // first boot happens BEFORE Settings is reachable: a fresh device must not
     // trap its owner in English, so the language picker lives here too
@@ -3462,7 +3599,7 @@ static void kef_wipe_env(void)
 static void kef_bad_screen(void)
 {
     mk_screen(tr(STR_W_KEF_BAD_T), tr(STR_W_KEF_BAD_S));
-    wt_why_body(s_scr, tr(STR_W_KEF_BAD_B), 140, STOP_COL, true);
+    wt_body_para(s_scr, tr(STR_W_KEF_BAD_B), 140);
     wt_arrow_action(s_scr, tr(STR_C_TRY_AGAIN), false, true, 452,
                     WT_ACTION_Y, 300, true,
                     s_qr_from_restore ? goto_count_cb : load_back_cb, NULL);
@@ -3509,8 +3646,21 @@ static void kef_cancel_cb(void)
 
 // 1 = the payload was KEF and has been routed (password prompt or refusal);
 // 0 = not an envelope, the seed paths should have it.
+// Scratch for the unarmoring step. File scope because both callers already
+// sit on an LVGL event stack carrying a KEF_MAX_ENV buffer of their own.
+static uint8_t s_kef_unarm[KEF_MAX_ENV];
+
 static int kef_route(const uint8_t *data, size_t len)
 {
+    // One place for both doors: a Krux envelope wears base43 out of a QR and
+    // base64 out of a file, and until this call the camera and the card both
+    // refused it as "not an envelope". Raw stays the fast path -- kef_unarmor
+    // returns -1 for it and the buffer below is untouched.
+    size_t un_len = 0;
+    if (kef_unarmor(data, len, s_kef_unarm, sizeof s_kef_unarm, &un_len) == 0) {
+        data = s_kef_unarm;
+        len  = un_len;
+    }
     if (!kef_sniff(data, len)) return 0;
     kef_env_t e;
     if (len <= sizeof s_kef_env && kef_parse(data, len, &e) == 0
@@ -3558,7 +3708,7 @@ static void kef_sd_pick_screen(void)
     if (platform_sd_mount() != 0) {
         platform_sd_unmount();
         mk_screen(tr(STR_W_SD_MISSING_T), NULL);
-        wt_why_body(s_scr, tr(STR_W_KEF_SD_NONE_B), 140, WT_WARN, true);
+        wt_body_para(s_scr, tr(STR_W_KEF_SD_NONE_B), 140);
         wt_arrow_action(s_scr, tr(STR_C_TRY_AGAIN), false, true, 452,
                         WT_ACTION_Y, 300, true, kef_sd_retry_cb, NULL);
         wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 48, WT_ACTION_Y,
@@ -3570,7 +3720,7 @@ static void kef_sd_pick_screen(void)
     platform_sd_unmount();
     if (n <= 0) {
         mk_screen(tr(STR_W_KEF_SD_T), NULL);
-        wt_why_body(s_scr, tr(STR_W_KEF_SD_EMPTY), 140, WT_WARN, true);
+        wt_body_para(s_scr, tr(STR_W_KEF_SD_EMPTY), 140);
         wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_BACK_X,
                         WT_ACTION_Y, 140, true, kef_pick_back_cb, NULL);
         return;
@@ -3607,7 +3757,7 @@ static void kef_sd_open_load_cb(lv_event_t *e)
 static void qr_bad_screen(void)
 {
     mk_screen(tr(STR_W_QRBAD_T), tr(STR_W_QRBAD_S));
-    wt_why_body(s_scr, tr(STR_W_QRBAD_B), 140, STOP_COL, true);
+    wt_body_para(s_scr, tr(STR_W_QRBAD_B), 140);
     wt_arrow_action(s_scr, tr(STR_C_TRY_AGAIN), false, true, 452,
                     WT_ACTION_Y, 300, true,
                     s_qr_from_restore ? goto_count_cb : load_back_cb, NULL);
@@ -3753,6 +3903,15 @@ void kiss_setup_open_sd_missing(lv_obj_t *parent, int reason,
     sd_problem_screen(reason);
 }
 
+#ifdef SIMULATOR
+// Test seam, simulator only. The first screen of setup on a keyless signer has
+// no CANCEL on purpose -- there is nothing to cancel to -- so the walk that
+// proves that has no way to dismiss it afterwards. Every other close on this
+// screen is a control the owner presses, and the whole point of the stop is
+// that one of them is gone.
+void kiss_setup_close_for_test(void) { close_all(); }
+#endif
+
 void kiss_setup_open(lv_obj_t *parent, void (*done_cb)(void))
 {
     if (s_scr) return;
@@ -3765,7 +3924,8 @@ void kiss_setup_open(lv_obj_t *parent, void (*done_cb)(void))
     choose_screen();
 }
 
-void kiss_setup_open_verify(lv_obj_t *parent, void (*done_cb)(void))
+void kiss_setup_open_verify(lv_obj_t *parent, void (*done_cb)(void),
+                            bool with_pass)
 {
     if (s_scr) return;
     kiss_ui_ensure_indev();
@@ -3774,6 +3934,8 @@ void kiss_setup_open_verify(lv_obj_t *parent, void (*done_cb)(void))
     s_restore = true;                  // reuse the restore word-entry keypad
     s_verify = true;
     s_verify_ok = false;
+    s_verify_pass = with_pass;
+    s_verify_full = false;
     wipe_state();
     char words[WSEED_MAX_MNEMONIC];
     if (kiss_seed_load(words, sizeof words) != 0) {   // no seed: nothing to check

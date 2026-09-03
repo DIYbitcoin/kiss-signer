@@ -12,9 +12,11 @@ So this is the check that looks. It reads the enum in main/i18n_keys.h -- which
 gen_i18n.py writes from en.json, so it is the full set -- and greps every C and
 Python source that could name one. What is left over is unreferenced.
 
-The nineteen already here are a BACKLOG, not a pass: they are recorded so the
-gate can fail on the twentieth. The list only ever shrinks. When a key on it
-comes back into use the run says so and asks for it to be removed, because a
+The backlog is EMPTY, and that is the state to keep it in: it held 55 keys,
+recorded so the gate could fail on the fifty-sixth, and they were deleted in
+one sweep across all 21 locale files. Anything that lands on it again is a
+screen that was rebuilt and left its old strings behind. The list only ever
+shrinks, and a key on it that comes back into use is reported, because a
 backlog nobody prunes is a list of lies.
 
     python3 tools/check_i18n_orphans.py        report, and fail on anything new
@@ -42,75 +44,21 @@ SELF = Path(__file__).resolve()
 KEY_RE = re.compile(r"\bSTR_[A-Z0-9_]+\b")
 ENUM_RE = re.compile(r"^\s*(STR_[A-Z0-9_]+)\s*,\s*$")
 
-# Unreferenced on the day the check landed. Shrink only.
+# Empty, and meant to stay that way. Shrink only.
 #
-# Three groups, and the shape of each says what happened: the SETTINGS page was
-# rebuilt around section tabs and left its NET/HISTORY/FW/POP rows behind, and
-# STR_R_SP_EXPORT is the value of RECEIVE's SCAN KEY row from when that row was
-# a launcher. None of them is deletable in isolation -- deleting a key edits all
-# 21 locale files, which is the translation sweep's work, not a wording change's.
-BACKLOG = frozenset({
-    "STR_G_FW_CH_DARK",
-    "STR_G_FW_NEWER",
-    "STR_G_FW_OLDER",
-    "STR_G_FW_ROW_SIZE",
-    "STR_G_FW_ROW_VER",
-    "STR_G_HIST_OFF_NOTE",
-    "STR_G_HIST_ON_NOTE",
-    "STR_G_HIST_ON_NOTE_PLAIN",
-    "STR_G_SD_INFO_PILL",
-    # The DEVICE-tab rewrite retired the old firmware launcher label. Its
-    # translated key stays parked until the translation sweep removes it from
-    # all 21 locale files together.
-    "STR_G_FW_PILL",
-    "STR_I_NET_MAIN_NOTE",
-    "STR_I_NET_SIGNET_NOTE",
-    "STR_I_NET_TEST_NOTE",
-    "STR_I_POP_CHIP",
-    "STR_I_POP_ERASE",
-    "STR_I_POP_KEEP",
-    "STR_I_ROW_HISTORY_SUB",
-    "STR_I_SEC_HISTORY",
-    "STR_R_SP_EXPORT",
-    "STR_R_USAGE_UNKNOWN",
-    # KEYS re-weighted to the identity-as-headline shape: the fingerprint
-    # became the hero and its old row sub went with the row. Translated in 21
-    # locales, so it waits for the sweep like the rest of this list.
-    "STR_K_FP_SUB",
-    # The scan key gate: its hold said the title over again in a lane the
-    # words could not fit, so it shares HOLD TO SHOW with the word grid.
-    "STR_R_SP_SHOW",
-    # Subtitles retired by the trails pass: every opened-from page now names
-    # its path at y=70 instead of restating its title, its content or a value
-    # the screen already shows. Each waits for the sweep like the rest.
-    "STR_G_STORAGE_CURRENT_FMT",
-    "STR_I_KEF_SHOW_S",
-    "STR_I_KEF_WARN_S_PP",
-    "STR_I_PAIR_S",
-    "STR_I_ROW_WAYSIN_SUB",
-    "STR_R_SP_EXPORT_S",
-    "STR_W_AUD_S",
-    "STR_W_MADE_S",
-    # Retired when SIGN joined the chrome system: the chooser's subtitle, the
-    # file list's subtitle, the SD empty states' subtitle, and the HOW SIGNING
-    # WORKS overlay whose three steps and definition became the page's [ ? ]
-    # explainer. All translated in 21 locales; they wait for the sweep.
-    "STR_S_CHOOSE_FILE",
-    "STR_S_COORD_B",
-    "STR_S_COORD_T",
-    "STR_S_FLOW_1",
-    "STR_S_FLOW_2",
-    "STR_S_FLOW_3",
-    "STR_S_GET_TX",
-    "STR_S_SD_SUB",
-    # Retired when SIGN grew its tab strip and the camera page was de-boxed:
-    # the SD row's sub-line, the scan page's subtitle, and the PSBT help card
-    # the [ ? ] explainer replaced.
-    "STR_N_PSBT_B",
-    "STR_N_PSBT_T",
-    "STR_N_S",
-    "STR_S_OR_LOAD",
-})
+# It carried 55 keys, in three groups whose shape said what had happened: the
+# SETTINGS page rebuilt around section tabs, leaving its NET/HISTORY/FW/POP rows
+# behind; the sign flow's old COORDINATOR explainer; and STR_R_SP_EXPORT, the
+# value of RECEIVE's SCAN KEY row from when that row was a launcher.
+#
+# This used to say they were not deletable in isolation, because deleting a key
+# edits all 21 locale files and that is the translation sweep's work. It is not:
+# a DELETION carries no wording anywhere, so nothing about it can be thrown away
+# when the sweep happens, and holding 55 dead keys in flash in 21 languages to
+# wait for a pass that changes none of them was paying for nothing. One reviewer
+# also read STR_R_ONE_EACH off en.json and filed a finding about a string the
+# device has never drawn, which is the other cost.
+BACKLOG = frozenset()
 
 # The self test's needle: a key nothing can reference, and nothing does --
 # including this line, because the scan skips this file.

@@ -26,7 +26,8 @@ fail: a codepoint kept for a screen that has not been written yet costs
 font bytes and nothing else, and deciding that is a person's job.
 
 Like tools/check_screen_coverage.py it SELF TESTS first, because a checker
-that has quietly stopped checking reports a clean sweep either way:
+that has quietly stopped checking reports a clean sweep either way. The
+env var only makes it SAY so; the scan runs either way:
 
     GLYPHCHECK_SELFTEST=1 python3 tools/check_glyphs.py
 """
@@ -158,8 +159,14 @@ def main():
                          "reported. Fix it before trusting a clean run.\n")
         return 2
     if os.environ.get("GLYPHCHECK_SELFTEST"):
+        # ...and then keep going, which it did not. This returned 0 here, and
+        # the invocation CLAUDE.md's gate list prescribes is exactly
+        # GLYPHCHECK_SELFTEST=1 -- so the one command anybody runs proved the
+        # self test worked and never looked at the tree. check_gates.py and
+        # check_screen_coverage.py both print the self test and continue; this
+        # is the same shape, and the flag now means "say the self test passed"
+        # rather than "stop after it".
         print("self test ok: an absent codepoint is reported")
-        return 0
 
     want = used()
     missing = report(have, want)

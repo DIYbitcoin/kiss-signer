@@ -50,3 +50,18 @@ git tag -a vX.Y.Z -m "..."
 Pushing `main` triggers `reproducible-build.yml`, which rebuilds both
 release lanes in the pinned Docker ESP-IDF toolchain and publishes the
 firmware hashes. Only push work you are willing to stand behind.
+
+### The firmware binary in the tree
+
+`docs/installer/firmware/` holds a built `.bin`, about 7 MB, and it is
+committed on purpose. The installer at `docs/installer/` is a GitHub Pages
+site with no backend: the browser flashes the board from a file it fetches
+from the same origin, so the image has to BE in the repository or the page has
+nothing to offer. A release adds one and the old one goes, so the count stays
+at one rather than growing per version.
+
+What that costs: a clone carries every image that has ever been in there, and
+git cannot forget one without a history rewrite. It is the right trade for a
+hosted installer and the wrong shape for anything else, so nothing else in
+this repo commits a build artifact -- `/build*/` is ignored and the release
+lanes publish hashes, not binaries.

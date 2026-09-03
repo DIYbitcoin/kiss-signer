@@ -36,17 +36,34 @@ static const term_card_t CARDS[KISS_TERM_N] = {
                             STR_T_RNG_PLAIN,  STR_T_RNG_TERM },
     [KISS_TERM_DECOY]   = { STR_T_DECOY_CAP,  STR_T_DECOY_VAL,
                             STR_T_DECOY_PLAIN, STR_T_DECOY_TERM },
+    // The word this device says most often and had never defined. Every
+    // other card leans on it -- the fingerprint NAMES your keys, the account
+    // says WHICH keys open, the descriptor lets a coordinator watch them --
+    // and the KEYS page's own help said "it gets public keys only" to a
+    // reader who had never been told what a public key is.
+    //
+    // Captioned PRIVATE KEY, not KEYS: the caption is the term an owner meets
+    // in their coordinator, and the pair is taught from the half that matters
+    // to them. The public half is the sentence's second clause, which is also
+    // where it belongs -- a public key is only interesting for what it lets
+    // somebody else do.
+    [KISS_TERM_KEY]     = { STR_T_KEY_CAP,    STR_T_KEY_VAL,
+                            STR_T_KEY_PLAIN,  STR_T_KEY_TERM },
 };
 
 const int KISS_TERMS_SIGN[3] = { KISS_TERM_PSBT, KISS_TERM_FEE,
                                  KISS_TERM_CHANGE };
-const int KISS_TERMS_KEYS[2] = { KISS_TERM_FP, KISS_TERM_ACCOUNT };
-const int KISS_TERMS_PAIR[2] = { KISS_TERM_DESC, KISS_TERM_FP };
+const int KISS_TERMS_KEYS[3] = { KISS_TERM_KEY, KISS_TERM_FP,
+                                 KISS_TERM_ACCOUNT };
+// Pairing is the moment a public key leaves, so it is the moment to say
+// which half left.
+const int KISS_TERMS_PAIR[3] = { KISS_TERM_KEY, KISS_TERM_DESC,
+                                 KISS_TERM_FP };
 const int KISS_TERMS_RECV[1] = { KISS_TERM_ACCOUNT };
 const int KISS_TERMS_ALL[KISS_TERM_N] = {
     KISS_TERM_SEED, KISS_TERM_PASS, KISS_TERM_FP, KISS_TERM_PSBT,
     KISS_TERM_CHANGE, KISS_TERM_FEE, KISS_TERM_DESC, KISS_TERM_ACCOUNT,
-    KISS_TERM_ENTROPY, KISS_TERM_DECOY,
+    KISS_TERM_ENTROPY, KISS_TERM_DECOY, KISS_TERM_KEY,
 };
 
 static uint16_t s_mask;
@@ -88,6 +105,11 @@ static int       s_open = -1;
 
 static lv_obj_t *s_band_scr;
 static lv_obj_t *s_band;
+// The scope the screen holding the band is responsible for. See the header:
+// counting the whole device on a page showing two terms is a number pointing
+// somewhere the reader cannot see.
+static const int *s_band_ids;
+static int        s_band_n;
 static void terms_band_draw(void);
 
 // A term is READ when its row is CLOSED. Opening one proves curiosity;
@@ -161,15 +183,18 @@ static void terms_band_draw(void)
         s_band = wt_standing(s_band_scr, tr(STR_H_HINT_ROW), WT_DIM, false);
         return;
     }
-    const int unread = kiss_terms_unread(KISS_TERMS_ALL, KISS_TERM_N);
+    const int unread = s_band_ids && s_band_n > 0
+                     ? kiss_terms_unread(s_band_ids, s_band_n) : 0;
     if (unread <= 0) return;
     char band[64];
     snprintf(band, sizeof band, tr(STR_H_UNREAD_FMT), unread);
     s_band = wt_standing(s_band_scr, band, WT_DIM, false);
 }
 
-void kiss_terms_hint(lv_obj_t *scr)
+void kiss_terms_hint(lv_obj_t *scr, const int *ids, int n)
 {
+    s_band_ids = ids;
+    s_band_n   = n;
     // A NEW screen means the old band went with the old screen, so the
     // pointer is dropped rather than deleted. The SAME screen means a page
     // turn, and then the old band is still there and has to go -- nulling it

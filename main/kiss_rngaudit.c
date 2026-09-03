@@ -33,7 +33,26 @@ static lv_obj_t *s_parent;
 static void    (*s_done)(void);
 static lv_timer_t *s_tmr;
 static kiss_rngq_t s_q;
-static lv_obj_t *s_fill[100];
+// ONE object, not a hundred and one.
+//
+// The skyline used to be an lv_obj per column plus one for the fair share
+// line. That is 101 objects on a screen, and this screen turned out to hold
+// the whole device's LVGL peak: 108KB of a 126KB pool, 26KB clear of the next
+// worst, with the pool at 57% fragmentation. Past that edge LVGL does not
+// report anything -- lv_obj_create hands back NULL and the next create
+// segfaults, or lv_refr_now spins forever -- so the headroom every other
+// screen has was being spent here, on rectangles.
+//
+// A hundred rectangles is what a draw callback is for. The tree already
+// draws rather than builds in one place -- the unlock panel strokes the
+// owner's word with lv_line and a point array (kiss_word_ui.c) -- and that
+// widget is the wrong one here: it strokes a polyline, and this is a hundred
+// FILLED columns with gaps between them. Traced as an outline it would be a
+// different picture, and the picture is the lesson.
+//
+// So: a draw callback, confined to this one widget. Everything else on the
+// screen is still the kit.
+static lv_obj_t *s_hist;
 static lv_obj_t *s_cnt;    // the running tally; the result widgets replace it
 static lv_obj_t *s_note;   // the sub lane: carries the retry line on a miss
 static lv_obj_t *s_exit;   // BACK while running, DONE once finished
@@ -46,7 +65,7 @@ bool kiss_rngaudit_active(void) { return s_scr != NULL; }
 static void wipe_widgets(void)
 {
     s_cnt = s_note = s_exit = NULL;
-    for (int i = 0; i < 100; i++) s_fill[i] = NULL;
+    s_hist = NULL;
 }
 
 void kiss_rngaudit_close(void)
@@ -91,6 +110,9 @@ static void intro_screen(void)
         wt_trail(s_scr, LV_SYMBOL_SHUFFLE, trail, false);
     }
 
+    // The card clears the trail strip (70..100) with a gap of its own.
+    const int RNG_CARD_Y = WT_CHROME_STRIP_Y + WT_BR_H + 24;
+
     bool live = kiss_trng_live();
 
     // The provenance row leads, because it answers the one question the bars
@@ -104,26 +126,40 @@ static void intro_screen(void)
              // ON and OFF are words, not a reading. The mono face on this page
              // belongs to the counter under the bars.
              wt_font23(), live ? OK_COL : WARN_COL, false,
-             WT_CHOICE_X, WT_CHOICE_Y(0), WT_CHOICE_W, WT_CHOICE_H,
+             // NOT WT_CHOICE_Y(0). That constant is 96 and the trail strip
+             // runs 70..100, so this card's top edge was drawn four pixels
+             // INSIDE the row naming the page -- the chooser screens the
+             // constant was borrowed from have no trail above them.
+             WT_CHOICE_X, RNG_CARD_Y, WT_CHOICE_W, WT_CHOICE_H,
              NULL, NULL);
 
-    // The proven pair geometry, raised to y=204: the provenance row ends at
-    // 192, and the 40px the usual 232 would leave dead above the blocks is
-    // exactly the room the bodies need to hold font23 (rule 2: count the
-    // empty band first). With no source the right block carries the refusal
-    // instead of the usual caution: a formula still passes, so there is
-    // nothing here to audit -- the same reason key material refuses.
-    const char *h1 = tr(STR_W_RNG_WHY1_H), *b1 = tr(STR_W_RNG_WHY1_B);
-    const char *h2 = tr(STR_W_RNG_WHY2_H);
-    const char *b2 = live ? tr(STR_W_RNG_WHY2_B) : tr(STR_W_RNG_NOSRC_B);
-    // 344 - 14: the block's rule bar eats 14px of the body's width, and a
-    // sizer fed the full width picks a font the block then overflows with.
-    const lv_font_t *f = wt_body_font2_head(h1, b1, h2, b2, 344 - 14,
-                                            WT_CONTENT_BOTTOM - 204);
-    wt_why_block(s_scr, h1, b1, 48, 204, 344, WT_CONTENT_BOTTOM - 204,
-                 f, wt_accent());
-    wt_why_block(s_scr, h2, b2, 408, 204, 344, WT_CONTENT_BOTTOM - 204,
-                 f, WT_WARN);
+    // DECIDED: the pair read "SPREAD / 5000 numbers, 100 groups" and
+    // "CANNOT PROVE / software passes it too", and came off the bench as
+    // "what are you trying to say". Both were the middle of a sentence: one
+    // named the method without saying what it measures, the other named a
+    // limit without saying what a pass would have meant. Three rows say the
+    // whole thing in order -- what runs, what a good result looks like, what
+    // it still cannot tell you -- and the third is where "spread" is earned,
+    // so SPREAD SCORE on the result page arrives with a meaning attached.
+    //
+    // The value lane is 438px at font28, about 25 characters, so none of
+    // these can grow into a sentence: that is the shape doing its job, and
+    // anything longer belongs in a paragraph, not a fact row.
+    wt_fact_t facts[3] = {
+        { .cap = tr(STR_W_RNG_WHY1_H), .val = tr(STR_W_RNG_WHY1_B),
+          .icon = LV_SYMBOL_SHUFFLE },
+        { .cap = tr(STR_W_RNG_FAIR_H), .val = tr(STR_W_RNG_FAIR_B),
+          .icon = LV_SYMBOL_OK },
+        // With no source the caution stops being a caveat and becomes the
+        // refusal: there is nothing to score, so the caption changes too --
+        // "THE LIMIT / nothing to audit" is two halves of different claims.
+        { .cap = live ? tr(STR_W_RNG_WHY2_H) : tr(STR_W_RNG_OFF),
+          .val = live ? tr(STR_W_RNG_WHY2_B) : tr(STR_W_RNG_NOSRC_B),
+          .icon = LV_SYMBOL_WARNING, .icon_col = WT_WARN },
+    };
+    // Under the card with a gap that reads as one, rather than pinned at a
+    // number chosen when the card sat higher.
+    wt_facts(s_scr, RNG_CARD_Y + WT_CHOICE_H + 34, facts, 3);
 
     lv_obj_t *back = wt_arrow_action(s_scr, tr(STR_C_BACK), true, false,
                                      WT_BACK_X, WT_ACTION_Y, 140, true,
@@ -138,19 +174,55 @@ static void intro_screen(void)
 
 // ---- the run ----
 
+// One bar's height, the same arithmetic the objects used: live and honest at
+// draw 300 and draw 5000 alike, because the scale is the CURRENT count
+// against the CURRENT fair share. The skyline settles toward the line rather
+// than climbing a fixed axis.
+static int bar_h(int i)
+{
+    if (!s_q.n) return 0;
+    int h = (int)((uint32_t)s_q.bin[i] * (BAR_H / 2) * s_q.bins / s_q.n);
+    return h > BAR_H ? BAR_H : h;
+}
+
+// The skyline and the fair share line, in one pass over the widget's own
+// area. Drawn in this order for the reason the objects were created in it:
+// the line crosses OVER the fills, which is what makes a level skyline read
+// as "noise did this" without a word in any locale.
+static void hist_draw_cb(lv_event_t *e)
+{
+    lv_obj_t *o = lv_event_get_target(e);
+    lv_layer_t *layer = lv_event_get_layer(e);
+    lv_area_t c;
+    lv_obj_get_coords(o, &c);
+
+    lv_draw_rect_dsc_t d;
+    lv_draw_rect_dsc_init(&d);
+    d.bg_opa = LV_OPA_COVER;
+    d.bg_color = wt_accent();
+    for (int i = 0; i < s_q.bins && i < 100; i++) {
+        const int h = bar_h(i);
+        if (h <= 0) continue;
+        lv_area_t a;
+        a.x1 = c.x1 + BAR_X0 + i * BAR_PITCH;
+        a.x2 = a.x1 + BAR_W - 1;
+        a.y2 = c.y1 + BAR_TOP + BAR_H - 1;
+        a.y1 = a.y2 - h + 1;
+        lv_draw_rect(layer, &d, &a);
+    }
+
+    d.bg_color = WT_DIV;
+    lv_area_t t;
+    t.x1 = c.x1;
+    t.x2 = c.x2;
+    t.y1 = c.y1 + BAR_TOP + BAR_H / 2;
+    t.y2 = t.y1;
+    lv_draw_rect(layer, &d, &t);
+}
+
 static void bars_set(void)
 {
-    if (!s_q.n) return;
-    for (int i = 0; i < s_q.bins; i++) {
-        if (!s_fill[i]) continue;
-        // Live and honest at draw 300 and draw 5000 alike: the scale is the
-        // CURRENT count against the current fair share, so the skyline
-        // settles toward the line instead of climbing a fixed axis.
-        int h = (int)((uint32_t)s_q.bin[i] * (BAR_H / 2) * s_q.bins / s_q.n);
-        if (h > BAR_H) h = BAR_H;
-        lv_obj_set_pos(s_fill[i], BAR_X0 + i * BAR_PITCH, BAR_TOP + BAR_H - h);
-        lv_obj_set_size(s_fill[i], BAR_W, h);
-    }
+    if (s_hist) lv_obj_invalidate(s_hist);
 }
 
 static void finish(void)
@@ -230,27 +302,15 @@ static void run_screen(void)
     s_note = wt_note(s_scr, "", 48, 60, 704, 34);
 
     lv_obj_t *card = wt_card(s_scr, HIST_X, HIST_Y, HIST_W, HIST_H);
-    for (int i = 0; i < 100; i++) {
-        lv_obj_t *f = lv_obj_create(card);
-        lv_obj_remove_style_all(f);
-        lv_obj_set_pos(f, BAR_X0 + i * BAR_PITCH, BAR_TOP + BAR_H);
-        lv_obj_set_size(f, BAR_W, 0);
-        lv_obj_set_style_bg_color(f, wt_accent(), 0);
-        lv_obj_set_style_bg_opa(f, LV_OPA_COVER, 0);
-        lv_obj_remove_flag(f, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_remove_flag(f, LV_OBJ_FLAG_SCROLLABLE);
-        s_fill[i] = f;
-    }
-    // The fair share line, drawn LAST so it crosses over the fills -- the
-    // dice bars' trick, at 100 columns instead of 6.
-    lv_obj_t *tick = lv_obj_create(card);
-    lv_obj_remove_style_all(tick);
-    lv_obj_set_pos(tick, 0, BAR_TOP + BAR_H / 2);
-    lv_obj_set_size(tick, HIST_W, 1);
-    lv_obj_set_style_bg_color(tick, WT_DIV, 0);
-    lv_obj_set_style_bg_opa(tick, LV_OPA_COVER, 0);
-    lv_obj_remove_flag(tick, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_remove_flag(tick, LV_OBJ_FLAG_SCROLLABLE);
+    // The skyline and its fair share line, in one widget with a draw
+    // callback. It fills the card and owns nothing else -- see s_hist.
+    s_hist = lv_obj_create(card);
+    lv_obj_remove_style_all(s_hist);
+    lv_obj_set_pos(s_hist, 0, 0);
+    lv_obj_set_size(s_hist, HIST_W, HIST_H);
+    lv_obj_remove_flag(s_hist, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(s_hist, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_event_cb(s_hist, hist_draw_cb, LV_EVENT_DRAW_MAIN, NULL);
 
     s_cnt = wt_lbl(s_scr, "0 / 5000", HIST_X, 316, wt_font_mono28(), MUT_COL);
 

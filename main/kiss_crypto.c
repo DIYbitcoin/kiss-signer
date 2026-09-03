@@ -389,6 +389,22 @@ int kiss_session_fingerprint(uint8_t out[4])
     return 0;
 }
 
+// The prepared key's identity, for a passphrase that is being CHECKED rather
+// than used. kiss_session_prepare derives beside the live session and
+// kiss_session_discard_prepared drops it, so the whole check leaves the open
+// session exactly as it found it -- which is the property that makes it safe
+// to offer on a screen an owner reaches with their coins already unlocked.
+int kiss_session_prepared_fingerprint(uint8_t out[4])
+{
+    if (!s_prepared_session || !out)
+        return 1;
+    uint8_t fp[BIP32_KEY_FINGERPRINT_LEN];
+    if (bip32_key_get_fingerprint(&s_prepared_master, fp, sizeof fp) != WALLY_OK)
+        return 2;
+    memcpy(out, fp, 4);
+    return 0;
+}
+
 const struct ext_key *kiss_session_master(void)
 {
     return s_session ? &s_master : NULL;

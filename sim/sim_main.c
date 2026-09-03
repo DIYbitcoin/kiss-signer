@@ -14,6 +14,13 @@
 #include "kiss_crypto.h"
 #include "kiss_rngaudit.h"  // kiss_rngaudit_sim_result: the once-in-500 renders
 #include "kiss_simpath.h"  // KISS_SIM_TMP: one run's scratch is its own
+// Who is holding the lock, in the refusal the loser prints. Both binaries
+// are this file: the gate build is the same walk with the checks compiled in.
+#ifdef OVERLAPCHECK
+#define WALK_NAME "kissoverlap"
+#else
+#define WALK_NAME "fruitsim"
+#endif
 #include "platform_sd.h"    // the proof stub writes a real (small) file
 #include "kiss_seed_sd.h"   // SDSEED_FILENAME: the move stub keeps it truthful
 #include "sha256/sha256.h"  // cUR's, real hash for the stub's junk
@@ -554,6 +561,13 @@ int kiss_session_decoy(void) { return s_sim_decoy; }
 int kiss_session_fingerprint(unsigned char out[4]) {
   return kiss_fingerprint(s_sim_sess_pass, out);
 }
+// ...and the same for the key prepared BESIDE it, which is what the backup
+// rehearsal compares against. The stub keeps the prepared passphrase, so a
+// wrong answer produces a different fake fingerprint exactly as the device
+// produces a different real one.
+int kiss_session_prepared_fingerprint(unsigned char out[4]) {
+  return kiss_fingerprint(s_sim_prep_pass, out);
+}
 // The refusal switch: a locked session refuses every derivation at once. The
 // refusal renders were introduced by fixes to five screens that used to encode
 // the failure string into their QRs; without this switch the sim derives
@@ -637,6 +651,7 @@ void kiss_payee_forget_session(void) {}
 void kiss_payee_batch_begin(void) {}
 void kiss_payee_batch_end(void) {}
 
+static uint32_t s_sim_locktime;   // what the last load said, for the details stub
 int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
   memset(s, 0, sizeof *s);
   s->testnet = s_sim_testnet != 0;
@@ -671,6 +686,11 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
     s->in0_keypaths = 0;
     s->status = WPSBT_STOP;
     snprintf(s->reason, sizeof s->reason, "input is not this wallet's");
+  } else if (len >= 5 && memmem(bytes, len, "SHASH", 5)) {
+    // A refusal stop_body has no answer for, which is nearly all of them. The
+    // screen behind it is the two facts and no instruction.
+    s->status = WPSBT_STOP;
+    snprintf(s->reason, sizeof s->reason, "sighash is not ALL");
   } else if (len >= 4 && memmem(bytes, len, "STOP", 4)) {
     s->status = WPSBT_STOP;
     snprintf(s->reason, sizeof s->reason, "input amount unverifiable");
@@ -706,6 +726,9 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
     snprintf(s->outs[5].addr, sizeof s->outs[5].addr,
              "bc1q8c6fshw2dlwun7ekn9qwf37cu2rn755upcp6el");
     s->outs[5].sats = 39000; s->outs[5].is_change = true;
+    // A locktime that binds, on the one fixture whose header is otherwise
+    // uncrowded: the badge has to be visible somewhere the walk photographs.
+    s->locktime = 5127853; s->lock_binds = true;
   } else if (len >= 5 && memmem(bytes, len, "UNPRV", 5)) {
     // A two-input spend whose amounts were declared and not proved. This is a
     // REFUSAL, not a caution: the fee on the screen would be a number the
@@ -738,6 +761,12 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
     s->caution_flags = WPSBT_C_MERGE_INS;
     snprintf(s->reason, sizeof s->reason,
              "many coins spent at once - they are linked forever");
+  } else if (len >= 6 && memmem(bytes, len, "GARBLE", 6)) {
+    // A file on the card that this device cannot read at all. The refusal was
+    // the only sign screen the walk never opened, so its copy and its geometry
+    // were unphotographed -- and it is the screen a new owner is most likely to
+    // meet, because it is what a wrong export or a truncated write produces.
+    return -1;
   } else if (len >= 5 && memmem(bytes, len, "COMBO", 5)) {
     // Every caution at once: proves the summary + WHY card stack up. FIVE rows
     // is the most the row page can ever draw, so this is the fixture that says
@@ -754,6 +783,10 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
     s->fee_rate_x10 = 570;
     s->status = WPSBT_CAUTION;
     s->outs[1].index = 99999;            // change parked past the scan window
+    // A locktime, on the most crowded header the walk reaches: signed
+    // badge, network, caution count. This is the frame that says whether the
+    // badge stands down instead of landing on the title.
+    s->locktime = 5127853; s->lock_binds = true;
     s->caution_flags = WPSBT_C_HIGHFEE | WPSBT_C_DUST_INPUT |
                        WPSBT_C_DUST_CHANGE | WPSBT_C_MERGE_INS |
                        WPSBT_C_GAP_CHANGE;
@@ -761,6 +794,7 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
   }
   s_sim_n_in = s->n_in;
   s_sim_in_sats = s->in_sats;
+  s_sim_locktime = s->locktime;
   return 0;
 }
 int kiss_psbt_details(wpsbt_details_t *d) {
@@ -783,7 +817,10 @@ int kiss_psbt_details(wpsbt_details_t *d) {
   //
   // S_D_MANYIN_FMT needs n_total > n_in, which no fixture reaches yet; the
   // twenty-input one arrives with the elision and restores it.
-  d->version = 2; d->locktime = 0; d->txid_final = true;
+  // Carried from the loaded summary, not fixed at zero: the badge on the verify
+  // screen and the DETAILS deck's own row are the same fact, and a stub that
+  // disagreed with itself put "locktime 0" one tap under "BLOCK 5127853".
+  d->version = 2; d->locktime = s_sim_locktime; d->txid_final = true;
   d->n_total = s_sim_n_in ? s_sim_n_in : 1;
   d->n_in = d->n_total > WPSBT_MAX_INS ? WPSBT_MAX_INS : d->n_total;
   snprintf(d->txid, sizeof d->txid, "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08");
@@ -866,6 +903,20 @@ static void meas_report(const char *tag, int frames) {
 // being measured as one.
 static int g_seq_on, g_seq_n;
 static void save_seq(void);
+
+// Every screen on the firmware chain ARRIVES: the trade block, each line and
+// each rule animate in, and the last rule is still drawing at 662ms. 60 frames
+// is 960ms, the first count that photographs a settled page rather than one
+// mid flight -- at 20 the rules were simply absent from the frame, in every
+// locale, and nothing said so.
+//
+// It lives up here because the page is photographed from TWO places and only
+// one of them knew the number. Reached from SETTINGS the frame was taken 128ms
+// in: the headline had arrived, its body was still at opacity zero and the
+// remedy row had not started, so sim_settings_fw shipped a screen with one
+// line on it and the "cannot be checked" state looked like a screen with no
+// explanation. It is the same fault the comment above records at 20 frames.
+#define FW_SETTLE 60
 
 static void pump(int frames) {
   for (int i = 0; i < frames; i++) {
@@ -1229,6 +1280,41 @@ static void must_show(const char *what, const char *needle) {
     return;
   }
   if (find_label_text(lv_screen_active(), needle)) return;
+
+  // ELLIPSISED, not absent? The kit pins captions, values and sub-lines to
+  // their lanes with LONG_DOT, so in any locale whose word is longer than
+  // English's the label on the glass is a PREFIX of this string plus dots.
+  // The needle then finds nothing on a screen that drew perfectly, the walk
+  // stops there, and every stop after it prints "clean" for a screen it never
+  // reached: ten locales died that way on one firmware caption, and the sweep
+  // they were part of measured nothing.
+  //
+  // So the head is tried before the failure is believed, and it is ONE
+  // mechanism rather than a second kind of needle every call site has to
+  // remember to use: the ones nobody has thought about are covered too. It is
+  // not a pass in disguise -- the ellipsis is a real finding and CUT reports
+  // it, with the lane it overflowed, as the copy problem it is. What this
+  // stops is a length in one translation deciding whether the other twenty
+  // get measured at all.
+  //
+  // Half the needle, and never under eight bytes: a short prefix would match
+  // some other label eventually and turn a real absence into a note, which is
+  // the one way this could be worse than the failure it replaces.
+  {
+    int n = (int)strlen(needle) / 2;
+    if (n > 24) n = 24;
+    if (n >= 8) {
+      char head[64];
+      while (n > 0 && ((unsigned char)needle[n] & 0xC0) == 0x80) n--;
+      snprintf(head, sizeof head, "%.*s", n, needle);
+      if (*head && find_label_text(lv_screen_active(), head)) {
+        printf("note: %s: \"%s\" is on the screen ELLIPSISED -- the kit drew "
+               "about \"%s\", the needle passed on that, and the copy itself "
+               "is a CUT finding\n", what, needle, head);
+        return;
+      }
+    }
+  }
   printf("FAIL: %s: no label on screen contains \"%s\"\n", what, needle);
   // Only for the first failure of a run: six of these would bury the log, and
   // the first one is the one that says where the walk actually was.
@@ -1467,6 +1553,10 @@ static lv_obj_t *find_accent_line(lv_obj_t *o)
 // between two matches -- and the clickable-ancestor rule is what keeps the
 // per-face COUNT labels under the columns out of it: they read "1" too, and
 // nothing above them is clickable.
+// A plain LABEL by its text, with no clickable ancestor required. The home's
+// next-step hint is drawn by the game's own sampler rather than by LVGL -- the
+// tiles are too -- so ctrl_for, which walks up for a clickable parent, cannot
+// see it and reports it as a missing action.
 static lv_obj_t *ctrl_for(const char *txt, const char *how)
 {
     s_hit = NULL; s_hits = 0; s_bar_hit = NULL; s_bar_hits = 0;
@@ -1702,6 +1792,61 @@ static void find_nth(lv_obj_t *o, const char *txt)
     for (uint32_t i = 0; i < lv_obj_get_child_count(o); i++)
         find_nth(lv_obj_get_child(o, i), txt);
 }
+// Tap a control by a LITERAL substring of its label. tap_str and tap_str_nth
+// both take a translation key, and a filename is not one -- it is the only
+// thing on a file row that identifies it, and the row's position moves with
+// every file the walk signs or deletes. Returns false when nothing on the
+// screen carries the text, so a caller can page and ask again.
+static lv_obj_t *s_lit;
+static void find_lit(lv_obj_t *o, const char *txt)
+{
+    if (!o || s_lit || lv_obj_has_flag(o, LV_OBJ_FLAG_HIDDEN)) return;
+    bool hit = false;
+    if (lv_obj_check_type(o, &lv_label_class)) {
+        const char *t = lv_label_get_text(o);
+        hit = t && strstr(t, txt) != NULL;
+    } else if (lv_obj_check_type(o, &lv_spangroup_class)) {
+        // Every lit address on this device is a SPANGROUP, not a label -- a
+        // grey head and an accented tail are two spans of one line. Asking only
+        // labels found nothing and the walk tapped empty glass.
+        char j[256]; size_t o2 = 0; j[0] = 0;
+        uint32_t sn = lv_spangroup_get_span_count(o);
+        for (uint32_t i = 0; i < sn && o2 + 1 < sizeof j; i++) {
+            lv_span_t *sp = lv_spangroup_get_child(o, (int32_t)i);
+            const char *t = sp ? lv_span_get_text(sp) : NULL;
+            if (!t) continue;
+            size_t n = strlen(t);
+            if (o2 + n >= sizeof j) n = sizeof j - 1 - o2;
+            memcpy(j + o2, t, n); o2 += n; j[o2] = 0;
+        }
+        hit = strstr(j, txt) != NULL;
+    }
+    // The climb stops short of the SCREEN. Every sign screen carries a swipe
+    // watcher, which makes the screen itself clickable -- so a label with no
+    // control of its own walked all the way up and handed the tap to the
+    // gesture handler, which read it as a swipe past the last tab and opened
+    // the glossary over a screen that was already gone. Four levels is deeper
+    // than any row on this device and shallower than the screen.
+    if (hit) {
+        lv_obj_t *scr = lv_screen_active();
+        lv_obj_t *q = o;
+        for (int up = 0; q && up < 5; q = lv_obj_get_parent(q), up++) {
+            if (q == scr) break;
+            if (lv_obj_has_flag(q, LV_OBJ_FLAG_CLICKABLE)) { s_lit = q; return; }
+        }
+    }
+    for (uint32_t i = 0; i < lv_obj_get_child_count(o) && !s_lit; i++)
+        find_lit(lv_obj_get_child(o, i), txt);
+}
+static bool tap_lit(const char *txt, int hold, int settle)
+{
+    s_lit = NULL;
+    find_lit(lv_screen_active(), txt);
+    if (!s_lit) return false;
+    tap_obj(s_lit, hold, settle);
+    return true;
+}
+
 static void tap_str_nth(int key, int nth, int hold, int settle)
 {
     const char *txt = tr(key);
@@ -2018,6 +2163,24 @@ KISS_SIM_PATH_FN(simsd_path, "simsd")
 // went on deleting a card nobody was using. The walk's REMOVE step then left
 // four files standing, every row below them shifted, and three later stops
 // photographed the wrong transaction while reporting a needle that was missing.
+// Empty the simulated card of transactions. The two SIGN empty states are the
+// only screens in the flow that need a card with nothing on it, and building
+// that state by name would break the moment a fixture is added.
+static void sd_clear_psbts(void) {
+  DIR *d = opendir(SIMSD);
+  if (!d) return;
+  struct dirent *e;
+  while ((e = readdir(d))) {
+    const char *dot = strrchr(e->d_name, '.');
+    if (dot && strcmp(dot, ".psbt") == 0) {
+      char p[512];
+      snprintf(p, sizeof p, "%s/%s", SIMSD, e->d_name);
+      unlink(p);
+    }
+  }
+  closedir(d);
+}
+
 static void sd_unlink(const char *name) {
   char p[256];
   snprintf(p, sizeof p, "%s/%s", SIMSD, name);
@@ -2030,26 +2193,12 @@ static FILE *sd_fopen(const char *name, const char *mode) {
   return fopen(p, mode);
 }
 
-static void sim_fixture_reset(void) {
-  mkdir(SIMSD, 0777);
-
-  // Two passes: collect, close, then remove. Deleting inside the readdir loop
-  // is the shape platform_sd.c avoids for the same reason -- see its comment
-  // about f_readdir after f_unlink -- and there is no reason to write the
-  // fragile version here just because the host happens to tolerate it.
-  char doomed[64][256];
-  int n = 0;
-  DIR *d = opendir(SIMSD);
-  if (d) {
-    struct dirent *e;
-    while ((e = readdir(d)) != NULL && n < 64) {
-      if (e->d_name[0] == '.') continue;
-      snprintf(doomed[n++], sizeof doomed[0], "%s/%s", SIMSD, e->d_name);
-    }
-    closedir(d);
-  }
-  for (int i = 0; i < n; i++) remove(doomed[i]);
-
+// Hoisted out of sim_fixture_reset so the walk can put the transactions
+// BACK. The SIGN empty states need a card with nothing on it, and a step a
+// hundred saves later still taps a file row -- deleting them and not
+// restoring them opened the empty card under that tap instead.
+static void sd_write_psbt_fixtures(void)
+{
   // The six the sign walk taps, and the content each one's verify screen is
   // built from (sim_main.c's kiss_psbt_load stub branches on these words).
   // The names are chosen so a plain sort puts them in the order the walk taps:
@@ -2076,6 +2225,17 @@ static void sim_fixture_reset(void) {
     // one recipient with no change: the shape the elided middle exists for, and
     // the only fixture where n_total exceeds what ins[] can hold.
     { "zzzzz-MERGE.psbt", "MERGE" },
+    // ...and this one after THAT, for the same reason: a file the loader
+    // refuses outright, which is the only way to reach the "not a valid PSBT"
+    // screen and the fix line under it.
+    { "zzzzzz-GARBLE.psbt", "GARBLE" },
+    // ...and this one last of all, same reason. A refusal with NO remedy:
+    // stop_body answers four reasons and every other one of the thirty odd in
+    // kiss_psbt.c falls through it, so this is the only fixture that reaches
+    // the branch those thirty take. Without it the walk photographs the two
+    // refusals that DO carry an instruction and nothing has ever rendered the
+    // shape the rest of them wear.
+    { "zzzzzzz-SIGHASH.psbt", "SHASH" },
   };
   for (unsigned i = 0; i < sizeof FIXTURES / sizeof FIXTURES[0]; i++) {
     char p[256];
@@ -2083,6 +2243,29 @@ static void sim_fixture_reset(void) {
     FILE *f = fopen(p, "wb");
     if (f) { fputs(FIXTURES[i].body, f); fclose(f); }
   }
+}
+
+static void sim_fixture_reset(void) {
+  mkdir(SIMSD, 0777);
+
+  // Two passes: collect, close, then remove. Deleting inside the readdir loop
+  // is the shape platform_sd.c avoids for the same reason -- see its comment
+  // about f_readdir after f_unlink -- and there is no reason to write the
+  // fragile version here just because the host happens to tolerate it.
+  char doomed[64][256];
+  int n = 0;
+  DIR *d = opendir(SIMSD);
+  if (d) {
+    struct dirent *e;
+    while ((e = readdir(d)) != NULL && n < 64) {
+      if (e->d_name[0] == '.') continue;
+      snprintf(doomed[n++], sizeof doomed[0], "%s/%s", SIMSD, e->d_name);
+    }
+    closedir(d);
+  }
+  for (int i = 0; i < n; i++) remove(doomed[i]);
+
+  sd_write_psbt_fixtures();
 
   // kiss_seed.c and kiss_seed_sd.c persist to these on the host build.
   static const char *const STATE[] = {
@@ -2097,6 +2280,9 @@ static void sim_fixture_reset(void) {
 }
 
 int main(void) {
+  // Before anything touches the fake card. Two walks on one scratch invent
+  // failures rather than colliding loudly; see kiss_simpath.h.
+  kiss_sim_lock(WALK_NAME);
   const char *sl = getenv("SIM_LANG");
   if (sl && *sl && strcmp(sl, "en") != 0) {
     for (int i = 0; i < I18N_LANG_N; i++)
@@ -2283,7 +2469,8 @@ int main(void) {
   pump(50);                                         // code locks; glide to the chip begins
   save("/tmp/sim_fp_fly.ppm");                      // mid-glide
   pump(70);                                         // landed; chip + caption faded in
-  save("/tmp/sim_wallet.ppm");
+  save("/tmp/sim_home.ppm");
+
   pump(90);                                         // ~1.4s idle: motes drift up
   save("/tmp/sim_home_idle.ppm");                   // motes at new positions here
   pump(120);                                        // more drift
@@ -2391,6 +2578,26 @@ int main(void) {
       touch(725, 430); pump(3); release(); pump(25);
       tap_str(STR_L_TAP_TO_OPEN, 3, 12);
       pump(120);
+
+      // A FAILED attempt must not poison the next one. Every case above is
+      // preceded by lock_to_menu() and a long pump, so the walk had only ever
+      // asked this feature one clean question at a time -- and on the bench
+      // the second attempt was the one that mattered. main.c keeps the ink
+      // until the panel has been quiet for 3s, and matches the word against
+      // the FIRST stored.strokes strokes of whatever it is holding, so a
+      // completed wrong draw left every later try measuring somebody else's
+      // ink. The heuristic that catches an abandoned KISS is off whenever a
+      // word is stored. Six junk strokes, 640ms, then the word.
+      lock_to_menu();
+      mark_line(); mark_slash(); mark_line(); mark_slash(); mark_line(); mark_slash();
+      pump(40);
+      g_last_unlock_kind = -2;
+      draw_cover();
+      if (g_last_unlock_kind != WDR_DECOY) {
+        printf("FAIL: written word: a retry after a failed draw routed %d, "
+               "expected WDR_DECOY (%d)\n", g_last_unlock_kind, WDR_DECOY);
+        g_walk_fails++;
+      }
 
       // And the sentence the feature exists to make true: with a word stored,
       // a DIFFERENT draw opens nothing at all. Two plain strokes here, nothing
@@ -2665,7 +2872,7 @@ int main(void) {
   // The SCAN KEY line is a DOOR again -- to the one consent flow, which lives
   // in kiss_info beside the KEYS launcher. The gate must open, and CANCEL
   // must land back on this tab, not on the landing tab.
-  touch(400, 229); pump(3); release(); pump(15);    // SCAN KEY row -> the gate
+  touch(400, 353); pump(3); release(); pump(15);    // SCAN KEY row -> the gate
   save("/tmp/sim_recv_spgate.ppm");
   must_show("recv/sp-scan-door", tr(STR_K_SPGATE_SENT));
   tap_str(STR_C_CANCEL, 3, 45);                     // CANCEL -> back to SILENT
@@ -2716,7 +2923,12 @@ int main(void) {
   // so the stroke crosses the tab boundary onto THIS ADDRESS.
   for (int i = 0; i <= 8; i++) { touch(300 + i * 14, 250); pump(3); }
   release(); pump(40);
-  must_show("recv/deck crossed to tab 0", tr(STR_S_CMP_8));
+  // The index caption, not the compare line. That line is gone: it was an
+  // instruction about a different job standing where the address block's
+  // expand mark should have been, and a needle on copy dies the day the copy
+  // does. STR_R_ADDR_N_FMT is a format, so the needle is the tab's own state
+  // word beside it.
+  must_show("recv/deck crossed to tab 0", tr(STR_R_ENLARGE));
   save("/tmp/sim_recv_deck_home.ppm");
   tap_str(STR_R_ALL_ADDR, 3, 40);       // back in by the strip: remembered page
   // A line HELD, so one frame shows the accent rail and the pressed wash --
@@ -2739,10 +2951,17 @@ int main(void) {
   touch(156, 353); pump(3); release(); pump(6);     // TAP TO ENLARGE -> the same zoom
     save("/tmp/sim_recv_zoom_line.ppm"); // same zoom by design; must be identical
   touch(763, 35); pump(3); release(); pump(6);      // close zoom
-  touch(350, 128); pump(3); release(); pump(20);    // ADDRESS #N -> the index popover
-  save("/tmp/sim_recv_pop.ppm");
-  touch(446, 170); pump(3); release(); pump(20);    // pick the first offered index
-  touch(500, 370); pump(3); release(); pump(30);    // the path digits -> explainer
+  // The caption is the way INTO the list now -- there is no popover -- and the
+  // list lands on the page holding the selected index with that row ticked.
+  touch(350, 128); pump(3); release(); pump(40);    // ADDRESS #N -> ALL ADDRESSES
+  save("/tmp/sim_recv_pick.ppm");                   // the list, on the right page
+  touch(400, 204); pump(3); release(); pump(40);    // pick a row -> back on tab 0
+  // 40, not 30. wt_card_intro staggers its children over 560ms and pump(30)
+  // is 480, so the frame was caught mid-travel and the term line measured a
+  // pixel into the action band -- a CONTENT finding that looks exactly like a
+  // layout bug and is a walk that photographed too early. Same 560ms that
+  // caught the outgoing pane on another stop.
+  touch(500, 360); pump(3); release(); pump(40);   // the path digits -> explainer
   save("/tmp/sim_recv_path_help.ppm");
   tap_str(STR_C_OK, 3, 6);
   tap_str(STR_R_NEXT_ADDR, 3, 8);     // NEXT ADDRESS -> next unused index
@@ -2818,17 +3037,17 @@ int main(void) {
   // the state that matters -- UNUSED is the happy default nobody has to read.
   //
   // Mark one, reopen so the landing index is past it, then step BACK through
-  // the popover onto the marked one. That exercises the route an owner takes
-  // to reach a used address as well as the lamp it lights.
+  // the list onto the marked one. That exercises the route an owner takes to
+  // reach a used address as well as the lamp it lights.
   {
     uint8_t fp[4];
     kiss_ui_last_fp(fp);
     kiss_usage_mark(fp, kiss_testnet() ? 1 : 0, kiss_script(), 10);
     tap_str(STR_C_BACK, 3, 6);                       // -> home
     touch(310, 240); pump(3); release(); pump(20);   // Receive: lands on #11
-    touch(350, 128); pump(3); release(); pump(20);   // ADDRESS #11 -> popover
-    save("/tmp/sim_recv_pop_used.ppm");              // #9 and #10 read USED
-    touch(446, 170); pump(3); release(); pump(30);   // pick #9
+    touch(350, 128); pump(3); release(); pump(40);   // ADDRESS #11 -> the list
+    save("/tmp/sim_recv_pick_used.ppm");             // #9 and #10 read USED
+    touch(400, 204); pump(3); release(); pump(40);   // pick #9, the first row
     save("/tmp/sim_recv_used.ppm");                  // the amber lamp and its line
     tap_str(STR_R_ALL_ADDR, 3, 40);                  // ALL ADDRESSES, mixed states
     save("/tmp/sim_recv_list_used.ppm");
@@ -2848,59 +3067,37 @@ int main(void) {
   // frame looked like a rendering fault and was really a frame taken early,
   // which is the second time that has happened on this walk.
   touch(490, 240); pump(3); release(); pump(45);    // Wallet tile -> section home
-  save("/tmp/sim_winfo.ppm");
-  // The in-place definition, the pass's central interaction and the reason
-  // the fp/type help cards left this page: NETWORK opens where it stands, the
-  // other rows drop to 34px ghosts, and the plain sentence lands inside the
-  // grown row. Three rows now -- the fingerprint hero is gone, the home page
-  // already headlines the same code -- so NETWORK is the top third at
-  // 114..208. 30 pumps: the height animation is 240ms and the body rides in
-  // 90ms behind it.
-  touch(400, 160); pump(3); release(); pump(8);     // NETWORK row -> opening
-  // Heights in transit: the open row growing and the ghosts collapsing in
-  // the same tick. Raw, not saved -- a mid-flight frame must never become a
-  // stop the settled-state gates compare against.
-  shot_raw("sim_winfo_def_mid.ppm");
-  pump(22);                                         // and let it settle
-  save("/tmp/sim_winfo_def.ppm");
-  must_show("keys/def plain", tr(STR_K_NET_PLAIN_TEST));
-  touch(400, 240); pump(3); release(); pump(30);    // the open row -> all closed
-  // The [ ? ] tab: the content lane replaced by the page's explainer, and
-  // the first-run hint stopped for good (this is the walk's first open).
+  // ONE PAGE, no tab strip. THIS SIGNER held a read-only copy of two SETTINGS
+  // rows and of RECEIVE's first address, so it went; what is left is how a
+  // coordinator comes to watch these keys. No coordinator has spoken at this
+  // point -- the recv test wiped its usage record on the way out -- so the
+  // page shows the 5c empty state: the absence named, what pairing gives, and
+  // the row that fills it.
+  save("/tmp/sim_winfo_coord_empty.ppm");
+  must_show("coord empty", tr(STR_K_COORD_NONE));
+  // The [ ? ]: the content lane replaced by the page's explainer, and the
+  // first-run hint stopped for good (this is the walk's first open).
   touch(720, 85); pump(3); release(); pump(45);   // 45: the fact rows land on the stagger
   save("/tmp/sim_winfo_what.ppm");
   must_show("keys/help head", tr(STR_K_HELP_HEAD));
-  touch(720, 85); pump(3); release(); pump(45);     // [ ? ] again -> the rows; 45 outlasts the exit stagger
-  // KEYS is two tabs on one flex strip now, spread across the 620 lane, and
-  // a deck like every other tabbed page: the crossing is made by STROKE here,
-  // both directions, because no other stop swipes this page. The COORDINATOR
-  // WALLET tab holds PAIRING at 120 and SILENT PAYMENT at 196.
-  for (int i = 0; i <= 8; i++) { touch(500 - i * 14, 250); pump(3); }
-  release(); pump(40);                              // swipe -> COORDINATOR WALLET
-  // No coordinator has ever spoken at this point -- the recv test wiped its
-  // usage record on the way out -- so the tab shows the 5c empty state: the
-  // absence named, what pairing gives, and the row that fills it.
-  save("/tmp/sim_winfo_coord_empty.ppm");
-  must_show("coord empty", tr(STR_K_COORD_NONE));
-  // And past the deck's end: the stroke opens [ ? ] on this page too, and a
-  // right stroke on it lands back on the tab it left.
+  touch(720, 85); pump(3); release(); pump(45);     // [ ? ] again -> the rows
+  // The stroke still reaches the explainer, which is the only other thing on
+  // this page: left opens it, right comes back.
   for (int i = 0; i <= 8; i++) { touch(500 - i * 14, 250); pump(3); }
   release(); pump(50);
-  must_show("keys/swipe past coord opens help", tr(STR_K_HELP_HEAD));
+  must_show("keys/swipe opens help", tr(STR_K_HELP_HEAD));
   for (int i = 0; i <= 8; i++) { touch(300 + i * 14, 250); pump(3); }
   release(); pump(50);
   must_show("keys/swipe closes help", tr(STR_K_COORD_NONE));
   {
     // Give this signer a coordinator's word -- the same store RECEIVE's lamp
-    // reads -- and bounce the tab so the populated page renders.
+    // reads -- and reopen so the populated page renders.
     uint8_t cfp[4];
     kiss_ui_last_fp(cfp);
     kiss_usage_chain_set(cfp, kiss_testnet() ? 1 : 0, kiss_script(), -1, 1);
   }
-  for (int i = 0; i <= 8; i++) { touch(300 + i * 14, 250); pump(3); }
-  release(); pump(40);                              // swipe back -> THIS SIGNER
-  must_show("keys/swipe back to this signer", tr(STR_I_SEC_FIRST));
-  tap_str(STR_D_ONLINE_APP, 3, 40);                 // COORDINATOR WALLET, populated
+  tap_str(STR_C_BACK, 3, 8);                        // -> home
+  touch(490, 240); pump(3); release(); pump(45);    // KEYS again, populated
   save("/tmp/sim_winfo_coord.ppm");
   touch(400, 150); pump(3); release(); pump(6);     // PAIRING -> PAIR COORDINATOR
   save("/tmp/sim_pair.ppm");                        // descriptor (Sparrow) active
@@ -2917,9 +3114,18 @@ int main(void) {
   // By the VALUE: DESCRIPTOR is also the KEYS explainer's third caption
   // now, and a needle two keys share passes on whichever shows either.
   must_show("pair/terms", tr(STR_T_WATCH_VAL));
-  // DESCRIPTOR's page two: the artefact itself, in blocks. Its row is the
-  // first, so it centres on 170 at n=2, and opening it puts MORE in the band.
-  touch(400, 170); pump(3); release(); pump(30);
+  // PRIVATE KEY open: the word this device says on every screen, and the
+  // only one a reader could not look up here until now. Pairing is where it
+  // matters -- this is the page that sends the OTHER half out.
+  tap_str(STR_T_KEY_CAP, 3, 30);
+  save("/tmp/sim_pair_term_key.ppm");
+  must_show("pair/private key", tr(STR_T_KEY_PLAIN));
+  tap_str(STR_T_KEY_CAP, 3, 30);                    // closed again
+  // DESCRIPTOR's page two: the artefact itself, in blocks. By its CAPTION,
+  // not by a row centre: the centre moved the day PRIVATE KEY joined this
+  // page and took the next four taps with it, because a coordinate knows
+  // nothing about how many rows are above it.
+  tap_str(STR_T_WATCH_CAP, 3, 30);
   tap_str(STR_H_MORE, 3, 25);
   save("/tmp/sim_pair_desc2.ppm");                  // the whole descriptor
   must_show("pair/descriptor page two", tr(STR_T_WATCH_P2_HEAD));
@@ -3057,7 +3263,13 @@ int main(void) {
   // The ADDRESS LINE of the recipient row, not its amount: the amount is the
   // unit switch on every screen of this device, so the two lines of a row are
   // two controls and each is the thing under the finger.
-  touch(600, 210); pump(3); release(); pump(8);      // the address line
+  // BY NAME, not by coordinate. The address line moves whenever the graph band
+  // does, and a tap that lands on empty glass does not fail here -- it fails
+  // two screens later, as a segfault in whatever the miss eventually reaches.
+  if (!tap_lit("g3h8 ffkz", 3, 8)) {
+    printf("FAIL: the recipient's address line was not tappable\n");
+    return 1;
+  }
   save("/tmp/sim_sign_addr_mid.ppm");
   pump(30);                                          // let the stagger settle
   save("/tmp/sim_sign_addr.ppm");
@@ -3161,7 +3373,9 @@ int main(void) {
     if (chip) {
       lv_obj_t *par = lv_obj_get_parent(chip);
       touch(lv_obj_get_x(par) + 15, lv_obj_get_y(par) + 15);
-      pump(3); release(); pump(30);
+      pump(3); release(); pump(40);   // 40: wt_card_intro staggers the overlay over 40+300ms and each child
+      // takes 220 to settle, so the LAST one is still travelling 560ms in,
+      // against 480ms of pump. The card was always photographed mid intro.
     } else {
       printf("FAIL: details/txid: no term chip heading the strip\n");
       g_walk_fails++;
@@ -3306,31 +3520,46 @@ int main(void) {
   }
 
   slide_grip(STR_S_HOLD_TO_SIGN); slide_go(320);    // past the track: signs
-  release(); pump(40);                              // past REVEAL_TRAVEL_MS
+  release(); pump(64);                              // past REVEAL_TRAVEL_MS
   // The reveal, and the reason the walk stops here rather than landing straight
   // on the exit screen. The graph has spent the whole flow claiming a strand in
   // the accent means a signature exists; this is the frame where that is
   // discharged, all inputs together, because one libwally call signed all of
   // them and there was never a per coin moment to show.
   //
-  // 40 frames, not 8: the strands CROSS to the accent over REVEAL_TRAVEL_MS
+  // 64 frames, not 8: the strands CROSS to the accent over REVEAL_TRAVEL_MS
   // now rather than switching between two frames, so 8 caught them a third of
   // the way over and the frame this stop exists for was a colour that means
-  // nothing. 520ms is 33 frames at the harness's 16ms; 40 clears it.
+  // nothing. REVEAL_TRAVEL_MS is 900 and the harness runs 16ms frames, so the
+  // crossing is 57 of them and 64 clears it. It was 40 while the travel was
+  // 520; the pair moves together or this stop photographs a half-signed graph.
   save("/tmp/sim_sign_reveal.ppm");
   // 110, not 50: REVEAL_MS went 700 -> 1600 so the answer is on the glass long
   // enough to read. 1600ms is 100 frames. Landing short here does not fail
   // here -- it fails four screens later on a DONE action that is not up yet, and
   // then cascades through every BACK after it.
   pump(110);                                        // past REVEAL_MS: writes SD
+  // The arrival motion, drawn OVER the finished exit screen. This lands about
+  // 570ms in -- the pump above clears REVEAL_MS with 10 frames to spare and
+  // the motion has been running since the timer fired -- which is the lock
+  // front a third of the way down the block, with the first characters of the
+  // code already out of it.
+  save("/tmp/sim_sign_arrival.ppm");
+  // Any press ends it. Photographed straight after, because the whole point
+  // of the rule is that a filename an owner is reading back must never be mid
+  // scramble -- if the skip did not land, this frame says so.
+  touch(400, 240); pump(3); release(); pump(20);
   save("/tmp/sim_sign_done.ppm");
-  // The chip is pinned at a fixed x now (kiss_sign.c draw_sig_chip): chip
-  // first, translated caption trailing, so this tap holds in all 21 locales.
-  // It moved down with everything else when the summary card took the band at
-  // 120: draw_sig_chip(296, 336) puts its centre here.
-  // The code itself moved INTO the panel this opens -- the next frame must
-  // show it above the two example rows.
-  touch(311, 351); pump(3); release(); pump(6);     // ? beside SIGNATURE -> panel
+  // By the glyph, not by pixel. The chip is right aligned against the artifact
+  // card's edge now, so its x is whatever the code's width leaves -- a number
+  // that changes with the font the locale picked. The failure mode of getting
+  // this wrong is the quiet one: the tap misses, every later save() photographs
+  // the screen it was already on, and the sweep comes back clean.
+  //
+  // The code is on the screen AND in the panel now. The panel keeps it because
+  // it is where the comparison is taught; the next frame must show it above
+  // the two example rows.
+  tap_label_exact("?");                             // ? beside SIGNATURE -> panel
   save("/tmp/sim_sign_sigcheck.ppm");
   tap_str(STR_C_BACK, 3, 6);     // BACK -> signed screen again
   tap_str(STR_C_DONE, 3, 6);     // DONE -> home
@@ -3375,15 +3604,27 @@ int main(void) {
               "bc1q zyg3  \xE2\x80\xA6  g3zy g3h8 ffkz");
     // The recipient ROW, which is the control an owner presses now: one
     // layout at every count, and the card that used to be here is gone.
-    touch(600, 210); pump(3); release(); pump(30);
+    // By name, for the reason the first address tap gives above.
+    if (!tap_lit("g3h8 ffkz", 3, 30)) {
+      printf("FAIL: the paid-before address line was not tappable\n");
+      return 1;
+    }
     save("/tmp/sim_sign_known_why.ppm");
     // The BODY, not the whole string: WT_GRID_ICONS splits each entry at its
     // "HEAD: " and puts the two halves in separate labels, so the full string
     // is never one label's text. Same split in every locale, so this stays
     // locale independent.
     {
-      const char *b = strstr(tr(STR_S_PAYEE_HELP), ": ");
-      must_show("paid before, why", b ? b + 2 : tr(STR_S_PAYEE_HELP));
+      // Split by the SAME function the screen splits with, not by a strstr
+      // for ": ". Chinese writes a FULLWIDTH COLON, U+FF1A, and puts no space
+      // after it, so the ASCII search found nothing, fell back to asserting
+      // the WHOLE string, and could never match: the two halves are in
+      // separate labels by construction. wt_split_colon already knows about
+      // U+FF1A -- kiss_theme.c handles both -- so the screen was right and
+      // only this line was guessing at what it had done.
+      char head[128];
+      const char *b = wt_split_colon(tr(STR_S_PAYEE_HELP), head, sizeof head);
+      must_show("paid before, why", b ? b : tr(STR_S_PAYEE_HELP));
     }
     tap_str(STR_C_OK, 3, 6);
     tap_str(STR_C_BACK, 3, 6);   // BACK -> the file list
@@ -3431,7 +3672,66 @@ int main(void) {
   // without deleting it, so if the ack action is not actually hit, nothing counts
   // an orphan and the check passes on a build that leaks.
   tap_str(STR_C_BACK, 3, 6);     // BACK (leftmost) -> the file list
-  // warn-COMBO leads page two now: nine files, three a page.
+  // A file this device cannot read. It is the only sign screen nothing had ever
+  // photographed, and it is the one a new owner is most likely to meet: a wrong
+  // export or a truncated write produces exactly this, so it has to say where
+  // to put a good file.
+  //
+  // It sorts LAST on the card, so reaching it is swipe-until-found rather than
+  // a coordinate -- and the pages are COUNTED on the way out so the same number
+  // comes back. Every stop below this one taps a row by POSITION, and a list
+  // left on page four makes those stops report findings about whatever happens
+  // to be under the finger. The assertion after the walk back is what turns a
+  // miscount into a failure HERE rather than three screens later.
+  {
+    int fwd = 0;
+    bool got = false;
+    for (; fwd < 6 && !got; ) {
+      got = tap_lit("GARBLE", 3, 12);
+      if (got) break;
+      for (int i = 0; i <= 8; i++) { touch(500 - i * 14, 250); pump(3); }
+      release(); pump(30);
+      fwd++;
+    }
+    if (!got) { printf("FAIL: the unreadable file was never reachable\n"); return 1; }
+    save("/tmp/sim_sign_not_psbt.ppm");
+    must_show("unreadable file names the fix", tr(STR_S_FIX_SD));
+    tap_str(STR_C_BACK, 3, 6);                      // -> the list, page `fwd`
+    for (int pg = 0; pg < fwd; pg++) {
+      for (int i = 0; i <= 8; i++) { touch(300 + i * 14, 250); pump(3); }
+      release(); pump(30);
+    }
+    must_show("file list back on page one", "payment-01");
+  }
+  // The refusal with nothing to DO about it. Every stop above this one carries
+  // an instruction from stop_body, so the branch the OTHER thirty reasons take
+  // -- verdict, then the two facts that are true of all of them -- had never
+  // been rendered by anything. Same swipe-until-found and same page count-back
+  // as GARBLE above, for the same reason: the stops below tap by position.
+  {
+    int fwd = 0;
+    bool got = false;
+    for (; fwd < 6 && !got; ) {
+      got = tap_lit("SIGHASH", 3, 12);
+      if (got) break;
+      for (int i = 0; i <= 8; i++) { touch(500 - i * 14, 250); pump(3); }
+      release(); pump(30);
+      fwd++;
+    }
+    if (!got) { printf("FAIL: the bodyless refusal was never reachable\n"); return 1; }
+    save("/tmp/sim_sign_stop_plain.ppm");
+    must_show("refusal with no remedy says nothing was signed",
+              tr(STR_S_STOP_NOSIG));
+    must_show("refusal with no remedy names the coordinator",
+              tr(STR_S_STOP_REDO));
+    tap_str(STR_C_BACK, 3, 6);                      // -> the list, page `fwd`
+    for (int pg = 0; pg < fwd; pg++) {
+      for (int i = 0; i <= 8; i++) { touch(300 + i * 14, 250); pump(3); }
+      release(); pump(30);
+    }
+    must_show("file list back on page one again", "payment-01");
+  }
+  // warn-COMBO leads page two now: ten files, three a page.
   for (int i = 0; i <= 8; i++) { touch(500 - i * 14, 250); pump(3); }
   release(); pump(30);                              // swipe left -> page 2
   touch(328, 150); pump(3); release(); pump(8);     // COMBO file -> stacked cautions
@@ -3550,6 +3850,20 @@ int main(void) {
   touch(328, 282); pump(3); release(); pump(8);     // zzzz-MANY (row 2) -> verify
   save("/tmp/sim_sign_many.ppm");                   // 5 recipients, HOLD inert
   must_show("many recipients", "bc1q 00g3  \xE2\x80\xA6  g3zy g3h8 ffkz");
+  // The locktime badge and the mark beside it. A badge nothing taps is a badge
+  // no gate has an opinion about, and this one is the whole point of promoting
+  // the fact off the DETAILS deck: the block is on the glass and what a block
+  // means is one tap away.
+  // The NUMBER, not the sentence. kiss_sign.c drops the word "BLOCK" off this
+  // badge on a line that has run out of lane -- a locale whose word for SIGN
+  // is long, which is de, nl, ru and cs-CZ -- and keeps the lock and the
+  // block, because that pair is the fact and the card one tap away teaches
+  // the word. An English needle asserted the degraded form did not exist.
+  must_show("locktime badge", "5127853");
+  touch(386, 40); pump(3); release(); pump(40);   // the card fades in
+  save("/tmp/sim_sign_locktime.ppm");               // what a locktime IS
+  must_show("locktime card", "locktime");
+  touch(400, WT_ACTION_Y + 20); pump(3); release(); pump(8);   // OK
   if (kiss_sign_test_armed()) {
     printf("FAIL: HOLD TO SIGN was live with recipients still under the fold\n");
     return 1;
@@ -3635,6 +3949,24 @@ int main(void) {
   // dashed line on the device. The accent drawn over it has to be dashed too --
   // sixteen coins committing must not become one coin committing halfway
   // through a hold.
+  // SETTLE FIRST, and this is not decoration. An acknowledgement REPAINTS the
+  // verify screen -- the one thing in the app that replaces a live screen
+  // without deleting it -- and a press that lands while that is running is
+  // dropped by the slider. Without this pump the grip and the drag below did
+  // nothing at all: act_for found the action, the coordinates were identical
+  // to the working stop 400 lines up, armed was 1, and the knob stayed at rest.
+  //
+  // The frame this stop exists for is the accent drawn over the DASHED strand
+  // mid hold, which is the only dashed line on the device, so it had never
+  // been photographed. check_sim_taps is exactly the check for a gesture that
+  // did nothing, and it never got to run: it has no `if: always()`, so six
+  // steps failing in front of it on CI SKIPPED it, for as long as those were
+  // red. A skipped step is not a green one and the summary does not say which
+  // it was.
+  //
+  // pump(8) after a release is the documented number and it is right for a
+  // TAP. A gesture after a repaint is the case it does not cover.
+  pump(30);
   slide_grip(STR_S_HOLD_TO_SIGN); slide_go(155);
   save("/tmp/sim_sign_merge_hold.ppm");
   // 78 frames, not 8: a lift short of the end banks the travel for 800ms and
@@ -3693,6 +4025,7 @@ int main(void) {
     }
     slide_grip(STR_S_HOLD_TO_SIGN); slide_go(320);
     release(); pump(150);                           // past the reveal, writes SD
+    touch(400, 240); pump(3); release(); pump(20);  // past the arrival motion
     save("/tmp/sim_sign_done_many.ppm");
     // What the card must say, and what it must not. The count comes from the
     // string DETAILS already uses for it, so this needle is the translated one
@@ -3738,14 +4071,51 @@ int main(void) {
 
   // The SPARSE list: two files, so no pager -- the rows keep their pitch and
   // the sort hint takes the count line's slot, the only branch with the room
-  // to say it. Nothing after this leg reads the two files removed here.
+  // to say it. Nothing after this leg reads any of these: sd_clear_psbts()
+  // is twenty lines down.
+  //
+  // FOUR removals, because the fixture set outgrew the two. This leg went on
+  // asserting the hint while the card still held four files, which is the
+  // PAGER branch -- so the one branch this stop exists to photograph had
+  // never once been drawn. It passed anyway, and the way it passed is worth
+  // recording: must_show falls back to the needle's head when a label is
+  // ellipsised, the head of "unsigned first, then A to Z." is "unsigned
+  // first", and the pager line reads "files 1 to 3 of 4, unsigned first" --
+  // so the fallback matched a DIFFERENT string and then reported the miss as
+  // a CUT finding that did not exist. Dutch is the locale that caught it,
+  // because it says "niet-ondertekend eerst" in the count line and
+  // "ongetekend eerst" in the hint, and no head of one is inside the other.
   sd_unlink("zzz-UNPRV.psbt");
   sd_unlink("zzzzz-MERGE.psbt");
+  sd_unlink("zzzzzz-GARBLE.psbt");
+  sd_unlink("zzzzzzz-SIGHASH.psbt");
   touch(130, 240); pump(3); release(); pump(6);     // Sign tile -> the page
   tap_str(STR_S_FROM_SD, 3, 30);                    // SD CARD tab -> the list
   save("/tmp/sim_sign_files_few.ppm");              // 2 rows + the hint line
   must_show("sparse file list", tr(STR_S_FILES_HINT));
-  tap_str(STR_C_BACK, 3, 6);     // BACK -> home (the page IS the chooser)
+
+  // ---- the two SD dead ends, which nothing had ever opened ----
+  //
+  // SIGN -> SD CARD with an empty slot, and with a card carrying no
+  // transaction. Both render in the SD tab's own lane rather than on a screen
+  // of their own, so check_screen_coverage cannot see them: they have no
+  // title, and the walk had never built either one.
+  tap_str(STR_C_BACK, 3, 6);     // BACK -> home
+  sd_clear_psbts();
+  touch(130, 240); pump(3); release(); pump(6);     // Sign tile -> the page
+  tap_str(STR_S_FROM_SD, 3, 30);                    // SD CARD tab
+  save("/tmp/sim_sign_no_psbt.ppm");                // a card, and nothing on it
+  must_show("sign/no psbt on the card", tr(STR_S_NO_PSBT_FILES));
+  tap_str(STR_C_BACK, 3, 6);     // BACK -> home
+
+  platform_sd_test_set_present(0);                  // the slot, empty
+  touch(130, 240); pump(3); release(); pump(6);     // Sign tile -> the page
+  tap_str(STR_S_FROM_SD, 3, 30);                    // SD CARD tab
+  save("/tmp/sim_sign_no_card.ppm");                // no card at all
+  must_show("sign/no card in the slot", tr(STR_S_NO_SD));
+  tap_str(STR_C_BACK, 3, 6);     // BACK -> home
+  platform_sd_test_set_present(1);
+  sd_write_psbt_fixtures();      // the card is a fixture again for later steps
 
   // step 6: Sign via QR — scan (real UR fountain parts injected as if the
   // camera decoded them), verify, sign, animated UR out
@@ -3862,14 +4232,45 @@ int main(void) {
   // the taps gate would call them a dead interaction, which is exactly what it
   // did.
   pump(45); release(); pump(120);
+  // ...and the same arrival motion on this path, over the QR screen. The code
+  // flies to the right column here rather than to a card row, so it is a
+  // different handover and gets its own frame.
+  pump(40);
+  save("/tmp/sim_qr_arrival.ppm");
+  touch(400, 240); pump(3); release(); pump(20);    // any press ends it
   save("/tmp/sim_qr_out1.ppm");                     // animated UR out, first part
   pump(20);                                         // ~320ms: 250ms timer advanced
   save("/tmp/sim_qr_out2.ppm");                     // ...a different part
   touch(206, 258); pump(3); release(); pump(20);    // animated signed QR -> zoom
   save("/tmp/sim_qr_out_zoom.ppm");                 // animation keeps moving enlarged
   touch(763, 35); pump(3); release(); pump(6);      // close on latest frame
-  touch(530, 270); pump(3); release(); pump(6);     // EASY SCAN: sparser, slower QR
+  // BY LABEL, not by coordinate. This was touch(530, 270), and the moment the
+  // control moved up the tap landed on the note below it and did nothing --
+  // silently, because tapping a note is not a failure. The frame after it went
+  // on being saved as though the toggle had been pressed.
+  tap_str(STR_S_EASY_SCAN, 3, 8);                   // EASY SCAN: sparser, slower QR
   save("/tmp/sim_qr_out_ez.ppm");
+  // The panel from the QR side, which nothing had ever opened: sig_fp_open_cb
+  // carries which screen built it and sig_help_back_cb rebuilds THAT one, so
+  // the SD stop above only ever proved half of it. A BACK landing on the SD
+  // screen here would be silent -- both pages are titled SIGNED.
+  tap_label_exact("?");                             // ? beside SIGNATURE -> panel
+  save("/tmp/sim_qr_sigcheck.ppm");
+  tap_str(STR_C_BACK, 3, 8);                        // BACK -> the QR screen again
+  must_show("qr screen after the signature panel", tr(STR_S_EASY_SCAN));
+  // EASY SCAN was ON when the panel was opened and must still be on. The
+  // rebuild used to reset it, silently, on the one screen where the control
+  // exists because a phone could not read the fast loop -- and a frame alone
+  // cannot say so, because a toggle that came back off looks exactly like a
+  // toggle nobody pressed. The word carries WT_FLAG_ACCENT when it is on.
+  {
+    lv_obj_t *w = find_label_obj_exact(lv_screen_active(), tr(STR_S_EASY_SCAN));
+    if (!w || !lv_obj_has_flag(w, WT_FLAG_ACCENT)) {
+      printf("FAIL: EASY SCAN came back OFF from the signature panel\n");
+      g_walk_fails++;
+    }
+  }
+  save("/tmp/sim_qr_out_back.ppm");
   tap_str(STR_C_DONE, 3, 6);     // DONE -> home
   save("/tmp/sim_qr_end.ppm");
 
@@ -3920,7 +4321,15 @@ int main(void) {
   // The popover: page-aligned fives now, with pager rows -- the way to go
   // BACK an index without leaving the tab, and the window holds still under
   // the finger instead of re-centring on every pick.
-  touch(350, 128); pump(3); release(); pump(20);    // ADDRESS #N -> index popover
+  // DECIDED: a frame saved too soon photographs the OUTGOING pane, and reads as a
+  // layout bug rather than a timing one.
+  // pump(30), not 20. The outgoing pane leaves on a per row stagger --
+  // (n-1) * MO_OUT_STEP + MO_OUT_MS, which is 330ms for a six row detail pane
+  // against 320ms of pump -- so the old count photographed the previous screen
+  // still fading through this one. Invisible until overlapcheck learned to
+  // read spangroups: the ghost is a folded address, and a spangroup was not
+  // text to any check on the list.
+  touch(350, 128); pump(3); release(); pump(30);    // ADDRESS #N -> index popover
   save("/tmp/sim_recv_full.ppm");
   touch(446, 170); pump(3); release(); pump(20);    // pick the first offered
   tap_str(STR_R_NEXT_ADDR, 3, 8);   // NEXT ADDRESS -> next unused index
@@ -3953,7 +4362,7 @@ int main(void) {
   set_tab(SET_BACKUP);
   save("/tmp/sim_settings_backup.ppm");             // paper unchecked, storage on plain flash
   set_tab(SET_DEVICE);
-  save("/tmp/sim_settings_device.ppm");             // two 142px rows: firmware, this device
+  save("/tmp/sim_settings_device.ppm");             // firmware, this device, terms
   set_tab(SET_NOUNDO);
   save("/tmp/sim_settings_noundo.ppm");             // one card, its reason, one button
 
@@ -4124,10 +4533,14 @@ int main(void) {
     const char *v = tr(kiss_ui_backup_checked() ? STR_I_WORDS_OK_VAL
                                                 : STR_I_WORDS_NO_VAL);
     lv_point_t vs;
-    lv_text_get_size(&vs, v, wt_chrome28(v), 0, 0, LV_COORD_MAX,
+    // chrome23, the CLOSED row's rung. This measured at chrome28 and the tap
+    // landed short of the chip the day the closed value moved down a rung --
+    // and a missed tap does not fail here, it derails: every later save()
+    // photographs the cover and every later needle fails somewhere else.
+    lv_text_get_size(&vs, v, wt_chrome23(v), 0, 0, LV_COORD_MAX,
                      LV_TEXT_FLAG_NONE);
     // Row 0 carries a lamp, so the value starts 20 past DEF_VAL_X.
-    touch(48 + 238 + 20 + vs.x + 14 + 15, SET_DEF_Y(3, 0));
+    touch(48 + 238 + 20 + vs.x + 14 + 15, SET_DEF_Y(2, 0));
     pump(3); release(); pump(8);
   }
   pump(25);                                          // the card animates in
@@ -4135,7 +4548,11 @@ int main(void) {
   must_show("seed words help", tr(STR_W_WHATSEED_S));
   tap_str(STR_C_OK, 3, 8);
 
-  def_go(3, 1);                                      // storage row -> the chooser
+  // AUDIT's second door WAS here, on the tab that holds the seed, and the
+  // stop photographed the trail naming the tab it was opened from. There is
+  // one door now and it is on DEVICE, so there is one trail and one stop.
+
+  def_go(2, 1);                                      // storage row -> the chooser
   save("/tmp/sim_storage_choose.ppm");               // three modes, FLASH ticked
   // Same page, encryption ON: the storage row's sub-line stops cautioning. The
   // shim used to be hardcoded 0, so only the cautioned render existed.
@@ -4152,18 +4569,19 @@ int main(void) {
   // which is gone; capacity and what is on the card belong with the build id
   // and the radio rather than behind a picker for where the words live.
   set_tab(SET_DEVICE);
-  // FOUR rows on this tab now: TERMS joined it, so the pitch changed and a
-  // coordinate computed for three lands on the wrong one.
+  // THREE rows on this tab: FIRMWARE, THIS DEVICE, TERMS. DENOMINATION was
+  // the first of four and left with its row -- the amount on the sign screen
+  // is the switch -- so every index here moved up by one.
   //
   // TERMS first -- all ten cards, five to a page, the reference for an owner
   // who wants to READ the words rather than meet them one screen at a time.
-  def_row(4, 3);
+  def_row(3, 2);
   pump(30);
   save("/tmp/sim_terms_p1.ppm");                     // SEED WORDS .. CHANGE
   // By the VALUE: "SEED WORDS" is a caption several screens carry, and a
   // needle two keys share passes on whichever shows either.
   must_show("terms/page one", tr(STR_T_SEED_VAL));
-  must_not_show("terms/page one has no page two", tr(STR_T_DECOY_CAP));
+  must_not_show("terms/page one has no page two", tr(STR_T_DECOY_VAL));
   // A left stroke turns the page. Not a scroll: wt_screen is deliberately
   // not scrollable, and a scrolling list eats every stroke a few pixels in.
   // FOUR to a page, so ten terms are three pages and THE DECOY is on the
@@ -4175,10 +4593,18 @@ int main(void) {
   for (int i = 0; i <= 8; i++) { touch(500 - i * 14, 250); pump(3); }
   release(); pump(40);
   save("/tmp/sim_terms_p3.ppm");                     // ENTROPY, THE DECOY
-  must_show("terms/page three", tr(STR_T_DECOY_CAP));
+  // By the VALUE here too, for the reason page one already gives, and it is
+  // not hypothetical: THE DECOY and DECOY are one word in EIGHT locales --
+  // cs-CZ, hr-HR, ja, ko, pl, ru, tr and zh-CN all render T_DECOY_CAP and
+  // D_SPARE identically, because none of them has a definite article to carry
+  // the difference English does. Turkish is where it was caught: both are
+  // "YEM", so the needle passed on whichever screen showed either, and the
+  // ambiguity guard failed the run rather than let it. T_DECOY_VAL is unique
+  // in all 21 and sits on the same card.
+  must_show("terms/page three", tr(STR_T_DECOY_VAL));
   tap_str(STR_C_BACK, 3, 20);                        // -> Settings, DEVICE tab
   set_tab(SET_DEVICE);
-  def_row(4, 2);                                     // This device -> the facts
+  def_row(3, 1);                                     // This device -> the facts
   // The five rows enter on a 42ms stagger, so the frame has to wait for the
   // last one: saving straight after the tap photographed two rows and three
   // ghosts, which is a picture of the animation rather than of the page.
@@ -4200,7 +4626,7 @@ int main(void) {
   tap_str(STR_C_BACK, 3, 8);                        // -> Settings, DEVICE tab
 
   set_tab(SET_BACKUP);
-  def_go(3, 1);                                      // -> the chooser
+  def_go(2, 1);                                      // -> the chooser
   set_row(1);                                        // SD CARD -> confirmation
   save("/tmp/sim_storage_confirm_sd.ppm");
   tap_str(STR_G_STORAGE_HOLD_MOVE, 30, 6);    // no travel: no migration
@@ -4216,14 +4642,14 @@ int main(void) {
   touch(670, 240); pump(3); release(); pump(6);     // Settings tile -> Settings
   // CARD INFO while the words live on the card: the sealed row, green tick.
   set_tab(SET_DEVICE);
-  def_row(4, 2);
+  def_row(3, 1);
   touch(SET_LABEL_X, SET_DEV_CARD_Y); pump(3); release(); pump(8);
   save("/tmp/sim_sdinfo_sealed.ppm");               // kiss-seed.enc, present
   must_show("sdinfo/sealed", SDSEED_FILENAME);
   tap_str(STR_C_BACK, 3, 8);                        // -> THIS DEVICE
   tap_str(STR_C_BACK, 3, 8);                        // -> Settings
   set_tab(SET_BACKUP);
-  def_go(3, 1);
+  def_go(2, 1);
   set_row(0);                                        // FLASH
   slide_fire(STR_G_STORAGE_HOLD_MOVE);
   tap_str(STR_C_OK, 3, 8);     // back on FLASH
@@ -4237,7 +4663,7 @@ int main(void) {
   // STORAGE NOT CHANGED: the destination never became durable, so the keys
   // are still exactly where they were. Mode write fails, nothing is published.
   s_sim_move_rc = WSEED_ERR_SD_IO;
-  def_go(3, 1);
+  def_go(2, 1);
   set_row(1);                                        // SD CARD -> confirmation
   slide_fire(STR_G_STORAGE_HOLD_MOVE);
   save("/tmp/sim_storage_fail.ppm");
@@ -4251,14 +4677,14 @@ int main(void) {
   // old copy could not be removed. Two copies, never zero -- which is why this
   // is amber and not the red above, and why it must never say "not changed".
   s_sim_move_rc = WSEED_ERR_CLEANUP;
-  def_go(3, 1);
+  def_go(2, 1);
   set_row(1);                                        // SD CARD
   slide_fire(STR_G_STORAGE_HOLD_MOVE);
   save("/tmp/sim_storage_cleanup.ppm");
   must_show("storage cleanup", tr(STR_G_STORAGE_CLEANUP_T));
   tap_str(STR_C_OK, 3, 8);     // OK -> Settings, now on SD
   // ...and back to FLASH, which is what the rest of the walk is written for.
-  def_go(3, 1);
+  def_go(2, 1);
   set_row(0);                                        // FLASH
   slide_fire(STR_G_STORAGE_HOLD_MOVE);
   tap_str(STR_C_OK, 3, 8);
@@ -4267,7 +4693,7 @@ int main(void) {
   // CANCEL on the confirmation. It lands back on the CHOOSER, not on
   // SETTINGS: the owner was picking a destination, changing their mind about
   // one of the three is not changing their mind about the question.
-  def_go(3, 1);
+  def_go(2, 1);
   set_row(2);                                        // AMNESIC -> confirmation
   save("/tmp/sim_storage_confirm_amnesic.ppm");
   tap_str(STR_C_CANCEL, 3, 8);
@@ -4323,17 +4749,13 @@ int main(void) {
     pump(8);
   }
 
-  // The RESTORE row -- the definition that replaced the fingerprint card:
-  // the one backup fact that matters, opening where it stands.
-  set_tab(SET_BACKUP);
-  def_row(3, 2); pump(30);
-  save("/tmp/sim_settings_restore.ppm");            // words + passphrase, the lesson
-  must_show("backup/restore lesson", tr(STR_I_RESTORE_PLAIN));
-  def_row(3, 2); pump(30);                          // tap again closes it
-
   // RECOVERY WORDS now belongs to Settings. Verify the paper copy, return to
   // Settings, then separately exercise the sensitive word reveal.
-  def_row(3, 0);                                    // Recovery words -> warning
+  //
+  // TWO rows on this tab now: the definition that sat under them said what
+  // the "?" beside SEED WORDS opens, so it went. def_row(2, ...) from here.
+  set_tab(SET_BACKUP);
+  def_row(2, 0);                                    // Recovery words -> warning
   save("/tmp/sim_words_warn.ppm");                  // PAPER: show, check, note
   // The other group, captured HERE and not down in the KEF section: by then
   // the 24-word block has swapped the stored mnemonic out and back, and the
@@ -4344,14 +4766,24 @@ int main(void) {
   // joined the swipe idiom with the others and no other stop swipes it.
   for (int i = 0; i <= 8; i++) { touch(500 - i * 14, 250); pump(3); }
   release(); pump(50);                             // swipe -> ENCRYPTED
-  must_show("words/swipe to encrypted", tr(STR_I_KEF_W2_H));
+  // The needles are the two ROW NAMES, one per tab. They used to be the group
+  // note and the SHOW THEM sub, which were the two strings this pass removed
+  // -- a needle pointed at copy is a needle that dies when the copy is cut,
+  // and a swipe test that cannot fail is a swipe test that proves nothing.
+  must_show("words/swipe to encrypted", tr(STR_I_WROW_HOLDS));
   save("/tmp/sim_words_enc.ppm");                  // what it holds, and whose
   for (int i = 0; i <= 8; i++) { touch(300 + i * 14, 250); pump(3); }
   release(); pump(50);                             // swipe back -> PAPER
-  must_show("words/swipe back to paper", tr(STR_I_WROW_SHOW_SUB));
+  // By the ABSENCE of the other tab's row name, not the presence of this
+  // one. CHECK MY COPY and VERIFY BACKUP are one string in Polish -- the row
+  // and the title of the screen it opens, which is fair in Polish and fatal
+  // to a needle. CONTENTS is unique in all 21 and belongs to the tab we just
+  // left, so its going is what the swipe has to prove. It can still fail: the
+  // must_show above put it on screen two lines ago.
+  must_not_show("words/swipe back to paper", tr(STR_I_WROW_HOLDS));
   // VERIFY MY COPY: type the stored dev mnemonic (11x abandon + about).
   // 'abandon' = 'a','b' -> suggestion[0]; 'about' = 'a','b','o' -> suggestion[0].
-  words_row(1);                         // Check my copy -> intro
+  words_row(0);                         // Check my copy -> intro
   save("/tmp/sim_verify_intro.ppm");
   tap_str(STR_W_TYPE_MY_WORDS, 3, 6);     // TYPE MY WORDS -> keypad
   save("/tmp/sim_verify_entry.ppm");
@@ -4371,8 +4803,27 @@ int main(void) {
   touch(44, 314); pump(3); release(); pump(3);      // a
   touch(450, 374); pump(3); release(); pump(3);     // b
   touch(664, 254); pump(3); release(); pump(3);     // o -> "abo"
-  touch(55, 182); pump(3); release(); pump(4);     // accept "about" -> VERIFIED
+  touch(55, 182); pump(3); release(); pump(6);     // accept "about" -> the words match
+  // THE SECOND LEG. The words are half a backup on a wallet with a
+  // passphrase, so the check asks for it fresh and it has to rederive the
+  // fingerprint this screen is about to print. The session opened with nine
+  // a's (kiss_session_open, above), and the sim's fingerprint is a function of
+  // the passphrase exactly as the device's is -- so the same nine keys are the
+  // right answer here and anything else is not.
+  save("/tmp/sim_verify_pass.ppm");                 // TYPE THE EXACT PASSPHRASE
+  must_show("verify/passphrase leg", tr(STR_L_VERIFY_PASS));
+  touch(46, 278); pump(3); release(); pump(3);      // one 'a': the wrong answer
+  touch(725, 430); pump(3); release(); pump(8);     // OK -> refused, keyboard stays
+  save("/tmp/sim_verify_pass_bad.ppm");             // THAT OPENS DIFFERENT KEYS
+  must_show("verify/wrong passphrase is refused", tr(STR_L_BACKUP_PASS_BAD));
+  // The refusal WIPES what was typed, so this is nine from empty, not eight
+  // more on top of one.
+  for (int i = 0; i < 9; i++) {
+    touch(46, 278); pump(3); release(); pump(3);
+  }
+  touch(725, 430); pump(3); release(); pump(8);     // OK -> FULL BACKUP VERIFIED
   save("/tmp/sim_verify_ok.ppm");
+  must_show("verify/full backup", tr(STR_L_BACKUP_VERIFIED));
   // The same screen with NO fingerprint to show -- the twin of the guard that
   // let 00000000 onto the warning screen, and the branch this one has always
   // taken the other side of. It is not a colour swap: with no fingerprint the
@@ -4388,7 +4839,7 @@ int main(void) {
   // still fits and still does not overlap. What it does not do is BRANCH the
   // way it would on a device somebody had unlocked.
   //
-  // It was already visible in this file's own captions. sim_wallet_signet is
+  // It was already visible in this file's own captions. sim_home_signet is
   // annotated "badge reads SIGNET, not TESTNET" and there is no badge in the
   // frame, because kiss_home_refresh() reads a session that is not open. The
   // caption described the intent and the frame recorded the bug, and the two
@@ -4397,8 +4848,8 @@ int main(void) {
   kiss_ui_last_fp(held_fp);
   kiss_ui_forget_fp();
   set_tab(SET_BACKUP);
-  def_row(3, 0);                                    // Recovery words
-  words_row(1);                      // Check my copy -> intro
+  def_row(2, 0);                                    // Recovery words
+  words_row(0);                      // Check my copy -> intro
   tap_str(STR_W_TYPE_MY_WORDS, 3, 6);   // TYPE MY WORDS -> keypad again
   for (int i = 0; i < 11; i++) {                    // 11x abandon, as above
     touch(44, 314); pump(3); release(); pump(3);
@@ -4408,7 +4859,11 @@ int main(void) {
   touch(44, 314); pump(3); release(); pump(3);      // a
   touch(450, 374); pump(3); release(); pump(3);     // b
   touch(664, 254); pump(3); release(); pump(3);     // o
-  touch(55, 182); pump(3); release(); pump(4);     // accept -> VERIFIED, no fp
+  // NO PASSPHRASE LEG on this one, and that is the point of the state: with
+  // no fingerprint held there is nothing for a passphrase to rederive, so the
+  // check does not ask for one. Straight to the verdict, which keeps the
+  // subtitle admitting the passphrase was not part of it.
+  touch(55, 182); pump(3); release(); pump(6);     // accept -> VERIFIED, no fp
   save("/tmp/sim_verify_ok_nofp.ppm");              // tall body, no code below
   tap_str(STR_C_DONE, 3, 6);     // DONE -> Settings
   // The backup group with NO FINGERPRINT, which is what kiss_ui_forget_fp
@@ -4428,8 +4883,8 @@ int main(void) {
   kiss_ui_set_last_fp(held_fp);
 
   set_tab(SET_BACKUP);
-  def_row(3, 0);                                    // Recovery words -> warning again
-  words_row(0);                        // Show the words -> the WT_WARN gate
+  def_row(2, 0);                                    // Recovery words -> warning again
+  words_row(1);                        // Show the words -> the WT_WARN gate
   save("/tmp/sim_words_gate.ppm");                  // eye mark, the two captions
   must_show("words gate", tr(STR_W_SHOW_SENT));
   // a tap is NOT enough here either
@@ -4452,8 +4907,8 @@ int main(void) {
       o += (size_t)snprintf(s_sim_seed + o, sizeof s_sim_seed - o,
                             "%s%s", i ? " " : "", SIM_WORDS[i]);
     set_tab(SET_BACKUP);
-    def_row(3, 0);                                  // Recovery words -> warning
-    words_row(0);                      // Show the words -> the gate
+    def_row(2, 0);                                  // Recovery words -> warning
+    words_row(1);                      // Show the words -> the gate
     slide_at(208, 430, 340); release(); pump(10);   // slide through
     save("/tmp/sim_words24_p1.ppm");                // 1-12, one lit sheet dot
     tap_str(STR_R_NEXT, 3, 6);   // NEXT
@@ -4467,7 +4922,7 @@ int main(void) {
   // reworded weak card gets a frame), type twice, then the locked QR with
   // the fingerprint on it, and the card write's verdict chip.
   set_tab(SET_BACKUP);
-  def_row(3, 0);                                    // Recovery words -> backup page
+  def_row(2, 0);                                    // Recovery words -> backup page
   words_tab(WORDS_ENC);                            // the group, not a wedged row
   words_row(0);                                    // Encrypted backup -> consent
   save("/tmp/sim_kef_warn.ppm");                    // the PASSPHRASE wording
@@ -4492,8 +4947,12 @@ int main(void) {
   // than one screen, and the value is what differs between the two variants
   // of this one.
   must_show("kef/no passphrase", tr(STR_I_KEF_F1_V_NP));
+  // The pp variant's own value, which is the string that would be on screen
+  // if the caveat had leaked into a session that has no passphrase. It used
+  // to be a heading from a block that no longer exists -- a needle pointed at
+  // a string nothing draws cannot fail.
   must_not_show("kef/no passphrase says nothing about one",
-                tr(STR_I_KEF_PP_H));
+                tr(STR_I_KEF_F1_V));
   kiss_session_open("x");                           // back to the truth
   tap_str(STR_C_BACK, 3, 8);
   words_tab(WORDS_ENC);
@@ -4536,7 +4995,8 @@ int main(void) {
   // over, so a leak shows up as the firmware screen drawn on top of a live
   // settings page.
   set_tab(SET_DEVICE);
-  def_row(3, 1);                                    // Firmware -> the update screen
+  def_row(3, 0);                                    // Firmware -> the update screen
+  pump(FW_SETTLE);                                  // the body and the row arrive late
   save("/tmp/sim_settings_fw.ppm");                 // reached from settings, not directly
   touch(WT_EXIT_X + 70, WT_ACTION_Y + 26); pump(3); release(); pump(8);  // BACK -> settings
   save("/tmp/sim_settings_fw_back.ppm");            // one settings page, rebuilt
@@ -4625,7 +5085,7 @@ int main(void) {
   band_theme();                                     // -> CYPHERPINK
   save("/tmp/sim_settings_pink.ppm");               // accent recolors the chrome + title
   tap_str(STR_C_BACK, 3, 6);      // BACK, right corner -> home still pink
-  save("/tmp/sim_wallet_pink.ppm");
+  save("/tmp/sim_home_pink.ppm");
   touch(670, 240); pump(3); release(); pump(6);     // Settings again
   set_tab(SET_DEVICE);
   band_theme(); band_theme();                       // ORANGE, then back to MONO
@@ -4654,27 +5114,18 @@ int main(void) {
   save("/tmp/sim_settings_signet.ppm");             // the value reads SIGNET
   must_show("net signet names itself", kiss_net_name());
   tap_str(STR_C_BACK, 3, 6);      // BACK, right corner -> home
-  save("/tmp/sim_wallet_signet.ppm");               // badge reads SIGNET, not TESTNET
+  save("/tmp/sim_home_signet.ppm");               // badge reads SIGNET, not TESTNET
   must_show("home badge signet", kiss_net_name());
   touch(670, 240); pump(3); release(); pump(6);     // Settings tile
   net_to(KISS_NET_TESTNET);
   save("/tmp/sim_settings_tn.ppm");
 
-  // DENOMINATION: two values, flipped and flipped back, because the sats/BTC
-  // choice reaches every amount the sign screen draws.
-  //
-  // On the DEVICE tab, row 0. It moved off SIGNER, where it was ranked equal
-  // to which chain the coins are on -- and back to SIGNER afterwards, because
-  // everything below this point drives that tab.
-  set_tab(SET_DEVICE);
-  def_go(3, 0);
-  save("/tmp/sim_settings_btc.ppm");                // the value reads BTC
-  must_show("denomination", "BTC");
-  def_go(3, 0);                                     // back to SATS
-  set_tab(SET_SIGNER);
+  // DENOMINATION has no row any more: the amount on the sign screen IS the
+  // switch, and sim_sign_btc above is where the flip is photographed and
+  // asserted, in the place an owner actually does it.
 
   tap_str(STR_C_BACK, 3, 6);      // BACK, right corner -> home
-  save("/tmp/sim_wallet_testnet.ppm");              // home now shows TESTNET badge
+  save("/tmp/sim_home_testnet.ppm");              // home now shows TESTNET badge
   touch(310, 240); pump(3); release(); pump(6);     // Receive: tb1 detail landing
   save("/tmp/sim_recv_tn.ppm");                     // detail, on testnet
   // The list is one tab away. Capture it on testnet so the tb1 lines and the
@@ -4729,7 +5180,7 @@ int main(void) {
   // bc1 and sp1 prefixes where tb1 and tsp1 are one character longer. That last
   // one is a layout difference, not a colour one, and the receive screen folds
   // the address to fit.
-  save("/tmp/sim_wallet_mainnet.ppm");              // home: NO testnet badge
+  save("/tmp/sim_home_mainnet.ppm");              // home: NO testnet badge
   touch(310, 240); pump(3); release(); pump(6);     // Receive -> bc1 detail
   save("/tmp/sim_recv_mainnet.ppm");                // bc1, no "on testnet" line
   tap_str(STR_R_TAB_SP, 3, 40);                     // SILENT tab
@@ -5028,18 +5479,25 @@ int main(void) {
   // ANYWAY onto the checksum card is gone with the pill, so there is no
   // sim_setup_cards_cksum_warn frame -- that screen cannot be reached with a
   // verdict on it.
-  touch(218, 176); pump(3); release(); pump(4);     // CREATE SEED
-  touch(174, 144); pump(3); release(); pump(4);     // FLASH -> method choice
-  touch(394, 346); pump(3); release(); pump(4);     // BLIND DRAW
-  tap_str(STR_W_TYPE_MY_WORDS, 3, 4);     // TYPE MY WORDS
+  // pump(8) EVERYWHERE HERE, and it is the same 8 the block above spells out.
+  // This second run was left on 4, which is under the settle the intro needs:
+  // the TYPE MY WORDS tap had not landed when the eleven words were typed, so
+  // they went into the intro screen, the verdict was never reached, and the
+  // walk photographed BLIND DRAW while calling it the refusal. The exact
+  // fault the comment above says was fixed once already.
+  touch(218, 176); pump(3); release(); pump(8);     // CREATE SEED
+  touch(174, 144); pump(3); release(); pump(8);     // FLASH -> method choice
+  touch(394, 346); pump(3); release(); pump(8);     // BLIND DRAW
+  tap_str(STR_W_TYPE_MY_WORDS, 3, 8);     // TYPE MY WORDS
+  must_not_show("cards sorted/left the intro", tr(STR_W_TYPE_MY_WORDS));
   static const char *CARDS_SORTED11[11] = {
       "g", "m", "n", "s", "sy", "fem", "fil", "a", "v", "fol", "c" };
   for (int i = 0; i < 11; i++) restore_word(CARDS_SORTED11[i]);
   save("/tmp/sim_setup_cards_warn.ppm");            // CHECK YOUR WORDS, climbing bars
   must_not_show("cards warn offers no way past", tr(STR_L_USE_ANYWAY));
-  tap_str(STR_W_START_OVER, 3, 4);     // START OVER -> empty keyboard
+  tap_str(STR_W_START_OVER, 3, 8);     // START OVER -> empty keyboard
   for (int i = 0; i < 11; i++) restore_word(CARDS_SORTED11[i]);  // back to it
-  tap_str(STR_C_CANCEL, 3, 4);     // CANCEL -> chooser
+  tap_str(STR_C_CANCEL, 3, 8);     // CANCEL -> chooser
   if (s_sim_pending_mode != -1) {
     fprintf(stderr, "cards warn cancel left storage mode staged\n");
     return 1;
@@ -5499,7 +5957,7 @@ int main(void) {
   }
   touch(670, 240); pump(3); release(); pump(8);     // Settings tile
   set_tab(SET_DEVICE);
-  def_row(3, 1);                                    // Firmware
+  def_row(3, 0);                                    // Firmware
   save("/tmp/sim_fw_before_autolock.ppm");          // up, with the clock running
   if (!kiss_fw_ui_active()) {
     printf("FAIL: firmware screen not open before the auto-lock test\n");
@@ -5829,6 +6287,58 @@ int main(void) {
   tap_str(STR_C_OK, 3, 130);   // OK -> menu
   save("/tmp/sim_wiped_menu.ppm");                  // must be the game MENU
 
+  // ---- the trap: backing out of setup on a signer with no keys ----
+  //
+  // Here because this is the only place in the walk where the device is
+  // genuinely keyless, which is the state a signer ships in and the state
+  // nothing had ever asked a question about. Every scripted walk enters the
+  // signer by calling draw_cover(), so the walk can never be the one that
+  // gets lost.
+  //
+  // TWO HALVES, and the second is what stops the fix being a decoy leak.
+  //
+  // Keyless, the first screen of setup must NOT offer CANCEL: there is nothing
+  // to cancel to. It used to, and it closed the wizard onto the fruit game,
+  // whose only route back into a keyless signer is a gesture printed on a card
+  // in the packaging. The two choices on that screen are the way on.
+  //
+  // With keys, CANCEL must be there and must land on the cover MENU rather
+  // than in a ROUND -- the release that deletes the wizard was read by the
+  // game's own sampler as a tap on the menu, so leaving setup started playing.
+  // The menu is baked artwork with no label in it, so a photograph cannot tell
+  // the two apart and no needle can either; this asks the game its own state.
+  {
+    extern int kiss_game_state_for_test(void);   // main.c
+    const int ST_MENU_ = 0;
+
+    kiss_begin_setup(); pump(20);
+    must_show("trap/keyless setup opens", tr(STR_W_SETUP_T));
+    must_not_show("trap/keyless setup offers no CANCEL", tr(STR_C_CANCEL));
+    save("/tmp/sim_setup_keyless.ppm");          // two choices, no way to strand
+    extern void kiss_setup_close_for_test(void);   // kiss_setup.c
+    kiss_setup_close_for_test();
+    pump(10);
+
+    // ...and the same screen on a signer that HAS keys, where the wizard is
+    // the Settings door and going back is correct.
+    kiss_seed_store("abandon abandon abandon abandon abandon abandon "
+                    "abandon abandon abandon abandon abandon about");
+    kiss_begin_setup(); pump(20);
+    must_show("trap/keyed setup offers CANCEL", tr(STR_C_CANCEL));
+    tap_str(STR_C_CANCEL, 3, 30);
+    if (kiss_setup_active()) {
+      printf("FAIL: trap: CANCEL did not leave the wizard\n");
+      g_walk_fails++;
+    }
+    if (kiss_game_state_for_test() != ST_MENU_) {
+      printf("FAIL: trap: CANCEL started the game instead of landing on the cover\n");
+      g_walk_fails++;
+    }
+    save("/tmp/sim_cover_after_cancel.ppm");     // the cover MENU, not a round
+    kiss_seed_wipe();
+    pump(4);
+  }
+
   // step 10: AMNESIC mode — nothing is stored, so the KISS gesture lands on
   // LOAD YOUR WALLET instead of the wizard, and an encrypted backup is a valid
   // way in.
@@ -6089,13 +6599,6 @@ int main(void) {
     if (fw) { fwrite(img, 1, sizeof img, fw); fclose(fw); }
   }
 
-  // Every screen on this chain arrives: the trade block, each line and each
-  // rule animate in, and the last rule is still drawing at 662ms. 60 frames is
-  // 960ms, which is the first count that photographs a settled page rather
-  // than one mid flight -- at 20 the rules were simply absent from the frame,
-  // in every locale, and nothing said so.
-#define FW_SETTLE 60
-
   // 1. the state a build without the release key reaches: one claim, one line.
   kiss_fw_test_set_available(WFW_ERR_UNSIGNED);
   kiss_fw_ui_open(lv_screen_active(), NULL);
@@ -6132,7 +6635,14 @@ int main(void) {
       lv_area_t a; lv_obj_get_coords(hp, &a);
       slide_at((a.x1 + a.x2) / 2, (a.y1 + a.y2) / 2, 165);
       save("/tmp/sim_fw_hold_mid.ppm");             // fill part way, KEEP SLIDING
-      must_show("fw/holding", tr(STR_G_FW_KEEP_HOLDING));
+      // The RESTING label is gone, which is the swap this frame exists to
+      // catch. KEEP SLIDING cannot be the needle: Italian and Norwegian
+      // render it and the dice screen's KEEP GOING as one word, CONTINUA and
+      // FORTSETT, so the assertion cannot say which screen it is on. The two
+      // never share a screen, so the copy is fine and only the needle was
+      // wrong. SLIDE TO INSTALL is unique in all 21 and is what the label
+      // said one frame ago.
+      must_not_show("fw/holding", tr(STR_G_FW_HOLD));
       release();
       // THE PAUSE WINDOW. A lift short of the end banks the travel for 800ms
       // instead of throwing it away, and the label stops instructing and
@@ -6504,6 +7014,7 @@ int main(void) {
     }
     printf("ok: no orphaned sign screens\n");
   }
+
   if (g_walk_fails) {
     printf("FAIL: %d missing fact(s) on a verify screen\n", g_walk_fails);
     return 1;

@@ -2,7 +2,7 @@
 // 23 words, only 128 (resp. 8) of the 2048 list words complete a valid set.
 // This module enumerates them, so the owner picks the last word and no
 // machine randomness enters a cards built seed.
-// See docs/superpowers/specs/2026-08-04-cards-lastword-design.md
+// See design/specs/2026-08-04-cards-lastword-design.md
 // Mirrors kiss_dice: pure, no UI, host testable.
 #pragma once
 #include <stdint.h>

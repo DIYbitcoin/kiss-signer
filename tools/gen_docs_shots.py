@@ -62,36 +62,37 @@ SECTIONS = [
           "set up, that opens the passphrase login. Once a spare exists, the "
           "same four letters open that instead, and your own swipe after them "
           "is what asks for the passphrase."),
-         ("03-signer-home", "sim_wallet",
+         # Rules 1 and 2 are stated at the top of the page now, so this
+         # caption states them once more only where they turn into something
+         # to DO: write the code on the paper you already have.
+         ("03-signer-home", "sim_home",
           "Your recovery words and your exact passphrase together make these "
-          "keys. A different passphrase silently opens different keys, "
-          "so check the fingerprint is the one you expect.\n\n"
-          "This only works if you wrote the fingerprint down. Do it once, on "
-          "the same piece of paper as your recovery words: the eight character "
-          "code on this screen. Every passphrase is valid, so a typo never "
-          "shows an error, it just opens a different and empty set of keys. If the "
-          "code here ever differs from your paper, you typed the passphrase "
-          "wrong. Lock and try again."),
+          "keys, and the fingerprint here is what those keys are called.\n\n"
+          "Write it down once, on the same piece of paper as your recovery "
+          "words: the eight character code on this screen. If the code here "
+          "ever differs from your paper, you typed the passphrase wrong. "
+          "Lock and try again."),
      ]),
 
-    ("Choosing where the recovery words live",
+    ("Choosing where the recovery words are kept",
      "Storage is chosen while keys are created or restored, and it can be "
      "changed later from an unlocked signer. All three modes are offered on "
      "every build; the passphrase, never stored here, is what guards your real "
-     "keys whichever mode holds the words.",
+     "keys whichever mode holds them.",
      [
          ("03a-setup-storage", "sim_setup_storage",
           "Setup asks what remains after you power off, before the recovery "
-          "words are committed. FLASH keeps the words on this device (they open "
-          "the decoy if it is taken); AMNESIC keeps nothing; SD CARD seals the "
-          "words to a card only this signer can open."),
+          "words are committed. FLASH keeps the seed words on this device (they "
+          "open the decoy if it is taken); AMNESIC keeps nothing; SD CARD seals "
+          "the seed words to a card only this signer can open."),
          # sim_storage_pop was the popover 5482bc7 removed ("nothing floats
          # over the page"); the caption below was rewritten for the inline row
          # that replaced it and the frame name was left behind, so the shot has
          # been unbuildable since. sim_storage_choose IS that screen.
          ("03b-settings-storage", "sim_storage_choose",
           "SETTINGS → BACKUP states the current mode on the row and opens this "
-          "to change it: three modes, each saying where the words end up, with "
+          "to change it: three modes, each saying where the seed words end up, "
+          "with "
           "the one in force ticked. Moving between them still requires a "
           "deliberate hold and verifies the destination before removing the "
           "source."),
@@ -136,11 +137,13 @@ SECTIONS = [
      "your addresses and build transactions. It never hands over anything "
      "that can spend.",
      [
-         ("04-keys-facts", "sim_winfo",
-          "KEYS answers which device you are holding: the fingerprint takes "
-          "the top third, big enough to check across a desk, and the facts "
-          "under it open their plain-words definitions in place. The [ ? ] "
-          "mark explains the page; COORDINATOR is the second tab."),
+         ("04-keys-facts", "sim_winfo_coord",
+          "KEYS is one page about one thing: how a coordinator comes to "
+          "watch these keys. PAIRING shows it the QR, SCAN KEY hands a "
+          "silent payments coordinator the key that finds payments without "
+          "being able to spend them, and FIRST ADDRESS is how you check the "
+          "pairing landed on the right keys. The [ ? ] mark explains the "
+          "page."),
          ("05-pair-sparrow", "sim_pair",
           "PAIR COORDINATOR with DESKTOP selected shows the descriptor "
           "Sparrow reads. Scan it with Sparrow's webcam, or export to SD. "
@@ -165,6 +168,24 @@ SECTIONS = [
          ("09-verify-wrong-net", "sim_vfy_wrong_net",
           "A well-formed address from the wrong network fails red. So does "
           "an address that is simply not one of yours."),
+     ]),
+
+    # Before the tiny real payment, the rehearsal that costs nothing. This is
+    # where the practice run belongs: it was proposed as a row in the home
+    # trail, and a signer that nags about a rehearsal is a signer teaching
+    # from the one place an owner cannot skip.
+    ("Practising on testnet first",
+     "Testnet coins are free and buy nothing, so the whole loop can be "
+     "rehearsed with nothing at stake. SETTINGS > SIGNER switches the "
+     "network, and the same seed words open a separate set of keys there.",
+     [
+         ("09a-home-testnet", "sim_home_testnet",
+          "The chip beside the title says TESTNET for as long as the signer "
+          "is on it, and every address it hands out starts tb1. Point your "
+          "coordinator at the same network, fill it from a testnet faucet, "
+          "then run the loop you will run for real: verify an address, "
+          "receive, sign, broadcast. Switch back the same way afterwards and "
+          "check the chip is gone before anything real arrives."),
      ]),
 
     ("Receiving a tiny test payment",
@@ -205,6 +226,30 @@ SECTIONS = [
           "card. Point Sparrow's webcam at it and let it run; tap the QR if "
           "the camera needs larger modules."),
      ]),
+
+    # The two screens that answer "should I trust this box", and the two the
+    # walkthrough never showed. They are reachable from SETTINGS on either
+    # SECURITY or BACKUP; the page names whichever tab you came from.
+    ("Checking the signer itself",
+     "Two questions you can ask this device about its own keys, at any time, "
+     "with nothing leaving it. SETTINGS > BACKUP > AUDIT, or the same row on "
+     "SECURITY.",
+     [
+         ("17-audit", "sim_audit_choose",
+          "HOW YOUR KEYS WERE MADE reads back the source this signer "
+          "recorded when the seed words were made: dice, coin flips, the camera "
+          "and "
+          "your taps, a blind draw, or brought in from somewhere else. It is "
+          "the one fact about a set of keys you cannot recover by looking at "
+          "the seed words."),
+         ("18-audit-randomness", "sim_rng_result",
+          "RANDOMNESS AUDIT takes 5000 numbers from the chip and counts them "
+          "into 100 groups. An even spread inside the fair range is what a "
+          "working chip looks like; it cannot prove the chip is honest, "
+          "because good software passes the same test, and the screen says "
+          "so. A fair chip fails this about 1 run in 500, so run it again "
+          "before worrying."),
+     ]),
 ]
 
 
@@ -235,8 +280,8 @@ AXES = {
         # release since has died here before it built anything.
         extra=[("t0-network", "sim_settings_tn_first"),
                ("t0a-signet-settings", "sim_settings_signet"),
-               ("t0b-signet-home", "sim_wallet_signet"),
-               ("t1-home", "sim_wallet_testnet"),
+               ("t0b-signet-home", "sim_home_signet"),
+               ("t1-home", "sim_home_testnet"),
                ("t2-settings", "sim_settings_tn"),
                ("t3-receive", "sim_recv_tn"),
                ("t4-receive-detail", "sim_recv_detail_tn"),
@@ -277,7 +322,7 @@ def live_axes():
 
 LEGACY = [
     ("docs/readme/menu.png",              "sim_menu"),
-    ("docs/readme/wallet.png",            "sim_wallet"),
+    ("docs/readme/signer-home.png",            "sim_home"),
     ("docs/readme/setup-1-choose.png",    "sim_setup_choose"),
     ("docs/readme/setup-2-words.png",     "sim_setup_words"),
     ("docs/readme/setup-3-quiz.png",      "sim_setup_quiz"),
@@ -294,7 +339,7 @@ LEGACY = [
     # is the same explainer, reached from the home fingerprint chip instead.
     ("docs/readme/learn-card.png",        "sim_home_fp"),
     ("docs/media/game-menu.png",          "sim_menu"),
-    ("docs/media/wallet-home.png",        "sim_wallet"),
+    ("docs/media/signer-home.png",        "sim_home"),
     ("docs/media/passphrase-warning.png", "sim_setup_warn"),
     ("docs/media/export-descriptor.png",  "sim_pair"),
     ("docs/media/sign-verify.png",        "sim_sign_verify"),
@@ -642,6 +687,26 @@ def write_md():
            "about. Every screenshot here is a frame the simulator rendered "
            "from the current firmware, so what you see is what the device "
            "draws.",
+           "",
+           # The sibling. docs/guide.html covers the same device organised by
+           # topic, and neither file named the other, so a reader who found one
+           # could not tell whether the other was stale or the same text twice.
+           "This is the device in order, screen by screen. "
+           "[The guide](guide.html) covers the same ground by topic: verify, "
+           "build, flash, storage.",
+           "",
+           # The three rules every page below assumes. They were each stated
+           # somewhere in the middle of a step, which is where a reader who
+           # opens the device before the docs never meets them: the first one
+           # sat in the third caption, after the passphrase had been typed.
+           "Three rules first. Everything below assumes them.",
+           "",
+           "1. Every passphrase opens keys. There is no wrong passphrase "
+           "error, and there never will be.",
+           "2. The fingerprint on the home screen is how you tell which keys "
+           "you opened. Write yours down once.",
+           "3. This signer is never online. Your coordinator does all the "
+           "talking to the network.",
            ""]
     for title, intro, items in SECTIONS:
         out += ["## " + title, "", intro, ""]
@@ -789,7 +854,55 @@ def main():
     print("%d screenshots from %d frames, %.0f KB"
           % (len(list(targets())), len(cache), total / 1024.0))
     print("%d lines -> %s" % (lines, os.path.relpath(MD, ROOT)))
+    write_stamp()
     return 0
+
+
+def write_stamp():
+    """Record which commit these frames were rendered from.
+
+    Without this the only evidence a regeneration ran is a picture whose bytes
+    changed -- so a run that moves nothing leaves no trace, and
+    check_docs_fresh.py goes on reporting a gap that has already been closed.
+    On the release line that check is fatal, so the missing evidence would
+    have been unfixable except by editing a PNG.
+
+    The sha is the last commit that touched a SCREEN -- main/ and
+    sim/sim_main.c -- and not HEAD, which is what it used to be.
+
+    HEAD does not terminate. Writing HEAD makes the stamp differ from the
+    committed one the moment any commit lands, so make_web_release.sh sees a
+    dirty docs/shots, says "commit them, then rerun", and that commit moves
+    HEAD again. The next run stamps the commit that was just made. There is no
+    exit: a stamp can never equal a commit that does not exist until the stamp
+    is committed, so the release line could only ever be crossed with
+    SKIP_SHOTS=1. It cost two full release runs before anyone read the second
+    message closely enough to notice it was the first one again.
+
+    The screen commit terminates, and measures the same thing. It is what
+    tools/check_docs_fresh.py compares against -- UI commits newer than the
+    stamp -- so nothing downstream changes meaning. And the commit that saves
+    the stamp touches neither main/ nor sim/sim_main.c, so the next run writes
+    the same sha and the tree comes back clean.
+
+    A tree with no screen commits at all falls back to HEAD. If the tree was
+    dirty the frames show more than any commit does, which is the honest
+    reading either way: the pictures are at least as new as this one.
+    """
+    sha = subprocess.run(
+        ["git", "-C", ROOT, "log", "-1", "--format=%H", "--",
+         "main/", "sim/sim_main.c"],
+        capture_output=True, text=True)
+    if sha.returncode != 0 or not sha.stdout.strip():
+        sha = subprocess.run(["git", "-C", ROOT, "rev-parse", "HEAD"],
+                             capture_output=True, text=True)
+    if sha.returncode != 0 or not sha.stdout.strip():
+        return
+    path = os.path.join(OUT, ".rendered")
+    with open(path, "w") as f:
+        f.write(sha.stdout.strip() + "\n")
+    print("rendered from %s -> %s" % (sha.stdout.strip()[:8],
+                                      os.path.relpath(path, ROOT)))
 
 
 if __name__ == "__main__":

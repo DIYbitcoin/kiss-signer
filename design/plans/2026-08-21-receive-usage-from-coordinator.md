@@ -6,7 +6,7 @@
 
 **Tech Stack:** C11, LVGL, ESP-IDF v6.0.1, NVS. Desktop sim + `kisstest` for everything below the screen.
 
-**Design spec:** `docs/superpowers/specs/2026-08-21-receive-usage-from-coordinator-design.md` (commits `2276bcd`, `14ec734`).
+**Design spec:** `design/specs/2026-08-21-receive-usage-from-coordinator-design.md` (commits `2276bcd`, `14ec734`).
 
 ---
 
@@ -20,7 +20,7 @@ The chip's own comment at `main/kiss_recv.c:249` already argues the case, and ha
 
 ## Workspace and collision notes
 
-Work in `/Users/a1337/Documents/Github/kiss-signer/.claude/worktrees/receive-usage` on `feat/receive-usage-from-coordinator`.
+Work on `feat/receive-usage-from-coordinator`, in an isolated checkout.
 
 Every file below is clean on `develop` **except** `sim/test_crypto.c`, `sim/test_fuzz.c` and `sim/sim_main.c`, which carry in-flight edits. The plan touches `test_crypto.c` for exactly two lines (a declaration and a call, appended to existing lists), never touches `test_fuzz.c` (adversarial inputs live in the new `test_usage.c` instead), and isolates the `sim_main.c` walk stop into the last task so it can be dropped or rebased alone. `main/kiss_scan.c` is dirty and is **not** needed — `kiss_scan_open_raw` is used exactly as it is.
 

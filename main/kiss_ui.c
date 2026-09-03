@@ -20,9 +20,9 @@
 #include "kiss_theme.h"
 #include "kiss_wipe.h"  // secret wipes survive dead-store elimination
 
+#include "main.h"   // radio_is_held
 #ifndef SIMULATOR
 #include "esp_efuse.h"
-bool radio_is_held(void);   // main.c: reads back the C6 reset pad (GPIO54)
 #endif
 #ifndef KISS_VERSION_STR
 #define KISS_VERSION_STR "dev"
@@ -93,6 +93,12 @@ static char s_first[PASS_MAX + 1];
 // with ONE vague failure — a wrong password and a corrupt envelope must read
 // the same. These arms run FIRST in kb_cb, the s_backup_verify_pass shape.
 static bool s_kef_mode;
+// ...borrowed for a PASSPHRASE rather than a backup password. Same
+// keyboard, same no-session contract, different noun -- and the noun is
+// load bearing: a passphrase opens keys, a backup password opens an
+// envelope, and a caption saying the wrong one on a screen where the
+// owner is being asked to prove they remember theirs is the whole bug.
+static bool s_kef_pass;
 static bool s_kef_create;
 static bool s_kef_first_done;
 static char s_kef_first[PASS_MAX + 1];
@@ -387,8 +393,9 @@ static void entry_refresh_text(void) {
     // The ghost prompt names what is being typed, and in KEF mode that is a
     // backup password, never a passphrase (vocabulary is load bearing here:
     // a passphrase opens a wallet, this opens an envelope).
-    lv_label_set_text(s_entry, tr(s_kef_mode ? STR_L_KEF_TYPE_PROMPT
-                                             : STR_L_TYPE_PROMPT));
+    lv_label_set_text(s_entry, tr(s_kef_mode && !s_kef_pass
+                                      ? STR_L_KEF_TYPE_PROMPT
+                                      : STR_L_TYPE_PROMPT));
     lv_obj_set_style_text_color(s_entry, MUT_COL, 0);
     kiss_wipe(buf, sizeof buf);
     return;
@@ -504,6 +511,7 @@ static void wipe_and_close(void) {
   s_backup_verified = false;
   s_backup_verify_pass = false;
   s_kef_mode = false;
+  s_kef_pass = false;
   s_kef_create = false;
   s_kef_first_done = false;
   kiss_wipe(s_kef_first, sizeof s_kef_first);
@@ -888,6 +896,11 @@ static void recover_screen(void)
     recover_close();
 
     s_recovscr = wt_screen(lv_screen_active(), tr(STR_L_RECOVER_T), NULL);
+    // The mono title and its cursor block, like every other page on the
+    // system. Three screens in this file were still wearing wt_screen's own
+    // sans head and read as a different product beside the page they were
+    // reached from.
+    wt_chrome_head(s_recovscr);
 
     // The subject, framed, above the actions: what the device is holding and
     // where it is. WT_ICON_SECRET is the words' own mark everywhere else.
@@ -909,7 +922,7 @@ static void recover_screen(void)
         wt_diagram_op(row, LV_SYMBOL_RIGHT);
         wt_chip(row, tr(STR_GD_OFF), false);   // NOT SET: nowhere on this device
     }
-    wt_why_body(s_recovscr, tr(STR_L_RECOVER_B), 190, WT_WARN, true);
+    wt_body_para(s_recovscr, tr(STR_L_RECOVER_B), 190);
 
     // SHOW WORDS opens the reveal; TRY AGAIN returns to the login above, so
     // it is the escape and takes the corner, wearing the accent as the way
@@ -1239,7 +1252,8 @@ static void setup_warn_verify_cb(lv_event_t *e)
 {
   (void)e;
   if (s_warnscr) { lv_obj_delete_async(s_warnscr); s_warnscr = NULL; }
-  kiss_setup_open_verify(lv_screen_active(), setup_warn_words_done);
+  kiss_setup_open_verify(lv_screen_active(), setup_warn_words_done,
+                         false);   // this flow runs its own passphrase leg
 }
 
 static void setup_warn_screen(void) {
@@ -1307,16 +1321,31 @@ static void setup_warn_screen(void) {
   const char *fp_intro = np >= 2 ? para[np - 1] : NULL;
   int nclaims = np >= 2 ? np - 1 : np;
 
-  if (nclaims >= 2) {
-    // The proven pair: what these keys are on the accent rule, where they go
-    // wrong on the amber one. 160px keeps both clear of the card row at 300
-    // with the intro line between.
-    const lv_font_t *f = wt_body_font2(para[0], para[1], 330, 160);
-    wt_why_block(s_warnscr, NULL, para[0], 48, 92, 344, 160, f, wt_accent());
-    wt_why_block(s_warnscr, NULL, para[1], 408, 92, 344, 160, f, WT_WARN);
-  } else {
-    wt_why_block(s_warnscr, NULL, para[0], 48, 92, 704, 160,
-                 wt_body_font(para[0], 690, 160), WT_WARN);
+  // ROWS, captioned. This was the last why-block pair on the device and the
+  // only one drawn with NO heading over either column: two anonymous grey
+  // blocks, on the screen that tells an owner what they have just made. A
+  // caption says which danger is being read before it is read, and both
+  // captions are nouns this screen is already about.
+  //
+  // The claims are one line each now, which is why the two strings behind
+  // them carry newlines that render as spaces. The paragraph SHAPE of these
+  // keys is pinned to the twenty translations still holding the old long
+  // wording: gen_i18n.py fails a locale whose newline count differs from
+  // English, and that check exists because this exact key went stale in
+  // twenty locales once already. So the count stays and the words shrink. The
+  // lone newlines were the old 740px label's hand wrapping anyway, and the
+  // split below has turned them into spaces since the blocks arrived.
+  {
+    wt_fact_t facts[2] = {
+      { .cap  = tr(nclaims >= 2 ? STR_D_WORDS : STR_L_PASSPHRASE_CAP),
+        .val  = para[0],
+        .icon = nclaims >= 2 ? WT_ICON_SECRET : WT_ICON_LOCK,
+        .icon_col = WT_WARN },
+      { .cap  = tr(STR_L_PASSPHRASE_CAP),
+        .val  = nclaims >= 2 ? para[1] : NULL,
+        .icon = LV_SYMBOL_WARNING, .icon_col = WT_WARN },
+    };
+    wt_facts(s_warnscr, 110, facts, nclaims >= 2 ? 2 : 1);
   }
 
   if (fp_known && fp_intro) {
@@ -1324,7 +1353,7 @@ static void setup_warn_screen(void) {
     lv_label_set_text(n, fp_intro);
     lv_obj_set_style_text_color(n, MUT_COL, 0);
     lv_obj_set_style_text_font(n, wt_font23(), 0);
-    lv_obj_align(n, LV_ALIGN_TOP_MID, 0, 264);
+    lv_obj_align(n, LV_ALIGN_TOP_MID, 0, 232);
   }
 
   // The fingerprint in a value card, and the backup state as a real chip beside
@@ -1346,7 +1375,7 @@ static void setup_warn_screen(void) {
   // pair is one card tall, which the band from the body's floor to 398 can hold
   // in every locale.
   lv_obj_t *card = fp_known
-      ? wt_value_card(s_warnscr, tr(STR_D_FINGERPRINT), fpbuf, 110, 300, 300, true)
+      ? wt_value_card(s_warnscr, tr(STR_D_FINGERPRINT), fpbuf, 110, 268, 300, true)
       : NULL;
   lv_obj_t *state = wt_state_chip(s_warnscr,
                                   s_backup_verified ? tr(STR_L_BACKUP_VERIFIED)
@@ -1356,11 +1385,11 @@ static void setup_warn_screen(void) {
   if (card) {
     lv_obj_update_layout(card);
     lv_obj_set_pos(state, 440,
-                   300 + (lv_obj_get_height(card) - lv_obj_get_height(state)) / 2);
+                   268 + (lv_obj_get_height(card) - lv_obj_get_height(state)) / 2);
   } else {
     // Alone, the chip takes the card's lane instead of sitting where a card
     // used to be beside it.
-    lv_obj_set_pos(state, 110, 300);
+    lv_obj_set_pos(state, 110, 268);
   }
 
   // I UNDERSTAND's tick answers in green or red for whether skipping is
@@ -1453,6 +1482,7 @@ static void show_fingerprint(void) {
   // column down the middle with dead space either side, which is what "the rest
   // looks plain" was pointing at. The big code was never the problem.
   s_fpscr = wt_screen(lv_screen_active(), tr(STR_D_FINGERPRINT), NULL);
+  wt_chrome_head(s_fpscr);              // the head every other page wears
   lv_obj_remove_flag(s_fpscr, LV_OBJ_FLAG_CLICKABLE);  // buttons only, no tap-anywhere
 
   // The "?", top right, same 30px circle and 54px target as every other
@@ -1548,19 +1578,25 @@ static void show_fingerprint(void) {
   // they land on different rungs and the block that matters more is whichever
   // happened to be shorter.
   {
-    const char *b1 = tr(nopass ? STR_L_FP_NOTE_NOPASS  : STR_L_FP_NOTE);
-    const char *b2 = tr(nopass ? STR_L_FP_NOTE2_NOPASS : STR_L_FP_NOTE2);
-    // 232, not the 204 its siblings moved to: the FP reveal's code box is 190,96 118 tall, so it ends at 214,
-    // so there is nothing to reclaim above this pair.
-    const int BW = 344, BY = 232, BH = WT_CONTENT_BOTTOM - BY;
-    // Measured against BH - 8, not BH. wt_body_font answers for the text alone
-    // and wt_why_block wraps it in a box whose own metrics cost a couple of
-    // pixels, so a translation that fits "exactly" overhangs: Czech ran 4px
-    // past WT_CONTENT_BOTTOM at the size this said was fine.
-    const lv_font_t *f = wt_body_font(strlen(b1) >= strlen(b2) ? b1 : b2,
-                                      BW - 14, BH - 8);
-    wt_why_block(s_fpscr, NULL, b1,  48, BY, BW, BH, f, wt_accent());
-    wt_why_block(s_fpscr, NULL, b2, 408, BY, BW, BH, f, WT_WARN);
+    // 232: the code box ends at 214 and there is nothing to reclaim above.
+    //
+    // Two ROWS, and they finally have captions. The pair here was the one
+    // place on the device that drew wt_why_block with a NULL head -- two
+    // unlabelled grey columns, which is the arrangement people skip, on the
+    // screen that shows an owner the name of their keys for the first time.
+    // A caption says which of the two an owner is reading before they read
+    // it, and the second one is the branch where something has gone wrong:
+    // every passphrase is valid, so a code that does not match the paper is
+    // the ONLY signal a typo ever gets.
+    wt_fact_t facts[2] = {
+      { .cap = tr(nopass ? STR_L_NO_PASSPHRASE : STR_D_PASSPHRASE),
+        .val = tr(nopass ? STR_L_FP_NOTE_NOPASS : STR_L_FP_NOTE),
+        .icon = nopass ? WT_ICON_KEY : WT_ICON_LOCK },
+      { .cap = tr(nopass ? STR_L_PASSPHRASE_CAP : STR_W_VBAD_T),
+        .val = tr(nopass ? STR_L_FP_NOTE2_NOPASS : STR_L_FP_NOTE2),
+        .icon = LV_SYMBOL_WARNING, .icon_col = WT_WARN },
+    };
+    wt_facts(s_fpscr, 232, facts, 2);
   }
 
   // The action bar every other screen has. This one holds the screen's real
@@ -1804,7 +1840,12 @@ static void kb_cb(lv_event_t *e) {
       } else {
         // The derive takes a visible moment (100k PBKDF2 on the device);
         // say so before blocking, or OK reads as a dead key.
-        cap_set(tr(s_kef_create ? STR_L_KEF_LOCKING : STR_L_KEF_UNLOCKING),
+        // "unlocking your backup" is the KEF noun and it is wrong for a
+        // passphrase: nothing is being opened, a fingerprint is being
+        // rederived. The rehearsal's own prompt stands instead, which is the
+        // instruction the owner is still carrying out.
+        cap_set(tr(s_kef_pass    ? STR_L_VERIFY_PASS
+                 : s_kef_create  ? STR_L_KEF_LOCKING : STR_L_KEF_UNLOCKING),
                 MUT_COL, true);
         lv_refr_now(NULL);
         int rc = s_kef_check_cb ? s_kef_check_cb(s_pass, (size_t)s_plen) : -1;
@@ -1814,7 +1855,12 @@ static void kb_cb(lv_event_t *e) {
           s_caret = 0;
           s_show = false;
           if (s_showbtn_lbl) lv_label_set_text(s_showbtn_lbl, tr(STR_L_SHOW));
-          cap_set(tr(s_kef_create ? STR_L_KEF_FAIL : STR_L_KEF_BAD),
+          // The passphrase rehearsal has its own refusal, and it is the one
+          // that says what actually happened: the answer was not wrong about
+          // a password, it opens DIFFERENT KEYS. Same string the setup
+          // rehearsal has always used for the same moment.
+          cap_set(tr(s_kef_pass    ? STR_L_BACKUP_PASS_BAD
+                   : s_kef_create  ? STR_L_KEF_FAIL : STR_L_KEF_BAD),
                   lv_color_hex(0xFF4D5E), true);
           entry_refresh();
         } else {
@@ -1983,8 +2029,9 @@ static void pp_scan_warn_cb(lv_event_t *e) {
   (void)e;
   lv_obj_t *scr = wt_screen(lv_screen_active(), tr(STR_L_SCAN_WARN_T),
                             tr(STR_L_SCAN_WARN_S));
+  wt_chrome_head(scr);                  // the head every other page wears
   lv_obj_move_foreground(scr);
-  wt_why_body(scr, tr(STR_L_SCAN_WARN_B), 122, WT_WARN, true);
+  wt_body_para(scr, tr(STR_L_SCAN_WARN_B), 122);
   wt_arrow_action(scr, tr(STR_L_SCAN_GO), false, true, WT_ACT_X, WT_ACTION_Y,
                   300, false, pp_scan_go_cb, scr);
   wt_arrow_action(scr, tr(STR_C_BACK), true, false, WT_BACK_X, WT_ACTION_Y,
@@ -2115,9 +2162,12 @@ void kiss_login_open_setup(void (*unlocked_cb)(void)) {
   // what the headline says. Both wt_why_blocks and the wt_body_font2_head
   // measurement go with them.
   wt_fact_t facts[3] = {
-      { tr(STR_L_PPINTRO_F1_C), tr(STR_L_PPINTRO_F1_V), WT_ICON_LOCK },
-      { tr(STR_L_PPINTRO_F2_C), tr(STR_L_PPINTRO_F2_V), WT_ICON_SECRET },
-      { tr(STR_G_TECHNICAL),    tr(STR_T_PASS_TERM),    LV_SYMBOL_LIST },
+      { .cap = tr(STR_L_PPINTRO_F1_C), .val = tr(STR_L_PPINTRO_F1_V),
+        .icon = WT_ICON_LOCK },
+      { .cap = tr(STR_L_PPINTRO_F2_C), .val = tr(STR_L_PPINTRO_F2_V),
+        .icon = WT_ICON_SECRET },
+      { .cap = tr(STR_G_TECHNICAL), .val = tr(STR_T_PASS_TERM),
+        .icon = LV_SYMBOL_LIST },
   };
   wt_explain(scr, tr(STR_L_PPINTRO_HEAD), tr(STR_L_PPINTRO_B), facts, 3);
 
@@ -2180,7 +2230,8 @@ void kiss_login_open(void (*unlocked_cb)(void)) {
   // they already have is an instruction to invent a second one, which opens a
   // different wallet. Restoring gets the plain caption the ordinary unlock uses.
   cap_set(s_kef_mode
-              ? tr(s_kef_create ? STR_L_KEF_PASS_NEW : STR_L_KEF_PASS_OPEN)
+              ? tr(s_kef_pass    ? STR_L_VERIFY_PASS
+                 : s_kef_create  ? STR_L_KEF_PASS_NEW : STR_L_KEF_PASS_OPEN)
           : s_setup_mode && !s_restore_mode ? tr(STR_L_CREATE_YOUR_PASS)
                                             : tr(STR_L_PASSPHRASE_CAP),
           MUT_COL, false);
@@ -2295,6 +2346,19 @@ void kiss_login_open(void (*unlocked_cb)(void)) {
 // itself and THEN calls on_done, so the next screen never finds the login
 // still standing. CANCEL folds and calls on_cancel. No wallet, no session,
 // no fingerprint anywhere in this mode.
+// The passphrase rehearsal borrows the same keyboard, and for the same reason
+// the KEF password does: nothing is staged, nothing is derived into the
+// session, and the caller's on_check is the only thing that decides. What it
+// checks is kiss_session_prepare beside the live session, so a wrong answer
+// keeps the keyboard up and changes nothing.
+void kiss_ui_verify_pass_open(int (*on_check)(const char *pass, size_t len),
+                              void (*on_done)(void), void (*on_cancel)(void))
+{
+  s_kef_pass = true;
+  kiss_ui_kef_pass_open(false, on_check, on_done, on_cancel);
+  if (!kiss_ui_active()) s_kef_pass = false;   // refused: leave no mode behind
+}
+
 void kiss_ui_kef_pass_open(bool create,
                            int (*on_check)(const char *pass, size_t len),
                            void (*on_done)(void), void (*on_cancel)(void))

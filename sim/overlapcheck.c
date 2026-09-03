@@ -78,6 +78,7 @@ typedef struct {
     lv_obj_t *obj;
     lv_area_t vis;        // coords after every clipping ancestor has had its say
     lv_area_t nat;        // where it asked to be, before any of them
+    bool cutx;            // ...and lost its left or right edge to it
     int       lh;         // line height of its font, 0 when it is not text
     bool      is_label;
     bool      wraps;
@@ -159,9 +160,50 @@ static bool area_is_backdrop(const lv_area_t *a)
 // long strings and multi byte scripts. Truncation stops on a byte that is not a
 // UTF-8 continuation, otherwise a Japanese finding prints as mojibake and reads
 // like a second bug.
+// A SPANGROUP IS TEXT, and eight checks could not see one. The kit builds six
+// of them -- the folded address, a definition row, wt_explain_hi's body and the
+// explainer overlay's own -- and every one was invisible to TEXT, CONTENT,
+// GROWTH, CLIPPED, BARE, WALL, CUT and the size dump, because all of them ask
+// lv_obj_check_type for lv_label_class and a spangroup is not one.
+//
+// Nothing about those checks cares which class drew the glyphs. They care what
+// the string is, how tall its line box is, and whether it wraps -- all three of
+// which a spangroup can answer.
+static bool oc_is_text(lv_obj_t *o)
+{
+    return lv_obj_check_type(o, &lv_label_class) ||
+           lv_obj_check_type(o, &lv_spangroup_class);
+}
+
+// The spans joined, in order. A body split into "sentence" + "." + "sentence"
+// is one string to every check that reads it, which is what it is on the glass.
+static void oc_span_text(lv_obj_t *o, char *out, size_t out_len)
+{
+    size_t n = 0;
+    uint32_t cnt = lv_spangroup_get_span_count(o);
+    for (uint32_t i = 0; i < cnt && n + 1 < out_len; i++) {
+        lv_span_t *sp = lv_spangroup_get_child(o, (int32_t)i);
+        const char *t = sp ? lv_span_get_text(sp) : NULL;
+        for (; t && *t && n + 1 < out_len; t++)
+            out[n++] = (*t == '\n' || *t == '\r') ? ' ' : *t;
+    }
+    out[n] = '\0';
+}
+
+static const char *oc_text_of(lv_obj_t *o, char *scratch, size_t len)
+{
+    if (lv_obj_check_type(o, &lv_label_class)) return lv_label_get_text(o);
+    if (lv_obj_check_type(o, &lv_spangroup_class)) {
+        oc_span_text(o, scratch, len);
+        return scratch;
+    }
+    return NULL;
+}
+
 static void oc_text(lv_obj_t *o, char *out, size_t out_len)
 {
-    const char *t = lv_obj_check_type(o, &lv_label_class) ? lv_label_get_text(o) : NULL;
+    char sp[512];
+    const char *t = oc_text_of(o, sp, sizeof sp);
     if (!t || !*t) {
         // "(not text)" told the reader nothing and made every finding about a
         // decoration look the same. Name what it actually hit.
@@ -225,6 +267,16 @@ static void oc_collect(lv_obj_t *o, lv_area_t clip, bool clip_scrolls)
 {
     if (s_n >= OC_MAX_NODES) return;
     if (!oc_visible(o)) return;
+    // A decor CONTAINER takes its whole subtree with it, and that is the
+    // difference between this and the per-node skip the CONTENT check does.
+    // The home motes are leaves and are still collected. The signed screen's
+    // arrival motion is not: it is 48 labels stacked three deep at fourteen
+    // origins, on purpose, because the faces are fixed pitch and that is how
+    // per character colour is drawn without one object per character. All
+    // nine questions here are about where content was PUT on a page, and none
+    // of them means anything asked of one 122ms frame of an animation -- the
+    // page underneath is in this tree too, and it is the one to measure.
+    if (wt_is_decor(o) && lv_obj_get_child_count(o) > 0) return;
 
     lv_area_t coords;
     lv_obj_get_coords(o, &coords);
@@ -232,12 +284,13 @@ static void oc_collect(lv_obj_t *o, lv_area_t clip, bool clip_scrolls)
     lv_area_t vis;
     if (!oc_intersect(&vis, &coords, &clip)) return;   // clipped out entirely
 
-    bool is_label = lv_obj_check_type(o, &lv_label_class);
+    bool is_label = oc_is_text(o);
 
     // A label with no text has a box but nothing in it, and comparing empty
     // boxes invents findings nobody can act on.
     if (is_label) {
-        const char *t = lv_label_get_text(o);
+        char sp[512];
+        const char *t = oc_text_of(o, sp, sizeof sp);
         if (!t || !*t) return;
     }
 
@@ -251,7 +304,12 @@ static void oc_collect(lv_obj_t *o, lv_area_t clip, bool clip_scrolls)
                  ? (int)lv_font_get_line_height(lv_obj_get_style_text_font(o, LV_PART_MAIN))
                  : 0;
     n->is_label  = is_label;
-    n->wraps     = is_label && lv_label_get_long_mode(o) == LV_LABEL_LONG_MODE_WRAP;
+    // A spangroup in BREAK mode wraps, which is the same claim LONG_MODE_WRAP
+    // makes about a label -- and it is what BARE and WALL are asking about.
+    n->wraps     = is_label &&
+                   (lv_obj_check_type(o, &lv_spangroup_class)
+                      ? lv_spangroup_get_mode(o) == LV_SPAN_MODE_BREAK
+                      : lv_label_get_long_mode(o) == LV_LABEL_LONG_MODE_WRAP);
     n->leaf      = kids == 0;
     n->clickable = lv_obj_has_flag(o, LV_OBJ_FLAG_CLICKABLE);
     n->buried    = false;
@@ -259,6 +317,29 @@ static void oc_collect(lv_obj_t *o, lv_area_t clip, bool clip_scrolls)
     // the reader can bring the rest into view. Losing it to one that does not
     // is text nobody can ever read.
     n->cut       = is_label && coords.y2 > vis.y2 && !clip_scrolls;
+    // The same question sideways, and the one that was never asked. `cut` has
+    // only ever compared y, so a label WIDER than the box holding it was
+    // invisible to every check in this file. The auto-lock banner sat in a
+    // 420px box with the English string measuring 420px at font23 and shipped
+    // reading "ocking soon. tap to stay open" -- clipped at both ends, on a
+    // stop the walk photographs, with every gate green.
+    //
+    // SCROLL and SCROLL_CIRCULAR are the legitimate case: a label that moves
+    // to show the rest is not a label with a missing half. DOT is not exempt
+    // here because it never clips -- it rewrites its own text, which is what
+    // CUT reports.
+    {
+        // A spangroup has no long mode. It never marquees and never dots, so
+        // WRAP is the honest stand-in -- and reading a label's accessor off
+        // one is a segfault, which is how this was found.
+        const lv_label_long_mode_t lm =
+            lv_obj_check_type(o, &lv_label_class) ? lv_label_get_long_mode(o)
+                                                  : LV_LABEL_LONG_MODE_WRAP;
+        const bool marquee = lm == LV_LABEL_LONG_MODE_SCROLL
+                          || lm == LV_LABEL_LONG_MODE_SCROLL_CIRCULAR;
+        n->cutx = is_label && !marquee && !clip_scrolls
+               && (coords.x1 < vis.x1 || coords.x2 > vis.x2);
+    }
     n->parent    = lv_obj_get_parent(o);
 
     // Children are clipped to this object unless it says otherwise. This is why
@@ -537,6 +618,22 @@ static void oc_check_clipped(const char *tag)
                  (int)(n->nat.y2 - n->vis.y2));
         oc_report_one(tag, sig, detail);
     }
+
+    for (int i = 0; i < s_n; i++) {
+        oc_node_t *n = &s_node[i];
+        if (!n->is_label || n->buried || !n->cutx) continue;
+
+        oc_text(n->obj, t, sizeof t);
+        snprintf(sig, sizeof sig, "CLIPX|%s", t);
+        snprintf(detail, sizeof detail,
+                 "CLIPX    \"%s\" asks for x %d..%d, visible only %d..%d, "
+                 "%d px cut off the side -- the box is sized to a number and "
+                 "the string is wider than it",
+                 t, (int)n->nat.x1, (int)n->nat.x2,
+                 (int)n->vis.x1, (int)n->vis.x2,
+                 (int)((n->vis.x1 - n->nat.x1) + (n->nat.x2 - n->vis.x2)));
+        oc_report_one(tag, sig, detail);
+    }
 }
 
 // ---------------------------------------------------------------- colour roles
@@ -654,7 +751,7 @@ static int s_role_status_objs;
 
 // ---- 6. BARE: a screen whose only content is a wall of text ----------------
 //
-// The product has a kit for this -- wt_card, wt_value_card, wt_why_block,
+// The product has a kit for this -- wt_card, wt_value_card, wt_facts rows,
 // wt_chip, the diagram rows -- and the fault this catches is not using it: a
 // title, one 704px grey paragraph and a button. It is not a rendering bug, so
 // none of the five checks above can see it; every one of those screens is
@@ -665,10 +762,14 @@ static int s_role_status_objs;
 // than once and screens kept shipping bare anyway.
 //
 // A wall is a wrapping label wide enough to be the page's body. A frame is
-// anything with a border and a fill big enough to be a card or a chip, or a
-// why-block's rule bar -- narrow, tall, and the one thing on a bare screen that
-// is never present. A screen with a wall and no frame is the shape being
-// rejected.
+// anything with a border and a fill big enough to be a card. A screen with a
+// wall and no frame is the shape being rejected.
+//
+// It used to count a why-block's 3px rule bar as well, and on thirteen screens
+// that bar was the only frame it could see. The bar is gone -- the body is a
+// plain paragraph now -- so those thirteen were reported the moment it went,
+// which is what the check is for. They were fixed by cutting the copy until no
+// single claim was a wall, not by drawing a box around one.
 //
 // The thresholds are deliberately generous: 560px is far wider than a 344px
 // why-block, and 90px is three lines at font23. Nothing that has been through
@@ -686,8 +787,6 @@ static bool oc_is_frame(const oc_node_t *n)
     // neither is anything else the reader can press.
     if (n->clickable) return false;
     if (n->vis.y2 >= WT_CONTENT_BOTTOM) return false;
-    // a why-block's coloured rule: 3px wide, as tall as the claim beside it
-    if (w <= 4 && h >= 30) return true;
     if (w < 100 || h < 30) return false;
     if (lv_obj_get_style_border_width(n->obj, LV_PART_MAIN) < 1) return false;
     if (lv_obj_get_style_bg_opa(n->obj, LV_PART_MAIN) >= LV_OPA_50) return true;
@@ -719,8 +818,9 @@ static bool oc_is_frame(const oc_node_t *n)
 // translated copy and would need twenty one spellings of the same exemption.
 static const char *OC_BARE_BACKLOG[] = {
     // EMPTY, and that is the point. Nine stops were listed here when the check
-    // landed; all nine have been rebuilt with wt_why_body, so every screen on
-    // the device that has an action row now puts something framed above it.
+    // landed; all nine were rebuilt around the ruled body, and when that shape
+    // was retired they came back and were fixed properly -- by cutting the
+    // copy until no single claim is a wall.'
     // A new entry is a screen someone chose not to fix, and needs saying so.
     NULL,   // C forbids an empty initialiser; the loop below skips NULLs
 };
@@ -760,7 +860,7 @@ static void oc_check_bare(const char *tag)
     snprintf(sig, sizeof sig, "BARE|%s", t);
     snprintf(detail, sizeof detail,
              "BARE     \"%s\" is a %dx%d paragraph and the screen has no framed "
-             "element (wt_card / wt_value_card / wt_why_block / wt_chip)",
+             "element (wt_card / wt_value_card / a diagram in one)",
              t, (int)(wall->vis.x2 - wall->vis.x1 + 1),
              (int)(wall->vis.y2 - wall->vis.y1 + 1));
     oc_report_one(tag, sig, detail);
@@ -799,8 +899,8 @@ static int  s_fit_n;
 // They are font23 now, and what goes wrong at that size is an ellipsis rather
 // than a rung -- which is check 9, CUT.
 //
-// 300 is read off the kit, not guessed: wt_why_block bodies are 344 wide and
-// the narrowest real body column is 330; below that is a chip or a badge.
+// 300 is read off the kit, not guessed: the narrowest real body column is
+// 330; below that is a chip or a badge.
 // The HEIGHT matters as much. A caution row gives its subline about 24px, and
 // one line of font23 is 31 -- so font14 there is the box deciding, not the copy,
 // and "high fee" is not a screen anybody needs to fix. 36 is one font23 line
@@ -843,6 +943,288 @@ static bool oc_fit_excused(const char *txt)
         if (OC_FIT_BACKLOG[i] && strstr(txt, OC_FIT_BACKLOG[i]))
             { s_fit_hit[i] = true; return true; }
     return false;
+}
+
+
+
+// ---- 11. VOID: a screen with almost nothing on it --------------------------
+//
+// Every other check on this list fires on too MUCH -- a paragraph too wide, a
+// frame drawn round a wall of text, a label past the bottom. Nothing fired on
+// too LITTLE, so the term takeover pages shipped as a title, a round badge,
+// two lines of body, OK, and 260px of nothing, and every gate stayed green.
+// BARE cannot see them because their paragraph is three lines short of a wall.
+//
+// Measured as the fraction of the CONTENT LANE's rows that any visible element
+// covers. Rows rather than area, because a screen is read down the page: two
+// short lines with a 200px hole under them is the fault, and an area measure
+// would score it the same as the same two lines spread out.
+//
+// EXEMPT BY ELEMENT KIND, NEVER BY SCREEN NAME. A screen whose content is one
+// big block -- a QR, the viewfinder, a word grid -- is full by construction
+// however little of the lane its rows touch, and a list of exempt screen names
+// rots the first time one is renamed. 200x200 is the smallest of those three
+// by a wide margin.
+#define OC_VOID_MIN_BLOCK 200
+#define OC_VOID_FLOOR      40      // percent of the lane's rows
+
+static bool oc_has_severity_ink(void)
+{
+    for (int i = 0; i < s_n; i++) {
+        const oc_node_t *n = &s_node[i];
+        if (n->buried) continue;
+        if (n->is_label) {
+            lv_color_t c = lv_obj_get_style_text_color(n->obj, LV_PART_MAIN);
+            if (lv_color_eq(c, WT_WARN) || lv_color_eq(c, WT_STOP)) return true;
+        }
+        lv_color_t b = lv_obj_get_style_border_color(n->obj, LV_PART_MAIN);
+        if (lv_obj_get_style_border_opa(n->obj, LV_PART_MAIN) >= 50 &&
+            (lv_color_eq(b, WT_WARN) || lv_color_eq(b, WT_STOP))) return true;
+    }
+    return false;
+}
+
+static int oc_content_coverage(void)
+{
+    // LV_VER_RES is a call on this build, so the array is sized by a constant
+    // comfortably past the panel's 480 rather than by it.
+    static bool row[800];
+    const int top = 16, bot = WT_CONTENT_BOTTOM;
+    for (int y = top; y < bot; y++) row[y] = false;
+
+    for (int i = 0; i < s_n; i++) {
+        const oc_node_t *n = &s_node[i];
+        if (n->buried) continue;
+        if (area_is_backdrop(&n->vis)) continue;
+        int w = n->vis.x2 - n->vis.x1 + 1, h = n->vis.y2 - n->vis.y1 + 1;
+        if (w <= 1 || h <= 1) continue;
+        if (w >= OC_VOID_MIN_BLOCK && h >= OC_VOID_MIN_BLOCK) return 100;
+        int y1 = n->vis.y1 < top ? top : n->vis.y1;
+        int y2 = n->vis.y2 >= bot ? bot - 1 : n->vis.y2;
+        for (int y = y1; y <= y2; y++) row[y] = true;
+    }
+    int used = 0;
+    for (int y = top; y < bot; y++) if (row[y]) used++;
+    return used * 100 / (bot - top);
+}
+
+// The screens that are sparse TODAY. Landed WITH the backlog rather than held
+// back until they are all fixed, which is the argument BARE's own list makes:
+// held back it protects nothing while the work is in progress; landed, it stops
+// screen number seventeen from ever being written. Shrink only -- delete the
+// line when the screen is rebuilt, and the run prints how many are left.
+//
+// Two kinds went on it and they left by different doors.
+//
+// The TERM TAKEOVERS are the ones this check was written for -- a title, a
+// round badge, two lines and 260px of nothing -- and they are GONE. Both took
+// a value card carrying the claim their sentence never got to: what sighash
+// ALL prevents once you sign, and who sees a merge and for how long. 36% and
+// 32% of the lane became 58% and 54%. Neither needed a new shape, only the
+// `cap`/`val` band wt_explain_open has always drawn.
+//
+// The rest say ONE thing and mean the space: an erase that finished, a card
+// that could not be read, a backup whose version is wrong. Their weight is the
+// message and filling them would soften a refusal an owner has to take
+// seriously. They are here rather than exempted because "deliberately sparse"
+// is a judgement, and a judgement in a gate is a carve-out that grows.
+static const char *OC_VOID_BACKLOG[] = {
+    // one thing, said loudly, with the room to mean it
+    "sim_amnesic_qrbad",
+    "sim_duress_pick",
+    "sim_gword_failed",
+    "sim_kef_badver",
+    "sim_kef_pick",
+    // Covers sim_sd_missing_retry too, and must: the list is matched with
+    // strstr, so a shorter entry swallows every tag it prefixes and the longer
+    // one could never be marked hit -- which the unmatched-entry report caught
+    // the moment both were listed.
+    "sim_sd_missing",
+    "sim_sign_failed",
+    "sim_storage_cleanup",
+    "sim_storage_fail",
+    "sim_storage_sd_ok",
+    "sim_wipe_fail",
+    "sim_wiped",
+};
+static bool s_void_hit[sizeof OC_VOID_BACKLOG / sizeof OC_VOID_BACKLOG[0]];
+
+static bool oc_void_excused(const char *tag)
+{
+    for (unsigned i = 0; i < sizeof OC_VOID_BACKLOG / sizeof OC_VOID_BACKLOG[0]; i++)
+        if (OC_VOID_BACKLOG[i] && strstr(tag, OC_VOID_BACKLOG[i]))
+            { s_void_hit[i] = true; return true; }
+    return false;
+}
+
+static void oc_check_void(const char *tag)
+{
+    if (!oc_has_action_row()) return;          // same exemption BARE takes
+    // A REFUSAL IS ALLOWED TO BE SPARSE, and that is the whole difference
+    // between the two lists this check sorts. A screen that says one thing
+    // loudly -- erased, rejected, could not read the card -- earns its empty
+    // space: the weight IS the message, and filling it would soften a refusal
+    // the owner has to take seriously. A term page is neutral teaching and has
+    // no such excuse.
+    //
+    // Asked by COLOUR rather than by name, so it cannot rot: severity ink is
+    // what a refusal is made of, and no explainer has any.
+    if (oc_has_severity_ink()) return;
+    int cov = oc_content_coverage();
+    if (getenv("OVERLAPCHECK_VOID"))
+        printf("[void] %3d%%  %s\n", cov, oc_short_tag(tag));
+    if (cov >= OC_VOID_FLOOR) return;
+    if (oc_void_excused(tag)) return;
+
+    char sig[192], detail[320];
+    snprintf(sig, sizeof sig, "VOID|%s", oc_short_tag(tag));
+    snprintf(detail, sizeof detail,
+             "VOID     content covers %d%% of the lane (floor is %d%%): a "
+             "title, a little body and a great deal of nothing", cov,
+             OC_VOID_FLOOR);
+    oc_report_one(tag, sig, detail);
+}
+
+// ---- 10. EXIT: a refusal that only goes backwards --------------------------
+//
+// A screen whose content is an empty state or a refusal, and whose action band
+// holds exactly one control which goes BACK. The instruction on such a screen
+// is usually right and usually impossible to follow from where the reader is
+// standing, so the only thing they can do is leave -- and the sibling that
+// would have worked is never named.
+//
+// SIGN -> SD CARD with an empty slot was the case that named this check. Its
+// card said "insert a card holding the PSBT file your coordinator saved" to an
+// owner who has no card, and the band said BACK. The way out was SCAN QR,
+// which needs no card at all.
+//
+// AND THE SCREEN HAS NO TAB STRIP, which is the clause that makes the check
+// usable. A tab strip IS a way on: it is navigation the band does not carry,
+// and every tabbed pane on this device would otherwise be reported the moment
+// its band is a lone BACK. Without this clause the first run named a dozen
+// screens that are not dead ends at all.
+//
+// Back is found by its GLYPH, not its word: wt_arrow_action draws WT_ICON_ARR_L
+// when back is true, and the word beside it is translated twenty-one ways.
+static bool oc_node_has_ancestor(const oc_node_t *n, const lv_obj_t *anc)
+{
+    for (lv_obj_t *p = n->obj; p; p = lv_obj_get_parent(p))
+        if (p == anc) return true;
+    return false;
+}
+
+static bool oc_ctrl_is_back(const oc_node_t *ctrl)
+{
+    char t[64];
+    for (int i = 0; i < s_n; i++) {
+        const oc_node_t *n = &s_node[i];
+        if (!n->is_label || n->buried) continue;
+        if (!oc_node_has_ancestor(n, ctrl->obj)) continue;
+        oc_text(n->obj, t, sizeof t);
+        if (strstr(t, WT_ICON_ARR_L)) return true;
+    }
+    return false;
+}
+
+// Clickable anything sitting on the chrome strip row is the tab strip. A trail
+// lives on the same row and is NOT clickable, which is exactly the difference
+// that matters here: one of them is a way on and the other is a breadcrumb.
+static bool oc_has_tabstrip(void)
+{
+    for (int i = 0; i < s_n; i++) {
+        const oc_node_t *n = &s_node[i];
+        if (n->buried || !n->clickable) continue;
+        if (area_is_backdrop(&n->vis)) continue;
+        int mid = (n->vis.y1 + n->vis.y2) / 2;
+        if (mid >= WT_CHROME_STRIP_Y && mid <= WT_CHROME_STRIP_Y + WT_BR_H)
+            return true;
+    }
+    return false;
+}
+
+// A warn or empty state CARD, and the frame is load bearing rather than
+// incidental. A frameless refusal -- the SD CARD info screen's "no card", say
+// -- is usually one whose remedy is physical: "put the card in the slot and
+// open this screen again" is followable, there is no sibling action to offer,
+// and BACK really is all there is. The screens this check is for are the ones
+// that FRAME a refusal and then strand the reader inside it.
+//
+// A warn or empty state card: a frame painted in a severity colour, or one
+// holding a word in it. wt_row_sev tints its fill at opa 13 under a border at
+// 77, so the BORDER is what has to be asked about -- the same thing oc_is_frame
+// learned the hard way two checks above.
+static bool oc_warn_card(void)
+{
+    for (int i = 0; i < s_n; i++) {
+        const oc_node_t *n = &s_node[i];
+        if (n->buried || !oc_is_frame(n)) continue;
+        lv_color_t bc = lv_obj_get_style_border_color(n->obj, LV_PART_MAIN);
+        if (lv_color_eq(bc, WT_WARN) || lv_color_eq(bc, WT_STOP)) return true;
+        for (int j = 0; j < s_n; j++) {
+            const oc_node_t *m = &s_node[j];
+            if (!m->is_label || m->buried) continue;
+            if (!oc_node_has_ancestor(m, n->obj)) continue;
+            lv_color_t tc = lv_obj_get_style_text_color(m->obj, LV_PART_MAIN);
+            if (lv_color_eq(tc, WT_WARN) || lv_color_eq(tc, WT_STOP)) return true;
+        }
+    }
+    return false;
+}
+
+// Shrink only, like BARE and WALL. An entry is a screen someone chose not to
+// give a way on, and needs saying so.
+static const char *OC_EXIT_BACKLOG[] = {
+    NULL,   // C forbids an empty initialiser; the loop below skips NULLs
+};
+static bool s_exit_hit[sizeof OC_EXIT_BACKLOG / sizeof OC_EXIT_BACKLOG[0]];
+
+static bool oc_exit_excused(const char *tag)
+{
+    for (unsigned i = 0; i < sizeof OC_EXIT_BACKLOG / sizeof OC_EXIT_BACKLOG[0]; i++)
+        if (OC_EXIT_BACKLOG[i] && strstr(tag, OC_EXIT_BACKLOG[i]))
+            { s_exit_hit[i] = true; return true; }
+    return false;
+}
+
+static void oc_check_exit(const char *tag)
+{
+    if (!oc_has_action_row()) return;
+    if (oc_has_tabstrip()) return;                 // a tab IS a way on
+    if (!oc_warn_card()) return;                   // not a refusal
+
+    const oc_node_t *only = NULL;
+    int band = 0;
+    for (int i = 0; i < s_n; i++) {
+        const oc_node_t *n = &s_node[i];
+        if (n->buried || !n->clickable) continue;
+        if (area_is_backdrop(&n->vis)) continue;
+        if (n->vis.y1 < oc_bottom() || n->vis.y2 >= LV_VER_RES) continue;
+        // Only the OUTERMOST clickable counts: an arrow action is one control
+        // whose labels may be clickable in their own right, and counting both
+        // would make every single-control band look like two.
+        bool nested = false;
+        for (int j = 0; j < s_n; j++) {
+            const oc_node_t *m = &s_node[j];
+            if (m == n || m->buried || !m->clickable) continue;
+            if (m->obj != n->obj && oc_node_has_ancestor(n, m->obj)) nested = true;
+        }
+        if (nested) continue;
+        band++;
+        only = n;
+    }
+    if (band != 1 || !only) return;
+    if (!oc_ctrl_is_back(only)) return;
+    if (oc_exit_excused(tag)) return;
+
+    // The control's own text is not worth printing: an arrow action is a
+    // container and oc_text answers "<container tappable>" for it. What the
+    // reader of this finding needs is the SCREEN, which the tag already names.
+    char sig[192], detail[320];
+    snprintf(sig, sizeof sig, "EXIT|%s", oc_short_tag(tag));
+    snprintf(detail, sizeof detail,
+             "EXIT     a refusal or empty state whose band goes only "
+             "backwards, on a screen with no tab strip to carry the way on");
+    oc_report_one(tag, sig, detail);
 }
 
 static void oc_check_fit(const char *tag)
@@ -959,7 +1341,7 @@ static void oc_check_wall(const char *tag)
     snprintf(detail, sizeof detail,
              "WALL     \"%s\" is a %dx%d paragraph and every frame on the screen "
              "is a box drawn around it (use a diagram row, chips, rows or "
-             "wt_why_block instead)",
+             "wt_facts instead)",
              t, (int)(wall->vis.x2 - wall->vis.x1 + 1),
              (int)(wall->vis.y2 - wall->vis.y1 + 1));
     oc_report_one(tag, sig, detail);
@@ -1038,6 +1420,55 @@ static bool oc_read_excused(const char *w)
     return false;
 }
 
+// ---- INK: a paragraph's WORDS wearing the accent ---------------------------
+//
+// The accent is for MARKS: a chip, a chevron, a tick, a row label, and the
+// single full stop that ends a sentence. It is never the colour of the words
+// themselves, and this check exists because that rule was broken by one line
+// and shipped.
+//
+// wt_gate's sentence and a few other single lines ARE accent by design, so the
+// rule cannot be "no accent text". The shape it asks about is exact: a
+// paragraph built by the kit's span builder carries WT_FLAG_ACCENT_STOPS, and
+// its ordinary runs deliberately carry NO span style so they inherit the
+// GROUP's colour -- which is what lets a caller recolour one the way it
+// recoloured the label it replaced. So the group's own text colour is the
+// colour of every word in it, and if that is the accent then the whole
+// paragraph is.
+//
+// What went wrong was reusing WT_FLAG_ACCENT for the stops. That flag means
+// "paint this object's text the accent", not "this object has accent bits in
+// it", so the first theme applied turned every sentence on the device the
+// accent colour. Nothing caught it: the size and geometry checks do not ask
+// about colour, the role gate asks only about accent-versus-status collisions
+// on chips and borders, and every frame anyone looked at was rendered in MONO,
+// where the accent is a pale grey and the mistake is invisible.
+static void oc_check_ink(const char *tag)
+{
+    const lv_color_t acc = wt_accent();
+    for (int i = 0; i < s_n; i++) {
+        lv_obj_t *o = s_node[i].obj;
+        if (!lv_obj_check_type(o, &lv_spangroup_class)) continue;
+        // NOT keyed on WT_FLAG_ACCENT_STOPS. The bug this exists for set the
+        // OTHER flag, so a check that only looked at the right one would have
+        // watched it go past. Any wrapping spangroup whose GROUP colour is the
+        // accent has accent words in it, whatever flag put the colour there.
+        if (!s_node[i].wraps) continue;
+        if (!lv_color_eq(lv_obj_get_style_text_color(o, LV_PART_MAIN), acc))
+            continue;
+        char sp[512];
+        const char *t = oc_text_of(o, sp, sizeof sp);
+        char sig[192], detail[320];
+        snprintf(sig, sizeof sig, "INK|%s", t ? t : "");
+        snprintf(detail, sizeof detail,
+                 "INK      a paragraph is painted the ACCENT colour, so every "
+                 "word in it is: \"%.90s\" -- the accent belongs to marks and "
+                 "to the full stop, never to the words",
+                 t ? t : "");
+        oc_report_one(tag, sig, detail);
+    }
+}
+
 static void oc_check_cut(const char *tag)
 {
     char sig[192], detail[320];
@@ -1073,8 +1504,27 @@ static void oc_check_cut(const char *tag)
         // written.
         if (!oc_lang_is_en() &&
             (strcmp(s_cut_kind[i], "words") == 0 ||
-             strcmp(s_cut_kind[i], "long") == 0))
+             strcmp(s_cut_kind[i], "long") == 0 ||
+             strcmp(s_cut_kind[i], "mark") == 0 ||
+             strcmp(s_cut_kind[i], "widow") == 0))
             continue;
+        if (strcmp(s_cut_kind[i], "mark") == 0) {
+            snprintf(sig, sizeof sig, "MARK|%s", s_cut_txt[i]);
+            if (s_cut_lane[i])
+                snprintf(detail, sizeof detail,
+                         "MARK     the caption \"%s\" is %d words -- a "
+                         "caption NAMES the figure under it, and the limit "
+                         "is %d because it is drawn at font14",
+                         s_cut_txt[i], s_cut_want[i], s_cut_lane[i]);
+            else
+                snprintf(detail, sizeof detail,
+                         "MARK     the caption \"%s\" opens a clause, so it "
+                         "is a sentence and not a name -- and it is drawn at "
+                         "font14, which is the mark size",
+                         s_cut_txt[i]);
+            oc_report_one(tag, sig, detail);
+            continue;
+        }
         if (strcmp(s_cut_kind[i], "words") == 0) {
             snprintf(sig, sizeof sig, "READ|words|%s", s_cut_txt[i]);
             snprintf(detail, sizeof detail,
@@ -1082,6 +1532,16 @@ static void oc_check_cut(const char *tag)
                      "%d, and a sentence somebody has to re-read is one that "
                      "failed",
                      s_cut_want[i], s_cut_txt[i], s_cut_lane[i]);
+            oc_report_one(tag, sig, detail);
+            continue;
+        }
+        if (strcmp(s_cut_kind[i], "widow") == 0) {
+            snprintf(sig, sizeof sig, "WIDOW|%s", s_cut_txt[i]);
+            snprintf(detail, sizeof detail,
+                     "WIDOW    \"%s\" wraps to two lines and leaves %dpx of "
+                     "a %dpx lane on the second -- it is two words too long, "
+                     "and nothing in the source says so",
+                     s_cut_txt[i], s_cut_want[i], s_cut_lane[i]);
             oc_report_one(tag, sig, detail);
             continue;
         }
@@ -1130,6 +1590,10 @@ static void oc_check_cut(const char *tag)
 // group together.
 #define OC_TINY_MIN_WORDS 3
 #define OC_TINY_MIN_CHARS 14
+// An uppercase string this long has stopped being a lane label. Five, because
+// the longest real caption on the device is "SOURCE 1 WHAT YOU POINT AT" at
+// four plus its number, and the shortest thing that got through was six.
+#define OC_TINY_MIN_SHOUT 6
 
 static bool oc_font_is_tiny(const lv_font_t *f)
 {
@@ -1185,13 +1649,55 @@ static bool oc_tiny_excused(const char *txt)
     return false;
 }
 
+// Every ellipsis on the device, found the same way a reader finds one: by the
+// dots.
+//
+// CUT measures at the call site, through a sink, because LVGL rewrites the
+// label's own text and a gate reading the finished tree sees a string exactly
+// one lane wide. That is true of the WIDTH -- and the rewritten text still
+// ends in the dots it was given, which the tree does show. So CUT stays (it
+// names the lane and the overflow, which is what tells you how much copy to
+// cut) and this asks the cheaper question everywhere at once: is anything on
+// this screen wearing an ellipsis. No call site has to be wired, so a row
+// helper nobody remembered cannot hide one -- which is exactly what wt_row_x
+// did until this morning.
+static bool oc_ends_in_dots(const char *t)
+{
+    size_t n = strlen(t);
+    if (n >= 3 && strcmp(t + n - 3, "...") == 0) return true;
+    return n >= 3 && strcmp(t + n - 3, "\xE2\x80\xA6") == 0;   // U+2026
+}
+
+static void oc_check_dots(const char *tag)
+{
+    char t[96], sig[192], detail[320];
+    for (int i = 0; i < s_n; i++) {
+        const oc_node_t *n = &s_node[i];
+        if (n->buried || !n->is_label) continue;
+        // DOTS is a label idiom; a spangroup cannot be in it.
+        if (!lv_obj_check_type(n->obj, &lv_label_class)) continue;
+        if (lv_label_get_long_mode(n->obj) != LV_LABEL_LONG_MODE_DOTS) continue;
+        const char *txt = lv_label_get_text(n->obj);
+        if (!txt || !*txt || !oc_ends_in_dots(txt)) continue;
+        oc_text(n->obj, t, sizeof t);
+        snprintf(sig, sizeof sig, "DOTS|%s", t);
+        snprintf(detail, sizeof detail,
+                 "DOTS     \"%s\" is wearing an ellipsis -- its second half is "
+                 "gone and nothing in the source says so. Cut the copy: the "
+                 "lane is what the label and the value beside it leave behind",
+                 t);
+        oc_report_one(tag, sig, detail);
+    }
+}
+
 static void oc_check_tiny(const char *tag)
 {
     char t[96], sig[192], detail[320];
     for (int i = 0; i < s_n; i++) {
         const oc_node_t *n = &s_node[i];
         if (n->buried || !n->is_label) continue;
-        const char *txt = lv_label_get_text(n->obj);
+        char spbuf[512];
+        const char *txt = oc_text_of(n->obj, spbuf, sizeof spbuf);
         if (!txt || !*txt) continue;
         if (!oc_font_is_tiny(lv_obj_get_style_text_font(n->obj, LV_PART_MAIN)))
             continue;
@@ -1200,7 +1706,13 @@ static void oc_check_tiny(const char *tag)
         // a reader can check it -- a backlog of strings here could not be
         // traced back to a screen by anybody.
         if (lv_obj_has_flag(n->obj, WT_FLAG_TINY_OK)) continue;
-        if (!oc_has_lowercase(txt)) continue;
+        // Uppercase is a CAPTION lane -- scanned, not read -- but only while
+        // it is caption length. "THE BACKLIGHT IS THE PROGRESS BAR" is six
+        // words and an instruction, and it sat at font14 on the screen that
+        // goes dark for a minute because this line skipped every capital
+        // string there was.
+        if (!oc_has_lowercase(txt) && oc_word_count(txt) < OC_TINY_MIN_SHOUT)
+            continue;
         if (oc_word_count(txt) < OC_TINY_MIN_WORDS) continue;
         if ((int)strlen(txt) < OC_TINY_MIN_CHARS) continue;
         if (oc_tiny_excused(txt)) continue;
@@ -1255,7 +1767,8 @@ static void oc_check_amber(const char *tag)
     for (int i = 0; i < s_n; i++) {
         const oc_node_t *n = &s_node[i];
         if (n->buried || !n->is_label) continue;
-        const char *txt = lv_label_get_text(n->obj);
+        char spbuf[512];
+        const char *txt = oc_text_of(n->obj, spbuf, sizeof spbuf);
         if (!txt || !*txt) continue;
         if (!oc_is_warn(lv_obj_get_style_text_color(n->obj, LV_PART_MAIN)))
             continue;
@@ -1503,6 +2016,151 @@ static void oc_check_ragged(const char *tag)
     }
 }
 
+
+// ---- 10. STALE: the accent a screen kept after the theme moved -------------
+//
+// wt_accent_set changes the accent with the screen already up, and
+// wt_accent_restyle repaints every FLAGGED object under it. Anything wearing
+// the accent WITHOUT a flag keeps the old colour, and nothing has ever noticed:
+// a build, a rendered frame and the three-accent sweep at the bottom of
+// run_overlapcheck.sh all BUILD the screen under one accent and never change
+// it. The only thing that has ever caught one is a person looking at a screen
+// they had just switched the theme on.
+//
+// Three were live on the sign screen at once:
+//
+//   the folded address's lit tail   a spangroup -- the SPANS carry the colour,
+//                                   and a text colour on the group is invisible
+//   the change row's word           an accent BAKED into recolor markup, which
+//                                   no flag can reach
+//   the TESTNET chip                wt_state_chip, so every state chip there is
+//
+// The first two are invisible to oc_colours_of, which reads an object's own
+// style properties and neither of those keeps its colour there. That is the
+// whole reason this is not four lines inside the ROLE check.
+//
+// IT ASKS ABOUT THE OLD COLOUR, NOT ABOUT FLAGS. "Accent-coloured means
+// flagged" was the first rule written here and it reported 86 objects across
+// the walk, because the theme control lives on the Settings band and REBUILDS
+// its page -- so for most screens the flag buys nothing and its absence is not
+// a defect. What is load bearing is the handful of screens that take the change
+// in place, and those are exactly the stops that FOLLOW one: the accent at this
+// stop differs from the accent at the last, so anything still wearing the old
+// one is a thing the restyle did not reach. No rule to keep in step with the
+// product, and no backlog of things nobody is going to fix.
+static int        s_stale_prev = -1;
+static uint32_t   s_stale_prev_hex;
+
+// Shrink only, like BARE and WALL. One entry, and it is a CHOICE rather than
+// an oversight: kiss_sign.c carries the reasoning in full. The flag was tried
+// on the sign header's key mark and accent_walk repainting that RECOLOR label
+// inside a 236px flex chip crashed on every non-MONO accent. What it costs is
+// a mark in the old accent until the next rebuild, which repaint_verify does
+// on every acknowledgement and every page turn -- and that was judged the
+// smaller of the two.
+static const char *OC_STALE_BACKLOG[] = {
+    // The key is "<frame>|<text>". Two things an entry written by eye gets
+    // wrong: the frame keeps its .ppm, which is what oc_short_tag hands back,
+    // and the text OPENS WITH THE GLYPH -- a printed report shows U+F084 as
+    // blank, so it reads as leading spaces and matches nothing.
+    "sim_sign_accent.ppm|" WT_ICON_KEY "  #7A869C SIGNING AS#",
+    NULL,
+};
+static bool s_stale_hit[sizeof OC_STALE_BACKLOG / sizeof OC_STALE_BACKLOG[0]];
+
+static bool oc_stale_excused(const char *key)
+{
+    for (unsigned i = 0; i < sizeof OC_STALE_BACKLOG / sizeof OC_STALE_BACKLOG[0]; i++)
+        if (OC_STALE_BACKLOG[i] && strstr(key, OC_STALE_BACKLOG[i]))
+            { s_stale_hit[i] = true; return true; }
+    return false;
+}
+
+static void oc_stale_report(const char *tag, lv_obj_t *o, const char *where,
+                            const char *why)
+{
+    char t[96], key[224], sig[192], detail[400];
+    oc_text(o, t, sizeof t);
+    snprintf(key, sizeof key, "%s|%s", oc_short_tag(tag), t);
+    if (oc_stale_excused(key)) return;
+    snprintf(sig, sizeof sig, "STALE|%s|%s", t, where);
+    snprintf(detail, sizeof detail,
+             "STALE    \"%s\" still wears the OLD accent in its %s after the "
+             "theme changed with this screen up -- %s",
+             t, where, why);
+    oc_report_one(tag, sig, detail);
+}
+
+static void oc_check_stale(const char *tag)
+{
+    const int cur = wt_accent_get();
+    const lv_color_t ac = wt_accent();
+    const uint32_t curhex = ((uint32_t)ac.red << 16) | ((uint32_t)ac.green << 8) | ac.blue;
+    const int prev = s_stale_prev;
+    const uint32_t oldhex = s_stale_prev_hex;
+    s_stale_prev = cur;
+    s_stale_prev_hex = curhex;
+    if (prev < 0 || prev == cur) return;          // no change to be stale from
+
+    // MONO's accent is WT_INK, and half the device is legitimately WT_INK.
+    // A status colour is the same trap from the other side -- GREEN's accent
+    // is WT_OK to the byte, which the theme gate declares.
+    if (cde_same(oldhex, ((uint32_t)WT_INK.red << 16) |
+                         ((uint32_t)WT_INK.green << 8) | WT_INK.blue)) return;
+    for (int k = 0; k < OC_NSTATUS; k++)
+        if (cde_same(oldhex, OC_STATUS[k].hex)) return;
+
+    char hex[8];
+    snprintf(hex, sizeof hex, "#%02X%02X%02X",
+             (unsigned)(oldhex >> 16) & 0xFF, (unsigned)(oldhex >> 8) & 0xFF,
+             (unsigned)oldhex & 0xFF);
+
+    for (int i = 0; i < s_n; i++) {
+        oc_node_t *n = &s_node[i];
+        if (n->buried) continue;
+        lv_obj_t *o = n->obj;
+
+        oc_colour_t col[OC_MAX_COLOURS];
+        const int nc = oc_colours_of(o, n->is_label, col, OC_MAX_COLOURS);
+        for (int c = 0; c < nc; c++)
+            if (cde_same(col[c].hex, oldhex))
+                oc_stale_report(tag, o, col[c].where,
+                                "wt_accent_restyle did not reach it");
+
+        // A SPANGROUP keeps its colours in the spans, so a text colour on the
+        // group is invisible. accent_walk repaints the LAST span, which is the
+        // lit tail of every address on the device by construction -- but only
+        // when the group carries the flag.
+        if (lv_obj_check_type(o, &lv_spangroup_class)) {
+            const uint32_t sn = lv_spangroup_get_span_count(o);
+            for (uint32_t k = 0; k < sn; k++) {
+                lv_span_t *sp = lv_spangroup_get_child(o, (int32_t)k);
+                lv_style_value_t v;
+                if (!sp || lv_style_get_prop(lv_span_get_style(sp),
+                                             LV_STYLE_TEXT_COLOR, &v)
+                               != LV_STYLE_RES_FOUND) continue;
+                const uint32_t h = ((uint32_t)v.color.red << 16) |
+                                   ((uint32_t)v.color.green << 8) | v.color.blue;
+                if (cde_same(h, oldhex))
+                    oc_stale_report(tag, o, "span",
+                                    "no flag reaches a spangroup's spans");
+            }
+        }
+
+        // MARKUP. `#RRGGBB text#` inside a recolor label is a colour written
+        // into a STRING, and nothing repaints a string -- so there is no flag
+        // that fixes this one. The way out is the one kiss_theme.c states in
+        // its own words: put the accent on the OBJECT, and pin the markup to a
+        // colour that never moves.
+        if (n->is_label && lv_label_get_recolor(o)) {
+            const char *txt = lv_label_get_text(o);
+            if (txt && strstr(txt, hex))
+                oc_stale_report(tag, o, "markup",
+                                "an accent baked into a string cannot be repainted");
+        }
+    }
+}
+
 static void oc_check_layer(const char *tag);   // defined with the entry points
 
 static int oc_selftest_case(const char *name, int accent,
@@ -1537,6 +2195,49 @@ static int oc_selftest_case(const char *name, int accent,
     printf("  %-46s %s (%d finding%s)\n", name,
            got == want_finding ? "ok" : "FAILED", s_findings,
            s_findings == 1 ? "" : "s");
+    return got == want_finding ? 0 : 1;
+}
+
+
+// STALE fires only on a stop that FOLLOWS an accent change, which the walk
+// does in exactly two places -- so a clean sweep proves nothing about it
+// unless the check is shown to still report. Two labels in the accent, one
+// flagged and one not: the flagged one must survive the change and the bare
+// one must be caught. A check that fired on everything would fail the first
+// case exactly as a dead one fails the second.
+static int oc_selftest_stale(const char *name, bool flagged, bool want_finding)
+{
+    wt_accent_set(WT_ACC_PINK);
+    lv_obj_t *scr = lv_obj_create(NULL);
+    lv_screen_load(scr);
+    lv_obj_set_style_bg_color(scr, WT_BG, LV_PART_MAIN);
+    lv_obj_t *l = wt_lbl(scr, "ACCENTED", 40, 40, wt_font23(), wt_accent());
+    if (flagged) lv_obj_add_flag(l, WT_FLAG_ACCENT);
+    lv_refr_now(NULL);
+
+    // Prime the check with the accent this screen was BUILT under, the way a
+    // preceding stop would, then change it exactly as the walk does.
+    s_stale_prev = -1;
+    s_n = 0; s_findings = 0; s_seen_n = 0;
+    lv_area_t full = { 0, 0, LV_HOR_RES - 1, LV_VER_RES - 1 };
+    oc_collect(scr, full, false);
+    oc_mark_buried();
+    oc_check_stale("selftest-prime");
+
+    wt_accent_set(WT_ACC_ORANGE);
+    wt_accent_restyle(scr);
+    lv_refr_now(NULL);
+    s_n = 0; s_findings = 0; s_seen_n = 0;
+    oc_collect(scr, full, false);
+    oc_mark_buried();
+    oc_check_stale("selftest");
+
+    bool got = s_findings > 0;
+    printf("  %-46s %s (%d finding%s)\n", name,
+           got == want_finding ? "ok" : "FAILED", s_findings,
+           s_findings == 1 ? "" : "s");
+    wt_accent_set(WT_ACC_MONO);
+    s_stale_prev = -1;
     return got == want_finding ? 0 : 1;
 }
 
@@ -1680,6 +2381,29 @@ static int oc_selftest_fit(const char *name, const char *body,
     return got == want_finding ? 0 : 1;
 }
 
+// WIDOW goes through the kit, not the sink: the whole check is the wrap
+// simulation in kiss_theme.c, and calling the sink directly would prove only
+// that a printf works. So it builds the real explainer paragraph -- one body
+// that leaves a stub on its second line, one that fills both -- and asks
+// whether the measurement saw the difference.
+static int oc_selftest_widow(const char *name, const char *para,
+                             bool want_finding)
+{
+    lv_obj_t *scr = wt_screen(NULL, "SELFTEST", NULL);
+    s_cut_n = 0;
+    wt_explain(scr, "HEADLINE", para, NULL, 0);
+    lv_refr_now(NULL);
+
+    int widows = 0;
+    for (int i = 0; i < s_cut_n; i++)
+        if (strcmp(s_cut_kind[i], "widow") == 0) widows++;
+    printf("  %-46s %s (%d finding%s)\n", name,
+           (widows > 0) == want_finding ? "ok" : "FAILED", widows,
+           widows == 1 ? "" : "s");
+    s_cut_n = 0;
+    return (widows > 0) == want_finding ? 0 : 1;
+}
+
 // TINY fires on a shape the product no longer contains, which is the standing
 // WALL and CUT have. Three cases, because this check has three ways to be
 // wrong: it must report a lower case sentence at font14, it must NOT report an
@@ -1702,6 +2426,134 @@ static int oc_selftest_tiny(const char *name, const char *txt, bool declare,
     oc_collect(scr, full, false);
     oc_mark_buried();
     oc_check_tiny("selftest");
+
+    bool got = s_findings > 0;
+    printf("  %-46s %s (%d finding%s)\n", name,
+           got == want_finding ? "ok" : "FAILED", s_findings,
+           s_findings == 1 ? "" : "s");
+    return got == want_finding ? 0 : 1;
+}
+
+// CLIPX fires on a shape the product no longer contains, the standing WALL,
+// CUT and TINY have. Two cases, because this check has two ways to be wrong: a
+// label wider than the box holding it must report, and one that fits must not.
+// The first is the auto-lock banner exactly as it shipped -- a 420px box with
+// a centred label the English string overflows at both ends.
+static int oc_selftest_clipx(const char *name, const char *txt,
+                             int box_w, bool want_finding)
+{
+    lv_obj_t *scr = wt_screen(NULL, "SELFTEST", NULL);
+    lv_screen_load(scr);
+    lv_obj_t *box = lv_obj_create(scr);
+    lv_obj_remove_style_all(box);
+    lv_obj_set_size(box, box_w, 56);
+    lv_obj_set_pos(box, (800 - box_w) / 2, 8);
+    lv_obj_remove_flag(box, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_t *l = wt_lbl(box, txt, 0, 0, wt_font23(), WT_WARN);
+    lv_obj_center(l);
+    lv_refr_now(NULL);
+
+    s_n = 0; s_findings = 0; s_seen_n = 0;
+    lv_area_t full = { 0, 0, LV_HOR_RES - 1, LV_VER_RES - 1 };
+    oc_collect(scr, full, false);
+    oc_mark_buried();
+    oc_check_clipped("selftest");
+
+    bool got = s_findings > 0;
+    printf("  %-46s %s (%d finding%s)\n", name,
+           got == want_finding ? "ok" : "FAILED", s_findings,
+           s_findings == 1 ? "" : "s");
+    return got == want_finding ? 0 : 1;
+}
+
+
+
+// VOID reports only backlogged screens today, so it needs proving both ways.
+// Two cases: a title with two lines under it and nothing else must fire, and
+// the same screen with a card filling the lane must not.
+static int oc_selftest_void(const char *name, bool with_card, bool want_finding)
+{
+    lv_obj_t *scr = wt_screen(NULL, "SELFTEST", NULL);
+    lv_screen_load(scr);
+    wt_lbl(scr, "two short lines and then nothing at all", 48, 160,
+           wt_font23(), WT_MUT);
+    if (with_card) {
+        // 190 tall, deliberately under OC_VOID_MIN_BLOCK on its short side, so
+        // this case proves the COVERAGE arithmetic rather than the big-block
+        // exemption sitting in front of it.
+        lv_obj_t *c = wt_card(scr, WT_LANE_X, 196, WT_LANE_W, 190);
+        wt_lbl(c, "a framed figure", 24, 20, wt_font28(), WT_INK);
+    }
+    wt_arrow_action(scr, "OK", true, false, 592, WT_ACTION_Y, 160,
+                    true, NULL, NULL);
+    lv_refr_now(NULL);
+
+    s_n = 0; s_findings = 0; s_seen_n = 0;
+    lv_area_t full = { 0, 0, LV_HOR_RES - 1, LV_VER_RES - 1 };
+    oc_collect(scr, full, false);
+    oc_mark_buried();
+    oc_check_void("selftest");
+
+    bool got = s_findings > 0;
+    printf("  %-46s %s (%d finding%s)\n", name,
+           got == want_finding ? "ok" : "FAILED", s_findings,
+           s_findings == 1 ? "" : "s");
+    return got == want_finding ? 0 : 1;
+}
+
+// EXIT fires on a shape the product no longer contains, so it needs proving
+// both ways. Two cases: a refusal whose band is a lone BACK must report, and
+// the SAME screen with a tab strip must not -- the strip is the way on, and a
+// check without that clause reports every tabbed pane on the device.
+static int oc_selftest_exit(const char *name, bool with_tabs, bool want_finding)
+{
+    lv_obj_t *scr = wt_screen(NULL, "SELFTEST", NULL);
+    lv_screen_load(scr);
+    if (with_tabs) {
+        static const wt_tab_t tabs[2] = {
+            { WT_ICON_QR, "ONE", false, false },
+            { WT_ICON_SD, "TWO", false, false },
+        };
+        wt_tabs_flex(scr, tabs, 2, 1, NULL);
+    }
+    lv_obj_t *card = wt_card(scr, WT_LANE_X, 140, WT_LANE_W, 200);
+    lv_obj_set_style_border_color(card, WT_WARN, 0);
+    wt_lbl(card, "nothing on this card", 28, 26, wt_font28(), WT_WARN);
+    wt_arrow_action(scr, "BACK", true, false, 592, WT_ACTION_Y, 160,
+                    true, NULL, NULL);
+    lv_refr_now(NULL);
+
+    s_n = 0; s_findings = 0; s_seen_n = 0;
+    lv_area_t full = { 0, 0, LV_HOR_RES - 1, LV_VER_RES - 1 };
+    oc_collect(scr, full, false);
+    oc_mark_buried();
+    oc_check_exit("selftest");
+
+    bool got = s_findings > 0;
+    printf("  %-46s %s (%d finding%s)\n", name,
+           got == want_finding ? "ok" : "FAILED", s_findings,
+           s_findings == 1 ? "" : "s");
+    return got == want_finding ? 0 : 1;
+}
+
+// DOTS fires on a shape the product no longer contains. Two cases: a name too
+// long for its lane must report, and one that fits must not.
+static int oc_selftest_dots(const char *name, const char *txt, int w,
+                            bool want_finding)
+{
+    lv_obj_t *scr = wt_screen(NULL, "SELFTEST", NULL);
+    lv_screen_load(scr);
+    lv_obj_t *l = wt_lbl(scr, txt, 48, 118, wt_font23(), WT_MUT);
+    lv_obj_set_width(l, w);
+    lv_obj_set_height(l, lv_font_get_line_height(wt_font23()));
+    lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+    lv_refr_now(NULL);
+
+    s_n = 0; s_findings = 0; s_seen_n = 0;
+    lv_area_t full = { 0, 0, LV_HOR_RES - 1, LV_VER_RES - 1 };
+    oc_collect(scr, full, false);
+    oc_mark_buried();
+    oc_check_dots("selftest");
 
     bool got = s_findings > 0;
     printf("  %-46s %s (%d finding%s)\n", name,
@@ -1784,6 +2636,64 @@ static int oc_selftest_read(const char *name, const char *kind,
     return got == want_finding ? 0 : 1;
 }
 
+// MARK goes through a real wt_value_card, not through the sink: the rule IS
+// the measure -- a word count and a list of words that cannot begin a name --
+// so driving the sink would prove only that the reporter still prints. The
+// two that fire are the two strings that came off the bench, and the two that
+// must not are the string that fixed one of them and the longest caption on
+// the device that was always right.
+static int oc_selftest_mark(const char *name, const char *cap,
+                            bool want_finding)
+{
+    lv_obj_t *scr = wt_screen(NULL, "SELFTEST", NULL);
+    lv_screen_load(scr);
+    s_cut_n = 0; s_findings = 0; s_seen_n = 0;
+    wt_value_card(scr, cap, "A VALUE", 48, 118, 704, true);
+    lv_refr_now(NULL);
+    oc_check_cut("selftest");
+
+    bool got = s_findings > 0;
+    printf("  %-46s %s (%d finding%s)\n", name,
+           got == want_finding ? "ok" : "FAILED", s_findings,
+           s_findings == 1 ? "" : "s");
+    return got == want_finding ? 0 : 1;
+}
+
+// INK builds the exact shape it forbids and the exact shape it must ignore:
+// a kit paragraph whose group colour is the accent, and the same paragraph in
+// body ink. Both through wt_body_para, so the check is exercised against what
+// the kit actually makes rather than a hand-built spangroup that might drift
+// from it.
+static int oc_selftest_ink(const char *name, bool accent, bool want_finding)
+{
+    lv_obj_t *scr = wt_screen(NULL, "SELFTEST", NULL);
+    lv_screen_load(scr);
+    wt_body_para(scr, "One sentence. And a second one after it.", 120);
+    if (accent) {
+        // What the bug was: the paragraph flagged so its stops follow the
+        // theme, and the flag chosen being the one that paints the whole
+        // object's text.
+        for (uint32_t i = 0; i < lv_obj_get_child_count(scr); i++) {
+            lv_obj_t *c = lv_obj_get_child(scr, i);
+            if (lv_obj_check_type(c, &lv_spangroup_class))
+                lv_obj_set_style_text_color(c, wt_accent(), 0);
+        }
+    }
+    lv_refr_now(NULL);
+
+    s_n = 0; s_findings = 0; s_seen_n = 0;
+    lv_area_t full = { 0, 0, LV_HOR_RES - 1, LV_VER_RES - 1 };
+    oc_collect(scr, full, false);
+    oc_mark_buried();
+    oc_check_ink("selftest");
+
+    bool got = s_findings > 0;
+    printf("  %-46s %s (%d finding%s)\n", name,
+           got == want_finding ? "ok" : "FAILED", s_findings,
+           s_findings == 1 ? "" : "s");
+    return got == want_finding ? 0 : 1;
+}
+
 int oc_selftest(void)
 {
     lv_color_t stop = WT_STOP, ok = WT_OK, ink = WT_INK, key = WT_KEY;
@@ -1806,6 +2716,16 @@ int oc_selftest(void)
     else     printf("CUT self test: 4 cases, all as expected\n");
     printf("\n");
 
+    int was_ink = bad;
+    printf("INK check self test\n");
+    bad += oc_selftest_ink("a paragraph painted the accent, fires", true, true);
+    bad += oc_selftest_ink("the same paragraph in body ink, clear", false,
+                           false);
+    if (bad != was_ink) printf("INK self test: %d case(s) wrong\n",
+                               bad - was_ink);
+    else                printf("INK self test: 2 cases, all as expected\n");
+    printf("\n");
+
     // Each block reports its OWN verdict, because the marker the run script
     // greps for is what makes a clean sweep mean anything -- a block that
     // prints "all as expected" whatever happened is a marker that says only
@@ -1821,6 +2741,46 @@ int oc_selftest(void)
     printf("\n");
 
     was = bad;
+    printf("VOID check self test\n");
+    bad += oc_selftest_void("a title, two lines and nothing else, fires",
+                            false, true);
+    bad += oc_selftest_void("the same screen with a framed card, clear",
+                            true, false);
+    if (bad != was) printf("VOID self test: %d case(s) wrong\n", bad - was);
+    else            printf("VOID self test: 2 cases, all as expected\n");
+    printf("\n");
+
+    was = bad;
+    printf("EXIT check self test\n");
+    bad += oc_selftest_exit("a refusal whose band is only BACK, fires",
+                            false, true);
+    bad += oc_selftest_exit("the same refusal with a tab strip, clear",
+                            true, false);
+    if (bad != was) printf("EXIT self test: %d case(s) wrong\n", bad - was);
+    else            printf("EXIT self test: 2 cases, all as expected\n");
+    printf("\n");
+
+    was = bad;
+    printf("DOTS check self test\n");
+    bad += oc_selftest_dots("a name too long for its lane, fires",
+                            "zzzz-MANY-recipients-export.psbt", 120, true);
+    bad += oc_selftest_dots("the same lane, a name that fits, clear",
+                            "ok.psbt", 120, false);
+    if (bad != was) printf("DOTS self test: %d case(s) wrong\n", bad - was);
+    else            printf("DOTS self test: 2 cases, all as expected\n");
+    printf("\n");
+
+    was = bad;
+    printf("CLIPX check self test\n");
+    bad += oc_selftest_clipx("the auto-lock banner as it shipped, fires",
+                             "locking soon. tap to stay open.", 420, true);
+    bad += oc_selftest_clipx("the same words in a box that holds them, clear",
+                             "locking soon. tap to stay open.", 780, false);
+    if (bad != was) printf("CLIPX self test: %d case(s) wrong\n", bad - was);
+    else            printf("CLIPX self test: 2 cases, all as expected\n");
+    printf("\n");
+
+    was = bad;
     printf("READ check self test\n");
     bad += oc_selftest_read("a 16 word sentence, fires", "words",
                             "one two three four five six seven eight nine ten "
@@ -1832,6 +2792,44 @@ int oc_selftest(void)
                             "coordinator", 4, false);
     if (bad != was) printf("READ self test: %d case(s) wrong\n", bad - was);
     else            printf("READ self test: 3 cases, all as expected\n");
+    printf("\n");
+
+    was = bad;
+    printf("MARK check self test\n");
+    bad += oc_selftest_mark("a caption opening a clause, fires",
+                            "ONCE YOU SIGN", true);
+    bad += oc_selftest_mark("a caption that is a question, fires",
+                            "WHO CAN SEE IT", true);
+    // The COUNT half, on its own. Both bench strings open a clause, so
+    // without this the length limit could be dead and every case above would
+    // still say ok -- which is the whole reason this self test exists.
+    bad += oc_selftest_mark("five words and no clause word, fires",
+                            "TOTAL AMOUNT SENT TO THEM", true);
+    // ...and the four word NAME the count used to red at three, which is the
+    // string that set the limit. It ships on the firmware signature screen.
+    bad += oc_selftest_mark("a four word name, clear",
+                            "VERSION ON THE CARD", false);
+    bad += oc_selftest_mark("the caption that fixed it, clear",
+                            "THIS PAYMENT", false);
+    bad += oc_selftest_mark("the longest one that was always right, clear",
+                            "USED OF TOTAL", false);
+    if (bad != was) printf("MARK self test: %d case(s) wrong\n", bad - was);
+    else            printf("MARK self test: 6 cases, all as expected\n");
+    printf("\n");
+
+    was = bad;
+    printf("WIDOW check self test\n");
+    // Two lines with three words on the second, which is the shape that came
+    // off the bench, and two lines that both fill their lane.
+    // The exact string that came off the bench, in the exact lane it was in.
+    bad += oc_selftest_widow("a two line body with a stub second, fires",
+                             "Keys come from your seed words and passphrase.",
+                             true);
+    bad += oc_selftest_widow("a two line body that fills both, clear",
+                             "You type the words off your paper. The signer "
+                             "checks them against these keys.", false);
+    if (bad != was) printf("WIDOW self test: %d case(s) wrong\n", bad - was);
+    else            printf("WIDOW self test: 2 cases, all as expected\n");
     printf("\n");
 
     was = bad;
@@ -1891,6 +2889,13 @@ int oc_selftest(void)
     bad += oc_selftest_wall("same paragraph with a chip beside it, clear", true, false);
     if (bad) printf("WALL self test: %d case(s) wrong\n", bad);
     else     printf("WALL self test: 2 cases, all as expected\n");
+    printf("\n");
+
+    printf("STALE check self test\n");
+    bad += oc_selftest_stale("accent label with no flag, fires", false, true);
+    bad += oc_selftest_stale("the same label flagged, clear", true, false);
+    if (bad) printf("STALE self test: %d case(s) wrong\n", bad);
+    else     printf("STALE self test: 2 cases, all as expected\n");
     printf("\n");
 
     printf("LAYER check self test\n");
@@ -2024,15 +3029,107 @@ static void oc_check_layer(const char *tag)
     oc_layer_walk(lv_layer_sys(), tag, "lv_layer_sys", 0);
 }
 
+// LAYER exempts the deliberate full screen overlay, and that exemption used to
+// cover everything INSIDE it as well -- so the auto-lock banner, the one thing
+// the top layer legitimately holds, was the one thing no check in this file
+// ever read. It shipped clipped at both ends for the life of the feature.
+//
+// The exemption stays: an overlay covering the glass is what the layer is for,
+// and running TEXT or CONTENT across it would report the covering itself. What
+// runs is the clip pair, against the overlay's own tree, which is exactly the
+// question an overlay can get wrong.
+static void oc_check_overlay(const char *tag)
+{
+    lv_obj_t *top = lv_layer_top();
+    const lv_area_t full = { 0, 0, LV_HOR_RES - 1, LV_VER_RES - 1 };
+
+    for (uint32_t i = 0; i < lv_obj_get_child_count(top); i++) {
+        lv_obj_t *o = lv_obj_get_child(top, i);
+        if (!oc_visible(o)) continue;
+        lv_area_t c;
+        lv_obj_get_coords(o, &c);
+        if (c.x1 > 0 || c.y1 > 0 ||
+            area_w(&c) < LV_HOR_RES || area_h(&c) < LV_VER_RES) continue;
+        s_n = 0;
+        oc_collect(o, full, false);
+        oc_check_clipped(tag);
+        s_n = 0;
+    }
+}
+
 // ---------------------------------------------------------------- entry points
 
 void oc_check(const char *tag);
 int  oc_report(void);
 
+// ---- what is held BETWEEN stops -------------------------------------------
+//
+// The end-of-run watermark is 107728 and the worst STOP holds 76464. Thirty
+// one kilobytes are live at a moment no stop photographs, so nothing that
+// walks a settled screen can see them -- including every check in this file.
+//
+// This samples on LVGL's own clock instead. At each new high it records what
+// is REACHABLE from the three roots, which is the question that separates the
+// two candidates: a screen that genuinely builds that much during a
+// transition, or objects nobody can reach because lv_obj_delete_async has
+// queued them and lv_timer_handler has not run the queue yet. This tree calls
+// delete_async 76 times.
+static uint32_t s_peak_used, s_peak_reach, s_peak_scr, s_peak_top;
+static const char *s_peak_tag = "(before the first stop)";
+static const char *s_last_tag = "(before the first stop)";
+
+static uint32_t oc_count(lv_obj_t *o)
+{
+    uint32_t n = 1;
+    for (uint32_t i = 0; i < lv_obj_get_child_count(o); i++)
+        n += oc_count(lv_obj_get_child(o, i));
+    return n;
+}
+
+static void oc_heap_sample(lv_timer_t *t);
+// The construction moment: wt_screen is about to build `title`, and whatever
+// it is replacing has not been freed yet.
+static void oc_heap_screen(const char *title)
+{
+    s_last_tag = title ? title : "(untitled screen)";
+    oc_heap_sample(NULL);
+}
+static void oc_heap_ev(lv_event_t *e) { (void)e; oc_heap_sample(NULL); }
+
+static void oc_heap_sample(lv_timer_t *t)
+{
+    (void)t;
+    lv_mem_monitor_t m;
+    lv_mem_monitor(&m);
+    const uint32_t used = m.total_size - m.free_size;
+    if (used <= s_peak_used) return;
+    s_peak_used = used;
+    s_peak_tag  = s_last_tag;
+    lv_obj_t *scr = lv_screen_active();
+    s_peak_scr = scr ? oc_count(scr) : 0;
+    s_peak_top = oc_count(lv_layer_top()) + oc_count(lv_layer_sys());
+    s_peak_reach = s_peak_scr + s_peak_top;
+}
+
 void oc_check(const char *tag)
 {
     lv_obj_t *scr = lv_screen_active();
     if (!scr) return;
+    s_last_tag = oc_short_tag(tag);
+    if (getenv("OVERLAPCHECK_HEAP")) {
+        static lv_timer_t *hs;
+        if (!hs) {
+            hs = lv_timer_create(oc_heap_sample, 1, NULL);
+            // A 1ms timer only samples BETWEEN handler passes, and it topped
+            // out 30KB under the watermark: the peak is inside a pass, while
+            // a screen is being built. The display's own refresh events are
+            // in that pass.
+            lv_display_t *d = lv_display_get_default();
+            lv_display_add_event_cb(d, oc_heap_ev, LV_EVENT_REFR_START, NULL);
+            lv_display_add_event_cb(d, oc_heap_ev, LV_EVENT_REFR_READY, NULL);
+            wt_screen_set_sink(oc_heap_screen);
+        }
+    }
 
     if (oc_is_game_frame(tag)) { s_skipped++; return; }
 
@@ -2065,20 +3162,68 @@ void oc_check(const char *tag)
         }
     }
 
+    // OVERLAPCHECK_SIZES=1: every rendered label with its font height and the
+    // stop it is on. Not a check -- the answer to "show me everything small",
+    // which the checks cannot give because each one is defined by what it
+    // excuses. Piped through sort/uniq it is the whole device's type ladder.
+    if (getenv("OVERLAPCHECK_SIZES")) {
+        for (int i = 0; i < s_n; i++) {
+            const oc_node_t *n = &s_node[i];
+            if (!n->is_label || n->buried) continue;
+            char spbuf[512];
+        const char *txt = oc_text_of(n->obj, spbuf, sizeof spbuf);
+            if (!txt || !*txt) continue;
+            char t[96];
+            oc_text(n->obj, t, sizeof t);
+            const lv_font_t *f = lv_obj_get_style_text_font(n->obj, LV_PART_MAIN);
+            const char *fn = f == wt_font14()      ? "font14"
+                           : f == wt_font_mono14() ? "mono14"
+                           : f == wt_font_mono18() ? "mono18"
+                           : f == wt_font_mono21() ? "mono21"
+                           : f == wt_font23()      ? "font23"
+                           : f == wt_font_mono23() ? "mono23"
+                           : f == wt_font28()      ? "font28"
+                           : f == wt_font_mono28() ? "mono28"
+                           : "other";
+            printf("[size] %2d %-6s %4d %4d %p %-30s %s\n", n->lh, fn,
+                   (int)n->vis.x1, (int)n->vis.y1, (void *)n->parent,
+                   oc_short_tag(tag), t);
+        }
+    }
+
+    // OVERLAPCHECK_HEAP=1: what this stop is HOLDING, per stop. The
+    // end-of-run [lvheap] line is a global high-water mark and names no
+    // screen, so a tree at 87% says nothing about WHICH page to cut. Sorted,
+    // this is that list.
+    if (getenv("OVERLAPCHECK_HEAP")) {
+        lv_mem_monitor_t m;
+        lv_mem_monitor(&m);
+        printf("[heap] %7u %s\n",
+               (unsigned)(m.total_size - m.free_size), oc_short_tag(tag));
+    }
+
     oc_check_text_overlap(tag);
     oc_check_content_bottom(tag);
     oc_check_ladder(tag);
     oc_check_wrap_growth(tag);
     oc_check_clipped(tag);
     oc_check_colour_roles(tag);
+    oc_check_stale(tag);
     oc_check_bare(tag);
     oc_check_wall(tag);
+    oc_check_exit(tag);
+    oc_check_void(tag);
     oc_check_fit(tag);
     oc_check_cut(tag);
+    oc_check_ink(tag);
     oc_check_tiny(tag);
+    oc_check_dots(tag);
     oc_check_amber(tag);
     oc_check_ragged(tag);
     oc_check_layer(tag);
+    // LAST: it rebuilds the node set against the overlay's tree, so anything
+    // reading the screen's set has to have read it already.
+    oc_check_overlay(tag);
 }
 
 int oc_report(void)
@@ -2088,6 +3233,11 @@ int oc_report(void)
 
     printf("\n[overlap] %s: %d stops checked, %d game frames skipped, "
            "%d distinct findings\n", lang, s_stops, s_skipped, s_findings);
+    if (s_peak_used)
+        printf("[heap-peak] %u bytes, %u objects reachable "
+               "(%u on the screen, %u on the layers), just after %s\n",
+               (unsigned)s_peak_used, (unsigned)s_peak_reach,
+               (unsigned)s_peak_scr, (unsigned)s_peak_top, s_peak_tag);
 
     // Where the walk STARTED, not wt_accent_name(). Two reasons: the walk taps
     // the theme dots near the end and leaves on MONO, so the live theme would
@@ -2126,6 +3276,28 @@ int oc_report(void)
                lang, wall_left);
     }
     {
+        int void_left = 0;
+        for (unsigned i = 0; i < sizeof OC_VOID_BACKLOG / sizeof OC_VOID_BACKLOG[0]; i++) {
+            if (!OC_VOID_BACKLOG[i]) continue;
+            if (s_void_hit[i]) { void_left++; continue; }
+            printf("[overlap] %s: VOID backlog entry \"%s\" never matched a stop"
+                   " -- rebuild it or delete the line\n", lang, OC_VOID_BACKLOG[i]);
+        }
+        printf("[overlap] %s: %d screens still on the VOID backlog\n",
+               lang, void_left);
+    }
+    {
+        int exit_left = 0;
+        for (unsigned i = 0; i < sizeof OC_EXIT_BACKLOG / sizeof OC_EXIT_BACKLOG[0]; i++) {
+            if (!OC_EXIT_BACKLOG[i]) continue;
+            if (s_exit_hit[i]) { exit_left++; continue; }
+            printf("[overlap] %s: EXIT backlog entry \"%s\" never matched a stop"
+                   " -- rebuild it or delete the line\n", lang, OC_EXIT_BACKLOG[i]);
+        }
+        printf("[overlap] %s: %d screens still on the EXIT backlog\n",
+               lang, exit_left);
+    }
+    {
         int fit_left = 0;
         for (unsigned i = 0; i < sizeof OC_FIT_BACKLOG / sizeof OC_FIT_BACKLOG[0]; i++) {
             if (!OC_FIT_BACKLOG[i]) continue;
@@ -2136,6 +3308,25 @@ int oc_report(void)
         }
         printf("[overlap] %s: %d strings still on the FIT backlog\n",
                lang, fit_left);
+    }
+    {
+        // STALE is the one backlog whose verdict is NOT this run's to give.
+        // It needs the accent to CHANGE, only the accent sweep changes it, and
+        // it is blind in the MONO run whose accent is WT_INK -- so an entry
+        // unmatched here may match in another pass, and "never matched a stop"
+        // would be a lie two runs out of three. Report what THIS run saw and
+        // let run_overlapcheck.sh decide across all three.
+        //
+        // Written because s_stale_hit was set and never read: every other
+        // backlog in this file says when an entry stopped excusing anything,
+        // and this one silently kept it forever. That is how a list of
+        // excuses outlives the defects it was written for.
+        for (unsigned i = 0; i < sizeof OC_STALE_BACKLOG / sizeof OC_STALE_BACKLOG[0]; i++) {
+            if (!OC_STALE_BACKLOG[i]) continue;
+            printf("[overlap] %s: STALE backlog entry %s |%s|\n",
+                   lang, s_stale_hit[i] ? "matched" : "unmatched",
+                   OC_STALE_BACKLOG[i]);
+        }
     }
 
     for (int i = 0; i < s_seen_n; i++)

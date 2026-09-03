@@ -1,4 +1,3 @@
-4573cf973ef5eb78a6fca9e9c5cc1702df882cb1eb699c366d0a56ce2baae11f  kiss-signer-0.1.0-beta7.bin
-91f9e4ac25797f09ac0889773568fccd6a56fba085c39f763cd98192e243fdd3  build-release/bootloader/bootloader.bin  (bootloader)
-3d2823faa69057aef2e36f3fc1e1a022d1366c16bc4cbce3ac1b38332de392a6  build-release/partition_table/partition-table.bin  (partition table)
-b08d44e6d3703289f22c8217f7f0352d8ba0b17aa75e7a2ae88a69235d267d0c  build-release/guition_kiss_bringup.bin  (application)
+d96e57b4f83dbf7187ca82933c26b1c2d37096a17adb568ccab7020cdcbced9d  kiss-signer-0.1.0-beta8.bin
+d4de9cfb307ec554ea7ac873b7218a7b320373a29d9c4a0fed95e475e8955bbe  kiss-signer-0.1.0-beta8-update.bin
+f392b8ec8ed88087479bfa776930d7fb72ccf1e141708846e0784b0e4c45c55e  manifest.json

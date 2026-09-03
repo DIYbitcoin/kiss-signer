@@ -26,6 +26,9 @@
 //      never crash, never a foreign plaintext, and no input is ever claimed
 //      by BOTH the KEF sniff and the plaintext reader (the restore router
 //      depends on that disjointness)
+//   9. random LEGITIMATE psbts through kiss_psbt_sign twice -> byte-identical
+//      both times, every input signed. Not a parser case: the nonce is what is
+//      under test, on shapes no fixture pins (docs/specs/verifiable-determinism.md)
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
@@ -56,7 +59,7 @@ static void chkb(const char *name, int ok) {
 }
 
 // xorshift32: deterministic junk (re-seeded in main for reproducibility)
-static uint32_t s_rng = 0xC0FFEE01u;
+static uint32_t s_rng;              // seeded in main from FUZZ_SEED
 static uint32_t rnd(void) {
     uint32_t x = s_rng;
     x ^= x << 13; x ^= x >> 17; x ^= x << 5;
@@ -117,6 +120,158 @@ static size_t mk_valid_psbt(uint8_t *out, size_t outsz) {
     return wr;
 }
 
+
+// ---- randomised, legitimate psbts (case 9) ---------------------------------
+// Every case above starts from mk_valid_psbt, so the whole harness only ever
+// signs ONE shape, and the golden vectors in kisstest pin six more. None of
+// them says anything about a nonce that misbehaves only on a second input, a
+// non-zero locktime, or an address index nobody tried. That is exactly the
+// room a Dark Skippy nonce needs (docs/specs/verifiable-determinism.md), so
+// these build a fresh legitimate psbt every time instead.
+
+static struct ext_key fz_master;
+static uint8_t fz_fp[4];
+static int fz_master_ready;
+
+static void fz_derive(uint32_t purpose, uint32_t change, uint32_t index,
+                      struct ext_key *out) {
+    if (!fz_master_ready) {
+        uint8_t seed[BIP39_SEED_LEN_512]; size_t sl = 0;
+        bip39_mnemonic_to_seed(
+            "abandon abandon abandon abandon abandon abandon "
+            "abandon abandon abandon abandon abandon about", NULL,
+            seed, sizeof seed, &sl);
+        bip32_key_from_seed(seed, sizeof seed, BIP32_VER_MAIN_PRIVATE, 0,
+                            &fz_master);
+        bip32_key_get_fingerprint(&fz_master, fz_fp, sizeof fz_fp);
+        wally_bzero(seed, sizeof seed);
+        fz_master_ready = 1;
+    }
+    const uint32_t path[5] = {H + purpose, H, H, change, index};
+    bip32_key_from_parent_path(&fz_master, path, 5, BIP32_FLAG_KEY_PRIVATE, out);
+}
+
+static void fz_spk(int script, const uint8_t pub[33], uint8_t *out, size_t *len) {
+    size_t w = 0;
+    if (script == WSCRIPT_LEGACY)
+        wally_scriptpubkey_p2pkh_from_bytes(pub, 33, WALLY_SCRIPT_HASH160,
+                                            out, 25, len);
+    else if (script == WSCRIPT_NESTED) {
+        uint8_t r[22];
+        wally_witness_program_from_bytes(pub, 33, WALLY_SCRIPT_HASH160, r, 22, &w);
+        wally_scriptpubkey_p2sh_from_bytes(r, 22, WALLY_SCRIPT_HASH160,
+                                           out, 23, len);
+    } else
+        wally_witness_program_from_bytes(pub, 33, WALLY_SCRIPT_HASH160,
+                                         out, 22, len);
+}
+
+// 1-3 of our inputs at random address indices, one external output, sometimes
+// a change output, random amounts, locktime and sequences. Every input carries
+// its FULL previous transaction: that is what keeps a multi-input psbt off the
+// unproven-amount STOP (kiss_psbt.c:989), so there is something left to sign.
+// Returns 0 when the shape did not build, which is not a failure -- the amount
+// draw can land somewhere with no room for a fee.
+static size_t mk_rand_psbt(int script, uint8_t *out, size_t outsz) {
+    const uint32_t purpose = script == WSCRIPT_LEGACY ? 44
+                           : script == WSCRIPT_NESTED ? 49 : 84;
+    const size_t n_in = 1 + rnd() % 3;
+    const int with_change = (rnd() & 1) != 0;
+    const size_t n_out = with_change ? 2 : 1;
+
+    struct wally_tx *tx = NULL, *prev[3] = {NULL, NULL, NULL};
+    struct wally_psbt *p = NULL;
+    struct ext_key kin[3], kchg;
+    uint8_t in_spk[3][25], chg_spk[25];
+    size_t in_len[3] = {0, 0, 0}, chg_len = 0, wr = 0;
+    uint64_t in_val[3] = {0, 0, 0}, total = 0;
+    uint32_t in_idx[3] = {0, 0, 0};
+    uint32_t chg_index = rnd() % 100;
+
+    memset(kin, 0, sizeof kin);
+    memset(&kchg, 0, sizeof kchg);
+
+    if (wally_tx_init_alloc(2, (rnd() & 1) ? 0 : rnd() % 700000,
+                            n_in, n_out, &tx) != WALLY_OK)
+        return 0;
+
+    for (size_t i = 0; i < n_in; i++) {
+        in_idx[i] = rnd() % 2000;
+        fz_derive(purpose, 0, in_idx[i], &kin[i]);
+        fz_spk(script, kin[i].pub_key, in_spk[i], &in_len[i]);
+        in_val[i] = 20000 + rnd() % 4000000;
+        total += in_val[i];
+        // one previous transaction per input, each with its own txid, so no
+        // two inputs of the same psbt can name the same outpoint
+        uint8_t dummy[32], txid[32];
+        memset(dummy, (uint8_t)(0xB0 + i), 32);
+        if (wally_tx_init_alloc(2, 0, 1, 1, &prev[i]) != WALLY_OK) goto done;
+        wally_tx_add_raw_input(prev[i], dummy, 32, 0, 0xFFFFFFFF, NULL, 0, NULL, 0);
+        wally_tx_add_raw_output(prev[i], in_val[i], in_spk[i], in_len[i], 0);
+        wally_tx_get_txid(prev[i], txid, 32);
+        wally_tx_add_raw_input(tx, txid, 32, 0, 0xFFFFFFFD - (rnd() % 3),
+                               NULL, 0, NULL, 0);
+    }
+
+    uint64_t fee = 300 + rnd() % 5000;
+    if (total <= fee + 4000) goto done;
+    uint64_t spend = total - fee, ext_val = spend, chg_val = 0;
+    if (with_change) {
+        chg_val = 600 + rnd() % (spend / 2);
+        if (spend < chg_val + 600) goto done;
+        ext_val = spend - chg_val;
+    }
+    uint8_t ext_spk[22] = {0x00, 0x14};
+    for (int j = 0; j < 20; j++) ext_spk[2 + j] = (uint8_t)rnd();
+    wally_tx_add_raw_output(tx, ext_val, ext_spk, 22, 0);
+    if (with_change) {
+        fz_derive(purpose, 1, chg_index, &kchg);
+        fz_spk(script, kchg.pub_key, chg_spk, &chg_len);
+        wally_tx_add_raw_output(tx, chg_val, chg_spk, chg_len, 0);
+    }
+
+    if (wally_psbt_init_alloc(0, n_in, n_out, 1, 0, &p) != WALLY_OK) goto done;
+    wally_psbt_set_global_tx(p, tx);
+    for (size_t i = 0; i < n_in; i++) {
+        wally_psbt_set_input_utxo(p, i, prev[i]);
+        if (script != WSCRIPT_LEGACY) {
+            struct wally_tx_output *u = NULL;
+            wally_tx_output_init_alloc(in_val[i], in_spk[i], in_len[i], &u);
+            wally_psbt_set_input_witness_utxo(p, i, u);
+            wally_tx_output_free(u);
+        }
+        if (script == WSCRIPT_NESTED) {
+            uint8_t r[22]; size_t w = 0;
+            wally_witness_program_from_bytes(kin[i].pub_key, 33,
+                                             WALLY_SCRIPT_HASH160, r, 22, &w);
+            wally_psbt_set_input_redeem_script(p, i, r, 22);
+        }
+        const uint32_t pin[5] = {H + purpose, H, H, 0, in_idx[i]};
+        struct wally_map *m = NULL;
+        wally_map_keypath_public_key_init_alloc(1, &m);
+        wally_map_keypath_add(m, kin[i].pub_key, 33, fz_fp, 4, pin, 5);
+        wally_psbt_set_input_keypaths(p, i, m);
+        wally_map_free(m);
+    }
+    if (with_change) {
+        const uint32_t pchg[5] = {H + purpose, H, H, 1, chg_index};
+        struct wally_map *m = NULL;
+        wally_map_keypath_public_key_init_alloc(1, &m);
+        wally_map_keypath_add(m, kchg.pub_key, 33, fz_fp, 4, pchg, 5);
+        wally_psbt_set_output_keypaths(p, 1, m);
+        wally_map_free(m);
+    }
+    wally_psbt_to_bytes(p, 0, out, outsz, &wr);
+
+done:
+    if (p) wally_psbt_free(p);
+    for (size_t i = 0; i < 3; i++) if (prev[i]) wally_tx_free(prev[i]);
+    if (tx) wally_tx_free(tx);
+    wally_bzero(kin, sizeof kin);
+    wally_bzero(&kchg, sizeof kchg);
+    return wr;
+}
+
 // ---- hand-built UR frames --------------------------------------------------
 // qrt_encoder_new_frag cannot produce the shape below: a conforming encoder
 // zero-pads every fragment to one nominal length, so every frame of a stream
@@ -158,9 +313,15 @@ static int mk_ur_part(char *out, size_t outsz, uint32_t seq_num, uint32_t seq_le
     return (n > 0 && (size_t)n < outsz) ? n : -1;
 }
 
+// The seed, in one place, so the run can say which one it used. It is a
+// constant and not a clock: every run of this harness is the same run, and a
+// failure here reproduces by checking out the commit and running it again.
+#define FUZZ_SEED 0xC0FFEE01u
+
 int main(void)
 {
-    s_rng = 0xC0FFEE01u;
+    s_rng = FUZZ_SEED;
+    printf("fuzz seed: 0x%08X (fixed)\n", (unsigned)FUZZ_SEED);
     kiss_seed_store("abandon abandon abandon abandon abandon abandon "
                       "abandon abandon abandon abandon abandon about");
     kiss_set_network(0);
@@ -810,6 +971,79 @@ int main(void)
              both == 0);
     }
     printf("PASS: kef random shapes: no crash, no false claim\n");
+
+    // ---- 9. random legitimate psbts: signing is deterministic on every shape --
+    // The property the whole Dark Skippy defence rests on, asked of shapes no
+    // fixture covers: sign, reload from the same bytes, sign again, and require
+    // the signed psbt AND the SIGNATURE code to be identical. A nonce with any
+    // freedom in it fails here on the shape that frees it.
+    {
+        static uint8_t rp[16384], ra[16384], rb[16384];
+        int signed_n = 0, skipped = 0, distinct = 0;
+        char first_fp[9] = {0};
+        for (int i = 0; i < 300; i++) {
+            int script = (int)(rnd() % 3);
+            kiss_set_script(script);
+            size_t pl = mk_rand_psbt(script, rp, sizeof rp);
+            if (!pl) { skipped++; continue; }
+            wpsbt_summary_t s1;
+            if (kiss_psbt_load(rp, pl, &s1) != 0 || s1.status == WPSBT_STOP) {
+                skipped++; kiss_psbt_free(); continue;
+            }
+            size_t wa = 0;
+            int rc = kiss_psbt_sign(ra, sizeof ra, &wa);
+            kiss_psbt_free();
+            if (rc != 0) {
+                printf("FAIL: a loadable random psbt would not sign "
+                       "(iter %d script %d)\n", i, script);
+                fails++; continue;
+            }
+            // an empty result compares equal to itself and proves nothing, so
+            // every input has to carry a signature before the comparison counts
+            struct wally_psbt *sp = NULL;
+            int all_signed = 0;
+            if (wally_psbt_from_bytes(ra, wa, 0, &sp) == WALLY_OK && sp) {
+                all_signed = 1;
+                for (size_t k = 0; k < sp->num_inputs; k++)
+                    if (sp->inputs[k].signatures.num_items == 0) all_signed = 0;
+                wally_psbt_free(sp);
+            }
+            if (!all_signed) {
+                printf("FAIL: signed random psbt has an unsigned input "
+                       "(iter %d script %d)\n", i, script);
+                fails++; continue;
+            }
+            wpsbt_summary_t s2; size_t wb = 0;
+            if (kiss_psbt_load(rp, pl, &s2) != 0 ||
+                kiss_psbt_sign(rb, sizeof rb, &wb) != 0) {
+                printf("FAIL: random psbt would not re-sign (iter %d)\n", i);
+                fails++; kiss_psbt_free(); continue;
+            }
+            kiss_psbt_free();
+            if (wb != wa || memcmp(ra, rb, wa) != 0) {
+                printf("FAIL: random psbt signed to different bytes "
+                       "(iter %d script %d ins %u)\n", i, script, s1.n_in);
+                fails++;
+            }
+            char fa[9] = {0}, fb[9] = {0};
+            if (kiss_psbt_sig_fingerprint(ra, wa, fa) != 0 ||
+                kiss_psbt_sig_fingerprint(rb, wb, fb) != 0 ||
+                strcmp(fa, fb) != 0) {
+                printf("FAIL: SIGNATURE code moved across a re-sign (iter %d)\n", i);
+                fails++;
+            }
+            if (!first_fp[0]) memcpy(first_fp, fa, sizeof first_fp);
+            else if (strcmp(first_fp, fa) != 0) distinct = 1;
+            signed_n++;
+        }
+        kiss_set_script(WSCRIPT_NATIVE);
+        chkb("random psbts: enough shapes reached the signer", signed_n > 150);
+        // discrimination: a check that only ever saw one code would pass with a
+        // constant wired in where the signer is
+        chkb("random psbts: the SIGNATURE code varies with the psbt", distinct);
+        printf("PASS: %d random psbt shapes signed deterministically "
+               "(%d skipped)\n", signed_n, skipped);
+    }
 
     kiss_session_close();
     printf(fails ? "\n%d FUZZ FAIL\n" : "\nALL FUZZ PASS\n", fails);

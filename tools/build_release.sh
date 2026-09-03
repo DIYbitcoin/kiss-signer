@@ -225,10 +225,33 @@ if rev and rev in blob:
     print(f"PASS: commit {rev.decode()} present")
 else:
     print(f"FAIL: commit {rev.decode()} missing"); fails += 1
-if b"abandon abandon" in blob:
-    print("FAIL: dev mnemonic found in release binary"); fails += 1
+# ONE copy is correct and required. kiss_seed_is_test_vector() carries the
+# vector so the device can REFUSE it at restore, and kiss_seed.c says the owner
+# asked for that in shipped firmware rather than behind a build flag, twice.
+# The two that must not ship -- kiss_crypto.c's DEV_MNEMONIC and the bench's --
+# are both behind KISS_RELEASE and both are out.
+#
+# So "is the string present" stopped being the question the moment the refusal
+# landed, and this check went on asking it: it failed every release build, and
+# because build_release.sh runs under set -e inside make_web_release.sh, it
+# aborted the publish. A gate that cannot tell a seed from the guard against
+# that seed is one that gets bypassed, and the bypass is what would actually
+# ship a dev seed one day.
+#
+# Counted, not searched, and the count is the whole check: a SECOND literal is
+# a second translation unit that got linked, which is exactly the regression
+# the original grep was written to catch.
+_TV = (b"abandon abandon abandon abandon abandon abandon "
+       b"abandon abandon abandon abandon abandon about")
+_n = blob.count(_TV)
+if _n > 1:
+    print(f"FAIL: {_n} copies of the dev mnemonic in the release binary "
+          f"-- one is kiss_seed_is_test_vector, the rest are a leak"); fails += 1
+elif _n == 1:
+    print("PASS: one dev mnemonic, the restore refusal's own copy")
 else:
-    print("PASS: no dev mnemonic in release binary")
+    print("FAIL: the test vector is missing, so restore cannot refuse it")
+    fails += 1
 if b"KISS %s dev (%s)" in blob:
     print("FAIL: dev build banner found in release binary"); fails += 1
 else:

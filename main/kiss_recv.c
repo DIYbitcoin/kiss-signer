@@ -115,8 +115,8 @@ static lv_obj_t *s_state_chip, *s_chain_lbl;
 // recv_refresh rebuilds the spans on every NEXT, so both have to outlive one
 // refresh: the spans are children of the card and are placed against the
 // caption, which is a child of the card too.
-static lv_obj_t *s_addr_card, *s_cmp_lbl;
-static lv_obj_t *s_addr_more;   // "FULL ADDRESS" / "SHORT", the fold's own label
+static lv_obj_t *s_addr_card;
+static lv_obj_t *s_addr_more;   // the PLUS beside the address: it opens here
 static lv_obj_t *s_sp_path_lbl, *s_sp_path_sec, *s_sp_toggle_act;
 // The card behind the silent-payment address and its path. Sized by
 // sp_addr_render, because the folded and full views are wildly different
@@ -133,15 +133,11 @@ static bool s_sp_full;                     // silent-payment text is folded by d
 static char s_sp_addr[128];
 static lv_obj_t *s_lock_note;              // the locked reassurance in the QR's space
 // Declared up here because close_cb nulls every one of them: the lamp pair,
-// the selector's chevron, the popover and its scrim, the NEXT action, and
-// the address fold's tap target all die with the screen.
+// the selector's mark, the NEXT action, and the address fold's tap target all
+// die with the screen.
 static lv_obj_t *s_lamp_dot, *s_lamp_lbl, *s_idx_chev;
 static lv_obj_t *s_next_act;          // NEXT ADDRESS: only tab 0 may show it
-static lv_obj_t *s_pop;               // the index popover, or NULL
-// Its tap-away catcher, which is a SIBLING and therefore does not die with it.
-// Held here because a catcher that outlives the popover covers the whole pane
-// and silently eats every tap on the screen behind it.
-static lv_obj_t *s_pop_away;
+static lv_obj_t *s_vfy_act;           // VERIFY: the same, and for the same reason
 // Whether tab 0 shows the address grouped and whole instead of folded. A view,
 // not a remembered state: reset on every open. This is the ONLY place on the
 // device a full receive address renders as text -- everything else folds and
@@ -166,11 +162,8 @@ static void close_cb(lv_event_t *e) {
   s_sp_toggle_act = s_sp_addr_hit = NULL;
   s_sp_card = NULL;
   s_state_chip = s_chain_lbl = NULL;
-  s_addr_card = s_cmp_lbl = s_addr_more = NULL;
-  s_next_act = s_addr_hit = NULL;
-  // The popover and its scrim die with the screen; the idle auto-lock used to
-  // leave both statics pointing at the freed pair until the next open.
-  s_pop = s_pop_away = NULL;
+  s_addr_card = s_addr_more = NULL;
+  s_next_act = s_vfy_act = s_addr_hit = NULL;
   s_idx_chev = s_lamp_dot = s_lamp_lbl = NULL;
   if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
 }
@@ -355,7 +348,7 @@ static void vfy_result(const char *txt, size_t len) {
     // and what the device is set to in one sentence. "mainnet" and "testnet"
     // are Bitcoin proper nouns and stay untranslated; every locale already
     // uses those two words as English in this file.
-    char buf[256];
+    char netb[256];                    // not 'buf': the one at the top is 200
     // The address's side cannot be narrowed past "testnet": a tb1 address is
     // the same string on all three test chains. Ours can, and it is the half a
     // reader acts on.
@@ -363,8 +356,8 @@ static void vfy_result(const char *txt, size_t len) {
     const char *wall_net = kiss_network() == KISS_NET_SIGNET ? "signet"
                          : kiss_testnet()                    ? "testnet"
                                                              : "mainnet";
-    snprintf(buf, sizeof buf, tr(STR_R_WRONG_NET_B), addr_net, wall_net);
-    wt_wrap(s_scr, buf, 48, note_y, 700, WT_CONTENT_BOTTOM - note_y);
+    snprintf(netb, sizeof netb, tr(STR_R_WRONG_NET_B), addr_net, wall_net);
+    wt_wrap(s_scr, netb, 48, note_y, 700, WT_CONTENT_BOTTOM - note_y);
   } else {
     wt_lbl(s_scr, tr_sym(LV_SYMBOL_CLOSE, STR_R_INVALID),
            48, 130, wt_font28(), WT_STOP);
@@ -442,9 +435,14 @@ static const char *s_sp_share, *s_sp_seen;
 static int aside_sp_prefixes(lv_obj_t *par, int x, int y, int w) {
   (void)w;
   char buf[WT_ICON_TEXT_MAX];
-  lv_obj_t *col = lv_obj_create(par);
+  // In a card, for the reason aside_col in kiss_info.c gives: two chips are
+  // chrome to a reader and are 40x28 to the frame test, so the picture became
+  // invisible the moment the ruled body it sat above went away.
+  const int pad = 12;
+  lv_obj_t *card = wt_card(par, x, y, 704, 2 * pad);
+  lv_obj_t *col = lv_obj_create(card);
   lv_obj_remove_style_all(col);
-  lv_obj_set_pos(col, x, y);
+  lv_obj_set_pos(col, 0, pad);
   lv_obj_set_width(col, 704);
   lv_obj_set_height(col, LV_SIZE_CONTENT);
   lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
@@ -463,7 +461,9 @@ static int aside_sp_prefixes(lv_obj_t *par, int x, int y, int w) {
   wt_chip(row, buf, true);
 
   lv_obj_update_layout(col);
-  return lv_obj_get_height(col);
+  const int h = lv_obj_get_height(col) + 2 * pad;
+  lv_obj_set_height(card, h);
+  return h;
 }
 
 static void sp_help_cb(lv_event_t *e) {
@@ -499,6 +499,33 @@ static void sp_addr_render(void) {
     wt_group4(s_sp_addr, grouped, sizeof(grouped));
     s_addr_sg = wt_addr_spans(s_scr, grouped, SP_COL_W, wt_font_mono28());
     lv_obj_set_pos(s_addr_sg, SP_COL_X, 100);
+    // A LADDER, because the clamp below cannot save this on its own. It holds
+    // the path block off WT_CONTENT_BOTTOM by pulling it UP, and a tall enough
+    // address means it gets pulled up INTO the address -- which is what the
+    // longest testnet silent payment did: eight lines at mono28, and
+    // DERIVATION PATH landing on the last of them.
+    //
+    // So the address steps down a rung when it will not fit, the same answer
+    // every body on this device gives. Shrinking one rung is always better
+    // than two strings sharing pixels on the screen an owner compares an
+    // address on.
+    //
+    // Measured here rather than trusted: the two test chains differ by a
+    // character, and that character is the whole difference between seven
+    // lines and eight.
+    {
+        lv_obj_update_layout(s_addr_sg);
+        lv_obj_update_layout(s_sp_path_lbl);
+        const int want = 100 + lv_obj_get_height(s_addr_sg) + 14;
+        const int room = WT_CONTENT_BOTTOM - 22
+                       - lv_obj_get_height(s_sp_path_lbl);
+        if (want > room) {
+            lv_obj_delete(s_addr_sg);
+            s_addr_sg = wt_addr_spans(s_scr, grouped, SP_COL_W,
+                                      wt_font_mono23());
+            lv_obj_set_pos(s_addr_sg, SP_COL_X, 100);
+        }
+    }
   } else {
     // Match the readable list form: constant prefix muted, four meaningful
     // characters near each end lit. The QR still receives all of `s_sp_addr`.
@@ -706,20 +733,9 @@ static void wt_anim_dot(void *v, int32_t d) {
 static void wt_anim_opa(void *v, int32_t o) { lv_obj_set_style_opa(v, (lv_opa_t)o, 0); }
 static void recv_tab_build(void);
 static void recv_detail_open(void);
-static void pop_chevron(bool open);
 
 #define RECV_COL_X 296
 #define RECV_COL_W 456
-
-static void pop_close(void) {
-  // The scrim OWNS the box, so one delete takes both. Deleting the box alone
-  // is what left a full screen catcher on the page eating every later tap.
-  // Async, because this runs from click handlers on the popover's own
-  // descendants -- the same hazard close_cb already schedules around.
-  if (s_pop_away) lv_obj_delete_async(s_pop_away);
-  s_pop = s_pop_away = NULL;
-  pop_chevron(false);
-}
 
 // Whether the content lane is showing the page's [ ? ] explainer instead of
 // the selected tab. Reset on every open of the page: it is a view, not a
@@ -728,7 +744,6 @@ static bool s_help_open;
 
 static void recv_help_cb(lv_event_t *e) {
   (void)e;
-  pop_close();
   s_help_open = !s_help_open;
   // wt_pane_go refuses a same-tab call, so this is its swap by hand -- the
   // same hand swap the KEYS page does. [ ? ] still never highlights, but the
@@ -752,7 +767,6 @@ static void recv_help_cb(lv_event_t *e) {
 
 static void recv_tab_go(int tab) {
   if (tab < 0 || tab > 2) return;      // the deck ends where the strip does
-  pop_close();
   // A real tab is also the way back from [ ? ]: tapping the one already
   // selected re-lands on its rows, which wt_pane_go's same-tab refusal
   // would otherwise swallow.
@@ -900,35 +914,27 @@ static void recv_refresh(void) {
       char grouped[128];
       wt_group4(addr, grouped, sizeof grouped);
       s_addr_sg = wt_addr_spans(par, grouped, RECV_COL_W, wt_font_mono23());
-      lv_obj_set_pos(s_addr_sg, RECV_COL_X, 160);
+      lv_obj_set_pos(s_addr_sg, RECV_COL_X, 178);
+      // The mark says "there is more here", and open is where there is not.
+      // It also sits in the lane the wrapped form takes: left visible it
+      // overlaps the address's own first line, which is what TEXT and GROWTH
+      // both reported the moment it was added.
+      if (s_addr_more) lv_obj_add_flag(s_addr_more, LV_OBJ_FLAG_HIDDEN);
     } else {
       // ONE object, one line, never wrapped -- the same rule every address on
       // this device follows. 456 at mono23 holds the fold with room; if a
       // future prefix pushes it, the air around the ellipsis goes, never a
       // block and never the font size.
       s_addr_sg = wt_addr_short(par, addr, wt_font_mono23());
-      lv_obj_set_pos(s_addr_sg, RECV_COL_X, 160);
+      lv_obj_set_pos(s_addr_sg, RECV_COL_X, 178);
+      if (s_addr_more) lv_obj_remove_flag(s_addr_more, LV_OBJ_FLAG_HIDDEN);
     }
   }
-  // The caption goes with the address it captions: "compare the lit
-  // characters" under a state word is an instruction with no object -- and
-  // under the FULL form it sits wherever the wrap ends.
-  if (s_cmp_lbl) {
-    if (rc != 0) lv_obj_add_flag(s_cmp_lbl, LV_OBJ_FLAG_HIDDEN);
-    else {
-      lv_obj_remove_flag(s_cmp_lbl, LV_OBJ_FLAG_HIDDEN);
-      if (s_addr_sg) {
-        lv_obj_update_layout(s_addr_sg);
-        lv_obj_set_y(s_cmp_lbl, 160 + lv_obj_get_height(s_addr_sg) + 8);
-      }
-    }
-  }
-
   if (s_idx_lbl) {
     lv_label_set_text_fmt(s_idx_lbl, tr(STR_R_ADDR_N_FMT), (unsigned)s_idx);
     lv_obj_update_layout(s_idx_lbl);
     if (s_idx_chev)
-      lv_obj_set_pos(s_idx_chev, lv_obj_get_width(s_idx_lbl) + 10, 5);
+      lv_obj_set_pos(s_idx_chev, lv_obj_get_width(s_idx_lbl) + 16, 5);
   }
   if (s_path_lbl) {
     int purpose = kiss_script() == WSCRIPT_LEGACY ? 44
@@ -939,7 +945,7 @@ static void recv_refresh(void) {
     // Right-aligned against the "?" mark inside its own row.
     lv_obj_set_pos(s_path_lbl,
                    RECV_COL_W - 19 - 2 - 10 - lv_obj_get_width(s_path_lbl),
-                   (34 - lv_font_get_line_height(wt_font_mono18())) / 2);
+                   (38 - lv_font_get_line_height(wt_font_mono23())) / 2);
   }
 
   if ((int)s_idx > s_seen_high) s_seen_high = (int)s_idx;   // seeds next open's landing
@@ -989,7 +995,6 @@ static void next_cb(lv_event_t *e) {
   // is what stops a stray event from silently advancing the hidden index --
   // which is exactly what tapping the visible-but-inert pill used to do.
   if (s_rctx.tab != 0) return;
-  pop_close();
   // The next UNUSED index, not merely the next one: the button's whole promise
   // is a fresh address, and stepping onto one this signer has already shown
   // would break it silently. CAPPED: the old loop's cap only bounded the
@@ -1001,146 +1006,29 @@ static void next_cb(lv_event_t *e) {
   addr_swap_anim();
 }
 
-// ---- tab 1: the index popover ----
-static void pop_pick_cb(lv_event_t *e) {
-  s_idx = (uint32_t)(uintptr_t)lv_event_get_user_data(e);
-  pop_close();
-  recv_refresh();
-  addr_swap_anim();
+// ---- tab 1: the index, and the ONE list behind it ----
+// DECIDED: the ADDRESS #N caption opens the list and is not a duplicate of NEXT
+// ADDRESS; it replaced a popover that drifted out of step with it.
+// There was a popover here: five rows, its own pager, its own remembered page,
+// opened by a chevron that bounced forever under the caption. It was a second
+// address picker standing beside ALL ADDRESSES, which is a list of the same
+// hundred indices with a different pagination (3, not 5) and a different
+// remembered position -- and the two drifted apart by construction. A swipe
+// through the list moves s_list_base and never touches s_idx, so an owner who
+// paged the list back to #0 and returned found the popover built around #5.
+// That is the bench's report, and no amount of fixing the popover's memory
+// makes two pickers on one screen agree about which one the reader meant.
+//
+// So the caption IS the way in, and the list is the picker. Tapping it lands
+// on ALL ADDRESSES with the page holding s_idx already under the finger and
+// that row already ticked; row_tap_cb picks and comes straight back. One
+// list, one pagination, and the position is computed from the selection every
+// time, so there is nothing left to drift.
+static void idx_open_cb(lv_event_t *e) {
+  (void)e;
+  s_list_base = (s_idx / RECV_PAGE) * RECV_PAGE;
+  wt_pane_go(&s_rctx, 1, false, recv_tab_build);
 }
-
-static void pop_dismiss_cb(lv_event_t *e) { (void)e; pop_close(); }
-
-// PAGE-ALIGNED, never re-centred. The old window was the index plus or minus
-// two, rebuilt around every pick -- so the same physical row changed meaning
-// between taps, and going BACK an index meant six open/pick cycles. Pages of
-// five hold still under a finger (#0..#4, #5..#9, ...), and the two pager
-// rows walk them; a long hunt is still what ALL ADDRESSES is for.
-#define POP_ROWS   5
-#define POP_ITEM_H 44
-#define POP_PAGE_H 28
-static uint32_t s_pop_base;
-
-static void pop_show_at(uint32_t base);
-
-static void pop_page_cb(lv_event_t *e) {
-  int dir = (int)(intptr_t)lv_event_get_user_data(e);
-  int base = (int)s_pop_base + dir * POP_ROWS;
-  if (base < 0) base = 0;
-  if (base > RECV_LIST_CAP - POP_ROWS) base = RECV_LIST_CAP - POP_ROWS;
-  if ((uint32_t)base == s_pop_base) return;
-  pop_close();
-  pop_show_at((uint32_t)base);
-}
-
-static void pop_show_at(uint32_t base) {
-  lv_obj_t *par = s_rctx.pane ? s_rctx.pane : s_scr;
-  s_pop_base = base;
-  const int h = POP_PAGE_H * 2 + POP_ROWS * POP_ITEM_H;
-
-  // wt_overlay_box, not a bare box: the scrim is what closes the popover on a
-  // tap outside AND what says the column underneath is behind something. Built
-  // by hand the first time, the catcher was a transparent sibling -- so the
-  // page still read as one plane, overlapcheck reported the popover colliding
-  // with every line it was sitting on top of, and the catcher outlived the
-  // popover and silently ate every later tap on the screen.
-  s_pop = wt_overlay_box(par, &s_pop_away, RECV_COL_X, 120, 300, h,
-                         8, pop_dismiss_cb);
-  pop_chevron(true);
-  // The accent rim the KEYS/RECEIVE weight asks for, in place of WT_EDGE.
-  lv_obj_set_style_border_color(s_pop, wt_accent(), 0);
-  lv_obj_set_style_border_opa(s_pop, 115, 0);
-  lv_obj_add_flag(s_pop, WT_FLAG_ACCENT_BORDER);
-
-  // The two pager rows, both always BUILT: a row that appears on page two
-  // reflows the list under the finger that went looking for it. A dead edge
-  // (first or last page) keeps its glyph at ghost opacity and takes no tap.
-  for (int pg = 0; pg < 2; pg++) {
-    const bool down = pg == 1;
-    const bool dead = down ? base + POP_ROWS >= RECV_LIST_CAP : base == 0;
-    lv_obj_t *pr = lv_obj_create(s_pop);
-    lv_obj_remove_style_all(pr);
-    lv_obj_set_pos(pr, 0, down ? POP_PAGE_H + POP_ROWS * POP_ITEM_H : 0);
-    lv_obj_set_size(pr, 300, POP_PAGE_H);
-    lv_obj_remove_flag(pr, LV_OBJ_FLAG_SCROLLABLE);
-    if (!dead) {
-      lv_obj_add_flag(pr, LV_OBJ_FLAG_CLICKABLE);
-      lv_obj_set_style_bg_color(pr, wt_accent_pressed(), LV_STATE_PRESSED);
-      lv_obj_set_style_bg_opa(pr, LV_OPA_COVER, LV_STATE_PRESSED);
-      lv_obj_add_event_cb(pr, pop_page_cb, LV_EVENT_CLICKED,
-                          (void *)(intptr_t)(down ? 1 : -1));
-    }
-    lv_obj_t *g = wt_lbl(pr, down ? LV_SYMBOL_DOWN : LV_SYMBOL_UP, 0, 0,
-                         wt_font14(), dead ? WT_DIM : wt_accent());
-    if (!dead) lv_obj_add_flag(g, WT_FLAG_ACCENT);
-    lv_obj_set_style_text_opa(g, dead ? 90 : LV_OPA_COVER, 0);
-    lv_obj_center(g);
-  }
-
-  for (int i = 0; i < POP_ROWS; i++) {
-    const uint32_t idx = base + (uint32_t)i;
-    if (idx >= RECV_LIST_CAP) break;
-    const bool sel = idx == s_idx;
-    lv_obj_t *it = lv_obj_create(s_pop);
-    lv_obj_remove_style_all(it);
-    lv_obj_set_pos(it, 0, POP_PAGE_H + i * POP_ITEM_H);
-    lv_obj_set_size(it, 300, POP_ITEM_H);
-    lv_obj_remove_flag(it, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_flag(it, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_set_style_bg_color(it, wt_accent_pressed(), LV_STATE_PRESSED);
-    lv_obj_set_style_bg_opa(it, LV_OPA_COVER, LV_STATE_PRESSED);
-    lv_obj_add_event_cb(it, pop_pick_cb, LV_EVENT_CLICKED,
-                        (void *)(uintptr_t)idx);
-    // The tick is built on EVERY item and hidden with opacity, the same
-    // discipline as the tab brackets: an item that gains a glyph on selection
-    // reflows the row under the finger that just picked it.
-    lv_obj_t *ok = wt_lbl(it, LV_SYMBOL_OK, 12, 0, wt_font14(), wt_accent());
-    lv_obj_set_style_text_opa(ok, sel ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
-    if (sel) lv_obj_add_flag(ok, WT_FLAG_ACCENT);
-    lv_obj_align(ok, LV_ALIGN_LEFT_MID, 12, 0);
-    char num[8];
-    snprintf(num, sizeof num, "#%u", (unsigned)idx);
-    lv_obj_t *nl = wt_lbl(it, num, 0, 0, wt_font_mono23(),
-                          sel ? WT_INK : WT_MUT);
-    lv_obj_align(nl, LV_ALIGN_LEFT_MID, 40, 0);
-    const bool u = recv_used(idx);
-    lv_obj_t *st = wt_lbl(it, tr(u ? STR_R_HANDED_ALREADY : STR_R_NEVER_HANDED),
-                          0, 0, wt_font23(), u ? WT_DIM : WT_OK);
-    lv_obj_align(st, LV_ALIGN_RIGHT_MID, -14, 0);
-    if (i < POP_ROWS - 1) wt_line_rule(it, 0, POP_ITEM_H - 1, 300);
-  }
-
-  lv_anim_t a;
-  lv_anim_init(&a);
-  lv_anim_set_var(&a, s_pop);
-  lv_anim_set_duration(&a, 160);
-  lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
-  lv_anim_set_values(&a, -6, 0);
-  lv_anim_set_exec_cb(&a, (lv_anim_exec_xcb_t)wt_anim_ty);
-  lv_anim_start(&a);
-  lv_obj_set_style_opa(s_pop, LV_OPA_TRANSP, 0);
-  lv_anim_set_values(&a, 0, 255);
-  lv_anim_set_exec_cb(&a, (lv_anim_exec_xcb_t)wt_anim_opa);
-  lv_anim_start(&a);
-}
-
-static void pop_open(void) {
-  if (s_pop) { pop_close(); return; }        // a second tap closes it
-  pop_show_at((s_idx / POP_ROWS) * POP_ROWS);
-}
-
-// Motion 17: the chevron turns over as the popover opens, and back as it
-// closes, so the mark states which way the thing under it is going.
-static void pop_chevron(bool open) {
-  if (!s_idx_chev) return;
-  // The glyph SWAPS rather than rotating, for the same reason the dot swells
-  // by size: transform_rotation is the layer path and the layer path is what
-  // hangs this renderer. DOWN and UP are both in the baked symbol set, so the
-  // mark still states which way the thing under it is going.
-  lv_label_set_text(s_idx_chev, open ? LV_SYMBOL_UP : LV_SYMBOL_DOWN);
-}
-
-static void pop_toggle_cb(lv_event_t *e) { (void)e; pop_open(); }
 
 static void path_help_cb(lv_event_t *e) {
   (void)e;
@@ -1156,9 +1044,22 @@ static void path_help_cb(lv_event_t *e) {
   // recognise it as the thing this page just explained, and a card that only
   // ever says "the numbered branch" teaches a phrase that exists nowhere
   // else in bitcoin.
+  //
+  // THE PATH ITSELF, framed. The card explained a notation the reader could
+  // not see while reading about it -- the row it opened from is behind the
+  // overlay -- so it was a title over five lines of grey and nothing else,
+  // which is the shape the bench keeps sending back. It is the figure this
+  // card is about, so it goes in the value card the kit already has, and the
+  // body underneath is what no picture says.
+  static char path[40];
+  const int purpose = kiss_script() == WSCRIPT_LEGACY ? 44
+                    : kiss_script() == WSCRIPT_NESTED ? 49 : 84;
+  snprintf(path, sizeof path, "m/%dh/%dh/0h", purpose, kiss_testnet() ? 1 : 0);
+
   wt_explain_t x = {
       .title      = tr(STR_R_PATH_H),
       .icon       = LV_SYMBOL_DIRECTORY,
+      .val        = path,
       .body       = tr(STR_R_PATH_B),
       .term       = tr(STR_T_PATH_TERM),
       .term_label = tr(STR_G_TECHNICAL),
@@ -1167,7 +1068,12 @@ static void path_help_cb(lv_event_t *e) {
   wt_explain_open(s_scr, &x);
 }
 
+#ifdef SIMULATOR
+// Sim only, and the header says so too. Defined unconditionally it was a
+// device symbol with no prototype anywhere -- which is what -Wmissing-
+// prototypes found, and it was shipping the seam into the firmware as well.
 void kiss_recv_sim_open_path_help(void) { path_help_cb(NULL); }
+#endif
 
 static void enlarge_cb(lv_event_t *e) { (void)e; wt_qr_zoom(s_qr); }
 
@@ -1213,32 +1119,47 @@ static void recv_gesture_cb(lv_event_t *e) {
 // ---- the three groups ----
 // NEXT ADDRESS shows only where it acts: tab 0 with the rows up, never under
 // the [ ? ] and never on the list or SILENT.
-static void recv_next_vis(void) {
-  if (!s_next_act) return;
-  if (s_rctx.tab == 0 && !s_help_open)
-    lv_obj_remove_flag(s_next_act, LV_OBJ_FLAG_HIDDEN);
-  else
-    lv_obj_add_flag(s_next_act, LV_OBJ_FLAG_HIDDEN);
+// DECIDED: VERIFY belongs to THIS ADDRESS, not to the whole page. It was on
+// the band from every pane, including the [ ? ] explainer, on the argument
+// that the explainer's own second sentence -- "check one here before you
+// trust it" -- is what VERIFY does, so the screen was offering the thing it
+// had just taught. The owner disagrees, twice: a control that has nothing to
+// do with the pane under it reads as belonging to that pane. It follows the
+// same rule NEXT ADDRESS already did.
+//
+// The band on the other panes is then BACK alone, which is correct here and
+// not an EXIT finding: this screen has a tab strip, and the strip is the way
+// between panes.
+static void recv_band_vis(void) {
+  const bool on = s_rctx.tab == 0 && !s_help_open;
+  lv_obj_t *acts[2] = { s_next_act, s_vfy_act };
+  for (int i = 0; i < 2; i++) {
+    if (!acts[i]) continue;
+    if (on) lv_obj_remove_flag(acts[i], LV_OBJ_FLAG_HIDDEN);
+    else    lv_obj_add_flag(acts[i], LV_OBJ_FLAG_HIDDEN);
+  }
 }
 
 static void recv_tab_build(void) {
   lv_obj_t *p = s_rctx.pane;
   // The old pane took the popover and its catcher with it.
-  s_pop = s_pop_away = NULL;
   const int X = 48, W = 704;
   s_qr = s_addr_sg = s_idx_lbl = s_path_lbl = s_lock_note = NULL;
-  s_cmp_lbl = s_lamp_dot = s_lamp_lbl = s_idx_chev = NULL;
+  s_lamp_dot = s_lamp_lbl = s_idx_chev = NULL;
   s_addr_hit = NULL;
   s_state_chip = NULL;
-  recv_next_vis();
+  recv_band_vis();
 
   if (s_help_open) {
     // The [ ? ] content: the lane replaced, not a card and not an overlay.
     // Nothing on it is interactive; the strip is the way back.
     wt_fact_t facts[3] = {
-        { tr(STR_R_HELP_F1C), tr(STR_R_HELP_F1V), LV_SYMBOL_PLUS },
-        { tr(STR_R_HELP_F2C), tr(STR_R_HELP_F2V), LV_SYMBOL_EYE_OPEN },
-        { tr(STR_R_HELP_F3C), tr(STR_R_HELP_F3V), WT_ICON_SECRET },
+        { .cap = tr(STR_R_HELP_F1C), .val = tr(STR_R_HELP_F1V),
+          .icon = LV_SYMBOL_PLUS },
+        { .cap = tr(STR_R_HELP_F2C), .val = tr(STR_R_HELP_F2V),
+          .icon = LV_SYMBOL_EYE_OPEN },
+        { .cap = tr(STR_R_HELP_F3C), .val = tr(STR_R_HELP_F3V),
+          .icon = WT_ICON_SECRET },
     };
     wt_explain(p, tr(STR_R_HELP_HEAD), tr(STR_R_HELP_BODY), facts, 3);
     return;
@@ -1265,8 +1186,8 @@ static void recv_tab_build(void) {
     wt_lbl(hit, tr(STR_R_ENLARGE), lv_obj_get_width(ic) + 10, 0, wt_font23(),
            WT_MUT);
 
-    // Right column. The caption is the popover's control, so it carries the
-    // chevron that says so and the whole pair is one target. 260x40 and
+    // Right column. The caption is the way into the list, so it carries the
+    // mark that says so and the whole pair is one target. 260x40 and
     // chrome23, not the 200x28 font14 sliver the bench could not find: this
     // is the row's one control and it has to read as one.
     lv_obj_t *ih = lv_obj_create(p);
@@ -1275,7 +1196,7 @@ static void recv_tab_build(void) {
     lv_obj_set_size(ih, 260, 40);
     lv_obj_remove_flag(ih, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(ih, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_event_cb(ih, pop_toggle_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_event_cb(ih, idx_open_cb, LV_EVENT_CLICKED, NULL);
     // "ADDRESS #12" is a word carrying a number, not a code to compare, and it
     // sits beside the lamp's word. It goes with the captions.
     s_idx_lbl = wt_lbl(ih, "", 0, 5, wt_chrome23(tr(STR_R_ADDR_N_FMT)),
@@ -1285,25 +1206,16 @@ static void recv_tab_build(void) {
     lv_obj_update_layout(s_idx_lbl);
     // Placed after the caption is MEASURED, not at a guessed x: "ADDRESS #0"
     // and "ADDRESS #12" are different widths, and so is every locale's word
-    // for address. A fixed x drew the chevron through the index.
-    lv_obj_t *cv = wt_lbl(ih, LV_SYMBOL_DOWN, 0, 5, wt_font23(), wt_accent());
+    // for address. A fixed x drew the mark through the index.
+    //
+    // A CHEVRON here, and the plus moved to the address block below. This row
+    // opens ALL ADDRESSES -- a PAGE -- and the chevron is what this device
+    // says that with everywhere else; the plus is what it says "there is more
+    // here, under your finger" with, which is the address, not this. The two
+    // marks were the wrong way round and the tab had no expand sign at all.
+    lv_obj_t *cv = wt_lbl(ih, LV_SYMBOL_RIGHT, 0, 5, wt_font23(), wt_accent());
     lv_obj_add_flag(cv, WT_FLAG_ACCENT);
     s_idx_chev = cv;
-    // The chevron BOUNCES, forever: the bench asked for a control an owner
-    // notices without being told. Translate only -- layout-free, and the
-    // glyph swap in pop_chevron rides underneath it untouched.
-    {
-        lv_anim_t a;
-        lv_anim_init(&a);
-        lv_anim_set_var(&a, cv);
-        lv_anim_set_exec_cb(&a, (lv_anim_exec_xcb_t)wt_anim_ty);
-        lv_anim_set_values(&a, 0, 4);
-        lv_anim_set_duration(&a, 600);
-        lv_anim_set_playback_duration(&a, 600);
-        lv_anim_set_path_cb(&a, lv_anim_path_ease_in_out);
-        lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
-        lv_anim_start(&a);
-    }
 
     s_lamp_dot = lv_obj_create(p);
     lv_obj_remove_style_all(s_lamp_dot);
@@ -1318,24 +1230,32 @@ static void recv_tab_build(void) {
     // A readout, not a control. Tapping it does nothing on purpose.
     s_lamp_lbl = wt_lbl(p, "", 0, 120, wt_font_mono23(), WT_OK);
 
-    s_cmp_lbl = wt_lbl(p, tr(STR_S_CMP_8), RECV_COL_X, 198, wt_font23(),
-                       WT_DIM);
-    lv_obj_set_width(s_cmp_lbl, RECV_COL_W);
-    lv_label_set_long_mode(s_cmp_lbl, LV_LABEL_LONG_DOT);
-
     // The whole address block is ONE tap target: folded to whole and back.
     // This tab is the only place on the device a full receive address renders
     // as text; everything else folds and points here. Built before refresh so
     // the first render can size the caption against whichever form is up.
     s_addr_hit = lv_obj_create(p);
     lv_obj_remove_style_all(s_addr_hit);
-    lv_obj_set_pos(s_addr_hit, RECV_COL_X - 8, 150);
+    // 168, not 150. The ADDRESS #N row ends at 148 and the address started
+    // 12px under it, so the two read as one block and the row's own control
+    // looked like part of the address. 30px is the gap the rest of this
+    // device puts between a caption row and the thing it captions.
+    lv_obj_set_pos(s_addr_hit, RECV_COL_X - 8, 168);
     lv_obj_set_size(s_addr_hit, RECV_COL_W + 16, 96);
     lv_obj_remove_flag(s_addr_hit, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(s_addr_hit, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_style_translate_x(s_addr_hit, 0, 0);
     lv_obj_set_style_translate_x(s_addr_hit, 4, LV_STATE_PRESSED);
     lv_obj_add_event_cb(s_addr_hit, addr_toggle_cb, LV_EVENT_CLICKED, NULL);
+    // THE MARK, on the side of the block it belongs to. The short address is
+    // the one thing on this tab that opens under the finger and the only sign
+    // saying so was a caption beside it reading "compare the lit characters"
+    // -- an instruction about a different job, doing the work of an
+    // affordance. The plus is the kit's own "there is more here", the same
+    // one the def rows wear, and it is what the address block was missing.
+    s_addr_more = wt_lbl(p, LV_SYMBOL_PLUS, RECV_COL_X + RECV_COL_W - 22, 174,
+                         wt_font23(), wt_accent());
+    lv_obj_add_flag(s_addr_more, WT_FLAG_ACCENT);
 
     // The derivation path, reduced to what the bench asked for: the digits,
     // quietly, with the "?" beside them -- no caption row, no second typeface.
@@ -1343,8 +1263,14 @@ static void recv_tab_build(void) {
     // the mark is the sign that says so.
     lv_obj_t *ph = lv_obj_create(p);
     lv_obj_remove_style_all(ph);
-    lv_obj_set_pos(ph, RECV_COL_X, 356);
-    lv_obj_set_size(ph, RECV_COL_W, 34);
+    // 342, level with TAP TO ENLARGE in the left column, so the two quiet
+    // controls sit on one line at the foot of the page instead of one of them
+    // floating in the middle of the column. It ends at 380, which is 18 clear
+    // of the action band -- the reason it was pulled up from 356 was that a
+    // help chip 8px above BACK is a mark nobody dares aim at, and that still
+    // holds.
+    lv_obj_set_pos(ph, RECV_COL_X, 342);
+    lv_obj_set_size(ph, RECV_COL_W, 38);
     lv_obj_remove_flag(ph, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(ph, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(ph, path_help_cb, LV_EVENT_CLICKED, NULL);
@@ -1355,8 +1281,11 @@ static void recv_tab_build(void) {
     // and it came back from the bench as "tiny ass question mark (make it
     // bigger)". The whole line still takes the tap -- the chip is the sign
     // that says so, at the size the rest of the device signs a question.
-    wt_help_chip(ph, RECV_COL_W - 30 - 2, 2, wt_accent(), path_help_cb, NULL);
-    s_path_lbl = wt_lbl(ph, "", 0, 0, wt_font_mono18(), WT_DIM);
+    wt_help_chip(ph, RECV_COL_W - 30 - 2, 4, wt_accent(), path_help_cb, NULL);
+    // mono23, not mono18. It is DATA and it is quiet, but it was the
+    // smallest text on the page and it is the line an owner reads against
+    // their coordinator.
+    s_path_lbl = wt_lbl(ph, "", 0, 0, wt_font_mono23(), WT_DIM);
 
     recv_refresh();
     return;
@@ -1390,6 +1319,25 @@ static void recv_tab_build(void) {
       // sub's grey. UNUSED means here what it means in the lamp.
       lv_obj_t *sub = lv_obj_get_child(row, -1);
       lv_obj_set_style_text_color(sub, u ? WT_MUT : WT_OK, 0);
+      // THE ONE THAT IS SHOWING, on the accent rail. This list is the page's
+      // only address picker now -- the caption on THIS ADDRESS lands here, on
+      // the page holding it -- and a picker that does not say which one is
+      // picked makes the reader count rows against a number on another tab.
+      //
+      // A RAIL, not a tick: the row's caption is a chrome face and a glyph
+      // composed into a chrome string falls out of it, and the right hand
+      // side is spoken for by the state word and its arrow. The rail is the
+      // same mark a why-block and an open definition already wear.
+      if (idx == s_idx) {
+        lv_obj_t *rail = lv_obj_create(row);
+        lv_obj_remove_style_all(rail);
+        lv_obj_set_pos(rail, 0, 10);
+        lv_obj_set_size(rail, 3, H - 20);
+        lv_obj_set_style_bg_color(rail, wt_accent(), 0);
+        lv_obj_set_style_bg_opa(rail, LV_OPA_COVER, 0);
+        lv_obj_add_flag(rail, WT_FLAG_ACCENT_FILL);
+        lv_obj_remove_flag(rail, LV_OBJ_FLAG_CLICKABLE);
+      }
       if (kiss_session_address(0, idx, addr, sizeof addr) != 0)
         snprintf(addr, sizeof addr, "%s", tr(STR_C_SESSION_LOCKED));
       lv_obj_t *sg = wt_addr_short(row, addr, wt_font_mono23());
@@ -1410,8 +1358,17 @@ static void recv_tab_build(void) {
     return;
   }
 
-  // Tab 3. Two lines and the sentence the current screen never says on the
-  // screen itself: what a silent payment IS, in two clauses.
+  // Tab 3, and the whole fault it was reported for is WHO EACH ONE IS FOR.
+  // Two objects sit here -- a static address and a private key -- and under
+  // them floated three claims that are all about the FIRST one, so "one
+  // address you can hand out forever" read as a description of the SCAN KEY
+  // sitting directly above it. The bench asked "so which one is it?".
+  //
+  // BIP352, stated once: a receiver has exactly ONE silent address, it never
+  // appears on chain, and every payment to it lands at a fresh output the
+  // sender derives. Finding those payments needs the scan PRIVATE key, which
+  // is why handing it to a coordinator is a real export and why it can never
+  // spend. Two objects, two audiences, and each row says its own now.
   const int H = 76;
   char sp[128];
   if (kiss_session_sp_address(sp, sizeof sp) != 0)
@@ -1422,26 +1379,21 @@ static void recv_tab_build(void) {
   lv_obj_t *sg = wt_addr_short(r1, sp, wt_font_mono23());
   lv_obj_set_pos(sg, WT_LINE_PAD, wt_line_val_y());
   wt_line_rule_draw(wt_line_rule(p, X, 120 + H, W), 110, 320);
-  // A door again, and the SAME door. The export hands a coordinator a PRIVATE
-  // key and has one consent flow, in kiss_info -- this row opens that exact
-  // gate (kiss_info_open_scan_key) and comes back here when the owner leaves.
-  // The dead-label version of this row was filed from the bench as "doesn't
-  // actually allow to show the SCAN KEY": a fact with no door read as a
-  // broken control, not as a signpost.
-  wt_line_row(p, X, 196, W, H, tr(STR_R_SP_SCAN_BTN), NULL, NULL, WT_INK,
-              tr(STR_K_SP_SUB), NULL, sp_scan_key_cb, NULL);
-  wt_line_rule_draw(wt_line_rule(p, X, 196 + H, W), 152, 320);
-
-  // What a silent payment buys, one mark and one line each -- no paragraph,
-  // no box. The three claims the owner kept asking for: one address, no
-  // reuse on chain, nothing for a watcher to connect.
+  // The three claims sit UNDER THE ADDRESS, between the two rows, because
+  // every one of them is about the address and none is about the key. They
+  // used to hang below both, which is how "one address you can hand out
+  // forever" came to read as a description of the SCAN KEY directly above it.
+  //
+  // They cannot be row sub-lines: a sub shares the value's lane on this row
+  // and the value is a folded silent address, so a claim of any length is
+  // printed straight through it.
   {
     static const char *const SP_ICONS[3] = {
         LV_SYMBOL_LOOP, LV_SYMBOL_SHUFFLE, WT_ICON_HIDDEN };
     const char *const lines[3] = {
         tr(STR_R_EXPL_SP), tr(STR_R_SP_FRESH), tr(STR_R_SP_PRIV) };
     for (int i = 0; i < 3; i++) {
-      const int y = 288 + i * 36;
+      const int y = 206 + i * 36;
       lv_obj_t *ic = wt_lbl(p, SP_ICONS[i], X, y, wt_font23(), wt_accent());
       lv_obj_add_flag(ic, WT_FLAG_ACCENT);
       lv_obj_t *l = wt_lbl(p, lines[i], X + 40, y, wt_font23(), WT_MUT);
@@ -1450,11 +1402,24 @@ static void recv_tab_build(void) {
       lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
     }
   }
+
+  // And the KEY LAST, under a rule of its own: the reading order is the
+  // answer to "which one do I give out" -- the public thing and everything
+  // true of it, then the private one.
+  //
+  // A door again, and the SAME door. The export hands a coordinator a PRIVATE
+  // key and has one consent flow, in kiss_info -- this row opens that exact
+  // gate (kiss_info_open_scan_key) and comes back here when the owner leaves.
+  // The dead-label version of this row was filed from the bench as "doesn't
+  // actually allow to show the SCAN KEY": a fact with no door read as a
+  // broken control, not as a signpost.
+  wt_line_rule_draw(wt_line_rule(p, X, 316, W), 152, 320);
+  wt_line_row(p, X, 320, W, H, tr(STR_R_SP_SCAN_BTN), NULL, NULL, WT_INK,
+              tr(STR_K_SP_SUB), NULL, sp_scan_key_cb, NULL);
 }
 
 static void recv_detail_open(void) {
   s_addr_sg = NULL;
-  s_pop = s_pop_away = NULL;
   s_help_open = false;
   s_scr = wt_chrome(s_parent, tr(STR_R_T));
   // No subtitle. "trust what you see here, not your computer screen" is
@@ -1483,14 +1448,14 @@ static void recv_detail_open(void) {
   // Three arrows, the action row's three positions. VERIFY is the primary and
   // takes the accent on its LABEL as well: there is no filled primary left to
   // give it, and none is wanted -- a fill is a box.
-  wt_arrow_action(s_scr, tr(STR_R_VERIFY), false, true, WT_ACT_X, WT_ACTION_Y,
-                  0, false, vfy_scan, NULL);
+  s_vfy_act = wt_arrow_action(s_scr, tr(STR_R_VERIFY), false, true, WT_ACT_X,
+                              WT_ACTION_Y, 0, false, vfy_scan, NULL);
   // Held by the tab logic: NEXT ADDRESS belongs to THIS ADDRESS alone. On the
   // other tabs it used to advance the hidden index with nothing on screen
   // moving -- invisible state mutation wearing a working control's clothes.
   s_next_act = wt_arrow_action(s_scr, tr(STR_R_NEXT_ADDR), false, false, 300,
                                WT_ACTION_Y, 0, false, next_cb, NULL);
-  recv_next_vis();
+  recv_band_vis();
   wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160,
                   true, close_cb, NULL);
 }

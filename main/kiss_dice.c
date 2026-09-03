@@ -1,5 +1,5 @@
 // dice and coin entropy: the verifiable path.
-// See docs/superpowers/specs/2026-07-30-dice-entropy-design.md
+// See design/specs/2026-07-30-dice-entropy-design.md
 #include "kiss_dice.h"
 
 #include <string.h>

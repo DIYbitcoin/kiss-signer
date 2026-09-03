@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "kiss_crypto.h"
+#include "kiss_simpath.h"  // the scratch, and the lock on it
 #include "kiss_sp.h"   // sp_schnorr_sign: the second secp context
 #include "kiss_psbt.h"
 #include "kiss_usage.h"
@@ -234,6 +235,15 @@ static size_t mk_psbt(int mut, uint8_t *out, size_t outsz) {
 // ---- script-type fixtures (legacy BIP44 / nested BIP49 / native BIP84) ----
 static void derive5(uint32_t purpose, uint32_t chg, uint32_t idx, struct ext_key *o) {
     const uint32_t p[5] = {H + purpose, H, H, chg, idx};
+    bip32_key_from_parent_path(&t_master, p, 5, BIP32_FLAG_KEY_PRIVATE, o);
+}
+
+// Same, with the ACCOUNT as a parameter. derive5 pins it at 0' because every
+// other fixture in this file spends one account; the mixed-account caution is
+// the one claim that cannot be made from a single one.
+static void derive5a(uint32_t purpose, uint32_t acct, uint32_t chg, uint32_t idx,
+                     struct ext_key *o) {
+    const uint32_t p[5] = {H + purpose, H, H + acct, chg, idx};
     bip32_key_from_parent_path(&t_master, p, 5, BIP32_FLAG_KEY_PRIVATE, o);
 }
 
@@ -549,6 +559,70 @@ static size_t mk_mixed_psbt(uint8_t *out, size_t cap) {
     return wr;
 }
 
+// 2-in / 1-out native-segwit PSBT with the ACCOUNT of each input as a
+// parameter: input0 at m/84h/0h/<a0>h/0/0, input1 at m/84h/0h/<a1>h/0/0. Both
+// carry their full previous transaction, so the amounts are proven and two
+// distinct addresses is well under the merge bar -- whatever this fixture
+// reports is about the accounts and nothing else.
+//
+// `locktime` and `seq` are the other axis: a locktime BINDS only when an input
+// leaves its sequence short of 0xFFFFFFFF, and a fixture that could not set
+// both independently could not tell the two apart.
+static size_t mk_acct_psbt(uint32_t a0, uint32_t a1, uint32_t locktime,
+                           uint32_t seq, uint8_t *out, size_t cap) {
+    struct ext_key k0, k1;
+    derive5a(84, a0, 0, 0, &k0);
+    derive5a(84, a1, 0, 0, &k1);
+    uint8_t spk0[25], spk1[25];
+    size_t l0 = 0, l1 = 0;
+    build_spk(WSCRIPT_NATIVE, k0.pub_key, spk0, &l0);
+    build_spk(WSCRIPT_NATIVE, k1.pub_key, spk1, &l1);
+    uint8_t ext_spk[22] = {0x00, 0x14};
+    memset(ext_spk + 2, 0x11, 20);
+
+    struct wally_tx *prev[2] = {0};
+    uint8_t txid[2][32];
+    const uint8_t *spk[2] = {spk0, spk1};
+    const size_t   slen[2] = {l0, l1};
+    for (int i = 0; i < 2; i++) {
+        uint8_t dt[32]; memset(dt, 0xC0 + i, 32);
+        wally_tx_init_alloc(2, 0, 1, 1, &prev[i]);
+        wally_tx_add_raw_input(prev[i], dt, 32, 0, 0xFFFFFFFF, NULL, 0, NULL, 0);
+        wally_tx_add_raw_output(prev[i], 100000, spk[i], slen[i], 0);
+        wally_tx_get_txid(prev[i], txid[i], 32);
+    }
+
+    struct wally_tx *tx = NULL;
+    wally_tx_init_alloc(2, locktime, 2, 1, &tx);
+    for (int i = 0; i < 2; i++)
+        wally_tx_add_raw_input(tx, txid[i], 32, 0, seq, NULL, 0, NULL, 0);
+    wally_tx_add_raw_output(tx, 199000, ext_spk, 22, 0);
+
+    struct wally_psbt *p = NULL;
+    wally_psbt_init_alloc(0, 2, 1, 1, 0, &p);
+    wally_psbt_set_global_tx(p, tx);
+    const uint32_t path[2][5] = {{H + 84, H, H + a0, 0, 0},
+                                 {H + 84, H, H + a1, 0, 0}};
+    const struct ext_key *k[2] = {&k0, &k1};
+    for (int i = 0; i < 2; i++) {
+        wally_psbt_set_input_utxo(p, (size_t)i, prev[i]);
+        struct wally_map *m = NULL;
+        wally_map_keypath_public_key_init_alloc(1, &m);
+        wally_map_keypath_add(m, k[i]->pub_key, 33, t_fp, 4, path[i], 5);
+        wally_psbt_set_input_keypaths(p, (size_t)i, m);
+        wally_map_free(m);
+    }
+
+    size_t wr = 0;
+    wally_psbt_to_bytes(p, 0, out, cap, &wr);
+    wally_psbt_free(p);
+    wally_tx_free(tx);
+    for (int i = 0; i < 2; i++) wally_tx_free(prev[i]);
+    wally_bzero(&k0, sizeof k0);
+    wally_bzero(&k1, sizeof k1);
+    return wr;
+}
+
 static void test_one_script(int script, uint32_t purpose, const char *label,
                             const char *prefix, const char *wrapper,
                             const char *bwpre) {
@@ -817,6 +891,9 @@ static void test_sign_refused_when_selftest_fails(const uint8_t *psbt, size_t le
 }
 
 int main(int argc, char **argv) {
+    // The tests own the fake card too -- test_seed_layer writes it, and a walk
+    // running beside them rewrites it underneath. Same lock, same reason.
+    kiss_sim_lock("kisstest");
     // step 7 first: ends with the dev seed stored, which everything below uses
     fails += test_seed_layer();
     fails += test_backup_layer();
@@ -1115,6 +1192,12 @@ int main(int argc, char **argv) {
     chki("sighash load rc", kiss_psbt_load(pb, pl, &sum), 0);
     chki("sighash STOP", sum.status, WPSBT_STOP);
     chkb("sighash reason says sighash", strstr(sum.reason, "sighash") != NULL);
+    // The one refusal above that never asserted the refusal. Every sibling in
+    // this block ends on a sign-refused line and this one stopped at the
+    // verdict, so nothing here covered the gate that matters: STOP reaches
+    // kiss_psbt_sign through s_status, and a signature over a sighash this
+    // signer does not sign is the whole failure the load gate exists to stop.
+    chkb("sighash sign refused", kiss_psbt_sign(sb, sizeof sb, &sw) != 0);
     kiss_psbt_free();
 
     pl = mk_psbt(MUT_UNKNOWN, pb, sizeof pb);
@@ -1298,6 +1381,49 @@ int main(int argc, char **argv) {
     chki("merge-dust load rc", kiss_psbt_load(pb, pl, &sum), 0);
     chkb("merge-dust has merge", (sum.caution_flags & WPSBT_C_MERGE_INS) != 0);
     chkb("merge-dust has dust-input", (sum.caution_flags & WPSBT_C_DUST_INPUT) != 0);
+    kiss_psbt_free();
+
+    // ---- one account, and only one ----
+    //
+    // path_purpose_for_coin pins the account at 0h, so this signer signs coins
+    // from the account it exports and from no other. That is the reason there
+    // is no mixed-account caution to raise: a second account does not produce a
+    // transaction to warn about, it produces a REFUSAL, and the two tests below
+    // are what say so. A screen naming the account would be naming a constant.
+    pl = mk_acct_psbt(0, 0, 0, 0xFFFFFFFD, pb, sizeof pb);
+    chki("one-account load rc", kiss_psbt_load(pb, pl, &sum), 0);
+    chki("one-account READY", sum.status, WPSBT_READY);
+    chki("one-account no cautions", sum.caution_flags, 0);
+    kiss_psbt_free();
+
+    pl = mk_acct_psbt(0, 3, 0, 0xFFFFFFFD, pb, sizeof pb);
+    chki("second-account load rc", kiss_psbt_load(pb, pl, &sum), 0);
+    chki("second-account STOP", sum.status, WPSBT_STOP);
+    chkb("second-account reason names the path",
+         strstr(sum.reason, "derivation path") != NULL);
+    kiss_psbt_free();
+
+    // ---- a locktime binds only when an input asks it to ----
+    //
+    // Same transaction twice, one field apart. All-final sequences leave the
+    // locktime as decoration a node ignores, and coordinators do leave stale
+    // ones behind -- so a screen that announced this pair would be announcing
+    // nothing, on the screen that can least afford it.
+    pl = mk_acct_psbt(0, 0, 5127853, 0xFFFFFFFD, pb, sizeof pb);
+    chki("locked load rc", kiss_psbt_load(pb, pl, &sum), 0);
+    chki("locked locktime", (int)sum.locktime, 5127853);
+    chkb("locked binds", sum.lock_binds);
+    // A fact, never a caution: the signer cannot see the chain tip, so it
+    // cannot tell an ordinary anti-fee-sniping locktime from a real delay.
+    chki("locked raises nothing", sum.caution_flags, 0);
+    chki("locked READY", sum.status, WPSBT_READY);
+    kiss_psbt_free();
+
+    pl = mk_acct_psbt(0, 0, 5127853, 0xFFFFFFFF, pb, sizeof pb);
+    chki("final-seq load rc", kiss_psbt_load(pb, pl, &sum), 0);
+    chki("final-seq locktime", (int)sum.locktime, 5127853);
+    chkb("final-seq does not bind", !sum.lock_binds);
+    chkb("final-seq is not replaceable", !sum.rbf);
     kiss_psbt_free();
 
     {   // The largest proven-input fixture still fits the scan/input ceiling,

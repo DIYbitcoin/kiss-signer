@@ -29,7 +29,7 @@ typedef struct {
 
 static const slot_t SLOTS[] = {
     // kiss_setup.c:279 — amber line under the word grid
-    { "setup/paper-only", STR_W_PAPER_ONLY, 700,  40 },
+    { "setup/paper-only", STR_I_WORDS_S,    700,  40 },
     // kiss_info.c — "?" cards (155 with a diagram, 225 without; the
     // scan-key warning below pairs a short body with three visual facts).
     // The PAIRING one is gone with its card: that page's [ ? 2 ] opens
@@ -55,14 +55,13 @@ static const slot_t SLOTS[] = {
     // width; the sliced no-passphrase pair is covered by the walk's three
     // rendered states instead.
     { "login/warn",       STR_L_WARN_B,     690, 160 },
-    // The passphrase intro and the backup check both went from one 704px
-    // paragraph to a PAIR of wt_why_blocks, so each body is measured in the
-    // narrower box it actually renders in: 344 wide less the block's own 14px
-    // inset, and 166 tall less the font14 heading above it (HEAD_ROOM 46) and
-    // the 8px wt_why_block costs for its own metrics. A body that only fits at
-    // 704 wide is exactly the regression this row exists to catch.
-    { "setup/verify-w1",  STR_W_VINTRO_W1_B,  330, 112 },
-    { "setup/verify-w2",  STR_W_VINTRO_W2_B,  330, 112 },
+    // The why-block PAIRS that used to be measured here are gone: the
+    // passphrase intro, the backup check, both blind draw screens, the dice
+    // verdict and the checksum page all say their two claims as fact ROWS
+    // now. A row's caption and value are pinned to one line each and
+    // ellipsise rather than shrink, so the check that sees them is CUT in the
+    // walk (wt_sub_measure, measured as the label is built), not a body
+    // budget here. Slots for them would measure a box no screen draws.
     // kiss_setup.c — wizard explainers
     { "setup/checksum",   STR_W_CHECK_B,    704, 256 },
     { "setup/verify-ok",  STR_W_VOK_B,      704, 190 },
@@ -190,33 +189,24 @@ static const slot_t SLOTS[] = {
     { "rng/src-sub",      STR_W_RNG_SRC_SUB,     480,  46, 1 },
     // 330, not 344: the block's rule bar eats 14px of body width. Height is
     // the pair budget (194) minus a measured one-line heading (35).
-    { "rng/why1",         STR_W_RNG_WHY1_B,      330, 155 },
-    { "rng/why2",         STR_W_RNG_WHY2_B,      330, 155 },
-    { "rng/nosrc",        STR_W_RNG_NOSRC_B,     330, 155 },
     { "rng/retry",        STR_W_RNG_RETRY,       704,  34, 0 },
     { "rng/pass-note",    STR_W_RNG_PASS_NOTE,   704,  34, 0 },
     // dice screens: never registered before the quality check landed, which is
     // how the samey nudge shipped unmeasured. The verdict subtitles are one
-    // line on wt_screen; the verify note gets two card lines; the two why
-    // blocks share rule 2's 330x112 body budget.
+    // line on wt_screen and the verify note gets two card lines; the two
+    // claims are fact rows and belong to CUT.
     { "sub/dice",         STR_W_DICE_S,           704, 30, 0 },
     { "sub/dice-uneven",  STR_W_DICE_UNEVEN_S,    704, 30, 0 },
     { "sub/dice-pattern", STR_W_DICE_PATTERN_S,   704, 30, 0 },
     { "setup/dice-verify",STR_W_DICE_VERIFY_NOTE, 564, 36, 1 },
-    { "setup/dice-w1",    STR_W_DICE_W1_B,        330, 112 },
-    { "setup/dice-w2",    STR_W_DICE_W2_B,        330, 112 },
     { "sub/restore",      STR_W_RESTORE_S,    704, 30, 0 },
-    // cards mode (BLIND DRAW): subtitles, the method-row note, both why
-    // pairs and the checksum page's one number line. The candidate word
-    // actions are dynamic English BIP39 words and are deliberately not rows here.
+    // cards mode (BLIND DRAW): subtitles, the method-row note and the
+    // checksum page's one number line. The candidate word actions are dynamic
+    // English BIP39 words and are deliberately not rows here.
     { "sub/cards",        STR_W_CARDS_S,      704, 30, 0 },
     { "sub/cksum",        STR_W_CKSUM_S,      704, 30, 0 },
     { "sub/cards-pick",   STR_W_CARDS_PICK_S, 704, 30, 0 },
     { "setup/cards-note", STR_W_CARDS_NOTE,   420, 87 },
-    { "setup/cards-w1",   STR_W_CARDS_W1_B,   330, 112 },
-    { "setup/cards-w2",   STR_W_CARDS_W2_B,   330, 112 },
-    { "setup/cksum-w1",   STR_W_CKSUM_W1_B,   330, 112 },
-    { "setup/cksum-w2",   STR_W_CKSUM_W2_B,   330, 112 },
     { "setup/cksum-fit",  STR_W_CKSUM_FIT_FMT, 704, 20, 1 },
     // cards_help_cb() -- THE 2048 WORD LIST, three definitions in an icon grid.
     // Measured at the REAL cell lane, not the page: explain_grid deals two
@@ -230,19 +220,13 @@ static const slot_t SLOTS[] = {
     // reason. This is still the first setup wizard explainer with ANY fit
     // coverage -- the dice and entropy ones have none.
     { "setup/cards-help", STR_W_CARDS_HELP_B,  300, 399 },
-    // the two verdict screens: five subtitles (one per rule) and five bodies.
-    // No may_be_small on the bodies -- the why-block pair shares one font, so a
-    // fall to font14 here is a gate failure, not a graceful degrade.
+    // the two verdict screens: five subtitles, one per rule. The five bodies
+    // they used to pair with are single line fact values now.
     { "sub/cards-same",   STR_W_CARDS_SAME_S,   704, 30, 0 },
     { "sub/cards-period", STR_W_CARDS_PERIOD_S, 704, 30, 0 },
     { "sub/cards-clust",  STR_W_CARDS_CLUST_S,  704, 30, 0 },
     { "sub/cards-sorted", STR_W_CARDS_SORTED_S, 704, 30, 0 },
     { "sub/cards-dup",    STR_W_CARDS_DUP_S,    704, 30, 0 },
-    { "setup/cards-block",  STR_W_CARDS_BLOCK_B,  330, 112 },
-    { "setup/cards-clustb", STR_W_CARDS_CLUST_B,  330, 112 },
-    { "setup/cards-sortb",  STR_W_CARDS_SORTED_B, 330, 112 },
-    { "setup/cards-dupb",   STR_W_CARDS_DUP_B,    330, 112 },
-    { "setup/cards-fix",    STR_W_CARDS_FIX_B,    330, 112 },
     { "sub/vfy-backup",   STR_W_VERIFY_S,     704, 30, 0 },
     { "sub/qr-warn",      STR_L_SCAN_WARN_S,  704, 30, 0 },
     // and the signing flow's own subtitles. The chooser, the file list and
@@ -279,8 +263,6 @@ static const slot_t SLOTS[] = {
     { "login/cap-nomatch",STR_L_NO_MATCH,       486,  58 },
     { "login/cap-badpass",STR_L_BACKUP_PASS_BAD,486,  58 },
     { "login/cap-verify", STR_L_VERIFY_PASS,    486,  58 },
-    { "login/fp-note",    STR_L_FP_NOTE,        700,  58 },
-    { "login/fp-note2",   STR_L_FP_NOTE2,       700,  58 },
     // The scan page's right column: the safety sentence wraps freely in the
     // 356 lane above the band, so its budget is the room down to 398.
     // may_be_small for the same reason as sign/point-cam: it renders at a
@@ -375,36 +357,47 @@ static const row_t ROWS[] = {
 // "it / set/erase" came off the same way: it was Italian's "Cancella questo
 // portafoglio" overshooting by seven pixels, and the two NO UNDO rows have
 // since merged into one, so the label it named is gone.
-static const struct { const char *lang, *surface; } ROW_BACKLOG[] = {
-    { "de",    "set/storage" },
-    { "es-ES", "set/storage" },
-    { "es-MX", "set/storage" },
-    { "fr",    "set/storage" },
-    { "it",    "set/storage" },
-    { "nl",    "set/storage" },
-    { "pt-BR", "set/storage" },
-    { "pt-PT", "set/storage" },
-    { "ru",    "set/storage" },
-    { "tr",    "set/storage" },
-    // Arrived with the mono faces: the fixed-pitch body runs ~8% wider than
-    // the sans it replaced, and these translations were already within a few
-    // px of their lane. English fits everywhere; the shorter copy is the
-    // sweep's, like everything above.
-    { "es-ES", "set/endwords" }, { "es-ES", "set/type" },
-    { "es-MX", "set/endwords" }, { "es-MX", "set/type" },
-    { "it",    "set/type" },
-    { "pt-BR", "set/endwords" }, { "pt-BR", "set/type" },
-    { "pt-PT", "set/endwords" }, { "pt-PT", "set/type" },
+// EMPTY, and collected rather than left standing. Every entry here named a
+// locale whose row label overshot its lane by a few pixels, and every one of
+// them said the fix was the same thing: shorter copy, from a translation
+// sweep that had not happened yet. It has now. All ten "set/storage" entries
+// and all nine that arrived with the mono faces were de, es, fr, it, nl, pt,
+// ru and tr, and the sweep cut each of those labels to fit -- ALMACENAJE for
+// ALMACENAMIENTO, TIPO INDIRIZZO for TIPO DI INDIRIZZO, ПАМЯТЬ for ХРАНЕНИЕ.
+//
+// Measured before deleting, not assumed: the full 21 locale run reports
+// "row labels ellipsised: 0 backlogged, 0 new". A backlog nothing fires on is
+// a list of excuses for defects that no longer exist, and the next person to
+// read it would take it for work outstanding.
+// Named, and the scan takes its list as an argument, so the selftest can hand
+// it one with something IN it. Both live lists are a bare sentinel now, and an
+// emptied list can only ever answer "no" -- which is exactly what a lookup
+// hardcoded to `return false` answers. Every must-not-match case passes either
+// way, so with only the live lists to test against, the half of this that
+// EXCUSES findings had nothing holding it up.
+typedef struct { const char *lang, *surface; } backlog_t;
+
+// The NULL guard skips the sentinel and keeps going; it does not end the scan.
+// A fixture with the sentinel FIRST is what pins that difference.
+static bool backlogged(const backlog_t *list, int n,
+                       const char *lang, const char *surface)
+{
+    for (int i = 0; i < n; i++)
+        if (list[i].lang &&
+            strcmp(list[i].lang, lang) == 0 &&
+            strcmp(list[i].surface, surface) == 0)
+            return true;
+    return false;
+}
+
+static const backlog_t ROW_BACKLOG[] = {
+    { NULL, NULL },   // keep the array non-empty; backlogged skips NULL
 };
 #define NROW_BACKLOG ((int)(sizeof ROW_BACKLOG / sizeof ROW_BACKLOG[0]))
 
 static bool row_backlogged(const char *lang, const char *surface)
 {
-    for (int i = 0; i < NROW_BACKLOG; i++)
-        if (strcmp(ROW_BACKLOG[i].lang, lang) == 0 &&
-            strcmp(ROW_BACKLOG[i].surface, surface) == 0)
-            return true;
-    return false;
+    return backlogged(ROW_BACKLOG, NROW_BACKLOG, lang, surface);
 }
 
 // The SUB-LINE under a row label, which had the same blind spot the labels had
@@ -470,43 +463,35 @@ static const sub_t SUBROWS[] = {
 // Parked for the translation sweep (decided 2026-08-18): every entry here is
 // translation-bound and English fits everywhere, so the sweep is where these
 // get their shorter copy and this list shrinks there, not before.
-static const struct { const char *lang, *surface; } ROWSUB_BACKLOG[] = {
-    { "cs-CZ", "set/duress" },  { "cs-CZ", "set/words" },
-    { "da-DK", "set/duress" },
-    { "de",    "set/duress" },  { "de",    "set/words" },
-    { "es-ES", "set/duress" },
-    { "es-MX", "set/duress" },
-    { "fr",    "set/duress" },
-    { "hr-HR", "set/duress" },  { "hr-HR", "set/words" },
-    { "it",    "set/duress" },
-    { "nb-NO", "set/duress" },  { "nb-NO", "set/words" },
-    { "nl",    "set/duress" },  { "nl",    "set/words" },
-    { "pl",    "set/duress" },  { "pl",    "set/words" },
-    { "pt-BR", "set/duress" },  { "pt-BR", "set/words" },
-    { "pt-PT", "set/duress" },  { "pt-PT", "set/words" },
-    { "ru",    "set/duress" },  { "ru",    "set/words" },
-    { "sv-SE", "set/duress" },  { "sv-SE", "set/words" },
-    { "tr",    "set/duress" },
-    { "vi",    "set/duress" },  { "vi",    "set/words" },
-    // Arrived with the mono faces, same fingerprint-then-sentence sub as the
-    // set/words entries above -- ~8% wider glyphs took the last few px.
-    { "da-DK", "set/words" },
-    { "es-ES", "set/words" },
-    { "es-MX", "set/words" },
-    { "fr",    "set/words" },
-    { "it",    "set/words" },
-    { "tr",    "set/words" },
+// EMPTY, collected the way ROW_BACKLOG was and for the same reason. Thirty
+// two entries across seventeen locales, every one of them parked on the same
+// sentence: "translation-bound, English fits everywhere, the sweep is where
+// these get their shorter copy and this list shrinks there, not before."
+// The sweep has now been through all seventeen.
+//
+// set/words came off in the last four the same way each time -- the sub is a
+// mark, two spaces, eight hex digits of fingerprint and then a sentence, and
+// I_WORDS_VERIFIED_FMT was a sentence where English is two words. It is
+// "tjekket · %s", "sjekket · %s", "kollad · %s", "provjereno · %s" now, and
+// each of those took its row from 342-366px in a 317px lane to inside it.
+//
+// The mono-face cluster came off too, which was the open question: the file
+// said those six arrived because the fixed-pitch faces run ~8% wider on the
+// same sub, a LANE problem rather than a copy-length one, and they might
+// have survived shorter copy. They did not -- cutting the format string took
+// more than the faces had added.
+//
+// Measured before deleting: the full 21 locale run reports "row subs
+// ellipsised: 0 backlogged, 0 new".
+static const backlog_t ROWSUB_BACKLOG[] = {
+    { NULL, NULL },   // keep the array non-empty; backlogged skips NULL
 };
 #define NSUBROW_BACKLOG \
     ((int)(sizeof ROWSUB_BACKLOG / sizeof ROWSUB_BACKLOG[0]))
 
 static bool rowsub_backlogged(const char *lang, const char *surface)
 {
-    for (int i = 0; i < NSUBROW_BACKLOG; i++)
-        if (strcmp(ROWSUB_BACKLOG[i].lang, lang) == 0 &&
-            strcmp(ROWSUB_BACKLOG[i].surface, surface) == 0)
-            return true;
-    return false;
+    return backlogged(ROWSUB_BACKLOG, NSUBROW_BACKLOG, lang, surface);
 }
 
 static const row_t *row_by_surface(const char *surface)
@@ -546,18 +531,80 @@ static int row_label_budget(const row_t *r)
     return right - vw - 14;
 }
 
+// ---- the measurements, in one place so the selftest exercises the gate ----
+//
+// Every one of these was written inline in main. Pulling them out is not
+// tidying: a selftest that measures with its own copy of the arithmetic
+// proves the copy works, which is the failure this file already had once in
+// a worse form -- it did not COMPILE for a stretch (43847834, a reference to
+// a deleted key), and a gate that never runs looks exactly like a gate that
+// passes. Now that ROW_BACKLOG is a bare sentinel, "0 backlogged, 0 new" is
+// also what a check that stopped measuring would print.
+
+// The rung wt_body_font picks for a slot: 28, 23 or 14.
+static int slot_rung(const char *txt, int w, int h)
+{
+    const lv_font_t *f = wt_body_font(txt, w, h);
+    return f == wt_font28() ? 28 : f == wt_font23() ? 23 : 14;
+}
+
+// A wt_row label is font23 on ONE line, a sub is font14 on one line, and both
+// ellipsise past their budget -- so width on an unbounded lane is the whole
+// question for each.
+static int text_px(const char *txt, const lv_font_t *f)
+{
+    lv_point_t sz;
+    lv_text_get_size(&sz, txt, f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    return (int)sz.x;
+}
+
+// Present in the face, and with real ink in it rather than a placeholder box.
+static bool icon_inked(const lv_font_t *f, uint32_t cp)
+{
+    lv_font_glyph_dsc_t g;
+    return lv_font_get_glyph_dsc(f, &g, cp, 0) && g.box_w != 0 && g.adv_w != 0;
+}
+
+// What wt_title_fit lands on for this title in this lane. Builds and deletes
+// the real widgets, because the picker's answer depends on what else is in
+// the header row.
+static const lv_font_t *title_pick(const char *txt, int lane, bool chrome,
+                                   int *letter_space)
+{
+    lv_obj_t *scr = wt_screen(lv_screen_active(), txt, NULL);
+    if (chrome) wt_chrome_head(scr);
+    wt_title_fit(scr, lane);
+    lv_obj_t *cap = wt_screen_title(scr);
+    const lv_font_t *picked = lv_obj_get_style_text_font(cap, 0);
+    if (letter_space) *letter_space = lv_obj_get_style_text_letter_space(cap, 0);
+    lv_obj_delete(scr);
+    return picked;
+}
+
+static bool title_is_smallest(const lv_font_t *f)
+{
+    return f == wt_font_mono18() || f == wt_font23();
+}
+
 // The pill lane is gone with the pills. Every action is an arrow or word
 // action now: a content-sized single line at chrome23 that never re-fonts,
 // so there is no rung to fall off -- a long locale gets wider, and the
 // overlap walk is the gate that sees a collision.
 
-// sign/why is built at runtime from up to three reasons plus the footer; the
-// worst case (all three flagged) is what has to fit.
+// sign/why is built at runtime from up to FIVE reasons, and the worst case is
+// all five flagged. Three of them plus a footer was the old shape, and this
+// stayed behind when 43847834 gave every line its own action and dropped
+// S_WHY_FOOT: the key went, this reference did not, and sim/fitcheck.c has
+// not COMPILED since -- so the whole type-size ratchet was absent, in the one
+// state that looks nothing like a red gate. Mirror kiss_sign.c's builder, and
+// keep mirroring it: a reason added there and not here is measured by nothing.
 static void compose_why(char *out, size_t cap)
 {
-    snprintf(out, cap, "%s\n%s\n%s\n\n%s",
-             tr(STR_S_WHY_HIGHFEE), tr(STR_S_WHY_DUSTIN),
-             tr(STR_S_WHY_TINYCH), tr(STR_S_WHY_FOOT));
+    char merge[256];
+    snprintf(merge, sizeof merge, tr(STR_S_WHY_MERGE_FMT), 9u);
+    snprintf(out, cap, "%s\n%s\n%s\n%s\n%s",
+             tr(STR_S_WHY_HIGHFEE), tr(STR_S_WHY_DUSTIN), merge,
+             tr(STR_S_WHY_GAPCH), tr(STR_S_WHY_TINYCH));
 }
 
 // wt_group4 blocks a string in fours for comparison against a coordinator, so
@@ -727,6 +774,121 @@ static int check_addr_lift(void)
     return bad;
 }
 
+// ---- FITCHECK_SELFTEST=1: prove each measurement still REPORTS -------------
+//
+// Every check in this file is defined by what it EXCUSES, so a clean sweep
+// says nothing on its own. That was tolerable while ROW_BACKLOG held nineteen
+// entries: the run printed them, and a number that moves is a number that is
+// being computed. The backlog is a bare sentinel now, and "row labels
+// ellipsised: 0 backlogged, 0 new" is a line a gate that stopped measuring
+// would print WORD FOR WORD.
+//
+// Both directions, every case. A check that fires on everything passes the
+// must-fire half exactly as a dead one passes the must-not, so neither half
+// is worth having alone. The shapes go through the helpers above, which is
+// the same code the sweep runs -- a selftest with its own arithmetic tests
+// its own arithmetic.
+static int selftest(void)
+{
+    int cases = 0, bad = 0;
+#define CHK(what, cond) do {                                   \
+        cases++;                                               \
+        if (!(cond)) { printf("  selftest FAIL: %s\n", (what)); bad++; } \
+    } while (0)
+
+    // Long enough to overrun every lane on this device, short enough that no
+    // budget below has to be invented to make the point.
+    static const char LONG[] =
+        "a sentence far too long for any row label on this device to hold";
+    const int BUDGET = 200;
+
+    // slot rung -- the font14 ratchet
+    CHK("a long body in a small box falls to font14",
+        slot_rung(LONG, 300, 40) == 14);
+    CHK("a short body in a tall box does not",
+        slot_rung("ok", 600, 200) != 14);
+
+    // row label and sub width -- the two faces the rows are pinned to
+    CHK("a long label overruns its budget at font23",
+        text_px(LONG, wt_font23()) > BUDGET);
+    CHK("a short label does not",
+        text_px("ok", wt_font23()) <= BUDGET);
+    CHK("a long sub overruns its budget at font14",
+        text_px(LONG, wt_font14()) > BUDGET);
+    CHK("a short sub does not",
+        text_px("ok", wt_font14()) <= BUDGET);
+    CHK("the same string measures wider at font23 than at font14",
+        text_px(LONG, wt_font23()) > text_px(LONG, wt_font14()));
+
+    // The backlogs. BOTH are a bare {NULL, NULL} sentinel now, so the live
+    // lists can only answer "no" -- and a lookup hardcoded to `return false`
+    // answers "no" to everything. The four cases below would all pass against
+    // such a lookup, and it is the lookup that EXCUSES findings, so they are
+    // the cheap half. The fixture underneath is the half that costs something.
+    CHK("the emptied row backlog matches a surface it used to hold",
+        !row_backlogged("de", "set/storage"));
+    CHK("the emptied row backlog matches nothing else either",
+        !row_backlogged("xx", "no-such-surface"));
+    CHK("the emptied sub backlog matches a surface it used to hold",
+        !rowsub_backlogged("nb-NO", "set/duress"));
+    CHK("the emptied sub backlog matches nothing else either",
+        !rowsub_backlogged("xx", "no-such-surface"));
+
+    // A list with something in it, which neither live list is any more. This
+    // is the only thing here that fails if the scan stops matching, and it
+    // goes through the same backlogged() the two wrappers call.
+    static const backlog_t FIXTURE[] = {
+        { "xx-XX", "fixture/row" },
+        { NULL, NULL },
+    };
+    CHK("a lookup finds an entry that is present",
+        backlogged(FIXTURE, 2, "xx-XX", "fixture/row"));
+    CHK("a lookup rejects a lang the list does not name",
+        !backlogged(FIXTURE, 2, "yy-YY", "fixture/row"));
+    CHK("a lookup rejects a surface the list does not name",
+        !backlogged(FIXTURE, 2, "xx-XX", "fixture/other"));
+
+    // Sentinel FIRST: the NULL guard must skip it and carry on, not stop. Get
+    // that wrong and an emptied list silently excuses nothing while a list
+    // that grows an entry after its sentinel silently excuses nothing either.
+    static const backlog_t SENTINEL_FIRST[] = {
+        { NULL, NULL },
+        { "xx-XX", "fixture/row" },
+    };
+    CHK("the NULL guard skips the sentinel rather than ending the scan",
+        backlogged(SENTINEL_FIRST, 2, "xx-XX", "fixture/row"));
+
+    // kit icons. WT_ICON_* are all 3-byte UTF-8, decoded here the way the
+    // sweep decodes them. U+E000 opens the private use area: nothing this
+    // repo generates puts a glyph there.
+    const unsigned char *k = (const unsigned char *)WT_ICON_KEY;
+    const uint32_t keycp = ((uint32_t)(k[0] & 0x0Fu) << 12) |
+                           ((uint32_t)(k[1] & 0x3Fu) << 6) | (k[2] & 0x3Fu);
+    CHK("a kit icon is inked at font23", icon_inked(wt_font23(), keycp));
+    CHK("a kit icon is inked at font34", icon_inked(wt_font34(), keycp));
+    CHK("a codepoint no face has is not inked",
+        !icon_inked(wt_font23(), 0xE000));
+
+    // screen titles -- the real widgets and the real picker
+    CHK("a long title in a narrow lane lands on the smallest rung",
+        title_is_smallest(title_pick(LONG, 300, true, NULL)));
+    CHK("a short title in a full lane does not",
+        !title_is_smallest(title_pick("OK", 704, true, NULL)));
+
+#undef CHK
+    // A case deleted is a case that stops failing, and a selftest that
+    // quietly shrinks is the thing it was written to prevent one level up.
+    // Raise this WITH the case, never to make a run go green.
+    enum { FIT_SELFTEST_CASES = 20 };
+    if (cases != FIT_SELFTEST_CASES) {
+        printf("  selftest FAIL: %d cases, expected %d -- a case was removed\n",
+               cases, FIT_SELFTEST_CASES);
+        bad++;
+    }
+    printf("fit selftest: %d cases, %d broken\n", cases, bad);
+    return bad ? 1 : 0;
+}
+
 int main(int argc, char **argv)
 {
     lv_init();
@@ -734,6 +896,10 @@ int main(int argc, char **argv)
     lv_display_t *d = lv_display_create(800, 480);
     lv_display_set_color_format(d, LV_COLOR_FORMAT_RGB565);
     lv_display_set_buffers(d, buf, NULL, sizeof buf, LV_DISPLAY_RENDER_MODE_PARTIAL);
+
+    // Before the sweep, not instead of it: the sweep's answer is only worth
+    // reading once the measurements behind it have been shown to still fire.
+    if (getenv("FITCHECK_SELFTEST") && selftest()) return 1;
 
     int total_small = 0, key_small = 0, nfail = 0, en_small = 0;
     int row_cut = 0, row_known = 0;
@@ -768,10 +934,9 @@ int main(int argc, char **argv)
             if (SLOTS[i].key < 0) { compose_why(composed, sizeof composed); txt = composed; }
             else                  { txt = tr(SLOTS[i].key); }
 
-            const lv_font_t *f = wt_body_font(txt, SLOTS[i].w, SLOTS[i].h);
             // Only font14 counts as a failure now. 23 is a real reading size,
             // and the notes wedged between controls can never reach 28.
-            int rung = f == wt_font28() ? 28 : f == wt_font23() ? 23 : 14;
+            int rung = slot_rung(txt, SLOTS[i].w, SLOTS[i].h);
             int bad  = rung == 14 && !SLOTS[i].may_be_small;
             if (bad) small++;
             // how far the copy overflows at 23 is what a translator must delete
@@ -805,18 +970,16 @@ int main(int argc, char **argv)
         for (int i = 0; i < NROW; i++) {
             const char *txt = tr(ROWS[i].key);
             int budget = row_label_budget(&ROWS[i]);
-            lv_point_t sz;
-            lv_text_get_size(&sz, txt, wt_font23(), 0, 0, LV_COORD_MAX,
-                             LV_TEXT_FLAG_NONE);
+            const int px = text_px(txt, wt_font23());
             rlines[i][0] = '\0';
-            if ((int)sz.x > budget) {
+            if (px > budget) {
                 rbad++;
                 bool known = row_backlogged(li->code, ROWS[i].surface);
                 if (known) row_known++;
                 else       row_cut++;
                 snprintf(rlines[i], sizeof rlines[i],
                          "  row  %-15s %3dpx / %3dpx  %s  \"%s\"",
-                         ROWS[i].surface, (int)sz.x, budget,
+                         ROWS[i].surface, px, budget,
                          known ? "ellipsis (backlog)" : "ELLIPSIS", txt);
             }
         }
@@ -843,18 +1006,16 @@ int main(int argc, char **argv)
             snprintf(built, sizeof built, "%s%s",
                      SUBROWS[i].pfx ? SUBROWS[i].pfx : "", body);
             int budget = row_label_budget(r);
-            lv_point_t sz;
-            lv_text_get_size(&sz, built, wt_font14(), 0, 0, LV_COORD_MAX,
-                             LV_TEXT_FLAG_NONE);
+            const int px = text_px(built, wt_font14());
             slines[i][0] = '\0';
-            if ((int)sz.x > budget) {
+            if (px > budget) {
                 sbad++;
                 bool known = rowsub_backlogged(li->code, SUBROWS[i].surface);
                 if (known) sub_known++;
                 else       sub_cut++;
                 snprintf(slines[i], sizeof slines[i],
                          "  sub  %-15s %3dpx / %3dpx  %s  \"%s\"",
-                         SUBROWS[i].surface, (int)sz.x, budget,
+                         SUBROWS[i].surface, px, budget,
                          known ? "ellipsis (backlog)" : "ELLIPSIS", built);
             }
         }
@@ -911,14 +1072,15 @@ int main(int argc, char **argv)
         uint32_t cp = ((u[0] & 0x0Fu) << 12) |     // every WT_ICON_* is 3-byte
                       ((u[1] & 0x3Fu) << 6) | (u[2] & 0x3Fu);
         for (size_t j = 0; j < sizeof FACES / sizeof *FACES; j++) {
+            if (icon_inked(FACES[j].f, cp)) continue;
+            // Only now is the distinction worth the second lookup: absent
+            // from the chain, or present as an empty placeholder box.
             lv_font_glyph_dsc_t g;
             bool ok = lv_font_get_glyph_dsc(FACES[j].f, &g, cp, 0);
-            if (!ok || g.box_w == 0 || g.adv_w == 0) {
-                printf("FAIL: %s (U+%04X) %s in %s\n", ICONS[i].name,
-                       (unsigned)cp, ok ? "is blank" : "is MISSING",
-                       FACES[j].name);
-                icon_bad++;
-            }
+            printf("FAIL: %s (U+%04X) %s in %s\n", ICONS[i].name,
+                   (unsigned)cp, ok ? "is blank" : "is MISSING",
+                   FACES[j].name);
+            icon_bad++;
         }
     }
     if (icon_bad) {
@@ -1025,16 +1187,11 @@ int main(int argc, char **argv)
                 if (only && strcmp(only, i18n_lang_info(l)->code) != 0) continue;
                 i18n_set_lang(l);
                 const char *txt = tr(TITLE_SLOTS[t].key);
-                lv_obj_t *scr = wt_screen(lv_screen_active(), txt, NULL);
-                if (TITLE_SLOTS[t].chrome) wt_chrome_head(scr);
-                wt_title_fit(scr, TITLE_SLOTS[t].lane);
-                lv_obj_t *cap = wt_screen_title(scr);
-                const lv_font_t *picked = lv_obj_get_style_text_font(cap, 0);
-                const bool smallest = picked == wt_font_mono18() ||
-                                      picked == wt_font23();
-                if (smallest) {
+                int ls = 0;
+                const lv_font_t *picked = title_pick(txt, TITLE_SLOTS[t].lane,
+                                                     TITLE_SLOTS[t].chrome, &ls);
+                if (title_is_smallest(picked)) {
                     lv_point_t sz;
-                    const int ls = lv_obj_get_style_text_letter_space(cap, 0);
                     lv_text_get_size(&sz, txt, picked, ls, 0, LV_COORD_MAX,
                                      LV_TEXT_FLAG_NONE);
                     printf("  title %-11s %-6s smallest  %dpx / %dpx  FAIL\n",
@@ -1042,7 +1199,6 @@ int main(int argc, char **argv)
                            sz.x, TITLE_SLOTS[t].lane);
                     title_small++;
                 }
-                lv_obj_delete(scr);
             }
         }
         printf("screen titles: %d lane(s), %d title-locale pair(s) at smallest rung\n",

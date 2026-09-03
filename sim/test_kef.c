@@ -326,6 +326,97 @@ static void test_seal_seed(void)
     memset(plain, 0, sizeof plain);
 }
 
+// ---- the armor a Krux envelope arrives wearing ---------------------------
+// The envelope below is synthetic and deliberately so: a valid v20 header
+// with no crypto behind it, so this proves the ARMOR and nothing else. Both
+// strings were produced by python3 outside this file -- base64 from stdlib,
+// base43 from the big endian base conversion Electrum defines -- so a decoder
+// that agrees with them agrees with something that is not our own encoder.
+static void test_armor(void)
+{
+    static const uint8_t ENV[41] = {
+        0x04,'T','E','S','T', 0x14, 0x00,0x00,0x0a,
+        0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0a,0x0b,0x0c,
+        0x40,0x41,0x42,0x43,0x44,0x45,0x46,0x47,
+        0x48,0x49,0x4a,0x4b,0x4c,0x4d,0x4e,0x4f,
+        0xaa,0xbb,0xcc,0xdd
+    };
+    static const char B43[] =
+        "3+Z4DWYYSF-:$S4.SCQ93MYSAG*OBFZD-H8HEY:./Q.KQMXJ7V:NZS/Q-UQ1";
+    static const char B64[] =
+        "BFRFU1QUAAAKAQIDBAUGBwgJCgsMQEFCQ0RFRkdISUpLTE1OT6q7zN0=";
+
+    uint8_t out[KEF_MAX_ENV];
+    size_t n = 0;
+
+    dchk("armor: the vector itself is a KEF envelope",
+         kef_sniff(ENV, sizeof ENV) == 1);
+
+    n = 0;
+    dchk("armor: base43 out of a QR decodes to the envelope",
+         kef_unarmor((const uint8_t *)B43, strlen(B43), out, sizeof out, &n) == 0
+             && n == sizeof ENV && memcmp(out, ENV, sizeof ENV) == 0);
+
+    n = 0;
+    dchk("armor: base64 out of a file decodes to the envelope",
+         kef_unarmor((const uint8_t *)B64, strlen(B64), out, sizeof out, &n) == 0
+             && n == sizeof ENV && memcmp(out, ENV, sizeof ENV) == 0);
+
+    // A file an editor has touched. The QR never carries one, the card does.
+    char nl[128];
+    snprintf(nl, sizeof nl, "%s\n", B64);
+    n = 0;
+    dchk("armor: a trailing newline does not stop it",
+         kef_unarmor((const uint8_t *)nl, strlen(nl), out, sizeof out, &n) == 0
+             && n == sizeof ENV);
+
+    // -1 for a raw envelope is the contract, not a miss: the caller keeps
+    // using its own buffer, which is the path every KISS backup takes.
+    n = 0;
+    dchk("armor: a raw envelope is left alone",
+         kef_unarmor(ENV, sizeof ENV, out, sizeof out, &n) == -1);
+
+    // Everything that must fall through to whoever else wants the payload.
+    const char *words =
+        "abandon abandon abandon abandon abandon abandon abandon abandon "
+        "abandon abandon abandon abandon abandon abandon abandon abandon "
+        "abandon abandon abandon abandon abandon abandon abandon art";
+    n = 0;
+    dchk("armor: a text mnemonic is not armored KEF",
+         kef_unarmor((const uint8_t *)words, strlen(words), out, sizeof out,
+                     &n) == -1);
+
+    const char *desc = "wpkh([73c5da0a/84h/0h/0h]xpub6C.../0/*)";
+    n = 0;
+    dchk("armor: a descriptor is not armored KEF",
+         kef_unarmor((const uint8_t *)desc, strlen(desc), out, sizeof out,
+                     &n) == -1);
+
+    // Valid base43 that decodes cleanly and is not an envelope. This is the
+    // check that keeps the password keyboard off a stray alphanumeric QR.
+    const char *junk = "HELLO4WORLD4THIS4IS4NOT4AN4ENVELOPE";
+    n = 0;
+    dchk("armor: clean base43 that is not an envelope is refused",
+         kef_unarmor((const uint8_t *)junk, strlen(junk), out, sizeof out,
+                     &n) == -1);
+
+    // One character outside both alphabets kills the whole string.
+    char bad[80];
+    snprintf(bad, sizeof bad, "%s", B43);
+    bad[10] = '\'';
+    n = 0;
+    dchk("armor: an out of alphabet character is refused",
+         kef_unarmor((const uint8_t *)bad, strlen(bad), out, sizeof out,
+                     &n) == -1);
+
+    // The output buffer is the bound, not the input length.
+    uint8_t tiny[8];
+    n = 0;
+    dchk("armor: a decode too big for the caller's buffer is refused",
+         kef_unarmor((const uint8_t *)B43, strlen(B43), tiny, sizeof tiny,
+                     &n) == -1);
+}
+
 int test_kef(void)
 {
     dfails = 0;
@@ -335,5 +426,6 @@ int test_kef(void)
     test_roundtrip();
     test_sniff();
     test_seal_seed();
+    test_armor();
     return dfails;
 }

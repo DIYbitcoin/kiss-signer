@@ -180,11 +180,21 @@ static void sp_permission_model(lv_obj_t *parent)
 // The three diagrams, as wt_explain_open asides: draw into the box you are
 // given, report the height you used. Each of the underlying helpers appends into
 // a flex column, so each wrapper supplies one.
+// IN A CARD, since the explainer body stopped being a ruled block. That rule
+// -- 3px wide and as tall as the paragraph -- was what oc_is_frame counted on
+// these screens, and the diagram beside it never was: a chip is about 40x28
+// and the frame test wants 100x30. So the picture was invisible to BARE the
+// moment the rule went, and the gate reported a screen with a diagram on it as
+// a wall of text. Same answer kiss_word_ui.c reached for the same reason, and
+// it reads better: the diagram is one object on the glass instead of two chips
+// floating in the band above the prose.
 static int aside_col(lv_obj_t *par, int x, int y, int w, void (*fill)(lv_obj_t *))
 {
-    lv_obj_t *col = lv_obj_create(par);
+    const int pad = 12;
+    lv_obj_t *card = wt_card(par, x, y, w, 2 * pad);
+    lv_obj_t *col = lv_obj_create(card);
     lv_obj_remove_style_all(col);
-    lv_obj_set_pos(col, x, y);
+    lv_obj_set_pos(col, 0, pad);
     lv_obj_set_width(col, w);
     lv_obj_set_height(col, LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
@@ -194,7 +204,9 @@ static int aside_col(lv_obj_t *par, int x, int y, int w, void (*fill)(lv_obj_t *
     lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
     fill(col);
     lv_obj_update_layout(col);
-    return lv_obj_get_height(col);
+    const int h = lv_obj_get_height(col) + 2 * pad;
+    lv_obj_set_height(card, h);
+    return h;
 }
 // The code the fingerprint card is currently explaining. A static, because the
 // aside callback wt_explain_open takes has no user data and this is the only
@@ -427,8 +439,30 @@ static void pair_term_more(int id)
            WT_INK);
     wt_lbl(s_scr, tr(STR_T_WATCH_P2_B), WT_LANE_X, 158,
            wt_font_mono23(), WT_MUT);
-    lv_obj_t *d = wt_addr_spans(s_scr, txt, WT_LANE_W, wt_font_mono23());
-    lv_obj_set_pos(d, WT_LANE_X, 200);
+    // FRAMED, because a descriptor is a VALUE and the chrome contract asks
+    // every screen for something framed above the action row. It was four
+    // lines of raw text on the page ground with a hundred pixels of nothing
+    // under them -- reported BARE the moment overlapcheck could read a
+    // spangroup, which is what this block is.
+    //
+    // The card is measured to the text rather than fixed: a descriptor's
+    // length moves with the script type and the fingerprint, and a box that
+    // fits zpub would clip a longer one.
+    // A NARROWER COLUMN, which is the silent payment view's idiom and is here
+    // for its reason rather than for the gate's: a 704px run of base58 is four
+    // lines an eye cannot keep its place in, and sp_addr_render sets its own
+    // address in a 386px column for exactly that. More lines, each trackable.
+    //
+    // It also stops being a WALL by measure, which is the honest order of
+    // events: the column is narrower because it reads better, and a 704px
+    // paragraph of data in a box was what the gate objected to.
+    const int dw = 470;
+    lv_obj_t *d = wt_addr_spans(s_scr, txt, dw - 48, wt_font_mono23());
+    lv_obj_update_layout(d);
+    lv_obj_t *card = wt_card(s_scr, WT_LANE_X, 196, dw,
+                             lv_obj_get_height(d) + 44);
+    lv_obj_set_parent(d, card);
+    lv_obj_set_pos(d, 24, 22);
 
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_BACK_X,
                     WT_ACTION_Y, 140, true, desc2_back_cb, NULL);
@@ -449,8 +483,8 @@ static void pair_terms_cb(lv_event_t *e)
     wt_chrome_head(s_scr);
     wt_trail(s_scr, WT_ICON_WHAT, tr(STR_I_PAIR_T), false);
     kiss_terms_more_hook(pair_term_has_more, pair_term_more);
-    kiss_terms_list(s_scr, KISS_TERMS_PAIR, 2);
-    kiss_terms_hint(s_scr);
+    kiss_terms_list(s_scr, KISS_TERMS_PAIR, 3);
+    kiss_terms_hint(s_scr, KISS_TERMS_PAIR, 3);
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_BACK_X,
                     WT_ACTION_Y, 140, true, pair_terms_back_cb, NULL);
 }
@@ -466,8 +500,10 @@ static void pair_screen(void)
     // The TAB FIRST, so the trail beside it knows where to stop: they share
     // one 30px strip and the trail's box runs to 752 unless something is
     // already there.
-    wt_help_tab_n(s_scr, NULL, kiss_terms_unread(KISS_TERMS_PAIR, 2),
+    wt_help_tab_n(s_scr, NULL, kiss_terms_unread(KISS_TERMS_PAIR, 3),
                   pair_terms_cb, NULL);
+    // DECIDED: the KEYS page has no tab strip, and the COORDINATOR element beside its
+    // title is a breadcrumb rather than a lone tab.
     // ONE segment. It was "KEYS / COORDINATOR" and the second half restates
     // the title this page already carries.
     wt_trail(s_scr, WT_ICON_QR, tr(STR_I_T), false);
@@ -476,9 +512,12 @@ static void pair_screen(void)
                                wt_ink_for(WT_WARN));
         lv_obj_set_style_bg_color(net, lv_color_hex(0x2A2113), 0);
         lv_obj_set_style_bg_opa(net, LV_OPA_COVER, 0);
-        lv_obj_set_style_border_color(net, wt_ink_for(WT_WARN), 0);
-        lv_obj_set_style_border_width(net, 1, 0);
-        lv_obj_set_style_radius(net, 10, 0);
+        // Flat, like wt_state_chip: the tint and the ink carry the state and
+        // no outline is drawn round the word. This badge was rolled by hand
+        // rather than taken from the kit, which is why it kept the rim after
+        // the kit lost it.
+        lv_obj_set_style_border_width(net, 0, 0);
+        lv_obj_set_style_radius(net, 4, 0);
         lv_obj_set_style_pad_hor(net, 8, 0);
         lv_obj_set_style_pad_ver(net, 3, 0);
         lv_obj_set_style_text_letter_space(net, 1, 0);
@@ -517,7 +556,19 @@ static void pair_screen(void)
 
     // The QR is primary on page one; the selected app's import directions are
     // readable here and repeated with the proof step on the static NEXT page.
-    s_pair_note = wt_note(s_scr, "", 400, 204, 360, 190);
+    s_pair_note = wt_note(s_scr, "", 400, 204, 360, 108);
+
+    // WHAT THIS QR HANDS OVER, at the moment it is handed over. The KEYS page
+    // says it as a standing line one screen back, and this is the screen where
+    // the owner actually shows the code to something -- a fact worth teaching
+    // in help is worth stating at the decision.
+    //
+    // K_EXPL_COORD already carries BOTH halves in one string and ships in 21
+    // locales, so this costs no key: "it sees every payment. it can never
+    // spend one." The accent stop between the two sentences is what separates
+    // the reassurance from the limit, which is the whole reason that treatment
+    // exists.
+    wt_note(s_scr, tr(STR_K_EXPL_COORD), 400, 318, 360, 76);
 
     // This BACK used to take the corner on the theory that an escape from the
     // whole flow earns it while a step back to one page does not. That rule was
@@ -704,8 +755,8 @@ static void sp_key_warn_cb(lv_event_t *e)
         .sentence = tr(STR_K_SPGATE_SENT),
         .para     = para,
         .warn     = note,
-        .surv_cap = tr(STR_C_SURVIVES),     .surv = tr(STR_K_SPGATE_SURV),
-        .goes_cap = tr(STR_C_NOT_SURVIVES), .goes = tr(STR_K_SPGATE_GOES),
+        .surv = tr(STR_K_SPGATE_SURV),
+        .goes = tr(STR_K_SPGATE_GOES),
         .stop     = false,
     };
     wt_gate(s_scr, &g);
@@ -872,9 +923,14 @@ static void words_gate_screen(void)
     wt_gate_t g = {
         .mark     = LV_SYMBOL_EYE_OPEN,
         .sentence = tr(STR_W_SHOW_SENT),
-        .para     = tr(STR_I_WORDS_S),
-        .surv_cap = tr(STR_C_SURVIVES),     .surv = tr(STR_W_SHOW_SURV),
-        .goes_cap = tr(STR_C_NOT_SURVIVES), .goes = tr(STR_W_SHOW_GOES),
+        // NO PARAGRAPH. "Your seed words appear on this screen." says what is
+        // about to happen and the two facts below say what it costs and what
+        // it does not; there was nothing left for a third line to add, so it
+        // was carrying the COPYING instruction from the setup grid -- an
+        // answer to a question this screen does not ask.
+        .para     = NULL,
+        .surv = tr(STR_W_SHOW_SURV),
+        .goes = tr(STR_W_SHOW_GOES),
         .stop     = false,
     };
     wt_gate(s_scr, &g);
@@ -926,8 +982,16 @@ static void winfo_after_verify(void)
     // Nothing is taken away by this: kiss_backup_mark only ever sets, and keys
     // opened with a passphrase earned their mark on the rehearsal at setup,
     // where the passphrase actually was checked.
+    //
+    // The leg EXISTS here now: kiss_setup_open_verify is opened with
+    // with_pass, so a wallet with a passphrase is asked for it and has to
+    // rederive the fingerprint before this route claims anything. So the
+    // condition is "the words were the whole backup, OR the passphrase proved
+    // it too" -- and the half check still cannot turn the chip green.
     if (kiss_setup_verify_succeeded() &&
-        kiss_rehearse_after_words(kiss_session_decoy()) == KISS_REHEARSE_VERIFIED) {
+        (kiss_setup_verify_full() ||
+         kiss_rehearse_after_words(kiss_session_decoy()) ==
+             KISS_REHEARSE_VERIFIED)) {
         uint8_t fp[4];
         kiss_ui_last_fp(fp);
         kiss_backup_mark(fp);
@@ -939,7 +1003,7 @@ static void verify_copy_cb(lv_event_t *e)
 {
     (void)e;
     swap_screen();                       // drop this screen (async: safe mid-event)
-    kiss_setup_open_verify(s_parent, winfo_after_verify);
+    kiss_setup_open_verify(s_parent, winfo_after_verify, true);
 }
 
 // ---- RECOVERY WORDS: two groups, PAPER and ENCRYPTED --------------------
@@ -970,12 +1034,6 @@ static void wtab_paper(void)
 {
     const bool ok = kiss_ui_backup_checked();
 
-    wt_row_wide(w_pane, WT_WIDE_Y(0), &(wt_wide_t){
-        .label = tr(STR_I_WROW_SHOW),
-        .sub   = tr(STR_I_WROW_SHOW_SUB),
-        .kind  = WT_WIDE_OPEN,
-        .cb    = words_show_cb,
-    });
 
     // The same two facts the SETTINGS backup row states, in the same shape: a
     // glyph for the value and the state in the sub, so a long locale grows the
@@ -993,7 +1051,7 @@ static void wtab_paper(void)
         snprintf(wsub, sizeof wsub, "%s", tr(STR_I_WORDS_UNVERIFIED));
         snprintf(wval, sizeof wval, "%s", LV_SYMBOL_WARNING);
     }
-    wt_row_wide(w_pane, WT_WIDE_Y(1), &(wt_wide_t){
+    wt_row_wide(w_pane, WT_WIDE_Y(0), &(wt_wide_t){
         .label   = tr(STR_I_WROW_CHECK),
         .sub     = wsub,
         .sub_col = ok ? WT_OK : WT_WARN,
@@ -1002,6 +1060,23 @@ static void wtab_paper(void)
         .vcol    = ok ? WT_OK : WT_WARN,
         .sev     = ok ? WT_SEV_OK : WT_SEV_WARN,
         .cb      = verify_copy_cb,
+    });
+
+    // CHECK MY COPY FIRST. It was second, under SHOW THEM, and the order is
+    // the page's advice: the row above is the only one here that changes
+    // anything, it is what turns the amber state green, and it is what an
+    // owner holding a page of words should do before asking for them again.
+    // Putting the reveal first offers the glass as the answer to "have I got
+    // these right", which it is not -- reading them off the screen proves
+    // nothing about the paper.
+    //
+    // NO SUB on the reveal. It said "paper only. no photo, no file." and the
+    // gate one tap later says the same instruction in full, which is the
+    // restatement this page's body was already cut for once.
+    wt_row_wide(w_pane, WT_WIDE_Y(1), &(wt_wide_t){
+        .label = tr(STR_I_WROW_SHOW),
+        .kind  = WT_WIDE_OPEN,
+        .cb    = words_show_cb,
     });
 
     // The entropy judge's verdict, carried forward from the seed that was
@@ -1109,14 +1184,28 @@ static void wtab_enc(void)
     // tick is a result. WT_WIDE_OPEN with no callback keeps it in full ink with
     // no chevron and no tap; the amber is on the sub alone, where it is a
     // caution about CONTENT rather than a claim about state.
+    // THE ANSWER, not the question. This read I_KEF_PP_H -- "what is in
+    // it" -- which is a HEADING: it and I_KEF_W2_H ("if you lose it") are
+    // the two heads of a block whose bodies were deleted, and both were left
+    // wired up. So the row an owner opens to find out what is in the envelope
+    // asked them the question back, and did it only on a signer WITH a
+    // passphrase, which is the case where the answer matters.
+    //
+    // I_KEF_WARN_S_PP is that answer, already written and already in 21
+    // locales -- it was sitting on the orphan backlog. The fact it carries is
+    // the one that bites: this QR holds the words and NOT the passphrase, so
+    // on its own it rebuilds different keys.
     wt_row_wide(w_pane, WT_WIDE_Y(1), &(wt_wide_t){
         .label   = tr(STR_I_WROW_HOLDS),
-        .sub     = tr(pp ? STR_I_KEF_PP_H : STR_I_KEF_WARN_S),
+        .sub     = tr(pp ? STR_I_KEF_WARN_S_PP : STR_I_KEF_WARN_S),
         .sub_col = pp ? WT_WARN : WT_MUT,
         .kind    = WT_WIDE_OPEN,
     });
 
-    wt_group_note(w_pane, 2, tr(STR_I_KEF_W2_H));
+    // ...and the other head goes the same way. "if you lose it" ended the tab
+    // on a dangling fragment; what it was reaching for is what opens the
+    // thing, which is the one fact the two rows above do not carry.
+    wt_group_note(w_pane, 2, tr(STR_I_KEF_SHOW_S));
 
     // No fingerprint card here either. The row above already names the file
     // by its fingerprint ("one QR, or 9A2C33E3.kef"), so the card was the
@@ -1330,18 +1419,23 @@ static void kef_warn_screen(lv_event_t *e)
     // TWO facts, not three. The band is 344 here because of the slide, so the
     // lane ends at 336: a third row lands at 338.
     const wt_fact_t facts[2] = {
-        { tr(pp ? STR_I_KEF_F1_C : STR_I_KEF_F1_C_NP),
-          tr(pp ? STR_I_KEF_F1_V : STR_I_KEF_F1_V_NP),
-          pp ? WT_ICON_SECRET : WT_ICON_LOCK },
-        { tr(STR_G_TECHNICAL), tr(STR_I_KEF_TERM), LV_SYMBOL_LIST },
+        { .cap = tr(pp ? STR_I_KEF_F1_C : STR_I_KEF_F1_C_NP),
+          .val = tr(pp ? STR_I_KEF_F1_V : STR_I_KEF_F1_V_NP),
+          .icon = pp ? WT_ICON_SECRET : WT_ICON_LOCK },
+        { .cap = tr(STR_G_TECHNICAL), .val = tr(STR_I_KEF_TERM),
+          .icon = LV_SYMBOL_LIST },
     };
     // With a passphrase the paragraph has one more thing to say and it is the
     // one that matters: the envelope holds the WORDS, and the words alone are
     // not these keys. The passphrase is wiped at login by design
     // (kiss_crypto.h), so it is not in there and no future version can
     // quietly put it there.
-    wt_explain(s_scr, tr(STR_I_KEF_HEAD),
-               tr(pp ? STR_I_KEF_EXP_B : STR_I_KEF_EXP_B_NP), facts, 2);
+    // WT_ACTION_Y_SLIDE, not the default bottom: the band is 344 here
+    // because of the slide, so an explainer hanging from WT_CONTENT_BOTTOM
+    // would put its second fact behind it.
+    wt_explain_to(s_scr, tr(STR_I_KEF_HEAD),
+                  tr(pp ? STR_I_KEF_EXP_B : STR_I_KEF_EXP_B_NP), facts, 2,
+                  WT_ACTION_Y_SLIDE);
 
     // Making the envelope puts the keys on the glass as a QR one screen
     // later, so the entry is a deliberate slide, the scan-key precedent.
@@ -1372,7 +1466,6 @@ static void info_help_cb(lv_event_t *e)
     // wt_pane_go refuses a same-tab call, so this is its swap by hand: stop
     // whatever is mid-flight, send the old group out, build the new one in.
     // [ ? ] never highlights, but the strip releases the tab behind it.
-    wt_tabs_flex_help(s_ictx.tabs, s_ictx.tab, s_help_open);
     const bool was_moving = s_ictx.entering;
     wt_pane_stop(&s_ictx);
     if (was_moving && s_ictx.pane) {
@@ -1388,21 +1481,10 @@ static void info_help_cb(lv_event_t *e)
     wt_pane_exit(&s_ictx, dir);
 }
 
-static void info_tab_cb(lv_event_t *e)
-{
-    int tab = (int)(intptr_t)lv_event_get_user_data(e);
-    // A real tab is also the way back from [ ? ]: tapping the one already
-    // selected re-lands on its rows, which wt_pane_go's same-tab refusal
-    // would otherwise swallow.
-    if (s_help_open && tab == s_ictx.tab) { info_help_cb(NULL); return; }
-    s_help_open = false;
-    wt_pane_go(&s_ictx, tab, false, info_tab_build);
-}
-
-// The stroke, on the KEYS page: two tabs, one deck. [ ? ] stays a toggle
-// rather than a position on the deck, but the stroke reaches it -- past the
-// last tab opens it, and a right swipe on it is the way back. SETTINGS
-// shipped this first, from the bench's "i cant swipe to the question mark".
+// The stroke, on the KEYS page: one page and its [ ? ]. The explainer stays a
+// toggle rather than a position on a deck, and the stroke reaches it -- left
+// opens it, right comes back. SETTINGS shipped this first, from the bench's
+// "i cant swipe to the question mark".
 static void info_gesture_cb(lv_event_t *e)
 {
     const int step = wt_swipe_step(e);
@@ -1411,10 +1493,9 @@ static void info_gesture_cb(lv_event_t *e)
         if (step < 0) info_help_cb(NULL);
         return;
     }
-    const int to = s_ictx.tab + step;
-    if (to > 1) { info_help_cb(NULL); return; }
-    if (to < 0) return;             // the deck still ends on the left
-    wt_pane_go(&s_ictx, to, false, info_tab_build);
+    // One page, so the deck is the page and the [ ? ]: a left stroke opens the
+    // explainer, and there is nowhere to the right of it to go.
+    if (step > 0) info_help_cb(NULL);
 }
 
 // The address fold this lane can hold. wt_addr_short's own fold is 28 mono
@@ -1481,91 +1562,30 @@ static void info_addr_value(lv_obj_t *row)
 // Four lines and two lines, both on the one full-width lane. The old screen
 // put four facts in a left column and two destinations in a right one, which
 // is four different shapes for six things that are all "a label, what it says,
-// and where it takes you". They are one shape now, and the tab strip is what
-// buys the room: the lane is 704 wide instead of 365, so an address fits at
-// mono23 and a path fits beside its own type.
+// and where it takes you". They are one shape now, on a 704 wide lane, so an
+// address fits at mono23 and a path fits beside its own type.
 static void info_tab_build(void)
 {
     lv_obj_t *p = s_ictx.pane;
-    char buf[128];
     const int X = 48, W = 704;
 
     if (s_help_open) {
         // The [ ? ] content: the lane replaced, not a card and not an
         // overlay. Nothing on it is interactive; the strip is the way back.
+        // The three ROWS of this page, in the order the page shows them.
+        // They used to be three unrelated nouns under a headline about a
+        // fourth thing -- and the middle one, ACCOUNT / "network and address
+        // style", is not what an account is. The bench read the page and could
+        // not say what it was explaining, which is the whole report.
         wt_fact_t facts[3] = {
-            { tr(STR_K_HELP_F1C), tr(STR_K_HELP_F1V), WT_ICON_KEY },
-            { tr(STR_K_HELP_F2C), tr(STR_K_HELP_F2V), WT_ICON_QR },
-            { tr(STR_K_HELP_F3C), tr(STR_K_HELP_F3V), LV_SYMBOL_EYE_OPEN },
+            { .cap = tr(STR_K_HELP_F1C), .val = tr(STR_K_HELP_F1V),
+              .icon = WT_ICON_KEY },
+            { .cap = tr(STR_K_HELP_F3C), .val = tr(STR_K_HELP_F3V),
+              .icon = WT_ICON_QR },
+            { .cap = tr(STR_I_SEC_FIRST), .val = tr(STR_S_CMP_8),
+              .icon = LV_SYMBOL_EYE_OPEN },
         };
         wt_explain(p, tr(STR_K_HELP_HEAD), tr(STR_K_HELP_BODY), facts, 3);
-        return;
-    }
-
-    if (s_ictx.tab == 0) {
-        // No fingerprint hero. It was the top half of this page and a
-        // straight duplicate of the home page's own headline -- the owner
-        // asked for it gone from the bench. What is left is the three facts
-        // a coordinator conversation actually needs, each a third of the
-        // lane, each opening its plain-sentence definition where it stands.
-
-        // h, not an apostrophe, and this is correctness rather than style: at
-        // small sizes the apostrophes in m/84'/0'/0' render as tick marks and
-        // the line reads as m/84/0/0. Those are DIFFERENT PATHS, and a
-        // coordinator handed the unhardened one finds none of these keys.
-        int sc = kiss_script();
-        int purpose = sc == WSCRIPT_LEGACY ? 44 : sc == WSCRIPT_NESTED ? 49
-                                                                       : 84;
-        snprintf(buf, sizeof buf, "m/%dh/%dh/0h", purpose,
-                 kiss_testnet() ? 1 : 0);
-        char term_type[64];
-        snprintf(term_type, sizeof term_type, tr(STR_K_TYPE_TERM_FMT),
-                 purpose);
-
-        // The first address, folded to the device's own idiom: prefix, the
-        // gap, the last eight in two blocks -- or the session-locked state,
-        // as words, never as an address-shaped fragment.
-        char ahead[24] = {0}, atail[16] = {0};
-        char abuf[128];
-        size_t n = kiss_session_address(0, 0, abuf, sizeof abuf) == 0
-                       ? strlen(abuf) : 0;
-        bool locked = n < 20;
-        if (!locked) {
-            int pre = !strncmp(abuf, "tsp1", 4) ? 5
-                    : (!strncmp(abuf, "bc1", 3) || !strncmp(abuf, "tb1", 3) ||
-                       !strncmp(abuf, "sp1", 3)) ? 4 : 0;
-            const char *t = abuf + n - 8;
-            char pfx[8] = {0};
-            if (pre) { memcpy(pfx, abuf, (size_t)pre); pfx[pre] = ' '; }
-            snprintf(ahead, sizeof ahead, "%s\xE2\x80\xA6 ", pfx);
-            snprintf(atail, sizeof atail, "%.4s %.4s", t, t + 4);
-        }
-
-        bool tn = kiss_testnet();
-        wt_def_t defs[3] = {
-            { .cap = tr(STR_I_SEC_NET), .val = kiss_net_name(),
-              .sub = tr(tn ? STR_G_TESTNET_NOTE : STR_G_MAINNET_NOTE),
-              .plain = tr(tn ? STR_K_NET_PLAIN_TEST : STR_K_NET_PLAIN_MAIN),
-              .lamp = true, .lamp_col = tn ? WT_WARN : WT_OK,
-              .lamp_pulse = tn },
-            { .cap = tr(STR_I_SEC_TYPE),
-              .val = tr(sc == WSCRIPT_LEGACY ? STR_S_TY_LEGACY
-                        : sc == WSCRIPT_NESTED ? STR_S_TY_NESTED
-                                               : STR_S_TY_NATIVE),
-              .sub = buf, .plain = tr(STR_K_TYPE_PLAIN),
-              .term = term_type, .term_label = tr(STR_G_TECHNICAL) },
-            // No sub beside the address: at the closed value's 28 the lane
-            // left over cannot hold a sentence, and the lit tail already IS
-            // the "check these" cue. A GO row, not a definition: the tap
-            // lands on RECEIVE's THIS ADDRESS at index 0, the one place the
-            // full address shows -- the owner asked that folded addresses
-            // lead there instead of explaining themselves in place.
-            { .cap = tr(STR_I_SEC_FIRST),
-              .val = locked ? tr(STR_C_SESSION_LOCKED) : ahead,
-              .val_tail = locked ? NULL : atail,
-              .go = first_addr_go_cb },
-        };
-        wt_def_list(p, defs, 3);
         return;
     }
 
@@ -1657,15 +1677,22 @@ static void info_screen(void)
     s_help_open = false;
     s_scr = wt_chrome(s_parent, tr(STR_I_T));
 
-    wt_tab_t t[2] = {
-        { .icon = WT_ICON_KEY,  .label = tr(STR_I_SEC_THIS_WALLET) },
-        { .icon = WT_ICON_LINK, .label = tr(STR_D_ONLINE_APP) },
-    };
-
+    // NO TAB STRIP. THIS SIGNER held three rows and every one of them was a
+    // fact with a home somewhere else: NETWORK and ADDRESS TYPE are changed on
+    // SETTINGS > SIGNER, and the network is already this page's own standing
+    // line; FIRST ADDRESS is what RECEIVE opens on. A tab whose whole content
+    // is a read-only copy of another page is a tab an owner has to check twice.
+    //
+    // Desktop against mobile does not want tabs either, and could not use
+    // them: it is a switch INSIDE pair_screen because it changes the QR
+    // PAYLOAD -- a descriptor for Sparrow, a different export for BlueWallet
+    // -- and a strip up here would only take the reader further from it.
+    //
+    // What is left is one page about one thing: how a coordinator comes to
+    // watch these keys, and how you prove it worked.
     s_ictx.scr    = s_scr;
-    s_ictx.select = wt_tabs_flex_select;
-    s_ictx.tabs   = wt_tabs_flex(s_scr, t, 2, s_ictx.tab, info_tab_cb);
-    wt_pane_tabs_watch(&s_ictx);
+    s_ictx.tab    = 0;
+    s_ictx.tabs   = NULL;
     wt_swipe_watch(s_scr, info_gesture_cb);
 
     // The band's left lane holds ONE line, by rank: the test network caution
@@ -1678,13 +1705,30 @@ static void info_screen(void)
         // pair this once was -- the smallest type on the device, on the one
         // line whose whole job is to be seen. The dot breathes: the caution
         // earns it.
-        wt_standing(s_scr, tr(STR_G_TEST_CHIP), WT_WARN, true);
+        //
+        // The CHAIN'S OWN NAME, not a description of it. This said "TEST
+        // NETWORK" while the home badge said TESTNET, the sign chip said
+        // "TESTNET, practice coins" and the Settings row said TESTNET over
+        // "not real bitcoin" -- four phrasings of one fact, and this one was
+        // wrong on signet as well, since the same string covered both chains.
+        // kiss_net_name() is what the home badge and the Settings row already
+        // print, so there is one name and it is the chain's.
+        wt_standing(s_scr, kiss_net_name(), WT_WARN, true);
     } else if (!wt_help_seen()) {
         hint = tr(STR_C_HELP_HINT);
     } else {
         wt_standing(s_scr, tr(STR_K_STANDING), WT_DIM, false);
     }
     wt_help_tab(s_scr, hint, info_help_cb, NULL);
+    // AFTER the tab, and that is not a style choice: the trail's box runs to
+    // 752 unless something is already sitting there, so built first it prints
+    // straight through the [ ? ].
+    //
+    // The strip row keeps a word. The tab this page lost was called
+    // COORDINATOR and that was the one thing on it worth saying: the page is
+    // about the conversation with a coordinator, not about the keys as an
+    // object. A trail is where a page with no tabs says so.
+    wt_trail(s_scr, WT_ICON_LINK, tr(STR_D_ONLINE_APP), false);
 
     s_ictx.pane = wt_pane_new(&s_ictx);
     info_tab_build();

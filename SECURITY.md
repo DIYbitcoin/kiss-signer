@@ -46,12 +46,12 @@ There is no bug bounty. This is a hobby project with no funding behind it.
 
 ## Scope
 
-Anything that breaks the wallet's promises is in scope, especially:
+Anything that breaks this signer's promises is in scope, especially:
 
 - key material leaving the device, or reaching the display, logs, SD card or QR
   output when it should not
 - signing a transaction that differs from what the screen showed
-- the game to wallet gesture, the passphrase or the decoy path failing to gate
+- the game to signer gesture, the passphrase or the decoy path failing to gate
   access
 - PSBT, descriptor or QR parsing that can be driven into memory corruption
 - weak or repeated nonces, bad entropy, broken derivation
@@ -61,7 +61,7 @@ Anything that breaks the wallet's promises is in scope, especially:
 Known and accepted, so not vulnerabilities on their own:
 
 - **Physical attacks on an unlocked device.** If someone has your unlocked
-  signer, they have your keys. That is true of every wallet.
+  signer, they have your keys. That is true of every signer.
 - **Invasive hardware attacks.** Decapping, glitching and probing the die are
   out of the ESP32-P4's threat model and ours. Tell us anyway if you have
   something concrete; we would rather document it than pretend.
@@ -69,7 +69,7 @@ Known and accepted, so not vulnerabilities on their own:
   chip may briefly run its factory firmware. No secret is decrypted that early.
   A way to exploit it *is* in scope.
 - Anything in the desktop simulator that cannot happen on the device. The
-  simulator is a development tool, not a wallet.
+  simulator is a development tool, not a signer.
 
 ## Supported versions
 

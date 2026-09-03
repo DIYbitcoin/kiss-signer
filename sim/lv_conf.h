@@ -1,3 +1,27 @@
+/*
+ * Vendored from managed_components/lvgl__lvgl/lv_conf_template.h (LVGL v9.5.0).
+ * It is NOT stock: five settings are overridden and nothing else is, so a
+ * version bump is: re-vendor the template, re-apply these five, diff to check
+ * nothing else came along.
+ *
+ * All five MIRROR the device, which does not read this file at all --
+ * sdkconfig sets CONFIG_LV_CONF_SKIP=y and the firmware's LVGL is configured
+ * from Kconfig. So each line here has a counterpart over there, and the pair
+ * moves together or the simulator stops standing in for the device:
+ *
+ *   LV_MEM_SIZE 128K       CONFIG_LV_MEM_SIZE_KILOBYTES=128   (reason on the line)
+ *   LV_FONT_MONTSERRAT_28  CONFIG_LV_FONT_MONTSERRAT_28=y     main/main.c:791
+ *   LV_FONT_MONTSERRAT_40  CONFIG_LV_FONT_MONTSERRAT_40=y
+ *   LV_FONT_MONTSERRAT_48  CONFIG_LV_FONT_MONTSERRAT_48=y     main/kiss_ui.c:964
+ *   LV_USE_QRCODE          CONFIG_LV_USE_QRCODE=y             main/kiss_theme.c:1747
+ *
+ * The #if 0 -> #if 1 below is the template's own enable switch, not a setting.
+ *
+ * The template ships in this tree, so the list above is checkable rather than
+ * a comment anyone has to trust. This block is the only other difference:
+ *
+ *   diff managed_components/lvgl__lvgl/lv_conf_template.h sim/lv_conf.h
+ */
 /**
  * @file lv_conf.h
  * Configuration file for v9.5.0

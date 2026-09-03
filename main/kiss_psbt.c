@@ -18,6 +18,7 @@
 #include <wally_script.h>
 #include <wally_transaction.h>
 
+#include "sha256/sha256.h"   // streaming sha256, bundled with components/cUR
 #include "kiss_crypto.h"
 #include "kiss_sp.h"
 
@@ -81,7 +82,12 @@ static void caution(wpsbt_summary_t *s, uint16_t flag, const char *r)
 // nonstandard and the tx may not relay. Distinct from the privacy threshold.
 static uint64_t dust_floor(uint32_t purpose)
 {
-    return purpose == 44 ? 546 : purpose == 49 ? 540 : 294;   // p2pkh / nested / segwit
+    // Bitcoin Core's GetDustThreshold at the default 3000 sat/kvB relay fee.
+    // Taproot is its own number: a p2tr output is larger than a p2wpkh one and
+    // its spending input smaller, and the two do not cancel. It used to fall
+    // through to the segwit 294, so a 300 sat change output read as ordinary
+    // on the one script type where it cannot be relayed.
+    return purpose == 44 ? 546 : purpose == 49 ? 540 : purpose == 86 ? 330 : 294;
 }
 
 // Find OUR keypath in a PSBT keypath map (master fingerprint match) and parse
@@ -650,6 +656,23 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
         }
         loose = true;
     }
+    uint8_t psbt_hash[32];                         // deterministic-DLEQ seed
+    wally_sha256(bytes, len, psbt_hash, 32);
+    // NOW the decode buffer is dead, and not one line sooner: `bytes` still
+    // points INTO it for a base64 PSBT, and the hash above is the seed for the
+    // deterministic DLEQ proof. Wiping before this point silently reseeded every
+    // proof off 4096 zero bytes -- which is what the golden BIP340 vectors
+    // in sim/test_sp.c caught, and the only thing that would have.
+    //
+    // Every later return is an error path that would otherwise leave a whole
+    // PSBT in .bss for the rest of the boot -- so the wipe sits on the line
+    // after the last read of `bytes`, and the two shape checks below moved
+    // BELOW it rather than the wipe being repeated in each. Both of them
+    // returned -2 with the decoded transaction still in the buffer: every
+    // address and amount of a rejected PSBT, readable for the rest of the
+    // boot. Neither is exotic -- a PSBTv0 with no global tx and a v2/v0
+    // hybrid are the two shapes a hostile file takes to get here.
+    wally_bzero(b64buf, sizeof b64buf);
     if (!(s_psbt->version == 2 || s_psbt->tx)) {
         kiss_psbt_free();
         return -2;
@@ -661,17 +684,6 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
         kiss_psbt_free();
         return -2;
     }
-    uint8_t psbt_hash[32];                         // deterministic-DLEQ seed
-    wally_sha256(bytes, len, psbt_hash, 32);
-    // NOW the decode buffer is dead, and not one line sooner: `bytes` still
-    // points INTO it for a base64 PSBT, and the hash above is the seed for the
-    // deterministic DLEQ proof. Wiping before this point silently reseeded every
-    // proof off 4096 zero bytes -- which is what the golden BIP340 vectors
-    // in sim/test_sp.c caught, and the only thing that would have.
-    //
-    // Every later return is an error path that would otherwise leave a whole
-    // PSBT in .bss for the rest of the boot.
-    wally_bzero(b64buf, sizeof b64buf);
 
     s->status = WPSBT_READY;                       // cleared at entry; earned here
     s->testnet = kiss_testnet() != 0;
@@ -740,6 +752,16 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     }
 
     const struct wally_tx *tx = psbt_tx();
+    // A v0 PSBT carries its transaction and wally refuses one without it, and
+    // the v2 extract above is checked -- so this should not be reachable. It
+    // is one branch in the parser every hostile file goes through, and the
+    // same call is already NULL checked in kiss_psbt_details(), so the two
+    // sites now agree rather than one of them being a crash.
+    if (!tx) {
+        stop(s, "malformed transaction");
+        s_status = s->status;
+        return 0;
+    }
     s->locktime = tx->locktime;
 
     // TERMINAL, not a flag on the way past. This used to stop() and carry on
@@ -765,10 +787,17 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     // stack for a question a 64-bit key settles.
     uint64_t seen[WPSBT_ADDR_TRACK];
     uint32_t nseen = 0;
+    bool     lock_enforced = false;   // some input leaves the locktime live
     for (size_t i = 0; i < s_psbt->num_inputs && i < tx->num_inputs; i++) {
         const struct wally_psbt_input *in = &s_psbt->inputs[i];
         if (tx->inputs[i].sequence < 0xFFFFFFFE)
             s->rbf = true;
+        // A locktime only binds when an input asks for it. Every sequence at
+        // 0xFFFFFFFF and the field is decoration a node ignores, so warning
+        // about it would be warning about nothing -- and that is not rare:
+        // coordinators leave a stale locktime on a final transaction.
+        if (tx->inputs[i].sequence != 0xFFFFFFFF)
+            lock_enforced = true;
 
         if (in->sighash != 0 && in->sighash != WALLY_SIGHASH_ALL) {
             stop(s, "sighash is not ALL");
@@ -959,6 +988,22 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     // an outpoint and there is nothing left to lie about. A coordinator that
     // strips them is asking to be trusted about the fee; this device does not
     // have to agree.
+    // DECIDED: the bar is ntap < n_in and NOT ntap == 0, which refuses more
+    // than the argument above strictly requires. One taproot input is in fact
+    // enough: BIP341 hashes every input amount into THAT input's sighash, so
+    // any lie about any amount invalidates its signature, and the two session
+    // attack cannot assemble a tx where every signature verifies. So a spend
+    // of one received silent payment beside one P2WPKH coin that carries its
+    // full previous transaction is provably honest and is refused anyway.
+    //
+    // Left strict on purpose. The cost of the strict form is that a rare
+    // transaction comes back to the coordinator to be rebuilt with the prev
+    // txs attached, which is what BIP174 asks for and what Core, Sparrow and
+    // Electrum already send. The cost of the loose form, if the reasoning
+    // above is wrong in one case nobody has thought of, is a fee the owner
+    // cannot see going to a miner. Those are not the same size, and this is
+    // the one gate in the file whose whole subject is a number that cannot be
+    // checked afterwards.
     if (s->n_in >= 2 && ntap < s->n_in && nunproven > 0)
         stop(s, "input amounts not proven");
 
@@ -1082,6 +1127,10 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
         s->fee_rate_x10 > WPSBT_HIGH_RATE_X10)
         caution(s, WPSBT_C_HIGHFEE, "unusually high fee - check it before signing");
 
+    // Stated, not flagged -- see wpsbt_summary_t.lock_binds for why a signer
+    // that cannot see the chain tip must not turn this into a caution.
+    s->lock_binds = (s->locktime != 0) && lock_enforced;
+
     s_status = s->status;
     return 0;
 }
@@ -1095,17 +1144,17 @@ static void txid_hex(const uint8_t h[32], char out[65])
 
 int kiss_psbt_details(wpsbt_details_t *d)
 {
+    const struct wally_tx *tx = psbt_tx();
     // a STOPped transaction failed verification — its raw fields must not be
     // presented under a page that says "verified" (and there is nothing to
     // decide: the signer already refused)
-    if (!d || !s_psbt || !psbt_tx() || s_status == WPSBT_STOP)
+    if (!d || !s_psbt || !tx || s_status == WPSBT_STOP)
         return -1;
     const struct ext_key *master = kiss_session_master();
     if (!master)
         return -1;
     memset(d, 0, sizeof *d);
 
-    const struct wally_tx *tx = psbt_tx();
     d->version = tx->version;
     d->locktime = tx->locktime;
 
@@ -1288,34 +1337,42 @@ int kiss_psbt_sig_fingerprint(const uint8_t *signed_psbt, size_t len,
     struct wally_psbt *p = NULL;
     if (wally_psbt_from_bytes(signed_psbt, len, 0, &p) != WALLY_OK || !p)
         return -1;
-    // Accumulate the signature bytes in input order, then hash once. Signatures
-    // only: the whole point is that a signer producing the same signatures
-    // agrees, whatever its PSBT framing.
-    uint8_t acc[4096];
-    size_t n = 0;
-    int any = 0, overflow = 0;
-    for (size_t i = 0; i < p->num_inputs && !overflow; i++) {
+    // Hash the signature bytes in input order, fed in as they are found.
+    // Signatures only: the whole point is that a signer producing the same
+    // signatures agrees, whatever its PSBT framing.
+    //
+    // DECIDED: this concatenated into a 4096 byte automatic and hashed once,
+    // with an overflow flag returning -1 if the signatures did not fit. The
+    // buffer was a fifth of the main task's 20KB stack, claimed in the frame
+    // that runs immediately after signing, where libwally is already deep --
+    // and it was sized for a PSBT this device cannot be handed: the sign
+    // screen reads into QRT_MAX_PSBT (4096) TOTAL, framing included, so the
+    // signature bytes alone can never come near 4096 and the overflow branch
+    // was unreachable. Streaming spends 112 bytes, has nothing to overflow,
+    // and drops the branch. Byte-identical output, held by the golden vector
+    // in test_crypto.c.
+    CRYAL_SHA256_CTX sha;
+    ur_bundled_sha256_init(&sha);
+    int any = 0;
+    for (size_t i = 0; i < p->num_inputs; i++) {
         const struct wally_map *sigs = &p->inputs[i].signatures;
         for (size_t j = 0; j < sigs->num_items; j++) {
             const struct wally_map_item *it = &sigs->items[j];
-            if (n + it->value_len > sizeof acc) { overflow = 1; break; }
-            memcpy(acc + n, it->value, it->value_len);
-            n += it->value_len; any = 1;
+            ur_bundled_sha256_update(&sha, it->value, it->value_len);
+            any = 1;
         }
         const struct wally_map_item *tap =
             wally_map_get_integer(&p->inputs[i].psbt_fields, 0x13);
-        if (!overflow && tap && (tap->value_len == 64 || tap->value_len == 65)) {
-            if (n + tap->value_len > sizeof acc) { overflow = 1; }
-            else { memcpy(acc + n, tap->value, tap->value_len); n += tap->value_len; any = 1; }
+        if (tap && (tap->value_len == 64 || tap->value_len == 65)) {
+            ur_bundled_sha256_update(&sha, tap->value, tap->value_len);
+            any = 1;
         }
     }
     wally_psbt_free(p);
-    if (overflow || !any) { wally_bzero(acc, sizeof acc); return -1; }
+    if (!any) { wally_bzero(&sha, sizeof sha); return -1; }
     uint8_t h[32];
-    int rc = wally_sha256(acc, n, h, 32);
-    wally_bzero(acc, sizeof acc);
-    if (rc != WALLY_OK)
-        return -1;
+    ur_bundled_sha256_final(&sha, h);
+    wally_bzero(&sha, sizeof sha);
     static const char HEX[] = "0123456789abcdef";
     for (int k = 0; k < 4; k++) {
         out[k * 2]     = HEX[h[k] >> 4];

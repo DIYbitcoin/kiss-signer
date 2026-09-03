@@ -55,7 +55,8 @@
           have no Web Serial implementation, so they cannot reach the device.
         </p>
         <div class="status-row" aria-label="Release status">
-          <span class="status-pill ready">hash checked in your browser</span>
+          <!-- back with the install card: nothing is hashed here while it is
+               pulled, and this pill is the page's loudest claim that it is. -->
           <span class="status-pill caution">beta firmware</span>
           <span class="status-pill stop">test wallets only</span>
         </div>
@@ -67,7 +68,7 @@
         <figure class="hero-device">
           <div class="reveal-frame">
             <img class="decoy" src="media/game-menu.png" alt="FRUIT ISLAND, the arcade game the device boots into">
-            <img class="signer" src="media/wallet-home.png" alt="The KISS Signer home screen">
+            <img class="signer" src="media/signer-home.png" alt="The KISS Signer home screen">
             <i></i><i></i><i></i><i></i>
           </div>
           <figcaption class="reveal-caption">
@@ -78,6 +79,11 @@
       </section>
 
       <section class="install-card reveal" id="install" aria-label="Firmware install">
+        <!-- PARKED with the button below. app.js runs the verify panel only
+             when every one of these elements AND the install button exist, so
+             leaving them here without it printed "loading build" and three
+             rows of "checking" for ever: a check that never starts, wearing
+             the face of one still running.
         <div class="verify-line">
           <div class="verify-light pending" id="verify-light"></div>
           <div>
@@ -93,12 +99,30 @@
             I&rsquo;m starting with a wallet that holds nothing.
           </span>
         </label>
+        -->
 
         <div class="install-actions">
+          <!--
           <button class="flash-button" id="locked-button" type="button" disabled>
             Connect and install (checking&hellip;)
           </button>
+          -->
 
+          <!-- PARKED while beta8 is prepared, which is the documented second
+               state in tools/check_installer_version.py: the artifacts under
+               docs/installer/ describe the beta7 binary, VERSION and every
+               screenshot in this repository are beta8, and a visitor who
+               flashed from here would land on screens the docs no longer
+               show. That is the beta6-to-beta7 bug the check was written for.
+
+               It comes back with the artifacts, not by hand: run
+               tools/make_web_release.sh from a signed release build and
+               uncomment this. Editing the version strings alone ships a page
+               that fails its own hash check, because release.json carries the
+               sha256 and size of one specific binary.
+
+               Commented-out markup is what "pulled" means to the check, and
+               app.js treats a missing button as parked rather than broken.
           <esp-web-install-button id="install-button" class="is-hidden" manifest="installer/manifest.json">
             <button slot="activate" class="flash-button" type="button">
               Connect and install
@@ -111,6 +135,14 @@
               This needs to be served over HTTPS, or from localhost.
             </span>
           </esp-web-install-button>
+          -->
+          <p class="power-note" id="install-parked">
+            The browser installer is off while the next build is prepared. The
+            signed firmware and its checksums are on the
+            <a href="https://github.com/kkdao/kiss-signer/releases">releases page</a>,
+            and <a href="guide.html#esptool">the guide</a> has the esptool
+            command to write it.
+          </p>
         </div>
 
         <div class="card-rule"></div>
@@ -122,7 +154,7 @@
         </p>
 
         <p class="power-note">
-          Setup then asks where the recovery words live: <strong>FLASH</strong>
+          Setup then asks where the recovery words are kept: <strong>FLASH</strong>
           (stays on the device), <strong>SD CARD</strong> (sealed to this device,
           so a lost card on its own is inert) or <strong>AMNESIC</strong> (RAM
           only, reload every session). Which of them encrypts what depends on the
@@ -144,6 +176,10 @@
 
       <details class="receipt reveal" aria-label="Security checks">
         <summary>What was checked</summary>
+        <!-- The three rows this browser fills in are parked with the install
+             button: nothing is being hashed here while the card is pulled, and
+             a row reading "checking" says the opposite. The row below is not
+             this page's own verdict and stands on its own.
         <div class="receipt-row">
           <span>The file matches the release</span>
           <strong id="hash-check">checking</strong>
@@ -156,6 +192,7 @@
           <span>Key fingerprint. Check it elsewhere too</span>
           <strong id="key-check">checking</strong>
         </div>
+        -->
         <div class="receipt-row">
           <span>Rather not take this page's word for it</span>
           <strong><a href="verify-release.html">Check it yourself &rarr;</a></strong>
@@ -166,7 +203,7 @@
       <section class="know reveal" aria-label="What this does">
         <article class="ok">
           <span>CHECKED FIRST</span>
-          <p>The install button stays disabled until this browser has hashed the binary and matched it against the release.</p>
+          <p>Every release ships a SHA256SUMS manifest and a detached signature from the KISS key. Check both before you write anything to a device.</p>
         </article>
         <article>
           <span>STAYS OFFLINE</span>
@@ -212,7 +249,7 @@
           <article>
             <span>DECOY SIGNER</span>
             <h3>It boots into a game</h3>
-            <p>FRUIT ISLAND is a real, playable game. A secret gesture on its menu opens the signer; a different one opens a spare wallet, so there is always something to show.</p>
+            <p>FRUIT ISLAND is a real, playable game. A secret gesture on its menu opens the signer; a different one opens a spare set of keys, so there is always something to show.</p>
           </article>
           <article>
             <span>TOUCHSCREEN + QR</span>
@@ -284,7 +321,7 @@
             <span>Reproducible Docker builds, hashes match CI</span>
           </a>
           <a href="guide.html#storage">
-            <strong>Where the words live</strong>
+            <strong>Where your seed words are kept</strong>
             <span>FLASH, AMNESIC, and why encrypted SD is gated</span>
           </a>
           <a href="guide.html#encryption">
