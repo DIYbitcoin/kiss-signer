@@ -31,7 +31,7 @@ it 74
 ja 11
 ko 4
 nb-NO 63
-nl 106
+nl 56
 pl 80
 pt-BR 74
 pt-PT 79
