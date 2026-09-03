@@ -20,17 +20,17 @@
 #
 # They are a ratchet from here and the rule is unchanged. The next number
 # that moves goes down.
-cs-CZ 33
-da-DK 46
+cs-CZ 24
+da-DK 32
 de 70
 es-ES 84
 es-MX 84
 fr 65
-hr-HR 51
+hr-HR 34
 it 74
-ja 11
+ja 9
 ko 4
-nb-NO 63
+nb-NO 41
 nl 56
 pl 80
 pt-BR 74
@@ -38,5 +38,5 @@ pt-PT 79
 ru 54
 sv-SE 91
 tr 70
-vi 56
+vi 43
 zh-CN 10
