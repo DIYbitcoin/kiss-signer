@@ -647,7 +647,7 @@ static void setup_accept_first(void) {
   s_plen = 0;
   s_caret = 0;
   s_show = false;
-  if (s_showbtn_lbl) lv_label_set_text(s_showbtn_lbl, tr(STR_L_SHOW));
+  if (s_showbtn_lbl) lv_label_set_text(s_showbtn_lbl, LV_SYMBOL_EYE_OPEN);
   cap_set(tr(STR_L_TYPE_AGAIN), wt_ink_for(WT_WARN), true);
   entry_refresh();
 }
@@ -662,7 +662,7 @@ static void kef_accept_first(void) {
   s_plen = 0;
   s_caret = 0;
   s_show = false;
-  if (s_showbtn_lbl) lv_label_set_text(s_showbtn_lbl, tr(STR_L_SHOW));
+  if (s_showbtn_lbl) lv_label_set_text(s_showbtn_lbl, LV_SYMBOL_EYE_OPEN);
   cap_set(tr(STR_L_TYPE_AGAIN), wt_ink_for(WT_WARN), true);
   entry_refresh();
 }
@@ -1098,7 +1098,7 @@ void kiss_ui_idle_wipe(void) {
   // The toggle keeps its own label, and the wipe turns SHOW off underneath
   // it: the button read HIDE over a field that was already masked and empty,
   // so the first press unmasked instead of masking.
-  if (s_showbtn_lbl) lv_label_set_text(s_showbtn_lbl, tr(STR_L_SHOW));
+  if (s_showbtn_lbl) lv_label_set_text(s_showbtn_lbl, LV_SYMBOL_EYE_OPEN);
   // A weak-passphrase card is a question about the entry just wiped; the
   // cancel confirm is a question about the SETUP and survives on purpose.
   if (s_weak_ovl) { lv_obj_delete_async(s_weak_ovl); s_weak_ovl = NULL; }
@@ -1238,7 +1238,7 @@ static void setup_warn_words_done(void)
   wipe_login_secrets();
   s_show = false;
   s_flash = false;
-  if (s_showbtn_lbl) lv_label_set_text(s_showbtn_lbl, tr(STR_L_SHOW));
+  if (s_showbtn_lbl) lv_label_set_text(s_showbtn_lbl, LV_SYMBOL_EYE_OPEN);
   if (s_fpscr) { lv_obj_delete_async(s_fpscr); s_fpscr = NULL; }
   if (s_login) {
     lv_obj_clear_flag(s_login, LV_OBJ_FLAG_HIDDEN);
@@ -1854,7 +1854,7 @@ static void kb_cb(lv_event_t *e) {
           s_plen = 0;
           s_caret = 0;
           s_show = false;
-          if (s_showbtn_lbl) lv_label_set_text(s_showbtn_lbl, tr(STR_L_SHOW));
+          if (s_showbtn_lbl) lv_label_set_text(s_showbtn_lbl, LV_SYMBOL_EYE_OPEN);
           // The passphrase rehearsal has its own refusal, and it is the one
           // that says what actually happened: the answer was not wrong about
           // a password, it opens DIFFERENT KEYS. Same string the setup
@@ -1880,7 +1880,7 @@ static void kb_cb(lv_event_t *e) {
       s_caret = 0;
       s_show = false;
       s_flash = false;
-      if (s_showbtn_lbl) lv_label_set_text(s_showbtn_lbl, tr(STR_L_SHOW));
+      if (s_showbtn_lbl) lv_label_set_text(s_showbtn_lbl, LV_SYMBOL_EYE_OPEN);
       if (!match) {
         cap_set(tr(STR_L_BACKUP_PASS_BAD), WT_STOP, true);
         entry_refresh();
@@ -2045,7 +2045,9 @@ static void show_cb(lv_event_t *e) {
   // blind, and the masked view truncates past 78 characters anyway, so the
   // caret could sit somewhere the owner cannot see.
   if (!s_show) s_caret = s_plen;
-  lv_label_set_text(s_showbtn_lbl, s_show ? tr(STR_L_HIDE) : tr(STR_L_SHOW));
+  // The MARK, not the word. See the toggle's own comment where it is built.
+  lv_label_set_text(s_showbtn_lbl,
+                    s_show ? LV_SYMBOL_EYE_CLOSE : LV_SYMBOL_EYE_OPEN);
   entry_refresh();
 }
 
@@ -2179,18 +2181,11 @@ void kiss_login_open_setup(void (*unlocked_cb)(void)) {
                   200, true, pp_intro_go_cb, NULL);
 }
 
-// A label whose text swaps at runtime (SHOW <-> HIDE) has to be sized for BOTH
-// strings: fitting only the one present at build time clips the other in every
-// language where they differ in length, and an unwidthed LVGL label clips
-// silently. Pick the smaller of the two rungs and set it once.
-static const lv_font_t *font_for_both(const char *a, const char *b,
-                                      int w, int max_h) {
-  const lv_font_t *fa = wt_body_font(a, w, max_h);
-  const lv_font_t *fb = wt_body_font(b, w, max_h);
-  if (fa == wt_font14() || fb == wt_font14()) return wt_font14();
-  if (fa == wt_font23() || fb == wt_font23()) return wt_font23();
-  return fa;
-}
+// font_for_both lived here: it sized a label for BOTH of the strings it swaps
+// between, so SHOW could not clip HIDE. It went with the words. The one caller
+// was the passphrase toggle, which is an eye now and cannot clip in any
+// language, and a helper kept for a caller that no longer exists is a warning
+// on the device build and a thing the next reader has to rule out.
 
 // "ADD A PASSPHRASE" from Settings: the same type-twice, weak-ack, warning
 // and fingerprint reveal the wizard's passphrase step runs -- minus the staged
@@ -2243,11 +2238,24 @@ void kiss_login_open(void (*unlocked_cb)(void)) {
   lv_obj_set_size(showbtn, 92, 40);
   lv_obj_set_pos(showbtn, 650, 18);
   lv_obj_add_event_cb(showbtn, show_cb, LV_EVENT_CLICKED, NULL);
+  // AN EYE, not the word, and this is the one control on the device where the
+  // mark is not a preference. The button is 92px wide and the label lane is 84.
+  // "HIDE" fits. VERBERGEN wants 118px, and so do MASQUER, NASCONDI, ПОКАЗАТЬ,
+  // OCULTAR, ZOBRAZIT and three more -- nine languages clipped mid word.
+  //
+  // Growing the box is not available: the caption ends at 534, SCAN sits at
+  // 550..642, this at 650..742, and the panel's right overscan is what is left.
+  // Two 130px buttons do not fit in that 250px, and font_for_both already falls
+  // all the way to font14 and still overflows, which is the floor.
+  //
+  // So the house rule settles it -- prefer a mark to a word wherever the mark
+  // is unambiguous -- and an eye on a password field is as unambiguous as marks
+  // get. It costs no translation, cannot clip, and is the same in all 21.
+  // U+F06E and U+F070 are both in SYMS already, at every size.
   s_showbtn_lbl = lv_label_create(showbtn);
-  lv_label_set_text(s_showbtn_lbl, tr(STR_L_SHOW));
+  lv_label_set_text(s_showbtn_lbl, LV_SYMBOL_EYE_OPEN);
   lv_obj_set_style_text_color(s_showbtn_lbl, MUT_COL, 0);
-  lv_obj_set_style_text_font(s_showbtn_lbl,
-      font_for_both(tr(STR_L_SHOW), tr(STR_L_HIDE), 84, 32), 0);
+  lv_obj_set_style_text_font(s_showbtn_lbl, wt_font23(), 0);
   lv_obj_center(s_showbtn_lbl);
 
   // SCAN: a passphrase kept as a QR (some owners do). Gated behind one warning

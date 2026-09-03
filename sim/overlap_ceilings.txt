@@ -22,7 +22,7 @@
 # that moves goes down.
 cs-CZ 24
 da-DK 32
-de 70
+de 69
 es-ES 57
 es-MX 57
 fr 65
@@ -35,7 +35,7 @@ nl 56
 pl 53
 pt-BR 37
 pt-PT 42
-ru 54
+ru 52
 sv-SE 58
 tr 45
 vi 43
