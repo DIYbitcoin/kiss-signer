@@ -377,6 +377,17 @@ static void wt_sub_measure(const char *kind, const char *txt,
                      LV_TEXT_FLAG_NONE);
     if (lane > 0 && (int)fl.x * WT_SLACK_PCT / 100 > lane)
         s_cut_sink("slack", txt, (int)fl.x * WT_SLACK_PCT / 100, lane);
+
+    // PORT, for everything that is PINNED. The narrow lane is not this lane
+    // made smaller: on a 320 wide board a fact row is a caption ABOVE its
+    // value and a row is a label above its sub, so each of them gets the whole
+    // content lane rather than a share of it. WT_PORT_LANE is that whole lane,
+    // and a string wider than it cannot be a one line label on that board at
+    // any layout -- which is a different and much shorter list than "does not
+    // fit 40% of what it has here", a question every string on the device
+    // would fail.
+    if ((int)fl.x > WT_PORT_LANE)
+        s_cut_sink("port", txt, (int)fl.x, WT_PORT_LANE);
 }
 
 static void wt_term_report(const char *body, int want, int floor_y)
@@ -554,6 +565,7 @@ static const lv_font_t *body_font_ladder(const char *txt, int w, int max_h,
     // string too long for its block and the gate has to say which one.
     lv_text_get_size(&sz, txt, floor, 0, 0, w, LV_TEXT_FLAG_NONE);
     if (sz.y > max_h) WT_FIT_GAVE_UP("body", txt, w, max_h);
+
     return floor;
 }
 
@@ -6372,12 +6384,23 @@ static void spans_fill(lv_obj_t *sg, const char *txt, const char *hi)
     size_t i = 0, run = 0;
     char buf[640];
     while (txt[i]) {
-        const bool stop = txt[i] == '.' && i > 0 &&
-                          ((txt[i - 1] >= 'a' && txt[i - 1] <= 'z') ||
-                           (txt[i - 1] >= 'A' && txt[i - 1] <= 'Z') ||
-                           (txt[i - 1] >= '0' && txt[i - 1] <= '9')) &&
-                          (txt[i + 1] == '\0' || txt[i + 1] == ' ' ||
-                           txt[i + 1] == '\n');
+        // The IDEOGRAPHIC stop, U+3002, and it is not a detail. ja and zh end
+        // every sentence with it and never with an ASCII dot, so this loop saw
+        // three stops in each of those locales against about 335 in the other
+        // nineteen -- their bodies rendered as one grey block while everybody
+        // else read sentences. Its rules are its own: it follows a CJK
+        // character rather than an ASCII letter, and nothing follows it,
+        // because those scripts do not put a space after a stop.
+        const bool cjk_stop = (unsigned char)txt[i] == 0xE3 &&
+                              (unsigned char)txt[i + 1] == 0x80 &&
+                              (unsigned char)txt[i + 2] == 0x82 && i > 0;
+        const bool stop = cjk_stop ||
+                          (txt[i] == '.' && i > 0 &&
+                           ((txt[i - 1] >= 'a' && txt[i - 1] <= 'z') ||
+                            (txt[i - 1] >= 'A' && txt[i - 1] <= 'Z') ||
+                            (txt[i - 1] >= '0' && txt[i - 1] <= '9')) &&
+                           (txt[i + 1] == '\0' || txt[i + 1] == ' ' ||
+                            txt[i + 1] == '\n'));
         if (!stop) {
             if (run + 1 < sizeof buf) buf[run++] = txt[i];
             i++;
@@ -6389,10 +6412,23 @@ static void spans_fill(lv_obj_t *sg, const char *txt, const char *hi)
         // indents it -- which a plain label never does, because it collapses
         // whitespace at the break. Carried on the stop it sits at the end of
         // the line instead, where it costs nothing.
+        //
+        // DECIDED: a lone span is a break opportunity, so when the word before
+        // a stop ends near the edge the ". " wraps by ITSELF and the next line
+        // opens with a full stop. It looks like a typo in the string and it is
+        // not -- SIGN's refusal screen shows it on "information" / ". pair it
+        // again". Folding the stop back into the body run fixes it and was
+        // rejected: the accent stop is the design, it is what makes a wrapped
+        // body scan as sentences rather than as a block, and LVGL gives no way
+        // to hold a span to the one before it. The copy moves instead, which
+        // is what happened here -- the word at the edge changes and the stop
+        // follows it up.
         lv_span_t *dot = lv_spangroup_new_span(sg);
-        lv_span_set_text(dot, txt[i + 1] == ' ' ? ". " : ".");
+        lv_span_set_text(dot, cjk_stop            ? "\xE3\x80\x82"
+                            : txt[i + 1] == ' '   ? ". "
+                                                  : ".");
         lv_style_set_text_color(lv_span_get_style(dot), wt_accent());
-        i += txt[i + 1] == ' ' ? 2 : 1;
+        i += cjk_stop ? 3 : txt[i + 1] == ' ' ? 2 : 1;
     }
     if (run) { buf[run] = 0; span_run(sg, buf, hi); }
     lv_spangroup_refresh(sg);
@@ -6513,6 +6549,25 @@ exp_paras_t ps;
             used = room;
             WT_FIT_GAVE_UP("body", body, EXP_FULL_TXT, room);
         }
+    }
+
+    // THE PORT, asked now rather than after the board arrives. The 3.5in
+    // target is 320 wide where this one is 800, and the same 480 tall: the
+    // lane falls by two and a half and the vertical budget does not move at
+    // all. A body that is three lines here is eight there, and eight lines of
+    // 29 is most of what a screen has once its chrome and its action band are
+    // paid for.
+    //
+    // So the ladder is walked a second time against the narrow lane. A body
+    // that still lands on a rung will RE-FLOW onto the small board; one that
+    // runs past the floor has to be rebuilt, and knowing which is which is
+    // worth more before anything is ported than after. It reports through its
+    // own kind because the verdict is different: this is not a defect on the
+    // board that ships today.
+    {
+        const int nw = EXP_FULL_TXT * WT_PORT_NARROW_W / WT_PORT_WIDE_W;
+        if (exp_height(&ps, 0, ps.count, ladder[rungs - 1], nw) > room)
+            WT_FIT_GAVE_UP("narrow", body, nw, room);
     }
 
     // Drop the band by a third of what is left over. Centring it outright
@@ -6683,6 +6738,30 @@ static void explain_grid(lv_obj_t *ovl, const wt_explain_t *e, int y, int room,
             if (total <= fits) break;
         }
         if (gap < 4) gap = 4;
+
+        // PORT, measured on the first pass while the entries are still split.
+        // The 3.5in board has no room for two columns, so this grid is ONE
+        // there, on the content lane less the badge -- every entry taller, and
+        // every row its own. The vertical budget does not grow to meet it.
+        if (pass == 0) {
+            int nt = 0;
+            for (int i = 0; i < n; i++) {
+                char line[GRID_LINE_MAX], head[64];
+                int l = len[i] < (int)sizeof line ? len[i] : (int)sizeof line - 1;
+                lv_memcpy(line, ln[i], (size_t)l);
+                line[l] = 0;
+                const char *def = wt_split_colon(line, head, sizeof head);
+                if (!def) continue;
+                char run[GRID_LINE_MAX + 72];
+                snprintf(run, sizeof run, "%s %s", head, def);
+                lv_point_t ns;
+                lv_text_get_size(&ns, run, bf, 0, 0,
+                                 WT_PORT_LANE - GRID_BADGE - GRID_GUT,
+                                 LV_TEXT_FLAG_NONE);
+                nt += (ns.y > GRID_BADGE ? ns.y : GRID_BADGE) + 4;
+            }
+            if (nt > room) WT_FIT_GAVE_UP("narrow", e->body, WT_PORT_LANE, room);
+        }
         if (total <= fits) break;
         // DECIDED: the icon grid's ladder floors at 21 and no longer has a font14 rung.
         // THE FLOOR IS 21, NOT 14, which is the same floor wt_body_para has

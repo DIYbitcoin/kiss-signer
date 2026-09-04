@@ -147,6 +147,17 @@ void wt_sub_fit(lv_obj_t *scr, int w);
 // highest anything in the action band reaches, so crossing it is the failure.
 #define WT_CONTENT_BOTTOM WT_ACTION_Y_TALL
 
+// THE PORT'S GEOMETRY. The 3.5in board is 320 wide against this one's 800 and
+// both are 480 tall, so a lane falls by two and a half and the vertical budget
+// does not move at all. WT_PORT_LANE is that board's whole content lane, 320
+// less the 20px margin each side -- what a pinned label gets there once the
+// wide layout's side by side pairs have become stacked ones. It is a HEADER
+// number because overlapcheck's PORT finding prints it, and two copies of it
+// would drift the day the board's margin changes.
+#define WT_PORT_WIDE_W   800
+#define WT_PORT_NARROW_W 320
+#define WT_PORT_LANE     280
+
 // A THIRD band, for the one control that cannot live in 52px: the slide.
 //
 // The bench's complaint about the confirm gesture was that the knob was too
