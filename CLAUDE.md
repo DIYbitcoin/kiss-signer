@@ -552,9 +552,36 @@ rule 1 above, enforced; the last two are the font14 rule and what replaced it:
   four fixed by cutting words. The lane cannot grow: it is what the label's
   250px cap and the value chip leave behind.
 
+- **SLACK** — the English string leaves no room for its own translation. A
+  Latin translation runs about a third longer; that is the most reliable
+  number in this repository, and it is why a sweep whose English was clean
+  came back with 143 findings at font14. So SLACK measures the English at the
+  FLOOR rung, adds the third every locale gains, and asks whether the lane
+  still holds it. If not, that string is font14 in fifteen locales before
+  anybody translates it.
+
+  **This is the only check here that can be answered before a translation
+  exists**, which is why it is worth more than the twenty locale sweep the
+  English-only rule already forbids. It runs `SIM_LANG=en` for the same reason
+  READ does: measuring a translation's own slack is meaningless, and the only
+  fix on offer — cut the SOURCE copy — is an English edit either way.
+
+  What it found on the day it landed was not a copy problem, and that is the
+  point: forty six of the sixty six sat on ONE lane, the 352px value half of a
+  `wt_facts` row. That lane learned to wrap in the same commit and all forty
+  six left without losing a word. **A one line pinned lane sized to fit
+  English exactly is a lane that fails in fifteen languages**, and the fix is
+  the lane, not the sentence.
+
+  The twenty one left are mostly the glossary's own anchors — `SEED WORDS`,
+  `PASSPHRASE`, `DESCRIPTOR`, `FINGERPRINT` — which the anchor rule already
+  covers: where the name IS the string, the lane is what is wrong.
+
 Each has a shrink-only backlog (`OC_BARE_BACKLOG`, `OC_WALL_BACKLOG`,
-`OC_FIT_BACKLOG` in `sim/overlapcheck.c`) and the run prints how many are left.
-All three are empty: FIT's two launch entries were cut rather than excused.
+`OC_FIT_BACKLOG`, `OC_SLACK_BACKLOG` in `sim/overlapcheck.c`) and the run
+prints how many are left. The first three are empty: FIT's two launch entries
+were cut rather than excused. SLACK's holds the twenty one that outlived the
+wrap, as a ratchet — it cannot grow.
 
 **WALL and CUT both fire on shapes the product no longer contains**, so
 `OVERLAPCHECK_SELFTEST=1` builds each of those shapes and proves the gate still

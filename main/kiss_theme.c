@@ -341,13 +341,42 @@ static void wt_widow_measure(const char *txt, const lv_font_t *f, int lane)
         s_cut_sink("widow", txt, tail, lane);
 }
 
+// A Latin translation of an English sentence runs about a third longer -- it
+// is the most reliable number in this file, and it is why 143 findings came
+// back at font14 from a sweep whose English was clean. A one line lane cannot
+// absorb that: the string is pinned, so it either drops a rung or loses its
+// second half, and once English is already on the floor rung there is no rung
+// left to drop to.
+//
+// So SLACK asks the only question that can be answered BEFORE a translation
+// exists: how much of its lane does the English use. Under WT_SLACK_PCT the
+// third it is about to gain still fits and every locale lands on the same
+// rung; over it, fifteen locales are already lost and no sweep can win them
+// back, because the lane is what the icon, the chevron and the value leave
+// behind and it does not grow.
+//
+// It fires ONLY on the floor rung, which is what makes it quiet enough to
+// read: English at font28 has 23 underneath it and the ladder absorbs the
+// growth by itself. English at 23 with a full lane is the shape that craters.
+#define WT_SLACK_PCT 135   // the Latin expansion this device actually sees
+
 static void wt_sub_measure(const char *kind, const char *txt,
                            const lv_font_t *f, int ls, int lane)
 {
     if (!s_cut_sink || !txt || !*txt) return;
     lv_point_t sz;
     lv_text_get_size(&sz, txt, f, ls, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-    if (sz.x > lane) s_cut_sink(kind, txt, (int)sz.x, lane);
+    if (sz.x > lane) { s_cut_sink(kind, txt, (int)sz.x, lane); return; }
+    // The rung English landed on says nothing on its own: a sub at font28 has
+    // 23 underneath it and absorbs the growth by itself. So SIMULATE the
+    // translation instead -- this sentence, a third longer, set on the floor
+    // rung. If THAT does not fit, the locale has nowhere left to go and the
+    // ladder hands it font14.
+    lv_point_t fl;
+    lv_text_get_size(&fl, txt, wt_font23(), ls, 0, LV_COORD_MAX,
+                     LV_TEXT_FLAG_NONE);
+    if (lane > 0 && (int)fl.x * WT_SLACK_PCT / 100 > lane)
+        s_cut_sink("slack", txt, (int)fl.x * WT_SLACK_PCT / 100, lane);
 }
 
 static void wt_term_report(const char *body, int want, int floor_y)
@@ -4223,7 +4252,10 @@ int wt_facts_in(lv_obj_t *par, int x, int y, int w,
         // value started where the caption's box ended, so a caption using its
         // whole lane touched the value beside it.
         const int vx = cap_x + WT_FACT_CAP_W + 14;
-        wt_sub_measure("fact", facts[i].val, vf, 0, right - vx);
+        // NOT measured for CUT or SLACK any more: both of those are about a
+        // PINNED lane, and this one wraps. A value with no room left takes a
+        // second line rather than an ellipsis, which is the whole point of the
+        // change below.
         // Centred in the caption's line box rather than sharing its top: the
         // two faces are a rung apart now, and a smaller label pinned to the
         // same y sits high enough to read as a superscript.
@@ -4232,14 +4264,23 @@ int wt_facts_in(lv_obj_t *par, int x, int y, int w,
         lv_obj_t *val = wt_lbl(scr, facts[i].val, vx, y + vdy, vf,
                                WT_MUT);
         lv_obj_set_width(val, right - vx);
-        lv_obj_set_height(val, lv_font_get_line_height(vf));
-        lv_label_set_long_mode(val, LV_LABEL_LONG_DOT);
+        // TWO LINES where it needs them, not one line and an ellipsis. Pinned,
+        // this lane was sized to hold the ENGLISH exactly -- and a Latin
+        // translation of the same sentence runs about a third longer, so 46 of
+        // SLACK's 66 findings are this one 352px lane and every one of them
+        // shipped with its second half missing. Wrapping is the only thing
+        // that absorbs the third without dropping a rung, and the row pays a
+        // line of height for it.
+        //
         // The pitch follows the TALLER of the two, whichever that is. It
         // followed the value while the value was the big one, and that is a
         // pin to whichever face happens to be larger today: swapping the two
         // rungs would otherwise have stacked every row 5px into the one above.
+        // Now it follows the value's MEASURED height too, so a wrapped value
+        // pushes the row below it down instead of drawing through it.
+        lv_obj_update_layout(val);
         const int lh = LV_MAX(lv_font_get_line_height(cf),
-                              lv_font_get_line_height(vf));
+                              vdy + lv_obj_get_height(val));
         y += lh + 14;
     }
     return y;

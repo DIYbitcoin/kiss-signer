@@ -926,6 +926,57 @@ static void oc_fit_install(void) { wt_fit_set_sink(oc_fit_sink); }
 
 // Shrink only, like the two above. An entry is a string somebody decided to
 // leave at font14, and that decision needs saying so here.
+// ---- SLACK's backlog -------------------------------------------------------
+//
+// Sixty six English strings were over the line the day this check landed, and
+// they were NOT a copy problem: forty six sat on ONE lane -- the value half of
+// a wt_facts row -- which is what sent that lane off to learn to wrap. Those
+// forty six left in a single commit and none of them lost a word.
+//
+// The twenty one below are what survived it, and most of them are the
+// glossary's own anchors: DESCRIPTOR, FINGERPRINT, PASSPHRASE, SEED WORDS.
+// The house rule already covers those -- where the name IS the string, the
+// lane is what is wrong, and the fix is never to cut the name. The rest are
+// settings row sub-lines, pinned to one line by a lane the label's 250px cap
+// and the value chip decide between them.
+//
+// So this is a ratchet, not an excuse. It cannot grow: a new string over the
+// line fails the run, which is the only outcome that matters, because every
+// one of these was invisible until the twenty translations of it existed.
+static const char *OC_SLACK_BACKLOG[] = {
+    "0 already signed",
+    "ADDRESS TYPE",
+    "CHECK MY COPY",
+    "DESCRIPTOR",
+    "ENCRYPTION",
+    "FINGERPRINT",
+    "PASSPHRASE",
+    "RANDOMNESS",
+    "SEED WORDS",
+    "THIS DEVICE",
+    "build id, radio, SD card",
+    "compare lit characters",
+    "from the card",
+    "how your keys were made",
+    "keeps nothing",
+    "not real bitcoin",
+    "only this signer",
+    "opens real keys",
+    "scans for payments",
+    "seed words. not your passphrase",
+    "show this QR to it",
+    NULL,
+};
+static bool s_slack_hit[sizeof OC_SLACK_BACKLOG / sizeof OC_SLACK_BACKLOG[0]];
+
+static bool oc_slack_excused(const char *txt)
+{
+    for (unsigned i = 0; i < sizeof OC_SLACK_BACKLOG / sizeof OC_SLACK_BACKLOG[0]; i++)
+        if (OC_SLACK_BACKLOG[i] && strcmp(txt, OC_SLACK_BACKLOG[i]) == 0)
+            { s_slack_hit[i] = true; return true; }
+    return false;
+}
+
 static const char *OC_FIT_BACKLOG[] = {
     // EMPTY. Two strings were listed here on the day this check landed and both
     // were cut rather than excused: the camera-proof warning lost a clause that
@@ -1506,8 +1557,31 @@ static void oc_check_cut(const char *tag)
             (strcmp(s_cut_kind[i], "words") == 0 ||
              strcmp(s_cut_kind[i], "long") == 0 ||
              strcmp(s_cut_kind[i], "mark") == 0 ||
+             strcmp(s_cut_kind[i], "slack") == 0 ||
              strcmp(s_cut_kind[i], "widow") == 0))
             continue;
+        // SLACK is the same English-only argument as READ, arrived at from the
+        // other end. The others ask whether the English reads well; this asks
+        // whether it leaves room for the twenty translations of it. Measuring
+        // a translation's own slack is meaningless -- it is already the string
+        // that has to fit -- and the only fix this gate offers, cutting the
+        // SOURCE copy, is an English edit either way.
+        if (strcmp(s_cut_kind[i], "slack") == 0) {
+            if (oc_slack_excused(s_cut_txt[i])) continue;
+            const int pct = s_cut_lane[i] ? s_cut_want[i] * 100 / s_cut_lane[i]
+                                          : 0;
+            snprintf(sig, sizeof sig, "SLACK|%s", s_cut_txt[i]);
+            snprintf(detail, sizeof detail,
+                     "SLACK    \"%s\" needs %d%% of its %dpx lane once a "
+                     "translation gains the third longer they all gain, and "
+                     "the floor rung is already under it -- so this string is "
+                     "font14 in fifteen locales before it is written. It has "
+                     "to fit %dpx",
+                     s_cut_txt[i], pct, s_cut_lane[i],
+                     s_cut_lane[i] * 74 / 100);
+            oc_report_one(tag, sig, detail);
+            continue;
+        }
         if (strcmp(s_cut_kind[i], "mark") == 0) {
             snprintf(sig, sizeof sig, "MARK|%s", s_cut_txt[i]);
             if (s_cut_lane[i])
@@ -2636,6 +2710,38 @@ static int oc_selftest_read(const char *name, const char *kind,
     return got == want_finding ? 0 : 1;
 }
 
+// SLACK goes through a real wide row, because the whole check is about a LANE
+// and the sink cannot supply one. It used to build a wt_facts row until that
+// lane learned to wrap, which is the fix SLACK asked for -- so the self test
+// moved to a shape that is still PINNED, which is the only shape the check is
+// about.
+// and the two cases are the two sides of the rule: a value that fits today and
+// will not once a translation gains its third, and a value with room to spare.
+// A check that fired on both would be one nobody could act on, and a dead one
+// fails the first case -- which is the only reason this exists, since every
+// string the check found on the day it landed is on its backlog.
+static int oc_selftest_slack(const char *name, const char *val,
+                             bool want_finding)
+{
+    lv_obj_t *scr = wt_screen(NULL, "SELFTEST", NULL);
+    lv_screen_load(scr);
+    s_cut_n = 0; s_findings = 0; s_seen_n = 0;
+    wt_row_wide(scr, WT_WIDE_Y(0), &(wt_wide_t){
+        .label = "LABEL",
+        .sub   = val,
+        .kind  = WT_WIDE_CYCLE,
+        .val   = "VALUE",
+    });
+    lv_refr_now(NULL);
+    oc_check_cut("selftest");
+
+    bool got = s_findings > 0;
+    printf("  %-46s %s (%d finding%s)\n", name,
+           got == want_finding ? "ok" : "FAILED", s_findings,
+           s_findings == 1 ? "" : "s");
+    return got == want_finding ? 0 : 1;
+}
+
 // MARK goes through a real wt_value_card, not through the sink: the rule IS
 // the measure -- a word count and a list of words that cannot begin a name --
 // so driving the sink would prove only that the reporter still prints. The
@@ -2714,6 +2820,18 @@ int oc_selftest(void)
     bad += oc_selftest_cut("a label that fits, clear", "STORAGE", NULL, false);
     if (bad) printf("CUT self test: %d case(s) wrong\n", bad);
     else     printf("CUT self test: 4 cases, all as expected\n");
+    printf("\n");
+
+    int was_cut = bad;
+    printf("SLACK check self test\n");
+    bad += oc_selftest_slack("a value that fits now and not translated, fires",
+                             "a lane with no room",
+                             true);
+    bad += oc_selftest_slack("a value with room to spare, clear",
+                             "two words", false);
+    if (bad != was_cut) printf("SLACK self test: %d case(s) wrong\n",
+                               bad - was_cut);
+    else                printf("SLACK self test: 2 cases, all as expected\n");
     printf("\n");
 
     int was_ink = bad;
@@ -3308,6 +3426,21 @@ int oc_report(void)
         }
         printf("[overlap] %s: %d strings still on the FIT backlog\n",
                lang, fit_left);
+    }
+    // SLACK is measured in English only, so only the English run can say
+    // whether an entry is still earning its place. Every other locale would
+    // report all sixty six as dead and invite somebody to delete the list.
+    if (oc_lang_is_en()) {
+        int slack_left = 0;
+        for (unsigned i = 0; i < sizeof OC_SLACK_BACKLOG / sizeof OC_SLACK_BACKLOG[0]; i++) {
+            if (!OC_SLACK_BACKLOG[i]) continue;
+            if (s_slack_hit[i]) { slack_left++; continue; }
+            printf("[overlap] %s: SLACK backlog entry \"%s\" never matched a"
+                   " stop -- cut it from the list, the string it excused is"
+                   " gone\n", lang, OC_SLACK_BACKLOG[i]);
+        }
+        printf("[overlap] %s: %d strings still on the SLACK backlog\n",
+               lang, slack_left);
     }
     {
         // STALE is the one backlog whose verdict is NOT this run's to give.
