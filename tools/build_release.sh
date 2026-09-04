@@ -213,6 +213,7 @@ fi
 # changed keeps declaring the old number, and a substring test cannot tell the
 # difference between the version being present and the version being what the
 # image actually claims. check_fw_version.py reads the app descriptor.
+python3 tools/check_fw_version.py --selftest || exit 1
 python3 tools/check_fw_version.py build-release || exit 1
 
 GIT_REV="$GIT_REV" python3 - <<'PY'
@@ -285,6 +286,7 @@ PY
 
 # flash budget: baked art is ~75% of the binary; fail while there is still
 # headroom to react, not on the flash step (set -e stops on a FAIL)
+python3 tools/check_flash_budget.py --selftest
 python3 tools/check_flash_budget.py build-release/guition_kiss_bringup.bin partitions.csv
 echo
 echo "release build OK: build-release/guition_kiss_bringup.bin"

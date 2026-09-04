@@ -471,7 +471,19 @@ about it. Four other checkers are absent from this list and that is fine --
 `check_fw_version.py` inside the release scripts, `check_sim_taps.py` in CI. The
 test is not "is it listed", it is "does anything run it" -- and
 `check_gates.py` is that question, asked mechanically, so this cannot be found
-by hand a third time. It counts CLAUDE.md as a runner on purpose: a command a
+by hand a third time.
+
+**It asks a second question now, and six checkers failed it.** "Does anything
+run this" and "does this still fire" are different failures with the same
+symptom -- a green line that means nothing -- and `check_cur_link`,
+`check_flash_budget`, `check_fw_version`, `check_installer_version`,
+`check_sim_fresh` and `check_sim_taps` had no self test at all. One of those
+six is the gate that caught a real failure the day this was noticed, so it
+was a check nobody had ever proved works. All eighteen carry one now, each
+invoked beside the check it belongs to, and `check_gates.py` fails when the
+nineteenth does not. It asks STATICALLY and does not run them: eighteen self
+tests here would take minutes, duplicate the runners, and a meta gate nobody
+runs because it is slow is the exact failure this file exists to catch. It counts CLAUDE.md as a runner on purpose: a command a
 person is told to run IS run, and that is the whole lane for the gates the
 owner drives by hand between commits.
 

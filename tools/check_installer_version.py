@@ -56,12 +56,66 @@ def install_button_live() -> bool:
     """
     if not INDEX.is_file():
         return False
-    html = INDEX.read_text()
+    return button_is_live(INDEX.read_text())
+
+
+def button_is_live(html: str) -> bool:
     html = re.sub(r"<!--.*?-->", "", html, flags=re.DOTALL)
     return "<esp-web-install-button" in html
 
 
+# This gate's whole skip condition is button_is_live: with the button parked
+# the page cannot flash anything, so a stale binary beside it is reported and
+# the check passes. That makes the comment-stripping regex the most dangerous
+# line in the file. If it stopped matching comments the gate would refuse every
+# staged release; if it started swallowing real markup the gate would skip
+# itself silently and a stale binary could ship behind a live button, which is
+# the exact failure between beta6 and beta7 that this file exists for.
+#
+# So the self test is that regex, in the four shapes docs/index.html has
+# actually held it, and the version comparison beside it.
+def selftest() -> int:
+    bad = 0
+    cases = [
+        ("real markup is a live button",
+         '<esp-web-install-button manifest="m.json"></esp-web-install-button>',
+         True),
+        ("markup inside a comment is parked",
+         '<!-- <esp-web-install-button manifest="m.json"> -->', False),
+        ("markup inside a MULTI LINE comment is parked",
+         '<!--\n  <esp-web-install-button\n     manifest="m.json">\n-->', False),
+        ("a page with no button at all is parked",
+         "<p>nothing here</p>", False),
+        ("a live button after a closed comment still counts",
+         '<!-- parked once -->\n<esp-web-install-button>', True),
+    ]
+    for name, html, want in cases:
+        got = button_is_live(html)
+        ok = got == want
+        print("  %-52s %s (%s)" % (name, "ok" if ok else "FAILED", got))
+        bad += not ok
+
+    # The version rule the manifest is held to: a prefix match, because the
+    # generator writes "<version>-<git describe>".
+    for name, manifest_version, version, want in [
+        ("an exact manifest version matches", "0.1.0-beta9", "0.1.0-beta9", True),
+        ("a describe suffix still matches",
+         "0.1.0-beta9-12-gabc1234", "0.1.0-beta9", True),
+        ("a different version does not match",
+         "0.1.0-beta8", "0.1.0-beta9", False),
+    ]:
+        got = manifest_version.startswith(version)
+        ok = got == want
+        print("  %-52s %s (%s)" % (name, "ok" if ok else "FAILED", got))
+        bad += not ok
+
+    print("installer version selftest: %d cases, %d broken" % (len(cases) + 3, bad))
+    return 1 if bad else 0
+
+
 def main() -> int:
+    if "--selftest" in sys.argv:
+        return selftest()
     version = (ROOT / "VERSION").read_text().strip()
     problems = []
 
