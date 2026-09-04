@@ -196,7 +196,7 @@ THE FLOOR IS 21, NOT 14, which is the same floor wt_body_para has and for the sa
 
 It used to draw a dimmed one, on the reasoning that the shape of the transaction should not leave while its detail is read -- and what that produced was a line running to blank glass, because the row it aims at is hidden. There is nothing at the end of it and nothing that says why, so it reads as a destination the screen will not name: the one thing this graph exists to never do. It was reported from the bench as a strand "going to nowhere", twice, once about its colour and once about the strand itself. What is lost is the fan on a paged spend, and the counter on the caption line carries that instead -- 1/2 is on the glass beside WHERE IT GOES, and the read-to-the-end gate holds the slide until every page has been turned, so no signature can happen from one page's worth of strands.
 
-[`main/kiss_theme.c:7667`](../main/kiss_theme.c#L7667)
+[`main/kiss_theme.c:7676`](../main/kiss_theme.c#L7676)
 
 ## `main/kiss_theme.h`
 

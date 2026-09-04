@@ -6774,7 +6774,16 @@ lv_obj_t *wt_explain_open(lv_obj_t *parent, const wt_explain_t *e)
                              WT_MUT);
         lv_obj_set_width(s, lane);
         lv_label_set_long_mode(s, LV_LABEL_LONG_DOT);
-        y = 104;
+        // MEASURED, not 104. A subtitle that wraps to a second line runs to
+        // about y 110, and the body below it started at a constant -- so every
+        // locale whose subtitle is one word longer than English drew the body
+        // through it. That was the whole of sim_setup_ent_why's twenty
+        // findings, one per locale, English alone clean because English alone
+        // fits on one line. 104 stays as the floor so a one line subtitle
+        // keeps the spacing it has always had.
+        lv_obj_update_layout(s);
+        y = 64 + lv_obj_get_height(s) + 12;
+        if (y < 104) y = 104;
     } else {
         lv_obj_t *pt = parent ? wt_screen_title(parent) : NULL;
         const char *pn = pt ? lv_label_get_text(pt) : NULL;
