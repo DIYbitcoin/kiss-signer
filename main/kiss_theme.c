@@ -6389,6 +6389,17 @@ static void spans_fill(lv_obj_t *sg, const char *txt, const char *hi)
         // indents it -- which a plain label never does, because it collapses
         // whitespace at the break. Carried on the stop it sits at the end of
         // the line instead, where it costs nothing.
+        //
+        // DECIDED: a lone span is a break opportunity, so when the word before
+        // a stop ends near the edge the ". " wraps by ITSELF and the next line
+        // opens with a full stop. It looks like a typo in the string and it is
+        // not -- SIGN's refusal screen shows it on "information" / ". pair it
+        // again". Folding the stop back into the body run fixes it and was
+        // rejected: the accent stop is the design, it is what makes a wrapped
+        // body scan as sentences rather than as a block, and LVGL gives no way
+        // to hold a span to the one before it. The copy moves instead, which
+        // is what happened here -- the word at the edge changes and the stop
+        // follows it up.
         lv_span_t *dot = lv_spangroup_new_span(sg);
         lv_span_set_text(dot, txt[i + 1] == ' ' ? ". " : ".");
         lv_style_set_text_color(lv_span_get_style(dot), wt_accent());
