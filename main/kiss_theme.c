@@ -6372,12 +6372,23 @@ static void spans_fill(lv_obj_t *sg, const char *txt, const char *hi)
     size_t i = 0, run = 0;
     char buf[640];
     while (txt[i]) {
-        const bool stop = txt[i] == '.' && i > 0 &&
-                          ((txt[i - 1] >= 'a' && txt[i - 1] <= 'z') ||
-                           (txt[i - 1] >= 'A' && txt[i - 1] <= 'Z') ||
-                           (txt[i - 1] >= '0' && txt[i - 1] <= '9')) &&
-                          (txt[i + 1] == '\0' || txt[i + 1] == ' ' ||
-                           txt[i + 1] == '\n');
+        // The IDEOGRAPHIC stop, U+3002, and it is not a detail. ja and zh end
+        // every sentence with it and never with an ASCII dot, so this loop saw
+        // three stops in each of those locales against about 335 in the other
+        // nineteen -- their bodies rendered as one grey block while everybody
+        // else read sentences. Its rules are its own: it follows a CJK
+        // character rather than an ASCII letter, and nothing follows it,
+        // because those scripts do not put a space after a stop.
+        const bool cjk_stop = (unsigned char)txt[i] == 0xE3 &&
+                              (unsigned char)txt[i + 1] == 0x80 &&
+                              (unsigned char)txt[i + 2] == 0x82 && i > 0;
+        const bool stop = cjk_stop ||
+                          (txt[i] == '.' && i > 0 &&
+                           ((txt[i - 1] >= 'a' && txt[i - 1] <= 'z') ||
+                            (txt[i - 1] >= 'A' && txt[i - 1] <= 'Z') ||
+                            (txt[i - 1] >= '0' && txt[i - 1] <= '9')) &&
+                           (txt[i + 1] == '\0' || txt[i + 1] == ' ' ||
+                            txt[i + 1] == '\n'));
         if (!stop) {
             if (run + 1 < sizeof buf) buf[run++] = txt[i];
             i++;
@@ -6401,9 +6412,11 @@ static void spans_fill(lv_obj_t *sg, const char *txt, const char *hi)
         // is what happened here -- the word at the edge changes and the stop
         // follows it up.
         lv_span_t *dot = lv_spangroup_new_span(sg);
-        lv_span_set_text(dot, txt[i + 1] == ' ' ? ". " : ".");
+        lv_span_set_text(dot, cjk_stop            ? "\xE3\x80\x82"
+                            : txt[i + 1] == ' '   ? ". "
+                                                  : ".");
         lv_style_set_text_color(lv_span_get_style(dot), wt_accent());
-        i += txt[i + 1] == ' ' ? 2 : 1;
+        i += cjk_stop ? 3 : txt[i + 1] == ' ' ? 2 : 1;
     }
     if (run) { buf[run] = 0; span_run(sg, buf, hi); }
     lv_spangroup_refresh(sg);
