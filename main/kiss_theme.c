@@ -377,6 +377,17 @@ static void wt_sub_measure(const char *kind, const char *txt,
                      LV_TEXT_FLAG_NONE);
     if (lane > 0 && (int)fl.x * WT_SLACK_PCT / 100 > lane)
         s_cut_sink("slack", txt, (int)fl.x * WT_SLACK_PCT / 100, lane);
+
+    // PORT, for everything that is PINNED. The narrow lane is not this lane
+    // made smaller: on a 320 wide board a fact row is a caption ABOVE its
+    // value and a row is a label above its sub, so each of them gets the whole
+    // content lane rather than a share of it. WT_PORT_LANE is that whole lane,
+    // and a string wider than it cannot be a one line label on that board at
+    // any layout -- which is a different and much shorter list than "does not
+    // fit 40% of what it has here", a question every string on the device
+    // would fail.
+    if ((int)fl.x > WT_PORT_LANE)
+        s_cut_sink("port", txt, (int)fl.x, WT_PORT_LANE);
 }
 
 static void wt_term_report(const char *body, int want, int floor_y)
@@ -516,11 +527,6 @@ static void wt_read_measure(const char *txt)
 // is the honest answer to a 90 character secret and there is no copy for
 // anybody to cut. A backlog entry cannot cover this: it would have to match the
 // walk's own test passphrase, and real input is whatever somebody types.
-// The port's geometry, as a ratio rather than a second layout. The 3.5in
-// board is 320 wide against this one's 800; both are 480 tall.
-#define WT_PORT_WIDE_W   800
-#define WT_PORT_NARROW_W 320
-
 static const lv_font_t *body_font_ladder(const char *txt, int w, int max_h,
                                          bool report)
 {
@@ -6732,6 +6738,30 @@ static void explain_grid(lv_obj_t *ovl, const wt_explain_t *e, int y, int room,
             if (total <= fits) break;
         }
         if (gap < 4) gap = 4;
+
+        // PORT, measured on the first pass while the entries are still split.
+        // The 3.5in board has no room for two columns, so this grid is ONE
+        // there, on the content lane less the badge -- every entry taller, and
+        // every row its own. The vertical budget does not grow to meet it.
+        if (pass == 0) {
+            int nt = 0;
+            for (int i = 0; i < n; i++) {
+                char line[GRID_LINE_MAX], head[64];
+                int l = len[i] < (int)sizeof line ? len[i] : (int)sizeof line - 1;
+                lv_memcpy(line, ln[i], (size_t)l);
+                line[l] = 0;
+                const char *def = wt_split_colon(line, head, sizeof head);
+                if (!def) continue;
+                char run[GRID_LINE_MAX + 72];
+                snprintf(run, sizeof run, "%s %s", head, def);
+                lv_point_t ns;
+                lv_text_get_size(&ns, run, bf, 0, 0,
+                                 WT_PORT_LANE - GRID_BADGE - GRID_GUT,
+                                 LV_TEXT_FLAG_NONE);
+                nt += (ns.y > GRID_BADGE ? ns.y : GRID_BADGE) + 4;
+            }
+            if (nt > room) WT_FIT_GAVE_UP("narrow", e->body, WT_PORT_LANE, room);
+        }
         if (total <= fits) break;
         // DECIDED: the icon grid's ladder floors at 21 and no longer has a font14 rung.
         // THE FLOOR IS 21, NOT 14, which is the same floor wt_body_para has

@@ -584,13 +584,28 @@ rule 1 above, enforced; the last two are the font14 rule and what replaced it:
   against the narrow lane, and a body that runs past the floor rung is one
   that has to be REBUILT rather than narrowed.
 
-  It is the only check here about hardware nobody is holding, which is
-  exactly why it self tests: no frame can catch it and no walk will. It found
-  two, both STOP screens whose body is a pair of labelled claims — and a pair
-  of claims on a 320 wide board is a pair of ROWS, not a paragraph re-flowed.
-  The run prints how many are left as "bodies to rebuild for the 3.5in
-  board". It sees `wt_body_para` only; facts, grids and rows are not measured
-  against the narrow lane yet.
+  It asks that of three shapes, and the narrow lane is NOT this screen's lane
+  made smaller — on a 320 board a fact row is a caption ABOVE its value and a
+  row is a label above its sub, so each gets the whole 280px content lane.
+  Scaling every lane to 40% instead would fail every string on the device and
+  say nothing.
+
+  - **bodies** (`wt_body_para`) and **grids** (`explain_grid`, one column
+    there, not two): the ladder is walked again at the narrow lane and the
+    body is too TALL for its budget.
+  - **pinned labels** (row labels, sublines, fact captions): wider than 280px,
+    so they cannot be one line there under any layout.
+
+  It is the only check here about hardware nobody is holding, which is exactly
+  why it self tests both halves: no frame can catch it and no walk will. It
+  found ten. Five are grids — each a list of labelled claims, too tall in one
+  column rather than too wide — and five are sublines two or three words over.
+  The run prints how many are left as "bodies to rebuild for the 3.5in board".
+
+  They are listed rather than cut, deliberately: shortening screens that read
+  correctly today, for a board nobody is holding, is a choice to make when the
+  board arrives. Measuring early is what makes it a choice instead of a
+  surprise.
 
 Each has a shrink-only backlog (`OC_BARE_BACKLOG`, `OC_WALL_BACKLOG`,
 `OC_FIT_BACKLOG`, `OC_SLACK_BACKLOG`, `OC_PORT_BACKLOG` in

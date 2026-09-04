@@ -1001,6 +1001,25 @@ static const char *OC_PORT_BACKLOG[] = {
     // list is now two long instead of unknown.
     "this code comes from the signature itself.",
     "WRONG KEYS: another passphrase opens other keys.",
+    // The five grids. Each is a list of labelled claims, and a list on a 320
+    // wide board is ONE column, which is what makes them too tall rather than
+    // too wide: the entries are the same, they simply each take more lines and
+    // the vertical budget does not grow to meet them.
+    "COMPARE: the lit characters against your coordinator.",
+    "HIGH FEE: a big slice of what you send.",
+    "WHAT YOU POINT AT: the scene in front of the lens.",
+    "THE LIST: the same 2048 words everywhere.",
+    "YOURS, NOT ITS: the randomness is your own hand",
+    // The five pinned labels, which are the cheap half: each is a row subline
+    // between 28 and 154 pixels over the lane, so each is two or three words
+    // from fitting. They are listed rather than cut today because cutting them
+    // for a board nobody is holding would shorten screens that read correctly
+    // now, and the whole point of measuring early is to make that a CHOICE.
+    "compare lit characters",
+    "how your keys were made",
+    "build id, radio, SD card",
+    "one QR, or 9A2C33E3.kef",
+    "seed words. not your passphrase",
     NULL,
 };
 static bool s_port_hit[sizeof OC_PORT_BACKLOG / sizeof OC_PORT_BACKLOG[0]];
@@ -1613,6 +1632,7 @@ static void oc_check_cut(const char *tag)
              strcmp(s_cut_kind[i], "long") == 0 ||
              strcmp(s_cut_kind[i], "mark") == 0 ||
              strcmp(s_cut_kind[i], "slack") == 0 ||
+             strcmp(s_cut_kind[i], "port") == 0 ||
              strcmp(s_cut_kind[i], "widow") == 0))
             continue;
         // SLACK is the same English-only argument as READ, arrived at from the
@@ -1621,6 +1641,21 @@ static void oc_check_cut(const char *tag)
         // a translation's own slack is meaningless -- it is already the string
         // that has to fit -- and the only fix this gate offers, cutting the
         // SOURCE copy, is an English edit either way.
+        // PORT through the cut sink: everything PINNED. The body half of the
+        // same check lives in the fit sink, because a body is sized by height
+        // and a label by width, and each is measured where it is decided.
+        if (strcmp(s_cut_kind[i], "port") == 0) {
+            if (oc_port_excused(s_cut_txt[i])) continue;
+            snprintf(sig, sizeof sig, "PORT|%s", s_cut_txt[i]);
+            snprintf(detail, sizeof detail,
+                     "PORT     \"%s\" is %dpx and the 3.5in board's whole "
+                     "content lane is %dpx -- it cannot be a one line label "
+                     "there under any layout, so it is cut or it wraps, and "
+                     "wrapping a pinned label is a rebuild",
+                     s_cut_txt[i], s_cut_want[i], s_cut_lane[i]);
+            oc_report_one(tag, sig, detail);
+            continue;
+        }
         if (strcmp(s_cut_kind[i], "slack") == 0) {
             if (oc_slack_excused(s_cut_txt[i])) continue;
             const int pct = s_cut_lane[i] ? s_cut_want[i] * 100 / s_cut_lane[i]
@@ -2752,11 +2787,18 @@ static int oc_selftest_ladder(const char *name, const lv_font_t *mark_f,
 // The two reading-level cases go through the SINK, not through a screen: the
 // measure is a pure function of a string and the sink is what carries it, so
 // driving the string is driving the whole check.
+// One pixel over the 3.5in board's whole content lane, which is the only
+// number this case is about.
+#define WT_PORT_SELFTEST_W 281
+
 static int oc_selftest_read(const char *name, const char *kind,
                             const char *txt, int want, bool want_finding)
 {
     s_cut_n = 0; s_findings = 0; s_seen_n = 0;
-    oc_cut_sink(kind, txt, want, 0);
+    // PORT's lane is a real number and the finding prints it, so the self test
+    // hands over the real one rather than the zero the reading-level cases use.
+    oc_cut_sink(kind, txt, want,
+                strcmp(kind, "port") == 0 ? WT_PORT_LANE : 0);
     oc_check_cut("selftest");
     bool got = s_findings > 0;
     printf("  %-46s %s (%d finding%s)\n", name,
@@ -2913,6 +2955,15 @@ int oc_selftest(void)
 
     int was_slack = bad;
     printf("PORT check self test\n");
+    // The pinned half goes through the SINK, like the reading-level cases and
+    // for the same reason: the measure is "is this string wider than the small
+    // board's whole lane", a pure function of a width, and driving the width
+    // drives the check. The BODY half below goes through a real wt_body_para,
+    // because there the measure is a ladder walk and only the real one proves
+    // it still walks.
+    bad += oc_selftest_read("a label wider than the 3.5in lane, fires",
+                            "port", "a label too wide for the small board",
+                            WT_PORT_SELFTEST_W, true);
     bad += oc_selftest_port("a body too tall for a 320 wide lane, fires",
                             "a body long enough that a lane two and a half "
                             "times narrower than this one turns it into more "
@@ -3542,7 +3593,7 @@ int oc_report(void)
                    " stop -- cut it from the list, the body it named is"
                    " gone\n", lang, OC_PORT_BACKLOG[i]);
         }
-        printf("[overlap] %s: %d bodies to rebuild for the 3.5in board\n",
+        printf("[overlap] %s: %d strings on the 3.5in rebuild list\n",
                lang, port_left);
     }
     {
