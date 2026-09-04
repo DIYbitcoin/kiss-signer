@@ -2468,7 +2468,17 @@ lv_obj_t *wt_row_x(lv_obj_t *scr, const char *icon, const char *label,
         //
         // Safe from the status collision for the same reason the eyebrows are:
         // a chevron says a row OPENS, never how it is doing.
-        lv_obj_t *ch = wt_lbl(row, LV_SYMBOL_RIGHT, 0, 0, wt_font14(), wt_accent());
+        //
+        // Its SIZE is a rung under the row's own sub, not a fixed 14. A font14
+        // glyph beside a font28 line is a speck rather than a mark, and 31
+        // findings across the twenty locales said so -- every one of them on a
+        // row whose sub was short enough to hold 28. English never fired
+        // because English subs are the longest here, so they drop to 23 on
+        // their own and the gap closes with them. The row recomputes `right`
+        // from the chevron's real width just below, so a wider mark takes its
+        // own lane back rather than growing over the sub.
+        const lv_font_t *chf = sf == wt_font28() ? wt_font23() : wt_font14();
+        lv_obj_t *ch = wt_lbl(row, LV_SYMBOL_RIGHT, 0, 0, chf, wt_accent());
         lv_obj_set_style_text_opa(ch, 150, 0);
         lv_obj_add_flag(ch, WT_FLAG_ACCENT);
         lv_obj_update_layout(ch);
