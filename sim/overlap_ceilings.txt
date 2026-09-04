@@ -20,23 +20,23 @@
 #
 # They are a ratchet from here and the rule is unchanged. The next number
 # that moves goes down.
-cs-CZ 24
-da-DK 32
-de 69
-es-ES 57
-es-MX 57
-fr 65
-hr-HR 34
-it 37
-ja 9
-ko 4
-nb-NO 41
-nl 56
-pl 53
-pt-BR 37
-pt-PT 42
-ru 52
-sv-SE 58
-tr 45
-vi 43
+cs-CZ 21
+da-DK 27
+de 63
+es-ES 49
+es-MX 49
+fr 54
+hr-HR 27
+it 31
+ja 8
+ko 2
+nb-NO 35
+nl 50
+pl 47
+pt-BR 29
+pt-PT 34
+ru 44
+sv-SE 52
+tr 36
+vi 40
 zh-CN 10

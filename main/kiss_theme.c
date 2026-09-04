@@ -6564,7 +6564,7 @@ static void explain_grid(lv_obj_t *ovl, const wt_explain_t *e, int y, int room,
     int rows = (n + cols - 1) / cols;
     int cw   = (EXP_FULL_W - (cols - 1) * GRID_GUT) / cols;   // 346 at two
     int tw   = cw - GRID_BADGE - GRID_GUT;               // text lane beside it
-    int pitch = room / rows;
+    (void)rows;                       // the rows are walked, not divided into
 
     // TERM AND DEFINITION ON ONE WRAPPED RUN, which is what buys font23. They
     // were a font14 heading over a font14 definition, and a 300px column
@@ -6577,23 +6577,62 @@ static void explain_grid(lv_obj_t *ovl, const wt_explain_t *e, int y, int room,
     // Run them together and the term costs a few words of the first line
     // instead of a line of its own, which is exactly the room needed. The
     // glossary page solved it this way first.
+    // MEASURED, then STACKED. Each entry is measured at the chosen font, each
+    // ROW takes the taller of its two columns, and the rows are laid end to end
+    // -- rather than every row being handed room/rows whatever it holds.
+    //
+    // A uniform pitch is only correct when every entry wraps to the same number
+    // of lines, which is true of the English and of almost nothing else. WHY
+    // FLAGGED carried 73 findings on its own: an entry that took one line in
+    // English took two in Czech and grew into the entry below it, and the last
+    // one ran 4px past the action band. TEXT, GROWTH and CONTENT all reporting
+    // the same cause, once per locale, on a card an owner reads before signing.
+    // The gap between rows gives way before the FONT does. Stacking honestly
+    // costs a gap the old uniform pitch never paid, and English -- which fits
+    // by construction, being what every lane was sized from -- came out 6px
+    // over on WHY FLAGGED for exactly that. A reader loses nothing to 8px of
+    // air where they would have lost a font rung.
+    int eh[GRID_MAXN];
+    int gap = GRID_GUT;
     const lv_font_t *bf = wt_font23();
     for (int pass = 0; pass < 2; pass++) {
-        int tallest = 0;
+        int total = 0;
         for (int i = 0; i < n; i++) {
             char line[GRID_LINE_MAX], head[64];
             int l = len[i] < (int)sizeof line ? len[i] : (int)sizeof line - 1;
             lv_memcpy(line, ln[i], (size_t)l);
             line[l] = 0;
             const char *def = wt_split_colon(line, head, sizeof head);
+            eh[i] = 0;
             if (!def) continue;
             char run[GRID_LINE_MAX + 72];
             snprintf(run, sizeof run, "%s %s", head, def);
             lv_point_t sz;
             lv_text_get_size(&sz, run, bf, 0, 0, tw, LV_TEXT_FLAG_NONE);
-            if (sz.y > tallest) tallest = sz.y;
+            // never shorter than the badge beside it, or the mark hangs out
+            eh[i] = sz.y > GRID_BADGE ? sz.y : GRID_BADGE;
         }
-        if (tallest <= pitch - 6) break;
+        // the rows, each as tall as its tallest column, plus the gap under it
+        int text = 0, nrow = 0;
+        for (int r = 0; r * cols < n; r++) {
+            int tall = 0;
+            for (int c = 0; c < cols && r * cols + c < n; c++)
+                if (eh[r * cols + c] > tall) tall = eh[r * cols + c];
+            text += tall; nrow++;
+        }
+        // close the gap before touching the size, down to a floor that still
+        // reads as separate rows rather than one block
+        // 4px of slack against the room, not 0: lv_text_get_size measures the
+        // text and the spangroup renders a shade taller than that, so a fit
+        // computed exactly landed English 2px into the action band -- the one
+        // locale that has no allowance and must read zero.
+        const int fits = room - 4;
+        for (gap = GRID_GUT; gap >= 4; gap -= 2) {
+            total = text + (nrow - 1) * gap;
+            if (total <= fits) break;
+        }
+        if (gap < 4) gap = 4;
+        if (total <= fits) break;
         // DECIDED: the icon grid's ladder floors at 21 and no longer has a font14 rung.
         // THE FLOOR IS 21, NOT 14, which is the same floor wt_body_para has
         // and for the same reason: font14 is for MARKS -- chip labels, unit
@@ -6616,8 +6655,20 @@ static void explain_grid(lv_obj_t *ovl, const wt_explain_t *e, int y, int room,
             if (!mono_can(line)) mono_ok = false;
         }
         if (pass == 0 && mono_ok) { bf = wt_font_mono21(); continue; }
-        WT_FIT_GAVE_UP("grid", ln[0], tw, pitch - 6);
+        WT_FIT_GAVE_UP("grid", ln[0], tw, room);
         break;
+    }
+
+    // The top of each row, from the heights just measured. Computed once here
+    // rather than inside the placement loop, because both columns of a row need
+    // the same top and the second one must not re-derive it.
+    int rowy[GRID_MAXN];
+    for (int r = 0, acc = y; r * cols < n; r++) {
+        int tall = 0;
+        for (int c = 0; c < cols && r * cols + c < n; c++)
+            if (eh[r * cols + c] > tall) tall = eh[r * cols + c];
+        rowy[r] = acc;
+        acc += tall + gap;
     }
 
     for (int i = 0; i < n; i++) {
@@ -6628,7 +6679,7 @@ static void explain_grid(lv_obj_t *ovl, const wt_explain_t *e, int y, int room,
         const char *def = wt_split_colon(line, head, sizeof head);
 
         int cx = 48 + (i % cols) * (cw + GRID_GUT);
-        int cy = y + (i / cols) * pitch;
+        int cy = rowy[i / cols];
 
         if (e->icons && (size_t)i < e->icons_count && e->icons[i])
             grid_badge(ovl, e->icons[i], cx, cy, sev);
@@ -6643,7 +6694,7 @@ static void explain_grid(lv_obj_t *ovl, const wt_explain_t *e, int y, int room,
         lv_obj_t *sg = lv_spangroup_create(ovl);
         lv_obj_set_pos(sg, tx, cy + 2);
         lv_obj_set_width(sg, tw);
-        lv_obj_set_height(sg, pitch - 6);
+        lv_obj_set_height(sg, eh[i]);
         lv_obj_remove_flag(sg, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_remove_flag(sg, LV_OBJ_FLAG_SCROLLABLE);
         lv_spangroup_set_mode(sg, LV_SPAN_MODE_BREAK);
