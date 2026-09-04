@@ -516,6 +516,11 @@ static void wt_read_measure(const char *txt)
 // is the honest answer to a 90 character secret and there is no copy for
 // anybody to cut. A backlog entry cannot cover this: it would have to match the
 // walk's own test passphrase, and real input is whatever somebody types.
+// The port's geometry, as a ratio rather than a second layout. The 3.5in
+// board is 320 wide against this one's 800; both are 480 tall.
+#define WT_PORT_WIDE_W   800
+#define WT_PORT_NARROW_W 320
+
 static const lv_font_t *body_font_ladder(const char *txt, int w, int max_h,
                                          bool report)
 {
@@ -554,6 +559,7 @@ static const lv_font_t *body_font_ladder(const char *txt, int w, int max_h,
     // string too long for its block and the gate has to say which one.
     lv_text_get_size(&sz, txt, floor, 0, 0, w, LV_TEXT_FLAG_NONE);
     if (sz.y > max_h) WT_FIT_GAVE_UP("body", txt, w, max_h);
+
     return floor;
 }
 
@@ -6537,6 +6543,25 @@ exp_paras_t ps;
             used = room;
             WT_FIT_GAVE_UP("body", body, EXP_FULL_TXT, room);
         }
+    }
+
+    // THE PORT, asked now rather than after the board arrives. The 3.5in
+    // target is 320 wide where this one is 800, and the same 480 tall: the
+    // lane falls by two and a half and the vertical budget does not move at
+    // all. A body that is three lines here is eight there, and eight lines of
+    // 29 is most of what a screen has once its chrome and its action band are
+    // paid for.
+    //
+    // So the ladder is walked a second time against the narrow lane. A body
+    // that still lands on a rung will RE-FLOW onto the small board; one that
+    // runs past the floor has to be rebuilt, and knowing which is which is
+    // worth more before anything is ported than after. It reports through its
+    // own kind because the verdict is different: this is not a defect on the
+    // board that ships today.
+    {
+        const int nw = EXP_FULL_TXT * WT_PORT_NARROW_W / WT_PORT_WIDE_W;
+        if (exp_height(&ps, 0, ps.count, ladder[rungs - 1], nw) > room)
+            WT_FIT_GAVE_UP("narrow", body, nw, room);
     }
 
     // Drop the band by a third of what is left over. Centring it outright

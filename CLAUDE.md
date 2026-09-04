@@ -577,8 +577,24 @@ rule 1 above, enforced; the last two are the font14 rule and what replaced it:
   `PASSPHRASE`, `DESCRIPTOR`, `FINGERPRINT` — which the anchor rule already
   covers: where the name IS the string, the lane is what is wrong.
 
+- **PORT** — a body that will not re-flow onto the 3.5in board. That target
+  is 320 wide where this one is 800 and the SAME 480 tall, so the lane falls
+  by two and a half and the vertical budget does not move at all: three lines
+  here is eight there. The body sizer's own ladder is walked a second time
+  against the narrow lane, and a body that runs past the floor rung is one
+  that has to be REBUILT rather than narrowed.
+
+  It is the only check here about hardware nobody is holding, which is
+  exactly why it self tests: no frame can catch it and no walk will. It found
+  two, both STOP screens whose body is a pair of labelled claims — and a pair
+  of claims on a 320 wide board is a pair of ROWS, not a paragraph re-flowed.
+  The run prints how many are left as "bodies to rebuild for the 3.5in
+  board". It sees `wt_body_para` only; facts, grids and rows are not measured
+  against the narrow lane yet.
+
 Each has a shrink-only backlog (`OC_BARE_BACKLOG`, `OC_WALL_BACKLOG`,
-`OC_FIT_BACKLOG`, `OC_SLACK_BACKLOG` in `sim/overlapcheck.c`) and the run
+`OC_FIT_BACKLOG`, `OC_SLACK_BACKLOG`, `OC_PORT_BACKLOG` in
+`sim/overlapcheck.c`) and the run
 prints how many are left. The first three are empty: FIT's two launch entries
 were cut rather than excused. SLACK's holds the twenty one that outlived the
 wrap, as a ratchet — it cannot grow.
