@@ -238,7 +238,9 @@ jobs:
       # for four commits. Identical consecutive frames mean a dead interaction.
       - name: simulator taps still hit something
         if: always()
-        run: python3 tools/check_sim_taps.py
+        run: |
+          python3 tools/check_sim_taps.py --selftest
+          python3 tools/check_sim_taps.py
 
       # The PUBLISHED simulator is the first link a visitor clicks, and the
       # README says its screenshots come from the real firmware sources. That
@@ -254,7 +256,9 @@ jobs:
       # at all and catches the failure that actually happened.
       - name: the published simulator is from this tree
         if: always()
-        run: python3 tools/check_sim_fresh.py
+        run: |
+          python3 tools/check_sim_fresh.py --selftest
+          python3 tools/check_sim_fresh.py
 
       # The step above asks whether a tap changed the screen. This asks the
       # question none of the others can: which screens has nothing ever looked
@@ -332,7 +336,9 @@ jobs:
       # site served beta6 while every document described beta7. Fails only when
       # the page still offers the button, since a pulled button flashes nothing.
       - name: installer artifacts match VERSION
-        run: python3 tools/check_installer_version.py
+        run: |
+          python3 tools/check_installer_version.py --selftest
+          python3 tools/check_installer_version.py
 
       # The committed firmware binary is 7.5 MB of bytes that CI never rebuilt
       # and never hashed. Everything else about a release was checked except

@@ -47,18 +47,79 @@ DELIBERATE = re.compile(
 OWN_PROCESS = re.compile(r"own process", re.I)
 
 
-def frames():
+def parse_saves(lines):
     """[(frame, deliberate_noop)] in the order the walk saves them."""
     out = []
-    with open(SIM) as fh:
-        for line in fh:
-            m = re.search(r'save\("/tmp/(sim_[a-z0-9_]+)\.ppm"\)', line)
-            if m and not OWN_PROCESS.search(line):
-                out.append((m.group(1), bool(DELIBERATE.search(line))))
+    for line in lines:
+        m = re.search(r'save\("/tmp/(sim_[a-z0-9_]+)\.ppm"\)', line)
+        if m and not OWN_PROCESS.search(line):
+            out.append((m.group(1), bool(DELIBERATE.search(line))))
     return out
 
 
+def frames():
+    with open(SIM) as fh:
+        return parse_saves(fh)
+
+
+# The comparison itself, over data rather than over files, so the self test can
+# hand it frames it made up.
+def duplicate_pairs(seq):
+    """seq: [(name, deliberate, data)] -> [(previous, name)] that are identical."""
+    prev_name, prev_bytes = None, None
+    dupes = []
+    for name, ok_if_same, data in seq:
+        if prev_bytes is not None and data == prev_bytes and not ok_if_same:
+            dupes.append((prev_name, name))
+        prev_name, prev_bytes = name, data
+    return dupes
+
+
+# Half of these must stay QUIET, and that half is the point: this gate is
+# defined by its two exemptions -- a frame whose comment says it is meant to
+# look unchanged, and a frame saved by a harness in its own process, which the
+# plain walk never writes and which has no neighbour to be compared against.
+# A version of this check without them would fire on frames nobody can fix,
+# and a version that had lost them would be silent on the failure it exists
+# for: a tap coordinate left behind by a layout change, landing on empty
+# background while the walk stays green and saves the previous screen again.
+def selftest():
+    bad = 0
+    cases = [
+        ("two different frames, quiet",
+         [("a", False, b"1"), ("b", False, b"2")], 0),
+        ("a repeated frame, fires -- the tap did nothing",
+         [("a", False, b"1"), ("b", False, b"1")], 1),
+        ("a repeated frame the comment calls a noop, quiet",
+         [("a", False, b"1"), ("b", True, b"1")], 0),
+    ]
+    for name, seq, want in cases:
+        got = len(duplicate_pairs(seq))
+        ok = got == want
+        print("  %-52s %s (%d, wanted %d)"
+              % (name, "ok" if ok else "FAILED", got, want))
+        bad += not ok
+
+    parsed = parse_saves([
+        '  save("/tmp/sim_one.ppm");',
+        '  save("/tmp/sim_two.ppm");            // stays, deliberately',
+        '  save("/tmp/sim_three.ppm");          // its own process',
+    ])
+    for name, want in [("a plain save() is walked", ("sim_one", False) in parsed),
+                       ("a 'stays' comment marks it deliberate",
+                        ("sim_two", True) in parsed),
+                       ("an 'own process' save is skipped",
+                        all(n != "sim_three" for n, _ in parsed))]:
+        print("  %-52s %s" % (name, "ok" if want else "FAILED"))
+        bad += not want
+
+    print("sim taps selftest: %d cases, %d broken" % (len(cases) + 3, bad))
+    return 1 if bad else 0
+
+
 def main():
+    if "--selftest" in sys.argv:
+        return selftest()
     seq = frames()
     if not seq:
         sys.stderr.write("no save() calls found in %s\n" % SIM)
@@ -88,14 +149,11 @@ def main():
                           for n in stale[:10]))
         return 1
 
-    prev_name, prev_bytes = None, None
-    dupes = []
+    loaded = []
     for name, ok_if_same, path in paths:
         with open(path, "rb") as fh:
-            data = fh.read()
-        if prev_bytes is not None and data == prev_bytes and not ok_if_same:
-            dupes.append((prev_name, name))
-        prev_name, prev_bytes = name, data
+            loaded.append((name, ok_if_same, fh.read()))
+    dupes = duplicate_pairs(loaded)
 
     print("%d frames checked" % len(seq))
     if not dupes:

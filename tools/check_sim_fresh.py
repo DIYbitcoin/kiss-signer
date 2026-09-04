@@ -41,15 +41,55 @@ EN = ROOT / "i18n" / "en.json"
 MIN_LEN = 24
 
 
+# The comparison, as a function of its two inputs and nothing else, so the self
+# test below can hand it a bundle it built rather than the one on disk.
+def compare(blob: bytes, en: dict):
+    want = {k: v for k, v in en.items()
+            if isinstance(v, str) and len(v) >= MIN_LEN and "%" not in v}
+    return want, {k: v for k, v in want.items() if v.encode("utf-8") not in blob}
+
+
+# A gate is defined by what it EXCUSES, so the self test pins the exemptions as
+# hard as it pins the failure. Two of these four must stay QUIET: MIN_LEN and
+# the format-string skip are the whole reason this check does not fire on every
+# bundle, and a version of it that reported them would be one nobody could act
+# on. The other two are the failure it was written for -- a bundle from a
+# different era, which is how the committed wasm drew SETTINGS as four sans
+# pill rows months after the tree had built five ruled ones.
+def selftest() -> int:
+    long_a = "a fact value long enough to be unmistakable"
+    long_b = "a second string of equally unmistakable length"
+    cases = [
+        ("a bundle carrying every long string, quiet",
+         {"A": long_a, "B": long_b}, [long_a, long_b], 0),
+        ("a bundle missing one, fires",
+         {"A": long_a, "B": long_b}, [long_a], 1),
+        ("a SHORT string absent, quiet -- under MIN_LEN",
+         {"A": long_a, "S": "too short"}, [long_a], 0),
+        ("a FORMAT string absent, quiet -- reordered by locale",
+         {"A": long_a, "F": "%d " + long_b}, [long_a], 0),
+    ]
+    bad = 0
+    for name, en, present, want_n in cases:
+        blob = ("\x00".join(present)).encode("utf-8")
+        _, missing = compare(blob, en)
+        ok = len(missing) == want_n
+        print(f"  {name:52s} {'ok' if ok else 'FAILED'} "
+              f"({len(missing)} missing, wanted {want_n})")
+        bad += not ok
+    print(f"sim freshness selftest: {len(cases)} cases, {bad} broken")
+    return 1 if bad else 0
+
+
 def main() -> int:
+    if "--selftest" in sys.argv:
+        return selftest()
     if not WASM.exists():
         print(f"no bundle at {WASM.relative_to(ROOT)}")
         return 1
     blob = WASM.read_bytes()
     en = json.loads(EN.read_text(encoding="utf-8"))
-    want = {k: v for k, v in en.items()
-            if isinstance(v, str) and len(v) >= MIN_LEN and "%" not in v}
-    missing = {k: v for k, v in want.items() if v.encode("utf-8") not in blob}
+    want, missing = compare(blob, en)
     if missing:
         print(f"simulator freshness: {len(missing)} of {len(want)} strings "
               f"are NOT in the committed bundle")

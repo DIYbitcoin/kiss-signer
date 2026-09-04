@@ -165,8 +165,10 @@ run "a measurement before its layout" \
     "python3 tools/check_layout_reads.py --selftest && python3 tools/check_layout_reads.py"
 run "the sim's LVGL config vs the device's" "LVCONF_SELFTEST=1 python3 tools/check_lv_conf.py"
 run "the decisions index vs the comments" "python3 tools/gen_decisions.py --check"
-run "the published wasm vs the tree" "python3 tools/check_sim_fresh.py"
-run "installer artifacts vs VERSION" "python3 tools/check_installer_version.py"
+run "the published wasm vs the tree" \
+    "python3 tools/check_sim_fresh.py --selftest && python3 tools/check_sim_fresh.py"
+run "installer artifacts vs VERSION" \
+    "python3 tools/check_installer_version.py --selftest && python3 tools/check_installer_version.py"
 # Both --check only: they read and report, they do not regenerate. That is the
 # whole reason they can sit here rather than in the skip list.
 run "every picture resolves to a frame" "python3 tools/gen_docs_shots.py --check"
@@ -227,7 +229,8 @@ run "screens no gate sees" "python3 tools/check_screen_coverage.py"
 # frames the walk saves, and preflight gives every run a fresh KISS_SIM_TMP, so
 # ahead of the walk the scratch is empty and it exits 1 every time. CI puts it
 # here for the same reason, in the comment on its own smoke walk step.
-run "a walk tap that hits nothing" "python3 tools/check_sim_taps.py"
+run "a walk tap that hits nothing" \
+    "python3 tools/check_sim_taps.py --selftest && python3 tools/check_sim_taps.py"
 
 # --- the table ------------------------------------------------------------
 echo
