@@ -371,7 +371,7 @@ python3 tools/check_docs_fresh.py                  # how far the pictures trail 
 
 docker run --rm -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory \
   -e GIT_CONFIG_VALUE_0=/project -v "$PWD":/project -w /project \
-  espressif/idf:v6.0.1 idf.py -B /project/build-docker build     # the device compiler
+  espressif/idf:v6.1 idf.py -B /project/build-docker build     # the device compiler
 ```
 
 **That command is also the lint lane.** `main/CMakeLists.txt` passes fifteen
