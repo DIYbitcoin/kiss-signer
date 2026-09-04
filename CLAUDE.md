@@ -347,6 +347,19 @@ it prints a table rather than stopping at the first failure. It exists because
 `sim/check_sd_psbts.sh` broke on an include, was invisible to everyone working
 by hand, and sat red across THIRTEEN consecutive pushes.
 
+**Its table has THREE states, and the third is the interesting one.** A table
+that maps exit code to ok/FAILED cannot describe a gate that exits 0 while
+printing a failure, and `check_docs_fresh` is exactly that: advisory on
+develop by design, `--strict` only on the way to main where the stale picture
+is what ships. So preflight printed "ok" over it while it reported eleven
+commits of screen changes -- in the same run that correctly caught
+`check_sim_fresh` beside it, which does exit nonzero. **Reading the totals
+line does not catch that one. Only reading the gate's own output does**, which
+is the thing a summary table exists to save somebody from. A runner can now
+name a pattern meaning "passed, and still telling you something": it prints
+NOTE, it does not fail the run, and the last line counts it, so a green run
+cannot sit quietly on top of a gate with something to say.
+
 ```bash
 bash tools/preflight.sh                                    # all of the below
 

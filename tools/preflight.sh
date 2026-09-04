@@ -80,17 +80,46 @@ mkdir -p "$LOGS"
 NAMES=()
 RESULTS=()
 FAILED=0
+NOTED=0
 N=0
 
+# A THIRD STATE, because two were not enough to describe what these scripts do.
+#
+# This table maps exit code to ok/FAILED, and check_docs_fresh exits 0 while
+# printing "11 commits have changed a screen since". That is not a bug in the
+# gate: it is ADVISORY on develop by design and exits nonzero only under
+# --strict, which CI uses on the way to main, where the stale picture is what
+# ships. But the table printed "ok" over it, so the run said nothing was wrong
+# in the same breath as the gate saying something was -- and it did so in the
+# same run that correctly caught check_sim_fresh beside it, which does exit
+# nonzero.
+#
+# Reading the totals line does not catch this one. Only reading the gate's own
+# output does, which is the thing a summary table exists to save somebody from.
+#
+# So a runner may name a pattern meaning "this passed, and it is still telling
+# you something". It prints NOTE, it does not fail the run, and it is counted
+# separately at the bottom, so the last line of a green run cannot quietly sit
+# on top of a gate with something to say.
 run() {
-    local name="$1"; shift
+    local name="$1"
+    local note_re=""
+    if [ "$1" = "--note-if" ]; then note_re="$2"; name="$3"; shift 3
+    else shift
+    fi
     N=$((N + 1))
     local log
     log="$LOGS/$(printf '%02d' "$N")-$(echo "$name" | tr ' /' '__').log"
     printf '  %-46s ' "$name"
     if bash -c "$*" >"$log" 2>&1; then
-        echo "ok"
-        NAMES+=("$name"); RESULTS+=("ok")
+        if [ -n "$note_re" ] && grep -qE "$note_re" "$log"; then
+            echo "NOTE"
+            NAMES+=("$name"); RESULTS+=("NOTE")
+            NOTED=$((NOTED + 1))
+        else
+            echo "ok"
+            NAMES+=("$name"); RESULTS+=("ok")
+        fi
     else
         echo "FAILED"
         NAMES+=("$name"); RESULTS+=("FAILED")
@@ -142,7 +171,8 @@ run "installer artifacts vs VERSION" "python3 tools/check_installer_version.py"
 # whole reason they can sit here rather than in the skip list.
 run "every picture resolves to a frame" "python3 tools/gen_docs_shots.py --check"
 run "the offline installer packs what the page loads" "python3 tools/make_offline_zip.py --check"
-run "how far the pictures trail the screens" \
+run --note-if "commits have changed a screen since" \
+    "how far the pictures trail the screens" \
     "python3 tools/check_docs_fresh.py --selftest && python3 tools/check_docs_fresh.py"
 
 # --- the things that compile ---------------------------------------------
@@ -209,11 +239,19 @@ echo "  ------------------------------------------------------------"
 echo
 
 if [ "$FAILED" -gt 0 ]; then
-    echo "preflight: $FAILED of $N failed. Logs in $LOGS"
+    if [ "$NOTED" -gt 0 ]; then
+        echo "preflight: $FAILED of $N failed, $NOTED with a NOTE. Logs in $LOGS"
+    else
+        echo "preflight: $FAILED of $N failed. Logs in $LOGS"
+    fi
     echo "Do not push. CI runs these plus the container build and the installer checks."
     exit 1
 fi
 
-echo "preflight: $N of $N passed."
+if [ "$NOTED" -gt 0 ]; then
+    echo "preflight: $N of $N passed, $NOTED with a NOTE -- read those logs."
+else
+    echo "preflight: $N of $N passed."
+fi
 echo "Still unread by anything here: the ESP-IDF container build, and CI itself."
 echo "Read the run after the push -- desktop tests has been red for ten hours before now."
