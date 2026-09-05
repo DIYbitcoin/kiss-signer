@@ -132,6 +132,7 @@
   "G_FW_WRITING_FMT": "SCRITTURA DI %s",
   "G_FW_WRITING_T": "SCRITTURA FIRMWARE",
   "G_HELP_BODY": "Parole di recupero + passphrase = le tue chiavi.",
+  "G_HELP_BODY_DEC": "Seed words + passphrase = your keys. Seed words alone = the decoy keys.",
   "G_HELP_F1C": "IL GIRO",
   "G_HELP_F1V": "tocca per cambiare",
   "G_HELP_F2C": "IL PUNTO",

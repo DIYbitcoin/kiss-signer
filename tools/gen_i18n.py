@@ -142,6 +142,9 @@ UNTRANSLATED_OK = {
     # The second first-run hint, for the row that grows. Born under the
     # English-only rule; English in the other twenty until the sweep.
     "H_HINT_ROW",
+    # The SETTINGS [ ? ] body that also names the decoy. Born under the
+    # English-only rule; English in the other twenty until the sweep.
+    "G_HELP_BODY_DEC",
     # The SETTINGS row that opens all ten term cards, and its screen. Born
     # under the English-only rule; English in the other twenty until the sweep.
     "I_ROW_TERMS", "I_ROW_TERMS_SUB", "I_TERMS_UNREAD_FMT",

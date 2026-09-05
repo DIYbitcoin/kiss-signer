@@ -132,6 +132,7 @@
   "G_FW_WRITING_FMT": "ЗАПИСЬ %s",
   "G_FW_WRITING_T": "ЗАПИСЬ ПРОШИВКИ",
   "G_HELP_BODY": "Сид-фраза + кодовая фраза = ваши ключи.",
+  "G_HELP_BODY_DEC": "Seed words + passphrase = your keys. Seed words alone = the decoy keys.",
   "G_HELP_F1C": "ЦИКЛ",
   "G_HELP_F1V": "нажмите, чтобы сменить",
   "G_HELP_F2C": "ЭТА ТОЧКА",

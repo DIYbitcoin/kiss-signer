@@ -132,6 +132,7 @@
   "G_FW_WRITING_FMT": "SKRIVER %s",
   "G_FW_WRITING_T": "SKRIVER FASTVARE",
   "G_HELP_BODY": "Gjenopprettingsord + passordfrase = nøklene dine.",
+  "G_HELP_BODY_DEC": "Seed words + passphrase = your keys. Seed words alone = the decoy keys.",
   "G_HELP_F1C": "LØKKEN",
   "G_HELP_F1V": "trykk for å bytte",
   "G_HELP_F2C": "PRIKKEN",

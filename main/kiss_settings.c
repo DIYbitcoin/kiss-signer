@@ -2226,7 +2226,17 @@ static void build_tab(void)
             { .cap = tr(STR_G_HELP_F3C), .val = tr(STR_G_HELP_F3V),
               .icon = LV_SYMBOL_TRASH },
         };
-        wt_explain(s_pane, tr(STR_G_HELP_HEAD), tr(STR_G_HELP_BODY), facts,
+        // The body names BOTH doors -- seed words with the passphrase open
+        // your keys, seed words alone open the decoy -- because the pair is
+        // the whole lesson and one half alone reads as the only half.
+        //
+        // ABSENT IN A DECOY SESSION, for the reason the TERMS row below is:
+        // a screen that explains the decoy to whoever is holding the device
+        // is the one thing the decoy cannot survive. There the body says the
+        // first half only, which is true of the session it is being read in.
+        wt_explain(s_pane, tr(STR_G_HELP_HEAD),
+                   tr(kiss_session_decoy() ? STR_G_HELP_BODY
+                                           : STR_G_HELP_BODY_DEC), facts,
                    3);
         return;
     }

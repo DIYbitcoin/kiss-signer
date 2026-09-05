@@ -132,6 +132,7 @@
   "G_FW_WRITING_FMT": "SKRIVER %s",
   "G_FW_WRITING_T": "SKRIVER FIRMWARE",
   "G_HELP_BODY": "Gendannelsesord + adgangsfrase = dine nøgler.",
+  "G_HELP_BODY_DEC": "Seed words + passphrase = your keys. Seed words alone = the decoy keys.",
   "G_HELP_F1C": "SLØJFEN",
   "G_HELP_F1V": "tryk for at skifte",
   "G_HELP_F2C": "PRIKKEN",
