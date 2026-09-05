@@ -76,25 +76,25 @@ The first tab carrying one, in strip order, so the chip lands on the leftmost ma
 
 The row was duplicated onto BACKUP because "how were these made" is a question about the seed and an outside reader guessed that tab; that argument is still true and did not survive what the pair cost. From the bench, "why the fuck now is there TWO audit button in SETTINGS screens" -- a settings page that lists the same row twice reads as a page that does not know what it holds, and a reader who cannot find a screen is not helped by finding it twice. It was moved to DEVICE for one commit on the reasoning that HOW YOUR KEYS WERE MADE and the RANDOMNESS AUDIT are facts about this box. Wrong tab: what an owner does with them is decide whether to TRUST the box, which is what SECURITY is for, and it is where the row has always been. DEVICE is FIRMWARE, THIS DEVICE and TERMS, and it is three rows again. No value: AUDIT has no state to report, so what it is FOR rides the sub lane. A phrase in the value lane wraps into the chevron -- the value never yields, so it has to be short or absent.
 
-[`main/kiss_settings.c:2001`](../main/kiss_settings.c#L2001)
+[`main/kiss_settings.c:2031`](../main/kiss_settings.c#L2031)
 
 ### the DECOY CARD hides in a decoy session, not the whole row
 
 The row was absent whenever kiss_session_decoy() was true, on the sound-sounding reason that the list contains THE DECOY. What that predicate actually means is "opened with an EMPTY passphrase", which is every signer that has never configured one -- so the reference an owner is pointed at from four other screens was missing from the settings page on the devices most likely to need it, and the bench reported it as the row simply not existing. One card is the secret; the other ten are a glossary. terms_ids() drops that one.
 
-[`main/kiss_settings.c:2153`](../main/kiss_settings.c#L2153)
+[`main/kiss_settings.c:2160`](../main/kiss_settings.c#L2160)
 
 ### these tabs keep their NOUNS and are not renamed after the jobs they hold
 
 The proposal was HOW IT SIGNS / WHAT IT KEEPS / HOW IT PROVES / WHAT IT IS, and it does not fit: the five-up strip is 620px, the shipped labels measure 612 of it, and those four plus NO UNDO measure 920. Three hundred pixels over is not a layout to tune. The only form that fits is single verbs -- SIGNS / KEEPS / PROVES / IS, 500px -- and "IS" is not a word to put on a tab an owner is looking for something in. Verbs without subjects read worse than the nouns they would replace, for a reader who bought their first signing device last week. The miscategorisation the proposal was built on is also gone: it argued that storage sat on SECURITY while recovery words sat on BACKUP, so checking a backup crossed two tabs. STORAGE is on BACKUP beside SEED WORDS, which is one job on one tab.
 
-[`main/kiss_settings.c:2350`](../main/kiss_settings.c#L2350)
+[`main/kiss_settings.c:2357`](../main/kiss_settings.c#L2357)
 
 ### language and theme live on the BAND, moved there out of the DEVICE tab
 
 The band's centre: LANGUAGE and THEME, out of the DEVICE tab. The language control needs no caption -- its label IS the active language's own name, stripped of the regional qualifier ("ESPANOL (ESPANA)" -> "ESPANOL") because the picker's flag carries the variant. A WORD ACTION with a GLOBE, not an arrow action. It was a forward arrow, which is the mark the SCREEN'S OWN action wears -- so the one control on the band that picks between 21 languages was signed exactly like a "go on", and came back from the bench as "should have some icon better than an arrow, no?". A globe says what the control is before its word is read, in every one of those 21 languages at once.
 
-[`main/kiss_settings.c:2411`](../main/kiss_settings.c#L2411)
+[`main/kiss_settings.c:2418`](../main/kiss_settings.c#L2418)
 
 ## `main/kiss_setup.c`
 
