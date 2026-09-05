@@ -377,17 +377,25 @@ static void pair_instructions_cb(lv_event_t *e)
     // budget at font23, which is what they had.
     // Marks before words, and the mark says which device the steps are for: a
     // phone for BlueWallet, a file for Sparrow on a computer. Both are in SYMS.
+    // The body clears the HEAD, measured rather than guessed: wt_section moved
+    // up a rung and both bodies were sitting inside the head's own line box,
+    // which the overlap gate read as text on text on both cards.
     lv_obj_t *c1 = wt_card(s_scr, 36, 96, 716, 162);
-    wt_section(c1, tr_sym(s_pair_fmt ? WT_ICON_PHONE : LV_SYMBOL_FILE,
-                          STR_I_SHOW_TO), 16, 10);
+    lv_obj_t *h1 = wt_section(c1, tr_sym(s_pair_fmt ? WT_ICON_PHONE
+                                                    : LV_SYMBOL_FILE,
+                                         STR_I_SHOW_TO), 16, 10);
+    lv_obj_update_layout(h1);
+    const int b1 = 10 + lv_obj_get_height(h1) + 4;
     lv_obj_t *steps = wt_note(c1,
         s_pair_fmt ? tr(STR_I_NOTE_BW) : tr(STR_I_NOTE_SPARROW),
-        16, 34, 688, 116);
+        16, b1, 688, 162 - b1 - 12);
     lv_obj_set_style_text_color(steps, WT_INK, 0);
 
     lv_obj_t *c2 = wt_card(s_scr, 36, 264, 716, 132);
-    wt_section(c2, tr_sym(LV_SYMBOL_OK, STR_R_VERIFY), 16, 8);
-    lv_obj_t *prove = wt_note(c2, tr(STR_I_PROVE), 16, 30, 688, 96);
+    lv_obj_t *h2 = wt_section(c2, tr_sym(LV_SYMBOL_OK, STR_R_VERIFY), 16, 8);
+    lv_obj_update_layout(h2);
+    const int b2 = 8 + lv_obj_get_height(h2) + 4;
+    lv_obj_t *prove = wt_note(c2, tr(STR_I_PROVE), 16, b2, 688, 132 - b2 - 10);
     lv_obj_set_style_text_color(prove, WT_INK, 0);
 
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 48, WT_ACTION_Y, 0, false, pair_qr_back_cb, NULL);
@@ -531,7 +539,11 @@ static void pair_screen(void)
     // which "GÖSTERİLECEK YER" is not.
     // The page's own [ ? n ] took the section chip's job, up on the chrome
     // strip where a page level explanation belongs.
-    wt_section(s_scr, tr(STR_I_SHOW_TO), 400, 96);
+    // MARKED, like the two heads on page two -- an eye, because watching is
+    // the whole of what the thing on the other end of this QR does, and it is
+    // the glyph the KEYS explainer already uses to say so. This head was the
+    // one on the flow with no mark at all.
+    wt_section(s_scr, tr_sym(LV_SYMBOL_EYE_OPEN, STR_I_SHOW_TO), 400, 96);
     const char *CAT[2] = {tr(STR_I_DESKTOP), tr(STR_I_MOBILE)};
     const char *APP[2] = {tr(STR_I_APP_DESKTOP), tr(STR_I_APP_MOBILE)};
     for (int i = 0; i < 2; i++) {

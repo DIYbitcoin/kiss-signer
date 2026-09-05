@@ -1765,10 +1765,17 @@ lv_obj_t *wt_section(lv_obj_t *scr, const char *txt, int x, int y)
     lv_obj_t *l = lv_label_create(scr);
     lv_label_set_text(l, txt);
     lv_obj_set_style_text_color(l, WT_INK, 0);
-    // mono18, the kit's own caption rung. A SECTION HEAD names the block under
-    // it and this was font14 -- the size reserved for marks -- so on the
-    // details deck the head sat smaller than every row it introduced.
-    lv_obj_set_style_text_font(l, wt_font_mono18(), 0);
+    // The mono21 rung, GUARDED. A SECTION HEAD names the block under it, and
+    // this has now been too small twice for the same reason: it was font14 --
+    // the size reserved for marks -- and on the details deck it sat smaller
+    // than every row it introduced; it was then mono18, and on PAIR
+    // COORDINATOR it sat under two app names at chrome23. A head one rung
+    // below its own block reads as a label on the block above it.
+    //
+    // Through chrome21 rather than wt_font_mono21, because every caller hands
+    // this a TRANSLATED string and the mono faces have no CJK variant: a
+    // Japanese section head was drawing LVGL's placeholder box per glyph.
+    lv_obj_set_style_text_font(l, wt_chrome21(txt), 0);
     lv_obj_set_style_text_letter_space(l, 2, 0);
     lv_obj_set_pos(l, x, y);
     return l;
