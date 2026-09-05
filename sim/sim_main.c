@@ -4650,6 +4650,21 @@ int main(void) {
   tap_str(STR_C_BACK, 3, 8);                        // -> Settings
   set_tab(SET_BACKUP);
   def_go(2, 1);
+  // THE CHOOSER'S OWN BAND, while the keys are on the card: the second door
+  // to the card page. It appears only in SD mode, so this is the one point in
+  // the walk that can photograph it -- every other visit to this screen is on
+  // FLASH. tap_str takes the BAND's match over the row's, which matters here
+  // because "SD CARD" is also the label of the row directly above it.
+  save("/tmp/sim_storage_chooser_sd.ppm");
+  must_show("chooser/card door", tr(STR_I_CARD_SUB));
+  tap_str(STR_I_CARD_SUB, 3, 8);                     // -> the card page
+  save("/tmp/sim_sdinfo_from_store.ppm");            // trail says BACKUP, not DEVICE
+  must_show("sdinfo/from storage", tr(STR_I_TAB_BACKUP));
+  // ...and BACK returns to the CHOOSER. It used to go to THIS DEVICE
+  // unconditionally, which from this door lands an owner on a tab they were
+  // never on.
+  tap_str(STR_C_BACK, 3, 8);
+  must_show("sdinfo/back to chooser", tr(STR_I_STORE_AMN_SUB));
   set_row(0);                                        // FLASH
   slide_fire(STR_G_STORAGE_HOLD_MOVE);
   tap_str(STR_C_OK, 3, 8);     // back on FLASH

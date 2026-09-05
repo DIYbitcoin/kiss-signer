@@ -531,15 +531,52 @@ static void storage_confirm_screen(int target)
 }
 
 // ---- the card itself: capacity, free space, and what is on it ----
-// Reached from the storage chooser's bar, the one screen where the owner is
-// already thinking about the card. Facts as rows on the list grid, the
-// firmware screen's shape; the framed subject is used-of-total.
+// Facts as rows on the list grid, the firmware screen's shape; the framed
+// subject is used-of-total.
+//
+// TWO DOORS, and this comment claimed one of them for its whole life: it said
+// the page was reached from the storage chooser's bar, "the one screen where
+// the owner is already thinking about the card", and the bar had no such
+// control -- the only way in was DEVICE > THIS DEVICE, five rows down a list
+// about the build. The bench found the row and said it was hard to see, from
+// the tab where the card is actually the subject.
+//
+// So the chooser gets the control the comment always described, and this
+// screen remembers which door was used. A page that always went back to
+// DEVICE would land an owner who came from BACKUP on a tab they were never
+// on, which reads as the device having navigated by itself.
 static void device_screen(void);
+static void storage_chooser_screen(void);
+
+enum { SDINFO_FROM_DEVICE = 0, SDINFO_FROM_STORAGE };
+static int s_sdinfo_from = SDINFO_FROM_DEVICE;
 
 static void sdinfo_back_cb(lv_event_t *e)
 {
     (void)e;
-    device_screen();
+    if (s_sdinfo_from == SDINFO_FROM_STORAGE) storage_chooser_screen();
+    else                                      device_screen();
+}
+
+// The breadcrumb, following the door rather than naming the card.
+//
+// It used to end in the card's own CID product name -- "THIS DEVICE / USD" on
+// the board this was found on, because a generic microSD reports PNM "USD" and
+// this is a bitcoin device. A five character factory string is not a place and
+// does not belong in a trail; the no-card branch below never printed one and
+// was right. NOTHING here could have caught it either: platform_sd.c fakes
+// "SIMSD" for the desktop build, so every gate, every walk and every frame has
+// always seen a name that looks like a name.
+static void sdinfo_trail(void)
+{
+    if (s_sdinfo_from == SDINFO_FROM_STORAGE) {
+        char trail[96];
+        snprintf(trail, sizeof trail, "%s / %s", tr(STR_G_T),
+                 tr(STR_I_TAB_BACKUP));
+        wt_trail(s_scr, WT_ICON_SD, trail, false);
+        return;
+    }
+    wt_trail(s_scr, WT_ICON_SD, tr(STR_I_DEVICE_T), false);
 }
 
 static void sdinfo_screen(void)
@@ -555,7 +592,7 @@ static void sdinfo_screen(void)
         // says what this screen would have shown.
         s_scr = wt_screen(s_parent, tr(STR_W_SD_BTN), NULL);
         wt_chrome_head(s_scr);
-        wt_trail(s_scr, WT_ICON_SD, tr(STR_I_DEVICE_T), false);
+        sdinfo_trail();
         // An EMPTY STATE, not a pair of claims: the firmware page's six of
         // these are a mark, a headline and a line of what to do, and an
         // empty slot on this page is the same thing. The pair that was here
@@ -582,17 +619,9 @@ static void sdinfo_screen(void)
         return;
     }
 
-    // The CID product name is the card introducing itself; it rides the trail
-    // as the path's last element -- the same shape the word grid gives the
-    // fingerprint -- so the title stays the word the chooser promised.
     s_scr = wt_screen(s_parent, tr(STR_W_SD_BTN), NULL);
     wt_chrome_head(s_scr);
-    {
-        char trail[96];
-        snprintf(trail, sizeof trail, "%s / %s", tr(STR_I_DEVICE_T),
-                 inf.name);
-        wt_trail(s_scr, WT_ICON_SD, trail, false);
-    }
+    sdinfo_trail();
 
     // The unit ONCE when both numbers carry the same one, which is how a person
     // says it and what keeps the pair inside the card. mono28 with its letter
@@ -689,6 +718,16 @@ static void sdinfo_screen(void)
 static void sdinfo_open_cb(lv_event_t *e)
 {
     (void)e;
+    s_sdinfo_from = SDINFO_FROM_DEVICE;
+    sdinfo_screen();
+}
+
+// The same page from the STORAGE chooser's band, where the card is what the
+// screen is already about.
+static void sdinfo_from_store_cb(lv_event_t *e)
+{
+    (void)e;
+    s_sdinfo_from = SDINFO_FROM_STORAGE;
     sdinfo_screen();
 }
 
@@ -905,6 +944,19 @@ static void storage_chooser_screen(void)
             .ud    = (void *)(intptr_t)i,
         });
     }
+    // THE CARD ITSELF, on the band, and only while these keys are on it. The
+    // page that reports what is on the card was reachable from one place --
+    // DEVICE > THIS DEVICE, five rows into a list about the build -- and this
+    // is the screen where the owner is already thinking about the card. The
+    // ROWS are untouched: the first boot chooser matches this one row for row
+    // and neither may be reordered alone.
+    // NOT "SD CARD". That is the label of the row directly above, and the
+    // row is a CHOICE while this is a DOOR -- side by side they read as two
+    // ways to pick the same thing. The action says what is behind it, in the
+    // words the DEVICE row already uses for this same page.
+    if (kiss_seed_mode() == WSEED_MODE_SD)
+        wt_arrow_action(s_scr, tr(STR_I_CARD_SUB), false, false, WT_ACT_X,
+                        WT_ACTION_Y, 0, false, sdinfo_from_store_cb, NULL);
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, store_back_cb, NULL);
 }
 
