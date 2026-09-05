@@ -143,20 +143,13 @@ jobs:
           /tmp/kissfuzz | tee /tmp/kissfuzz.log
           grep -q "ALL FUZZ PASS" /tmp/kissfuzz.log
 
-      # managed_components/ is gitignored (the IDF component manager populates
-      # it during device builds), so fetch LVGL ourselves at the exact version
-      # dependencies.lock pins for the device.
       # if: always(), because the two steps BELOW have it -- the same
       # reasoning the SDL2 install carries further down. Guarding a check
       # and not what it needs is how a log ends on a missing dependency
       # instead of the failure that caused it.
       - name: fetch LVGL for the sim
         if: always()
-        run: |
-          LV=$(awk '/^  lvgl\/lvgl:/{f=1} f&&/version:/{print $2; exit}' dependencies.lock)
-          echo "dependencies.lock pins lvgl/lvgl $LV"
-          git clone -q -c advice.detachedHead=false --depth 1 --branch "v$LV" \
-            https://github.com/lvgl/lvgl.git managed_components/lvgl__lvgl
+        uses: ./.github/actions/fetch-lvgl
 
       # AFTER the fetch, and that is the whole reason it sits here rather than
       # up with the other python checks: check_glyphs.py reads LVGL's own

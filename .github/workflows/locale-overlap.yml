@@ -38,6 +38,11 @@ jobs:
           python3 tools/gen_i18n.py
           git diff --exit-code -- main/i18n_keys.h main/i18n_tables.c
 
+      # Every sim build reads LVGL out of managed_components/, which is
+      # gitignored. Without this both sweeps died twenty seconds in on a
+      # missing dependency, every night, and neither had ever run.
+      - uses: ./.github/actions/fetch-lvgl
+
       # STRICT is still set: it is what fails a locale with no ceiling, which
       # is English and only English.
       - name: overlap gate, twenty one locales

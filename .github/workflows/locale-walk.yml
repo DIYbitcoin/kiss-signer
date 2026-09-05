@@ -72,6 +72,11 @@ jobs:
           python3 tools/gen_i18n.py
           git diff --exit-code -- main/i18n_keys.h main/i18n_tables.c
 
+      # Every sim build reads LVGL out of managed_components/, which is
+      # gitignored. Without this both sweeps died twenty seconds in on a
+      # missing dependency, every night, and neither had ever run.
+      - uses: ./.github/actions/fetch-lvgl
+
       # Its own scratch root, so the matrix legs cannot fight each other over
       # the fake card, the captured frames or the binary. Unset it is /tmp,
       # which is what every local command assumes -- see CLAUDE.md.
