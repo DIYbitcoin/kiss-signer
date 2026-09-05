@@ -228,8 +228,12 @@ for l in "${langs[@]}"; do
     if [ -z "$n" ]; then
         printf '%-8s NO SUMMARY -- the walk did not finish\n' "$l"
     elif [ "$n" -gt 0 ]; then
+        # SLACK and PORT were emitted by the binary and absent from the list
+        # below, so the count said 2 and the run printed nothing under it --
+        # a finding a person cannot read is one nobody can act on. Every name
+        # the binary prints is here now.
         printf '%-8s %3d findings\n' "$l" "$n"
-        printf '%s\n' "$out" | grep -E '^  (TEXT|CONTENT|GROWTH|CLIPPED|ROLE|BARE|WALL|FIT|CUT|TINY|AMBER|RAGGED|LAYER|TERM|READ|LADDER|PATH|WIDOW|CLIPX|DOTS)' | sed 's/^/  /'
+        printf '%s\n' "$out" | grep -E '^  (TEXT|CONTENT|GROWTH|CLIPPED|ROLE|BARE|WALL|FIT|CUT|TINY|AMBER|RAGGED|LAYER|TERM|READ|LADDER|PATH|WIDOW|CLIPX|DOTS|SLACK|PORT|STALE|INK|EXIT|VOID|MARK)' | sed 's/^/  /'
         echo
     else
         printf '%-8s clean\n' "$l"
