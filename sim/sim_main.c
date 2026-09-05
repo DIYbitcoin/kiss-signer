@@ -1426,7 +1426,7 @@ static void def_cycle(int n, int row, int taps)
 // the mainnet leg further down, which learned this first.
 static void net_to(int want)
 {
-  for (int i = 0; i < 4 && kiss_network() != want; i++) def_go(2, 0);
+  for (int i = 0; i < 4 && kiss_network() != want; i++) def_go(3, 0);
   if (kiss_network() != want) {
     fprintf(stderr, "FAIL: network never reached %d (stuck on %d)\n",
             want, kiss_network());
@@ -4572,13 +4572,11 @@ int main(void) {
   pump(8);
 
   set_tab(SET_DEVICE);
-  // FOUR rows on this tab: FIRMWARE, THIS DEVICE, WHAT IT HAS SEEN, TERMS.
-  // The history row came over from SECURITY, which is what the box REMEMBERS
-  // rather than a question about trusting it.
+  // THREE rows on this tab: FIRMWARE, THIS DEVICE, TERMS.
   //
   // TERMS first -- the reference for an owner who wants to READ the words
   // rather than meet them one screen at a time.
-  def_row(4, 3);
+  def_row(3, 2);
   pump(30);
   save("/tmp/sim_terms_p1.ppm");                     // SEED WORDS .. CHANGE
   // By the VALUE: "SEED WORDS" is a caption several screens carry, and a
@@ -4607,7 +4605,7 @@ int main(void) {
   must_show("terms/page three", tr(STR_T_DECOY_VAL));
   tap_str(STR_C_BACK, 3, 20);                        // -> Settings, DEVICE tab
   set_tab(SET_DEVICE);
-  def_row(4, 1);                                     // This device -> the facts
+  def_row(3, 1);                                     // This device -> the facts
   // The five rows enter on a 42ms stagger, so the frame has to wait for the
   // last one: saving straight after the tap photographed two rows and three
   // ghosts, which is a picture of the animation rather than of the page.
@@ -4729,13 +4727,13 @@ int main(void) {
   // chip IS the switch -- one tap flips it and applies it. The sub line under
   // the label follows the state, which is where the erase is stated: it is on
   // screen before the tap rather than inside a list the tap has to open.
-  set_tab(SET_DEVICE);
+  set_tab(SET_SIGNER);
   save("/tmp/sim_settings_hist_on.ppm");             // ENABLED, "settings and..."
-  def_go(4, 2);                                      // flip -> DISABLED, applied
+  def_go(3, 2);                                      // flip -> DISABLED, applied
   save("/tmp/sim_settings_hist_off.ppm");            // the value and the sub flipped
   must_show("persist off", tr(STR_G_HIST_OFF_BTN));
   must_show("persist off sub", tr(STR_I_POP_NOTHING));
-  def_go(4, 2);                                      // flip back -> ENABLED
+  def_go(3, 2);                                      // flip back -> ENABLED
   must_show("persist on", tr(STR_G_HIST_ON_BTN));
 
   // ...and the state where the switch has nothing to switch. AMNESIC keeps
@@ -4751,7 +4749,7 @@ int main(void) {
     pump(8);
     save("/tmp/sim_settings_persist_dead.ppm");      // UNAVAILABLE, in ink
     must_show("persist dead", tr(STR_I_PERSIST_DEAD_VAL));
-    def_row(4, 2); pump(30);                         // the definition opens in place
+    def_row(3, 2); pump(30);                         // the definition opens in place
     save("/tmp/sim_settings_persist_why.ppm");       // the reason, ghosts above and below
     must_show("persist dead reason", tr(STR_I_PERSIST_DEAD_PLAIN));
     s_sim_mode = was;
@@ -5005,7 +5003,7 @@ int main(void) {
   // over, so a leak shows up as the firmware screen drawn on top of a live
   // settings page.
   set_tab(SET_DEVICE);
-  def_row(4, 0);                                    // Firmware -> the update screen
+  def_row(3, 0);                                    // Firmware -> the update screen
   pump(FW_SETTLE);                                  // the body and the row arrive late
   save("/tmp/sim_settings_fw.ppm");                 // reached from settings, not directly
   touch(WT_EXIT_X + 70, WT_ACTION_Y + 26); pump(3); release(); pump(8);  // BACK -> settings
@@ -5028,16 +5026,16 @@ int main(void) {
   // "?" below is where all three are named at once, which is the job the list
   // was really doing.
   set_tab(SET_SIGNER);
-  def_cycle(2, 1, 1);                               // NATIVE -> LEGACY
+  def_cycle(3, 1, 1);                               // NATIVE -> LEGACY
   save("/tmp/sim_settings_legacy.ppm");             // the row reads 1... / Legacy
   // The NAME, not the BIP number. The number left the row's sub for the card
   // behind the "?" beside it, which already named all three -- so the row was
   // holding the card's content in a lane that had to ellipsise to fit it.
   must_show("type legacy", tr(STR_S_TY_LEGACY));
-  def_cycle(2, 1, 1);                               // -> NESTED
+  def_cycle(3, 1, 1);                               // -> NESTED
   save("/tmp/sim_settings_nested.ppm");             // 3..., the middle rung
   must_show("type nested", tr(STR_S_TY_NESTED));
-  def_cycle(2, 1, 1);                               // -> back to NATIVE
+  def_cycle(3, 1, 1);                               // -> back to NATIVE
 
   // The "?" after the address type VALUE, and the card behind it: what the
   // three names mean, which BIP each one is, and what it costs. CLOSE or a tap
@@ -5057,7 +5055,7 @@ int main(void) {
                      0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
     lv_text_get_size(&ms, LV_SYMBOL_LOOP, wt_font23(), 0, 0, LV_COORD_MAX,
                      LV_TEXT_FLAG_NONE);
-    touch(48 + 238 + vs.x + 14 + ms.x + 10 + 15, SET_DEF_Y(2, 1));
+    touch(48 + 238 + vs.x + 14 + ms.x + 10 + 15, SET_DEF_Y(3, 1));
     pump(3); release(); pump(8);
   }
   save("/tmp/sim_settings_bip.ppm");                // the card, over the scrim
@@ -5079,7 +5077,7 @@ int main(void) {
                      0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
     lv_text_get_size(&ms, LV_SYMBOL_LOOP, wt_font23(), 0, 0, LV_COORD_MAX,
                      LV_TEXT_FLAG_NONE);
-    touch(48 + 238 + vs.x + 14 + ms.x + 10 + 15, SET_DEF_Y(2, 1));
+    touch(48 + 238 + vs.x + 14 + ms.x + 10 + 15, SET_DEF_Y(3, 1));
     pump(3); release(); pump(8);
   }
   touch(60, 440); pump(3); release(); pump(8);      // scrim -> dismissed
@@ -5977,7 +5975,7 @@ int main(void) {
   }
   touch(670, 240); pump(3); release(); pump(8);     // Settings tile
   set_tab(SET_DEVICE);
-  def_row(4, 0);                                    // Firmware
+  def_row(3, 0);                                    // Firmware
   save("/tmp/sim_fw_before_autolock.ppm");          // up, with the clock running
   if (!kiss_fw_ui_active()) {
     printf("FAIL: firmware screen not open before the auto-lock test\n");

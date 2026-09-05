@@ -1923,7 +1923,15 @@ static void tab_signer(void)
     // sentence: "the BIP84 beside Native Segwit can be moved to the question
     // mark popup... wait it already is so just remove that text".
 
-    wt_def_t defs[2] = {
+    // Persist depends on storage. AMNESIC keeps nothing by contract, so the
+    // cycle has nothing to cycle -- and instead of a dead control the row
+    // becomes the page's one in-place definition, saying WHY in the same spot
+    // the switch would be. A control that vanishes sends the owner hunting
+    // for it; one that explains itself does not.
+    const bool amnesic = kiss_seed_mode() == WSEED_MODE_AMNESIC;
+    const bool persist = kiss_persist_enabled();
+
+    wt_def_t defs[3] = {
         // Amber on both test networks, in the VALUE and nowhere else. The
         // row wore an amber lamp that PULSED off mainnet, and a pulsing dot
         // is what this page's tab strip uses to route the attention chip --
@@ -1947,6 +1955,28 @@ static void tab_signer(void)
         // coordinator, and "Native SegWit" is the name for it.
         { .cap = tr(STR_I_ROW_TYPE), .val = type_prefix(sc, tn),
           .sub = type_name(sc), .mark = LV_SYMBOL_LOOP, .go = type_cb },
+        // WHAT THIS SIGNER HAS SEEN, and this is its third tab in as many
+        // rounds -- SECURITY, then DEVICE, now here, asked for from the bench
+        // each time. The reading that sticks: the other two rows on this tab
+        // are the standing answers to "how does this signer behave", which
+        // chain and which addresses, and whether it remembers what it has seen
+        // between sessions is the same kind of answer. It is a LOOP like both
+        // of them, and it is the only one of the three that is not.
+        amnesic
+            // "nothing saved" is the OFF state's own sub, reused: it is as
+            // true of AMNESIC as of OFF, and "storage is AMNESIC" was wider
+            // than the lane UNAVAILABLE leaves. The definition says the rest.
+            ? (wt_def_t){ .cap = tr(STR_I_ROW_HISTORY),
+                  .val = tr(STR_I_PERSIST_DEAD_VAL),
+                  .sub = tr(STR_I_POP_NOTHING),
+                  .plain = tr(STR_I_PERSIST_DEAD_PLAIN) }
+            // The sub follows the STATE rather than naming the feature: ON
+            // says what is kept, OFF says that nothing is. It is the only
+            // warning the flip gets, and it is on screen before the tap.
+            : (wt_def_t){ .cap = tr(STR_I_ROW_HISTORY),
+                  .val = tr(persist ? STR_G_HIST_ON_BTN : STR_G_HIST_OFF_BTN),
+                  .sub = tr(persist ? STR_I_HIST_SHORT : STR_I_POP_NOTHING),
+                  .mark = LV_SYMBOL_LOOP, .go = persist_cb },
     };
     // DENOMINATION is on DEVICE now. It is a PRESENTATION preference -- how a
     // number is drawn -- and it sat here ranked equal to which chain the coins
@@ -1962,7 +1992,7 @@ static void tab_signer(void)
     // 142px row". Same argument, same tab. And the SIGN screen keeps the
     // control that matters: tapping an amount switches units where the amount
     // is actually being read, which is the bench's own point.
-    lv_obj_t *list = def_list(defs, 2);
+    lv_obj_t *list = def_list(defs, 3);
     wt_def_row_help(list, 1, help_open_cb, NULL);
 }
 
@@ -2111,15 +2141,7 @@ static void tab_device(void)
         snprintf(terms_count, sizeof terms_count, "%s",
                  tr(STR_I_TERMS_ALL_READ));
 
-    // Persist depends on storage. AMNESIC keeps nothing by contract, so the
-    // cycle has nothing to cycle -- and instead of a dead control the row
-    // becomes the page's one in-place definition, saying WHY in the same spot
-    // the switch would be. A control that vanishes sends the owner hunting
-    // for it; one that explains itself does not.
-    const bool amnesic = kiss_seed_mode() == WSEED_MODE_AMNESIC;
-    const bool on = kiss_persist_enabled();
-
-    wt_def_t defs[4] = {
+    wt_def_t defs[3] = {
         // The version is a FACT, in the page's own ink. It was amber once,
         // with no predicate behind it -- amber on this page means a dot and
         // a count, both of which this row has never had.
@@ -2130,21 +2152,6 @@ static void tab_device(void)
         // already printed by kiss_build_id_make on the screen behind it.
         { .cap = tr(STR_I_ROW_DEVICE), .val = "",
           .sub = tr(STR_I_ROW_DEVICE_SUB), .go = device_open_cb },
-        amnesic
-            // "nothing saved" is the OFF state's own sub, reused: it is as
-            // true of AMNESIC as of OFF, and "storage is AMNESIC" was wider
-            // than the lane UNAVAILABLE leaves. The definition says the rest.
-            ? (wt_def_t){ .cap = tr(STR_I_ROW_HISTORY),
-                  .val = tr(STR_I_PERSIST_DEAD_VAL),
-                  .sub = tr(STR_I_POP_NOTHING),
-                  .plain = tr(STR_I_PERSIST_DEAD_PLAIN) }
-            // The sub follows the STATE rather than naming the feature: ON
-            // says what is kept, OFF says that nothing is. It is the only
-            // warning the flip gets, and it is on screen before the tap.
-            : (wt_def_t){ .cap = tr(STR_I_ROW_HISTORY),
-                  .val = tr(on ? STR_G_HIST_ON_BTN : STR_G_HIST_OFF_BTN),
-                  .sub = tr(on ? STR_I_HIST_SHORT : STR_I_POP_NOTHING),
-                  .mark = LV_SYMBOL_LOOP, .go = persist_cb },
         // TERMS. A CHEVRON, not a plus: it leaves the page, so it takes the
         // glyph that means leaves the page. The value is a count because a
         // reference nobody has read and one they have finished are different
@@ -2162,7 +2169,7 @@ static void tab_device(void)
         { .cap = tr(STR_I_ROW_TERMS), .val = terms_count,
           .sub = tr(STR_I_ROW_TERMS_SUB), .go = terms_open_cb },
     };
-    def_list(defs, 4);
+    def_list(defs, 3);
 }
 
 static void tab_noundo(void)
