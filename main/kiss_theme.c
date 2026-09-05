@@ -1762,8 +1762,47 @@ lv_obj_t *wt_wrap(lv_obj_t *scr, const char *txt, int x, int y, int w, int max_h
 // caption you cannot read is not a subtle caption, it is a missing one.
 lv_obj_t *wt_section(lv_obj_t *scr, const char *txt, int x, int y)
 {
+    // THE MARK IS ITS OWN LABEL, and that is the whole of this function's
+    // history. Callers pass tr_sym(), which glues "SYM  " in front of the
+    // words -- and a FontAwesome codepoint is outside the mono faces, which
+    // are built ASCII only. So mono_can() said no, truthfully, and chrome21
+    // dropped the WHOLE head onto the sans face: PAIR COORDINATOR's head
+    // came back from the bench reading in a different typeface from every
+    // other word on the screen, and the two heads a page deeper had been
+    // sans since the day they were written, unnoticed at the smaller rung.
+    //
+    // Split, each half gets the face it needs: the mark off the Latin face
+    // that carries the symbols, the words off the mono rung.
+    const char *w = txt;
+    int lead = 0;
+    if (txt && (unsigned char)*txt >= 0x80) {
+        while (*w && (unsigned char)*w >= 0x80) w++;   // the mark
+        lead = (int)(w - txt);
+        while (*w == ' ') w++;                          // tr_sym's two spaces
+    }
+    // The words' own rung decides the row, and the mark is CENTRED on it. The
+    // two halves are different faces at different heights, so a mark simply
+    // pinned to the same y floats: the eye on PAIR COORDINATOR sat level with
+    // the page title, a whole strip above the word it belongs to.
+    const lv_font_t *wf = wt_chrome21(w);
+    const int wh = lv_font_get_line_height(wf);
+    if (lead) {
+        char mark[8];
+        int n = lead < (int)sizeof mark ? lead : (int)sizeof mark - 1;
+        memcpy(mark, txt, (size_t)n);
+        mark[n] = 0;
+        // wt_font23 and not a 21: there is no Latin 21 face, and the trail's
+        // own mark takes 23 beside a chrome23 word for the same reason.
+        const int mh = lv_font_get_line_height(wt_font23());
+        lv_point_t ms;
+        lv_text_get_size(&ms, mark, wt_font23(), 0, 0, LV_COORD_MAX,
+                         LV_TEXT_FLAG_NONE);
+        wt_lbl(scr, mark, x, y + (wh - mh) / 2, wt_font23(), WT_INK);
+        x += ms.x + 10;
+    }
+
     lv_obj_t *l = lv_label_create(scr);
-    lv_label_set_text(l, txt);
+    lv_label_set_text(l, w);
     lv_obj_set_style_text_color(l, WT_INK, 0);
     // The mono21 rung, GUARDED. A SECTION HEAD names the block under it, and
     // this has now been too small twice for the same reason: it was font14 --
@@ -1772,10 +1811,10 @@ lv_obj_t *wt_section(lv_obj_t *scr, const char *txt, int x, int y)
     // COORDINATOR it sat under two app names at chrome23. A head one rung
     // below its own block reads as a label on the block above it.
     //
-    // Through chrome21 rather than wt_font_mono21, because every caller hands
-    // this a TRANSLATED string and the mono faces have no CJK variant: a
-    // Japanese section head was drawing LVGL's placeholder box per glyph.
-    lv_obj_set_style_text_font(l, wt_chrome21(txt), 0);
+    // Still through the guard, because every caller hands this a TRANSLATED
+    // string and the mono faces have no CJK variant either: a Japanese
+    // section head was drawing LVGL's placeholder box per glyph.
+    lv_obj_set_style_text_font(l, wf, 0);
     lv_obj_set_style_text_letter_space(l, 2, 0);
     lv_obj_set_pos(l, x, y);
     return l;

@@ -337,6 +337,23 @@ static void pair_fmt_cb(lv_event_t *e)
     pair_refresh();
 }
 
+// The same pick, as a STROKE. Two apps side by side is a deck of two, and the
+// bench's rule is that anything a finger can step should also take the swipe:
+// a tap is a target you have to find, a swipe is not.
+//
+// The SETTINGS cycles do not get this and cannot -- a swipe there already
+// steps the tab deck, and a screen where one gesture means two things is
+// worse than one that means nothing.
+static void pair_gesture_cb(lv_event_t *e)
+{
+    const int step = wt_swipe_step(e);
+    if (!step) return;
+    const int to = s_pair_fmt + step;
+    if (to < 0 || to > 1) return;      // a deck of two, and it does not wrap
+    s_pair_fmt = to;
+    pair_refresh();
+}
+
 // True when a coordinator has spoken for these keys. It is the device's only
 // honest signal for paired-ness, and it is the same store RECEIVE's lamp
 // reads: this signer has no chain view of its own.
@@ -536,7 +553,15 @@ static void pair_screen(void)
     // title is a breadcrumb rather than a lone tab.
     // ONE segment. It was "KEYS / COORDINATOR" and the second half restates
     // the title this page already carries.
-    wt_trail(s_scr, WT_ICON_QR, tr(STR_I_T), false);
+    // ...and its box STOPS at the head. wt_trail runs to 752 (or 12 short of a
+    // [ ? ]) so a short word still owns the strip, which is right on every
+    // other screen and wrong on this one: SHOW IT TO now shares the row, and
+    // the overlap gate reads boxes rather than glyphs.
+    {
+        lv_obj_t *t = wt_trail(s_scr, WT_ICON_QR, tr(STR_I_T), false);
+        lv_obj_update_layout(t);          // or get_x answers 0 and the box grows
+        lv_obj_set_width(t, 400 - 12 - lv_obj_get_x(t));
+    }
     if (kiss_testnet()) {
         lv_obj_t *net = wt_lbl(s_scr, kiss_net_name(), 672, 30, wt_font14(),
                                wt_ink_for(WT_WARN));
@@ -565,7 +590,19 @@ static void pair_screen(void)
     // the whole of what the thing on the other end of this QR does, and it is
     // the glyph the KEYS explainer already uses to say so. This head was the
     // one on the flow with no mark at all.
-    wt_section(s_scr, tr_sym(LV_SYMBOL_EYE_OPEN, STR_I_SHOW_TO), 400, 96);
+    //
+    // ON THE CHROME STRIP, level with the KEYS trail on the left and the
+    // [ ? ] on the right, which is what the bench asked for: three things
+    // reading along one line instead of a head floating a rung below them.
+    // Centred in the 30px row the same way both of its neighbours are.
+    // The y is computed from the rung wt_section will use for the WORDS, not
+    // measured off the finished object: the head is two labels now and moving
+    // one of them afterwards leaves the mark behind.
+    wt_section(s_scr, tr_sym(LV_SYMBOL_EYE_OPEN, STR_I_SHOW_TO), 400,
+               WT_CHROME_STRIP_Y
+               + (WT_BR_H
+                  - lv_font_get_line_height(wt_chrome21(tr(STR_I_SHOW_TO))))
+                 / 2);
     const char *CAT[2] = {tr(STR_I_DESKTOP), tr(STR_I_MOBILE)};
     const char *APP[2] = {tr(STR_I_APP_DESKTOP), tr(STR_I_APP_MOBILE)};
     for (int i = 0; i < 2; i++) {
@@ -616,6 +653,7 @@ static void pair_screen(void)
     // here, and both pages agree on where the exit is.
     wt_arrow_action(s_scr, tr(STR_R_NEXT), false, false, WT_ACT_X, WT_ACTION_Y, 0, false, pair_instructions_cb, NULL);
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, pair_back_cb, NULL);
+    wt_swipe_watch(s_scr, pair_gesture_cb);
     // The silent-payment SCAN KEY used to live HERE, buried one tap inside PAIR
     // COORDINATOR. It is its own export with its own consent warning, and
     // hiding it behind the descriptor flow implied the two were one action.
