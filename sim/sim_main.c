@@ -1377,7 +1377,6 @@ enum { SET_SIGNER = 0, SET_SECURITY, SET_BACKUP, SET_DEVICE, SET_NOUNDO };
 // THIS DEVICE is a five row def list now, not a card over one wide row: the
 // page was a 96px block of font14 with 180px of empty glass under it. The
 // card is the LAST row, and def rows are LANE/n tall from WT_LANE_Y.
-#define SET_DEV_CARD_Y     (114 + (284 / 5) * 4 + (284 / 5) / 2)
 
 // 50 frames, which is 800ms, and it is the only tap on this page that needs
 // them: a tab change is the one thing SETTINGS animates. The last row of a
@@ -4572,17 +4571,14 @@ int main(void) {
   kiss_settings_sim_reopen();
   pump(8);
 
-  // CARD INFO, from THIS DEVICE. It used to hang off the storage chooser,
-  // which is gone; capacity and what is on the card belong with the build id
-  // and the radio rather than behind a picker for where the words live.
   set_tab(SET_DEVICE);
-  // THREE rows on this tab: FIRMWARE, THIS DEVICE, TERMS. DENOMINATION was
-  // the first of four and left with its row -- the amount on the sign screen
-  // is the switch -- so every index here moved up by one.
+  // FOUR rows on this tab: FIRMWARE, THIS DEVICE, WHAT IT HAS SEEN, TERMS.
+  // The history row came over from SECURITY, which is what the box REMEMBERS
+  // rather than a question about trusting it.
   //
-  // TERMS first -- all ten cards, five to a page, the reference for an owner
-  // who wants to READ the words rather than meet them one screen at a time.
-  def_row(3, 2);
+  // TERMS first -- the reference for an owner who wants to READ the words
+  // rather than meet them one screen at a time.
+  def_row(4, 3);
   pump(30);
   save("/tmp/sim_terms_p1.ppm");                     // SEED WORDS .. CHANGE
   // By the VALUE: "SEED WORDS" is a caption several screens carry, and a
@@ -4611,29 +4607,31 @@ int main(void) {
   must_show("terms/page three", tr(STR_T_DECOY_VAL));
   tap_str(STR_C_BACK, 3, 20);                        // -> Settings, DEVICE tab
   set_tab(SET_DEVICE);
-  def_row(3, 1);                                     // This device -> the facts
+  def_row(4, 1);                                     // This device -> the facts
   // The five rows enter on a 42ms stagger, so the frame has to wait for the
   // last one: saving straight after the tap photographed two rows and three
   // ghosts, which is a picture of the animation rather than of the page.
   pump(30);
-  save("/tmp/sim_device.ppm");                       // build, enc, radio, noise, card
+  save("/tmp/sim_device.ppm");                       // build, enc, radio, noise
   must_show("device/build", tr(STR_I_DEV_BUILD));
   must_show("device/radio", tr(STR_I_DEV_RADIO));
   must_show("device/randomness", tr(STR_I_DEV_RANDOM));
-  touch(SET_LABEL_X, SET_DEV_CARD_Y); pump(3); release(); pump(8);   // the card
-  save("/tmp/sim_sdinfo.ppm");
-  must_show("sdinfo/psbt row", tr(STR_G_SD_ROW_PSBT));
-  tap_str(STR_C_BACK, 3, 8);                        // -> THIS DEVICE
-  platform_sd_test_set_present(0);                  // the slot, empty
-  touch(SET_LABEL_X, SET_DEV_CARD_Y); pump(3); release(); pump(8);
-  save("/tmp/sim_sdinfo_nocard.ppm");               // the why pair
-  must_show("sdinfo/nocard", tr(STR_G_FW_NOCARD_H));
-  platform_sd_test_set_present(1);
-  tap_str(STR_C_BACK, 3, 8);                        // -> THIS DEVICE
+  // NO CARD ROW HERE any more. The card page has one door and it is on the
+  // storage chooser, which is the screen already about the card.
   tap_str(STR_C_BACK, 3, 8);                        // -> Settings, DEVICE tab
 
   set_tab(SET_BACKUP);
   def_go(2, 1);                                      // -> the chooser
+  tap_str(STR_I_CARD_SUB, 3, 8);                     // the card, on FLASH
+  save("/tmp/sim_sdinfo.ppm");
+  must_show("sdinfo/psbt row", tr(STR_G_SD_ROW_PSBT));
+  tap_str(STR_C_BACK, 3, 8);                        // -> the chooser
+  platform_sd_test_set_present(0);                  // the slot, empty
+  tap_str(STR_I_CARD_SUB, 3, 8);
+  save("/tmp/sim_sdinfo_nocard.ppm");               // the why pair
+  must_show("sdinfo/nocard", tr(STR_G_FW_NOCARD_H));
+  platform_sd_test_set_present(1);
+  tap_str(STR_C_BACK, 3, 8);                        // -> the chooser
   set_row(1);                                        // SD CARD -> confirmation
   save("/tmp/sim_storage_confirm_sd.ppm");
   tap_str(STR_G_STORAGE_HOLD_MOVE, 30, 6);    // no travel: no migration
@@ -4648,30 +4646,20 @@ int main(void) {
   save("/tmp/sim_home_sd.ppm");                      // SD storage badge on home
   touch(670, 240); pump(3); release(); pump(6);     // Settings tile -> Settings
   // CARD INFO while the words live on the card: the sealed row, green tick.
-  set_tab(SET_DEVICE);
-  def_row(3, 1);
-  touch(SET_LABEL_X, SET_DEV_CARD_Y); pump(3); release(); pump(8);
-  save("/tmp/sim_sdinfo_sealed.ppm");               // kiss-seed.enc, present
-  must_show("sdinfo/sealed", SDSEED_FILENAME);
-  tap_str(STR_C_BACK, 3, 8);                        // -> THIS DEVICE
-  tap_str(STR_C_BACK, 3, 8);                        // -> Settings
   set_tab(SET_BACKUP);
   def_go(2, 1);
-  // THE CHOOSER'S OWN BAND, while the keys are on the card: the second door
-  // to the card page. It appears only in SD mode, so this is the one point in
-  // the walk that can photograph it -- every other visit to this screen is on
-  // FLASH. tap_str takes the BAND's match over the row's, which matters here
-  // because "SD CARD" is also the label of the row directly above it.
+  tap_str(STR_I_CARD_SUB, 3, 8);
+  save("/tmp/sim_sdinfo_sealed.ppm");               // kiss-seed.enc, present
+  must_show("sdinfo/sealed", SDSEED_FILENAME);
+  // The trail says where the owner came from, and BACK goes back there.
+  must_show("sdinfo/from storage", tr(STR_I_TAB_BACKUP));
+  tap_str(STR_C_BACK, 3, 8);                        // -> the chooser
+  must_show("sdinfo/back to chooser", tr(STR_I_STORE_AMN_SUB));
+  // THE CHOOSER'S OWN BAND, with the keys on the card: the card page's only
+  // door. The stop is here rather than on the FLASH visits above because this
+  // is the state where the sealed file row also renders.
   save("/tmp/sim_storage_chooser_sd.ppm");
   must_show("chooser/card door", tr(STR_I_CARD_SUB));
-  tap_str(STR_I_CARD_SUB, 3, 8);                     // -> the card page
-  save("/tmp/sim_sdinfo_from_store.ppm");            // trail says BACKUP, not DEVICE
-  must_show("sdinfo/from storage", tr(STR_I_TAB_BACKUP));
-  // ...and BACK returns to the CHOOSER. It used to go to THIS DEVICE
-  // unconditionally, which from this door lands an owner on a tab they were
-  // never on.
-  tap_str(STR_C_BACK, 3, 8);
-  must_show("sdinfo/back to chooser", tr(STR_I_STORE_AMN_SUB));
   set_row(0);                                        // FLASH
   slide_fire(STR_G_STORAGE_HOLD_MOVE);
   tap_str(STR_C_OK, 3, 8);     // back on FLASH
@@ -4741,13 +4729,13 @@ int main(void) {
   // chip IS the switch -- one tap flips it and applies it. The sub line under
   // the label follows the state, which is where the erase is stated: it is on
   // screen before the tap rather than inside a list the tap has to open.
-  set_tab(SET_SECURITY);
+  set_tab(SET_DEVICE);
   save("/tmp/sim_settings_hist_on.ppm");             // ENABLED, "settings and..."
-  def_go(3, 1);                                      // flip -> DISABLED, applied
+  def_go(4, 2);                                      // flip -> DISABLED, applied
   save("/tmp/sim_settings_hist_off.ppm");            // the value and the sub flipped
   must_show("persist off", tr(STR_G_HIST_OFF_BTN));
   must_show("persist off sub", tr(STR_I_POP_NOTHING));
-  def_go(3, 1);                                      // flip back -> ENABLED
+  def_go(4, 2);                                      // flip back -> ENABLED
   must_show("persist on", tr(STR_G_HIST_ON_BTN));
 
   // ...and the state where the switch has nothing to switch. AMNESIC keeps
@@ -4763,7 +4751,7 @@ int main(void) {
     pump(8);
     save("/tmp/sim_settings_persist_dead.ppm");      // UNAVAILABLE, in ink
     must_show("persist dead", tr(STR_I_PERSIST_DEAD_VAL));
-    def_row(3, 1); pump(30);                         // the definition opens in place
+    def_row(4, 2); pump(30);                         // the definition opens in place
     save("/tmp/sim_settings_persist_why.ppm");       // the reason, ghosts above and below
     must_show("persist dead reason", tr(STR_I_PERSIST_DEAD_PLAIN));
     s_sim_mode = was;
@@ -5017,7 +5005,7 @@ int main(void) {
   // over, so a leak shows up as the firmware screen drawn on top of a live
   // settings page.
   set_tab(SET_DEVICE);
-  def_row(3, 0);                                    // Firmware -> the update screen
+  def_row(4, 0);                                    // Firmware -> the update screen
   pump(FW_SETTLE);                                  // the body and the row arrive late
   save("/tmp/sim_settings_fw.ppm");                 // reached from settings, not directly
   touch(WT_EXIT_X + 70, WT_ACTION_Y + 26); pump(3); release(); pump(8);  // BACK -> settings
@@ -5989,7 +5977,7 @@ int main(void) {
   }
   touch(670, 240); pump(3); release(); pump(8);     // Settings tile
   set_tab(SET_DEVICE);
-  def_row(3, 0);                                    // Firmware
+  def_row(4, 0);                                    // Firmware
   save("/tmp/sim_fw_before_autolock.ppm");          // up, with the clock running
   if (!kiss_fw_ui_active()) {
     printf("FAIL: firmware screen not open before the auto-lock test\n");

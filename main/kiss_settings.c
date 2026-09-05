@@ -715,15 +715,11 @@ static void sdinfo_screen(void)
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, sdinfo_back_cb, NULL);
 }
 
-static void sdinfo_open_cb(lv_event_t *e)
-{
-    (void)e;
-    s_sdinfo_from = SDINFO_FROM_DEVICE;
-    sdinfo_screen();
-}
-
-// The same page from the STORAGE chooser's band, where the card is what the
-// screen is already about.
+// The card page's one door, on the STORAGE chooser's band, where the card is
+// what the screen is already about. There was a second on THIS DEVICE and it
+// is gone; s_sdinfo_from keeps the shape rather than the choice, because the
+// trail and the way BACK both still have to name where the owner came from
+// and a page with one door today can grow another.
 static void sdinfo_from_store_cb(lv_event_t *e)
 {
     (void)e;
@@ -944,19 +940,21 @@ static void storage_chooser_screen(void)
             .ud    = (void *)(intptr_t)i,
         });
     }
-    // THE CARD ITSELF, on the band, and only while these keys are on it. The
-    // page that reports what is on the card was reachable from one place --
-    // DEVICE > THIS DEVICE, five rows into a list about the build -- and this
-    // is the screen where the owner is already thinking about the card. The
-    // ROWS are untouched: the first boot chooser matches this one row for row
-    // and neither may be reordered alone.
-    // NOT "SD CARD". That is the label of the row directly above, and the
+    // THE CARD ITSELF, on the band, and this is now its ONLY door. The ROWS
+    // are untouched: the first boot chooser matches this one row for row and
+    // neither may be reordered alone.
+    //
+    // UNCONDITIONAL, though it was written for SD mode only. What is on the
+    // card is PSBTs, firmware images and backups, none of which cares where
+    // the recovery words live -- so gating it on the storage mode would have
+    // left the page unreachable on every signer keeping its keys in flash,
+    // which is the mode this device ships in.
+    //
+    // NOT "SD CARD". That is the label of a row on this very screen, and that
     // row is a CHOICE while this is a DOOR -- side by side they read as two
-    // ways to pick the same thing. The action says what is behind it, in the
-    // words the DEVICE row already uses for this same page.
-    if (kiss_seed_mode() == WSEED_MODE_SD)
-        wt_arrow_action(s_scr, tr(STR_I_CARD_SUB), false, false, WT_ACT_X,
-                        WT_ACTION_Y, 0, false, sdinfo_from_store_cb, NULL);
+    // ways to pick the same thing. The action says what is behind it.
+    wt_arrow_action(s_scr, tr(STR_I_CARD_SUB), false, false, WT_ACT_X,
+                    WT_ACTION_Y, 0, false, sdinfo_from_store_cb, NULL);
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, store_back_cb, NULL);
 }
 
@@ -1632,6 +1630,34 @@ static void terms_back_cb(lv_event_t *e)
     settings_reopen();
 }
 
+// The list this page shows, and the ONE card it can withhold.
+//
+// KISS_TERMS_ALL is the eleven in enum order. In a decoy session THE DECOY is
+// dropped, because a card explaining the decoy to whoever is holding the
+// device is the one thing the decoy cannot survive -- and that is the whole of
+// the secret. The row that opens this page used to disappear instead, which
+// took the other ten with it on every signer that had never set a passphrase.
+//
+// The count, the pager and the [ ? n ] all read from here, so they cannot
+// disagree about how many there are.
+static int terms_ids(int *out)
+{
+    int n = 0;
+    for (int i = 0; i < KISS_TERM_N; i++) {
+        if (kiss_session_decoy() && KISS_TERMS_ALL[i] == KISS_TERM_DECOY)
+            continue;
+        out[n++] = KISS_TERMS_ALL[i];
+    }
+    return n;
+}
+
+static int terms_pages(void)
+{
+    int ids[KISS_TERM_N];
+    const int n = terms_ids(ids);
+    return (n + KISS_TERMS_PER_PAGE - 1) / KISS_TERMS_PER_PAGE;
+}
+
 // Only the LIST and the pager are rebuilt on a page turn, never the screen.
 // Rebuilding the screen under a finger that is still down is the hazard the
 // sign slide's own comment spells out -- the indev re-targets a live press,
@@ -1652,18 +1678,21 @@ static void terms_build_page(void)
     // was being drawn five pixels past the row's own floor on every card, and
     // nothing overlapped until the row was open, which is the state no sweep
     // had ever measured. The TERM gate says so now; n=4 opens to 182.
+    int ids[KISS_TERM_N];
+    const int total = terms_ids(ids);
     const int first = s_terms_page * KISS_TERMS_PER_PAGE;
-    int n = KISS_TERM_N - first;
+    int n = total - first;
     if (n > KISS_TERMS_PER_PAGE) n = KISS_TERMS_PER_PAGE;
-    kiss_terms_list(s_terms_body, &KISS_TERMS_ALL[first], n);
-    kiss_terms_hint(s_scr, KISS_TERMS_ALL, KISS_TERM_N);
+    if (n < 0) n = 0;
+    kiss_terms_list(s_terms_body, &ids[first], n);
+    kiss_terms_hint(s_scr, ids, total);
 
     // DOTS IN THE TRAIL, not a pager line at the lane's foot. A definition
     // list at n=5 fills the whole 284px lane by construction, so a pager
     // under it is printed across the fifth row -- which is what the first
     // frame of this screen showed. The count is on the SETTINGS row that
     // opens this page and does not need saying twice.
-    wt_sheet_dots(s_scr, KISS_TERMS_PAGES, s_terms_page);
+    wt_sheet_dots(s_scr, terms_pages(), s_terms_page);
 }
 
 static void terms_gesture_cb(lv_event_t *e)
@@ -1672,7 +1701,7 @@ static void terms_gesture_cb(lv_event_t *e)
     if (step == 0) return;
     if (step < 0 && s_terms_page == 0) { terms_back_cb(NULL); return; }
     const int next = s_terms_page + (step > 0 ? 1 : -1);
-    if (next < 0 || next >= KISS_TERMS_PAGES) return;
+    if (next < 0 || next >= terms_pages()) return;
     // The page turn ends the reading of whatever was open on the page being
     // left, exactly as walking out of the screen does -- but the SCREEN is
     // still here, and so is its band.
@@ -1746,10 +1775,13 @@ static void device_screen(void)
           .val = tr(noise ? STR_W_RNG_ON : STR_W_RNG_OFF),
           .val_col = noise ? (lv_color_t){0} : WT_WARN,
           .lamp = true, .lamp_col = noise ? WT_OK : WT_WARN },
-        { .cap = tr(STR_W_SD_BTN), .val = "",
-          .sub = tr(STR_I_CARD_SUB), .go = sdinfo_open_cb },
     };
-    wt_def_list(s_scr, defs, 5);
+    // FOUR ROWS, all of them facts about the box. The fifth was the card, and
+    // it was the door the bench could not find: five rows into a list about
+    // the build, on a page an owner opens to read the firmware version. The
+    // card has one door now and it is on the storage chooser, which is the
+    // screen where the card is what the owner is already thinking about.
+    wt_def_list(s_scr, defs, 4);
 
     lv_obj_set_ext_click_area(
         wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, device_back_cb, NULL), 10);
@@ -1949,15 +1981,15 @@ static void tab_security(void)
     // exactly how a test device ended up stuck with a stroke it could not
     // clear.
     bool set = !duress_unset();
-    // Persist depends on storage. AMNESIC keeps nothing by contract, so the
-    // cycle has nothing to cycle -- and instead of a dead control the row
-    // becomes the page's one in-place definition, saying WHY in the same
-    // spot the switch would be. A control that vanishes sends the owner
-    // hunting for it; one that explains itself does not.
-    bool amnesic = kiss_seed_mode() == WSEED_MODE_AMNESIC;
-    bool on = kiss_persist_enabled();
 
-    wt_def_t defs[3] = {
+    // WHAT THIS SIGNER HAS SEEN is on DEVICE now. It sat here on the argument
+    // that forgetting is a security property, which is true and is not the
+    // question a tab answers: SECURITY is what an owner checks to decide
+    // whether to TRUST this box -- the ways in, and how its keys were made --
+    // and what the box REMEMBERS between sessions is a fact about the box.
+    // Asked for from the bench, and the tab it moves to had room: DEVICE is
+    // where THIS DEVICE and the firmware already live.
+    wt_def_t defs[2] = {
         // Amber NOT SET beside "opens real keys" is the whole lesson; the
         // lamp breathes until the mark exists, the same beat as the tab dot.
         { .cap = tr(STR_I_ROW_WAYSIN),
@@ -1966,21 +1998,6 @@ static void tab_security(void)
           .sub = tr(STR_I_WAYSIN_SHORT),
           .lamp = true, .lamp_col = set ? WT_OK : WT_WARN, .lamp_pulse = !set,
           .go = duress_cb },
-        amnesic
-            // "nothing saved" is the OFF state's own sub, reused: it is as
-            // true of AMNESIC as of OFF, and "storage is AMNESIC" was wider
-            // than the lane UNAVAILABLE leaves. The definition says the rest.
-            ? (wt_def_t){ .cap = tr(STR_I_ROW_HISTORY),
-                  .val = tr(STR_I_PERSIST_DEAD_VAL),
-                  .sub = tr(STR_I_POP_NOTHING),
-                  .plain = tr(STR_I_PERSIST_DEAD_PLAIN) }
-            // The sub follows the STATE rather than naming the feature: ON
-            // says what is kept, OFF says that nothing is. It is the only
-            // warning the flip gets, and it is on screen before the tap.
-            : (wt_def_t){ .cap = tr(STR_I_ROW_HISTORY),
-                  .val = tr(on ? STR_G_HIST_ON_BTN : STR_G_HIST_OFF_BTN),
-                  .sub = tr(on ? STR_I_HIST_SHORT : STR_I_POP_NOTHING),
-                  .mark = LV_SYMBOL_LOOP, .go = persist_cb },
         // DECIDED: ONE door onto AUDIT, and it is this one. The row was
         // duplicated onto BACKUP because "how were these made" is a question
         // about the seed and an outside reader guessed that tab; that argument
@@ -2003,7 +2020,7 @@ static void tab_security(void)
         { .cap = tr(STR_I_ROW_AUDIT), .val = "",
           .sub = tr(STR_I_AUDIT_SUB), .go = audit_open_cb },
     };
-    def_list(defs, 3);
+    def_list(defs, 2);
 }
 
 // What a seed IS, on the row that names one. STR_W_WHATSEED_* is the setup
@@ -2084,7 +2101,9 @@ static void tab_device(void)
     // values, changed where the number it changes is on the glass, does not
     // also need a row three screens away.
     char terms_count[64];
-    const int tunread = kiss_terms_unread(KISS_TERMS_ALL, KISS_TERM_N);
+    int tids[KISS_TERM_N];
+    const int tn = terms_ids(tids);
+    const int tunread = kiss_terms_unread(tids, tn);
     if (tunread > 0)
         snprintf(terms_count, sizeof terms_count,
                  tr(STR_I_TERMS_UNREAD_FMT), tunread);
@@ -2092,7 +2111,15 @@ static void tab_device(void)
         snprintf(terms_count, sizeof terms_count, "%s",
                  tr(STR_I_TERMS_ALL_READ));
 
-    wt_def_t defs[3] = {
+    // Persist depends on storage. AMNESIC keeps nothing by contract, so the
+    // cycle has nothing to cycle -- and instead of a dead control the row
+    // becomes the page's one in-place definition, saying WHY in the same spot
+    // the switch would be. A control that vanishes sends the owner hunting
+    // for it; one that explains itself does not.
+    const bool amnesic = kiss_seed_mode() == WSEED_MODE_AMNESIC;
+    const bool on = kiss_persist_enabled();
+
+    wt_def_t defs[4] = {
         // The version is a FACT, in the page's own ink. It was amber once,
         // with no predicate behind it -- amber on this page means a dot and
         // a count, both of which this row has never had.
@@ -2103,18 +2130,39 @@ static void tab_device(void)
         // already printed by kiss_build_id_make on the screen behind it.
         { .cap = tr(STR_I_ROW_DEVICE), .val = "",
           .sub = tr(STR_I_ROW_DEVICE_SUB), .go = device_open_cb },
+        amnesic
+            // "nothing saved" is the OFF state's own sub, reused: it is as
+            // true of AMNESIC as of OFF, and "storage is AMNESIC" was wider
+            // than the lane UNAVAILABLE leaves. The definition says the rest.
+            ? (wt_def_t){ .cap = tr(STR_I_ROW_HISTORY),
+                  .val = tr(STR_I_PERSIST_DEAD_VAL),
+                  .sub = tr(STR_I_POP_NOTHING),
+                  .plain = tr(STR_I_PERSIST_DEAD_PLAIN) }
+            // The sub follows the STATE rather than naming the feature: ON
+            // says what is kept, OFF says that nothing is. It is the only
+            // warning the flip gets, and it is on screen before the tap.
+            : (wt_def_t){ .cap = tr(STR_I_ROW_HISTORY),
+                  .val = tr(on ? STR_G_HIST_ON_BTN : STR_G_HIST_OFF_BTN),
+                  .sub = tr(on ? STR_I_HIST_SHORT : STR_I_POP_NOTHING),
+                  .mark = LV_SYMBOL_LOOP, .go = persist_cb },
         // TERMS. A CHEVRON, not a plus: it leaves the page, so it takes the
         // glyph that means leaves the page. The value is a count because a
         // reference nobody has read and one they have finished are different
         // things and the row is where that is worth saying.
         //
-        // ABSENT IN A DECOY SESSION, for the same reason WAYS IN is: the list
-        // contains THE DECOY, and a screen that explains the decoy to whoever
-        // is holding the device is the one thing the decoy cannot survive.
+        // DECIDED: the DECOY CARD hides in a decoy session, not the whole row.
+        // The row was absent whenever kiss_session_decoy() was true, on the
+        // sound-sounding reason that the list contains THE DECOY. What that
+        // predicate actually means is "opened with an EMPTY passphrase", which
+        // is every signer that has never configured one -- so the reference an
+        // owner is pointed at from four other screens was missing from the
+        // settings page on the devices most likely to need it, and the bench
+        // reported it as the row simply not existing. One card is the secret;
+        // the other ten are a glossary. terms_ids() drops that one.
         { .cap = tr(STR_I_ROW_TERMS), .val = terms_count,
           .sub = tr(STR_I_ROW_TERMS_SUB), .go = terms_open_cb },
     };
-    def_list(defs, kiss_session_decoy() ? 2 : 3);
+    def_list(defs, 4);
 }
 
 static void tab_noundo(void)

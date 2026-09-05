@@ -259,7 +259,7 @@
   "I_RESTORE_VAL": "seed words + passphrase",
   "I_ROW_AUDIT": "AUDIT",
   "I_ROW_DEVICE": "THIS DEVICE",
-  "I_ROW_DEVICE_SUB": "build id, radio, SD card",
+  "I_ROW_DEVICE_SUB": "build id and radio",
   "I_ROW_ENDWORDS": "Erase seed words",
   "I_ROW_FW": "FIRMWARE",
   "I_ROW_HISTORY": "PERSIST",
