@@ -132,7 +132,6 @@
   "G_FW_WRITING_FMT": "%s 쓰는 중",
   "G_FW_WRITING_T": "펌웨어 쓰는 중",
   "G_HELP_BODY": "시드 문구 + 패스프레이즈 = 당신의 키.",
-  "G_HELP_BODY_DEC": "Seed words + passphrase = your keys. Seed words alone = the decoy keys.",
   "G_HELP_F1C": "돌기",
   "G_HELP_F1V": "눌러서 바꾸기",
   "G_HELP_F2C": "그 점",

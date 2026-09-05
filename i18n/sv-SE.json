@@ -132,7 +132,6 @@
   "G_FW_WRITING_FMT": "SKRIVER %s",
   "G_FW_WRITING_T": "SKRIVER FIRMWARE",
   "G_HELP_BODY": "Seed-ord + lösenfras = dina nycklar.",
-  "G_HELP_BODY_DEC": "Seed words + passphrase = your keys. Seed words alone = the decoy keys.",
   "G_HELP_F1C": "SLINGAN",
   "G_HELP_F1V": "tryck för att växla",
   "G_HELP_F2C": "PRICKEN",

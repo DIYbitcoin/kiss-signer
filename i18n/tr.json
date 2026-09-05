@@ -132,7 +132,6 @@
   "G_FW_WRITING_FMT": "%s YAZILIYOR",
   "G_FW_WRITING_T": "YAZILIM YAZILIYOR",
   "G_HELP_BODY": "Kurtarma kelimeleri + passphrase = anahtarlarınız.",
-  "G_HELP_BODY_DEC": "Seed words + passphrase = your keys. Seed words alone = the decoy keys.",
   "G_HELP_F1C": "DÖNGÜ",
   "G_HELP_F1V": "değiştirmek için dokun",
   "G_HELP_F2C": "O NOKTA",

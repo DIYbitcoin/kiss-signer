@@ -132,7 +132,6 @@
   "G_FW_WRITING_FMT": "A GRAVAR %s",
   "G_FW_WRITING_T": "GRAVANDO FIRMWARE",
   "G_HELP_BODY": "Palavras de recuperação + passphrase = suas chaves.",
-  "G_HELP_BODY_DEC": "Seed words + passphrase = your keys. Seed words alone = the decoy keys.",
   "G_HELP_F1C": "O CICLO",
   "G_HELP_F1V": "toque para trocar",
   "G_HELP_F2C": "O PONTO",

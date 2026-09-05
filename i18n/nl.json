@@ -132,7 +132,6 @@
   "G_FW_WRITING_FMT": "SCHRIJFT %s",
   "G_FW_WRITING_T": "FIRMWARE SCHRIJVEN",
   "G_HELP_BODY": "Herstelwoorden + passphrase = je sleutels.",
-  "G_HELP_BODY_DEC": "Seed words + passphrase = your keys. Seed words alone = the decoy keys.",
   "G_HELP_F1C": "DE LUS",
   "G_HELP_F1V": "tik om te wisselen",
   "G_HELP_F2C": "DE STIP",

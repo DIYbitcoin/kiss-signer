@@ -2278,14 +2278,20 @@ static void build_tab(void)
         // your keys, seed words alone open the decoy -- because the pair is
         // the whole lesson and one half alone reads as the only half.
         //
-        // ABSENT IN A DECOY SESSION, for the reason the TERMS row below is:
-        // a screen that explains the decoy to whoever is holding the device
-        // is the one thing the decoy cannot survive. There the body says the
-        // first half only, which is true of the session it is being read in.
-        wt_explain(s_pane, tr(STR_G_HELP_HEAD),
-                   tr(kiss_session_decoy() ? STR_G_HELP_BODY
-                                           : STR_G_HELP_BODY_DEC), facts,
-                   3);
+        // IN EVERY SESSION, and the first attempt hid it in a decoy one. That
+        // sounded right and was the opposite of what it did: the predicate
+        // means "opened with an EMPTY passphrase", so the line was absent on
+        // every signer that has never configured one, which is exactly the
+        // owner who has not met the idea yet. It was reported from the bench
+        // as the line simply not being there.
+        //
+        // Nothing here is a secret. It is how the device works, said the same
+        // way in both sessions, so it can never tell a reader whether THIS
+        // signer has a passphrase -- which is the only thing the decoy has to
+        // keep. The card that names the decoy for this device is the one
+        // still withheld; see terms_ids().
+        wt_explain(s_pane, tr(STR_G_HELP_HEAD), tr(STR_G_HELP_BODY),
+                   facts, 3);
         return;
     }
     switch (s_tab) {
