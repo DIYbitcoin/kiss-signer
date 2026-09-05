@@ -1773,12 +1773,30 @@ lv_obj_t *wt_section(lv_obj_t *scr, const char *txt, int x, int y)
     //
     // Split, each half gets the face it needs: the mark off the Latin face
     // that carries the symbols, the words off the mono rung.
+    // A MARK is a PRIVATE USE codepoint followed by tr_sym's two spaces, and
+    // nothing else. The first cut of this asked whether the leading byte was
+    // >= 0x80, which is true of every non-Latin string on the device: the
+    // TRANSACTION ID head is "İŞLEM ID" in Turkish, "거래 ID" in Korean and
+    // "交易 ID" in Chinese, so wt_section tore the front off each of them and
+    // drew it as an icon. English could not see it and neither could any of
+    // the other eighteen locales, whose translations happen to start with an
+    // ASCII letter. The twenty one locale walk caught it on the first night
+    // it was ever able to run.
     const char *w = txt;
     int lead = 0;
-    if (txt && (unsigned char)*txt >= 0x80) {
-        while (*w && (unsigned char)*w >= 0x80) w++;   // the mark
-        lead = (int)(w - txt);
-        while (*w == ' ') w++;                          // tr_sym's two spaces
+    if (txt) {
+        const unsigned char *p = (const unsigned char *)txt;
+        // LV_SYMBOL_* and WT_ICON_* are U+E000..U+F8FF: three UTF-8 bytes,
+        // EE 80 80 through EF A3 BF.
+        if (p[0] == 0xEE || p[0] == 0xEF) {
+            unsigned cp = ((unsigned)(p[0] & 0x0F) << 12)
+                        | ((unsigned)(p[1] & 0x3F) << 6)
+                        |  (unsigned)(p[2] & 0x3F);
+            if (cp >= 0xE000 && cp <= 0xF8FF && p[3] == ' ' && p[4] == ' ') {
+                lead = 3;
+                w = txt + 5;
+            }
+        }
     }
     // The words' own rung decides the row, and the mark is CENTRED on it. The
     // two halves are different faces at different heights, so a mark simply
