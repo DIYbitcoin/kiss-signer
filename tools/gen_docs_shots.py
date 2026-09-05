@@ -514,7 +514,13 @@ REVEAL_GIF = os.path.join(ROOT, "docs", "media", "kiss-reveal.gif")
 # than a hand makes it.
 REVEAL_STEP = 2
 REVEAL_DELAY = 6
-REVEAL_HOLD = 200                                # ~2s parked on the signer
+# The beat at the end, and it was TWO SECONDS. The drawing itself is 36 frames
+# at 6 centiseconds -- 2.16s -- so the hold was very nearly half the loop, and
+# a GIF that spends half its life on one frame does not read as a pause at the
+# end. It reads as broken: reported from the bench as "stalling and seemingly
+# pausing after the KISS swipe". 0.9s is long enough to see where the stroke
+# landed and short enough that the loop is still a gesture.
+REVEAL_HOLD = 90                                 # the beat on the signer
 
 
 def theme_colour(name):
