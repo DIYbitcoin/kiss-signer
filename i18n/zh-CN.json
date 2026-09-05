@@ -306,8 +306,6 @@
   "I_WTAB_ENC": "已加密",
   "I_WTAB_PAPER": "纸",
   "K_CAP_PAIRING": "配对",
-  "K_COORD_NONE": "还没有配对协调器",
-  "K_COORD_NONE_B": "配对一个协调器就能看余额、组建付款。签名始终留在这里。",
   "K_EXPL_COORD": "它看得见每一笔支付。它永远花不了。",
   "K_HELP_BODY": "它只拿到公开密钥。可以看，可以造交易，但签不了名。",
   "K_HELP_F1C": "指纹",

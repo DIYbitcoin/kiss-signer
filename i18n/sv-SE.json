@@ -306,8 +306,6 @@
   "I_WTAB_ENC": "KRYPTERAD",
   "I_WTAB_PAPER": "PAPPER",
   "K_CAP_PAIRING": "PARKOPPLING",
-  "K_COORD_NONE": "INGEN KOORDINATOR ÄNNU",
-  "K_COORD_NONE_B": "Para en koordinator för att se saldot och bygga betalningar. Signeringen stannar här.",
   "K_EXPL_COORD": "den ser varje betalning. den kan aldrig spendera någon.",
   "K_HELP_BODY": "Den får bara publika nycklar. Den kan bevaka och bygga betalningar, aldrig signera en.",
   "K_HELP_F1C": "FINGERAVTRYCK",

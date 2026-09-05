@@ -306,8 +306,6 @@
   "I_WTAB_ENC": "CIFRATO",
   "I_WTAB_PAPER": "CARTA",
   "K_CAP_PAIRING": "ABBINAMENTO",
-  "K_COORD_NONE": "NESSUN COORDINATORE ANCORA",
-  "K_COORD_NONE_B": "Abbina un coordinatore per vedere il saldo e costruire pagamenti. La firma resta qui.",
   "K_EXPL_COORD": "vede ogni pagamento. non può spenderne nessuno.",
   "K_HELP_BODY": "Riceve solo chiavi pubbliche. Può guardare e costruire pagamenti, mai firmarne uno.",
   "K_HELP_F1C": "IMPRONTA",

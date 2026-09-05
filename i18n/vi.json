@@ -306,8 +306,6 @@
   "I_WTAB_ENC": "ĐÃ MÃ HOÁ",
   "I_WTAB_PAPER": "GIẤY",
   "K_CAP_PAIRING": "GHÉP NỐI",
-  "K_COORD_NONE": "CHƯA GHÉP ĐIỀU PHỐI",
-  "K_COORD_NONE_B": "Ghép một ứng dụng điều phối để xem số dư và dựng giao dịch. Việc ký vẫn ở đây.",
   "K_EXPL_COORD": "nó thấy mọi khoản thanh toán. không bao giờ tiêu được.",
   "K_HELP_BODY": "Nó chỉ nhận khóa công khai. Nó theo dõi và dựng thanh toán, không bao giờ ký.",
   "K_HELP_F1C": "VÂN TAY",

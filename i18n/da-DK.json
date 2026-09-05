@@ -306,8 +306,6 @@
   "I_WTAB_ENC": "KRYPTERET",
   "I_WTAB_PAPER": "PAPIR",
   "K_CAP_PAIRING": "PARRING",
-  "K_COORD_NONE": "INGEN KOORDINATOR ENDNU",
-  "K_COORD_NONE_B": "Par en koordinator for at se saldo og bygge betalinger. Signering bliver her.",
   "K_EXPL_COORD": "den ser hver betaling. den kan aldrig bruge en.",
   "K_HELP_BODY": "Den får kun offentlige nøgler. Den kan følge med og bygge betalinger, aldrig signere en.",
   "K_HELP_F1C": "FINGERAFTRYK",

@@ -306,8 +306,6 @@
   "I_WTAB_ENC": "ŞİFRELİ",
   "I_WTAB_PAPER": "KAĞIT",
   "K_CAP_PAIRING": "EŞLEŞTİRME",
-  "K_COORD_NONE": "HENÜZ KOORDİNATÖR YOK",
-  "K_COORD_NONE_B": "Bakiyeyi görmek ve ödeme kurmak için bir koordinatör eşleyin. İmzalama burada kalır.",
   "K_EXPL_COORD": "her ödemeyi görür. hiçbirini harcayamaz.",
   "K_HELP_BODY": "Yalnızca genel anahtarları alır. İzleyip ödeme kurabilir, asla imzalayamaz.",
   "K_HELP_F1C": "PARMAK İZİ",

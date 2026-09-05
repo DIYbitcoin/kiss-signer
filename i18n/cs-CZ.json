@@ -306,8 +306,6 @@
   "I_WTAB_ENC": "ŠIFROVANÉ",
   "I_WTAB_PAPER": "PAPÍR",
   "K_CAP_PAIRING": "PÁROVÁNÍ",
-  "K_COORD_NONE": "ZATÍM ŽÁDNÝ KOORDINÁTOR",
-  "K_COORD_NONE_B": "Spárujte koordinátor, ať vidíte zůstatek a stavíte platby. Podepisování zůstává tady.",
   "K_EXPL_COORD": "vidí každou platbu. nikdy žádnou neutratí.",
   "K_HELP_BODY": "Dostane jen veřejné klíče. Může sledovat a stavět platby, nikdy podepsat.",
   "K_HELP_F1C": "OTISK",

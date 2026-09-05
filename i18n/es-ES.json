@@ -306,8 +306,6 @@
   "I_WTAB_ENC": "CIFRADA",
   "I_WTAB_PAPER": "PAPEL",
   "K_CAP_PAIRING": "EMPAREJAR",
-  "K_COORD_NONE": "AÚN SIN COORDINADOR",
-  "K_COORD_NONE_B": "Empareja un coordinador para ver tu saldo y armar pagos. La firma se queda aquí.",
   "K_EXPL_COORD": "ve cada pago. nunca puede gastar ninguno.",
   "K_HELP_BODY": "Solo recibe claves públicas. Puede mirar y construir pagos, nunca firmar uno.",
   "K_HELP_F1C": "HUELLA",

@@ -306,8 +306,6 @@
   "I_WTAB_ENC": "ZASZYFROWANE",
   "I_WTAB_PAPER": "PAPIER",
   "K_CAP_PAIRING": "PAROWANIE",
-  "K_COORD_NONE": "BRAK KOORDYNATORA",
-  "K_COORD_NONE_B": "Sparuj koordynator, by widzieć saldo i tworzyć płatności. Podpisywanie zostaje tutaj.",
   "K_EXPL_COORD": "widzi każdą płatność. nigdy żadnej nie wyda.",
   "K_HELP_BODY": "Dostaje tylko klucze publiczne. Może obserwować i budować płatności, nigdy podpisać.",
   "K_HELP_F1C": "ODCISK",

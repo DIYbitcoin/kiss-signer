@@ -306,8 +306,6 @@
   "I_WTAB_ENC": "CHIFFRÉ",
   "I_WTAB_PAPER": "PAPIER",
   "K_CAP_PAIRING": "APPAIRAGE",
-  "K_COORD_NONE": "AUCUN COORDINATEUR ENCORE",
-  "K_COORD_NONE_B": "Associez un coordinateur pour voir votre solde et créer des paiements. La signature reste ici.",
   "K_EXPL_COORD": "il voit chaque paiement. il ne peut jamais en dépenser un.",
   "K_HELP_BODY": "Il ne reçoit que des clés publiques. Il peut suivre et bâtir des paiements, jamais en signer un.",
   "K_HELP_F1C": "EMPREINTE",

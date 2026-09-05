@@ -306,8 +306,6 @@
   "I_WTAB_ENC": "ENCRYPTED",
   "I_WTAB_PAPER": "PAPER",
   "K_CAP_PAIRING": "PAIRING",
-  "K_COORD_NONE": "NO COORDINATOR PAIRED YET",
-  "K_COORD_NONE_B": "Pair a coordinator to see your balance and build payments. Signing stays here.",
   "K_EXPL_COORD": "it sees every payment. it can never spend one.",
   "K_HELP_BODY": "It gets public keys only. It can watch and build payments, never sign one.",
   "K_HELP_F1C": "FINGERPRINT",

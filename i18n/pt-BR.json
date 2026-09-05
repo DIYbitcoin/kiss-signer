@@ -306,8 +306,6 @@
   "I_WTAB_ENC": "CRIPTOGRAFADO",
   "I_WTAB_PAPER": "PAPEL",
   "K_CAP_PAIRING": "PAREAMENTO",
-  "K_COORD_NONE": "NENHUM COORDENADOR AINDA",
-  "K_COORD_NONE_B": "Pareie um coordenador para ver o saldo e montar pagamentos. A assinatura fica aqui.",
   "K_EXPL_COORD": "ele vê cada pagamento. nunca pode gastar nenhum.",
   "K_HELP_BODY": "Ele só recebe chaves públicas. Pode acompanhar e montar pagamentos, nunca assinar um.",
   "K_HELP_F1C": "IMPRESSÃO",

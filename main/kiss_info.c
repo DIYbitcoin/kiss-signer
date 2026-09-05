@@ -337,9 +337,31 @@ static void pair_fmt_cb(lv_event_t *e)
     pair_refresh();
 }
 
+// True when a coordinator has spoken for these keys. It is the device's only
+// honest signal for paired-ness, and it is the same store RECEIVE's lamp
+// reads: this signer has no chain view of its own.
+static bool coord_known(void)
+{
+    uint8_t cfp[4];
+    kiss_ui_last_fp(cfp);
+    int chigh;
+    uint32_t cheight;
+    return kiss_usage_chain_known(cfp, kiss_testnet() ? 1 : 0, kiss_script(),
+                                  &chigh, &cheight);
+}
+
+// Was PAIR COORDINATOR the way IN, rather than a step off the KEYS page?
+// kiss_info_open() sets it when no coordinator has spoken.
+static bool s_pair_entry;
+
 static void pair_back_cb(lv_event_t *e)
 {
     (void)e;
+    // HOME, not KEYS, when pairing was the entry -- and this is not a
+    // preference. KEYS forwards to this screen whenever no coordinator has
+    // spoken, so a BACK that rebuilt KEYS would be forwarded straight back
+    // here, forever, with the owner watching the same screen redraw.
+    if (s_pair_entry) { close_cb(NULL); return; }
     swap_screen();
     info_screen();
 }
@@ -1603,36 +1625,15 @@ static void info_tab_build(void)
 
     const int H = 76;
 
-    // The empty state (frame 5c): one shape for an absence -- a headline
-    // naming it, a sentence saying what filling it would give, and the row
-    // that fills it sitting right underneath. No illustration, no shrug.
-    // "Has a coordinator ever spoken" is the device's only honest signal for
-    // paired-ness, and it is the same store RECEIVE's lamp reads.
-    {
-        uint8_t cfp[4];
-        kiss_ui_last_fp(cfp);
-        int chigh;
-        uint32_t cheight;
-        if (!kiss_usage_chain_known(cfp, kiss_testnet() ? 1 : 0,
-                                    kiss_script(), &chigh, &cheight)) {
-            lv_obj_t *hl = wt_lbl(p, tr(STR_K_COORD_NONE), X, 130,
-                                  wt_chrome28(tr(STR_K_COORD_NONE)), WT_INK);
-            lv_obj_set_width(hl, W);
-            lv_label_set_long_mode(hl, LV_LABEL_LONG_DOT);
-            lv_obj_t *b = wt_lbl(p, tr(STR_K_COORD_NONE_B), X, 172,
-                                 wt_chrome23(tr(STR_K_COORD_NONE_B)), WT_MUT);
-            lv_obj_set_width(b, 690);
-            lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
-            wt_line_rule_draw(wt_line_rule(p, X, 244, W), 80, 320);
-            wt_line_row_stage(wt_line_row(p, X, 252, W, H,
-                                          tr(STR_K_CAP_PAIRING),
-                                          tr(STR_I_PAIR_T), wt_font28(),
-                                          WT_INK, tr(STR_K_PAIR_SUB), NULL,
-                                          pair_open_cb, NULL), 0);
-            wt_line_rule_draw(wt_line_rule(p, X, 252 + H, W), 152, 320);
-            return;
-        }
-    }
+    // NO EMPTY STATE. An unpaired signer never reaches this page: it opened
+    // on a headline naming the absence, a sentence saying what pairing would
+    // give, and one row that went to the pairing screen -- and the sentence
+    // was the same claim as this page's own [ ? ], one tap away. Three taps
+    // to reach the QR, two of them spent reading a screen that only said
+    // "the thing you came for is through here".
+    //
+    // kiss_info_open() forwards straight to pair_screen() instead; see the
+    // note there for why BACK from it has to leave for HOME.
 
     wt_line_row_stage(wt_line_row(p, X, 120, W, H, tr(STR_K_CAP_PAIRING),
                                   tr(STR_I_PAIR_T), wt_font28(), WT_INK,
@@ -1760,6 +1761,17 @@ void kiss_info_open(lv_obj_t *parent)
     // rebuild on purpose -- that is what returns an owner to the tab they left
     // when a row's screen goes BACK -- so entering the page has to say so.
     s_ictx.tab = 0;
+    // STRAIGHT TO THE QR while nothing has paired yet. The KEYS page in that
+    // state was one row and two lines saying the row was there, and the lines
+    // repeated the page's own [ ? ]. What an owner opening KEYS on a signer
+    // with no coordinator wants is the code and the choice of app, which is
+    // the screen behind that row.
+    //
+    // Nothing is stranded by skipping it: SCAN KEY has its second door on
+    // RECEIVE's SILENT tab (kiss_info_open_scan_key), FIRST ADDRESS is what
+    // RECEIVE opens on, and the pair screen carries its own [ ? ].
+    s_pair_entry = !coord_known();
+    if (s_pair_entry) { pair_screen(); return; }
     info_screen();
 }
 

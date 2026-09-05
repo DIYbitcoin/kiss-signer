@@ -306,8 +306,6 @@
   "I_WTAB_ENC": "ŠIFRIRANO",
   "I_WTAB_PAPER": "PAPIR",
   "K_CAP_PAIRING": "UPARIVANJE",
-  "K_COORD_NONE": "JOŠ NEMA KOORDINATORA",
-  "K_COORD_NONE_B": "Upari koordinator da vidiš stanje i gradiš plaćanja. Potpisivanje ostaje ovdje.",
   "K_EXPL_COORD": "vidi svako plaćanje. nijedno ne može potrošiti.",
   "K_HELP_BODY": "Dobiva samo javne ključeve. Može pratiti i graditi plaćanja, nikad potpisati.",
   "K_HELP_F1C": "OTISAK",

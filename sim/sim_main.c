@@ -3066,15 +3066,32 @@ int main(void) {
   // captions have arrived and whose values are still at opacity zero. The
   // frame looked like a rendering fault and was really a frame taken early,
   // which is the second time that has happened on this walk.
+  // NO COORDINATOR HAS SPOKEN at this point -- the recv test wiped its usage
+  // record on the way out -- so the tile does not open KEYS at all. It goes
+  // straight to PAIR COORDINATOR, which is the screen an owner in that state
+  // came for. The stop exists because that forward is a real behaviour and
+  // nothing else on the walk exercises it.
+  touch(490, 240); pump(3); release(); pump(45);    // KEYS tile -> the QR direct
+  save("/tmp/sim_winfo_unpaired.ppm");
+  must_show("keys/unpaired goes to pairing", tr(STR_I_SHOW_TO));
+  // And BACK from it leaves for HOME rather than landing on the page that
+  // just forwarded here. If this ever regresses the walk hangs on a bounce
+  // rather than failing, so the needle is a HOME string.
+  tap_str(STR_C_BACK, 3, 45);
+  must_show("keys/unpaired back goes home", tr(STR_H_FINGERPRINT));
+  {
+    // Give this signer a coordinator's word -- the same store RECEIVE's lamp
+    // reads -- so the page itself renders from here on.
+    uint8_t cfp[4];
+    kiss_ui_last_fp(cfp);
+    kiss_usage_chain_set(cfp, kiss_testnet() ? 1 : 0, kiss_script(), -1, 1);
+  }
   touch(490, 240); pump(3); release(); pump(45);    // Wallet tile -> section home
   // ONE PAGE, no tab strip. THIS SIGNER held a read-only copy of two SETTINGS
   // rows and of RECEIVE's first address, so it went; what is left is how a
-  // coordinator comes to watch these keys. No coordinator has spoken at this
-  // point -- the recv test wiped its usage record on the way out -- so the
-  // page shows the 5c empty state: the absence named, what pairing gives, and
-  // the row that fills it.
-  save("/tmp/sim_winfo_coord_empty.ppm");
-  must_show("coord empty", tr(STR_K_COORD_NONE));
+  // coordinator comes to watch these keys.
+  save("/tmp/sim_winfo_coord.ppm");
+  must_show("keys/paired page", tr(STR_K_CAP_PAIRING));
   // The [ ? ]: the content lane replaced by the page's explainer, and the
   // first-run hint stopped for good (this is the walk's first open).
   touch(720, 85); pump(3); release(); pump(45);   // 45: the fact rows land on the stagger
@@ -3088,17 +3105,7 @@ int main(void) {
   must_show("keys/swipe opens help", tr(STR_K_HELP_HEAD));
   for (int i = 0; i <= 8; i++) { touch(300 + i * 14, 250); pump(3); }
   release(); pump(50);
-  must_show("keys/swipe closes help", tr(STR_K_COORD_NONE));
-  {
-    // Give this signer a coordinator's word -- the same store RECEIVE's lamp
-    // reads -- and reopen so the populated page renders.
-    uint8_t cfp[4];
-    kiss_ui_last_fp(cfp);
-    kiss_usage_chain_set(cfp, kiss_testnet() ? 1 : 0, kiss_script(), -1, 1);
-  }
-  tap_str(STR_C_BACK, 3, 8);                        // -> home
-  touch(490, 240); pump(3); release(); pump(45);    // KEYS again, populated
-  save("/tmp/sim_winfo_coord.ppm");
+  must_show("keys/swipe closes help", tr(STR_K_CAP_PAIRING));
   touch(400, 150); pump(3); release(); pump(6);     // PAIRING -> PAIR COORDINATOR
   save("/tmp/sim_pair.ppm");                        // descriptor (Sparrow) active
   touch(198, 228); pump(3); release(); pump(6);     // descriptor QR -> zoom
@@ -5215,6 +5222,16 @@ int main(void) {
   // ONE back: the list is a tab now, not a screen on top of one, so BACK from
   // it leaves RECEIVE rather than climbing a level that no longer exists.
   tap_str(STR_C_BACK, 3, 6);     // -> home
+  {
+    // A coordinator's word for the MAINNET chain. The record set on the
+    // testnet leg is keyed by chain, so it says nothing here -- and the tile
+    // forwards straight to PAIR COORDINATOR while no coordinator has spoken,
+    // which is a screen with neither of the two things these stops exist to
+    // photograph.
+    uint8_t cfp[4];
+    kiss_ui_last_fp(cfp);
+    kiss_usage_chain_set(cfp, kiss_testnet() ? 1 : 0, kiss_script(), -1, 1);
+  }
   // The KEYS tile, the same door sim_winfo uses. Not a Settings row: the
   // network note lives on the section home, and the coordinates differ.
   touch(490, 240); pump(3); release(); pump(6);     // KEYS tile -> section home
