@@ -10,7 +10,7 @@ construction.
 route to the comment that answers it, which is how seven findings were filed
 and withdrawn in one review pass.
 
-33 decisions.
+34 decisions.
 
 ## `main/kiss_duress_ui.c`
 
@@ -76,19 +76,19 @@ The first tab carrying one, in strip order, so the chip lands on the leftmost ma
 
 The row was duplicated onto BACKUP because "how were these made" is a question about the seed and an outside reader guessed that tab; that argument is still true and did not survive what the pair cost. From the bench, "why the fuck now is there TWO audit button in SETTINGS screens" -- a settings page that lists the same row twice reads as a page that does not know what it holds, and a reader who cannot find a screen is not helped by finding it twice. It was moved to DEVICE for one commit on the reasoning that HOW YOUR KEYS WERE MADE and the RANDOMNESS AUDIT are facts about this box. Wrong tab: what an owner does with them is decide whether to TRUST the box, which is what SECURITY is for, and it is where the row has always been. DEVICE is FIRMWARE, THIS DEVICE and TERMS, and it is three rows again. No value: AUDIT has no state to report, so what it is FOR rides the sub lane. A phrase in the value lane wraps into the chevron -- the value never yields, so it has to be short or absent.
 
-[`main/kiss_settings.c:1923`](../main/kiss_settings.c#L1923)
+[`main/kiss_settings.c:1932`](../main/kiss_settings.c#L1932)
 
 ### these tabs keep their NOUNS and are not renamed after the jobs they hold
 
 The proposal was HOW IT SIGNS / WHAT IT KEEPS / HOW IT PROVES / WHAT IT IS, and it does not fit: the five-up strip is 620px, the shipped labels measure 612 of it, and those four plus NO UNDO measure 920. Three hundred pixels over is not a layout to tune. The only form that fits is single verbs -- SIGNS / KEEPS / PROVES / IS, 500px -- and "IS" is not a word to put on a tab an owner is looking for something in. Verbs without subjects read worse than the nouns they would replace, for a reader who bought their first signing device last week. The miscategorisation the proposal was built on is also gone: it argued that storage sat on SECURITY while recovery words sat on BACKUP, so checking a backup crossed two tabs. STORAGE is on BACKUP beside SEED WORDS, which is one job on one tab.
 
-[`main/kiss_settings.c:2225`](../main/kiss_settings.c#L2225)
+[`main/kiss_settings.c:2234`](../main/kiss_settings.c#L2234)
 
 ### language and theme live on the BAND, moved there out of the DEVICE tab
 
 The band's centre: LANGUAGE and THEME, out of the DEVICE tab. The language control needs no caption -- its label IS the active language's own name, stripped of the regional qualifier ("ESPANOL (ESPANA)" -> "ESPANOL") because the picker's flag carries the variant. A WORD ACTION with a GLOBE, not an arrow action. It was a forward arrow, which is the mark the SCREEN'S OWN action wears -- so the one control on the band that picks between 21 languages was signed exactly like a "go on", and came back from the bench as "should have some icon better than an arrow, no?". A globe says what the control is before its word is read, in every one of those 21 languages at once.
 
-[`main/kiss_settings.c:2286`](../main/kiss_settings.c#L2286)
+[`main/kiss_settings.c:2295`](../main/kiss_settings.c#L2295)
 
 ## `main/kiss_setup.c`
 
@@ -186,23 +186,29 @@ It pulsed once, on the first [ ? ] an owner ever met, and was still forever afte
 
 [`main/kiss_theme.c:3961`](../main/kiss_theme.c#L3961)
 
+### a caution value is lifted into the accent only where the row has a LAMP to carry the amber
+
+The lift was unconditional, on the argument written here for its whole life -- "its lamp is the amber, and the lamp is what the eye lands on first anyway". That argument is the lamp's, not the value's, so a row with no lamp was borrowing a reason it did not have: SETTINGS > SIGNER lost its pulsing dot (a pulse means a tab needs attention, and being on signet does not), and the word SIGNET went on reading in the theme's own colour with nothing amber left anywhere on the row. Reported from the bench in those terms. So the condition is the lamp. No lamp, no lift, and the caution stays the caution's colour.
+
+[`main/kiss_theme.c:4377`](../main/kiss_theme.c#L4377)
+
 ### a lone span is a break opportunity, so when the word before a stop ends near the edge the "
 
 " wraps by ITSELF and the next line opens with a full stop. It looks like a typo in the string and it is not -- SIGN's refusal screen shows it on "information" / ". pair it again". Folding the stop back into the body run fixes it and was rejected: the accent stop is the design, it is what makes a wrapped body scan as sentences rather than as a block, and LVGL gives no way to hold a span to the one before it. The copy moves instead, which is what happened here -- the word at the edge changes and the stop follows it up.
 
-[`main/kiss_theme.c:6416`](../main/kiss_theme.c#L6416)
+[`main/kiss_theme.c:6430`](../main/kiss_theme.c#L6430)
 
 ### the icon grid's ladder floors at 21 and no longer has a font14 rung
 
 THE FLOOR IS 21, NOT 14, which is the same floor wt_body_para has and for the same reason: font14 is for MARKS -- chip labels, unit suffixes, chevrons -- and every string in this grid is a SENTENCE an owner reads before signing. WHY FLAGGED is the case that proves it: five caution rows explaining why a payment was flagged, all of them at the size this device keeps for punctuation. mono21 only where the copy CAN be mono, which is what the body ladder asks too. Where it cannot, the rung stays 23 and the overflow is reported rather than shrunk away -- copy too long for its box is copy to cut, and a silent drop is what hid this for the grid's whole life.
 
-[`main/kiss_theme.c:6766`](../main/kiss_theme.c#L6766)
+[`main/kiss_theme.c:6780`](../main/kiss_theme.c#L6780)
 
 ### an output not on this page draws NO STRAND
 
 It used to draw a dimmed one, on the reasoning that the shape of the transaction should not leave while its detail is read -- and what that produced was a line running to blank glass, because the row it aims at is hidden. There is nothing at the end of it and nothing that says why, so it reads as a destination the screen will not name: the one thing this graph exists to never do. It was reported from the bench as a strand "going to nowhere", twice, once about its colour and once about the strand itself. What is lost is the fan on a paged spend, and the counter on the caption line carries that instead -- 1/2 is on the glass beside WHERE IT GOES, and the read-to-the-end gate holds the slide until every page has been turned, so no signature can happen from one page's worth of strands.
 
-[`main/kiss_theme.c:7806`](../main/kiss_theme.c#L7806)
+[`main/kiss_theme.c:7820`](../main/kiss_theme.c#L7820)
 
 ## `main/kiss_theme.h`
 

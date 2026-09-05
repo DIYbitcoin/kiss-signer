@@ -1840,14 +1840,23 @@ static void tab_signer(void)
     // mark popup... wait it already is so just remove that text".
 
     wt_def_t defs[2] = {
-        // Amber on both test networks, in the value AND the sub: the colour
-        // says "these coins are not real" and the words say it again, so the
-        // state never rests on colour alone. The lamp is KEYS' own.
+        // Amber on both test networks, in the VALUE and nowhere else. The
+        // row wore an amber lamp that PULSED off mainnet, and a pulsing dot
+        // is what this page's tab strip uses to route the attention chip --
+        // so the row was raising a hand about a setting the owner had just
+        // chosen on purpose. Being on signet is not a thing to attend to.
+        //
+        // With the lamp gone the word keeps its own amber rather than being
+        // lifted into the theme (see the lift's condition in kiss_theme.c),
+        // which is what "the text should just be yellow" asked for. The sub
+        // takes no colour at all: "not real bitcoin" is a teaching line and
+        // reads exactly like "Native SegWit" in the row below it.
+        //
+        // MAINNET is unchanged: the green lamp, the value in ink.
         { .cap = tr(STR_I_ROW_NETWORK), .val = kiss_net_name(),
           .val_col = tn ? WT_WARN : (lv_color_t){0},
           .sub = tr(tn ? STR_G_TESTNET_NOTE : STR_G_MAINNET_NOTE),
-          .sub_col = tn ? WT_WARN : (lv_color_t){0},
-          .lamp = true, .lamp_col = tn ? WT_WARN : WT_OK, .lamp_pulse = tn,
+          .lamp = !tn, .lamp_col = WT_OK,
           .mark = LV_SYMBOL_LOOP, .go = net_cb },
         // The address PREFIX is the value. That is the way round it has to
         // be, not a preference: bc1 is what an owner sees in their

@@ -1912,6 +1912,31 @@ static bool oc_is_warn(lv_color_t c)
     return p.red == 0xF2 && p.green == 0xB8 && p.blue == 0x4B;
 }
 
+// The ALLOW list, and it is not the backlog: these are not strings waiting to
+// be fixed, they are the one place the rule above is deliberately inverted.
+//
+// SETTINGS > SIGNER's network row used to say the caution twice -- an amber
+// lamp that PULSED, and the word beside it lifted into the accent. The pulse
+// was the problem: a breathing dot is how this device's tab strip routes the
+// attention chip, so the row was raising a hand about a setting the owner had
+// just chosen. The bench asked for the dot off the row and the WORD yellow,
+// which leaves the caution said exactly once, by the thing being cautioned
+// about.
+//
+// So the general rule stands -- amber is a mark colour, and every other amber
+// sentence on the device is a finding. These two are the chain's own names,
+// they are untranslated in all 21 locales (kiss_net_name returns them as
+// literals), and they are matched WHOLE so a longer string that happens to
+// contain one is still reported.
+static const char *OC_AMBER_ALLOW[] = { "TESTNET", "SIGNET" };
+
+static bool oc_amber_allowed(const char *txt)
+{
+    for (unsigned i = 0; i < sizeof OC_AMBER_ALLOW / sizeof OC_AMBER_ALLOW[0]; i++)
+        if (strcmp(txt, OC_AMBER_ALLOW[i]) == 0) return true;
+    return false;
+}
+
 static const char *OC_AMBER_BACKLOG[] = {
     NULL,   // C forbids an empty initialiser; the loop below skips NULLs
 };
@@ -1937,6 +1962,7 @@ static void oc_check_amber(const char *tag)
         if (!oc_is_warn(lv_obj_get_style_text_color(n->obj, LV_PART_MAIN)))
             continue;
         if (oc_word_count(txt) < 1) continue;      // a bare glyph is a MARK
+        if (oc_amber_allowed(txt)) continue;       // the network row, on purpose
         if (oc_amber_excused(txt)) continue;
         oc_text(n->obj, t, sizeof t);
         snprintf(sig, sizeof sig, "AMBER|%s", t);
@@ -3108,8 +3134,15 @@ int oc_selftest(void)
                              true);
     bad += oc_selftest_amber("a lone caution glyph in WT_WARN, clear",
                              LV_SYMBOL_WARNING, false);
+    // The allow list, both ways. A gate that excused the whole list by
+    // substring would also excuse the sentence below, which is how an allow
+    // turns into a hole nobody notices.
+    bad += oc_selftest_amber("an allowed chain name in WT_WARN, clear",
+                             "SIGNET", false);
+    bad += oc_selftest_amber("a sentence CONTAINING one, fires",
+                             "SIGNET is not real bitcoin", true);
     if (bad) printf("AMBER self test: %d case(s) wrong\n", bad);
-    else     printf("AMBER self test: 2 cases, all as expected\n");
+    else     printf("AMBER self test: 4 cases, all as expected\n");
     printf("\n");
 
     printf("TINY check self test\n");

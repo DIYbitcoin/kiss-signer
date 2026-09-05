@@ -4374,10 +4374,21 @@ static void def_apply(wt_defs_t *d, int k, int mode)
         else                   lv_obj_add_flag(r->val, WT_FLAG_ACCENT);
         lv_spangroup_refresh(r->val);
     } else {
-        // A caution VALUE takes the accent: its lamp is the amber, and the
-        // lamp is what the eye lands on first anyway.
+        // DECIDED: a caution value is lifted into the accent only where the
+        // row has a LAMP to carry the amber.
+        // The lift was unconditional, on the argument written here for its
+        // whole life -- "its lamp is the amber, and the lamp is what the eye
+        // lands on first anyway". That argument is the lamp's, not the
+        // value's, so a row with no lamp was borrowing a reason it did not
+        // have: SETTINGS > SIGNER lost its pulsing dot (a pulse means a tab
+        // needs attention, and being on signet does not), and the word SIGNET
+        // went on reading in the theme's own colour with nothing amber left
+        // anywhere on the row. Reported from the bench in those terms.
+        //
+        // So the condition is the lamp. No lamp, no lift, and the caution
+        // stays the caution's colour.
         lv_color_t vc = col_or(r->def.val_col, WT_INK);
-        const bool lifted = lv_color_eq(vc, WT_WARN);
+        const bool lifted = lv_color_eq(vc, WT_WARN) && r->def.lamp;
         if (lifted) vc = wt_accent();
         // ...and it must be REPAINTED, because it is the accent now. A caution
         // that is lifted into the theme's colour and then not flagged is
@@ -4740,8 +4751,11 @@ static lv_obj_t *def_list_build(lv_obj_t *scr, const wt_def_t *defs, int n,
                 // value and its mark leave behind, so a longer VALUE (ENABLED
                 // to DISABLED) shortens it under copy that fitted a moment ago.
                 wt_sub_measure("sub", defs[k].sub, sf, 0, lane);
+                // Same rule as the value above, and it has to be the same
+                // rule: a row whose sub lifted while its value did not would
+                // print one caution in the theme's colour and one in amber.
                 lv_color_t sc = col_or(defs[k].sub_col, WT_DIM);
-                const bool lift = lv_color_eq(sc, WT_WARN);
+                const bool lift = lv_color_eq(sc, WT_WARN) && defs[k].lamp;
                 if (lift) sc = wt_accent();
                 r->sub = wt_lbl(row, defs[k].sub, 0, 0, sf, sc);
                 // Same lift, same requirement: see the value above.
