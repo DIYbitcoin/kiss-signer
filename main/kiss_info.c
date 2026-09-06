@@ -301,6 +301,18 @@ lv_obj_t *kiss_info_help_card_open(lv_obj_t *parent, const char *title,
 // kiss_info_fp_card_open.
 
 // ---- PAIR COORDINATOR ----
+// The pairing screen's right column, as numbers both halves read.
+//
+// The import note is built EMPTY and filled by pair_refresh, so its box and
+// its fit budget live apart -- and they disagreed: the box was 108 tall and
+// the refit was told it had 190, which is 76px past the standing line below
+// it. English fits in 108 and never showed it. Ten locales overflowed into
+// that line, and it took the twenty one locale sweep's first complete run to
+// say so.
+#define PAIR_NOTE_Y   204
+#define PAIR_EXPL_Y   318
+#define PAIR_NOTE_H   (PAIR_EXPL_Y - PAIR_NOTE_Y - 6)
+
 static void pair_refresh(void)
 {
     char txt[256];
@@ -312,13 +324,13 @@ static void pair_refresh(void)
     // over there instead of being refused here. See wt_qr_refusal.
     wt_qr_refusal(s_pair_qr, rc != 0);
     if (rc != 0) {
-        wt_note_fit(s_pair_note, tr(STR_C_LOCKED_B), 360, 190);   // see the scan key refusal
+        wt_note_fit(s_pair_note, tr(STR_C_LOCKED_B), 360, PAIR_NOTE_H);
         return;
     }
     if (s_pair_qr)
         wt_qr_update(s_pair_qr, txt, (uint32_t)strlen(txt));
     wt_note_fit(s_pair_note, s_pair_fmt ? tr(STR_I_NOTE_BW) : tr(STR_I_NOTE_SPARROW),
-                360, 190);
+                360, PAIR_NOTE_H);
     for (int i = 0; i < 2; i++) {
         bool on = (s_pair_fmt == i);
         // The flag rides with the paint, or the selected app name keeps the
@@ -627,7 +639,7 @@ static void pair_screen(void)
 
     // The QR is primary on page one; the selected app's import directions are
     // readable here and repeated with the proof step on the static NEXT page.
-    s_pair_note = wt_note(s_scr, "", 400, 204, 360, 108);
+    s_pair_note = wt_note(s_scr, "", 400, PAIR_NOTE_Y, 360, PAIR_NOTE_H);
 
     // WHAT THIS QR HANDS OVER, at the moment it is handed over. The KEYS page
     // says it as a standing line one screen back, and this is the screen where
@@ -639,7 +651,7 @@ static void pair_screen(void)
     // spend one." The accent stop between the two sentences is what separates
     // the reassurance from the limit, which is the whole reason that treatment
     // exists.
-    wt_note(s_scr, tr(STR_K_EXPL_COORD), 400, 318, 360, 76);
+    wt_note(s_scr, tr(STR_K_EXPL_COORD), 400, PAIR_EXPL_Y, 360, 76);
 
     // This BACK used to take the corner on the theory that an escape from the
     // whole flow earns it while a step back to one page does not. That rule was

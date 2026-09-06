@@ -26,7 +26,7 @@ It was twelve strings of "spare" against four of "decoy", and "spare" reads as a
 
 ONE segment. It was "KEYS / COORDINATOR" and the second half restates the title this page already carries. ...and its box STOPS at the head. wt_trail runs to 752 (or 12 short of a [ ? ]) so a short word still owns the strip, which is right on every other screen and wrong on this one: SHOW IT TO now shares the row, and the overlap gate reads boxes rather than glyphs.
 
-[`main/kiss_info.c:552`](../main/kiss_info.c#L552)
+[`main/kiss_info.c:564`](../main/kiss_info.c#L564)
 
 ## `main/kiss_psbt.c`
 
