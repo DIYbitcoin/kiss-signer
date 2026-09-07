@@ -578,6 +578,62 @@ lv_color_t wt_ink_for(lv_color_t col)
     return lv_color_eq(col, WT_WARN) ? wt_accent() : col;
 }
 
+
+// The paragraph pair, forward: every sentence on this device is drawn through
+// these two, and wt_screen's subtitle -- the first line on the page -- sits
+// above where they are defined.
+static void spans_fill(lv_obj_t *sg, const char *txt, const char *hi);
+static lv_obj_t *spans_new(lv_obj_t *par, int x, int y, int w);
+
+// tr_sym glues "<mark>  " onto the front of a string, and the two halves need
+// different faces: the mono faces are built ASCII only, so a head asking for
+// one string in mono truthfully fails and drops the WHOLE line to sans.
+//
+// A MARK is a PRIVATE USE codepoint followed by those two spaces, and nothing
+// else. The first cut of this asked whether the leading byte was >= 0x80,
+// which is true of every non-Latin string on the device: TRANSACTION ID is
+// "\u0130\u015eLEM ID" in Turkish, and Korean and Chinese begin the same way, so
+// the front was torn off each of them and drawn as an icon. English could not
+// see it and neither could the other eighteen locales, whose translations
+// happen to start with an ASCII letter -- the twenty one locale walk caught it
+// on the first night it was ever able to run.
+//
+// Returns the mark's byte length (0 for none) and points `words` past it.
+static int mark_split(const char *txt, char *out, size_t n, const char **words)
+{
+    *words = txt;
+    if (!txt) return 0;
+    const unsigned char *p = (const unsigned char *)txt;
+    // LV_SYMBOL_* and WT_ICON_* are U+E000..U+F8FF: three UTF-8 bytes,
+    // EE 80 80 through EF A3 BF.
+    if (p[0] != 0xEE && p[0] != 0xEF) return 0;
+    unsigned cp = ((unsigned)(p[0] & 0x0F) << 12)
+                | ((unsigned)(p[1] & 0x3F) << 6)
+                |  (unsigned)(p[2] & 0x3F);
+    if (cp < 0xE000 || cp > 0xF8FF || p[3] != ' ' || p[4] != ' ') return 0;
+    size_t len = 3 < n - 1 ? 3 : n - 1;
+    memcpy(out, txt, len);
+    out[len] = 0;
+    *words = txt + 5;
+    return 3;
+}
+
+// The mark, off the Latin face that carries the symbols, centred on the line
+// box of the words beside it -- two faces at two heights, so a shared y floats
+// one of them. Returns how far to move the words along.
+static int mark_draw(lv_obj_t *par, const char *mark, int x, int y, int wh,
+                     lv_color_t col)
+{
+    // wt_font23 and not a 21: there is no Latin 21 face, and the trail's own
+    // mark takes 23 beside a chrome23 word for the same reason.
+    const int mh = lv_font_get_line_height(wt_font23());
+    lv_point_t ms;
+    lv_text_get_size(&ms, mark, wt_font23(), 0, 0, LV_COORD_MAX,
+                     LV_TEXT_FLAG_NONE);
+    wt_lbl(par, mark, x, y + (wh - mh) / 2, wt_font23(), col);
+    return ms.x + 10;
+}
+
 const lv_font_t *wt_body_font(const char *txt, int w, int max_h)
 {
     return body_font_ladder(txt, w, max_h, true);
@@ -840,13 +896,14 @@ lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub)
         // Sized to fit, not assumed to fit: at a fixed font23 the longer
         // subtitles ran straight off the right edge of the panel, and a label
         // with no width clips silently instead of wrapping.
-        lv_obj_t *s = lv_label_create(scr);
-        lv_label_set_text(s, sub);
+        //
+        // SPANS, so the full stop takes the accent like every other sentence
+        // on the device. It was a plain label, which is how the one line an
+        // owner reads first ended up being the only one with a grey stop.
+        lv_obj_t *s = spans_new(scr, 48, 66, 704);
         lv_obj_set_style_text_color(s, WT_MUT, 0);
         lv_obj_set_style_text_font(s, note_font(sub, 704, 29), 0);
-        lv_obj_set_width(s, 704);
-        lv_label_set_long_mode(s, LV_LABEL_LONG_WRAP);
-        lv_obj_set_pos(s, 48, 66);
+        spans_fill(s, sub, NULL);
         lv_obj_set_user_data(s, (void *)WT_SUB_TAG);
     }
     lv_obj_set_user_data(scr, (void *)WT_SCREEN_TAG);
@@ -1674,8 +1731,6 @@ lv_obj_t *wt_slide_rule_c(lv_obj_t *scr, const char *txt, const char *held,
 // Paragraph text is drawn as SPANS, so the full stop of each sentence can
 // carry the accent. Declared here because the side-note helpers below are the
 // first users and the builder lives with the explainers.
-static void spans_fill(lv_obj_t *sg, const char *txt, const char *hi);
-static lv_obj_t *spans_new(lv_obj_t *par, int x, int y, int w);
 
 lv_obj_t *wt_lbl(lv_obj_t *scr, const char *txt, int x, int y,
                  const lv_font_t *f, lv_color_t col)
@@ -1773,51 +1828,16 @@ lv_obj_t *wt_section(lv_obj_t *scr, const char *txt, int x, int y)
     //
     // Split, each half gets the face it needs: the mark off the Latin face
     // that carries the symbols, the words off the mono rung.
-    // A MARK is a PRIVATE USE codepoint followed by tr_sym's two spaces, and
-    // nothing else. The first cut of this asked whether the leading byte was
-    // >= 0x80, which is true of every non-Latin string on the device: the
-    // TRANSACTION ID head is "İŞLEM ID" in Turkish, "거래 ID" in Korean and
-    // "交易 ID" in Chinese, so wt_section tore the front off each of them and
-    // drew it as an icon. English could not see it and neither could any of
-    // the other eighteen locales, whose translations happen to start with an
-    // ASCII letter. The twenty one locale walk caught it on the first night
-    // it was ever able to run.
+    char markbuf[8];
     const char *w = txt;
-    int lead = 0;
-    if (txt) {
-        const unsigned char *p = (const unsigned char *)txt;
-        // LV_SYMBOL_* and WT_ICON_* are U+E000..U+F8FF: three UTF-8 bytes,
-        // EE 80 80 through EF A3 BF.
-        if (p[0] == 0xEE || p[0] == 0xEF) {
-            unsigned cp = ((unsigned)(p[0] & 0x0F) << 12)
-                        | ((unsigned)(p[1] & 0x3F) << 6)
-                        |  (unsigned)(p[2] & 0x3F);
-            if (cp >= 0xE000 && cp <= 0xF8FF && p[3] == ' ' && p[4] == ' ') {
-                lead = 3;
-                w = txt + 5;
-            }
-        }
-    }
+    const int lead = mark_split(txt, markbuf, sizeof markbuf, &w);
     // The words' own rung decides the row, and the mark is CENTRED on it. The
     // two halves are different faces at different heights, so a mark simply
     // pinned to the same y floats: the eye on PAIR COORDINATOR sat level with
     // the page title, a whole strip above the word it belongs to.
     const lv_font_t *wf = wt_chrome21(w);
     const int wh = lv_font_get_line_height(wf);
-    if (lead) {
-        char mark[8];
-        int n = lead < (int)sizeof mark ? lead : (int)sizeof mark - 1;
-        memcpy(mark, txt, (size_t)n);
-        mark[n] = 0;
-        // wt_font23 and not a 21: there is no Latin 21 face, and the trail's
-        // own mark takes 23 beside a chrome23 word for the same reason.
-        const int mh = lv_font_get_line_height(wt_font23());
-        lv_point_t ms;
-        lv_text_get_size(&ms, mark, wt_font23(), 0, 0, LV_COORD_MAX,
-                         LV_TEXT_FLAG_NONE);
-        wt_lbl(scr, mark, x, y + (wh - mh) / 2, wt_font23(), WT_INK);
-        x += ms.x + 10;
-    }
+    if (lead) x += mark_draw(scr, markbuf, x, y, wh, WT_INK);
 
     lv_obj_t *l = lv_label_create(scr);
     lv_label_set_text(l, w);
@@ -3335,7 +3355,8 @@ lv_obj_t *wt_line_row(lv_obj_t *par, int x, int y, int w, int h,
         // overruns has to lose letters rather than run under the sub.
         const int vw = (subw ? sub_x : right) - 18 - WT_LINE_PAD;
         lv_obj_t *v = wt_lbl(row, val, WT_LINE_PAD, wt_line_val_y(),
-                             vf ? vf : wt_font23(), wt_ink_for(vcol));
+                             vf ? vf : wt_font23(),
+                             wt_ink_for(vcol));
         lv_obj_set_user_data(v, (void *)WT_LINE_VAL_TAG);
         lv_obj_set_width(v, vw);
         lv_obj_set_height(v, lv_font_get_line_height(vf ? vf : wt_font23()));
@@ -5518,12 +5539,30 @@ void wt_group_note(lv_obj_t *pane, int rows, const char *txt)
     // sentence under a group is a sentence the owner READS, so it sits at
     // the same size as the subs above it. The lane holds 54 mono cells;
     // longer copy gets cut, not shrunk.
-    const lv_font_t *f = chrome23(txt);
-    lv_obj_t *l = wt_lbl(pane, txt, WT_WIDE_X, WT_WIDE_EXPL_Y(rows), f,
-                         WT_MUT);
-    lv_obj_set_width(l, WT_WIDE_W);
-    lv_obj_set_height(l, lv_font_get_line_height(f));
-    lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+    //
+    // SPANS, not a label, and for the reason every body on this device is:
+    // the full stop of each sentence takes the accent, which is what makes a
+    // line scan as a claim rather than as a caption. It was drawn through
+    // wt_lbl, so it was the one sentence on the SEED WORDS page with a grey
+    // stop while the paragraph one screen away had a coloured one -- reported
+    // from the bench, along with how tightly it sat under the group.
+    //
+    // 12px more air than WT_WIDE_EXPL_Y gives, because that constant puts the
+    // line 12 under a 66px row and the two read as one block.
+    // MARKED, if the caller hands it one through tr_sym -- marks before words,
+    // like every row and chip on the device -- and split off the string so the
+    // words keep the mono rung the symbol cannot live in.
+    char markbuf[8];
+    const char *w = txt;
+    const int lead = mark_split(txt, markbuf, sizeof markbuf, &w);
+    const lv_font_t *f = chrome23(w);
+    int x = WT_WIDE_X;
+    const int y = WT_WIDE_EXPL_Y(rows) + 12;
+    if (lead) x += mark_draw(pane, markbuf, x, y,
+                             lv_font_get_line_height(f), WT_MUT);
+    lv_obj_t *l = spans_new(pane, x, y, WT_WIDE_W - (x - WT_WIDE_X));
+    lv_obj_set_style_text_font(l, f, 0);
+    spans_fill(l, w, NULL);
 }
 
 // ---- the group that MOVES ----------------------------------------------

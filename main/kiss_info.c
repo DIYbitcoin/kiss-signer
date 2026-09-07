@@ -1289,7 +1289,7 @@ static void wtab_enc(void)
     // ...and the other head goes the same way. "if you lose it" ended the tab
     // on a dangling fragment; what it was reaching for is what opens the
     // thing, which is the one fact the two rows above do not carry.
-    wt_group_note(w_pane, 2, tr(STR_I_KEF_SHOW_S));
+    wt_group_note(w_pane, 2, tr_sym(WT_ICON_LOCK, STR_I_KEF_SHOW_S));
 
     // No fingerprint card here either. The row above already names the file
     // by its fingerprint ("one QR, or 9A2C33E3.kef"), so the card was the
