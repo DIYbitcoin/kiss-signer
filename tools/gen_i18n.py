@@ -276,10 +276,10 @@ UNTRANSLATED_OK = {
     # tab labels and the row names that had no equivalent.
     "I_WTAB_PAPER", "I_WTAB_ENC", "I_WROW_SHOW", "I_WROW_SHOW_SUB",
     "I_WROW_CHECK", "I_WROW_KEF", "I_WROW_HOLDS",
-    # Naming the artifacts rather than describing them: the encrypted backup
-    # row prints the file it will write, and the SD screen stops borrowing the
-    # firmware screen's caption for a byte pair. English until the sweep.
-    "I_ROW_KEF_SUB_FMT", "G_SD_SPACE_CAP", "G_SD_ROW_WORDS_HERE",
+    # The SD screen stops borrowing the firmware screen's caption for a byte
+    # pair. English until the sweep. (I_ROW_KEF_SUB_FMT was here too, until
+    # the row stopped naming the file it writes.)
+    "G_SD_SPACE_CAP", "G_SD_ROW_WORDS_HERE",
     # The second refusal on the firmware screen: an image that passed the
     # secp256r1 check and was still refused, because its post quantum signature
     # was missing or wrong. It needed its own key rather than reusing

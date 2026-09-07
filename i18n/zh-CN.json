@@ -264,7 +264,6 @@
   "I_ROW_HISTORY": "保存",
   "I_ROW_KEF": "加密备份",
   "I_ROW_KEF_SUB": "多一份，加密的",
-  "I_ROW_KEF_SUB_FMT": "一个二维码，或 %02X%02X%02X%02X.kef",
   "I_ROW_NETWORK": "网络",
   "I_ROW_STORAGE": "存放位置",
   "I_ROW_TERMS": "术语",

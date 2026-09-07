@@ -264,7 +264,6 @@
   "I_ROW_HISTORY": "LAGRE",
   "I_ROW_KEF": "KRYPTERT KOPI",
   "I_ROW_KEF_SUB": "en kopi til, kryptert",
-  "I_ROW_KEF_SUB_FMT": "én QR, eller %02X%02X%02X%02X.kef",
   "I_ROW_NETWORK": "NETTVERK",
   "I_ROW_STORAGE": "LAGRING",
   "I_ROW_TERMS": "BEGREPER",

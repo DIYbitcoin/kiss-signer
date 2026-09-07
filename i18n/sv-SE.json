@@ -264,7 +264,6 @@
   "I_ROW_HISTORY": "SPARA",
   "I_ROW_KEF": "KRYPTERAD BACKUP",
   "I_ROW_KEF_SUB": "en extra kopia, krypterad",
-  "I_ROW_KEF_SUB_FMT": "en QR, eller %02X%02X%02X%02X.kef",
   "I_ROW_NETWORK": "NÄTVERK",
   "I_ROW_STORAGE": "LAGRING",
   "I_ROW_TERMS": "BEGREPP",

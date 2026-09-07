@@ -264,7 +264,6 @@
   "I_ROW_HISTORY": "SPEICHERN",
   "I_ROW_KEF": "VERSCHLÜSSELTES BACKUP",
   "I_ROW_KEF_SUB": "eine Extrakopie, verschlüsselt",
-  "I_ROW_KEF_SUB_FMT": "ein QR, oder %02X%02X%02X%02X.kef",
   "I_ROW_NETWORK": "NETZWERK",
   "I_ROW_STORAGE": "SPEICHER",
   "I_ROW_TERMS": "BEGRIFFE",

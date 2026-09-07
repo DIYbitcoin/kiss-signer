@@ -264,7 +264,6 @@
   "I_ROW_HISTORY": "保存",
   "I_ROW_KEF": "暗号化バックアップ",
   "I_ROW_KEF_SUB": "もう一つの写し、暗号化",
-  "I_ROW_KEF_SUB_FMT": "QR 一つ、または %02X%02X%02X%02X.kef",
   "I_ROW_NETWORK": "ネットワーク",
   "I_ROW_STORAGE": "置き場所",
   "I_ROW_TERMS": "用語",

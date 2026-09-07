@@ -264,7 +264,6 @@
   "I_ROW_HISTORY": "저장",
   "I_ROW_KEF": "암호화된 백업",
   "I_ROW_KEF_SUB": "복사본 하나 더, 암호화",
-  "I_ROW_KEF_SUB_FMT": "QR 하나 또는 %02X%02X%02X%02X.kef",
   "I_ROW_NETWORK": "네트워크",
   "I_ROW_STORAGE": "두는 곳",
   "I_ROW_TERMS": "용어",

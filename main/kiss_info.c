@@ -1227,14 +1227,19 @@ static void wtab_enc(void)
     // an owner with nothing to look for on the card. One QR to photograph, or
     // one file, and the file's name is the fingerprint -- which the card below
     // this group is already showing, so the two read together.
-    char ksub[64];
-    uint8_t kfp[4];
-    kiss_ui_last_fp(kfp);
-    if (kiss_fp_known(kfp))
-        snprintf(ksub, sizeof ksub, tr(STR_I_ROW_KEF_SUB_FMT),
-                 kfp[0], kfp[1], kfp[2], kfp[3]);
-    else
-        snprintf(ksub, sizeof ksub, "%s", tr(STR_I_ROW_KEF_SUB));
+    // ONE sub, and it no longer names the file. It read "one QR, or
+    // 9A2C33E3.kef" once the fingerprint was known -- a filename extension a
+    // first-week owner has never met, wrapped around eight hex characters that
+    // read as noise beside it, and the bench said so. What the row gives you is
+    // a QR you can print or a file, which are both things this device has
+    // already shown them; the fingerprint stays on the screens where it is
+    // the subject, and WHERE the file goes is said on the screen that writes
+    // it. Naming the card here as well put the line past both the SLACK lane
+    // and the 3.5in board's whole content width.
+    //
+    // The branch went with it: there is nothing left for the fingerprint to
+    // change, so there is nothing to branch on.
+    const char *ksub = tr(STR_I_ROW_KEF_SUB);
 
     wt_row_wide(w_pane, WT_WIDE_Y(0), &(wt_wide_t){
         .label = tr(STR_I_WROW_KEF),

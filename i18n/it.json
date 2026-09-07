@@ -264,7 +264,6 @@
   "I_ROW_HISTORY": "TENERE",
   "I_ROW_KEF": "BACKUP CIFRATO",
   "I_ROW_KEF_SUB": "una copia in più, cifrata",
-  "I_ROW_KEF_SUB_FMT": "un QR, o %02X%02X%02X%02X.kef",
   "I_ROW_NETWORK": "RETE",
   "I_ROW_STORAGE": "ARCHIVIAZIONE",
   "I_ROW_TERMS": "TERMINI",

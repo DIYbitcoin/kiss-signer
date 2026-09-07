@@ -264,7 +264,6 @@
   "I_ROW_HISTORY": "GARDER",
   "I_ROW_KEF": "SAUVEGARDE CHIFFRÉE",
   "I_ROW_KEF_SUB": "une copie de plus, chiffrée",
-  "I_ROW_KEF_SUB_FMT": "un QR, ou %02X%02X%02X%02X.kef",
   "I_ROW_NETWORK": "RÉSEAU",
   "I_ROW_STORAGE": "STOCKAGE",
   "I_ROW_TERMS": "TERMES",

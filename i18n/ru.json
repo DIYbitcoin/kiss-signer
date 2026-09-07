@@ -264,7 +264,6 @@
   "I_ROW_HISTORY": "ХРАНИТЬ",
   "I_ROW_KEF": "ШИФРОВАННАЯ КОПИЯ",
   "I_ROW_KEF_SUB": "ещё одна копия, зашифрована",
-  "I_ROW_KEF_SUB_FMT": "один QR или %02X%02X%02X%02X.kef",
   "I_ROW_NETWORK": "СЕТЬ",
   "I_ROW_STORAGE": "ПАМЯТЬ",
   "I_ROW_TERMS": "ТЕРМИНЫ",
