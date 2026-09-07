@@ -578,6 +578,33 @@ lv_color_t wt_ink_for(lv_color_t col)
     return lv_color_eq(col, WT_WARN) ? wt_accent() : col;
 }
 
+// Is this string a MARK rather than something to read? No ASCII letter or
+// digit in it means every glyph came out of the symbol range, which is the
+// same test the TINY and AMBER gates use to tell a caution sign from a
+// sentence.
+static bool ink_is_mark(const char *s)
+{
+    if (!s) return false;
+    for (const unsigned char *p = (const unsigned char *)s; *p; p++)
+        if ((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z')
+            || (*p >= '0' && *p <= '9'))
+            return false;
+    return true;
+}
+
+// DECIDED: the amber lift asks WHAT it is colouring, and never lifts a mark.
+// The rule wt_ink_for serves says it in its own words -- the caution GLYPH and
+// the breathing dot keep the amber, and anything READ takes the accent -- but
+// the function was only ever handed a colour, so it lifted both. A row whose
+// VALUE is LV_SYMBOL_WARNING had its caution sign painted the theme's colour:
+// SEED WORDS reported the paper unchecked in green on the green theme, which
+// is the one row on the page where amber is the whole message.
+//
+// A caution's WORDS still take the accent. Only the mark keeps the amber.
+lv_color_t wt_ink_for_text(lv_color_t col, const char *txt)
+{
+    return ink_is_mark(txt) ? col : wt_ink_for(col);
+}
 
 // The paragraph pair, forward: every sentence on this device is drawn through
 // these two, and wt_screen's subtitle -- the first line on the page -- sits
@@ -2660,7 +2687,7 @@ lv_obj_t *wt_row_x(lv_obj_t *scr, const char *icon, const char *label,
     lv_obj_t *v = NULL;
     int vw = 0;
     if (val && *val) {
-        v = wt_lbl(row, val, 0, 0, vf, wt_ink_for(vcol));
+        v = wt_lbl(row, val, 0, 0, vf, wt_ink_for_text(vcol, val));
         lv_obj_update_layout(v);
         vw = lv_obj_get_width(v);
     }
@@ -3356,7 +3383,7 @@ lv_obj_t *wt_line_row(lv_obj_t *par, int x, int y, int w, int h,
         const int vw = (subw ? sub_x : right) - 18 - WT_LINE_PAD;
         lv_obj_t *v = wt_lbl(row, val, WT_LINE_PAD, wt_line_val_y(),
                              vf ? vf : wt_font23(),
-                             wt_ink_for(vcol));
+                             wt_ink_for_text(vcol, val));
         lv_obj_set_user_data(v, (void *)WT_LINE_VAL_TAG);
         lv_obj_set_width(v, vw);
         lv_obj_set_height(v, lv_font_get_line_height(vf ? vf : wt_font23()));
@@ -5360,7 +5387,8 @@ lv_obj_t *wt_row_wide(lv_obj_t *scr, int y, const wt_wide_t *r)
     // verified line) still outranks the default -- a state keeps its colour.
     lv_color_t ink  = inert ? WT_DIM : WT_MUT;
     lv_color_t subc = inert ? WT_DIM : wt_ink_for(col_or(r->sub_col, WT_DIM));
-    lv_color_t vcol = inert ? WT_DIM : wt_ink_for(col_or(r->vcol, WT_INK));
+    lv_color_t vcol = inert ? WT_DIM
+                             : wt_ink_for_text(col_or(r->vcol, WT_INK), r->val);
     // wt_ink_for hands a caution's WORDS the accent, so either of these can BE
     // the accent -- and then it has to be repainted like everything else that
     // is. The def rows above wear the same lift and needed the same flag.

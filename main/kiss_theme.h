@@ -99,6 +99,11 @@ const lv_font_t *wt_font_num48(void);   // the Sign hero, digits only
 // A caution's WORDS in the accent, everything else unchanged. See the note on
 // WT_WARN above: the glyph and the lamp keep the amber, the sentence does not.
 lv_color_t wt_ink_for(lv_color_t col);
+// The same lift, told WHAT it is colouring. A string with no letter or digit
+// in it is a MARK, and a mark keeps the caution's own amber -- which is the
+// half of the rule wt_ink_for could not see, because it is handed a colour and
+// nothing else. Every row VALUE goes through this one.
+lv_color_t wt_ink_for_text(lv_color_t col, const char *txt);
 const lv_font_t *wt_body_font(const char *txt, int w, int max_h);
 // The same ladder with the FIT gate NOT told when it lands on font14. Exactly
 // one caller: the login screen's passphrase echo, where the text is the
