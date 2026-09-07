@@ -4329,7 +4329,8 @@ int wt_facts_in(lv_obj_t *par, int x, int y, int w,
         // rebuilt to stop. So the pair is "caption bigger" in English and
         // "caption equal" where the language is long, and never the other way
         // round.
-        const lv_font_t *cf = chrome28(facts[i].cap);
+        const lv_font_t *cf = facts[i].cap_font ? facts[i].cap_font
+                                                : chrome28(facts[i].cap);
         {
             lv_point_t cs;
             lv_text_get_size(&cs, facts[i].cap, cf, 2, 0, LV_COORD_MAX,

@@ -2231,16 +2231,27 @@ static void tab_noundo(void)
     // Two ROWS inside the card, 24 in from its edge, which leaves exactly the
     // 704 the content lane gets -- so the captions and values line up with
     // every other pair of claims on the device. The marks carry the split:
-    // the bin on what goes, the page on what stays, and STOP on the bin
-    // because this card is the one place a group is irreversible.
+    // the bin on what goes, the page on what stays.
+    //
+    // THE CAPTIONS SIT AT THE ACTION'S RUNG, which is this card's own case and
+    // not a change to the kit. Everywhere else a fact caption is read against
+    // the VALUE beside it and 28 is right; here it is read against ERASE SEED
+    // WORDS below it, which is chrome23, so FORGETS and REMEMBERS came out the
+    // largest words on a card about an irreversible erase.
+    //
+    // BOTH MARKS TAKE THE THEME. The bin was WT_STOP_INK on the argument that
+    // this card is the one place a group cannot be walked back -- but the page
+    // beside it took the accent, so the pair read as one warning and one
+    // ordinary fact rather than as two halves of the same claim. The card's
+    // own red wash and the hold behind the action are what say irreversible.
     const int by = 22 + lv_font_get_line_height(wt_font28()) + 8;
     {
+        const lv_font_t *cf = wt_chrome23(tr(STR_I_ERASE_H1));
         wt_fact_t facts[2] = {
             { .cap = tr(STR_I_ERASE_H1), .val = tr(STR_I_ERASE_B1),
-              .icon = WT_ICON_ERASE,
-              .icon_col = WT_STOP_INK },
+              .icon = WT_ICON_ERASE, .cap_font = cf },
             { .cap = tr(STR_I_ERASE_H2), .val = tr(STR_I_ERASE_B2),
-              .icon = LV_SYMBOL_FILE },
+              .icon = LV_SYMBOL_FILE, .cap_font = cf },
         };
         wt_facts_in(card, 24, by, 704, facts, 2);
     }

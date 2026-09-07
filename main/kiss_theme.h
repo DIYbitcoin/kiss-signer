@@ -1307,6 +1307,12 @@ typedef struct {
     // initialiser is unchanged. Same rule wt_gate states at length -- one
     // amber thing on a screen an owner can still walk back from.
     lv_color_t  icon_col;
+    // The caption's rung, NULL for the default. The default steps 28 down to
+    // 23 only when the word is too WIDE, which is the right rule under a
+    // VALUE and the wrong one under an ACTION: on NO UNDO the two claim heads
+    // came out larger than the ERASE SEED WORDS control below them, which
+    // reads as the claims shouting over the thing they qualify.
+    const lv_font_t *cap_font;
 } wt_fact_t;
 // The fact ROWS on their own, at a y the caller picks: a caption on a 214px
 // lane that never wraps, its mark, and the value beside it. wt_explain draws
