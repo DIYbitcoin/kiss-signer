@@ -2473,23 +2473,46 @@ static void build_id_fact(lv_obj_t *l, const char *cap, const char *state,
 lv_obj_t *kiss_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio,
                                bool stacked)
 {
+  return kiss_build_id_make_at(parent, x, y, with_radio, stacked, true);
+}
+
+// `with_version` is what HOME asks for and nothing else does. The version was
+// permanent chrome in that corner, at the size this device keeps for marks,
+// on a screen where it can be acted on by nobody: SETTINGS > DEVICE names it
+// on the FIRMWARE row AND again on THIS DEVICE, both at a rung an owner can
+// read. The bench asked for it gone.
+//
+// What stays there is encryption, and only while it is OFF -- a satisfied
+// condition is not news -- so the corner is empty on a device with nothing to
+// say. It also stops being font14: a state an owner is meant to notice is not
+// a mark, whatever corner it sits in.
+lv_obj_t *kiss_build_id_make_at(lv_obj_t *parent, int x, int y,
+                                bool with_radio, bool stacked,
+                                bool with_version)
+{
   bool enc = false, radio_held = true;   // sim: no radio hardware exists
 #ifndef SIMULATOR
   enc = esp_efuse_is_flash_encryption_enabled();
   radio_held = radio_is_held();
 #endif
-  lv_obj_t *v = lv_label_create(parent);
-  lv_obj_set_style_text_font(v, wt_font14(), 0);
-  lv_obj_set_pos(v, x, y);
+  // The corner keeps font14 where the VERSION is in it -- that block is a
+  // diagnostic read once by somebody who already knows what a C6 is. Without
+  // the version it is one state an owner reads, and it takes font23.
+  const lv_font_t *f = with_version ? wt_font14() : wt_font23();
+  lv_obj_t *v = NULL;
+  if (with_version) {
+    v = lv_label_create(parent);
+    lv_obj_set_style_text_font(v, f, 0);
+    lv_obj_set_pos(v, x, y);
 #ifdef KISS_RELEASE
-  lv_label_set_text_fmt(v, "KISS %s (%s)", KISS_VERSION_STR, KISS_COMMIT_STR);
-  kiss_build_id_restyle(v);
+    lv_label_set_text_fmt(v, "KISS %s (%s)", KISS_VERSION_STR, KISS_COMMIT_STR);
 #else
-  lv_label_set_text_fmt(v, "KISS %s dev (%s)", KISS_VERSION_STR, KISS_COMMIT_STR);
-  kiss_build_id_restyle(v);
+    lv_label_set_text_fmt(v, "KISS %s dev (%s)", KISS_VERSION_STR, KISS_COMMIT_STR);
 #endif
+    kiss_build_id_restyle(v);
+  }
   lv_obj_t *w = lv_label_create(parent);
-  lv_obj_set_style_text_font(w, wt_font14(), 0);
+  lv_obj_set_style_text_font(w, f, 0);
   // The word in full. It was abbreviated to "enc" back when the commit came
   // from `git describe` and this line ran the width of the panel -- but that
   // was the commit's fault, and shortening the one word a reader actually
@@ -2529,9 +2552,11 @@ lv_obj_t *kiss_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio,
     //
     // The version is the field that grows, so nothing shares its row.
     lv_obj_set_pos(w, x, y + BUILD_ID_ROW);
-  } else {
+  } else if (v) {
     lv_obj_update_layout(v);
     lv_obj_set_pos(w, x + lv_obj_get_width(v) + BUILD_ID_GAP, y);
+  } else {
+    lv_obj_set_pos(w, x, y);      // no version to sit beside
   }
 
   // The C6 radio readback is a diagnostic for people who already know what a
@@ -2608,7 +2633,9 @@ lv_obj_t *kiss_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio,
   // what a C6 is, in the empty half of an action bar. It is the one place on
   // the device where small print is the right answer, and THIS DEVICE now
   // carries the same four facts as full size rows for everybody else.
-  wt_tiny_ok(v); wt_tiny_ok(w);
+  // TINY_OK only where the block IS the small-print diagnostic. At font23 it
+  // is not, and marking it would excuse a size nothing chose.
+  if (with_version) { wt_tiny_ok(v); wt_tiny_ok(w); }
   lv_obj_update_layout(w);
   s_build_id_right = lv_obj_get_x(w) + lv_obj_get_width(w);
   if (stacked) {
@@ -2618,7 +2645,7 @@ lv_obj_t *kiss_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio,
     if (facts_right > s_build_id_right) s_build_id_right = facts_right;
   }
 
-  return v;
+  return v ? v : w;
 }
 
 // The right edge of the row kiss_build_id_make last drew. Read it straight
