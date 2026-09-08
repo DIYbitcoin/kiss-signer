@@ -702,7 +702,7 @@
   "W_COIN": "MOEDA",
   "W_COIN_HEADS": "CARA",
   "W_COIN_NOTE": "você joga uma moeda 128 vezes.",
-  "W_COIN_S": "suas palavras de recuperação vêm apenas destes lançamentos.",
+  "W_COIN_S": "as palavras seed vêm destes lançamentos.",
   "W_COIN_T": "JOGUE UMA MOEDA",
   "W_COIN_TAILS": "COROA",
   "W_COIN_VERIFY_NOTE": "cara 0 coroa 1, SHA256. confira onde quiser.",
