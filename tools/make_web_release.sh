@@ -416,7 +416,7 @@ GPGSIGNED=$GPGSIGNED MINISIGNED=$MINISIGNED NAME="$NAME" VERSION="$VERSION" \
 GIT_REV="$GIT_REV" PUBKEY_FILE="$PUBKEY_FILE" GPG_PUB_FILE="$GPG_PUB_FILE" \
 GPG_FPR="$GPG_FPR" \
 "$PY" - <<'PY'
-import hashlib, json, os, datetime
+import hashlib, json, os, re, datetime
 
 out = "docs/installer"
 name, version, rev = os.environ["NAME"], os.environ["VERSION"], os.environ["GIT_REV"]
@@ -527,6 +527,27 @@ if page.is_file():
                f'<span class="mono">{bf["sha256"]}</span>', t)
     page.write_text(t)
     print("re-baked docs/verify-release.html")
+
+# 5b. the README's version badge.
+#
+# It was a static SVG nothing generated and everybody forgot: the gate named
+# it on the beta9 run, still reading beta8, and the only reason it has ever
+# been right is that somebody typed it. Every other version bearing file in a
+# release is written from VERSION by this script; this one is now too.
+#
+# A substitution rather than a rewrite, because the badge is shields.io output
+# and its geometry -- widths, clip path, text offsets -- is not worth
+# reproducing here. The version appears in the aria-label and in two text
+# nodes, so every copy of the old string goes.
+badge = "docs/readme/badge-version.svg"
+if os.path.exists(badge):
+    b = open(badge, encoding="utf-8").read()
+    found = re.findall(r"\d+\.\d+\.\d+[-A-Za-z0-9.]*", b)
+    if not found:
+        print("note: no version string in badge-version.svg, left alone")
+    elif found[0] != version:
+        open(badge, "w", encoding="utf-8").write(b.replace(found[0], version))
+        print("re-baked %s (%s -> %s)" % (badge, found[0], version))
 PY
 
 # 6. release notes, written before the zip so the zip can carry them: inside an
