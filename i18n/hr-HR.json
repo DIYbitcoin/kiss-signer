@@ -841,7 +841,7 @@
   "W_VOK_MATCH": "svaka riječ se podudara",
   "W_VOK_S": "kodna fraza nije dio ove provjere",
   "W_VOK_T": "RIJEČI PROVJERENE",
-  "W_WHATSEED_B": "Otvara ih bilo koji BIP39 kompatibilan potpisnik ili wallet. Zapiši ih na papir.",
+  "W_WHATSEED_B": "Otvara ih bilo koji BIP39 potpisnik. Zapiši ih na papir.",
   "W_WHATSEED_F1_C": "ZAPIŠITE",
   "W_WHATSEED_F1_V": "RIJEČI I KODNA FRAZA",
   "W_WHATSEED_F2_C": "BEZ KODNE FRAZE",

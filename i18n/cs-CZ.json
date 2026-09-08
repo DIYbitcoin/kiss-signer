@@ -841,7 +841,7 @@
   "W_VOK_MATCH": "všechna slova se shodovala",
   "W_VOK_S": "přístupová fráze do téhle kontroly nepatří",
   "W_VOK_T": "SLOVA OVĚŘENA",
-  "W_WHATSEED_B": "Otevře je jakýkoli podepisovač nebo wallet kompatibilní s BIP39. Zapište si je na papír.",
+  "W_WHATSEED_B": "Otevře je jakýkoli podepisovač s BIP39. Zapište si je na papír.",
   "W_WHATSEED_F1_C": "ZAPIŠTE SI",
   "W_WHATSEED_F1_V": "SLOVA A PŘÍSTUPOVÁ FRÁZE",
   "W_WHATSEED_F2_C": "BEZ PŘÍSTUPOVÉ FRÁZE",

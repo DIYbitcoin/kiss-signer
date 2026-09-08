@@ -841,7 +841,7 @@
   "W_VOK_MATCH": "mọi từ đều khớp",
   "W_VOK_S": "cụm mật khẩu không nằm trong lần kiểm này",
   "W_VOK_T": "CỤM TỪ ĐÃ XÁC MINH",
-  "W_WHATSEED_B": "Bất kỳ thiết bị ký hay wallet tương thích BIP39 nào cũng mở được. Hãy chép ra giấy.",
+  "W_WHATSEED_B": "Bất kỳ thiết bị ký BIP39 nào cũng mở được. Hãy chép ra giấy.",
   "W_WHATSEED_F1_C": "GHI LẠI",
   "W_WHATSEED_F1_V": "CỤM TỪ VÀ CỤM MẬT KHẨU",
   "W_WHATSEED_F2_C": "KHÔNG CỤM MẬT KHẨU",

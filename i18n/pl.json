@@ -841,7 +841,7 @@
   "W_VOK_MATCH": "każde słowo się zgadza",
   "W_VOK_S": "fraza dostępu nie należy do tej kontroli",
   "W_VOK_T": "SŁOWA SPRAWDZONE",
-  "W_WHATSEED_B": "Każdy zgodny z BIP39 podpisujący lub portfel je otworzy. Zapisz je na papierze.",
+  "W_WHATSEED_B": "Otworzy je każdy podpisujący z BIP39. Zapisz je na papierze.",
   "W_WHATSEED_F1_C": "ZAPISZ",
   "W_WHATSEED_F1_V": "SŁOWA I FRAZA DOSTĘPU",
   "W_WHATSEED_F2_C": "BEZ FRAZY DOSTĘPU",
