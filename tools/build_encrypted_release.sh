@@ -169,6 +169,18 @@ force = {
     # of the running app - kiss_fw_available's CONFIG_SECURE_BOOT branch.
     "CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT":     "y" if rehearsal else None,
     "CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT": "y" if rehearsal else None,
+    # RSA off FIRST, then ECDSA on. These two are one Kconfig choice, and a
+    # choice resolves to the last member left standing -- so naming only the
+    # winner is not enough. Forcing ECDSA alone, this build came out
+    # CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME=y: firmware expecting an RSA-3072
+    # signature block, while the app and the bootloader had both been signed
+    # outside the container with the secp256r1 key. Every signature check in
+    # this script passed, because each one verified the image against the key
+    # it was signed with and none of them asked what the FIRMWARE expects. A
+    # board burned on that pair rejects the exact images that produced it, on
+    # first boot, permanently. sdkconfig.release has always carried the pair
+    # in this order; the secure boot recipe did not.
+    "CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME":         None,
     "CONFIG_SECURE_SIGNED_APPS_ECDSA_V2_SCHEME":    "y",
     "CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES":     None,
 
@@ -435,7 +447,11 @@ checks += [
     (on("CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT") if rehearsal
      else on("CONFIG_SECURE_SIGNED_ON_UPDATE"),
      "SD update images are signature verified"),
-    (on("CONFIG_SECURE_SIGNED_APPS_ECDSA_V2_SCHEME"),   "signature scheme ECDSA v2"),
+    # Both halves. "ECDSA is on" was the whole assertion and it is what let the
+    # choice above resolve to RSA unnoticed -- the symbol was set, the config
+    # that shipped said otherwise.
+    (on("CONFIG_SECURE_SIGNED_APPS_ECDSA_V2_SCHEME") and
+     not on("CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME"),    "signature scheme ECDSA v2, not RSA"),
     # Armed, at version 0: burns nothing today, refuses nothing today. The
     # old comment here said arming it early would freeze the fleet on an
     # unfinished security model; the model this pass ships is the finished
