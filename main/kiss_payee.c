@@ -39,7 +39,7 @@ static int payee_id(const char *dest, char out[PAYEE_ID_HEX + 1])
     // Domain separated, so this digest can never collide with another use of
     // the same key material (the silent payment scan key derives from it too).
     uint8_t pre[13 + 32 + 33];
-    memcpy(pre, "kiss/payee/1", 12);
+    memcpy(pre, "kiss/payee/2", 12);
     pre[12] = 0;
     memcpy(pre + 13, m->chain_code, 32);
     memcpy(pre + 13 + 32, m->priv_key, 33);
@@ -48,16 +48,33 @@ static int payee_id(const char *dest, char out[PAYEE_ID_HEX + 1])
     if (rc != 0)
         return -1;
 
-    // salt || dest, not HMAC: the salt is a full 32 bytes of secret and the
-    // input is a bounded, non attacker chosen shape, so length extension buys
-    // nothing here and the device already has this one primitive.
+    // salt || len || dest, not HMAC: the salt is a full 32 bytes of secret and
+    // the input is a bounded, non attacker chosen shape, so length extension
+    // buys nothing here and the device already has this one primitive.
+    //
+    // The LENGTH goes in, ahead of the destination, and one too long to key is
+    // REFUSED rather than cut. Both halves are the same defect. A clamp sat
+    // here -- `if (dlen > 128) dlen = 128` -- which made every destination
+    // sharing a 128 byte prefix one id; it was unreachable only because the
+    // sole caller's buffer is kiss_psbt.h's addr[120], a fact this function
+    // has no way to know and the next caller no reason to keep. Framing the
+    // length is what stops the same collision arriving instead from two
+    // shorter strings when something downstream changes shape.
+    //
+    // An id is the claim that this device has paid here before. The one answer
+    // it must never give is that claim about an address it has never seen, so
+    // a destination this cannot key gets no id, and the screen stays silent --
+    // which is what an unrecognised payee looks like anyway.
     size_t dlen = strlen(dest);
-    uint8_t buf[32 + 128];
-    if (dlen > sizeof buf - 32)
-        dlen = sizeof buf - 32;
-    memcpy(buf, salt, 32);
-    memcpy(buf + 32, dest, dlen);
-    rc = wally_sha256(buf, 32 + dlen, id, sizeof id) == WALLY_OK ? 0 : -1;
+    uint8_t buf[32 + 2 + 128];
+    rc = -1;
+    if (dlen <= sizeof buf - 34) {
+        memcpy(buf, salt, 32);
+        buf[32] = (uint8_t)(dlen & 0xff);      // 16 bit, little endian, fixed width
+        buf[33] = (uint8_t)(dlen >> 8);
+        memcpy(buf + 34, dest, dlen);
+        rc = wally_sha256(buf, 34 + dlen, id, sizeof id) == WALLY_OK ? 0 : -1;
+    }
     wally_bzero(salt, sizeof salt);
     wally_bzero(buf, sizeof buf);
     if (rc != 0)

@@ -3569,7 +3569,11 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   lv_label_set_text(s_net_lbl, kiss_net_name());   // rewritten per refresh
   lv_obj_set_style_text_color(s_net_lbl, wt_accent(), 0);
   lv_obj_add_flag(s_net_lbl, WT_FLAG_ACCENT);
-  lv_obj_set_style_text_font(s_net_lbl, wt_font14(), 0);
+  // font23, not 14. The chain the coins are on is the single most consequential
+  // fact on this screen and it was set at the size this device reserves for
+  // marks -- chip labels, unit suffixes, chevrons. Reported from the bench in
+  // one breath with the corner below it.
+  lv_obj_set_style_text_font(s_net_lbl, wt_font23(), 0);
   lv_obj_set_style_text_letter_space(s_net_lbl, 3, 0);
   lv_obj_add_flag(s_net_lbl, LV_OBJ_FLAG_HIDDEN);
 
@@ -3579,7 +3583,14 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   // ONE line here. Settings stacks because it has to share its bottom edge with
   // a row of buttons; this edge is empty, so the signature runs along it and
   // stays the quiet thing it is meant to be.
-  s_home_build_id = kiss_build_id_make(s_home, 48, 424, false, false);
+  // NO VERSION in this corner. See kiss_build_id_make_at: it is named twice
+  // on SETTINGS > DEVICE at a size an owner can read, and here it was font14
+  // chrome nobody could act on. What is left is encryption, and only while it
+  // is off -- so on a device with nothing to say the corner is empty.
+  //
+  // 420 rather than 424: font23 is a taller line box than the font14 this
+  // corner used to draw, and the band's own top is what it must stay clear of.
+  s_home_build_id = kiss_build_id_make_at(s_home, 48, 420, false, false, false);
   // Now the row has a measured width, the badge can stand clear of it.
   lv_obj_set_pos(s_sd_badge, kiss_build_id_right() + 28, 424);
 

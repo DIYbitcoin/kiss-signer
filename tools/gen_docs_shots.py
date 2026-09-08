@@ -513,8 +513,30 @@ REVEAL_GIF = os.path.join(ROOT, "docs", "media", "kiss-reveal.gif")
 # browsers silently clamp to 100, which would play the gesture five times slower
 # than a hand makes it.
 REVEAL_STEP = 2
+# The signer's opening is sampled thinner than the gesture. The gesture is the
+# part being taught and every frame of it is a hand moving; the opening is one
+# long ease, and at every third frame it reads identically for two thirds of
+# the bytes.
+REVEAL_TAIL_STEP = 3
 REVEAL_DELAY = 6
-REVEAL_HOLD = 200                                # ~2s parked on the signer
+# The beat at the end. It was TWO SECONDS against a 2.16s drawing, which does
+# not read as a pause, it reads as broken -- reported from the bench as
+# "stalling and seemingly pausing after the KISS swipe". It came down to 0.9s,
+# and the loop has since grown by the signer's own opening, so 1.2s is under a
+# quarter of it again and holds long enough to read the fingerprint.
+REVEAL_HOLD = 120                                # the beat on the signer
+
+# What counts as a screen that has stopped moving: the menu grid twinkles
+# behind the signer forever, so "still" is a couple of sampled bytes and never
+# zero.
+REVEAL_STILL = 3
+# ...and stillness alone does not mean finished. The signer's opening rests for
+# ten frames between the scramble and the flight into the pill, so the first
+# quiet stretch is an intermission, and stopping at it held the loop on a
+# fingerprint hanging in mid screen with its pill still empty. The end is found
+# from the BACK instead: the last recorded frame of this screen, walked
+# backwards past whatever it was already holding.
+REVEAL_TAIL_MIN = 4
 
 
 def theme_colour(name):
@@ -603,7 +625,52 @@ def build_reveal_gif():
         print("note: the reveal never happened in the captured frames, "
               "skipping the GIF")
         return 0
-    pts = [p for p in pts if p[0] <= reveal]
+
+    # ...and the reveal is only the FIRST frame of it. The signer opens with an
+    # animation of its own -- the fingerprint scrambles mid screen, flies into
+    # its pill, the four tile captions arrive -- so ending on the reveal held
+    # the loop on a home page reading 00000000 under four unlabelled icons.
+    # Reported from the bench, and correctly: that frame is not the signer, it
+    # is the signer a fortieth of a second old.
+    #
+    # So walk forward to where the screen stops changing. Not by counting
+    # frames, for the same reason the reveal itself is found by looking: the
+    # opening is LVGL's to time and a count here would drift the first time it
+    # moves. The 20% guard is the reveal test again, backwards -- if the walk
+    # navigates somewhere else before the screen settles, stop at the frame
+    # before it, never hold on a screen the gesture did not open.
+    seq, base = [], None
+    for n, _, _, _ in pts:
+        if n < reveal:
+            continue
+        src = REVEAL_FRAMES % n
+        if not os.path.exists(src):
+            continue
+        cur = read_ppm(src)[2][::499]
+        if base is None:
+            base = cur
+        elif sum(1 for a, b in zip(cur, base) if a != b) > len(base) // 5:
+            break                                # a different screen; stop here
+        seq.append((n, cur))
+
+    # Backwards from the end, over the frames that are merely being held. What
+    # is left is the frame the animation finished on, and the hold below is
+    # what gives it its beat -- carrying the device's own wait as GIF frames
+    # would only make the file bigger for the same picture.
+    settled = seq[-1][0]
+    still = 0
+    while len(seq) > 1:
+        a, b = seq[-2][1], seq[-1][1]
+        if sum(1 for x, y in zip(a, b) if x != y) > REVEAL_STILL:
+            break
+        seq.pop()
+        settled, still = seq[-1][0], still + 1
+    if still < REVEAL_TAIL_MIN:
+        print("note: the signer was still moving when the recording stopped "
+              "(%d still frames); give sim_main.c's reveal pump more tail"
+              % still)
+
+    pts = [p for p in pts if p[0] <= settled]
 
     live = theme_colour("WT_INK")                # the stroke being drawn
     done = theme_colour("WT_MUT")                # strokes already finished
@@ -617,10 +684,11 @@ def build_reveal_gif():
         elif cur:
             strokes.append(cur)
             cur = []
-        if n == reveal:                          # the signer, drawn on by nothing
+        if n >= reveal:                          # the signer, drawn on by nothing
             strokes, cur = [], []
 
-        if n % REVEAL_STEP and n != pts[-1][0]:
+        if n % (REVEAL_STEP if n < reveal else REVEAL_TAIL_STEP) \
+                and n != pts[-1][0]:
             continue
 
         src = REVEAL_FRAMES % n

@@ -1644,6 +1644,43 @@ int main(int argc, char **argv) {
         kiss_payee_mark(A);                       // must not crash either
         chki("payee: session reopens after the test", kiss_session_open(""), 0);
         chkb("payee: a mark with no session was not kept", !kiss_payee_seen(A));
+
+        // The id is LENGTH FRAMED, and a destination too long to key is refused
+        // rather than cut. The preimage used to clamp dest at 128 bytes, so any
+        // two destinations sharing a 128 byte prefix became one id -- "paid
+        // before" about an address never paid, which is the single wrong answer
+        // this screen has to give. It was unreachable from the sign path, whose
+        // addr[120] cannot get there, and that is exactly the kind of guarantee
+        // that does not survive its next caller.
+        kiss_payee_wipe();
+        {
+            char long_a[201], long_b[201];
+            memset(long_a, 'a', 200); long_a[200] = 0;
+            memcpy(long_b, long_a, sizeof long_b);
+            long_b[150] = 'b';                  // differs only PAST the old clamp
+            chkb("payee: over-long destination is not keyed", !kiss_payee_seen(long_a));
+            kiss_payee_mark(long_a);
+            chkb("payee: over-long destination is not marked", !kiss_payee_seen(long_a));
+            chkb("payee: over-long twins are not confused", !kiss_payee_seen(long_b));
+
+            // The boundary: 128 bytes is the longest this keys, and one more is
+            // refused rather than folded back onto it.
+            char at_cap[129], over[130];
+            memset(at_cap, 'c', 128); at_cap[128] = 0;
+            memset(over, 'c', 129);   over[129]   = 0;
+            kiss_payee_mark(at_cap);
+            chkb("payee: a 128 byte destination is keyed", kiss_payee_seen(at_cap));
+            chkb("payee: 129 bytes is refused, not clamped", !kiss_payee_seen(over));
+
+            // And a short destination that is a prefix of another is a different
+            // payee. That one held before the framing and is pinned here so it
+            // keeps holding if the preimage is ever rearranged again.
+            char longer[64];
+            snprintf(longer, sizeof longer, "%sx", A);
+            kiss_payee_mark(A);
+            chkb("payee: marking the short one recognises it", kiss_payee_seen(A));
+            chkb("payee: a prefix is not the same payee", !kiss_payee_seen(longer));
+        }
         kiss_payee_wipe();
     }
 

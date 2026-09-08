@@ -301,6 +301,18 @@ lv_obj_t *kiss_info_help_card_open(lv_obj_t *parent, const char *title,
 // kiss_info_fp_card_open.
 
 // ---- PAIR COORDINATOR ----
+// The pairing screen's right column, as numbers both halves read.
+//
+// The import note is built EMPTY and filled by pair_refresh, so its box and
+// its fit budget live apart -- and they disagreed: the box was 108 tall and
+// the refit was told it had 190, which is 76px past the standing line below
+// it. English fits in 108 and never showed it. Ten locales overflowed into
+// that line, and it took the twenty one locale sweep's first complete run to
+// say so.
+#define PAIR_NOTE_Y   204
+#define PAIR_EXPL_Y   318
+#define PAIR_NOTE_H   (PAIR_EXPL_Y - PAIR_NOTE_Y - 6)
+
 static void pair_refresh(void)
 {
     char txt[256];
@@ -312,13 +324,13 @@ static void pair_refresh(void)
     // over there instead of being refused here. See wt_qr_refusal.
     wt_qr_refusal(s_pair_qr, rc != 0);
     if (rc != 0) {
-        wt_note_fit(s_pair_note, tr(STR_C_LOCKED_B), 360, 190);   // see the scan key refusal
+        wt_note_fit(s_pair_note, tr(STR_C_LOCKED_B), 360, PAIR_NOTE_H);
         return;
     }
     if (s_pair_qr)
         wt_qr_update(s_pair_qr, txt, (uint32_t)strlen(txt));
     wt_note_fit(s_pair_note, s_pair_fmt ? tr(STR_I_NOTE_BW) : tr(STR_I_NOTE_SPARROW),
-                360, 190);
+                360, PAIR_NOTE_H);
     for (int i = 0; i < 2; i++) {
         bool on = (s_pair_fmt == i);
         // The flag rides with the paint, or the selected app name keeps the
@@ -337,9 +349,48 @@ static void pair_fmt_cb(lv_event_t *e)
     pair_refresh();
 }
 
+// The same pick, as a STROKE. Two apps side by side is a deck of two, and the
+// bench's rule is that anything a finger can step should also take the swipe:
+// a tap is a target you have to find, a swipe is not.
+//
+// The SETTINGS cycles do not get this and cannot -- a swipe there already
+// steps the tab deck, and a screen where one gesture means two things is
+// worse than one that means nothing.
+static void pair_gesture_cb(lv_event_t *e)
+{
+    const int step = wt_swipe_step(e);
+    if (!step) return;
+    const int to = s_pair_fmt + step;
+    if (to < 0 || to > 1) return;      // a deck of two, and it does not wrap
+    s_pair_fmt = to;
+    pair_refresh();
+}
+
+// True when a coordinator has spoken for these keys. It is the device's only
+// honest signal for paired-ness, and it is the same store RECEIVE's lamp
+// reads: this signer has no chain view of its own.
+static bool coord_known(void)
+{
+    uint8_t cfp[4];
+    kiss_ui_last_fp(cfp);
+    int chigh;
+    uint32_t cheight;
+    return kiss_usage_chain_known(cfp, kiss_testnet() ? 1 : 0, kiss_script(),
+                                  &chigh, &cheight);
+}
+
+// Was PAIR COORDINATOR the way IN, rather than a step off the KEYS page?
+// kiss_info_open() sets it when no coordinator has spoken.
+static bool s_pair_entry;
+
 static void pair_back_cb(lv_event_t *e)
 {
     (void)e;
+    // HOME, not KEYS, when pairing was the entry -- and this is not a
+    // preference. KEYS forwards to this screen whenever no coordinator has
+    // spoken, so a BACK that rebuilt KEYS would be forwarded straight back
+    // here, forever, with the owner watching the same screen redraw.
+    if (s_pair_entry) { close_cb(NULL); return; }
     swap_screen();
     info_screen();
 }
@@ -377,17 +428,25 @@ static void pair_instructions_cb(lv_event_t *e)
     // budget at font23, which is what they had.
     // Marks before words, and the mark says which device the steps are for: a
     // phone for BlueWallet, a file for Sparrow on a computer. Both are in SYMS.
+    // The body clears the HEAD, measured rather than guessed: wt_section moved
+    // up a rung and both bodies were sitting inside the head's own line box,
+    // which the overlap gate read as text on text on both cards.
     lv_obj_t *c1 = wt_card(s_scr, 36, 96, 716, 162);
-    wt_section(c1, tr_sym(s_pair_fmt ? WT_ICON_PHONE : LV_SYMBOL_FILE,
-                          STR_I_SHOW_TO), 16, 10);
+    lv_obj_t *h1 = wt_section(c1, tr_sym(s_pair_fmt ? WT_ICON_PHONE
+                                                    : LV_SYMBOL_FILE,
+                                         STR_I_SHOW_TO), 16, 10);
+    lv_obj_update_layout(h1);
+    const int b1 = 10 + lv_obj_get_height(h1) + 4;
     lv_obj_t *steps = wt_note(c1,
         s_pair_fmt ? tr(STR_I_NOTE_BW) : tr(STR_I_NOTE_SPARROW),
-        16, 34, 688, 116);
+        16, b1, 688, 162 - b1 - 12);
     lv_obj_set_style_text_color(steps, WT_INK, 0);
 
     lv_obj_t *c2 = wt_card(s_scr, 36, 264, 716, 132);
-    wt_section(c2, tr_sym(LV_SYMBOL_OK, STR_R_VERIFY), 16, 8);
-    lv_obj_t *prove = wt_note(c2, tr(STR_I_PROVE), 16, 30, 688, 96);
+    lv_obj_t *h2 = wt_section(c2, tr_sym(LV_SYMBOL_OK, STR_R_VERIFY), 16, 8);
+    lv_obj_update_layout(h2);
+    const int b2 = 8 + lv_obj_get_height(h2) + 4;
+    lv_obj_t *prove = wt_note(c2, tr(STR_I_PROVE), 16, b2, 688, 132 - b2 - 10);
     lv_obj_set_style_text_color(prove, WT_INK, 0);
 
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 48, WT_ACTION_Y, 0, false, pair_qr_back_cb, NULL);
@@ -506,7 +565,15 @@ static void pair_screen(void)
     // title is a breadcrumb rather than a lone tab.
     // ONE segment. It was "KEYS / COORDINATOR" and the second half restates
     // the title this page already carries.
-    wt_trail(s_scr, WT_ICON_QR, tr(STR_I_T), false);
+    // ...and its box STOPS at the head. wt_trail runs to 752 (or 12 short of a
+    // [ ? ]) so a short word still owns the strip, which is right on every
+    // other screen and wrong on this one: SHOW IT TO now shares the row, and
+    // the overlap gate reads boxes rather than glyphs.
+    {
+        lv_obj_t *t = wt_trail(s_scr, WT_ICON_QR, tr(STR_I_T), false);
+        lv_obj_update_layout(t);          // or get_x answers 0 and the box grows
+        lv_obj_set_width(t, 400 - 12 - lv_obj_get_x(t));
+    }
     if (kiss_testnet()) {
         lv_obj_t *net = wt_lbl(s_scr, kiss_net_name(), 672, 30, wt_font14(),
                                wt_ink_for(WT_WARN));
@@ -531,7 +598,23 @@ static void pair_screen(void)
     // which "GÖSTERİLECEK YER" is not.
     // The page's own [ ? n ] took the section chip's job, up on the chrome
     // strip where a page level explanation belongs.
-    wt_section(s_scr, tr(STR_I_SHOW_TO), 400, 96);
+    // MARKED, like the two heads on page two -- an eye, because watching is
+    // the whole of what the thing on the other end of this QR does, and it is
+    // the glyph the KEYS explainer already uses to say so. This head was the
+    // one on the flow with no mark at all.
+    //
+    // ON THE CHROME STRIP, level with the KEYS trail on the left and the
+    // [ ? ] on the right, which is what the bench asked for: three things
+    // reading along one line instead of a head floating a rung below them.
+    // Centred in the 30px row the same way both of its neighbours are.
+    // The y is computed from the rung wt_section will use for the WORDS, not
+    // measured off the finished object: the head is two labels now and moving
+    // one of them afterwards leaves the mark behind.
+    wt_section(s_scr, tr_sym(LV_SYMBOL_EYE_OPEN, STR_I_SHOW_TO), 400,
+               WT_CHROME_STRIP_Y
+               + (WT_BR_H
+                  - lv_font_get_line_height(wt_chrome21(tr(STR_I_SHOW_TO))))
+                 / 2);
     const char *CAT[2] = {tr(STR_I_DESKTOP), tr(STR_I_MOBILE)};
     const char *APP[2] = {tr(STR_I_APP_DESKTOP), tr(STR_I_APP_MOBILE)};
     for (int i = 0; i < 2; i++) {
@@ -556,7 +639,7 @@ static void pair_screen(void)
 
     // The QR is primary on page one; the selected app's import directions are
     // readable here and repeated with the proof step on the static NEXT page.
-    s_pair_note = wt_note(s_scr, "", 400, 204, 360, 108);
+    s_pair_note = wt_note(s_scr, "", 400, PAIR_NOTE_Y, 360, PAIR_NOTE_H);
 
     // WHAT THIS QR HANDS OVER, at the moment it is handed over. The KEYS page
     // says it as a standing line one screen back, and this is the screen where
@@ -568,7 +651,7 @@ static void pair_screen(void)
     // spend one." The accent stop between the two sentences is what separates
     // the reassurance from the limit, which is the whole reason that treatment
     // exists.
-    wt_note(s_scr, tr(STR_K_EXPL_COORD), 400, 318, 360, 76);
+    wt_note(s_scr, tr(STR_K_EXPL_COORD), 400, PAIR_EXPL_Y, 360, 76);
 
     // This BACK used to take the corner on the theory that an escape from the
     // whole flow earns it while a step back to one page does not. That rule was
@@ -582,6 +665,7 @@ static void pair_screen(void)
     // here, and both pages agree on where the exit is.
     wt_arrow_action(s_scr, tr(STR_R_NEXT), false, false, WT_ACT_X, WT_ACTION_Y, 0, false, pair_instructions_cb, NULL);
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, pair_back_cb, NULL);
+    wt_swipe_watch(s_scr, pair_gesture_cb);
     // The silent-payment SCAN KEY used to live HERE, buried one tap inside PAIR
     // COORDINATOR. It is its own export with its own consent warning, and
     // hiding it behind the descriptor flow implied the two were one action.
@@ -1143,14 +1227,19 @@ static void wtab_enc(void)
     // an owner with nothing to look for on the card. One QR to photograph, or
     // one file, and the file's name is the fingerprint -- which the card below
     // this group is already showing, so the two read together.
-    char ksub[64];
-    uint8_t kfp[4];
-    kiss_ui_last_fp(kfp);
-    if (kiss_fp_known(kfp))
-        snprintf(ksub, sizeof ksub, tr(STR_I_ROW_KEF_SUB_FMT),
-                 kfp[0], kfp[1], kfp[2], kfp[3]);
-    else
-        snprintf(ksub, sizeof ksub, "%s", tr(STR_I_ROW_KEF_SUB));
+    // ONE sub, and it no longer names the file. It read "one QR, or
+    // 9A2C33E3.kef" once the fingerprint was known -- a filename extension a
+    // first-week owner has never met, wrapped around eight hex characters that
+    // read as noise beside it, and the bench said so. What the row gives you is
+    // a QR you can print or a file, which are both things this device has
+    // already shown them; the fingerprint stays on the screens where it is
+    // the subject, and WHERE the file goes is said on the screen that writes
+    // it. Naming the card here as well put the line past both the SLACK lane
+    // and the 3.5in board's whole content width.
+    //
+    // The branch went with it: there is nothing left for the fingerprint to
+    // change, so there is nothing to branch on.
+    const char *ksub = tr(STR_I_ROW_KEF_SUB);
 
     wt_row_wide(w_pane, WT_WIDE_Y(0), &(wt_wide_t){
         .label = tr(STR_I_WROW_KEF),
@@ -1205,7 +1294,7 @@ static void wtab_enc(void)
     // ...and the other head goes the same way. "if you lose it" ended the tab
     // on a dangling fragment; what it was reaching for is what opens the
     // thing, which is the one fact the two rows above do not carry.
-    wt_group_note(w_pane, 2, tr(STR_I_KEF_SHOW_S));
+    wt_group_note(w_pane, 2, tr_sym(WT_ICON_LOCK, STR_I_KEF_SHOW_S));
 
     // No fingerprint card here either. The row above already names the file
     // by its fingerprint ("one QR, or 9A2C33E3.kef"), so the card was the
@@ -1591,36 +1680,15 @@ static void info_tab_build(void)
 
     const int H = 76;
 
-    // The empty state (frame 5c): one shape for an absence -- a headline
-    // naming it, a sentence saying what filling it would give, and the row
-    // that fills it sitting right underneath. No illustration, no shrug.
-    // "Has a coordinator ever spoken" is the device's only honest signal for
-    // paired-ness, and it is the same store RECEIVE's lamp reads.
-    {
-        uint8_t cfp[4];
-        kiss_ui_last_fp(cfp);
-        int chigh;
-        uint32_t cheight;
-        if (!kiss_usage_chain_known(cfp, kiss_testnet() ? 1 : 0,
-                                    kiss_script(), &chigh, &cheight)) {
-            lv_obj_t *hl = wt_lbl(p, tr(STR_K_COORD_NONE), X, 130,
-                                  wt_chrome28(tr(STR_K_COORD_NONE)), WT_INK);
-            lv_obj_set_width(hl, W);
-            lv_label_set_long_mode(hl, LV_LABEL_LONG_DOT);
-            lv_obj_t *b = wt_lbl(p, tr(STR_K_COORD_NONE_B), X, 172,
-                                 wt_chrome23(tr(STR_K_COORD_NONE_B)), WT_MUT);
-            lv_obj_set_width(b, 690);
-            lv_label_set_long_mode(b, LV_LABEL_LONG_WRAP);
-            wt_line_rule_draw(wt_line_rule(p, X, 244, W), 80, 320);
-            wt_line_row_stage(wt_line_row(p, X, 252, W, H,
-                                          tr(STR_K_CAP_PAIRING),
-                                          tr(STR_I_PAIR_T), wt_font28(),
-                                          WT_INK, tr(STR_K_PAIR_SUB), NULL,
-                                          pair_open_cb, NULL), 0);
-            wt_line_rule_draw(wt_line_rule(p, X, 252 + H, W), 152, 320);
-            return;
-        }
-    }
+    // NO EMPTY STATE. An unpaired signer never reaches this page: it opened
+    // on a headline naming the absence, a sentence saying what pairing would
+    // give, and one row that went to the pairing screen -- and the sentence
+    // was the same claim as this page's own [ ? ], one tap away. Three taps
+    // to reach the QR, two of them spent reading a screen that only said
+    // "the thing you came for is through here".
+    //
+    // kiss_info_open() forwards straight to pair_screen() instead; see the
+    // note there for why BACK from it has to leave for HOME.
 
     wt_line_row_stage(wt_line_row(p, X, 120, W, H, tr(STR_K_CAP_PAIRING),
                                   tr(STR_I_PAIR_T), wt_font28(), WT_INK,
@@ -1748,6 +1816,17 @@ void kiss_info_open(lv_obj_t *parent)
     // rebuild on purpose -- that is what returns an owner to the tab they left
     // when a row's screen goes BACK -- so entering the page has to say so.
     s_ictx.tab = 0;
+    // STRAIGHT TO THE QR while nothing has paired yet. The KEYS page in that
+    // state was one row and two lines saying the row was there, and the lines
+    // repeated the page's own [ ? ]. What an owner opening KEYS on a signer
+    // with no coordinator wants is the code and the choice of app, which is
+    // the screen behind that row.
+    //
+    // Nothing is stranded by skipping it: SCAN KEY has its second door on
+    // RECEIVE's SILENT tab (kiss_info_open_scan_key), FIRST ADDRESS is what
+    // RECEIVE opens on, and the pair screen carries its own [ ? ].
+    s_pair_entry = !coord_known();
+    if (s_pair_entry) { pair_screen(); return; }
     info_screen();
 }
 

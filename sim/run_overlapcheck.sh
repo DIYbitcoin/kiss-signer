@@ -58,7 +58,7 @@ if [ $? -ne 0 ] ||
     ! printf '%s\n' "$st" | grep -q 'FIT self test: 2 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'TINY self test: 3 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'RAGGED self test: 2 cases, all as expected' ||
-    ! printf '%s\n' "$st" | grep -q 'AMBER self test: 2 cases, all as expected' ||
+    ! printf '%s\n' "$st" | grep -q 'AMBER self test: 4 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'WALL self test: 2 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'STALE self test: 2 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'LAYER self test: 3 cases, all as expected' ||
@@ -228,8 +228,12 @@ for l in "${langs[@]}"; do
     if [ -z "$n" ]; then
         printf '%-8s NO SUMMARY -- the walk did not finish\n' "$l"
     elif [ "$n" -gt 0 ]; then
+        # SLACK and PORT were emitted by the binary and absent from the list
+        # below, so the count said 2 and the run printed nothing under it --
+        # a finding a person cannot read is one nobody can act on. Every name
+        # the binary prints is here now.
         printf '%-8s %3d findings\n' "$l" "$n"
-        printf '%s\n' "$out" | grep -E '^  (TEXT|CONTENT|GROWTH|CLIPPED|ROLE|BARE|WALL|FIT|CUT|TINY|AMBER|RAGGED|LAYER|TERM|READ|LADDER|PATH|WIDOW|CLIPX|DOTS)' | sed 's/^/  /'
+        printf '%s\n' "$out" | grep -E '^  (TEXT|CONTENT|GROWTH|CLIPPED|ROLE|BARE|WALL|FIT|CUT|TINY|AMBER|RAGGED|LAYER|TERM|READ|LADDER|PATH|WIDOW|CLIPX|DOTS|SLACK|PORT|STALE|INK|EXIT|VOID|MARK)' | sed 's/^/  /'
         echo
     else
         printf '%-8s clean\n' "$l"
@@ -251,7 +255,7 @@ for l in "${langs[@]}"; do
     # fits in -- so closing this sweep is a copy project measured in days, not
     # a fix. Left as pass/fail it would be red for all of them on day one, and
     # a gate that is red for a reason nobody is acting on is a gate nobody
-    # reads. That sentence is already in CLAUDE.md about kissosd.
+    # reads. That sentence is already written down about kissosd.
     #
     # So it ratchets instead, the same shape OC_BARE_BACKLOG and its two
     # siblings already use inside the binary: the number recorded here may

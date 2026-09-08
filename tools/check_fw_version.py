@@ -26,6 +26,7 @@ Exit 0 when every directory checked agrees with VERSION.
 """
 import json
 import os
+import shutil
 import struct
 import sys
 
@@ -87,7 +88,85 @@ def compile_definition(build_dir):
     return None
 
 
+# Both halves are parsers of things nobody here writes by hand -- an ESP-IDF
+# app descriptor and a compile_commands.json entry -- so both are exactly the
+# kind of code that keeps working until a format moves under it and then
+# silently returns None, which this gate reads as "nothing to compare" and
+# passes. The cases below build each input rather than reading a build tree,
+# so the check can be proved on a machine that has never run idf.py.
+def selftest():
+    import tempfile
+    bad = 0
+
+    def image(version, magic=DESC_MAGIC, project=b"kiss"):
+        blob = bytearray(b"\xff" * (DESC_OFF + PROJ_OFF + PROJ_LEN))
+        blob[DESC_OFF:DESC_OFF + 4] = struct.pack("<I", magic)
+        v = version.encode()[:VER_LEN - 1]
+        blob[DESC_OFF + VER_OFF:DESC_OFF + VER_OFF + len(v) + 1] = v + b"\0"
+        blob[DESC_OFF + PROJ_OFF:DESC_OFF + PROJ_OFF + len(project) + 1] = project + b"\0"
+        with tempfile.NamedTemporaryFile(suffix=".bin", delete=False) as fh:
+            fh.write(bytes(blob))
+            return fh.name
+
+    def check(name, got, want):
+        nonlocal bad
+        ok = got == want
+        print("  %-52s %s (%r)" % (name, "ok" if ok else "FAILED", got))
+        bad += not ok
+
+    path = image("0.1.0-beta9")
+    try:
+        ver, err = descriptor_version(path)
+        check("the descriptor's version is read back", (ver, err),
+              ("0.1.0-beta9", None))
+    finally:
+        os.unlink(path)
+
+    # A wrong magic must NOT be read as a version. This is the failure that
+    # makes the gate dangerous rather than merely broken: a plausible looking
+    # string lifted out of an image that has no descriptor at all.
+    path = image("0.1.0-beta9", magic=0xDEADBEEF)
+    try:
+        ver, err = descriptor_version(path)
+        check("a wrong magic yields no version", ver, None)
+    finally:
+        os.unlink(path)
+
+    with tempfile.NamedTemporaryFile(suffix=".bin", delete=False) as fh:
+        fh.write(b"\x00" * 8)
+        short = fh.name
+    try:
+        ver, err = descriptor_version(short)
+        check("an image too short yields no version", ver, None)
+    finally:
+        os.unlink(short)
+
+    # The compile_commands half, in the three quotings the define survives in.
+    d = tempfile.mkdtemp()
+    try:
+        with open(os.path.join(d, "compile_commands.json"), "w") as fh:
+            json.dump([{"command": 'cc -DKISS_VERSION_STR=\\"0.1.0-beta9\\" -c a.c'}], fh)
+        check("KISS_VERSION_STR is read off the compile line",
+              compile_definition(d), "0.1.0-beta9")
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+    d = tempfile.mkdtemp()
+    try:
+        with open(os.path.join(d, "compile_commands.json"), "w") as fh:
+            json.dump([{"command": "cc -c a.c"}], fh)
+        check("a build with no such define yields None",
+              compile_definition(d), None)
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+    print("fw version selftest: 5 cases, %d broken" % bad)
+    return 1 if bad else 0
+
+
 def main(argv):
+    if "--selftest" in argv:
+        return selftest()
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     with open(os.path.join(root, "VERSION"), encoding="utf-8") as f:
         want = f.readline().strip()

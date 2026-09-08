@@ -3,14 +3,16 @@
 *For people working ON this signer. `docs/` is the owner's site; this is not
 owner material and used to sit there anyway.*
 
-**The working rules live in [`CLAUDE.md`](../CLAUDE.md).** Replies, screen
-chrome, vocabulary, copy, the gate list, showing the screen, i18n, the device
-test verdict and attribution are all there, and this file no longer keeps a
-second copy of any of them — the copy went stale and sent people to
-`wt_why_block`, which was deleted.
+**The working rules are not tracked here.** Replies, screen chrome,
+vocabulary, copy, the gate list, showing the screen, i18n, the device test
+verdict and attribution live with whoever is at the keyboard, and this file
+never keeps a second copy of any of them — the copy went stale and sent people
+to `wt_why_block`, which was deleted.
 
-What is left here is the long form of two things `CLAUDE.md` cites: what
+What is left here is the long form of two things those rules cite: what
 running two desktop builds at once used to cost, and how motion works.
+`tools/preflight.sh` is the runnable half of the gate list, and it is the one
+to read first.
 
 ## More than one of you at a time
 
@@ -27,9 +29,9 @@ once, and the loser walks somebody else's code and reports findings about it.
 
 Everything a desktop build pretends is hardware — the fake card, the files
 standing in for NVS, every captured frame, and the binary itself — now hangs off
-`KISS_SIM_TMP` (`main/kiss_simpath.h`). **Unset it is `/tmp`, so every command in
-`CLAUDE.md` is unchanged and every path in this file still resolves.** Set it when two
-things run at once:
+`KISS_SIM_TMP` (`main/kiss_simpath.h`). **Unset it is `/tmp`, so every command
+in the gate list is unchanged and every path in this file still resolves.** Set
+it when two things run at once:
 
 ```bash
 export KISS_SIM_TMP=/tmp/kiss-$$    # your own card, frames and binaries
@@ -64,7 +66,7 @@ here is it:
 ```bash
 docker run --rm -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory \
   -e GIT_CONFIG_VALUE_0=/project -v "$PWD":/project -w /project \
-  espressif/idf:v6.0.1 idf.py -B /project/build-docker build
+  espressif/idf:v6.1 idf.py -B /project/build-docker build
 ```
 
 `-B /project/build-docker` rather than a path in the container's own `/tmp`:

@@ -97,6 +97,12 @@ void kiss_ui_drop_indev_for_test(void);   // put the process back to power-on
 // stacked: version on its own row with the status facts under it (Settings,
 // where this sits beside a row of buttons). false puts everything on ONE line,
 // which is what the home corner wants: two facts along an empty bottom edge.
+// The same block WITHOUT the version, at font23. HOME's only caller: the
+// version is on two rows of SETTINGS > DEVICE at a readable size and was
+// permanent chrome in a corner where nobody could act on it.
+lv_obj_t *kiss_build_id_make_at(lv_obj_t *parent, int x, int y,
+                                bool with_radio, bool stacked,
+                                bool with_version);
 lv_obj_t *kiss_build_id_make(lv_obj_t *parent, int x, int y, bool with_radio,
                                bool stacked);
 // Right edge of the row the call above drew. The version string grows between

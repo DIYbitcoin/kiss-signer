@@ -28,7 +28,10 @@ GPG_PUB_FILE="docs/installer/kiss_signer_pgp.asc"
 # full Docker rebuild before dying on "No module named esptool". Test the thing
 # actually needed instead, and fall through to anything that has it.
 PY="${PY:-/tmp/spritevenv/bin/python}"
-for cand in "$PY" /tmp/kissvenv/bin/python python3; do
+# $HOME/.kiss-signer/venv first among the fallbacks, because the two /tmp
+# ones do not survive a reboot and this script then stops a release with
+# "no Python with esptool" on a machine that has had one all along.
+for cand in "$PY" "$HOME/.kiss-signer/venv/bin/python" /tmp/kissvenv/bin/python python3; do
     if [ -x "$cand" ] || command -v "$cand" >/dev/null 2>&1; then
         if "$cand" -m esptool version >/dev/null 2>&1; then PY="$cand"; break; fi
     fi
@@ -413,7 +416,7 @@ GPGSIGNED=$GPGSIGNED MINISIGNED=$MINISIGNED NAME="$NAME" VERSION="$VERSION" \
 GIT_REV="$GIT_REV" PUBKEY_FILE="$PUBKEY_FILE" GPG_PUB_FILE="$GPG_PUB_FILE" \
 GPG_FPR="$GPG_FPR" \
 "$PY" - <<'PY'
-import hashlib, json, os, datetime
+import hashlib, json, os, re, datetime
 
 out = "docs/installer"
 name, version, rev = os.environ["NAME"], os.environ["VERSION"], os.environ["GIT_REV"]
@@ -524,6 +527,27 @@ if page.is_file():
                f'<span class="mono">{bf["sha256"]}</span>', t)
     page.write_text(t)
     print("re-baked docs/verify-release.html")
+
+# 5b. the README's version badge.
+#
+# It was a static SVG nothing generated and everybody forgot: the gate named
+# it on the beta9 run, still reading beta8, and the only reason it has ever
+# been right is that somebody typed it. Every other version bearing file in a
+# release is written from VERSION by this script; this one is now too.
+#
+# A substitution rather than a rewrite, because the badge is shields.io output
+# and its geometry -- widths, clip path, text offsets -- is not worth
+# reproducing here. The version appears in the aria-label and in two text
+# nodes, so every copy of the old string goes.
+badge = "docs/readme/badge-version.svg"
+if os.path.exists(badge):
+    b = open(badge, encoding="utf-8").read()
+    found = re.findall(r"\d+\.\d+\.\d+[-A-Za-z0-9.]*", b)
+    if not found:
+        print("note: no version string in badge-version.svg, left alone")
+    elif found[0] != version:
+        open(badge, "w", encoding="utf-8").write(b.replace(found[0], version))
+        print("re-baked %s (%s -> %s)" % (badge, found[0], version))
 PY
 
 # 6. release notes, written before the zip so the zip can carry them: inside an

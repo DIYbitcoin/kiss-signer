@@ -1,7 +1,7 @@
-# The device compiler, named by DIGEST rather than by the v6.0.1 tag.
+# The device compiler, named by DIGEST rather than by the v6.1 tag.
 # Sourced by both release lanes; not executable on its own.
 #
-# A tag is mutable. Espressif can repush espressif/idf:v6.0.1 whenever they
+# A tag is mutable. Espressif can repush espressif/idf:v6.1 whenever they
 # like, and then someone rebuilding this commit a year from now gets different
 # bytes than the hashes published beside the release, with nothing in the repo
 # to say which half moved. The reproducible-build workflow rests entirely on
@@ -17,4 +17,4 @@
 # manifest request, and change the comment and the digest together. Do not
 # take it from `docker image inspect` on a fresh pull of a single arch unless
 # it reports the index digest, which is what RepoDigests holds.
-KISS_IDF_IMAGE=espressif/idf@sha256:efc19fae2f52fc6873630c668da26aa834139a063b5fb73a46ebc0dbd217b587  # v6.0.1
+KISS_IDF_IMAGE=espressif/idf@sha256:81893c71bb5e570088901f21def8684c25cd2a9020281bd01b843a7655edb18c  # v6.1

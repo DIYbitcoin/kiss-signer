@@ -1,0 +1,36 @@
+# LVGL, at the version the DEVICE is pinned to, for anything that builds the
+# simulator on a runner.
+#
+# managed_components/ is gitignored -- the IDF component manager populates it
+# during a device build, and a runner doing a desktop build has no component
+# manager. Every sim/build_*.sh reads LVGL out of that directory, so without
+# this the build dies on `find managed_components/lvgl__lvgl/src`, twenty
+# seconds in, before anything it was asked to check has run.
+#
+# IT IS AN ACTION AND NOT A STEP because it was a step, in one workflow. The
+# two nightly locale sweeps never had it: locale walk and locale overlap both
+# failed every night on a missing dependency rather than on the product, and a
+# gate that is red for a reason nobody is acting on is a gate nobody reads.
+# A workflow that builds the sim can now say so in one line and cannot forget
+# what that needs.
+name: fetch LVGL for the sim
+description: Clone LVGL at the version dependencies.lock pins for the device.
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        set -euo pipefail
+        # Idempotent: a caller that already has it (or runs this twice) is
+        # not an error, and a half-cloned directory from a cancelled run is
+        # the one case worth redoing.
+        if [ -d managed_components/lvgl__lvgl/src ]; then
+          echo "managed_components/lvgl__lvgl already present"
+          exit 0
+        fi
+        rm -rf managed_components/lvgl__lvgl
+        LV=$(awk '/^  lvgl\/lvgl:/{f=1} f&&/version:/{print $2; exit}' dependencies.lock)
+        [ -n "$LV" ] || { echo "dependencies.lock names no lvgl/lvgl version" >&2; exit 1; }
+        echo "dependencies.lock pins lvgl/lvgl $LV"
+        git clone -q -c advice.detachedHead=false --depth 1 --branch "v$LV" \
+          https://github.com/lvgl/lvgl.git managed_components/lvgl__lvgl

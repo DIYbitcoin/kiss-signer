@@ -21,8 +21,12 @@ static const char *TAG = "art";
 // art_rle_decompress lives in kiss_art_rle.c so the unit tests can link the
 // decoder without every baked image coming with it.
 
-// Every art .c file contributes its own table, so adding or removing an image
-// is a bake_art.py run and not an edit here.
+// Every art .c file carries its own table, written there by bake_art.py along
+// with the externs in its header. The WIRING is not: the rows below are by
+// hand, so a newly baked image compiles, links, and never unpacks until one is
+// added for it. This comment used to say adding an image was "a bake_art.py
+// run and not an edit here", which holds for everything except the one line
+// that makes the bytes reachable.
 static const struct {
     const art_entry_t *e;
     const int         *n;

@@ -7,7 +7,7 @@ idf_component_register(
 # THE LINT LANE. There is no separate one: this component is the only place in
 # the repo compiled by a compiler that implements these, and IDF already passes
 # -Werror, so a hit here is a build failure on the lane CI runs for every pull
-# request and the one HOUSE-RULES.md tells you to run by hand.
+# request and the one dev/HOUSE-RULES.md tells you to run by hand.
 #
 # PRIVATE, so it reaches main/ and never the vendored components.
 #

@@ -884,6 +884,7 @@ static void oc_check_bare(const char *tag)
 // check_screen_coverage.py exists to close, not a new one.
 #define OC_FIT_MAX 24
 static char s_fit_kind[OC_FIT_MAX][8];
+static int  s_fit_w[OC_FIT_MAX], s_fit_h[OC_FIT_MAX];
 static char s_fit_txt[OC_FIT_MAX][96];
 static int  s_fit_n;
 
@@ -910,10 +911,17 @@ static int  s_fit_n;
 
 static void oc_fit_sink(const char *kind, const char *txt, int w, int h)
 {
-    if (w < OC_FIT_BODY_W || h < OC_FIT_BODY_H) return;
+    // The size filter is FIT's, and it says "font14 in a 24px subline is the
+    // box deciding, not the copy". PORT arrives with the narrow lane already
+    // applied -- 704 becomes 281 -- so the same filter would throw away every
+    // finding it makes. It carries its own verdict and skips the gate.
+    const bool port = kind && strcmp(kind, "narrow") == 0;
+    if (!port && (w < OC_FIT_BODY_W || h < OC_FIT_BODY_H)) return;
     if (s_fit_n >= OC_FIT_MAX) return;
     snprintf(s_fit_kind[s_fit_n], sizeof s_fit_kind[0], "%s", kind ? kind : "?");
     snprintf(s_fit_txt[s_fit_n], sizeof s_fit_txt[0], "%s", txt ? txt : "");
+    s_fit_w[s_fit_n] = w;
+    s_fit_h[s_fit_n] = h;
     s_fit_n++;
 }
 
@@ -926,6 +934,101 @@ static void oc_fit_install(void) { wt_fit_set_sink(oc_fit_sink); }
 
 // Shrink only, like the two above. An entry is a string somebody decided to
 // leave at font14, and that decision needs saying so here.
+// ---- SLACK's backlog -------------------------------------------------------
+//
+// Sixty six English strings were over the line the day this check landed, and
+// they were NOT a copy problem: forty six sat on ONE lane -- the value half of
+// a wt_facts row -- which is what sent that lane off to learn to wrap. Those
+// forty six left in a single commit and none of them lost a word.
+//
+// The twenty one below are what survived it, and most of them are the
+// glossary's own anchors: DESCRIPTOR, FINGERPRINT, PASSPHRASE, SEED WORDS.
+// The house rule already covers those -- where the name IS the string, the
+// lane is what is wrong, and the fix is never to cut the name. The rest are
+// settings row sub-lines, pinned to one line by a lane the label's 250px cap
+// and the value chip decide between them.
+//
+// So this is a ratchet, not an excuse. It cannot grow: a new string over the
+// line fails the run, which is the only outcome that matters, because every
+// one of these was invisible until the twenty translations of it existed.
+static const char *OC_SLACK_BACKLOG[] = {
+    "0 already signed",
+    "ADDRESS TYPE",
+    "CHECK MY COPY",
+    "DESCRIPTOR",
+    "ENCRYPTION",
+    "FINGERPRINT",
+    "PASSPHRASE",
+    "RANDOMNESS",
+    "SEED WORDS",
+    "THIS DEVICE",
+    "compare lit characters",
+    "from the card",
+    "how your keys were made",
+    "keeps nothing",
+    "not real bitcoin",
+    "only this signer",
+    "opens real keys",
+    "scans for payments",
+    "seed words. not your passphrase",
+    "show this QR to it",
+    NULL,
+};
+static bool s_slack_hit[sizeof OC_SLACK_BACKLOG / sizeof OC_SLACK_BACKLOG[0]];
+
+static bool oc_slack_excused(const char *txt)
+{
+    for (unsigned i = 0; i < sizeof OC_SLACK_BACKLOG / sizeof OC_SLACK_BACKLOG[0]; i++)
+        if (OC_SLACK_BACKLOG[i] && strcmp(txt, OC_SLACK_BACKLOG[i]) == 0)
+            { s_slack_hit[i] = true; return true; }
+    return false;
+}
+
+// ---- PORT's backlog --------------------------------------------------------
+//
+// Empty on purpose, and it is a DIFFERENT kind of list from the others here.
+// Every entry is a screen somebody has decided will be rebuilt for the small
+// board rather than re-flowed onto it, which is a real answer -- but it has to
+// be written down as one, because the alternative is finding out with the
+// hardware in hand.
+static const char *OC_PORT_BACKLOG[] = {
+    // The two the check found on the day it landed, and they are the honest
+    // answer rather than a deferral: both are STOP screens whose body is a
+    // pair of labelled claims, and a pair of claims on a 320 wide board is a
+    // pair of ROWS, not a paragraph re-flowed. They get rebuilt with the rest
+    // of that board's layout, and the point of naming them here is that the
+    // list is now two long instead of unknown.
+    "this code comes from the signature itself.",
+    "WRONG KEYS: another passphrase opens other keys.",
+    // The five grids. Each is a list of labelled claims, and a list on a 320
+    // wide board is ONE column, which is what makes them too tall rather than
+    // too wide: the entries are the same, they simply each take more lines and
+    // the vertical budget does not grow to meet them.
+    "COMPARE: the lit characters against your coordinator.",
+    "HIGH FEE: a big slice of what you send.",
+    "WHAT YOU POINT AT: the scene in front of the lens.",
+    "THE LIST: the same 2048 words everywhere.",
+    "YOURS, NOT ITS: the randomness is your own hand",
+    // The five pinned labels, which are the cheap half: each is a row subline
+    // between 28 and 154 pixels over the lane, so each is two or three words
+    // from fitting. They are listed rather than cut today because cutting them
+    // for a board nobody is holding would shorten screens that read correctly
+    // now, and the whole point of measuring early is to make that a CHOICE.
+    "compare lit characters",
+    "how your keys were made",
+    "seed words. not your passphrase",
+    NULL,
+};
+static bool s_port_hit[sizeof OC_PORT_BACKLOG / sizeof OC_PORT_BACKLOG[0]];
+
+static bool oc_port_excused(const char *txt)
+{
+    for (unsigned i = 0; i < sizeof OC_PORT_BACKLOG / sizeof OC_PORT_BACKLOG[0]; i++)
+        if (OC_PORT_BACKLOG[i] && strstr(txt, OC_PORT_BACKLOG[i]))
+            { s_port_hit[i] = true; return true; }
+    return false;
+}
+
 static const char *OC_FIT_BACKLOG[] = {
     // EMPTY. Two strings were listed here on the day this check landed and both
     // were cut rather than excused: the camera-proof warning lost a clause that
@@ -1227,11 +1330,30 @@ static void oc_check_exit(const char *tag)
     oc_report_one(tag, sig, detail);
 }
 
+static bool oc_lang_is_en(void);
+
 static void oc_check_fit(const char *tag)
 {
     for (int i = 0; i < s_fit_n; i++) {
-        if (oc_fit_excused(s_fit_txt[i])) continue;
         char sig[192], detail[320];
+        // PORT is not FIT. It says a body will not re-flow onto the 320 wide
+        // board -- it fits the screen that ships today, and the verdict is
+        // about a screen that does not exist yet, so it carries its own name
+        // and its own backlog. English only, like every check whose fix is to
+        // cut the SOURCE copy.
+        if (strcmp(s_fit_kind[i], "narrow") == 0) {
+            if (!oc_lang_is_en() || oc_port_excused(s_fit_txt[i])) continue;
+            snprintf(sig, sizeof sig, "PORT|%s", s_fit_txt[i]);
+            snprintf(detail, sizeof detail,
+                     "PORT     \"%s\" will not re-flow onto the 3.5in board: "
+                     "at %dpx of lane it runs past a %dpx budget even at the "
+                     "floor rung. Same height, 320 wide instead of 800 -- this "
+                     "screen needs rebuilding, not narrowing",
+                     s_fit_txt[i], s_fit_w[i], s_fit_h[i]);
+            oc_report_one(tag, sig, detail);
+            continue;
+        }
+        if (oc_fit_excused(s_fit_txt[i])) continue;
         snprintf(sig, sizeof sig, "FIT|%s|%s", s_fit_kind[i], s_fit_txt[i]);
         snprintf(detail, sizeof detail,
                  "FIT      %s ran out of ladder on \"%s\" -- the floor is 21 "
@@ -1506,8 +1628,47 @@ static void oc_check_cut(const char *tag)
             (strcmp(s_cut_kind[i], "words") == 0 ||
              strcmp(s_cut_kind[i], "long") == 0 ||
              strcmp(s_cut_kind[i], "mark") == 0 ||
+             strcmp(s_cut_kind[i], "slack") == 0 ||
+             strcmp(s_cut_kind[i], "port") == 0 ||
              strcmp(s_cut_kind[i], "widow") == 0))
             continue;
+        // SLACK is the same English-only argument as READ, arrived at from the
+        // other end. The others ask whether the English reads well; this asks
+        // whether it leaves room for the twenty translations of it. Measuring
+        // a translation's own slack is meaningless -- it is already the string
+        // that has to fit -- and the only fix this gate offers, cutting the
+        // SOURCE copy, is an English edit either way.
+        // PORT through the cut sink: everything PINNED. The body half of the
+        // same check lives in the fit sink, because a body is sized by height
+        // and a label by width, and each is measured where it is decided.
+        if (strcmp(s_cut_kind[i], "port") == 0) {
+            if (oc_port_excused(s_cut_txt[i])) continue;
+            snprintf(sig, sizeof sig, "PORT|%s", s_cut_txt[i]);
+            snprintf(detail, sizeof detail,
+                     "PORT     \"%s\" is %dpx and the 3.5in board's whole "
+                     "content lane is %dpx -- it cannot be a one line label "
+                     "there under any layout, so it is cut or it wraps, and "
+                     "wrapping a pinned label is a rebuild",
+                     s_cut_txt[i], s_cut_want[i], s_cut_lane[i]);
+            oc_report_one(tag, sig, detail);
+            continue;
+        }
+        if (strcmp(s_cut_kind[i], "slack") == 0) {
+            if (oc_slack_excused(s_cut_txt[i])) continue;
+            const int pct = s_cut_lane[i] ? s_cut_want[i] * 100 / s_cut_lane[i]
+                                          : 0;
+            snprintf(sig, sizeof sig, "SLACK|%s", s_cut_txt[i]);
+            snprintf(detail, sizeof detail,
+                     "SLACK    \"%s\" needs %d%% of its %dpx lane once a "
+                     "translation gains the third longer they all gain, and "
+                     "the floor rung is already under it -- so this string is "
+                     "font14 in fifteen locales before it is written. It has "
+                     "to fit %dpx",
+                     s_cut_txt[i], pct, s_cut_lane[i],
+                     s_cut_lane[i] * 74 / 100);
+            oc_report_one(tag, sig, detail);
+            continue;
+        }
         if (strcmp(s_cut_kind[i], "mark") == 0) {
             snprintf(sig, sizeof sig, "MARK|%s", s_cut_txt[i]);
             if (s_cut_lane[i])
@@ -1748,6 +1909,31 @@ static bool oc_is_warn(lv_color_t c)
     return p.red == 0xF2 && p.green == 0xB8 && p.blue == 0x4B;
 }
 
+// The ALLOW list, and it is not the backlog: these are not strings waiting to
+// be fixed, they are the one place the rule above is deliberately inverted.
+//
+// SETTINGS > SIGNER's network row used to say the caution twice -- an amber
+// lamp that PULSED, and the word beside it lifted into the accent. The pulse
+// was the problem: a breathing dot is how this device's tab strip routes the
+// attention chip, so the row was raising a hand about a setting the owner had
+// just chosen. The bench asked for the dot off the row and the WORD yellow,
+// which leaves the caution said exactly once, by the thing being cautioned
+// about.
+//
+// So the general rule stands -- amber is a mark colour, and every other amber
+// sentence on the device is a finding. These two are the chain's own names,
+// they are untranslated in all 21 locales (kiss_net_name returns them as
+// literals), and they are matched WHOLE so a longer string that happens to
+// contain one is still reported.
+static const char *OC_AMBER_ALLOW[] = { "TESTNET", "SIGNET" };
+
+static bool oc_amber_allowed(const char *txt)
+{
+    for (unsigned i = 0; i < sizeof OC_AMBER_ALLOW / sizeof OC_AMBER_ALLOW[0]; i++)
+        if (strcmp(txt, OC_AMBER_ALLOW[i]) == 0) return true;
+    return false;
+}
+
 static const char *OC_AMBER_BACKLOG[] = {
     NULL,   // C forbids an empty initialiser; the loop below skips NULLs
 };
@@ -1773,6 +1959,7 @@ static void oc_check_amber(const char *tag)
         if (!oc_is_warn(lv_obj_get_style_text_color(n->obj, LV_PART_MAIN)))
             continue;
         if (oc_word_count(txt) < 1) continue;      // a bare glyph is a MARK
+        if (oc_amber_allowed(txt)) continue;       // the network row, on purpose
         if (oc_amber_excused(txt)) continue;
         oc_text(n->obj, t, sizeof t);
         snprintf(sig, sizeof sig, "AMBER|%s", t);
@@ -2623,12 +2810,73 @@ static int oc_selftest_ladder(const char *name, const lv_font_t *mark_f,
 // The two reading-level cases go through the SINK, not through a screen: the
 // measure is a pure function of a string and the sink is what carries it, so
 // driving the string is driving the whole check.
+// One pixel over the 3.5in board's whole content lane, which is the only
+// number this case is about.
+#define WT_PORT_SELFTEST_W 281
+
 static int oc_selftest_read(const char *name, const char *kind,
                             const char *txt, int want, bool want_finding)
 {
     s_cut_n = 0; s_findings = 0; s_seen_n = 0;
-    oc_cut_sink(kind, txt, want, 0);
+    // PORT's lane is a real number and the finding prints it, so the self test
+    // hands over the real one rather than the zero the reading-level cases use.
+    oc_cut_sink(kind, txt, want,
+                strcmp(kind, "port") == 0 ? WT_PORT_LANE : 0);
     oc_check_cut("selftest");
+    bool got = s_findings > 0;
+    printf("  %-46s %s (%d finding%s)\n", name,
+           got == want_finding ? "ok" : "FAILED", s_findings,
+           s_findings == 1 ? "" : "s");
+    return got == want_finding ? 0 : 1;
+}
+
+// PORT walks the SAME ladder the body sizer does, against a lane 320/800 as
+// wide, so the two cases are a body that re-flows onto the small board and one
+// that cannot. The second is what the check exists to name, and a dead check
+// fails it -- which matters more here than anywhere else in this file, because
+// the hardware it is about does not exist yet and nobody can catch it on glass.
+static int oc_selftest_port(const char *name, const char *body,
+                            bool want_finding)
+{
+    lv_obj_t *scr = wt_screen(NULL, "SELFTEST", NULL);
+    lv_screen_load(scr);
+    s_fit_n = 0; s_findings = 0; s_seen_n = 0;
+    wt_body_para(scr, body, 120);
+    lv_refr_now(NULL);
+    oc_check_fit("selftest");
+
+    bool got = s_findings > 0;
+    printf("  %-46s %s (%d finding%s)\n", name,
+           got == want_finding ? "ok" : "FAILED", s_findings,
+           s_findings == 1 ? "" : "s");
+    return got == want_finding ? 0 : 1;
+}
+
+// SLACK goes through a real wide row, because the whole check is about a LANE
+// and the sink cannot supply one. It used to build a wt_facts row until that
+// lane learned to wrap, which is the fix SLACK asked for -- so the self test
+// moved to a shape that is still PINNED, which is the only shape the check is
+// about.
+// and the two cases are the two sides of the rule: a value that fits today and
+// will not once a translation gains its third, and a value with room to spare.
+// A check that fired on both would be one nobody could act on, and a dead one
+// fails the first case -- which is the only reason this exists, since every
+// string the check found on the day it landed is on its backlog.
+static int oc_selftest_slack(const char *name, const char *val,
+                             bool want_finding)
+{
+    lv_obj_t *scr = wt_screen(NULL, "SELFTEST", NULL);
+    lv_screen_load(scr);
+    s_cut_n = 0; s_findings = 0; s_seen_n = 0;
+    wt_row_wide(scr, WT_WIDE_Y(0), &(wt_wide_t){
+        .label = "LABEL",
+        .sub   = val,
+        .kind  = WT_WIDE_CYCLE,
+        .val   = "VALUE",
+    });
+    lv_refr_now(NULL);
+    oc_check_cut("selftest");
+
     bool got = s_findings > 0;
     printf("  %-46s %s (%d finding%s)\n", name,
            got == want_finding ? "ok" : "FAILED", s_findings,
@@ -2714,6 +2962,43 @@ int oc_selftest(void)
     bad += oc_selftest_cut("a label that fits, clear", "STORAGE", NULL, false);
     if (bad) printf("CUT self test: %d case(s) wrong\n", bad);
     else     printf("CUT self test: 4 cases, all as expected\n");
+    printf("\n");
+
+    int was_cut = bad;
+    printf("SLACK check self test\n");
+    bad += oc_selftest_slack("a value that fits now and not translated, fires",
+                             "a lane with no room",
+                             true);
+    bad += oc_selftest_slack("a value with room to spare, clear",
+                             "two words", false);
+    if (bad != was_cut) printf("SLACK self test: %d case(s) wrong\n",
+                               bad - was_cut);
+    else                printf("SLACK self test: 2 cases, all as expected\n");
+    printf("\n");
+
+    int was_slack = bad;
+    printf("PORT check self test\n");
+    // The pinned half goes through the SINK, like the reading-level cases and
+    // for the same reason: the measure is "is this string wider than the small
+    // board's whole lane", a pure function of a width, and driving the width
+    // drives the check. The BODY half below goes through a real wt_body_para,
+    // because there the measure is a ladder walk and only the real one proves
+    // it still walks.
+    bad += oc_selftest_read("a label wider than the 3.5in lane, fires",
+                            "port", "a label too wide for the small board",
+                            WT_PORT_SELFTEST_W, true);
+    bad += oc_selftest_port("a body too tall for a 320 wide lane, fires",
+                            "a body long enough that a lane two and a half "
+                            "times narrower than this one turns it into more "
+                            "lines than the screen has room to draw, which is "
+                            "the whole question this check asks of every "
+                            "paragraph on the device before the small board "
+                            "is ever held in a hand.", true);
+    bad += oc_selftest_port("a body that re-flows, clear", "short enough.",
+                            false);
+    if (bad != was_slack) printf("PORT self test: %d case(s) wrong\n",
+                                 bad - was_slack);
+    else                  printf("PORT self test: 2 cases, all as expected\n");
     printf("\n");
 
     int was_ink = bad;
@@ -2846,8 +3131,15 @@ int oc_selftest(void)
                              true);
     bad += oc_selftest_amber("a lone caution glyph in WT_WARN, clear",
                              LV_SYMBOL_WARNING, false);
+    // The allow list, both ways. A gate that excused the whole list by
+    // substring would also excuse the sentence below, which is how an allow
+    // turns into a hole nobody notices.
+    bad += oc_selftest_amber("an allowed chain name in WT_WARN, clear",
+                             "SIGNET", false);
+    bad += oc_selftest_amber("a sentence CONTAINING one, fires",
+                             "SIGNET is not real bitcoin", true);
     if (bad) printf("AMBER self test: %d case(s) wrong\n", bad);
-    else     printf("AMBER self test: 2 cases, all as expected\n");
+    else     printf("AMBER self test: 4 cases, all as expected\n");
     printf("\n");
 
     printf("TINY check self test\n");
@@ -3308,6 +3600,31 @@ int oc_report(void)
         }
         printf("[overlap] %s: %d strings still on the FIT backlog\n",
                lang, fit_left);
+    }
+    // SLACK is measured in English only, so only the English run can say
+    // whether an entry is still earning its place. Every other locale would
+    // report all sixty six as dead and invite somebody to delete the list.
+    if (oc_lang_is_en()) {
+        int slack_left = 0;
+        for (unsigned i = 0; i < sizeof OC_SLACK_BACKLOG / sizeof OC_SLACK_BACKLOG[0]; i++) {
+            if (!OC_SLACK_BACKLOG[i]) continue;
+            if (s_slack_hit[i]) { slack_left++; continue; }
+            printf("[overlap] %s: SLACK backlog entry \"%s\" never matched a"
+                   " stop -- cut it from the list, the string it excused is"
+                   " gone\n", lang, OC_SLACK_BACKLOG[i]);
+        }
+        printf("[overlap] %s: %d strings still on the SLACK backlog\n",
+               lang, slack_left);
+        int port_left = 0;
+        for (unsigned i = 0; i < sizeof OC_PORT_BACKLOG / sizeof OC_PORT_BACKLOG[0]; i++) {
+            if (!OC_PORT_BACKLOG[i]) continue;
+            if (s_port_hit[i]) { port_left++; continue; }
+            printf("[overlap] %s: PORT backlog entry \"%s\" never matched a"
+                   " stop -- cut it from the list, the body it named is"
+                   " gone\n", lang, OC_PORT_BACKLOG[i]);
+        }
+        printf("[overlap] %s: %d strings on the 3.5in rebuild list\n",
+               lang, port_left);
     }
     {
         // STALE is the one backlog whose verdict is NOT this run's to give.

@@ -12,13 +12,13 @@
 #
 #   Verified against IDF 6.0.1 (components/bootloader_support/src/flash_encrypt.c):
 #   flashing a RELEASE-configured build onto a board already fused for
-#   DEVELOPMENT does NOT tighten it. The bootloader logs "app is configured for
-#   RELEASE but efuses are set for DEVELOPMENT / Device is not secure" and runs
-#   anyway. The only real upgrade is esp_flash_encryption_set_release_mode()
-#   called from the app, which burns CRYPT_CNT to full and write-protects it,
-#   burns DIS_DOWNLOAD_MANUAL_ENCRYPT (+ SPI_DOWNLOAD_MSPI_DIS and
-#   DIS_DOWNLOAD_ICACHE where the target has them), switches ROM download to
-#   secure mode, and aborts if the readback still says DEVELOPMENT.
+#   DEVELOPMENT does NOT tighten the flash fuses. The bootloader logs "app is
+#   configured for RELEASE but efuses are set for DEVELOPMENT / Device is not
+#   secure" and runs anyway. It is not a no-op either, now that the release
+#   recipe carries secure boot: its bootloader burns the key digest no matter
+#   what the flash fuses say, leaving a board half locked. So the release
+#   build never gets pointed at the rehearsal board at all - the burn goes to
+#   a fresh dedicated board, and the rehearsal board stays what it is.
 #
 # This is the step-8 hardening build: the release profile (KISS_RELEASE=1, dev
 # seed compiled OUT) PLUS:
@@ -27,8 +27,14 @@
 #   * NVS encryption                  - plain flash encryption does NOT cover
 #     "nvs" data partitions, and the seed words live in NVS; NVS encryption
 #     stores XTS keys in the new nvs_key partition, which IS flash-encrypted
-#   * secure boot OFF                 - deliberate for the beta: it is a second
-#     one-way eFuse step, added later as its own pass
+#   * secure boot v2, ECDSA secp256r1 - first boot ALSO burns the digest of the
+#     signing key and from then on the ROM only runs our signed bootloader and
+#     the bootloader only runs our signed apps. Release recipe only: the
+#     rehearsal board must stay reflashable, and this burn is as one way as the
+#     other. This used to read "OFF - added later as its own pass"; this is
+#     that pass, and the two burns happen together in one first boot because a
+#     board burned for encryption alone can never take the secure bootloader
+#     afterwards.
 #
 # THIS BUILD IS FOR A FRESH / FINAL BOARD ONLY. It never touches the v1.3
 # engineering sample. This script only builds and verifies - it never flashes.
@@ -36,14 +42,16 @@
 # What "release mode" means, so nobody is surprised later:
 #   * the encryption key is generated ON the device and is unreadable forever
 #   * after the first boot, serial reflash is IMPOSSIBLE, so the web installer
-#     and the cable never work on that board again
+#     and the cable never work on that board again. JTAG is permanently
+#     disabled by the secure boot burn, and ROM download mode drops to its
+#     secure subset: enough to erase a board, never to read or reprogram it.
 #   * firmware is NOT frozen: this table carries two app slots and an otadata,
-#     and the board takes signed SD updates checked against the key in the
-#     running app. The assertions below are what hold that to signed images
-#     only. (An older SIGNED build still installs: anti rollback is deliberately
-#     off until the secure boot pass.)
+#     and the board takes signed SD updates - now judged against the eFuse
+#     digest, not merely the running app's own block. Anti rollback is armed at
+#     secure version 0: nothing is refused today, but the first release that
+#     bumps the version can permanently shut the door on the builds before it.
 #   * an attacker with the board can erase it (denial of service) but can
-#     never read the seed out of flash
+#     never read the seed out of flash, and can never boot code we did not sign
 set -e
 cd "$(dirname "$0")/.."
 . tools/idf_image.sh
@@ -80,11 +88,40 @@ force = {
     "CONFIG_SECURE_FLASH_ENCRYPTION_MODE_RELEASE":  None if rehearsal else "y",
     "CONFIG_SECURE_FLASH_ENCRYPTION_MODE_DEVELOPMENT": "y" if rehearsal else None,
     "CONFIG_NVS_ENCRYPTION":                        "y",
-    # XTS key size: AES-128, chosen deliberately. It is not weak, the size is
-    # fixed by the first boot's eFuse burn, and AES-256 waits for the later
-    # pass with secure boot. Stated here so no IDF default can make it.
-    "CONFIG_SECURE_FLASH_ENCRYPTION_AES128":        "y",
-    "CONFIG_SECURE_FLASH_ENCRYPTION_AES256":        None,
+    # XTS key size: AES-256. The old AES-128 line called itself deliberate and
+    # deferred the real choice to "the later pass with secure boot" - this is
+    # that pass, so it is decided: the P4 has the 256-bit XTS eFuse scheme and
+    # key blocks to spare, the key is generated on-device either way, and the
+    # first boot fixes the size forever. No board has been burned at 128.
+    # Both recipes, so the rehearsal rehearses the size that ships.
+    "CONFIG_SECURE_FLASH_ENCRYPTION_AES128":        None,
+    "CONFIG_SECURE_FLASH_ENCRYPTION_AES256":        "y",
+    # secure boot v2, release recipe only: a secure boot bootloader burns its
+    # key digest on FIRST BOOT, so putting it in the rehearsal build would
+    # spend the one thing that build exists to protect - a board that still
+    # takes any image over the cable. Signing stays outside the container
+    # (BUILD_SIGNED_BINARIES off, forced below): the bootloader and the app
+    # are both signed after the build with the SAME secp256r1 key the SD
+    # update story already rests on. One root, already under custody, already
+    # the key this project cannot lose - the eFuse digest just anchors it.
+    "CONFIG_SECURE_BOOT":                           None if rehearsal else "y",
+    "CONFIG_SECURE_BOOT_V2_ENABLED":                None if rehearsal else "y",
+    "CONFIG_SECURE_BOOT_ECDSA_KEY_LEN_256_BITS":    "y",
+    # ROM download mode after the burn: switched to the SECURE subset, not
+    # disabled outright - secure mode still lets a stranger erase a board and
+    # prove it erased, and closes flash reads and writes. Settled as a Stage 2
+    # decision in docs/specs/flash-encryption-rollout.md.
+    "CONFIG_SECURE_ENABLE_SECURE_ROM_DL_MODE":      None if rehearsal else "y",
+    "CONFIG_SECURE_DISABLE_ROM_DL_MODE":            None,
+    # anti rollback, armed at secure version 0. The eFuse counter only burns
+    # when a HIGHER version boots, so nothing is spent and nothing is refused
+    # today - but the check lives in the bootloader, and the release recipe's
+    # bootloader can never be replaced, so the machinery has to be in it from
+    # birth. The app side already exists: kiss_fw_mark_valid confirms a trial
+    # slot only after the signer proves it can sign. Both recipes, same
+    # fidelity argument as the key size.
+    "CONFIG_BOOTLOADER_APP_ANTI_ROLLBACK":          "y",
+    "CONFIG_BOOTLOADER_APP_SECURE_VERSION":         "0",
     # P4 defaults the NVS key-protection choice to the HMAC scheme (needs a
     # pre-burned eFuse key block); we want the flash-encryption scheme: XTS
     # keys auto-generated on first use into the nvs_key partition
@@ -126,12 +163,29 @@ force = {
     #
     # NO_SECURE_BOOT is the honest name: this verifies an image before it is
     # written, using the public key in the running app's own signature block.
-    # It does NOT verify the bootloader and it does NOT stop a downgrade to an
-    # older SIGNED build - CONFIG_BOOTLOADER_APP_ANTI_ROLLBACK stays off, and
-    # secure boot is the later pass this script already asserts is absent.
-    "CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT":     "y",
-    "CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT": "y",
-    "CONFIG_SECURE_SIGNED_APPS_ECDSA_V2_SCHEME":    "y",
+    # It is the REHEARSAL recipe's anchor only. On the release recipe the pair
+    # is Kconfig-invalid (depends on !SECURE_BOOT) and the same verification
+    # comes from secure boot itself, judged against the eFuse digest instead
+    # of the running app - kiss_fw_available's CONFIG_SECURE_BOOT branch.
+    "CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT":     "y" if rehearsal else None,
+    "CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT": "y" if rehearsal else None,
+    # The signature scheme is NOT a preference here, and forcing the one this
+    # project's key uses does not work: on this chip, hardware secure boot with
+    # ECDSA is errata'd. SECURE_BOOT_V2_ECDSA_INSECURE is default y for the P4
+    # in IDF's own bootloader Kconfig -- "not functional for certain input
+    # vectors" -- so SECURE_SIGNED_APPS_ECDSA_V2_SCHEME loses its depends and
+    # the choice falls to RSA, whatever this list says. Reaching it needs
+    # SECURE_BOOT_INSECURE plus SECURE_BOOT_V2_FORCE_ENABLE_ECDSA, which is a
+    # known vulnerability turned on deliberately, on a board that can never be
+    # reflashed. Not on a signing device.
+    #
+    # So: RSA-3072 where secure boot burns, ECDSA where it does not. The
+    # rehearsal recipe has no hardware secure boot, its scheme is not gated,
+    # and it keeps the secp256r1 key the SD update lane already publishes.
+    "CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME":         None if rehearsal else "y",
+    "CONFIG_SECURE_SIGNED_APPS_ECDSA_V2_SCHEME":    "y" if rehearsal else None,
+    "CONFIG_SECURE_BOOT_V2_FORCE_ENABLE_ECDSA":     None,
+    "CONFIG_SECURE_BOOT_INSECURE":                  None,
     "CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES":     None,
 
     # The bootloader's own logs, quieted here for ROOM rather than for quiet.
@@ -175,8 +229,9 @@ for key, v in force.items():
     # lane - so this has to say off out loud.
     out.append(f"# {key} is not set" if v is None else f"{key}={v}")
 open(os.environ["SDKCFG"], "w").write("\n".join(out) + "\n")
-print("wrote %s (flash enc %s + NVS enc, logs WARN)"
-      % (os.environ["SDKCFG"], "DEVELOPMENT" if rehearsal else "RELEASE"))
+print("wrote %s (flash enc %s + NVS enc%s, logs WARN)"
+      % (os.environ["SDKCFG"], "DEVELOPMENT" if rehearsal else "RELEASE",
+         "" if rehearsal else " + secure boot v2 + anti rollback"))
 PY
 
 GIT_REV=$(git describe --always --dirty 2>/dev/null || echo nogit)
@@ -227,6 +282,61 @@ docker run --rm \
 # hand is a staleness problem with nothing to buy it.
 ESPTOOL_PIN="${ESPTOOL_PIN:-esptool==5.3.1}"
 KISS_OTA_KEY="${KISS_OTA_KEY:-$HOME/.kiss-signer/kiss_ota.pem}"
+
+# The key does not have to be a file: espsecure speaks PKCS#11, so the same
+# secp256r1 key can live in a smartcard's signing slot and never exist on this
+# machine. When this config is present it wins over KISS_OTA_KEY. It carries no
+# "credentials" line on purpose, so the card PIN is prompted for rather than
+# stored beside the thing it unlocks. tools/build_release.sh grew this first;
+# docs/installer/SIGNING.md has the setup.
+KISS_OTA_HSM_CONFIG="${KISS_OTA_HSM_CONFIG:-$HOME/.kiss-signer/hsm.ini}"
+if [ -f "$KISS_OTA_HSM_CONFIG" ]; then
+  ESPSECURE=(uvx --from "$ESPTOOL_PIN" --with python-pkcs11 espsecure)
+  OTA_SIGN_KEY=(--hsm --hsm-config "$KISS_OTA_HSM_CONFIG")
+  OTA_KEY_DESC="the card described by $KISS_OTA_HSM_CONFIG"
+else
+  ESPSECURE=(uvx --from "$ESPTOOL_PIN" espsecure)
+  OTA_SIGN_KEY=(--keyfile "$KISS_OTA_KEY")
+  OTA_KEY_DESC="$KISS_OTA_KEY"
+fi
+
+# The one thing this recipe cannot do yet, and it is a key, not a bug.
+#
+# Hardware secure boot on this chip is RSA-3072 only (see the scheme block
+# above). The bootloader and the app therefore carry an RSA signature block,
+# and the key that produces it is not the secp256r1 key under ~/.kiss-signer/
+# that the SD update lane publishes. Signing with that key anyway is exactly
+# the failure this exists to stop: espsecure verifies the image against the
+# key it was signed with, prints PASS, and the board rejects it on first boot
+# with no second attempt available.
+#
+# So the release recipe drops onto the UNSIGNED path rather than stopping. The
+# config assertions below are the whole point of running it today -- they are
+# what proves the secure boot recipe still resolves the way it is meant to --
+# and $BUILD_DIR/UNSIGNED is already the marker that says this image must
+# never reach a board whose fuses it burns.
+#
+# What has to be settled before this comes out, written up in Stage 2 of
+# docs/specs/flash-encryption-rollout.md:
+#   * one RSA-3072 root, generated and held the way the OTA key is
+#   * whether the SD update lane moves to it too -- under secure boot the app
+#     signature block IS the update check, judged against the eFuse digest
+#     rather than against kiss_ota_pub.pem
+#   * what the published key file becomes, since a beta board and a burned
+#     board would then no longer trust the same one
+if [ "$RECIPE" = release ] && [ -z "${KISS_SB_RSA_KEY:-}" ]; then
+  KISS_UNSIGNED=1
+  echo
+  echo "NOTE: no secure boot signing key, so this build is UNSIGNED."
+  echo "      Secure boot v2 on this target is RSA-3072 only: ECDSA is errata'd"
+  echo "      (SECURE_BOOT_V2_ECDSA_INSECURE is default y for this chip), so the"
+  echo "      secp256r1 key at $KISS_OTA_KEY cannot sign a bootloader this"
+  echo "      firmware will boot. Nothing this run produces may be flashed."
+  echo
+  echo "      The rehearsal recipe is unaffected and is the lane to use:"
+  echo "        KISS_ENC_REHEARSAL=1 bash tools/build_encrypted_release.sh"
+fi
+
 if [ -n "${KISS_UNSIGNED:-}" ]; then
   : > "$BUILD_DIR/UNSIGNED"
   echo
@@ -234,19 +344,20 @@ if [ -n "${KISS_UNSIGNED:-}" ]; then
   echo "      No signature block, so this image must never be flashed to a board"
   echo "      whose fuses this recipe burns -- it could never be updated after."
   echo "      Wrote $BUILD_DIR/UNSIGNED to say so."
-elif [ ! -f "$KISS_OTA_KEY" ]; then
+elif [ ! -f "$KISS_OTA_HSM_CONFIG" ] && [ ! -f "$KISS_OTA_KEY" ]; then
   echo
-  echo "FAIL: OTA signing key not found at $KISS_OTA_KEY"
-  echo "      Generate it once (docs/installer/SIGNING.md), or set KISS_OTA_KEY."
+  echo "FAIL: no OTA signing key. Looked for a card config at"
+  echo "      $KISS_OTA_HSM_CONFIG and a key file at $KISS_OTA_KEY."
+  echo "      Set one up once (docs/installer/SIGNING.md), or set KISS_OTA_KEY."
   echo "      Without it this board can never accept an SD firmware update, and"
   echo "      the release recipe burns the fuses that would let you reflash it."
   echo "      For a reproducibility check on a machine with no key, set"
   echo "      KISS_UNSIGNED=1 and compare the unsigned hashes."
   exit 1
 else
-echo "signing app with $KISS_OTA_KEY"
-uvx --from "$ESPTOOL_PIN" espsecure sign-data \
-  --version 2 --keyfile "$KISS_OTA_KEY" \
+echo "signing app with $OTA_KEY_DESC"
+"${ESPSECURE[@]}" sign-data \
+  --version 2 "${OTA_SIGN_KEY[@]}" \
   --output "$BUILD_DIR/guition_kiss_bringup-signed.bin" \
   "$BUILD_DIR/guition_kiss_bringup.bin"
 mv "$BUILD_DIR/guition_kiss_bringup-signed.bin" \
@@ -254,21 +365,28 @@ mv "$BUILD_DIR/guition_kiss_bringup-signed.bin" \
 
 # The public half in the repo has to be the half that just signed, or a
 # verifier checks this build against a key the firmware does not carry.
-uvx --from "$ESPTOOL_PIN" espsecure extract-public-key \
-  --version 2 --keyfile "$KISS_OTA_KEY" /tmp/kiss_ota_pub_enc_check.pem
-if ! cmp -s /tmp/kiss_ota_pub_enc_check.pem docs/installer/kiss_ota_pub.pem; then
-  echo "FAIL: docs/installer/kiss_ota_pub.pem is not the public half of $KISS_OTA_KEY"
+#
+# Only the file lane can ask that of the key itself: a card will not hand over
+# a private key to derive a public half from. Nothing is lost -- the verify
+# below proves the signature checks out under the PUBLISHED key, which is the
+# same claim made against the shipped bytes.
+if [ "${OTA_SIGN_KEY[0]}" = "--keyfile" ]; then
+  "${ESPSECURE[@]}" extract-public-key \
+    --version 2 --keyfile "$KISS_OTA_KEY" /tmp/kiss_ota_pub_enc_check.pem
+  if ! cmp -s /tmp/kiss_ota_pub_enc_check.pem docs/installer/kiss_ota_pub.pem; then
+    echo "FAIL: docs/installer/kiss_ota_pub.pem is not the public half of $KISS_OTA_KEY"
+    rm -f /tmp/kiss_ota_pub_enc_check.pem
+    exit 1
+  fi
+  echo "PASS: published public key matches the signing key"
   rm -f /tmp/kiss_ota_pub_enc_check.pem
-  exit 1
 fi
-echo "PASS: published public key matches the signing key"
-rm -f /tmp/kiss_ota_pub_enc_check.pem
 
 # Prove the shipped file verifies against the PUBLISHED key, not just that the
 # two halves match. This is the check a stranger can repeat, and it is the one
 # that fails if signing was skipped, applied to the wrong file, or undone by a
 # later step that rewrites the binary.
-if ! uvx --from "$ESPTOOL_PIN" espsecure verify-signature \
+if ! "${ESPSECURE[@]}" verify-signature \
      --version 2 --keyfile docs/installer/kiss_ota_pub.pem \
      "$BUILD_DIR/guition_kiss_bringup.bin" >/dev/null 2>&1; then
   echo "FAIL: $BUILD_DIR/guition_kiss_bringup.bin does not verify against"
@@ -311,6 +429,45 @@ if ! "$PQ_TOOL" verify "$KISS_PQ_KEY" "$BUILD_DIR/guition_kiss_bringup.bin"; the
   exit 1
 fi
 echo "PASS: signed app carries a post quantum signature that verifies"
+
+# ---- and the bootloader, on the release recipe only ----
+#
+# Secure boot's first boot burns the digest of the key found in the
+# BOOTLOADER's signature block, then refuses any bootloader and any app that
+# key did not sign - an unsigned bootloader here would not boot even once.
+# Same key as the app, necessarily: they share one signature scheme and one
+# burned digest. That key is RSA-3072 on this chip and is NOT the secp256r1
+# OTA key, which is why the gate above drops this recipe to UNSIGNED until
+# the root is settled. The rehearsal recipe skips this block entirely: its
+# board has no secure boot, and its bootloader stays byte-identical to what
+# that build has always flashed.
+#
+# Signed in place, before the flash recipe below reads flasher_args.json, so
+# the offsets and the hashes describe the bytes that actually get flashed.
+if [ "$RECIPE" = release ]; then
+  echo "signing bootloader with $OTA_KEY_DESC"
+  "${ESPSECURE[@]}" sign-data \
+    --version 2 "${OTA_SIGN_KEY[@]}" \
+    --output "$BUILD_DIR/bootloader/bootloader-signed.bin" \
+    "$BUILD_DIR/bootloader/bootloader.bin"
+  mv "$BUILD_DIR/bootloader/bootloader-signed.bin" \
+     "$BUILD_DIR/bootloader/bootloader.bin"
+  if ! "${ESPSECURE[@]}" verify-signature \
+       --version 2 --keyfile docs/installer/kiss_ota_pub.pem \
+       "$BUILD_DIR/bootloader/bootloader.bin" >/dev/null 2>&1; then
+    echo "FAIL: the signed bootloader does not verify against the published key"
+    exit 1
+  fi
+  # The signature block sits on the end, the bootloader is flashed at 0x2000
+  # and the partition table at 0x10000: a signed bootloader that outgrew
+  # those 57344 bytes would be flashed over its own partition table.
+  BL_SIZE=$(wc -c < "$BUILD_DIR/bootloader/bootloader.bin" | tr -d ' ')
+  if [ "$BL_SIZE" -gt 57344 ]; then
+    echo "FAIL: signed bootloader is $BL_SIZE bytes; 57344 is the ceiling"
+    exit 1
+  fi
+  echo "PASS: signed bootloader verifies against the published key ($BL_SIZE bytes)"
+fi
 fi
 
 # ---- verify: binary contents AND the security config that actually built ----
@@ -324,7 +481,17 @@ blob = open(f"{bdir}/guition_kiss_bringup.bin", "rb").read()
 rev = os.environ.get("GIT_REV", "").encode()
 checks = [
     (bool(rev) and rev in blob,          f"commit {rev.decode()} present"),
-    (b"abandon abandon" not in blob,     "no dev mnemonic in binary"),
+    # ONE copy of the published all-abandon vector ships, deliberately:
+    # kiss_seed_is_test_vector compares against it so a restore of the wallet
+    # the whole internet can spend from is recognised and marked. The owner
+    # asked for that in shipped firmware, twice. What must NOT ship is dev seed
+    # material on a live path -- kiss_crypto.c's DEV_MNEMONIC behind
+    # #ifndef KISS_RELEASE, and kiss_cryptobench.c whole. So this counts rather
+    # than forbids: two copies means one of those came back.
+    (blob.count(b"abandon abandon abandon abandon abandon abandon "
+                b"abandon abandon abandon abandon abandon about") == 1,
+     "exactly one test vector (the restore comparator), no dev seed"),
+    (b"kissbench" not in blob,           "crypto bench compiled out"),
     (b"KISS %s dev (%s)" not in blob,    "no dev banner in binary"),
     (open("VERSION").read().strip().encode() in blob, "version string present"),
 ]
@@ -340,22 +507,43 @@ checks += [
     (on("CONFIG_SECURE_FLASH_ENCRYPTION_MODE_DEVELOPMENT") is rehearsal,
      "release mode off" if rehearsal else "development mode off"),
     (on("CONFIG_NVS_ENCRYPTION"),                       "NVS encryption enabled"),
-    (on("CONFIG_SECURE_FLASH_ENCRYPTION_AES128") and
-     not on("CONFIG_SECURE_FLASH_ENCRYPTION_AES256"),   "XTS AES-128, deliberate (256 waits for the later pass)"),
+    (on("CONFIG_SECURE_FLASH_ENCRYPTION_AES256") and
+     not on("CONFIG_SECURE_FLASH_ENCRYPTION_AES128"),   "XTS AES-256 (settled at the secure boot pass)"),
     (on("CONFIG_NVS_SEC_KEY_PROTECT_USING_FLASH_ENC"),  "NVS keys via flash-enc scheme (nvs_key partition)"),
-    (not on("CONFIG_SECURE_BOOT"),                      "secure boot off (own later pass)"),
+    # opposite on purpose, same argument as the flash-encryption mode above: a
+    # rehearsal build that quietly gained secure boot would burn the digest on
+    # the board that exists to stay reflashable
+    (on("CONFIG_SECURE_BOOT") is not rehearsal,
+     "secure boot off (rehearsal stays reflashable)" if rehearsal
+     else "secure boot v2 ON (burns with the flash key)"),
+    (rehearsal or on("CONFIG_SECURE_BOOT_V2_ENABLED"),  "secure boot is the v2 scheme"),
     (on("CONFIG_ESPTOOLPY_NO_STUB"),                    "esptool no-stub mode (required with flash encryption)"),
     (on("CONFIG_APP_REPRODUCIBLE_BUILD"),               "reproducible build (no compile date embedded)"),
     # An update lane is only allowed to exist if the images it accepts are
-    # checked. These two assert the answer this lane gives to "updatable or
-    # frozen": updatable, and only for an image signed with our key.
-    (on("CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT"),
+    # checked. These assert the answer this lane gives to "updatable or
+    # frozen": updatable, and only for an image signed with our key. The
+    # rehearsal anchors in the running app's own signature block; the release
+    # recipe anchors in the eFuse digest secure boot burns.
+    (on("CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT") if rehearsal
+     else on("CONFIG_SECURE_SIGNED_ON_UPDATE"),
      "SD update images are signature verified"),
-    (on("CONFIG_SECURE_SIGNED_APPS_ECDSA_V2_SCHEME"),   "signature scheme ECDSA v2"),
-    # Deliberately NOT asserted on: anti rollback burns an eFuse and cannot be
-    # undone, and doing that before secure boot lands would freeze the fleet on
-    # an unfinished security model. An older SIGNED build is installable today;
-    # that is a known, accepted gap and it goes away with the secure boot pass.
+    # Both halves, and opposite per recipe. "ECDSA is on" was the whole
+    # assertion, it was TRUE in the force list, and the config that built said
+    # RSA -- which is how an image signed with one scheme nearly went onto a
+    # board expecting the other.
+    (on("CONFIG_SECURE_SIGNED_APPS_ECDSA_V2_SCHEME") is rehearsal and
+     on("CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME") is not rehearsal,
+     "signature scheme ECDSA v2 (no secure boot)" if rehearsal
+     else "signature scheme RSA-3072 (ECDSA secure boot is errata'd here)"),
+    (not on("CONFIG_SECURE_BOOT_V2_FORCE_ENABLE_ECDSA"),
+     "the errata'd ECDSA secure boot is not force enabled"),
+    (not on("CONFIG_SECURE_BOOT_INSECURE"),             "no insecure options"),
+    # Armed, at version 0: burns nothing today, refuses nothing today. The
+    # old comment here said arming it early would freeze the fleet on an
+    # unfinished security model; the model this pass ships is the finished
+    # one, and a bootloader that can never be replaced either carries the
+    # check from birth or never gets it.
+    (on("CONFIG_BOOTLOADER_APP_ANTI_ROLLBACK"),         "anti rollback armed (secure version 0)"),
 ]
 
 pt = open(f"{bdir}/partition_table/partition-table.bin", "rb").read()
@@ -474,14 +662,14 @@ $SHA_LINES
 3. unplug -> ~3s -> replug, WAIT for the menu, then run the wallet for real:
    create, lock, unlock, sign, wipe. Reflash and repeat as needed.
 
-4. ONLY when this build has been through everything, tighten the SAME board.
-   Reflashing the release build does NOT do it: verified in IDF 6.0.1, the
-   bootloader logs "app is configured for RELEASE but efuses are set for
-   DEVELOPMENT / Device is not secure" and boots anyway. The upgrade is
-   esp_flash_encryption_set_release_mode() called once from the app, which
-   maxes and write-protects CRYPT_CNT, burns DIS_DOWNLOAD_MANUAL_ENCRYPT,
-   SPI_DOWNLOAD_MSPI_DIS and DIS_DOWNLOAD_ICACHE, and switches ROM download
-   to secure mode. That call does not exist in KISS yet.
+4. This board never takes the release build. It used to be the tightening
+   path; the release recipe now carries secure boot, and its bootloader burns
+   the key digest on first boot no matter what the flash fuses say - flashing
+   it here would leave a board half locked: digest burned, flash fuses still
+   DEVELOPMENT, fully neither. When the rehearsal has proven the app, spend
+   the fresh dedicated board on the release recipe and keep this one as what
+   it is. (The old flash-only tighten, esp_flash_encryption_set_release_mode()
+   from the app, still does not exist in KISS and now never needs to.)
 EOF
 else
 cat <<EOF
@@ -491,10 +679,15 @@ encrypted release build OK: $BUILD_DIR/
 ################################################################################
 #  READ BEFORE FLASHING - THIS IS A ONE-WAY OPERATION
 #
-#  * FRESH / FINAL BOARD ONLY. Never the v1.3 engineering sample.
-#  * First boot burns the flash-encryption eFuse key: PERMANENT.
+#  * FRESH / FINAL BOARD ONLY. Never the v1.3 engineering sample, and never
+#    the rehearsal board.
+#  * First boot burns the flash-encryption eFuse key AND the secure boot key
+#    digest: PERMANENT. From then on the ROM runs only our signed bootloader,
+#    the bootloader runs only our signed apps, and JTAG is gone.
 #  * After first boot this board can NEVER be serial-reflashed again. The web
 #    installer and the cable will never work on it again. That is the point.
+#  * If the signing key is ever lost, every board burned with this recipe is
+#    frozen on its last firmware forever. Custody first, burn second.
 #  * Firmware is still UPDATABLE, over SD, for images signed with our key.
 #    This banner used to say frozen; the table has carried two app slots and an
 #    otadata since the SD update work landed, and this is the line an operator

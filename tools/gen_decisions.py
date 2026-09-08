@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Collect the REVERSALS out of the source and write docs/decisions.md.
+"""Collect the REVERSALS out of the source and write dev/decisions.md.
 
 Every screen on this device carries its argument in a comment above the code
 that draws it, and that has been enough for whoever is already reading that
@@ -25,7 +25,7 @@ same as not having one.
 The marker line and every comment line under it, to the first line that is not
 a comment. The first sentence becomes the heading.
 
-    python3 tools/gen_decisions.py            # write docs/decisions.md
+    python3 tools/gen_decisions.py            # write dev/decisions.md
     python3 tools/gen_decisions.py --check    # fail if it is out of date
 """
 import os
@@ -34,7 +34,7 @@ import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-OUT = os.path.join(ROOT, "docs", "decisions.md")
+OUT = os.path.join(ROOT, "dev", "decisions.md")
 # Where a decision can live. The kit and the screens; not the gates, whose own
 # arguments are about the gate rather than about the product.
 DIRS = ("main", "sim")
@@ -124,19 +124,19 @@ def main():
         except FileNotFoundError:
             have = None
         if have != text:
-            print("decisions: docs/decisions.md is out of date -- run "
+            print("decisions: dev/decisions.md is out of date -- run "
                   "python3 tools/gen_decisions.py", file=sys.stderr)
             if have is not None:
                 d = subprocess.run(["diff", "-u", OUT, "-"], input=text,
                                    capture_output=True, text=True)
                 sys.stderr.write(d.stdout[:4000])
             return 1
-        print("decisions: %d entries, docs/decisions.md up to date" % len(items))
+        print("decisions: %d entries, dev/decisions.md up to date" % len(items))
         return 0
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, "w", encoding="utf-8") as f:
         f.write(text)
-    print("decisions: %d entries -> docs/decisions.md" % len(items))
+    print("decisions: %d entries -> dev/decisions.md" % len(items))
     return 0
 
 

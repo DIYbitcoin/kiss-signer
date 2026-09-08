@@ -79,6 +79,11 @@ int kef_parse(const uint8_t *buf, size_t len, kef_env_t *out)
                  | ((uint32_t)buf[3 + id_len] << 8)
                  | (uint32_t)buf[4 + id_len];
     if (raw == 0) return -1;
+    // KEF's own wire rule, not a choice made here: the 3-byte field holds
+    // either a literal count or a count in units of 10000, and 10000 is the
+    // boundary between the two readings. So 5 means 50000 and 50000 means
+    // itself. The KEF_MIN_EFF_ITER below is the same number by coincidence
+    // and a different thing: this one is the format, that one is the floor.
     uint32_t eff = raw <= 10000 ? raw * 10000u : raw;
     if (eff < KEF_MIN_EFF_ITER) return -1;       // the hostile-envelope guard
 

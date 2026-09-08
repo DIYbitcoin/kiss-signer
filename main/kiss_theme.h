@@ -99,6 +99,11 @@ const lv_font_t *wt_font_num48(void);   // the Sign hero, digits only
 // A caution's WORDS in the accent, everything else unchanged. See the note on
 // WT_WARN above: the glyph and the lamp keep the amber, the sentence does not.
 lv_color_t wt_ink_for(lv_color_t col);
+// The same lift, told WHAT it is colouring. A string with no letter or digit
+// in it is a MARK, and a mark keeps the caution's own amber -- which is the
+// half of the rule wt_ink_for could not see, because it is handed a colour and
+// nothing else. Every row VALUE goes through this one.
+lv_color_t wt_ink_for_text(lv_color_t col, const char *txt);
 const lv_font_t *wt_body_font(const char *txt, int w, int max_h);
 // The same ladder with the FIT gate NOT told when it lands on font14. Exactly
 // one caller: the login screen's passphrase echo, where the text is the
@@ -146,6 +151,17 @@ void wt_sub_fit(lv_obj_t *scr, int w);
 // not a rounder number with a gutter invented on top: the tall row is the
 // highest anything in the action band reaches, so crossing it is the failure.
 #define WT_CONTENT_BOTTOM WT_ACTION_Y_TALL
+
+// THE PORT'S GEOMETRY. The 3.5in board is 320 wide against this one's 800 and
+// both are 480 tall, so a lane falls by two and a half and the vertical budget
+// does not move at all. WT_PORT_LANE is that board's whole content lane, 320
+// less the 20px margin each side -- what a pinned label gets there once the
+// wide layout's side by side pairs have become stacked ones. It is a HEADER
+// number because overlapcheck's PORT finding prints it, and two copies of it
+// would drift the day the board's margin changes.
+#define WT_PORT_WIDE_W   800
+#define WT_PORT_NARROW_W 320
+#define WT_PORT_LANE     280
 
 // A THIRD band, for the one control that cannot live in 52px: the slide.
 //
@@ -1256,6 +1272,13 @@ lv_obj_t *wt_help_tab(lv_obj_t *scr, const char *hint,
 // accent's glyph metrics) and the whole tab simply gets wider.
 lv_obj_t *wt_help_tab_n(lv_obj_t *scr, const char *hint, int unread,
                         lv_event_cb_t cb, void *ud);
+// The theme control, in the same chrome column and on the rung above it: the
+// accent as a SWATCH with the theme's own name beside it, right-aligned to 752
+// like the tab under it. Wordless on the action band before this, where it did
+// not belong -- everything else on that band takes you somewhere, and this one
+// repaints the page you are standing on. It narrows the title's lane and moves
+// the cursor to match, so a caller adds nothing but the callback.
+lv_obj_t *wt_theme_tab(lv_obj_t *scr, lv_event_cb_t cb, void *ud);
 // Whether [ ? ] has ever been opened. RAM here, one NVS byte in settings:
 // kiss_settings_load restores it at boot via _set, and the hook (registered
 // once, at boot) is how the first open reaches the store without the theme
@@ -1291,6 +1314,12 @@ typedef struct {
     // initialiser is unchanged. Same rule wt_gate states at length -- one
     // amber thing on a screen an owner can still walk back from.
     lv_color_t  icon_col;
+    // The caption's rung, NULL for the default. The default steps 28 down to
+    // 23 only when the word is too WIDE, which is the right rule under a
+    // VALUE and the wrong one under an ACTION: on NO UNDO the two claim heads
+    // came out larger than the ERASE SEED WORDS control below them, which
+    // reads as the claims shouting over the thing they qualify.
+    const lv_font_t *cap_font;
 } wt_fact_t;
 // The fact ROWS on their own, at a y the caller picks: a caption on a 214px
 // lane that never wraps, its mark, and the value beside it. wt_explain draws

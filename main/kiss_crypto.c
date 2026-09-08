@@ -22,6 +22,7 @@
 #include "esp_cpu.h"             // esp_cpu_get_cycle_count: the jitter source
 #include "esp_timer.h"           // esp_timer_get_time: the clock it is read against
 #else
+#include <stdlib.h>        // abort: kiss_trng_fill refuses rather than fake it
 #include <time.h>
 #endif
 
@@ -134,6 +135,25 @@ bool kiss_trng_live(void) { return s_trng_live; }
 // material. On the host (kisstest) it reads /dev/urandom, which is the same
 // "already conditioned" shape; the UI sim links its own deterministic stub in
 // sim_main.c instead, so the walk photographs one histogram forever.
+//
+// A failed open or a short read used to be topped up with
+// (i * 2654435761u >> 24) -- a counter with its bits stirred. That is
+// deterministic, identical on every run, and passes the spread test the audit
+// screen draws, so nothing downstream could tell it from entropy. This
+// function returns void, so it could not report either.
+//
+// It is not only the audit that reads it: kiss_setup.c's tap_fill_trng is the
+// second entropy source for a SEED, and its comment says the interactive
+// simulator links this branch on purpose. So a host with no /dev/urandom -- a
+// chroot, a container with no /dev mounted -- built key material out of a
+// counter, silently.
+//
+// Refusing is the fix, and it gives up nothing: the device compiles this
+// branch out, the walk links sim_main.c's stub over it, and the two host
+// builds left are kisstest and Emscripten, where /dev/urandom is
+// crypto.getRandomValues. The sibling reader in kiss_kef_crypto.c already
+// returns -1 on these same two failures; this one has no return value to give,
+// and a weak key is worse than a stopped process.
 void kiss_trng_fill(uint8_t *out, size_t n)
 {
 #ifdef ESP_PLATFORM
@@ -142,7 +162,7 @@ void kiss_trng_fill(uint8_t *out, size_t n)
     FILE *f = fopen("/dev/urandom", "rb");
     size_t got = f ? fread(out, 1, n, f) : 0;
     if (f) fclose(f);
-    for (size_t i = got; i < n; i++) out[i] = (uint8_t)(i * 2654435761u >> 24);
+    if (got != n) abort();
 #endif
 }
 

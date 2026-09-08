@@ -2,7 +2,7 @@
 # Install the repository's git hooks into .git/hooks.
 #
 # Hooks are not tracked by git, so a fresh clone starts with none. Run this once
-# after cloning. See the Attribution section of CLAUDE.md for what the commit-msg
+# after cloning. See the Attribution section of dev/HOUSE-RULES.md for what the commit-msg
 # hook removes and why a written rule was not enough on its own.
 #
 # ONE GATE, and it is the one that cannot be caught later. A co-author trailer
@@ -38,8 +38,8 @@ done
 # this one is now the only thing in the repo that can hold a commit up -- so an
 # install that silently put a dead file in place would be worse than no install.
 # Four cases: the message that must be refused, the rewrite of it that must go
-# through, a real tracked filename that must not trip it, and a trailer that
-# must be STRIPPED rather than refused.
+# through, the filename that used to be excused and is not any more, and a
+# trailer that must be STRIPPED rather than refused.
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 printf 'x\n\nthe superpowers folder held ten files.\n'                     > "$T/refuse"
@@ -53,7 +53,7 @@ printf 'x\n\nbody.\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n' > "$T/tr
 fail=0
 sh "$DEST/commit-msg" "$T/refuse"  >/dev/null 2>&1 && { echo "hook selftest: a message naming a tool was ACCEPTED"; fail=1; }
 sh "$DEST/commit-msg" "$T/pass"    >/dev/null 2>&1 || { echo "hook selftest: the rewritten message was refused";   fail=1; }
-sh "$DEST/commit-msg" "$T/name"    >/dev/null 2>&1 || { echo "hook selftest: a tracked filename was refused";      fail=1; }
+sh "$DEST/commit-msg" "$T/name"    >/dev/null 2>&1 && { echo "hook selftest: the retired filename exception still excuses"; fail=1; }
 sh "$DEST/commit-msg" "$T/trailer" >/dev/null 2>&1 || { echo "hook selftest: a trailer was refused, not stripped"; fail=1; }
 grep -qi 'co-authored-by' "$T/trailer" && { echo "hook selftest: the trailer survived"; fail=1; }
 [ "$fail" = 0 ] || { echo "hook selftest FAILED -- the installed hook is not doing its job"; exit 1; }

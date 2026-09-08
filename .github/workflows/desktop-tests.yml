@@ -86,7 +86,7 @@ jobs:
       # walk and no overlap check has ever had an opinion about it. It is caught
       # on glass or it is not caught.
       # The gate for the gates. Two checkers sat in tools/ that no workflow, no
-      # script and no line of CLAUDE.md invoked -- not failing, absent, which
+      # script and no line of prose invoked -- not failing, absent, which
       # looks exactly like green. This asks whether each one is RUN, not
       # whether it is listed.
       - name: every checker in tools/ is run by something
@@ -143,20 +143,13 @@ jobs:
           /tmp/kissfuzz | tee /tmp/kissfuzz.log
           grep -q "ALL FUZZ PASS" /tmp/kissfuzz.log
 
-      # managed_components/ is gitignored (the IDF component manager populates
-      # it during device builds), so fetch LVGL ourselves at the exact version
-      # dependencies.lock pins for the device.
       # if: always(), because the two steps BELOW have it -- the same
       # reasoning the SDL2 install carries further down. Guarding a check
       # and not what it needs is how a log ends on a missing dependency
       # instead of the failure that caused it.
       - name: fetch LVGL for the sim
         if: always()
-        run: |
-          LV=$(awk '/^  lvgl\/lvgl:/{f=1} f&&/version:/{print $2; exit}' dependencies.lock)
-          echo "dependencies.lock pins lvgl/lvgl $LV"
-          git clone -q -c advice.detachedHead=false --depth 1 --branch "v$LV" \
-            https://github.com/lvgl/lvgl.git managed_components/lvgl__lvgl
+        uses: ./.github/actions/fetch-lvgl
 
       # AFTER the fetch, and that is the whole reason it sits here rather than
       # up with the other python checks: check_glyphs.py reads LVGL's own
@@ -171,6 +164,7 @@ jobs:
         run: |
           GLYPHCHECK_SELFTEST=1 python3 tools/check_glyphs.py
           python3 tools/check_mono_glyphs.py
+          python3 tools/check_text_glyphs.py
 
       # sim/lv_conf.h overrides five LVGL settings and each one mirrors a
       # Kconfig line the device actually reads. Move one and nothing fails:
@@ -187,7 +181,7 @@ jobs:
         run: |
           LVCONF_SELFTEST=1 python3 tools/check_lv_conf.py
 
-      # ENGLISH ONLY while the UI is being rebuilt, for the reason CLAUDE.md
+      # ENGLISH ONLY while the UI is being rebuilt, for the reason the house
       # gives and with the cost it names. Every screen that gets rebuilt
       # rewrites its own strings, so the other twenty carry wording that is
       # about to be thrown away -- and the walk asserts on that wording, so ja
@@ -238,7 +232,9 @@ jobs:
       # for four commits. Identical consecutive frames mean a dead interaction.
       - name: simulator taps still hit something
         if: always()
-        run: python3 tools/check_sim_taps.py
+        run: |
+          python3 tools/check_sim_taps.py --selftest
+          python3 tools/check_sim_taps.py
 
       # The PUBLISHED simulator is the first link a visitor clicks, and the
       # README says its screenshots come from the real firmware sources. That
@@ -254,7 +250,9 @@ jobs:
       # at all and catches the failure that actually happened.
       - name: the published simulator is from this tree
         if: always()
-        run: python3 tools/check_sim_fresh.py
+        run: |
+          python3 tools/check_sim_fresh.py --selftest
+          python3 tools/check_sim_fresh.py
 
       # The step above asks whether a tap changed the screen. This asks the
       # question none of the others can: which screens has nothing ever looked
@@ -332,7 +330,9 @@ jobs:
       # site served beta6 while every document described beta7. Fails only when
       # the page still offers the button, since a pulled button flashes nothing.
       - name: installer artifacts match VERSION
-        run: python3 tools/check_installer_version.py
+        run: |
+          python3 tools/check_installer_version.py --selftest
+          python3 tools/check_installer_version.py
 
       # The committed firmware binary is 7.5 MB of bytes that CI never rebuilt
       # and never hashed. Everything else about a release was checked except

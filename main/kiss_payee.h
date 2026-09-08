@@ -31,7 +31,9 @@
 // Have we signed a payment to this destination before? `dest` is the address as
 // the verify screen shows it -- the sp1/tsp1 string for a silent payment, whose
 // on-chain script is different every time and would never match twice.
-// False whenever no session is open, which is also what a fresh wallet says.
+// False whenever no session is open, which is also what a fresh wallet says,
+// and false for a destination too long to key -- longer than any address this
+// device can show, and silence is what an unrecognised payee looks like.
 bool kiss_payee_seen(const char *dest);
 
 // Record a signed payment to `dest`. Called once per non-change output, after

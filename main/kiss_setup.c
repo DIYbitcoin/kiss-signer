@@ -2697,10 +2697,20 @@ static void restore_screen(void)
     // Bare words, the way every phone keyboard offers its suggestions. No
     // mark, so the word label keeps child index 0 for the accept callback
     // and the updater above.
+    //
+    // THE KEYBOARD'S OWN RUNG. wt_word_action sets chrome23 in a 40px box,
+    // which is smaller than the letters on the keys below it -- and these are
+    // the targets a thumb has to hit to accept a word, not to type one.
+    // Reported from the bench as hard to tap, which is what it was: a 23px
+    // word in a 40px box under a font28 keyboard.
     for (int i = 0; i < 3; i++) {
         s_sug[i] = wt_word_action(s_scr, NULL, "", true, wt_accent(), true,
                                   restore_accept_cb, NULL);
-        lv_obj_set_pos(s_sug[i], 48 + i * 250, 162);
+        lv_obj_set_style_text_font(lv_obj_get_child(s_sug[i], 0),
+                                   wt_font28(), 0);
+        lv_obj_set_height(s_sug[i], 54);
+        lv_obj_set_ext_click_area(s_sug[i], 14);
+        lv_obj_set_pos(s_sug[i], 48 + i * 250, 156);
         lv_obj_add_flag(s_sug[i], LV_OBJ_FLAG_HIDDEN);
     }
 

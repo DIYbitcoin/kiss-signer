@@ -1,6 +1,6 @@
 # No agent or tool is named in this repository's history.
 #
-# The rule is in CLAUDE.md and was followed on the trunk and ignored on one
+# The rule is the house rule below, followed on the trunk and ignored on one
 # branch: 247 commits carrying a "Co-Authored-By: <agent>" trailer reached
 # GitHub, and the merged pull requests earned the account a Pair Extraordinaire
 # badge. refs/pull/*/head is immutable server side, so those cannot be rewritten
@@ -44,7 +44,7 @@ jobs:
                            -e 'generated with \[?claude code' \
                 || :)
           if [ -n "$BAD" ]; then
-            echo "::error::agent attribution in a commit message. CLAUDE.md: no agent or tool is named anywhere in this repository."
+            echo "::error::agent attribution in a commit message. No agent or tool is named anywhere in this repository."
             echo "$BAD"
             exit 1
           fi
@@ -54,7 +54,7 @@ jobs:
         run: |
           set -u
           if git grep -nIiE 'co-authored-by:.*(anthropic|claude|openai|copilot)|generated with \[?claude code' \
-               -- . ':(exclude)CLAUDE.md' ':(exclude).github/workflows/attribution.yml' ':(exclude)tools/hooks/*' ':(exclude)tools/install_hooks.sh'; then
+               -- . ':(exclude).github/workflows/attribution.yml' ':(exclude)tools/hooks/*' ':(exclude)tools/install_hooks.sh'; then
             echo "::error::agent attribution in a tracked file."
             exit 1
           fi
@@ -75,13 +75,13 @@ jobs:
                             -e '\bagentic\b|\bsub-?agent\b' \
                 | grep -viE 'claude\.md' || :)
           if [ -n "$BAD" ]; then
-            echo "::error::a commit message names a tool in prose. CLAUDE.md: the actor is never the subject."
+            echo "::error::a commit message names a tool in prose. The actor is never the subject."
             echo "$BAD"
             exit 1
           fi
           echo "clean"
 
-      # The trailer was only ever the obvious half. CLAUDE.md says the rule is
+      # The trailer was only ever the obvious half. The rule is
       # that the ACTOR IS NEVER THE SUBJECT, and prose survived the first two
       # sweeps -- so did a PATH: docs/superpowers/ held ten tracked plan files
       # under a tool's name, four of them opening "For agentic workers:
@@ -93,15 +93,17 @@ jobs:
         run: |
           set -u
           TOOLS='superpowers|claude|anthropic|copilot|cursor|codex|chatgpt|aider|devin'
-          # CLAUDE.md's own name is the one exception the rule states.
-          if git ls-files | grep -iE "(^|/)($TOOLS)" | grep -v '^CLAUDE\.md$'; then
-            echo "::error::a tracked PATH names a tool. CLAUDE.md: no agent or tool is named anywhere in this repository."
+          # There is no exception any more. The keyboard rules were the one
+          # tracked path the rule had to carve out for; they are untracked now,
+          # so re-adding that path is a failure like any other.
+          if git ls-files | grep -iE "(^|/)($TOOLS)"; then
+            echo "::error::a tracked PATH names a tool. No agent or tool is named anywhere in this repository."
             exit 1
           fi
-          # Prose. CLAUDE.md names itself and the hooks strip the trailer, so
-          # those are excluded by path exactly as above.
+          # Prose. The hooks strip the trailer and have to quote what they
+          # strip, so those are excluded by path.
           if git grep -nIiE "superpowers:|\.claude/|(claude|copilot|cursor|codex|chatgpt) (code|cli)|\bagentic\b|\bsub-?agent\b" \
-               -- . ':(exclude)CLAUDE.md' ':(exclude).github/workflows/attribution.yml' ':(exclude)tools/hooks/*' ':(exclude)tools/install_hooks.sh' ':(exclude).gitignore'; then
+               -- . ':(exclude).github/workflows/attribution.yml' ':(exclude)tools/hooks/*' ':(exclude)tools/install_hooks.sh' ':(exclude).gitignore'; then
             echo "::error::a tracked file names a tool in prose."
             exit 1
           fi

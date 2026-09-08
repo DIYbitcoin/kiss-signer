@@ -1,7 +1,7 @@
 #!/bin/sh
 # Strip agent attribution out of every commit message, in every lane.
 #
-# CLAUDE.md has said "no agent attribution, in anything" since early on. It was
+# The house rule has said "no agent attribution, in anything" since early on. It was
 # followed on the trunk and ignored on one branch, and 247 trailered commits
 # reached GitHub, where the merged PRs earned the account a "Pair Extraordinaire"
 # badge. Server side refs/pull/*/head are immutable, so that could not be undone.
@@ -10,7 +10,7 @@
 # Strips (never rejects, so no lane is blocked by it):
 #   Co-Authored-By: <any agent identity>
 #   Generated with [Claude Code](...)  / 🤖 marker lines
-# Anything else - including prose that names CLAUDE.md as a file - is untouched.
+# Anything else is untouched.
 #
 # Then REFUSES a message whose prose names a tool. That half cannot strip: a
 # sentence carries a fact and a trailer does not, so the only safe move is to
@@ -30,7 +30,7 @@ if ! cmp -s "$MSG" "$TMP"; then
   # collapse the blank line the stripped trailer block leaves behind
   awk 'BEGIN{n=0} {if($0~/^[[:space:]]*$/){n++}else{n=0} if(n<2)print}' "$TMP" \
     | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' > "$MSG"
-  echo "commit-msg: stripped agent attribution (CLAUDE.md: the actor is never the subject)" >&2
+  echo "commit-msg: stripped agent attribution (the actor is never the subject)" >&2
 fi
 rm -f "$TMP"
 
@@ -49,22 +49,22 @@ rm -f "$TMP"
 # name" needs no tool in the body: say what the directory held, where it went,
 # and what pointed at it.
 #
-# CLAUDE.md, HOUSE-RULES.md and CONTRIBUTING.md are real tracked filenames and
-# stay allowed, exactly as CLAUDE.md's own Attribution section says. The check
-# is deliberately narrow: names, and skill or path forms that only a tool has.
+# There is no filename exception any more. It existed for one tracked path
+# named after a tool, that path is no longer tracked, and a carve-out kept past
+# the thing it excused is how a rule quietly stops applying. The check stays
+# deliberately narrow: names, and skill or path forms that only a tool has.
 BODY=$(sed -e 's/^#.*//' "$MSG")
 HIT=$(printf '%s
 ' "$BODY" | grep -inE \
   -e '(superpowers|copilot|cursor|chatgpt|aider|devin)' \
   -e '\bclaude\b|\banthropic\b' \
   -e '\.claude/' \
-  -e '\bagentic\b|\bsub-?agent\b' \
-  | grep -viE 'claude\.md' || :)
+  -e '\bagentic\b|\bsub-?agent\b' || :)
 if [ -n "$HIT" ]; then
   echo "commit-msg: REFUSED -- this message names a tool." >&2
   echo "$HIT" >&2
   echo "" >&2
-  echo "CLAUDE.md: the actor is never the subject. The fact stays, the actor" >&2
+  echo "The actor is never the subject. The fact stays, the actor" >&2
   echo "goes -- say what the thing held and where it went, not who wrote it." >&2
   echo "This refuses rather than strips because a sentence is not a trailer:" >&2
   echo "deleting the line would delete the fact it carries." >&2

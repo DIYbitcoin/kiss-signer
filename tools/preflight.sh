@@ -8,7 +8,7 @@
 # could have hit it -- and it then sat red across THIRTEEN consecutive pushes,
 # about ten hours, because a red CI is a thing somebody has to go and look at.
 #
-# The gate block in CLAUDE.md is the by-hand list and it is fifteen commands
+# The by-hand gate block is the working list and it is fifteen commands
 # long. Fifteen commands is a list people run most of. This runs all of them
 # plus the four the block never listed, which is exactly where the break was.
 #
@@ -19,7 +19,7 @@
 #   bash tools/preflight.sh -q           # only the failures, then the table
 #
 # What it deliberately leaves out: the ESP-IDF container build, which needs
-# docker and takes minutes, and the 21-locale sweeps, which CLAUDE.md's i18n
+# docker and takes minutes, and the 21-locale sweeps, which the i18n
 # rule says not to run while the screens are still moving. CI runs the container
 # build in its own lane and that is the one to read after the push.
 set -uo pipefail
@@ -43,7 +43,7 @@ LOGS="$KISS_SIM_TMP/preflight-logs"
 
 # PREFLIGHT_LANGS -- which locales the three locale aware gates look at.
 #
-# Default en, because CLAUDE.md's i18n rule pins the daily lane to English
+# Default en, because the i18n rule pins the daily lane to English
 # while the screens are still moving. That rule names the cost it accepts:
 # the full sweep catches real faults and they wait for the translation pass.
 #
@@ -80,17 +80,46 @@ mkdir -p "$LOGS"
 NAMES=()
 RESULTS=()
 FAILED=0
+NOTED=0
 N=0
 
+# A THIRD STATE, because two were not enough to describe what these scripts do.
+#
+# This table maps exit code to ok/FAILED, and check_docs_fresh exits 0 while
+# printing "11 commits have changed a screen since". That is not a bug in the
+# gate: it is ADVISORY on develop by design and exits nonzero only under
+# --strict, which CI uses on the way to main, where the stale picture is what
+# ships. But the table printed "ok" over it, so the run said nothing was wrong
+# in the same breath as the gate saying something was -- and it did so in the
+# same run that correctly caught check_sim_fresh beside it, which does exit
+# nonzero.
+#
+# Reading the totals line does not catch this one. Only reading the gate's own
+# output does, which is the thing a summary table exists to save somebody from.
+#
+# So a runner may name a pattern meaning "this passed, and it is still telling
+# you something". It prints NOTE, it does not fail the run, and it is counted
+# separately at the bottom, so the last line of a green run cannot quietly sit
+# on top of a gate with something to say.
 run() {
-    local name="$1"; shift
+    local name="$1"
+    local note_re=""
+    if [ "$1" = "--note-if" ]; then note_re="$2"; name="$3"; shift 3
+    else shift
+    fi
     N=$((N + 1))
     local log
     log="$LOGS/$(printf '%02d' "$N")-$(echo "$name" | tr ' /' '__').log"
     printf '  %-46s ' "$name"
     if bash -c "$*" >"$log" 2>&1; then
-        echo "ok"
-        NAMES+=("$name"); RESULTS+=("ok")
+        if [ -n "$note_re" ] && grep -qE "$note_re" "$log"; then
+            echo "NOTE"
+            NAMES+=("$name"); RESULTS+=("NOTE")
+            NOTED=$((NOTED + 1))
+        else
+            echo "ok"
+            NAMES+=("$name"); RESULTS+=("ok")
+        fi
     else
         echo "FAILED"
         NAMES+=("$name"); RESULTS+=("FAILED")
@@ -131,24 +160,32 @@ run "the words on screen and in the docs" "python3 tools/check_vocab.py"
 run "a refusal with no words" "python3 tools/check_stop_reasons.py"
 run "an icon with no glyph" "GLYPHCHECK_SELFTEST=1 python3 tools/check_glyphs.py"
 run "the same, for the mono faces" "python3 tools/check_mono_glyphs.py"
+# A STRING with no glyph, rather than an icon. It was named by the by-hand
+# gate list and by nothing else, so when that list stopped being tracked it
+# became a checker nothing ran -- which is the exact failure check_gates.py
+# exists to catch, and it caught it.
+run "a string with no glyph" "python3 tools/check_text_glyphs.py"
 run "a checker nothing runs" "GATECHECK_SELFTEST=1 python3 tools/check_gates.py"
 run "a measurement before its layout" \
     "python3 tools/check_layout_reads.py --selftest && python3 tools/check_layout_reads.py"
 run "the sim's LVGL config vs the device's" "LVCONF_SELFTEST=1 python3 tools/check_lv_conf.py"
 run "the decisions index vs the comments" "python3 tools/gen_decisions.py --check"
-run "the published wasm vs the tree" "python3 tools/check_sim_fresh.py"
-run "installer artifacts vs VERSION" "python3 tools/check_installer_version.py"
+run "the published wasm vs the tree" \
+    "python3 tools/check_sim_fresh.py --selftest && python3 tools/check_sim_fresh.py"
+run "installer artifacts vs VERSION" \
+    "python3 tools/check_installer_version.py --selftest && python3 tools/check_installer_version.py"
 # Both --check only: they read and report, they do not regenerate. That is the
 # whole reason they can sit here rather than in the skip list.
 run "every picture resolves to a frame" "python3 tools/gen_docs_shots.py --check"
 run "the offline installer packs what the page loads" "python3 tools/make_offline_zip.py --check"
-run "how far the pictures trail the screens" \
+run --note-if "commits have changed a screen since" \
+    "how far the pictures trail the screens" \
     "python3 tools/check_docs_fresh.py --selftest && python3 tools/check_docs_fresh.py"
 
 # --- the things that compile ---------------------------------------------
 run "unit tests" "bash sim/build_test.sh && \"\$KISS_SIM_TMP/kisstest\""
 
-# NOT in CLAUDE.md's gate block until now, and the reason this file exists: it
+# NOT in the by-hand gate block until now, and the reason this file exists: it
 # compiles main/kiss_psbt.c with its own include list, which is what drifted.
 run "SD PSBT fixtures reach their verdicts" \
     "rm -rf \"\$KISS_SIM_TMP/sdfix\" && mkdir -p \"\$KISS_SIM_TMP/sdfix\" \
@@ -197,7 +234,8 @@ run "screens no gate sees" "python3 tools/check_screen_coverage.py"
 # frames the walk saves, and preflight gives every run a fresh KISS_SIM_TMP, so
 # ahead of the walk the scratch is empty and it exits 1 every time. CI puts it
 # here for the same reason, in the comment on its own smoke walk step.
-run "a walk tap that hits nothing" "python3 tools/check_sim_taps.py"
+run "a walk tap that hits nothing" \
+    "python3 tools/check_sim_taps.py --selftest && python3 tools/check_sim_taps.py"
 
 # --- the table ------------------------------------------------------------
 echo
@@ -209,11 +247,19 @@ echo "  ------------------------------------------------------------"
 echo
 
 if [ "$FAILED" -gt 0 ]; then
-    echo "preflight: $FAILED of $N failed. Logs in $LOGS"
+    if [ "$NOTED" -gt 0 ]; then
+        echo "preflight: $FAILED of $N failed, $NOTED with a NOTE. Logs in $LOGS"
+    else
+        echo "preflight: $FAILED of $N failed. Logs in $LOGS"
+    fi
     echo "Do not push. CI runs these plus the container build and the installer checks."
     exit 1
 fi
 
-echo "preflight: $N of $N passed."
+if [ "$NOTED" -gt 0 ]; then
+    echo "preflight: $N of $N passed, $NOTED with a NOTE -- read those logs."
+else
+    echo "preflight: $N of $N passed."
+fi
 echo "Still unread by anything here: the ESP-IDF container build, and CI itself."
 echo "Read the run after the push -- desktop tests has been red for ten hours before now."

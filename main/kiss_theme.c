@@ -26,6 +26,13 @@ static const char WT_BARCAP_TAG[] = "wt_action_bar_cap";
 static const char WT_SLIDEBAND_TAG[] = "wt_slide_band";
 // The [ ? ] tab, so a trail sharing its strip can stop before it.
 static const char WT_HELPTAB_TAG[] = "wt_help_tab";
+static const char WT_THEMENAME_TAG[] = "wt_theme_name";
+// wt_theme_tab's geometry, up here because accent_walk resizes the control and
+// is defined long before the builder. The names are four different widths, so
+// the box is not a constant -- only the edge it hangs from is.
+#define WT_THEMETAB_SW    28    // the swatch
+#define WT_THEMETAB_GAP   12    // swatch to name
+#define WT_THEMETAB_RIGHT 752   // the page margin [ ? ] is pinned to as well
 // The word on a band slide, so a caller can change it on arrival without
 // counting children -- the sign screen turns SLIDE TO SIGN into SIGNING.
 static const char WT_SLIDELBL_TAG[] = "wt_slide_label";
@@ -341,13 +348,53 @@ static void wt_widow_measure(const char *txt, const lv_font_t *f, int lane)
         s_cut_sink("widow", txt, tail, lane);
 }
 
+// A Latin translation of an English sentence runs about a third longer -- it
+// is the most reliable number in this file, and it is why 143 findings came
+// back at font14 from a sweep whose English was clean. A one line lane cannot
+// absorb that: the string is pinned, so it either drops a rung or loses its
+// second half, and once English is already on the floor rung there is no rung
+// left to drop to.
+//
+// So SLACK asks the only question that can be answered BEFORE a translation
+// exists: how much of its lane does the English use. Under WT_SLACK_PCT the
+// third it is about to gain still fits and every locale lands on the same
+// rung; over it, fifteen locales are already lost and no sweep can win them
+// back, because the lane is what the icon, the chevron and the value leave
+// behind and it does not grow.
+//
+// It fires ONLY on the floor rung, which is what makes it quiet enough to
+// read: English at font28 has 23 underneath it and the ladder absorbs the
+// growth by itself. English at 23 with a full lane is the shape that craters.
+#define WT_SLACK_PCT 135   // the Latin expansion this device actually sees
+
 static void wt_sub_measure(const char *kind, const char *txt,
                            const lv_font_t *f, int ls, int lane)
 {
     if (!s_cut_sink || !txt || !*txt) return;
     lv_point_t sz;
     lv_text_get_size(&sz, txt, f, ls, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-    if (sz.x > lane) s_cut_sink(kind, txt, (int)sz.x, lane);
+    if (sz.x > lane) { s_cut_sink(kind, txt, (int)sz.x, lane); return; }
+    // The rung English landed on says nothing on its own: a sub at font28 has
+    // 23 underneath it and absorbs the growth by itself. So SIMULATE the
+    // translation instead -- this sentence, a third longer, set on the floor
+    // rung. If THAT does not fit, the locale has nowhere left to go and the
+    // ladder hands it font14.
+    lv_point_t fl;
+    lv_text_get_size(&fl, txt, wt_font23(), ls, 0, LV_COORD_MAX,
+                     LV_TEXT_FLAG_NONE);
+    if (lane > 0 && (int)fl.x * WT_SLACK_PCT / 100 > lane)
+        s_cut_sink("slack", txt, (int)fl.x * WT_SLACK_PCT / 100, lane);
+
+    // PORT, for everything that is PINNED. The narrow lane is not this lane
+    // made smaller: on a 320 wide board a fact row is a caption ABOVE its
+    // value and a row is a label above its sub, so each of them gets the whole
+    // content lane rather than a share of it. WT_PORT_LANE is that whole lane,
+    // and a string wider than it cannot be a one line label on that board at
+    // any layout -- which is a different and much shorter list than "does not
+    // fit 40% of what it has here", a question every string on the device
+    // would fail.
+    if ((int)fl.x > WT_PORT_LANE)
+        s_cut_sink("port", txt, (int)fl.x, WT_PORT_LANE);
 }
 
 static void wt_term_report(const char *body, int want, int floor_y)
@@ -525,6 +572,7 @@ static const lv_font_t *body_font_ladder(const char *txt, int w, int max_h,
     // string too long for its block and the gate has to say which one.
     lv_text_get_size(&sz, txt, floor, 0, 0, w, LV_TEXT_FLAG_NONE);
     if (sz.y > max_h) WT_FIT_GAVE_UP("body", txt, w, max_h);
+
     return floor;
 }
 
@@ -535,6 +583,89 @@ static const lv_font_t *body_font_ladder(const char *txt, int w, int max_h,
 lv_color_t wt_ink_for(lv_color_t col)
 {
     return lv_color_eq(col, WT_WARN) ? wt_accent() : col;
+}
+
+// Is this string a MARK rather than something to read? No ASCII letter or
+// digit in it means every glyph came out of the symbol range, which is the
+// same test the TINY and AMBER gates use to tell a caution sign from a
+// sentence.
+static bool ink_is_mark(const char *s)
+{
+    if (!s) return false;
+    for (const unsigned char *p = (const unsigned char *)s; *p; p++)
+        if ((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z')
+            || (*p >= '0' && *p <= '9'))
+            return false;
+    return true;
+}
+
+// DECIDED: the amber lift asks WHAT it is colouring, and never lifts a mark.
+// The rule wt_ink_for serves says it in its own words -- the caution GLYPH and
+// the breathing dot keep the amber, and anything READ takes the accent -- but
+// the function was only ever handed a colour, so it lifted both. A row whose
+// VALUE is LV_SYMBOL_WARNING had its caution sign painted the theme's colour:
+// SEED WORDS reported the paper unchecked in green on the green theme, which
+// is the one row on the page where amber is the whole message.
+//
+// A caution's WORDS still take the accent. Only the mark keeps the amber.
+lv_color_t wt_ink_for_text(lv_color_t col, const char *txt)
+{
+    return ink_is_mark(txt) ? col : wt_ink_for(col);
+}
+
+// The paragraph pair, forward: every sentence on this device is drawn through
+// these two, and wt_screen's subtitle -- the first line on the page -- sits
+// above where they are defined.
+static void spans_fill(lv_obj_t *sg, const char *txt, const char *hi);
+static lv_obj_t *spans_new(lv_obj_t *par, int x, int y, int w);
+
+// tr_sym glues "<mark>  " onto the front of a string, and the two halves need
+// different faces: the mono faces are built ASCII only, so a head asking for
+// one string in mono truthfully fails and drops the WHOLE line to sans.
+//
+// A MARK is a PRIVATE USE codepoint followed by those two spaces, and nothing
+// else. The first cut of this asked whether the leading byte was >= 0x80,
+// which is true of every non-Latin string on the device: TRANSACTION ID is
+// "\u0130\u015eLEM ID" in Turkish, and Korean and Chinese begin the same way, so
+// the front was torn off each of them and drawn as an icon. English could not
+// see it and neither could the other eighteen locales, whose translations
+// happen to start with an ASCII letter -- the twenty one locale walk caught it
+// on the first night it was ever able to run.
+//
+// Returns the mark's byte length (0 for none) and points `words` past it.
+static int mark_split(const char *txt, char *out, size_t n, const char **words)
+{
+    *words = txt;
+    if (!txt) return 0;
+    const unsigned char *p = (const unsigned char *)txt;
+    // LV_SYMBOL_* and WT_ICON_* are U+E000..U+F8FF: three UTF-8 bytes,
+    // EE 80 80 through EF A3 BF.
+    if (p[0] != 0xEE && p[0] != 0xEF) return 0;
+    unsigned cp = ((unsigned)(p[0] & 0x0F) << 12)
+                | ((unsigned)(p[1] & 0x3F) << 6)
+                |  (unsigned)(p[2] & 0x3F);
+    if (cp < 0xE000 || cp > 0xF8FF || p[3] != ' ' || p[4] != ' ') return 0;
+    size_t len = 3 < n - 1 ? 3 : n - 1;
+    memcpy(out, txt, len);
+    out[len] = 0;
+    *words = txt + 5;
+    return 3;
+}
+
+// The mark, off the Latin face that carries the symbols, centred on the line
+// box of the words beside it -- two faces at two heights, so a shared y floats
+// one of them. Returns how far to move the words along.
+static int mark_draw(lv_obj_t *par, const char *mark, int x, int y, int wh,
+                     lv_color_t col)
+{
+    // wt_font23 and not a 21: there is no Latin 21 face, and the trail's own
+    // mark takes 23 beside a chrome23 word for the same reason.
+    const int mh = lv_font_get_line_height(wt_font23());
+    lv_point_t ms;
+    lv_text_get_size(&ms, mark, wt_font23(), 0, 0, LV_COORD_MAX,
+                     LV_TEXT_FLAG_NONE);
+    wt_lbl(par, mark, x, y + (wh - mh) / 2, wt_font23(), col);
+    return ms.x + 10;
 }
 
 const lv_font_t *wt_body_font(const char *txt, int w, int max_h)
@@ -605,10 +736,15 @@ int  wt_accent_get(void)   { return s_accent; }
 lv_color_t wt_accent(void) { return lv_color_hex(ACC_HEX[s_accent]); }
 lv_color_t wt_primary(void) { return wt_accent(); }
 lv_color_t wt_accent_bg(void) { return lv_color_hex(ACC_BG_HEX[s_accent]); }
+// File scope, because wt_theme_tab sizes the title's lane against the WIDEST
+// of them rather than the one that happens to be on.
+static const char *const WT_ACC_NAMES[WT_ACC_N] = {
+    "MONO", "GREEN", "CYPHERPINK", "ORANGE"
+};
+
 const char *wt_accent_name(void)
 {
-    static const char *NM[WT_ACC_N] = {"MONO", "GREEN", "CYPHERPINK", "ORANGE"};
-    return NM[s_accent];
+    return WT_ACC_NAMES[s_accent];
 }
 lv_color_t wt_accent_pressed(void) { return lv_color_hex(ACC_PRESS_HEX[s_accent]); }
 
@@ -799,13 +935,14 @@ lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub)
         // Sized to fit, not assumed to fit: at a fixed font23 the longer
         // subtitles ran straight off the right edge of the panel, and a label
         // with no width clips silently instead of wrapping.
-        lv_obj_t *s = lv_label_create(scr);
-        lv_label_set_text(s, sub);
+        //
+        // SPANS, so the full stop takes the accent like every other sentence
+        // on the device. It was a plain label, which is how the one line an
+        // owner reads first ended up being the only one with a grey stop.
+        lv_obj_t *s = spans_new(scr, 48, 66, 704);
         lv_obj_set_style_text_color(s, WT_MUT, 0);
         lv_obj_set_style_text_font(s, note_font(sub, 704, 29), 0);
-        lv_obj_set_width(s, 704);
-        lv_label_set_long_mode(s, LV_LABEL_LONG_WRAP);
-        lv_obj_set_pos(s, 48, 66);
+        spans_fill(s, sub, NULL);
         lv_obj_set_user_data(s, (void *)WT_SUB_TAG);
     }
     lv_obj_set_user_data(scr, (void *)WT_SCREEN_TAG);
@@ -1633,8 +1770,6 @@ lv_obj_t *wt_slide_rule_c(lv_obj_t *scr, const char *txt, const char *held,
 // Paragraph text is drawn as SPANS, so the full stop of each sentence can
 // carry the accent. Declared here because the side-note helpers below are the
 // first users and the builder lives with the explainers.
-static void spans_fill(lv_obj_t *sg, const char *txt, const char *hi);
-static lv_obj_t *spans_new(lv_obj_t *par, int x, int y, int w);
 
 lv_obj_t *wt_lbl(lv_obj_t *scr, const char *txt, int x, int y,
                  const lv_font_t *f, lv_color_t col)
@@ -1721,13 +1856,42 @@ lv_obj_t *wt_wrap(lv_obj_t *scr, const char *txt, int x, int y, int w, int max_h
 // caption you cannot read is not a subtle caption, it is a missing one.
 lv_obj_t *wt_section(lv_obj_t *scr, const char *txt, int x, int y)
 {
+    // THE MARK IS ITS OWN LABEL, and that is the whole of this function's
+    // history. Callers pass tr_sym(), which glues "SYM  " in front of the
+    // words -- and a FontAwesome codepoint is outside the mono faces, which
+    // are built ASCII only. So mono_can() said no, truthfully, and chrome21
+    // dropped the WHOLE head onto the sans face: PAIR COORDINATOR's head
+    // came back from the bench reading in a different typeface from every
+    // other word on the screen, and the two heads a page deeper had been
+    // sans since the day they were written, unnoticed at the smaller rung.
+    //
+    // Split, each half gets the face it needs: the mark off the Latin face
+    // that carries the symbols, the words off the mono rung.
+    char markbuf[8];
+    const char *w = txt;
+    const int lead = mark_split(txt, markbuf, sizeof markbuf, &w);
+    // The words' own rung decides the row, and the mark is CENTRED on it. The
+    // two halves are different faces at different heights, so a mark simply
+    // pinned to the same y floats: the eye on PAIR COORDINATOR sat level with
+    // the page title, a whole strip above the word it belongs to.
+    const lv_font_t *wf = wt_chrome21(w);
+    const int wh = lv_font_get_line_height(wf);
+    if (lead) x += mark_draw(scr, markbuf, x, y, wh, WT_INK);
+
     lv_obj_t *l = lv_label_create(scr);
-    lv_label_set_text(l, txt);
+    lv_label_set_text(l, w);
     lv_obj_set_style_text_color(l, WT_INK, 0);
-    // mono18, the kit's own caption rung. A SECTION HEAD names the block under
-    // it and this was font14 -- the size reserved for marks -- so on the
-    // details deck the head sat smaller than every row it introduced.
-    lv_obj_set_style_text_font(l, wt_font_mono18(), 0);
+    // The mono21 rung, GUARDED. A SECTION HEAD names the block under it, and
+    // this has now been too small twice for the same reason: it was font14 --
+    // the size reserved for marks -- and on the details deck it sat smaller
+    // than every row it introduced; it was then mono18, and on PAIR
+    // COORDINATOR it sat under two app names at chrome23. A head one rung
+    // below its own block reads as a label on the block above it.
+    //
+    // Still through the guard, because every caller hands this a TRANSLATED
+    // string and the mono faces have no CJK variant either: a Japanese
+    // section head was drawing LVGL's placeholder box per glyph.
+    lv_obj_set_style_text_font(l, wf, 0);
     lv_obj_set_style_text_letter_space(l, 2, 0);
     lv_obj_set_pos(l, x, y);
     return l;
@@ -2256,6 +2420,31 @@ static void accent_walk(lv_obj_t *o)
             }
         }
     }
+    // The one label on the device whose TEXT is a function of the accent. Every
+    // flag here repaints; none of them can rewrite, so the theme control's own
+    // name went stale the moment the accent changed under a page that was not
+    // rebuilt -- a green swatch reading MONO, in the walk's accent frame. A
+    // user_data TAG rather than an eighth flag: WT_FLAGS_OR exists because two
+    // of these were once assigned the same bit, and a tag costs no bit at all.
+    if (lv_obj_get_user_data(o) == (void *)WT_THEMENAME_TAG) {
+        const char *nm = wt_accent_name();
+        lv_label_set_text(o, nm);
+        // And RESIZE, because the four names are four widths. Rewriting the
+        // text alone drew a box built for MONO around GREEN and clipped it to
+        // GREE -- one frame after the stale name it replaced, on the same
+        // stop. The box hangs off its right edge, so it is the LEFT one that
+        // moves, exactly as the builder places it.
+        lv_obj_t *p = lv_obj_get_parent(o);
+        if (p) {
+            lv_point_t ns;
+            lv_text_get_size(&ns, nm, lv_obj_get_style_text_font(o, LV_PART_MAIN),
+                             lv_obj_get_style_text_letter_space(o, LV_PART_MAIN),
+                             0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+            const int w = WT_THEMETAB_SW + WT_THEMETAB_GAP + ns.x;
+            lv_obj_set_width(p, w);
+            lv_obj_set_x(p, WT_THEMETAB_RIGHT - w);
+        }
+    }
     if (lv_obj_has_flag(o, WT_FLAG_ACCENT_BORDER))
         lv_obj_set_style_border_color(o, wt_accent(), 0);
     if (lv_obj_has_flag(o, WT_FLAG_ACCENT_BG)) {
@@ -2384,7 +2573,7 @@ lv_obj_t *wt_row_x(lv_obj_t *scr, const char *icon, const char *label,
     // answer has to be taken before the default lands on it: on a standard row
     // it is font23, on a tall one it is "measure the box and pick".
     //
-    // It said font14 until now, and that was the carve-out CLAUDE.md removed:
+    // It said font14 until now, and that was the carve-out that had to go:
     // a sub-line is a SENTENCE -- "not real bitcoin", "opens your real keys"
     // -- and every teaching line on the settings page is one, so exempting
     // sub-lines exempted that page's entire body copy. The default moved and
@@ -2468,7 +2657,17 @@ lv_obj_t *wt_row_x(lv_obj_t *scr, const char *icon, const char *label,
         //
         // Safe from the status collision for the same reason the eyebrows are:
         // a chevron says a row OPENS, never how it is doing.
-        lv_obj_t *ch = wt_lbl(row, LV_SYMBOL_RIGHT, 0, 0, wt_font14(), wt_accent());
+        //
+        // Its SIZE is a rung under the row's own sub, not a fixed 14. A font14
+        // glyph beside a font28 line is a speck rather than a mark, and 31
+        // findings across the twenty locales said so -- every one of them on a
+        // row whose sub was short enough to hold 28. English never fired
+        // because English subs are the longest here, so they drop to 23 on
+        // their own and the gap closes with them. The row recomputes `right`
+        // from the chevron's real width just below, so a wider mark takes its
+        // own lane back rather than growing over the sub.
+        const lv_font_t *chf = sf == wt_font28() ? wt_font23() : wt_font14();
+        lv_obj_t *ch = wt_lbl(row, LV_SYMBOL_RIGHT, 0, 0, chf, wt_accent());
         lv_obj_set_style_text_opa(ch, 150, 0);
         lv_obj_add_flag(ch, WT_FLAG_ACCENT);
         lv_obj_update_layout(ch);
@@ -2525,7 +2724,7 @@ lv_obj_t *wt_row_x(lv_obj_t *scr, const char *icon, const char *label,
     lv_obj_t *v = NULL;
     int vw = 0;
     if (val && *val) {
-        v = wt_lbl(row, val, 0, 0, vf, wt_ink_for(vcol));
+        v = wt_lbl(row, val, 0, 0, vf, wt_ink_for_text(vcol, val));
         lv_obj_update_layout(v);
         vw = lv_obj_get_width(v);
     }
@@ -3220,7 +3419,8 @@ lv_obj_t *wt_line_row(lv_obj_t *par, int x, int y, int w, int h,
         // overruns has to lose letters rather than run under the sub.
         const int vw = (subw ? sub_x : right) - 18 - WT_LINE_PAD;
         lv_obj_t *v = wt_lbl(row, val, WT_LINE_PAD, wt_line_val_y(),
-                             vf ? vf : wt_font23(), wt_ink_for(vcol));
+                             vf ? vf : wt_font23(),
+                             wt_ink_for_text(vcol, val));
         lv_obj_set_user_data(v, (void *)WT_LINE_VAL_TAG);
         lv_obj_set_width(v, vw);
         lv_obj_set_height(v, lv_font_get_line_height(vf ? vf : wt_font23()));
@@ -3957,6 +4157,105 @@ lv_obj_t *wt_help_tab_n(lv_obj_t *scr, const char *hint, int unread,
     return b;
 }
 
+// The theme control: a colour SWATCH and the theme's own name, in the chrome
+// column directly above [ ? ], pinned by the same right edge at 752.
+//
+// It is a kit call and not forty lines on the settings page because it is the
+// second thing up here that has to know where [ ? ] ends, and because the page
+// that built it by hand got the one part a caller cannot see wrong -- see the
+// name tag below.
+//
+// The WORD is the point of it. It wore LV_SYMBOL_LOOP and nothing else, and a
+// colour a reader has no name for is a colour they cannot ask for or check.
+// Home has paired this swatch with MONO / GREEN / CYPHERPINK / ORANGE for its
+// whole life, so the name is already met by the time anyone reaches the screen
+// that changes it. Ink for the word, colour for the swatch, exactly as home
+// sets it: the swatch is a sample of the value, and a name painted in its own
+// colour is the one label here that could not be read against MONO.
+//
+// The TARGET is why the geometry is written out rather than aligned. This sits
+// directly over NO UNDO and [ ? ], and [ ? ] claims 12px of ext area ABOVE
+// itself, so its hit box starts at 58. This one is 10..50 with 6 of ext --
+// 4..56, two clear -- and 52 tall all in, which is the band height it gave up.
+// Wider than the 66px dot it replaces in every theme, and half again in the
+// long ones.
+lv_obj_t *wt_theme_tab(lv_obj_t *scr, lv_event_cb_t cb, void *ud)
+{
+    const char *nm = wt_accent_name();       // ASCII, so the mono face is safe
+    // A rung under the mono28 title it shares the row with, and the rung the
+    // [ ? ] mark under it wears. Never font14: this is a word, not a mark.
+    const lv_font_t *nf = wt_font_mono21();
+    lv_point_t ns;
+    lv_text_get_size(&ns, nm, nf, 1, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    const int sw = WT_THEMETAB_SW, gap = WT_THEMETAB_GAP, ch = 40, ty = 10;
+    const int cw = sw + gap + ns.x;
+    const int tx = WT_THEMETAB_RIGHT - cw;
+    // The title's lane is measured against the WIDEST of the four names, not
+    // this one. A lane cut to MONO is a lane CYPHERPINK grows into, and it
+    // would make the title's own type size depend on which theme is on -- the
+    // page re-fitting itself every time somebody taps a colour.
+    int widest = 0;
+    for (int i = 0; i < WT_ACC_N; i++) {
+        lv_point_t as;
+        lv_text_get_size(&as, WT_ACC_NAMES[i], nf, 1, 0, LV_COORD_MAX,
+                         LV_TEXT_FLAG_NONE);
+        if (as.x > widest) widest = as.x;
+    }
+    const int lane = (WT_THEMETAB_RIGHT - (sw + gap + widest)) - 24 - WT_LANE_X;
+
+    lv_obj_t *b = lv_obj_create(scr);
+    lv_obj_remove_style_all(b);
+    lv_obj_set_pos(b, tx, ty);
+    lv_obj_set_size(b, cw, ch);
+    lv_obj_add_flag(b, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(b, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_ext_click_area(b, 6);
+    wt_tap_feedback(b);
+
+    lv_obj_t *sq = lv_obj_create(b);
+    lv_obj_remove_style_all(sq);
+    lv_obj_set_size(sq, sw, 20);
+    lv_obj_set_style_radius(sq, 6, 0);
+    lv_obj_set_style_bg_color(sq, wt_accent(), 0);
+    lv_obj_set_style_bg_opa(sq, LV_OPA_COVER, 0);
+    lv_obj_add_flag(sq, WT_FLAG_ACCENT_FILL);
+    lv_obj_remove_flag(sq, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_align(sq, LV_ALIGN_LEFT_MID, 0, 0);
+
+    lv_obj_t *nl = wt_lbl(b, nm, 0, 0, nf, WT_INK);
+    lv_obj_set_style_text_letter_space(nl, 1, 0);
+    lv_obj_align(nl, LV_ALIGN_LEFT_MID, sw + gap, 0);
+    // TAGGED so accent_walk rewrites it. The swatch follows the accent through
+    // its flag and this cannot: a flag repaints and a name has to be re-read.
+    lv_obj_set_user_data(nl, (void *)WT_THEMENAME_TAG);
+
+    // The title now shares its rung, so it gets the lane this control leaves
+    // rather than the full WT_LANE_W the chrome head fitted it to. Done HERE
+    // and not by the caller, because a caller that forgets is a title that
+    // runs under a swatch in one locale and looks correct in the other twenty.
+    wt_title_fit(scr, lane);
+    // And the cursor came with that head, placed off the width the title had
+    // BEFORE the re-fit -- so a locale that just stepped down a rung leaves it
+    // floating in the gap. MEASURED off the style getters, never laid out:
+    // that is the read wt_title_cursor records getting wrong, and what
+    // check_layout_reads.py asks for.
+    lv_obj_t *cap = wt_screen_title(scr);
+    lv_obj_t *cur = wt_screen_cursor(scr);
+    if (cap && cur) {
+        lv_point_t cs;
+        const char *ct = lv_label_get_text(cap);
+        lv_text_get_size(&cs, ct ? ct : "",
+                         lv_obj_get_style_text_font(cap, LV_PART_MAIN),
+                         lv_obj_get_style_text_letter_space(cap, LV_PART_MAIN),
+                         0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+        lv_obj_set_pos(cur, lv_obj_get_style_x(cap, LV_PART_MAIN) + cs.x + 12,
+                       lv_obj_get_style_y(cap, LV_PART_MAIN) + (cs.y - 22) / 2 - 2);
+    }
+
+    if (cb) lv_obj_add_event_cb(b, cb, LV_EVENT_CLICKED, ud);
+    return b;
+}
+
 // The headline rung. 34 is "the answer, once" and it is the only place on the
 // device that face is spent, so it is worth a measurement rather than a
 // LONG_DOT: a headline that elides has lost the sentence the page exists to
@@ -4166,7 +4465,8 @@ int wt_facts_in(lv_obj_t *par, int x, int y, int w,
         // rebuilt to stop. So the pair is "caption bigger" in English and
         // "caption equal" where the language is long, and never the other way
         // round.
-        const lv_font_t *cf = chrome28(facts[i].cap);
+        const lv_font_t *cf = facts[i].cap_font ? facts[i].cap_font
+                                                : chrome28(facts[i].cap);
         {
             lv_point_t cs;
             lv_text_get_size(&cs, facts[i].cap, cf, 2, 0, LV_COORD_MAX,
@@ -4213,7 +4513,10 @@ int wt_facts_in(lv_obj_t *par, int x, int y, int w,
         // value started where the caption's box ended, so a caption using its
         // whole lane touched the value beside it.
         const int vx = cap_x + WT_FACT_CAP_W + 14;
-        wt_sub_measure("fact", facts[i].val, vf, 0, right - vx);
+        // NOT measured for CUT or SLACK any more: both of those are about a
+        // PINNED lane, and this one wraps. A value with no room left takes a
+        // second line rather than an ellipsis, which is the whole point of the
+        // change below.
         // Centred in the caption's line box rather than sharing its top: the
         // two faces are a rung apart now, and a smaller label pinned to the
         // same y sits high enough to read as a superscript.
@@ -4222,14 +4525,23 @@ int wt_facts_in(lv_obj_t *par, int x, int y, int w,
         lv_obj_t *val = wt_lbl(scr, facts[i].val, vx, y + vdy, vf,
                                WT_MUT);
         lv_obj_set_width(val, right - vx);
-        lv_obj_set_height(val, lv_font_get_line_height(vf));
-        lv_label_set_long_mode(val, LV_LABEL_LONG_DOT);
+        // TWO LINES where it needs them, not one line and an ellipsis. Pinned,
+        // this lane was sized to hold the ENGLISH exactly -- and a Latin
+        // translation of the same sentence runs about a third longer, so 46 of
+        // SLACK's 66 findings are this one 352px lane and every one of them
+        // shipped with its second half missing. Wrapping is the only thing
+        // that absorbs the third without dropping a rung, and the row pays a
+        // line of height for it.
+        //
         // The pitch follows the TALLER of the two, whichever that is. It
         // followed the value while the value was the big one, and that is a
         // pin to whichever face happens to be larger today: swapping the two
         // rungs would otherwise have stacked every row 5px into the one above.
+        // Now it follows the value's MEASURED height too, so a wrapped value
+        // pushes the row below it down instead of drawing through it.
+        lv_obj_update_layout(val);
         const int lh = LV_MAX(lv_font_get_line_height(cf),
-                              lv_font_get_line_height(vf));
+                              vdy + lv_obj_get_height(val));
         y += lh + 14;
     }
     return y;
@@ -4311,10 +4623,21 @@ static void def_apply(wt_defs_t *d, int k, int mode)
         else                   lv_obj_add_flag(r->val, WT_FLAG_ACCENT);
         lv_spangroup_refresh(r->val);
     } else {
-        // A caution VALUE takes the accent: its lamp is the amber, and the
-        // lamp is what the eye lands on first anyway.
+        // DECIDED: a caution value is lifted into the accent only where the
+        // row has a LAMP to carry the amber.
+        // The lift was unconditional, on the argument written here for its
+        // whole life -- "its lamp is the amber, and the lamp is what the eye
+        // lands on first anyway". That argument is the lamp's, not the
+        // value's, so a row with no lamp was borrowing a reason it did not
+        // have: SETTINGS > SIGNER lost its pulsing dot (a pulse means a tab
+        // needs attention, and being on signet does not), and the word SIGNET
+        // went on reading in the theme's own colour with nothing amber left
+        // anywhere on the row. Reported from the bench in those terms.
+        //
+        // So the condition is the lamp. No lamp, no lift, and the caution
+        // stays the caution's colour.
         lv_color_t vc = col_or(r->def.val_col, WT_INK);
-        const bool lifted = lv_color_eq(vc, WT_WARN);
+        const bool lifted = lv_color_eq(vc, WT_WARN) && r->def.lamp;
         if (lifted) vc = wt_accent();
         // ...and it must be REPAINTED, because it is the accent now. A caution
         // that is lifted into the theme's colour and then not flagged is
@@ -4677,8 +5000,11 @@ static lv_obj_t *def_list_build(lv_obj_t *scr, const wt_def_t *defs, int n,
                 // value and its mark leave behind, so a longer VALUE (ENABLED
                 // to DISABLED) shortens it under copy that fitted a moment ago.
                 wt_sub_measure("sub", defs[k].sub, sf, 0, lane);
+                // Same rule as the value above, and it has to be the same
+                // rule: a row whose sub lifted while its value did not would
+                // print one caution in the theme's colour and one in amber.
                 lv_color_t sc = col_or(defs[k].sub_col, WT_DIM);
-                const bool lift = lv_color_eq(sc, WT_WARN);
+                const bool lift = lv_color_eq(sc, WT_WARN) && defs[k].lamp;
                 if (lift) sc = wt_accent();
                 r->sub = wt_lbl(row, defs[k].sub, 0, 0, sf, sc);
                 // Same lift, same requirement: see the value above.
@@ -5198,7 +5524,8 @@ lv_obj_t *wt_row_wide(lv_obj_t *scr, int y, const wt_wide_t *r)
     // verified line) still outranks the default -- a state keeps its colour.
     lv_color_t ink  = inert ? WT_DIM : WT_MUT;
     lv_color_t subc = inert ? WT_DIM : wt_ink_for(col_or(r->sub_col, WT_DIM));
-    lv_color_t vcol = inert ? WT_DIM : wt_ink_for(col_or(r->vcol, WT_INK));
+    lv_color_t vcol = inert ? WT_DIM
+                             : wt_ink_for_text(col_or(r->vcol, WT_INK), r->val);
     // wt_ink_for hands a caution's WORDS the accent, so either of these can BE
     // the accent -- and then it has to be repainted like everything else that
     // is. The def rows above wear the same lift and needed the same flag.
@@ -5377,12 +5704,30 @@ void wt_group_note(lv_obj_t *pane, int rows, const char *txt)
     // sentence under a group is a sentence the owner READS, so it sits at
     // the same size as the subs above it. The lane holds 54 mono cells;
     // longer copy gets cut, not shrunk.
-    const lv_font_t *f = chrome23(txt);
-    lv_obj_t *l = wt_lbl(pane, txt, WT_WIDE_X, WT_WIDE_EXPL_Y(rows), f,
-                         WT_MUT);
-    lv_obj_set_width(l, WT_WIDE_W);
-    lv_obj_set_height(l, lv_font_get_line_height(f));
-    lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+    //
+    // SPANS, not a label, and for the reason every body on this device is:
+    // the full stop of each sentence takes the accent, which is what makes a
+    // line scan as a claim rather than as a caption. It was drawn through
+    // wt_lbl, so it was the one sentence on the SEED WORDS page with a grey
+    // stop while the paragraph one screen away had a coloured one -- reported
+    // from the bench, along with how tightly it sat under the group.
+    //
+    // 12px more air than WT_WIDE_EXPL_Y gives, because that constant puts the
+    // line 12 under a 66px row and the two read as one block.
+    // MARKED, if the caller hands it one through tr_sym -- marks before words,
+    // like every row and chip on the device -- and split off the string so the
+    // words keep the mono rung the symbol cannot live in.
+    char markbuf[8];
+    const char *w = txt;
+    const int lead = mark_split(txt, markbuf, sizeof markbuf, &w);
+    const lv_font_t *f = chrome23(w);
+    int x = WT_WIDE_X;
+    const int y = WT_WIDE_EXPL_Y(rows) + 12;
+    if (lead) x += mark_draw(pane, markbuf, x, y,
+                             lv_font_get_line_height(f), WT_MUT);
+    lv_obj_t *l = spans_new(pane, x, y, WT_WIDE_W - (x - WT_WIDE_X));
+    lv_obj_set_style_text_font(l, f, 0);
+    spans_fill(l, w, NULL);
 }
 
 // ---- the group that MOVES ----------------------------------------------
@@ -6321,12 +6666,23 @@ static void spans_fill(lv_obj_t *sg, const char *txt, const char *hi)
     size_t i = 0, run = 0;
     char buf[640];
     while (txt[i]) {
-        const bool stop = txt[i] == '.' && i > 0 &&
-                          ((txt[i - 1] >= 'a' && txt[i - 1] <= 'z') ||
-                           (txt[i - 1] >= 'A' && txt[i - 1] <= 'Z') ||
-                           (txt[i - 1] >= '0' && txt[i - 1] <= '9')) &&
-                          (txt[i + 1] == '\0' || txt[i + 1] == ' ' ||
-                           txt[i + 1] == '\n');
+        // The IDEOGRAPHIC stop, U+3002, and it is not a detail. ja and zh end
+        // every sentence with it and never with an ASCII dot, so this loop saw
+        // three stops in each of those locales against about 335 in the other
+        // nineteen -- their bodies rendered as one grey block while everybody
+        // else read sentences. Its rules are its own: it follows a CJK
+        // character rather than an ASCII letter, and nothing follows it,
+        // because those scripts do not put a space after a stop.
+        const bool cjk_stop = (unsigned char)txt[i] == 0xE3 &&
+                              (unsigned char)txt[i + 1] == 0x80 &&
+                              (unsigned char)txt[i + 2] == 0x82 && i > 0;
+        const bool stop = cjk_stop ||
+                          (txt[i] == '.' && i > 0 &&
+                           ((txt[i - 1] >= 'a' && txt[i - 1] <= 'z') ||
+                            (txt[i - 1] >= 'A' && txt[i - 1] <= 'Z') ||
+                            (txt[i - 1] >= '0' && txt[i - 1] <= '9')) &&
+                           (txt[i + 1] == '\0' || txt[i + 1] == ' ' ||
+                            txt[i + 1] == '\n'));
         if (!stop) {
             if (run + 1 < sizeof buf) buf[run++] = txt[i];
             i++;
@@ -6338,10 +6694,23 @@ static void spans_fill(lv_obj_t *sg, const char *txt, const char *hi)
         // indents it -- which a plain label never does, because it collapses
         // whitespace at the break. Carried on the stop it sits at the end of
         // the line instead, where it costs nothing.
+        //
+        // DECIDED: a lone span is a break opportunity, so when the word before
+        // a stop ends near the edge the ". " wraps by ITSELF and the next line
+        // opens with a full stop. It looks like a typo in the string and it is
+        // not -- SIGN's refusal screen shows it on "information" / ". pair it
+        // again". Folding the stop back into the body run fixes it and was
+        // rejected: the accent stop is the design, it is what makes a wrapped
+        // body scan as sentences rather than as a block, and LVGL gives no way
+        // to hold a span to the one before it. The copy moves instead, which
+        // is what happened here -- the word at the edge changes and the stop
+        // follows it up.
         lv_span_t *dot = lv_spangroup_new_span(sg);
-        lv_span_set_text(dot, txt[i + 1] == ' ' ? ". " : ".");
+        lv_span_set_text(dot, cjk_stop            ? "\xE3\x80\x82"
+                            : txt[i + 1] == ' '   ? ". "
+                                                  : ".");
         lv_style_set_text_color(lv_span_get_style(dot), wt_accent());
-        i += txt[i + 1] == ' ' ? 2 : 1;
+        i += cjk_stop ? 3 : txt[i + 1] == ' ' ? 2 : 1;
     }
     if (run) { buf[run] = 0; span_run(sg, buf, hi); }
     lv_spangroup_refresh(sg);
@@ -6464,6 +6833,25 @@ exp_paras_t ps;
         }
     }
 
+    // THE PORT, asked now rather than after the board arrives. The 3.5in
+    // target is 320 wide where this one is 800, and the same 480 tall: the
+    // lane falls by two and a half and the vertical budget does not move at
+    // all. A body that is three lines here is eight there, and eight lines of
+    // 29 is most of what a screen has once its chrome and its action band are
+    // paid for.
+    //
+    // So the ladder is walked a second time against the narrow lane. A body
+    // that still lands on a rung will RE-FLOW onto the small board; one that
+    // runs past the floor has to be rebuilt, and knowing which is which is
+    // worth more before anything is ported than after. It reports through its
+    // own kind because the verdict is different: this is not a defect on the
+    // board that ships today.
+    {
+        const int nw = EXP_FULL_TXT * WT_PORT_NARROW_W / WT_PORT_WIDE_W;
+        if (exp_height(&ps, 0, ps.count, ladder[rungs - 1], nw) > room)
+            WT_FIT_GAVE_UP("narrow", body, nw, room);
+    }
+
     // Drop the band by a third of what is left over. Centring it outright
     // floats the text away from the title it answers; hugging the top, which
     // is what this did before, leaves the whole bottom of the card empty.
@@ -6564,7 +6952,7 @@ static void explain_grid(lv_obj_t *ovl, const wt_explain_t *e, int y, int room,
     int rows = (n + cols - 1) / cols;
     int cw   = (EXP_FULL_W - (cols - 1) * GRID_GUT) / cols;   // 346 at two
     int tw   = cw - GRID_BADGE - GRID_GUT;               // text lane beside it
-    int pitch = room / rows;
+    (void)rows;                       // the rows are walked, not divided into
 
     // TERM AND DEFINITION ON ONE WRAPPED RUN, which is what buys font23. They
     // were a font14 heading over a font14 definition, and a 300px column
@@ -6577,23 +6965,86 @@ static void explain_grid(lv_obj_t *ovl, const wt_explain_t *e, int y, int room,
     // Run them together and the term costs a few words of the first line
     // instead of a line of its own, which is exactly the room needed. The
     // glossary page solved it this way first.
+    // MEASURED, then STACKED. Each entry is measured at the chosen font, each
+    // ROW takes the taller of its two columns, and the rows are laid end to end
+    // -- rather than every row being handed room/rows whatever it holds.
+    //
+    // A uniform pitch is only correct when every entry wraps to the same number
+    // of lines, which is true of the English and of almost nothing else. WHY
+    // FLAGGED carried 73 findings on its own: an entry that took one line in
+    // English took two in Czech and grew into the entry below it, and the last
+    // one ran 4px past the action band. TEXT, GROWTH and CONTENT all reporting
+    // the same cause, once per locale, on a card an owner reads before signing.
+    // The gap between rows gives way before the FONT does. Stacking honestly
+    // costs a gap the old uniform pitch never paid, and English -- which fits
+    // by construction, being what every lane was sized from -- came out 6px
+    // over on WHY FLAGGED for exactly that. A reader loses nothing to 8px of
+    // air where they would have lost a font rung.
+    int eh[GRID_MAXN];
+    int gap = GRID_GUT;
     const lv_font_t *bf = wt_font23();
     for (int pass = 0; pass < 2; pass++) {
-        int tallest = 0;
+        int total = 0;
         for (int i = 0; i < n; i++) {
             char line[GRID_LINE_MAX], head[64];
             int l = len[i] < (int)sizeof line ? len[i] : (int)sizeof line - 1;
             lv_memcpy(line, ln[i], (size_t)l);
             line[l] = 0;
             const char *def = wt_split_colon(line, head, sizeof head);
+            eh[i] = 0;
             if (!def) continue;
             char run[GRID_LINE_MAX + 72];
             snprintf(run, sizeof run, "%s %s", head, def);
             lv_point_t sz;
             lv_text_get_size(&sz, run, bf, 0, 0, tw, LV_TEXT_FLAG_NONE);
-            if (sz.y > tallest) tallest = sz.y;
+            // never shorter than the badge beside it, or the mark hangs out
+            eh[i] = sz.y > GRID_BADGE ? sz.y : GRID_BADGE;
         }
-        if (tallest <= pitch - 6) break;
+        // the rows, each as tall as its tallest column, plus the gap under it
+        int text = 0, nrow = 0;
+        for (int r = 0; r * cols < n; r++) {
+            int tall = 0;
+            for (int c = 0; c < cols && r * cols + c < n; c++)
+                if (eh[r * cols + c] > tall) tall = eh[r * cols + c];
+            text += tall; nrow++;
+        }
+        // close the gap before touching the size, down to a floor that still
+        // reads as separate rows rather than one block
+        // 4px of slack against the room, not 0: lv_text_get_size measures the
+        // text and the spangroup renders a shade taller than that, so a fit
+        // computed exactly landed English 2px into the action band -- the one
+        // locale that has no allowance and must read zero.
+        const int fits = room - 4;
+        for (gap = GRID_GUT; gap >= 4; gap -= 2) {
+            total = text + (nrow - 1) * gap;
+            if (total <= fits) break;
+        }
+        if (gap < 4) gap = 4;
+
+        // PORT, measured on the first pass while the entries are still split.
+        // The 3.5in board has no room for two columns, so this grid is ONE
+        // there, on the content lane less the badge -- every entry taller, and
+        // every row its own. The vertical budget does not grow to meet it.
+        if (pass == 0) {
+            int nt = 0;
+            for (int i = 0; i < n; i++) {
+                char line[GRID_LINE_MAX], head[64];
+                int l = len[i] < (int)sizeof line ? len[i] : (int)sizeof line - 1;
+                lv_memcpy(line, ln[i], (size_t)l);
+                line[l] = 0;
+                const char *def = wt_split_colon(line, head, sizeof head);
+                if (!def) continue;
+                char run[GRID_LINE_MAX + 72];
+                snprintf(run, sizeof run, "%s %s", head, def);
+                lv_point_t ns;
+                lv_text_get_size(&ns, run, bf, 0, 0,
+                                 WT_PORT_LANE - GRID_BADGE - GRID_GUT,
+                                 LV_TEXT_FLAG_NONE);
+                nt += (ns.y > GRID_BADGE ? ns.y : GRID_BADGE) + 4;
+            }
+            if (nt > room) WT_FIT_GAVE_UP("narrow", e->body, WT_PORT_LANE, room);
+        }
+        if (total <= fits) break;
         // DECIDED: the icon grid's ladder floors at 21 and no longer has a font14 rung.
         // THE FLOOR IS 21, NOT 14, which is the same floor wt_body_para has
         // and for the same reason: font14 is for MARKS -- chip labels, unit
@@ -6616,8 +7067,20 @@ static void explain_grid(lv_obj_t *ovl, const wt_explain_t *e, int y, int room,
             if (!mono_can(line)) mono_ok = false;
         }
         if (pass == 0 && mono_ok) { bf = wt_font_mono21(); continue; }
-        WT_FIT_GAVE_UP("grid", ln[0], tw, pitch - 6);
+        WT_FIT_GAVE_UP("grid", ln[0], tw, room);
         break;
+    }
+
+    // The top of each row, from the heights just measured. Computed once here
+    // rather than inside the placement loop, because both columns of a row need
+    // the same top and the second one must not re-derive it.
+    int rowy[GRID_MAXN];
+    for (int r = 0, acc = y; r * cols < n; r++) {
+        int tall = 0;
+        for (int c = 0; c < cols && r * cols + c < n; c++)
+            if (eh[r * cols + c] > tall) tall = eh[r * cols + c];
+        rowy[r] = acc;
+        acc += tall + gap;
     }
 
     for (int i = 0; i < n; i++) {
@@ -6628,7 +7091,7 @@ static void explain_grid(lv_obj_t *ovl, const wt_explain_t *e, int y, int room,
         const char *def = wt_split_colon(line, head, sizeof head);
 
         int cx = 48 + (i % cols) * (cw + GRID_GUT);
-        int cy = y + (i / cols) * pitch;
+        int cy = rowy[i / cols];
 
         if (e->icons && (size_t)i < e->icons_count && e->icons[i])
             grid_badge(ovl, e->icons[i], cx, cy, sev);
@@ -6643,7 +7106,7 @@ static void explain_grid(lv_obj_t *ovl, const wt_explain_t *e, int y, int room,
         lv_obj_t *sg = lv_spangroup_create(ovl);
         lv_obj_set_pos(sg, tx, cy + 2);
         lv_obj_set_width(sg, tw);
-        lv_obj_set_height(sg, pitch - 6);
+        lv_obj_set_height(sg, eh[i]);
         lv_obj_remove_flag(sg, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_remove_flag(sg, LV_OBJ_FLAG_SCROLLABLE);
         lv_spangroup_set_mode(sg, LV_SPAN_MODE_BREAK);
@@ -6723,7 +7186,16 @@ lv_obj_t *wt_explain_open(lv_obj_t *parent, const wt_explain_t *e)
                              WT_MUT);
         lv_obj_set_width(s, lane);
         lv_label_set_long_mode(s, LV_LABEL_LONG_DOT);
-        y = 104;
+        // MEASURED, not 104. A subtitle that wraps to a second line runs to
+        // about y 110, and the body below it started at a constant -- so every
+        // locale whose subtitle is one word longer than English drew the body
+        // through it. That was the whole of sim_setup_ent_why's twenty
+        // findings, one per locale, English alone clean because English alone
+        // fits on one line. 104 stays as the floor so a one line subtitle
+        // keeps the spacing it has always had.
+        lv_obj_update_layout(s);
+        y = 64 + lv_obj_get_height(s) + 12;
+        if (y < 104) y = 104;
     } else {
         lv_obj_t *pt = parent ? wt_screen_title(parent) : NULL;
         const char *pn = pt ? lv_label_get_text(pt) : NULL;

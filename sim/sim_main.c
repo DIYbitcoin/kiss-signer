@@ -1377,7 +1377,6 @@ enum { SET_SIGNER = 0, SET_SECURITY, SET_BACKUP, SET_DEVICE, SET_NOUNDO };
 // THIS DEVICE is a five row def list now, not a card over one wide row: the
 // page was a 96px block of font14 with 180px of empty glass under it. The
 // card is the LAST row, and def rows are LANE/n tall from WT_LANE_Y.
-#define SET_DEV_CARD_Y     (114 + (284 / 5) * 4 + (284 / 5) / 2)
 
 // 50 frames, which is 800ms, and it is the only tap on this page that needs
 // them: a tab change is the one thing SETTINGS animates. The last row of a
@@ -1427,18 +1426,22 @@ static void def_cycle(int n, int row, int taps)
 // the mainnet leg further down, which learned this first.
 static void net_to(int want)
 {
-  for (int i = 0; i < 4 && kiss_network() != want; i++) def_go(2, 0);
+  for (int i = 0; i < 4 && kiss_network() != want; i++) def_go(3, 0);
   if (kiss_network() != want) {
     fprintf(stderr, "FAIL: network never reached %d (stuck on %d)\n",
             want, kiss_network());
     exit(1);
   }
 }
-// The two band controls LANGUAGE and THEME moved down to: the language
-// action's box is right-aligned to 512 so a tap near its right edge holds
-// for any locale's name, and the theme dot's hit box is 528..580.
+// LANGUAGE on the band: its box is right-aligned to 512, so a tap near that
+// right edge holds for any locale's name.
 static void band_lang(void)  { touch(490, WT_ACTION_Y + 26); pump(3); release(); pump(8); }
-static void band_theme(void) { touch(554, WT_ACTION_Y + 26); pump(3); release(); pump(8); }
+// THEME is not on the band any more -- it is the swatch and name in the chrome
+// column, right-aligned to 752 above [ ? ], 10..50. 30 is its vertical middle.
+// 740 is 12 inside the RIGHT edge, which is the pinned one: the box grows
+// leftward as the theme's name gets longer, so its left edge and its swatch
+// both travel and only this end holds in all four themes.
+static void head_theme(void) { touch(740, 30); pump(3); release(); pump(8); }
 // A cycle row: n taps on the one coordinate. Every tap rebuilds the page, so
 // this is n whole renders and not a gesture -- which is exactly what a finger
 // does to it.
@@ -1738,7 +1741,7 @@ static void tap_label_exact(const char *txt)
 // Tap a control by the text on it. Everything a walk taps this way survives a
 // layout change; everything it taps by pixel does not, and does not say so --
 // moving the dice card onto the 704 page lane silently moved four taps at once,
-// and CLAUDE.md's account of the coverage checker is that the usual outcome is
+// and the house account of the coverage checker is that the usual outcome is
 // worse than a loud failure: a tap that misses leaves every later save()
 // photographing whatever is on screen instead, and the sweep comes back clean
 // having checked the wrong thing.
@@ -2400,7 +2403,16 @@ int main(void) {
   // a thing to teach in a loop anyone can watch.
   g_seq_on = 1; pump(8);
   draw_cover();                                      // = the word; helper waits out COVER_OPEN_DELAY_MS
-  pump(5); g_seq_on = 0;                            // hold on the reveal, then stop recording
+  // The signer's own opening runs for another ninety ticks after the word is
+  // recognised: the fingerprint scrambles in mid screen, then flies into its
+  // pill and the four tile captions arrive. pump(5) stopped recording five
+  // frames in, so the GIF's last frame -- the one it holds on -- was a home
+  // page with 00000000 where the fingerprint goes and no captions under the
+  // icons. Reported from the bench as a pause on a dumb looking screen, and
+  // it was: the recording ended before the screen was finished. The tail is
+  // generous on purpose; gen_docs_shots.py finds where the screen stops
+  // moving and trims the rest.
+  pump(80); g_seq_on = 0;
   save("/tmp/sim_spare_home.ppm");                  // the spare, opened by the word alone
 
   // The passphrase keyboard takes the word AND the modifier stroke. Nothing
@@ -3066,15 +3078,32 @@ int main(void) {
   // captions have arrived and whose values are still at opacity zero. The
   // frame looked like a rendering fault and was really a frame taken early,
   // which is the second time that has happened on this walk.
+  // NO COORDINATOR HAS SPOKEN at this point -- the recv test wiped its usage
+  // record on the way out -- so the tile does not open KEYS at all. It goes
+  // straight to PAIR COORDINATOR, which is the screen an owner in that state
+  // came for. The stop exists because that forward is a real behaviour and
+  // nothing else on the walk exercises it.
+  touch(490, 240); pump(3); release(); pump(45);    // KEYS tile -> the QR direct
+  save("/tmp/sim_winfo_unpaired.ppm");
+  must_show("keys/unpaired goes to pairing", tr(STR_I_SHOW_TO));
+  // And BACK from it leaves for HOME rather than landing on the page that
+  // just forwarded here. If this ever regresses the walk hangs on a bounce
+  // rather than failing, so the needle is a HOME string.
+  tap_str(STR_C_BACK, 3, 45);
+  must_show("keys/unpaired back goes home", tr(STR_H_FINGERPRINT));
+  {
+    // Give this signer a coordinator's word -- the same store RECEIVE's lamp
+    // reads -- so the page itself renders from here on.
+    uint8_t cfp[4];
+    kiss_ui_last_fp(cfp);
+    kiss_usage_chain_set(cfp, kiss_testnet() ? 1 : 0, kiss_script(), -1, 1);
+  }
   touch(490, 240); pump(3); release(); pump(45);    // Wallet tile -> section home
   // ONE PAGE, no tab strip. THIS SIGNER held a read-only copy of two SETTINGS
   // rows and of RECEIVE's first address, so it went; what is left is how a
-  // coordinator comes to watch these keys. No coordinator has spoken at this
-  // point -- the recv test wiped its usage record on the way out -- so the
-  // page shows the 5c empty state: the absence named, what pairing gives, and
-  // the row that fills it.
-  save("/tmp/sim_winfo_coord_empty.ppm");
-  must_show("coord empty", tr(STR_K_COORD_NONE));
+  // coordinator comes to watch these keys.
+  save("/tmp/sim_winfo_coord.ppm");
+  must_show("keys/paired page", tr(STR_K_CAP_PAIRING));
   // The [ ? ]: the content lane replaced by the page's explainer, and the
   // first-run hint stopped for good (this is the walk's first open).
   touch(720, 85); pump(3); release(); pump(45);   // 45: the fact rows land on the stagger
@@ -3088,17 +3117,7 @@ int main(void) {
   must_show("keys/swipe opens help", tr(STR_K_HELP_HEAD));
   for (int i = 0; i <= 8; i++) { touch(300 + i * 14, 250); pump(3); }
   release(); pump(50);
-  must_show("keys/swipe closes help", tr(STR_K_COORD_NONE));
-  {
-    // Give this signer a coordinator's word -- the same store RECEIVE's lamp
-    // reads -- and reopen so the populated page renders.
-    uint8_t cfp[4];
-    kiss_ui_last_fp(cfp);
-    kiss_usage_chain_set(cfp, kiss_testnet() ? 1 : 0, kiss_script(), -1, 1);
-  }
-  tap_str(STR_C_BACK, 3, 8);                        // -> home
-  touch(490, 240); pump(3); release(); pump(45);    // KEYS again, populated
-  save("/tmp/sim_winfo_coord.ppm");
+  must_show("keys/swipe closes help", tr(STR_K_CAP_PAIRING));
   touch(400, 150); pump(3); release(); pump(6);     // PAIRING -> PAIR COORDINATOR
   save("/tmp/sim_pair.ppm");                        // descriptor (Sparrow) active
   touch(198, 228); pump(3); release(); pump(6);     // descriptor QR -> zoom
@@ -4565,16 +4584,11 @@ int main(void) {
   kiss_settings_sim_reopen();
   pump(8);
 
-  // CARD INFO, from THIS DEVICE. It used to hang off the storage chooser,
-  // which is gone; capacity and what is on the card belong with the build id
-  // and the radio rather than behind a picker for where the words live.
   set_tab(SET_DEVICE);
-  // THREE rows on this tab: FIRMWARE, THIS DEVICE, TERMS. DENOMINATION was
-  // the first of four and left with its row -- the amount on the sign screen
-  // is the switch -- so every index here moved up by one.
+  // THREE rows on this tab: FIRMWARE, THIS DEVICE, TERMS.
   //
-  // TERMS first -- all ten cards, five to a page, the reference for an owner
-  // who wants to READ the words rather than meet them one screen at a time.
+  // TERMS first -- the reference for an owner who wants to READ the words
+  // rather than meet them one screen at a time.
   def_row(3, 2);
   pump(30);
   save("/tmp/sim_terms_p1.ppm");                     // SEED WORDS .. CHANGE
@@ -4609,24 +4623,26 @@ int main(void) {
   // last one: saving straight after the tap photographed two rows and three
   // ghosts, which is a picture of the animation rather than of the page.
   pump(30);
-  save("/tmp/sim_device.ppm");                       // build, enc, radio, noise, card
+  save("/tmp/sim_device.ppm");                       // build, enc, radio, noise
   must_show("device/build", tr(STR_I_DEV_BUILD));
   must_show("device/radio", tr(STR_I_DEV_RADIO));
   must_show("device/randomness", tr(STR_I_DEV_RANDOM));
-  touch(SET_LABEL_X, SET_DEV_CARD_Y); pump(3); release(); pump(8);   // the card
-  save("/tmp/sim_sdinfo.ppm");
-  must_show("sdinfo/psbt row", tr(STR_G_SD_ROW_PSBT));
-  tap_str(STR_C_BACK, 3, 8);                        // -> THIS DEVICE
-  platform_sd_test_set_present(0);                  // the slot, empty
-  touch(SET_LABEL_X, SET_DEV_CARD_Y); pump(3); release(); pump(8);
-  save("/tmp/sim_sdinfo_nocard.ppm");               // the why pair
-  must_show("sdinfo/nocard", tr(STR_G_FW_NOCARD_H));
-  platform_sd_test_set_present(1);
-  tap_str(STR_C_BACK, 3, 8);                        // -> THIS DEVICE
+  // NO CARD ROW HERE any more. The card page has one door and it is on the
+  // storage chooser, which is the screen already about the card.
   tap_str(STR_C_BACK, 3, 8);                        // -> Settings, DEVICE tab
 
   set_tab(SET_BACKUP);
   def_go(2, 1);                                      // -> the chooser
+  tap_str(STR_I_CARD_SUB, 3, 8);                     // the card, on FLASH
+  save("/tmp/sim_sdinfo.ppm");
+  must_show("sdinfo/psbt row", tr(STR_G_SD_ROW_PSBT));
+  tap_str(STR_C_BACK, 3, 8);                        // -> the chooser
+  platform_sd_test_set_present(0);                  // the slot, empty
+  tap_str(STR_I_CARD_SUB, 3, 8);
+  save("/tmp/sim_sdinfo_nocard.ppm");               // the why pair
+  must_show("sdinfo/nocard", tr(STR_G_FW_NOCARD_H));
+  platform_sd_test_set_present(1);
+  tap_str(STR_C_BACK, 3, 8);                        // -> the chooser
   set_row(1);                                        // SD CARD -> confirmation
   save("/tmp/sim_storage_confirm_sd.ppm");
   tap_str(STR_G_STORAGE_HOLD_MOVE, 30, 6);    // no travel: no migration
@@ -4641,15 +4657,20 @@ int main(void) {
   save("/tmp/sim_home_sd.ppm");                      // SD storage badge on home
   touch(670, 240); pump(3); release(); pump(6);     // Settings tile -> Settings
   // CARD INFO while the words live on the card: the sealed row, green tick.
-  set_tab(SET_DEVICE);
-  def_row(3, 1);
-  touch(SET_LABEL_X, SET_DEV_CARD_Y); pump(3); release(); pump(8);
-  save("/tmp/sim_sdinfo_sealed.ppm");               // kiss-seed.enc, present
-  must_show("sdinfo/sealed", SDSEED_FILENAME);
-  tap_str(STR_C_BACK, 3, 8);                        // -> THIS DEVICE
-  tap_str(STR_C_BACK, 3, 8);                        // -> Settings
   set_tab(SET_BACKUP);
   def_go(2, 1);
+  tap_str(STR_I_CARD_SUB, 3, 8);
+  save("/tmp/sim_sdinfo_sealed.ppm");               // kiss-seed.enc, present
+  must_show("sdinfo/sealed", SDSEED_FILENAME);
+  // The trail says where the owner came from, and BACK goes back there.
+  must_show("sdinfo/from storage", tr(STR_I_TAB_BACKUP));
+  tap_str(STR_C_BACK, 3, 8);                        // -> the chooser
+  must_show("sdinfo/back to chooser", tr(STR_I_STORE_AMN_SUB));
+  // THE CHOOSER'S OWN BAND, with the keys on the card: the card page's only
+  // door. The stop is here rather than on the FLASH visits above because this
+  // is the state where the sealed file row also renders.
+  save("/tmp/sim_storage_chooser_sd.ppm");
+  must_show("chooser/card door", tr(STR_I_CARD_SUB));
   set_row(0);                                        // FLASH
   slide_fire(STR_G_STORAGE_HOLD_MOVE);
   tap_str(STR_C_OK, 3, 8);     // back on FLASH
@@ -4719,13 +4740,13 @@ int main(void) {
   // chip IS the switch -- one tap flips it and applies it. The sub line under
   // the label follows the state, which is where the erase is stated: it is on
   // screen before the tap rather than inside a list the tap has to open.
-  set_tab(SET_SECURITY);
+  set_tab(SET_SIGNER);
   save("/tmp/sim_settings_hist_on.ppm");             // ENABLED, "settings and..."
-  def_go(3, 1);                                      // flip -> DISABLED, applied
+  def_go(3, 2);                                      // flip -> DISABLED, applied
   save("/tmp/sim_settings_hist_off.ppm");            // the value and the sub flipped
   must_show("persist off", tr(STR_G_HIST_OFF_BTN));
   must_show("persist off sub", tr(STR_I_POP_NOTHING));
-  def_go(3, 1);                                      // flip back -> ENABLED
+  def_go(3, 2);                                      // flip back -> ENABLED
   must_show("persist on", tr(STR_G_HIST_ON_BTN));
 
   // ...and the state where the switch has nothing to switch. AMNESIC keeps
@@ -4741,7 +4762,7 @@ int main(void) {
     pump(8);
     save("/tmp/sim_settings_persist_dead.ppm");      // UNAVAILABLE, in ink
     must_show("persist dead", tr(STR_I_PERSIST_DEAD_VAL));
-    def_row(3, 1); pump(30);                         // the definition opens in place
+    def_row(3, 2); pump(30);                         // the definition opens in place
     save("/tmp/sim_settings_persist_why.ppm");       // the reason, ghosts above and below
     must_show("persist dead reason", tr(STR_I_PERSIST_DEAD_PLAIN));
     s_sim_mode = was;
@@ -5018,16 +5039,16 @@ int main(void) {
   // "?" below is where all three are named at once, which is the job the list
   // was really doing.
   set_tab(SET_SIGNER);
-  def_cycle(2, 1, 1);                               // NATIVE -> LEGACY
+  def_cycle(3, 1, 1);                               // NATIVE -> LEGACY
   save("/tmp/sim_settings_legacy.ppm");             // the row reads 1... / Legacy
   // The NAME, not the BIP number. The number left the row's sub for the card
   // behind the "?" beside it, which already named all three -- so the row was
   // holding the card's content in a lane that had to ellipsise to fit it.
   must_show("type legacy", tr(STR_S_TY_LEGACY));
-  def_cycle(2, 1, 1);                               // -> NESTED
+  def_cycle(3, 1, 1);                               // -> NESTED
   save("/tmp/sim_settings_nested.ppm");             // 3..., the middle rung
   must_show("type nested", tr(STR_S_TY_NESTED));
-  def_cycle(2, 1, 1);                               // -> back to NATIVE
+  def_cycle(3, 1, 1);                               // -> back to NATIVE
 
   // The "?" after the address type VALUE, and the card behind it: what the
   // three names mean, which BIP each one is, and what it costs. CLOSE or a tap
@@ -5047,7 +5068,7 @@ int main(void) {
                      0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
     lv_text_get_size(&ms, LV_SYMBOL_LOOP, wt_font23(), 0, 0, LV_COORD_MAX,
                      LV_TEXT_FLAG_NONE);
-    touch(48 + 238 + vs.x + 14 + ms.x + 10 + 15, SET_DEF_Y(2, 1));
+    touch(48 + 238 + vs.x + 14 + ms.x + 10 + 15, SET_DEF_Y(3, 1));
     pump(3); release(); pump(8);
   }
   save("/tmp/sim_settings_bip.ppm");                // the card, over the scrim
@@ -5069,26 +5090,28 @@ int main(void) {
                      0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
     lv_text_get_size(&ms, LV_SYMBOL_LOOP, wt_font23(), 0, 0, LV_COORD_MAX,
                      LV_TEXT_FLAG_NONE);
-    touch(48 + 238 + vs.x + 14 + ms.x + 10 + 15, SET_DEF_Y(2, 1));
+    touch(48 + 238 + vs.x + 14 + ms.x + 10 + 15, SET_DEF_Y(3, 1));
     pump(3); release(); pump(8);
   }
   touch(60, 440); pump(3); release(); pump(8);      // scrim -> dismissed
 
-  // THEME is the breathing dot on the action band now: what a theme pick
-  // CHANGES is the page, so the page is the preview and the dot is its own
-  // label -- the bench asked for "a tappable color dot pulsating". Enum
-  // order MONO, GREEN, CYPHERPINK, ORANGE, so two taps reach pink and two
-  // more come home. Tapped from DEVICE so the frames show a def list moving.
+  // THEME is the swatch and name in the chrome column now: what a theme pick
+  // CHANGES is the page, so the page is its own preview, and the name beside
+  // the swatch is what lets an owner say which one they are on. Enum order
+  // MONO, GREEN, CYPHERPINK, ORANGE, so two taps reach pink and two more come
+  // home -- and pink is the WIDEST name, which is the frame that says the
+  // control and the title are not sharing a pixel. Tapped from DEVICE so the
+  // frames show a def list moving.
   set_tab(SET_DEVICE);
-  band_theme();                                     // -> GREEN, page and all
+  head_theme();                                     // -> GREEN, page and all
   save("/tmp/sim_settings_green.ppm");              // every mark on the page moved
-  band_theme();                                     // -> CYPHERPINK
+  head_theme();                                     // -> CYPHERPINK
   save("/tmp/sim_settings_pink.ppm");               // accent recolors the chrome + title
   tap_str(STR_C_BACK, 3, 6);      // BACK, right corner -> home still pink
   save("/tmp/sim_home_pink.ppm");
   touch(670, 240); pump(3); release(); pump(6);     // Settings again
   set_tab(SET_DEVICE);
-  band_theme(); band_theme();                       // ORANGE, then back to MONO
+  head_theme(); head_theme();                       // ORANGE, then back to MONO
 
   // NETWORK, the first row on the SIGNER tab, MAINNET -> TESTNET -> SIGNET.
   // MAINNET first in the cycle is deliberate: the very NEXT tap off it turns
@@ -5200,6 +5223,16 @@ int main(void) {
   // ONE back: the list is a tab now, not a screen on top of one, so BACK from
   // it leaves RECEIVE rather than climbing a level that no longer exists.
   tap_str(STR_C_BACK, 3, 6);     // -> home
+  {
+    // A coordinator's word for the MAINNET chain. The record set on the
+    // testnet leg is keyed by chain, so it says nothing here -- and the tile
+    // forwards straight to PAIR COORDINATOR while no coordinator has spoken,
+    // which is a screen with neither of the two things these stops exist to
+    // photograph.
+    uint8_t cfp[4];
+    kiss_ui_last_fp(cfp);
+    kiss_usage_chain_set(cfp, kiss_testnet() ? 1 : 0, kiss_script(), -1, 1);
+  }
   // The KEYS tile, the same door sim_winfo uses. Not a Settings row: the
   // network note lives on the section home, and the coordinates differ.
   touch(490, 240); pump(3); release(); pump(6);     // KEYS tile -> section home
@@ -6726,6 +6759,23 @@ int main(void) {
   pump(100);
   save("/tmp/sim_fw_pq_rejected.ppm");
   must_show("fw/pq_rejected", tr(STR_G_FW_FAIL_T));
+
+  // The card is still holding 99.0.0 here, which is the one state the settings
+  // page had no way of showing. attention_count counted three facts about the
+  // signer and nothing about the card, so an update that had been signed,
+  // carried over and physically inserted lit no dot and raised no chip: the
+  // only way to find it was to already know. Reported from the bench.
+  //
+  // Photographed HERE rather than beside the other settings frames because the
+  // tab strip is built when the PAGE opens, so the mark needs a fresh open
+  // with the image already on the card -- and because writing the fixture up
+  // there would put the dot on every settings frame in the walk instead of
+  // this one.
+  kiss_settings_open(lv_screen_active());
+  pump(50);
+  set_tab(SET_DEVICE);
+  save("/tmp/sim_settings_fw_waiting.ppm");   // DEVICE dot + the chip counting it
+  tap_str(STR_C_BACK, 3, 20);
 
   // 3b. a card holding more images than the scan opens.
   //

@@ -25,19 +25,25 @@ gpg --quick-generate-key "KISS Signer releases <diybitcoin@protonmail.com>" ed25
 gpg --armor --export <KEYID> > docs/installer/kiss_signer_pgp.asc   # commit this
 ```
 
-> **The key committed today does not carry that uid.** It reads
-> `KISS Wallet releases <diybitcoin@protonmail.com>`, because it was cut before
-> the rename, and its fingerprint is
-> `166A CBF3 7786 FCEA A694 96DE 886F 1BFE B84E F1C0`. That is not a problem in
-> itself — a uid is unauthenticated free text and the fingerprint is the real
-> identity — but `docs/guide.html` now quotes the **actual** output of
-> `gpg --verify`, uid and all, so nobody is told to expect a line they will
-> never see. The guide used to claim the uid said "Signer", which quietly taught
-> readers that a name mismatch on a signing key is nothing to worry about.
+> **The key committed today is that uid**, since 0d56077f, and its fingerprint
+> is `166A CBF3 7786 FCEA A694 96DE 886F 1BFE B84E F1C0`. It carries two older
+> uids underneath, from before the rename; `gpg --verify` prints the primary one
+> and nothing else, so what a user sees is the line above.
+>
+> A uid is unauthenticated free text and the fingerprint is the real identity,
+> but `docs/guide.html` quotes the **actual** output of `gpg --verify`, uid and
+> all, so nobody is told to expect a line they will never see. It named the
+> older uid for 540 commits after the export was refreshed, which is the drift
+> this note exists to catch.
 >
 > **If you rotate this key or change its uid, update that block in
-> `docs/guide.html` in the same commit** — the uid line and the fingerprint,
-> which appears there twice.
+> `docs/guide.html` in the same commit** — the uid line and the fingerprint.
+
+That key lives on the same YubiKey as the one below, moved there with
+`keytocard` rather than regenerated, so the fingerprint users check is
+unchanged. `gpg --card-edit`, `admin`, `uif 1 on` makes every release signature
+need a physical tap as well as the PIN; `gpg --card-status` should read
+`UIF setting: Sign=on`. Signing `SHA256SUMS` and the offline zip is two taps.
 
 minisign (optional extra):
 
@@ -123,6 +129,60 @@ espsecure.py extract_public_key --version 2 --keyfile kiss_ota.pem \
     docs/installer/kiss_ota_pub.pem     # commit this, publish its sha256
 ```
 
+### The key does not have to be a file
+
+`espsecure` speaks PKCS#11, so the same secp256r1 key can live in a smartcard's
+signing slot and never exist on the release machine. That is where this
+project's key is now: a YubiKey PIV slot 9c, imported rather than generated on
+the card, so the public half is unchanged and every device already in the field
+still accepts what it signs.
+
+Importing an existing key is the whole trick. A key generated on the card would
+be a new key, and a new key is a device in the field refusing every future
+update: the running app checks a new image against the public key in its own
+signature block, so changing the key strands exactly the people who already
+installed a release.
+
+```sh
+brew install yubico-piv-tool ykman
+ykman piv access change-pin                                    # off 123456
+ykman piv access change-management-key --protect --generate    # behind the PIN
+ykman piv keys import 9c kiss_ota.pem --pin-policy ONCE --touch-policy ALWAYS
+openssl req -new -x509 -key kiss_ota.pem -days 7300 \
+    -subj "/CN=KISS Signer OTA signing key/" -out ota9c.crt
+ykman piv certificates import 9c ota9c.crt   # PKCS#11 needs a cert to see the key
+```
+
+The certificate is not a trust statement and nobody checks it. It is there
+because the PKCS#11 module enumerates keys through certificates and will not
+show the slot without one.
+
+Then `~/.kiss-signer/hsm.ini`, which both release scripts pick up on sight:
+
+```ini
+[hsm_config]
+pkcs11_lib = /opt/homebrew/lib/libykcs11.dylib
+slot = 0
+label = Private key for Digital Signature
+label_pubkey = Public key for Digital Signature
+```
+
+**No `credentials` line.** With one, the PIN sits in plaintext next to the thing
+it unlocks; without one, `espsecure` prompts. `--touch-policy ALWAYS` is the
+half a compromised build host cannot supply on its own: the PIN can be read out
+of a config or a cache, a finger on the card cannot.
+
+The scripts fall back to `KISS_OTA_KEY` when that config is absent, so a machine
+holding only the key file behaves exactly as it did before. What they cannot do
+on the card path is compare the published public key against the signing key,
+because a card will not surrender a private half to derive one from. The verify
+that follows is the stronger check anyway: it proves the shipped bytes check out
+under `docs/installer/kiss_ota_pub.pem`, which is what a stranger repeats.
+
+Keep the encrypted backup of the key file. The card is a copy, not the original,
+and a dead card with no backup is a new key and every owner re-establishing
+trust.
+
 ### The tool that touches the key is pinned
 
 `espsecure` is the only program in this project that is ever handed the private
@@ -145,6 +205,10 @@ it is a deliberate commit, on a machine that can read the changelog first.
 The flashing instructions further down each script stay unpinned on purpose:
 they talk to a board and never to a key, and a version baked into a line the
 reader copies by hand is a staleness problem with nothing to buy it.
+
+This still matters with the key on a card. The pin is what stops a swapped
+`espsecure` from asking the card to sign something else while the PIN is
+verified and the maintainer is reaching for the tap.
 
 Signing happens on the machine that holds the key, which should not be the
 machine that built the image. `KISS_UNSIGNED=1` produces the reproducible

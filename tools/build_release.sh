@@ -154,6 +154,32 @@ docker run --rm \
 # hand is a staleness problem with nothing to buy it.
 ESPTOOL_PIN="${ESPTOOL_PIN:-esptool==5.3.1}"
 KISS_OTA_KEY="${KISS_OTA_KEY:-$HOME/.kiss-signer/kiss_ota.pem}"
+
+# The key does not have to be a file. espsecure speaks PKCS#11, so the same
+# secp256r1 key can sit in a smartcard's signing slot and never exist on this
+# machine at all: the card signs the digest and hands back the signature. When
+# the config below is present it wins over KISS_OTA_KEY, and the private half
+# is then something that cannot be copied off the disk it is not on.
+#
+# The config names the module, the slot and the key labels, and deliberately
+# does NOT carry a "credentials" line -- without it espsecure prompts for the
+# card PIN instead of keeping it in plaintext next to the thing it unlocks. A
+# card configured to require a touch adds a second gate the machine cannot
+# supply on its own, which is the property that makes a compromised build host
+# unable to sign firmware quietly.
+KISS_OTA_HSM_CONFIG="${KISS_OTA_HSM_CONFIG:-$HOME/.kiss-signer/hsm.ini}"
+if [ -f "$KISS_OTA_HSM_CONFIG" ]; then
+  # python-pkcs11 is what espsecure imports for --hsm. It rides on the pinned
+  # esptool rather than being installed anywhere.
+  ESPSECURE=(uvx --from "$ESPTOOL_PIN" --with python-pkcs11 espsecure)
+  OTA_SIGN_KEY=(--hsm --hsm-config "$KISS_OTA_HSM_CONFIG")
+  OTA_KEY_DESC="the card described by $KISS_OTA_HSM_CONFIG"
+else
+  ESPSECURE=(uvx --from "$ESPTOOL_PIN" espsecure)
+  OTA_SIGN_KEY=(--keyfile "$KISS_OTA_KEY")
+  OTA_KEY_DESC="$KISS_OTA_KEY"
+fi
+
 if [ -n "${KISS_UNSIGNED:-}" ]; then
   # A marker beside the image, not just a line of log nobody re-reads. Anything
   # that publishes or flashes from this directory can test for it.
@@ -163,18 +189,19 @@ if [ -n "${KISS_UNSIGNED:-}" ]; then
   echo "      This image carries no signature block, so a device will refuse it"
   echo "      as an SD update and it must never be published as a release."
   echo "      Wrote build-release/UNSIGNED to say so."
-elif [ ! -f "$KISS_OTA_KEY" ]; then
+elif [ ! -f "$KISS_OTA_HSM_CONFIG" ] && [ ! -f "$KISS_OTA_KEY" ]; then
   echo
-  echo "FAIL: OTA signing key not found at $KISS_OTA_KEY"
-  echo "      Generate it once (docs/installer/SIGNING.md), or set KISS_OTA_KEY."
+  echo "FAIL: no OTA signing key. Looked for a card config at"
+  echo "      $KISS_OTA_HSM_CONFIG and a key file at $KISS_OTA_KEY."
+  echo "      Set one up once (docs/installer/SIGNING.md), or set KISS_OTA_KEY."
   echo "      Without it this build cannot accept SD firmware updates, ever."
   echo "      For a reproducibility check on a machine with no key, set"
   echo "      KISS_UNSIGNED=1 and compare the unsigned hashes."
   exit 1
 else
-echo "signing app with $KISS_OTA_KEY"
-uvx --from "$ESPTOOL_PIN" espsecure sign-data \
-  --version 2 --keyfile "$KISS_OTA_KEY" \
+echo "signing app with $OTA_KEY_DESC"
+"${ESPSECURE[@]}" sign-data \
+  --version 2 "${OTA_SIGN_KEY[@]}" \
   --output build-release/guition_kiss_bringup-signed.bin \
   build-release/guition_kiss_bringup.bin
 mv build-release/guition_kiss_bringup-signed.bin \
@@ -183,21 +210,29 @@ mv build-release/guition_kiss_bringup-signed.bin \
 # The public half in the repo has to be the half that just signed, or users
 # verify against a key the firmware does not carry. Cheap to check, and the
 # failure it prevents is silent.
-uvx --from "$ESPTOOL_PIN" espsecure extract-public-key \
-  --version 2 --keyfile "$KISS_OTA_KEY" /tmp/kiss_ota_pub_check.pem
-if ! cmp -s /tmp/kiss_ota_pub_check.pem docs/installer/kiss_ota_pub.pem; then
-  echo "FAIL: docs/installer/kiss_ota_pub.pem is not the public half of $KISS_OTA_KEY"
-  exit 1
+#
+# Only the file lane can ask this question of the key itself. A card will not
+# hand over a private key to derive anything from, so there is nothing to
+# compare -- and nothing to compare it against that the verify below does not
+# already prove: a signature that checks out under the PUBLISHED public key
+# was made by the published key, whatever held it.
+if [ ${#OTA_SIGN_KEY[@]} -eq 2 ] && [ "${OTA_SIGN_KEY[0]}" = "--keyfile" ]; then
+  "${ESPSECURE[@]}" extract-public-key \
+    --version 2 --keyfile "$KISS_OTA_KEY" /tmp/kiss_ota_pub_check.pem
+  if ! cmp -s /tmp/kiss_ota_pub_check.pem docs/installer/kiss_ota_pub.pem; then
+    echo "FAIL: docs/installer/kiss_ota_pub.pem is not the public half of $KISS_OTA_KEY"
+    exit 1
+  fi
+  echo "PASS: published public key matches the signing key"
+  rm -f /tmp/kiss_ota_pub_check.pem
 fi
-echo "PASS: published public key matches the signing key"
-rm -f /tmp/kiss_ota_pub_check.pem
 
 # Prove the shipped file verifies against the PUBLISHED key, not just that the
 # two halves match. This is the check a stranger can repeat, and it is the one
 # that fails if signing was skipped, applied to the wrong file, or undone by a
 # later step that rewrites the binary. The encrypted lane has run this since it
 # existed; this lane published without it.
-if ! uvx --from "$ESPTOOL_PIN" espsecure verify-signature \
+if ! "${ESPSECURE[@]}" verify-signature \
      --version 2 --keyfile docs/installer/kiss_ota_pub.pem \
      build-release/guition_kiss_bringup.bin >/dev/null 2>&1; then
   echo "FAIL: build-release/guition_kiss_bringup.bin does not verify against"
@@ -213,6 +248,7 @@ fi
 # changed keeps declaring the old number, and a substring test cannot tell the
 # difference between the version being present and the version being what the
 # image actually claims. check_fw_version.py reads the app descriptor.
+python3 tools/check_fw_version.py --selftest || exit 1
 python3 tools/check_fw_version.py build-release || exit 1
 
 GIT_REV="$GIT_REV" python3 - <<'PY'
@@ -285,6 +321,7 @@ PY
 
 # flash budget: baked art is ~75% of the binary; fail while there is still
 # headroom to react, not on the flash step (set -e stops on a FAIL)
+python3 tools/check_flash_budget.py --selftest
 python3 tools/check_flash_budget.py build-release/guition_kiss_bringup.bin partitions.csv
 echo
 echo "release build OK: build-release/guition_kiss_bringup.bin"

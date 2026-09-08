@@ -80,9 +80,15 @@ void kiss_trng_start(void);
 bool kiss_trng_live(void);
 
 // n bytes of the same stream esp_fill_random hands key material, for the
-// randomness audit (kiss_rngaudit.c). Conditioned output: a spread test on it
-// can catch a stuck or biased chip, never a swapped source -- see above. The
-// UI sim links a deterministic stub over this (sim_main.c).
+// randomness audit (kiss_rngaudit.c) and for kiss_setup.c's second tap source.
+// Conditioned output: a spread test on it can catch a stuck or biased chip,
+// never a swapped source -- see above. The UI sim links a deterministic stub
+// over this (sim_main.c).
+//
+// It always fills n bytes or does not return. There is no error to check and
+// no partial fill to notice: on the host a missing /dev/urandom aborts rather
+// than pad the tail, because the padding was deterministic and this signature
+// has no way to say so. kiss_crypto.c carries the account.
 void kiss_trng_fill(uint8_t *out, size_t n);
 
 // ---- timing jitter ----

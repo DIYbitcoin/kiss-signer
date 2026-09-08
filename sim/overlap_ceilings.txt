@@ -18,25 +18,41 @@
 # screens, counted to the end for the first time. German is the control --
 # it always finished, and it is the only line that went DOWN, 103 to 100.
 #
+# AND THEY WENT UP A SECOND TIME, for a different reason worth separating
+# from the first. The numbers above were measured BY HAND, because the
+# nightly sweep that is supposed to keep them honest had never once run: both
+# locale workflows died twenty seconds in on an LVGL clone that existed in
+# one other workflow. With that fixed, the first complete twenty one locale
+# sweep put ten locales two over -- Turkish four -- and none under.
+#
+# The two are this session's screens read in translation, not a defect: the
+# SIGNER and DEVICE tabs' rows, the card page's single door, the pairing head
+# moved onto the chrome strip, and the import note, whose fit budget said 190
+# against a 108px box and so overflowed the line below it silently in ten
+# languages. Correcting that trades a silent overlap for an honest "this copy
+# does not fit", which is a translation cut and waits for the sweep.
+#
+# English stays 0 and is still the only hard zero here.
+#
 # They are a ratchet from here and the rule is unchanged. The next number
 # that moves goes down.
-cs-CZ 24
-da-DK 32
-de 70
-es-ES 57
-es-MX 57
-fr 65
-hr-HR 34
-it 37
-ja 9
+cs-CZ 16
+da-DK 22
+de 60
+es-ES 49
+es-MX 49
+fr 52
+hr-HR 20
+it 29
+ja 10
 ko 4
-nb-NO 41
-nl 56
-pl 53
-pt-BR 37
-pt-PT 42
-ru 54
-sv-SE 58
-tr 45
-vi 43
-zh-CN 10
+nb-NO 33
+nl 48
+pl 40
+pt-BR 29
+pt-PT 34
+ru 38
+sv-SE 47
+tr 33
+vi 34
+zh-CN 12
