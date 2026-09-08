@@ -165,6 +165,11 @@ run "the same, for the mono faces" "python3 tools/check_mono_glyphs.py"
 # became a checker nothing ran -- which is the exact failure check_gates.py
 # exists to catch, and it caught it.
 run "a string with no glyph" "python3 tools/check_text_glyphs.py"
+# A release with no entry, or one still carrying the drafted placeholder.
+# The release notes are generated FROM this section, so a missing entry
+# is caught at release time by make_release_notes dying -- which is late,
+# and after the artifacts are built.
+run "the changelog has this version" "python3 tools/make_changelog.py --check"
 run "a checker nothing runs" "GATECHECK_SELFTEST=1 python3 tools/check_gates.py"
 run "a measurement before its layout" \
     "python3 tools/check_layout_reads.py --selftest && python3 tools/check_layout_reads.py"

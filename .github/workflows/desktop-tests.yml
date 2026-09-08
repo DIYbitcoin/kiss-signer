@@ -166,6 +166,10 @@ jobs:
           python3 tools/check_mono_glyphs.py
           python3 tools/check_text_glyphs.py
 
+      - name: the changelog carries an entry for this version
+        if: always()
+        run: python3 tools/make_changelog.py --check
+
       # sim/lv_conf.h overrides five LVGL settings and each one mirrors a
       # Kconfig line the device actually reads. Move one and nothing fails:
       # the sim keeps the old value and every heap number measured in it
