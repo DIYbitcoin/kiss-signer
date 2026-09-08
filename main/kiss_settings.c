@@ -11,6 +11,7 @@
 #include "i18n.h"
 #include "kiss_crypto.h"
 #include "kiss_info.h"
+#include "kiss_fw.h"      // a waiting update is one of the attention conditions
 #include "kiss_fw_ui.h"   // the firmware row opens it
 #include "kiss_seed.h"
 #include "kiss_seed_sd.h"   // SDSEED_FILENAME: the sealed row on CARD INFO
@@ -1788,10 +1789,16 @@ static void device_screen(void)
 }
 
 // ---- what wants reading ----
-// Derived on every build, never stored. THREE conditions, and the chip counts
+// Derived on every build, never stored. FOUR conditions, and the chip counts
 // every one of them: the paper has never been checked against this device, the
-// recovery words sit in a flash this build does not encrypt, and no duress
-// mark has been set.
+// recovery words sit in a flash this build does not encrypt, no duress mark
+// has been set, and a newer signed firmware is sitting on the card.
+//
+// The fourth was missing and the gap was reported from the bench: a card
+// carrying an update lit nothing anywhere, so the only way to find it was to
+// already know it was there. Every other thing this page wants an owner to do
+// announces itself; an update that has been signed, carried to the device and
+// physically inserted announced nothing.
 //
 // Duress used to be excluded, on the argument that a signer with no duress
 // mark is the state every signer ships in and a permanent "1 NEEDS ATTENTION"
@@ -1814,11 +1821,45 @@ static bool words_unencrypted(void)
 
 static bool duress_unset(void) { return !gw_stored_any(); }
 
+// The fourth condition, and the only one that is not a fact about the signer.
+// The other three are read out of NVS and cost nothing; this one means reading
+// descriptors off the card, so it is asked ONCE per insertion and remembered.
+//
+// DECIDED: asked once per page OPEN, not once per card insertion. Keying the
+// cache on the card being present looked cheaper and is wrong in the state
+// that matters most: install the update and the same card is still in the
+// slot holding the same image, now the running version. The scan would say
+// WFW_ERR_SAME, the cache would still say 1, and the dot would sit there
+// pointing at a FIRMWARE row offering nothing -- immediately after the one
+// action that was supposed to clear it.
+//
+// So kiss_settings_open forgets the answer, and everything after it inside
+// that one visit reuses it. A settings page rebuilds on every tab tap, so
+// scanning per build would put an SD read behind a tab.
+//
+// The mark also goes when the card goes, which is what the probe below is
+// for: a dot that outlived the card points at a row that says "no card".
+static int s_fw_waiting = -1;         // -1 not asked, 0 no, 1 yes
+
+static bool fw_update_waiting(void)
+{
+    if (!platform_sd_probe()) { s_fw_waiting = -1; return false; }
+    if (s_fw_waiting < 0) {
+        wfw_image_t img;
+        // WFW_OK is already "installable and newer": same and older versions
+        // have statuses of their own, and so does an image this build cannot
+        // check. None of those wants an owner's attention.
+        s_fw_waiting = (kiss_fw_scan(&img) == WFW_OK) ? 1 : 0;
+    }
+    return s_fw_waiting == 1;
+}
+
 static int attention_count(void)
 {
     return (duress_unset()      ? 1 : 0)
          + (backup_unchecked()  ? 1 : 0)
-         + (words_unencrypted() ? 1 : 0);
+         + (words_unencrypted() ? 1 : 0)
+         + (fw_update_waiting() ? 1 : 0);
 }
 
 // DECIDED: the amber dots on the tab strip are the attention chip's ROUTING and
@@ -1831,7 +1872,8 @@ static int attention_count(void)
 static int attention_tab(void)
 {
     if (duress_unset()) return TAB_SECURITY;
-    return TAB_BACKUP;
+    if (backup_unchecked() || words_unencrypted()) return TAB_BACKUP;
+    return TAB_DEVICE;
 }
 
 static void go_tab(int tab);
@@ -2349,6 +2391,8 @@ static void settings_what_cb(lv_event_t *e)
 
 void kiss_settings_open(lv_obj_t *parent)
 {
+    s_fw_waiting = -1;          // one card scan per visit; see fw_update_waiting
+
     if (s_scr) return;
     s_parent = parent;
     // An overlay open when the screen died was deleted with it; the handles
@@ -2362,9 +2406,10 @@ void kiss_settings_open(lv_obj_t *parent)
 
     // The dots are what a collapsed group costs, paid back. Every condition
     // the attention chip counts lights the dot on the tab that holds it:
-    // SECURITY while no duress mark is set, BACKUP for either of its two. The
-    // chip counts conditions and a tab has one dot, so BACKUP holding both is
-    // the one state where the number is larger than the marks.
+    // SECURITY while no duress mark is set, BACKUP for either of its two,
+    // DEVICE while the card holds a newer signed image. The chip counts
+    // conditions and a tab has one dot, so BACKUP holding both is the one
+    // state where the number is larger than the marks.
     // DECIDED: these tabs keep their NOUNS and are not renamed after the jobs
     // they hold. The proposal was HOW IT SIGNS / WHAT IT KEEPS / HOW IT PROVES
     // / WHAT IT IS, and it does not fit: the five-up strip is 620px, the
@@ -2386,7 +2431,8 @@ void kiss_settings_open(lv_obj_t *parent)
         { WT_ICON_SHIELD,     tr(STR_I_TAB_SECURITY), duress_unset(), false },
         { LV_SYMBOL_SAVE,     tr(STR_I_TAB_BACKUP),
           backup_unchecked() || words_unencrypted(), false },
-        { LV_SYMBOL_SETTINGS, tr(STR_I_TAB_DEVICE),   false,          false },
+        { LV_SYMBOL_SETTINGS, tr(STR_I_TAB_DEVICE),
+          fw_update_waiting(), false },
         { LV_SYMBOL_TRASH,    tr(STR_I_SEC_NO_UNDO),  false,          true  },
     };
     // The five-up flex strip (frame 7a): content-sized labels spread across

@@ -127,7 +127,7 @@
   "G_FW_WHERE_CAP": "WHERE THE FILE GOES",
   "G_FW_WHERE_H": "where the file goes",
   "G_FW_WHERE_SHORT": "one .bin file in the root of the card",
-  "G_FW_WHY_B": "every update is signed twice. both signatures must pass or nothing is installed. a quantum computer could not forge the second.",
+  "G_FW_WHY_B": "two signatures, both checked. a quantum computer could not forge the second.",
   "G_FW_WHY_H": "ecdsa + post quantum",
   "G_FW_WRITING_FMT": "WRITING %s",
   "G_FW_WRITING_T": "WRITING FIRMWARE",

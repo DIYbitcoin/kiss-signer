@@ -6760,6 +6760,23 @@ int main(void) {
   save("/tmp/sim_fw_pq_rejected.ppm");
   must_show("fw/pq_rejected", tr(STR_G_FW_FAIL_T));
 
+  // The card is still holding 99.0.0 here, which is the one state the settings
+  // page had no way of showing. attention_count counted three facts about the
+  // signer and nothing about the card, so an update that had been signed,
+  // carried over and physically inserted lit no dot and raised no chip: the
+  // only way to find it was to already know. Reported from the bench.
+  //
+  // Photographed HERE rather than beside the other settings frames because the
+  // tab strip is built when the PAGE opens, so the mark needs a fresh open
+  // with the image already on the card -- and because writing the fixture up
+  // there would put the dot on every settings frame in the walk instead of
+  // this one.
+  kiss_settings_open(lv_screen_active());
+  pump(50);
+  set_tab(SET_DEVICE);
+  save("/tmp/sim_settings_fw_waiting.ppm");   // DEVICE dot + the chip counting it
+  tap_str(STR_C_BACK, 3, 20);
+
   // 3b. a card holding more images than the scan opens.
   //
   // kiss_fw_scan reads descriptors for the first WFW_SCAN_MAX names and the
