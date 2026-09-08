@@ -81,7 +81,7 @@
   "GD_WORD_T": "DIN EGEN TEGNING",
   "G_CREATE_NOTE": "erstatter gendannelsesordene her.",
   "G_ERASED_B": "seed-ordene er væk fra denne enhed.\nintet her kan signere for de nøgler.\n\ndit papir + adgangsfrase virker stadig.",
-  "G_ERASED_NEXT": "Slettet. Sæt op igen, eller giv den videre.",
+  "G_ERASED_NEXT": "Slettet. Sæt op igen, eller giv videre.",
   "G_ERASED_T": "SEED-ORD SLETTET",
   "G_FW_BACKLIGHT": "LYSSTYRKEN ER STATUSLINJEN",
   "G_FW_BAD_B": "filen på kortet er ikke et KISS billede.",

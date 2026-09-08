@@ -81,7 +81,7 @@
   "GD_WORD_T": "SEU PRÓPRIO TRAÇO",
   "G_CREATE_NOTE": "substitui as palavras daqui.",
   "G_ERASED_B": "as palavras semente sumiram deste dispositivo.\nnada aqui consegue assinar com aquelas chaves.\n\nseu papel + passphrase continuam valendo.",
-  "G_ERASED_NEXT": "Apagado. Configure de novo, ou passe adiante.",
+  "G_ERASED_NEXT": "Apagado. Configure de novo, ou passe.",
   "G_ERASED_T": "SEED APAGADA",
   "G_FW_BACKLIGHT": "O BRILHO É A BARRA DE PROGRESSO",
   "G_FW_BAD_B": "o arquivo no cartão não é uma imagem KISS.",

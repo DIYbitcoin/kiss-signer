@@ -81,7 +81,7 @@
   "GD_WORD_T": "VOTRE PROPRE TRACÉ",
   "G_CREATE_NOTE": "remplace les mots de récupération ici.",
   "G_ERASED_B": "les mots ont quitté cet appareil.\nrien ici ne peut plus signer avec ces clés.\n\nvotre papier + phrase secrète marchent.",
-  "G_ERASED_NEXT": "Effacé. Reconfigurez, ou passez-le à quelqu'un.",
+  "G_ERASED_NEXT": "Effacé. Reconfigurez, ou passez-le.",
   "G_ERASED_T": "MOTS EFFACÉS",
   "G_FW_BACKLIGHT": "LA LUMINOSITÉ EST LA BARRE",
   "G_FW_BAD_B": "le fichier sur la carte n'est pas une image KISS.",

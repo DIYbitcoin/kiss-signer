@@ -81,7 +81,7 @@
   "GD_WORD_T": "IHRE EIGENE ZEICHNUNG",
   "G_CREATE_NOTE": "ersetzt die Seed-Wörter hier.",
   "G_ERASED_B": "die Seed-Wörter sind von diesem Gerät weg.\nhier kann nichts mehr mit diesen Schlüsseln signieren.\n\ndein Papier + Passphrase gelten weiter.",
-  "G_ERASED_NEXT": "Gelöscht. Neu einrichten oder weitergeben.",
+  "G_ERASED_NEXT": "Gelöscht. Neu einrichten oder abgeben.",
   "G_ERASED_T": "SEED GELÖSCHT",
   "G_FW_BACKLIGHT": "DIE HELLIGKEIT IST DER FORTSCHRITT",
   "G_FW_BAD_B": "die Datei auf der Karte ist kein KISS Abbild.",
