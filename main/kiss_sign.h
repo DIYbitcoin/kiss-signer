@@ -13,8 +13,4 @@ bool kiss_sign_test_armed(void);
 // Walk only: is the graph standing its output side down behind a padlock? True
 // from the press until the hold is let go or the transaction is written.
 bool kiss_sign_test_locked(void);
-// Walk only: the name a signature would be written under. Exposed because a
-// long source name is CUT to fit the card's 63, and two sources cut to one name
-// used to mean the second signature wrote over the first.
-const char *kiss_sign_test_signed_name(const char *src);
 #endif
