@@ -160,7 +160,7 @@ def main():
         return 2
     if os.environ.get("GLYPHCHECK_SELFTEST"):
         # ...and then keep going, which it did not. This returned 0 here, and
-        # the invocation CLAUDE.md's gate list prescribes is exactly
+        # the invocation the by-hand gate list prescribes is exactly
         # GLYPHCHECK_SELFTEST=1 -- so the one command anybody runs proved the
         # self test worked and never looked at the tree. check_gates.py and
         # check_screen_coverage.py both print the self test and continue; this

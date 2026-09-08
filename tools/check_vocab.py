@@ -5,7 +5,7 @@ Why this is a script and not a paragraph
 ----------------------------------------
 GLOSSARY.md already said it, in these words: bare "words", used as if it
 named the thing, "reads as a house term and has to be unlearned the first
-time an owner opens anything else". CLAUDE.md has a whole Vocabulary section
+time an owner opens anything else". The house rules have a Vocabulary section
 above it. Both were in force when the LOCKED BACKUP explainer was written
 saying "A locked copy of your words", and then rewritten saying "Keep your
 paper words too" -- two invented terms in a row, on the one screen deciding
@@ -217,7 +217,7 @@ RULES = [
         "WALLET",
         r"\bwallet\b",
         "say signing device, signer, or keys",
-        "CLAUDE.md: `wallet` names ONLY the coordinator's object -- a key set "
+        "`wallet` names ONLY the coordinator's object -- a key set "
         "and the coins it watches. Never this box, never a screen, never "
         "anything stored on it",
         allow={

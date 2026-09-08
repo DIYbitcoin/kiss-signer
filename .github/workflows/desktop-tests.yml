@@ -86,7 +86,7 @@ jobs:
       # walk and no overlap check has ever had an opinion about it. It is caught
       # on glass or it is not caught.
       # The gate for the gates. Two checkers sat in tools/ that no workflow, no
-      # script and no line of CLAUDE.md invoked -- not failing, absent, which
+      # script and no line of prose invoked -- not failing, absent, which
       # looks exactly like green. This asks whether each one is RUN, not
       # whether it is listed.
       - name: every checker in tools/ is run by something
@@ -164,6 +164,7 @@ jobs:
         run: |
           GLYPHCHECK_SELFTEST=1 python3 tools/check_glyphs.py
           python3 tools/check_mono_glyphs.py
+          python3 tools/check_text_glyphs.py
 
       # sim/lv_conf.h overrides five LVGL settings and each one mirrors a
       # Kconfig line the device actually reads. Move one and nothing fails:
@@ -180,7 +181,7 @@ jobs:
         run: |
           LVCONF_SELFTEST=1 python3 tools/check_lv_conf.py
 
-      # ENGLISH ONLY while the UI is being rebuilt, for the reason CLAUDE.md
+      # ENGLISH ONLY while the UI is being rebuilt, for the reason the house
       # gives and with the cost it names. Every screen that gets rebuilt
       # rewrites its own strings, so the other twenty carry wording that is
       # about to be thrown away -- and the walk asserts on that wording, so ja

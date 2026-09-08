@@ -3,7 +3,7 @@
 # WHY THIS EXISTS, and it is not a style preference. The push lane runs the
 # walk in English only, deliberately: the wording is still moving, and a
 # 21-locale sweep on every commit reports translations that are about to be
-# thrown away. That trade is written down in CLAUDE.md and it is the right one.
+# thrown away. That trade is a deliberate one and it is the right one.
 #
 # What it gives up is not theoretical. The day the locales were swept, running
 # the walk in all 21 found two faults the English walk had passed cleanly, on
@@ -79,7 +79,7 @@ jobs:
 
       # Its own scratch root, so the matrix legs cannot fight each other over
       # the fake card, the captured frames or the binary. Unset it is /tmp,
-      # which is what every local command assumes -- see CLAUDE.md.
+      # which is what every local command assumes.
       - name: screen walk
         env:
           KISS_SIM_TMP: /tmp/walk-${{ matrix.lang }}

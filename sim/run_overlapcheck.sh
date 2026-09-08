@@ -255,7 +255,7 @@ for l in "${langs[@]}"; do
     # fits in -- so closing this sweep is a copy project measured in days, not
     # a fix. Left as pass/fail it would be red for all of them on day one, and
     # a gate that is red for a reason nobody is acting on is a gate nobody
-    # reads. That sentence is already in CLAUDE.md about kissosd.
+    # reads. That sentence is already written down about kissosd.
     #
     # So it ratchets instead, the same shape OC_BARE_BACKLOG and its two
     # siblings already use inside the binary: the number recorded here may

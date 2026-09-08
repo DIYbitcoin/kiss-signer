@@ -9,7 +9,7 @@ outside review is not being done yet, which is a decision that would otherwise
 have to be re-argued from scratch every time somebody opens the file.
 
 It is not a place for a summary of finished work. The code says what the code
-does, `docs/decisions.md` says what was tried and rejected, and the commit
+does, `../../dev/decisions.md` says what was tried and rejected, and the commit
 message says why the change was made. A spec says what the shape must be, what
 holds the property, and what is deliberately left out.
 

@@ -55,3 +55,7 @@ sdkconfig.sdtest
 
 # offline fixture tooling (tools/sign_fixtures/README names the pip install)
 venv/
+
+# The working rules for whoever is at the keyboard. Not a user document, and
+# the one tracked file that named a tool; it stays on disk and out of the tree.
+CLAUDE.md

@@ -2573,7 +2573,7 @@ lv_obj_t *wt_row_x(lv_obj_t *scr, const char *icon, const char *label,
     // answer has to be taken before the default lands on it: on a standard row
     // it is font23, on a tall one it is "measure the box and pick".
     //
-    // It said font14 until now, and that was the carve-out CLAUDE.md removed:
+    // It said font14 until now, and that was the carve-out that had to go:
     // a sub-line is a SENTENCE -- "not real bitcoin", "opens your real keys"
     // -- and every teaching line on the settings page is one, so exempting
     // sub-lines exempted that page's entire body copy. The default moved and

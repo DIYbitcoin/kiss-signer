@@ -6,7 +6,7 @@ smallest check in the repo and the only one whose subject is the repo's own
 habits rather than the product.
 
 `check_glyphs.py` and `check_mono_glyphs.py` were written, they self test, they
-pass -- and no workflow, no build script and no line of CLAUDE.md invoked
+pass -- and no workflow, no build script and no line of prose invoked
 either. They had been that way long enough that nobody could say when it
 started. What they cover is the blind spot `main/kiss_theme.h` names twice in
 its own words, *a wrong pick survives every gate and is caught on glass*: a
@@ -18,7 +18,7 @@ Nothing was broken. That is the point -- a gate nothing runs is not a gate that
 is failing, it is a gate that is absent, and absent looks exactly like green.
 
 **Being LISTED is not the test. Being RUN is.** Four checkers are deliberately
-absent from CLAUDE.md's gate block and all four are covered:
+absent from the by-hand gate block and all four are covered:
 `check_cur_link.py` runs inside `sim/build_test.sh`, `check_flash_budget.py`
 and `check_fw_version.py` inside the release scripts, `check_sim_taps.py` in
 CI. Adding them to a list a person reads would make the list longer and the
@@ -34,11 +34,14 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# Where a checker can be invoked from. CLAUDE.md counts: a command a person is
-# told to run is run, and that is the whole lane for the ones the owner drives
-# by hand between commits.
+# Where a checker can be invoked from. A prose file counts: a command a person
+# is told to run is run, and that is the whole lane for the ones the owner
+# drives by hand between commits. The keyboard rules used to be one of these
+# and are no longer tracked -- nothing was lost, because every checker they
+# named is also named by preflight.sh or a workflow, which is what this gate
+# was written to prove.
 RUNNERS = (".github/workflows/*.yml", "tools/*.sh", "sim/*.sh", "tools/*.py",
-           "CLAUDE.md", "HOUSE-RULES.md", "CONTRIBUTING.md")
+           "dev/HOUSE-RULES.md", "CONTRIBUTING.md")
 
 # A checker that only ever names ITSELF is not invoked -- its own docstring and
 # its own argv do not count, which is the case that made this necessary.

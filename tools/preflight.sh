@@ -8,7 +8,7 @@
 # could have hit it -- and it then sat red across THIRTEEN consecutive pushes,
 # about ten hours, because a red CI is a thing somebody has to go and look at.
 #
-# The gate block in CLAUDE.md is the by-hand list and it is fifteen commands
+# The by-hand gate block is the working list and it is fifteen commands
 # long. Fifteen commands is a list people run most of. This runs all of them
 # plus the four the block never listed, which is exactly where the break was.
 #
@@ -19,7 +19,7 @@
 #   bash tools/preflight.sh -q           # only the failures, then the table
 #
 # What it deliberately leaves out: the ESP-IDF container build, which needs
-# docker and takes minutes, and the 21-locale sweeps, which CLAUDE.md's i18n
+# docker and takes minutes, and the 21-locale sweeps, which the i18n
 # rule says not to run while the screens are still moving. CI runs the container
 # build in its own lane and that is the one to read after the push.
 set -uo pipefail
@@ -43,7 +43,7 @@ LOGS="$KISS_SIM_TMP/preflight-logs"
 
 # PREFLIGHT_LANGS -- which locales the three locale aware gates look at.
 #
-# Default en, because CLAUDE.md's i18n rule pins the daily lane to English
+# Default en, because the i18n rule pins the daily lane to English
 # while the screens are still moving. That rule names the cost it accepts:
 # the full sweep catches real faults and they wait for the translation pass.
 #
@@ -160,6 +160,11 @@ run "the words on screen and in the docs" "python3 tools/check_vocab.py"
 run "a refusal with no words" "python3 tools/check_stop_reasons.py"
 run "an icon with no glyph" "GLYPHCHECK_SELFTEST=1 python3 tools/check_glyphs.py"
 run "the same, for the mono faces" "python3 tools/check_mono_glyphs.py"
+# A STRING with no glyph, rather than an icon. It was named by the by-hand
+# gate list and by nothing else, so when that list stopped being tracked it
+# became a checker nothing ran -- which is the exact failure check_gates.py
+# exists to catch, and it caught it.
+run "a string with no glyph" "python3 tools/check_text_glyphs.py"
 run "a checker nothing runs" "GATECHECK_SELFTEST=1 python3 tools/check_gates.py"
 run "a measurement before its layout" \
     "python3 tools/check_layout_reads.py --selftest && python3 tools/check_layout_reads.py"
@@ -180,7 +185,7 @@ run --note-if "commits have changed a screen since" \
 # --- the things that compile ---------------------------------------------
 run "unit tests" "bash sim/build_test.sh && \"\$KISS_SIM_TMP/kisstest\""
 
-# NOT in CLAUDE.md's gate block until now, and the reason this file exists: it
+# NOT in the by-hand gate block until now, and the reason this file exists: it
 # compiles main/kiss_psbt.c with its own include list, which is what drifted.
 run "SD PSBT fixtures reach their verdicts" \
     "rm -rf \"\$KISS_SIM_TMP/sdfix\" && mkdir -p \"\$KISS_SIM_TMP/sdfix\" \

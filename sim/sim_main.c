@@ -1741,7 +1741,7 @@ static void tap_label_exact(const char *txt)
 // Tap a control by the text on it. Everything a walk taps this way survives a
 // layout change; everything it taps by pixel does not, and does not say so --
 // moving the dice card onto the 704 page lane silently moved four taps at once,
-// and CLAUDE.md's account of the coverage checker is that the usual outcome is
+// and the house account of the coverage checker is that the usual outcome is
 // worse than a loud failure: a tap that misses leaves every later save()
 // photographing whatever is on screen instead, and the sweep comes back clean
 // having checked the wrong thing.
