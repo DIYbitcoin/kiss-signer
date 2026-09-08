@@ -28,7 +28,10 @@ GPG_PUB_FILE="docs/installer/kiss_signer_pgp.asc"
 # full Docker rebuild before dying on "No module named esptool". Test the thing
 # actually needed instead, and fall through to anything that has it.
 PY="${PY:-/tmp/spritevenv/bin/python}"
-for cand in "$PY" /tmp/kissvenv/bin/python python3; do
+# $HOME/.kiss-signer/venv first among the fallbacks, because the two /tmp
+# ones do not survive a reboot and this script then stops a release with
+# "no Python with esptool" on a machine that has had one all along.
+for cand in "$PY" "$HOME/.kiss-signer/venv/bin/python" /tmp/kissvenv/bin/python python3; do
     if [ -x "$cand" ] || command -v "$cand" >/dev/null 2>&1; then
         if "$cand" -m esptool version >/dev/null 2>&1; then PY="$cand"; break; fi
     fi
