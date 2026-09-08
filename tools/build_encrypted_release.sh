@@ -411,7 +411,17 @@ blob = open(f"{bdir}/guition_kiss_bringup.bin", "rb").read()
 rev = os.environ.get("GIT_REV", "").encode()
 checks = [
     (bool(rev) and rev in blob,          f"commit {rev.decode()} present"),
-    (b"abandon abandon" not in blob,     "no dev mnemonic in binary"),
+    # ONE copy of the published all-abandon vector ships, deliberately:
+    # kiss_seed_is_test_vector compares against it so a restore of the wallet
+    # the whole internet can spend from is recognised and marked. The owner
+    # asked for that in shipped firmware, twice. What must NOT ship is dev seed
+    # material on a live path -- kiss_crypto.c's DEV_MNEMONIC behind
+    # #ifndef KISS_RELEASE, and kiss_cryptobench.c whole. So this counts rather
+    # than forbids: two copies means one of those came back.
+    (blob.count(b"abandon abandon abandon abandon abandon abandon "
+                b"abandon abandon abandon abandon abandon about") == 1,
+     "exactly one test vector (the restore comparator), no dev seed"),
+    (b"kissbench" not in blob,           "crypto bench compiled out"),
     (b"KISS %s dev (%s)" not in blob,    "no dev banner in binary"),
     (open("VERSION").read().strip().encode() in blob, "version string present"),
 ]
