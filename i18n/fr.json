@@ -582,7 +582,7 @@
   "S_STOP_ASKS": "IL DEMANDE",
   "S_STOP_FP_B": "MAUVAISES CLÉS : une autre phrase secrète ouvre d'autres clés. déverrouillez avec la bonne.\n\nMAUVAIS APPAIRAGE : un coordinateur a reçu une clé nue, pas un descripteur.",
   "S_STOP_NET_B": "ces clés sont sur un autre réseau. changez-le dans RÉGLAGES > SIGNATAIRE, ou construisez la transaction sur le réseau de ces clés.",
-  "S_STOP_NOFP_B": "votre coordinateur n'a envoyé aucune information de clé avec cette transaction, il n'y avait donc rien à comparer. appairez-le de nouveau, puis reconstruisez la transaction.",
+  "S_STOP_NOFP_B": "votre coordinateur n'a envoyé aucune info de clé. réappairez et reconstruisez.",
   "S_STOP_NOSIG": "nothing was signed",
   "S_STOP_REDO": "build it again",
   "S_T": "SIGNER",

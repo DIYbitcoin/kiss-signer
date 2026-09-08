@@ -582,7 +582,7 @@
   "S_STOP_ASKS": "DEN BER OM",
   "S_STOP_FP_B": "FEIL NØKLER: en annen passordfrase åpner andre nøkler. lås opp med den rette.\n\nFEIL PARING: en koordinator fikk en naken nøkkel, ikke en descriptor.",
   "S_STOP_NET_B": "disse nøklene er på et annet nettverk. bytt det i INNSTILLINGER > SIGNERER, eller bygg transaksjonen på nettverket nøklene bruker.",
-  "S_STOP_NOFP_B": "koordinatoren din sendte ingen nøkkelinformasjon med denne transaksjonen, så det var ingenting å sjekke mot. par den igjen, og bygg transaksjonen på nytt.",
+  "S_STOP_NOFP_B": "koordinatoren din sendte ingen nøkkelinformasjon. par igjen og bygg på nytt.",
   "S_STOP_NOSIG": "nothing was signed",
   "S_STOP_REDO": "build it again",
   "S_T": "SIGNER",

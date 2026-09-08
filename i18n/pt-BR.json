@@ -582,7 +582,7 @@
   "S_STOP_ASKS": "PEDE",
   "S_STOP_FP_B": "CHAVES ERRADAS: outra passphrase abre outras chaves. desbloqueie com a certa.\n\nPAREAMENTO ERRADO: deram a um coordenador uma chave nua, não um descritor.",
   "S_STOP_NET_B": "estas chaves estão em outra rede. troque em CONFIGURAÇÕES > ASSINADOR, ou monte a transação na rede que estas chaves usam.",
-  "S_STOP_NOFP_B": "seu coordenador não enviou informação de chaves com esta transação, então não havia com o que comparar. pareie de novo e refaça a transação.",
+  "S_STOP_NOFP_B": "seu coordenador não enviou informação de chaves. pareie e refaça.",
   "S_STOP_NOSIG": "nothing was signed",
   "S_STOP_REDO": "build it again",
   "S_T": "ASSINAR",

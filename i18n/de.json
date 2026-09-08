@@ -582,7 +582,7 @@
   "S_STOP_ASKS": "ES VERLANGT",
   "S_STOP_FP_B": "FALSCHE SCHLÜSSEL: eine andere Passphrase öffnet andere Schlüssel. mit der richtigen entsperren.\n\nFALSCHE KOPPLUNG: ein Koordinator bekam einen nackten Schlüssel, keinen Descriptor.",
   "S_STOP_NET_B": "diese schlüssel liegen in einem anderen netz. wechseln sie es unter EINSTELLUNGEN > SIGNIERER, oder bauen sie die transaktion im netz dieser schlüssel.",
-  "S_STOP_NOFP_B": "ihr koordinator hat zu dieser transaktion keine schlüsselangaben mitgeschickt, also gab es nichts zu vergleichen. koppeln sie ihn erneut und bauen sie die transaktion neu.",
+  "S_STOP_NOFP_B": "ihr koordinator hat keine schlüsselangaben geschickt. neu koppeln, neu bauen.",
   "S_STOP_NOSIG": "nothing was signed",
   "S_STOP_REDO": "build it again",
   "S_T": "SIGNIEREN",

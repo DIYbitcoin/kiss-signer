@@ -170,6 +170,10 @@ run "a string with no glyph" "python3 tools/check_text_glyphs.py"
 # is caught at release time by make_release_notes dying -- which is late,
 # and after the artifacts are built.
 run "the changelog has this version" "python3 tools/make_changelog.py --check"
+# A translation that says more than its English. The screen gate can only
+# see text that overflows something; a body twice as long as it should be,
+# in a box big enough to hold it, is invisible to every other check here.
+run "a translation that says too much" "I18NBLOAT_SELFTEST=1 python3 tools/check_i18n_bloat.py"
 run "a checker nothing runs" "GATECHECK_SELFTEST=1 python3 tools/check_gates.py"
 run "a measurement before its layout" \
     "python3 tools/check_layout_reads.py --selftest && python3 tools/check_layout_reads.py"

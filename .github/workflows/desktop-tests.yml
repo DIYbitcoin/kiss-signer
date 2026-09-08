@@ -170,6 +170,10 @@ jobs:
         if: always()
         run: python3 tools/make_changelog.py --check
 
+      - name: no translation says more than its English
+        if: always()
+        run: I18NBLOAT_SELFTEST=1 python3 tools/check_i18n_bloat.py
+
       # sim/lv_conf.h overrides five LVGL settings and each one mirrors a
       # Kconfig line the device actually reads. Move one and nothing fails:
       # the sim keeps the old value and every heap number measured in it

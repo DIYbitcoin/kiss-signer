@@ -582,7 +582,7 @@
   "S_STOP_ASKS": "CHIEDE",
   "S_STOP_FP_B": "CHIAVI SBAGLIATE: un'altra passphrase apre altre chiavi. sblocca con quella giusta.\n\nABBINAMENTO ERRATO: a un coordinatore è stata data una chiave nuda, non un descriptor.",
   "S_STOP_NET_B": "queste chiavi sono su un'altra rete. cambiala in IMPOSTAZIONI > FIRMATARIO, oppure costruisci la transazione sulla rete di queste chiavi.",
-  "S_STOP_NOFP_B": "il tuo coordinatore non ha inviato informazioni sulle chiavi con questa transazione, quindi non c'era nulla da confrontare. abbinalo di nuovo e ricostruisci la transazione.",
+  "S_STOP_NOFP_B": "il tuo coordinatore non ha inviato info sulle chiavi. abbinalo e ricostruisci.",
   "S_STOP_NOSIG": "nothing was signed",
   "S_STOP_REDO": "build it again",
   "S_T": "FIRMA",

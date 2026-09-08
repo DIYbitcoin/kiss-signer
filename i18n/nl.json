@@ -582,7 +582,7 @@
   "S_STOP_ASKS": "HET VRAAGT OM",
   "S_STOP_FP_B": "VERKEERDE SLEUTELS: een andere passphrase opent andere sleutels. ontgrendel met de juiste.\n\nVERKEERD GEKOPPELD: een coördinator kreeg een kale sleutel, geen descriptor.",
   "S_STOP_NET_B": "deze sleutels staan op een ander netwerk. wissel het bij INSTELLINGEN > ONDERTEKENAAR, of bouw de transactie op het netwerk van deze sleutels.",
-  "S_STOP_NOFP_B": "je coördinator stuurde geen sleutelinformatie mee met deze transactie, dus er was niets om tegen te controleren. koppel opnieuw en bouw de transactie opnieuw.",
+  "S_STOP_NOFP_B": "je coördinator stuurde geen sleutelinformatie. koppel opnieuw en bouw opnieuw.",
   "S_STOP_NOSIG": "nothing was signed",
   "S_STOP_REDO": "build it again",
   "S_T": "ONDERTEKEN",

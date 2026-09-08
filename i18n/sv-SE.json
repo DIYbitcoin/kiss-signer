@@ -582,7 +582,7 @@
   "S_STOP_ASKS": "DEN BER OM",
   "S_STOP_FP_B": "FEL NYCKLAR: en annan lösenfras öppnar andra nycklar. lås upp med rätt.\n\nFEL PARKOPPLING: en koordinator fick en bar nyckel, inte en deskriptor.",
   "S_STOP_NET_B": "dessa nycklar är på ett annat nätverk. byt det i INSTÄLLNINGAR > SIGNERARE, eller bygg transaktionen på nycklarnas nätverk.",
-  "S_STOP_NOFP_B": "din koordinator skickade ingen nyckelinformation med den här transaktionen, så det fanns inget att jämföra med. parkoppla igen och bygg transaktionen på nytt.",
+  "S_STOP_NOFP_B": "din koordinator skickade ingen nyckelinformation. parkoppla och bygg om.",
   "S_STOP_NOSIG": "nothing was signed",
   "S_STOP_REDO": "build it again",
   "S_T": "SIGNERA",
