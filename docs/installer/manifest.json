@@ -1,6 +1,6 @@
 {
   "name": "KISS Signer",
-  "version": "0.1.0-beta8-v0.1.0-beta7-973-g65e1375a",
+  "version": "0.1.0-beta9-v0.1.0-beta7-1046-gc7db1a01",
   "new_install_prompt_erase": true,
   "new_install_improv_wait_time": 0,
   "builds": [
@@ -9,7 +9,7 @@
       "improv": false,
       "parts": [
         {
-          "path": "firmware/kiss-signer-0.1.0-beta8.bin",
+          "path": "firmware/kiss-signer-0.1.0-beta9.bin",
           "offset": 0
         }
       ]
