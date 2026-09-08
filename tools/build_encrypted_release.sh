@@ -338,15 +338,8 @@ if [ "$RECIPE" = release ] && [ -z "${KISS_SB_RSA_KEY:-}" ]; then
 fi
 
 if [ -n "${KISS_UNSIGNED:-}" ]; then
-  # The container created this directory and, on a Linux runner, owns it: the
-  # image runs as root and bind mounts keep that uid, so the plain redirect is
-  # "Permission denied" there. On Docker Desktop ownership is mapped to the
-  # calling user and it works, which is why this only ever failed in CI --
-  # and it failed on the very first run of the recipe that reaches this path.
-  # So fall back to touching it from inside the container that owns it.
-  : > "$BUILD_DIR/UNSIGNED" 2>/dev/null || \
-    docker run --rm -v "$PWD":/project -w /project "$KISS_IDF_IMAGE" \
-      touch "/project/$BUILD_DIR/UNSIGNED"
+  # Through the helper, for the reason it gives; see tools/idf_image.sh.
+  kiss_mark_unsigned "$BUILD_DIR"
   echo
   echo "UNSIGNED build (KISS_UNSIGNED=1): reproducibility only."
   echo "      No signature block, so this image must never be flashed to a board"

@@ -182,8 +182,10 @@ fi
 
 if [ -n "${KISS_UNSIGNED:-}" ]; then
   # A marker beside the image, not just a line of log nobody re-reads. Anything
-  # that publishes or flashes from this directory can test for it.
-  : > build-release/UNSIGNED
+  # that publishes or flashes from this directory can test for it. Written
+  # through the helper because the directory may belong to the container that
+  # made it; see tools/idf_image.sh.
+  kiss_mark_unsigned build-release
   echo
   echo "UNSIGNED build (KISS_UNSIGNED=1): reproducibility only."
   echo "      This image carries no signature block, so a device will refuse it"
