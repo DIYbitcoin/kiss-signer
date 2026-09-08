@@ -248,7 +248,7 @@
   "I_KEF_WARN_S_PP": "slova seedu. ne přístupová fráze",
   "I_MOBILE": "MOBIL",
   "I_NOTE_BW": "add wallet > import > scan\n'watch-only' sedí: podepisuje se TADY.",
-  "I_NOTE_SPARROW": "File > New Wallet > Airgapped Hardware Wallet\nfunguje každý koordinátor, který čte deskriptor.",
+  "I_NOTE_SPARROW": "File > New Wallet > Airgapped Hardware Wallet\nfunguje každý koordinátor s deskriptorem.",
   "I_PAIR_BTN_NOTE": "koordinátor, který sleduje. podepsat neumí.",
   "I_PAIR_T": "SPÁROVAT KOORDINÁTOR",
   "I_PERSIST_DEAD_PLAIN": "amnesický režim si nic nenechává, takže tohle nemá co uchovávat. úložiště se mění na kartě ZÁLOHA.",

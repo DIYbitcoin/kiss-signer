@@ -248,7 +248,7 @@
   "I_KEF_WARN_S_PP": "palavras. não sua passphrase",
   "I_MOBILE": "CELULAR",
   "I_NOTE_BW": "add wallet > import > scan\n'watch-only' está certo: assina-se AQUI.",
-  "I_NOTE_SPARROW": "File > New Wallet > Airgapped Hardware Wallet\nqualquer coordenador que leia um descritor serve.",
+  "I_NOTE_SPARROW": "File > New Wallet > Airgapped Hardware Wallet\nqualquer coordenador com descritor serve.",
   "I_PAIR_BTN_NOTE": "o coordenador que acompanha. ele não assina.",
   "I_PAIR_T": "PAREAR COORDENADOR",
   "I_PERSIST_DEAD_PLAIN": "o modo amnésico não guarda nada, então não há o que guardar aqui. o armazenamento muda na aba BACKUP.",

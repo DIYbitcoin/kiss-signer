@@ -248,7 +248,7 @@
   "I_KEF_WARN_S_PP": "parole seed. non la passphrase",
   "I_MOBILE": "MOBILE",
   "I_NOTE_BW": "add wallet > import > scan\n'watch-only' è corretto: si firma QUI.",
-  "I_NOTE_SPARROW": "File > New Wallet > Airgapped Hardware Wallet\nva bene ogni coordinatore che legge un descriptor.",
+  "I_NOTE_SPARROW": "File > New Wallet > Airgapped Hardware Wallet\nva bene ogni coordinatore con descriptor.",
   "I_PAIR_BTN_NOTE": "il coordinatore che guarda. non può firmare.",
   "I_PAIR_T": "ABBINA COORDINATORE",
   "I_PERSIST_DEAD_PLAIN": "la memoria amnesica non conserva nulla, quindi qui non c'è nulla da conservare. la memoria si cambia nella scheda BACKUP.",

@@ -248,7 +248,7 @@
   "I_KEF_WARN_S_PP": "seed-ord. inte din lösenfras",
   "I_MOBILE": "MOBIL",
   "I_NOTE_BW": "add wallet > import > scan\n'watch-only' stämmer: här signeras det.",
-  "I_NOTE_SPARROW": "File > New Wallet > Airgapped Hardware Wallet\nvilken koordinator som helst som läser en deskriptor fungerar.",
+  "I_NOTE_SPARROW": "File > New Wallet > Airgapped Hardware Wallet\nvarje koordinator med deskriptor fungerar.",
   "I_PAIR_BTN_NOTE": "koordinatorn som följer. signerar inte.",
   "I_PAIR_T": "PARKOPPLA KOORDINATOR",
   "I_PERSIST_DEAD_PLAIN": "amnesisk lagring behåller ingenting, så det finns inget för den här att behålla. lagring ändras på fliken SÄKERHETSKOPIA.",

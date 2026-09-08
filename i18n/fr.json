@@ -248,7 +248,7 @@
   "I_KEF_WARN_S_PP": "mots de récupération. pas votre phrase",
   "I_MOBILE": "MOBILE",
   "I_NOTE_BW": "add wallet > import > scan\n'watch-only' est correct: on signe ICI.",
-  "I_NOTE_SPARROW": "File > New Wallet > Airgapped Hardware Wallet\ntout coordinateur lisant un descripteur marche.",
+  "I_NOTE_SPARROW": "File > New Wallet > Airgapped Hardware Wallet\ntout coordinateur avec descripteur marche.",
   "I_PAIR_BTN_NOTE": "le coordinateur diffuse. il ne signe pas.",
   "I_PAIR_T": "ASSOCIER LE COORDINATEUR",
   "I_PERSIST_DEAD_PLAIN": "le mode amnésique ne conserve rien, il n'y a donc rien à conserver ici. le stockage se change dans l'onglet SAUVEGARDE.",

@@ -248,7 +248,7 @@
   "I_KEF_WARN_S_PP": "słowa. nie twoja fraza dostępu",
   "I_MOBILE": "MOBILNY",
   "I_NOTE_BW": "add wallet > import > scan\n'watch-only' się zgadza: podpis jest TUTAJ.",
-  "I_NOTE_SPARROW": "File > New Wallet > Airgapped Hardware Wallet\ndziała każdy koordynator czytający deskryptor.",
+  "I_NOTE_SPARROW": "File > New Wallet > Airgapped Hardware Wallet\ndziała każdy koordynator z deskryptorem.",
   "I_PAIR_BTN_NOTE": "koordynator, który patrzy. nie podpisze.",
   "I_PAIR_T": "SPARUJ KOORDYNATORA",
   "I_PERSIST_DEAD_PLAIN": "pamięć amnezyjna nic nie zachowuje, więc to nie ma czego zachować. pamięć zmienia się na karcie KOPIA.",

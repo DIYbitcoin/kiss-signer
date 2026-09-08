@@ -248,7 +248,7 @@
   "I_KEF_WARN_S_PP": "frase semilla. no tu passphrase",
   "I_MOBILE": "MÓVIL",
   "I_NOTE_BW": "add wallet > import > scan\n'watch-only' es correcto: se firma AQUÍ.",
-  "I_NOTE_SPARROW": "File > New Wallet > Airgapped Hardware Wallet\nsirve cualquier coordinador que lea un descriptor.",
+  "I_NOTE_SPARROW": "File > New Wallet > Airgapped Hardware Wallet\nvale cualquier coordinador con descriptor.",
   "I_PAIR_BTN_NOTE": "el coordinador difunde. no puede firmar.",
   "I_PAIR_T": "EMPAREJAR COORDINADOR",
   "I_PERSIST_DEAD_PLAIN": "el modo amnésico no guarda nada, así que esto no tiene qué guardar. el almacenamiento se cambia en la pestaña RESPALDO.",
