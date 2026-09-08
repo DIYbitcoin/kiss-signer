@@ -244,7 +244,7 @@
   "I_KEF_SHOW_NOTE": "yazdırın ya da karta koyun. parolayı asla yanına koymayın.",
   "I_KEF_SHOW_S": "şifreli. yalnızca parolanız açar",
   "I_KEF_TERM": "ENCRYPTED SEED QR",
-  "I_KEF_WARN_S": "kurtarma kelimeleriniz",
+  "I_KEF_WARN_S": "seed kelimeleri",
   "I_KEF_WARN_S_PP": "kurtarma kelimeleri. passphrase değil",
   "I_MOBILE": "TELEFON",
   "I_NOTE_BW": "add wallet > import > scan\n'watch-only' doğru: imza BURADA atılır.",

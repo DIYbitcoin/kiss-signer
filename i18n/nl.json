@@ -244,7 +244,7 @@
   "I_KEF_SHOW_NOTE": "print het of zet het op de kaart. nooit het wachtwoord ernaast.",
   "I_KEF_SHOW_S": "versleuteld. alleen jouw wachtwoord opent het",
   "I_KEF_TERM": "ENCRYPTED SEED QR",
-  "I_KEF_WARN_S": "je herstelwoorden",
+  "I_KEF_WARN_S": "seed-woorden",
   "I_KEF_WARN_S_PP": "seed-woorden. niet je passphrase",
   "I_MOBILE": "MOBIEL",
   "I_NOTE_BW": "add wallet > import > scan\n'watch-only' klopt: ondertekenen gebeurt HIER.",

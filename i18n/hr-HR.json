@@ -244,7 +244,7 @@
   "I_KEF_SHOW_NOTE": "ispišite to ili spremite na karticu. nikad lozinku uz njega.",
   "I_KEF_SHOW_S": "šifrirano. otvara samo vaša lozinka",
   "I_KEF_TERM": "ENCRYPTED SEED QR",
-  "I_KEF_WARN_S": "vaše riječi za obnovu",
+  "I_KEF_WARN_S": "riječi seeda",
   "I_KEF_WARN_S_PP": "riječi za oporavak. ne kodna fraza",
   "I_MOBILE": "MOBITEL",
   "I_NOTE_BW": "add wallet > import > scan\n'watch-only' je točno: potpis je OVDJE.",

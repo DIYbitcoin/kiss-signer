@@ -244,7 +244,7 @@
   "I_KEF_SHOW_NOTE": "imprima ou salve no cartão. nunca a senha do lado.",
   "I_KEF_SHOW_S": "cifrado. só sua senha abre",
   "I_KEF_TERM": "ENCRYPTED SEED QR",
-  "I_KEF_WARN_S": "suas palavras de recuperação",
+  "I_KEF_WARN_S": "palavras seed",
   "I_KEF_WARN_S_PP": "palavras. não sua passphrase",
   "I_MOBILE": "CELULAR",
   "I_NOTE_BW": "add wallet > import > scan\n'watch-only' está certo: assina-se AQUI.",

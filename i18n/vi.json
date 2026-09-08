@@ -244,7 +244,7 @@
   "I_KEF_SHOW_NOTE": "in nó ra hoặc lưu vào thẻ. đừng để mật khẩu bên cạnh.",
   "I_KEF_SHOW_S": "đã mã hóa. chỉ mật khẩu của bạn mở được",
   "I_KEF_TERM": "ENCRYPTED SEED QR",
-  "I_KEF_WARN_S": "từ khôi phục của bạn",
+  "I_KEF_WARN_S": "từ khôi phục",
   "I_KEF_WARN_S_PP": "từ seed. không phải cụm mật khẩu",
   "I_MOBILE": "ĐIỆN THOẠI",
   "I_NOTE_BW": "add wallet > import > scan\n'watch-only' là đúng: ký ở ĐÂY.",

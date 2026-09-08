@@ -244,7 +244,7 @@
   "I_KEF_SHOW_NOTE": "vytiskněte to nebo uložte na kartu. heslo nikdy vedle.",
   "I_KEF_SHOW_S": "šifrováno. otevře jen vaše heslo",
   "I_KEF_TERM": "ENCRYPTED SEED QR",
-  "I_KEF_WARN_S": "vaše slova pro obnovu",
+  "I_KEF_WARN_S": "slova seedu",
   "I_KEF_WARN_S_PP": "slova seedu. ne přístupová fráze",
   "I_MOBILE": "MOBIL",
   "I_NOTE_BW": "add wallet > import > scan\n'watch-only' sedí: podepisuje se TADY.",

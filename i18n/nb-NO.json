@@ -244,7 +244,7 @@
   "I_KEF_SHOW_NOTE": "skriv det ut eller legg det på kortet. aldri passordet ved siden av.",
   "I_KEF_SHOW_S": "kryptert. bare passordet ditt åpner det",
   "I_KEF_TERM": "ENCRYPTED SEED QR",
-  "I_KEF_WARN_S": "seed-ordene dine",
+  "I_KEF_WARN_S": "seed-ordene",
   "I_KEF_WARN_S_PP": "seed-ord. ikke passordfrasen",
   "I_MOBILE": "MOBIL",
   "I_NOTE_BW": "add wallet > import > scan\n'watch-only' stemmer: det signeres HER.",
