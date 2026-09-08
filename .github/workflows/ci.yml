@@ -1,0 +1,57 @@
+# The one entry per push.
+#
+# There were four workflows on the push lane and every commit produced four
+# rows in the Actions list -- eight across a develop push and its merge to
+# main, for one change. Reported as exactly that: why are there so many runs.
+#
+# They are still four files. Merging nine hundred lines of steps into one
+# would have been a rewrite of every gate on the way to a cosmetic result,
+# and each of those files carries the account of why its steps are ordered
+# the way they are. So they became reusable workflows and this calls them:
+# one run, four jobs inside it, the same work and the same logs.
+#
+# The branch rules that used to live in each file's own `on:` block live here
+# instead, and they are preserved rather than tidied:
+#
+#   * attribution runs on EVERY branch, deliberately. The 247 trailered
+#     commits that earned this account a public badge were pushed to a rescue
+#     branch, not to main or develop, and refs/pull/*/head keeps them forever.
+#     A branch filter here is the exact hole that cost.
+#   * desktop tests and the firmware build run on main and develop.
+#   * the reproducible build runs on main only: it rebuilds both release
+#     lanes in the container and it is what publishes the hashes.
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+# One CI run per ref. A second push while the first is still going cancels it,
+# except on main, where the reproducible build publishes hashes and a cancelled
+# run would leave a release half checked.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  attribution:
+    uses: ./.github/workflows/attribution.yml
+
+  desktop-tests:
+    if: >-
+      github.event_name != 'push' ||
+      github.ref == 'refs/heads/main' ||
+      github.ref == 'refs/heads/develop'
+    uses: ./.github/workflows/desktop-tests.yml
+
+  firmware-build:
+    if: >-
+      github.event_name != 'push' ||
+      github.ref == 'refs/heads/main' ||
+      github.ref == 'refs/heads/develop'
+    uses: ./.github/workflows/firmware-build.yml
+
+  reproducible-build:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/reproducible-build.yml

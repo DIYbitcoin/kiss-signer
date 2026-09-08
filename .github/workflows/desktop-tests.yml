@@ -19,10 +19,13 @@ name: desktop tests
 # but green here proves nothing about hardware. main is the release line -
 # it only moves on a tagged release that has been run on a real device, and
 # that is what reproducible-build.yml publishes hashes for.
+# Called by ci.yml rather than triggered on its own, so one push is one run
+# instead of four. workflow_dispatch stays: this lane is worth being able to
+# fire by hand without the other three. The branch rules that used to live in
+# the `on:` block below are in ci.yml now, beside the other three, where they
+# can be read together.
 on:
-  push:
-    branches: [main, develop]
-  pull_request:
+  workflow_call:
   workflow_dispatch:
 
 jobs:
