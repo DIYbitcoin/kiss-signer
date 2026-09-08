@@ -305,7 +305,7 @@
   "I_WTAB_ENC": "ENCRIPTADO",
   "I_WTAB_PAPER": "PAPEL",
   "K_CAP_PAIRING": "EMPARELHAMENTO",
-  "K_EXPL_COORD": "ele vê cada pagamento. nunca pode gastar nenhum.",
+  "K_EXPL_COORD": "ele vê cada pagamento. nunca pode gastar.",
   "K_HELP_BODY": "Só recebe chaves públicas. Monta pagamentos, nunca assina um.",
   "K_HELP_F1C": "IMPRESSÃO",
   "K_HELP_F1V": "o coordenador mostra",
