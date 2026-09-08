@@ -1433,11 +1433,15 @@ static void net_to(int want)
     exit(1);
   }
 }
-// The two band controls LANGUAGE and THEME moved down to: the language
-// action's box is right-aligned to 512 so a tap near its right edge holds
-// for any locale's name, and the theme dot's hit box is 528..580.
+// LANGUAGE on the band: its box is right-aligned to 512, so a tap near that
+// right edge holds for any locale's name.
 static void band_lang(void)  { touch(490, WT_ACTION_Y + 26); pump(3); release(); pump(8); }
-static void band_theme(void) { touch(554, WT_ACTION_Y + 26); pump(3); release(); pump(8); }
+// THEME is not on the band any more -- it is the swatch and name in the chrome
+// column, right-aligned to 752 above [ ? ], 10..50. 30 is its vertical middle.
+// 740 is 12 inside the RIGHT edge, which is the pinned one: the box grows
+// leftward as the theme's name gets longer, so its left edge and its swatch
+// both travel and only this end holds in all four themes.
+static void head_theme(void) { touch(740, 30); pump(3); release(); pump(8); }
 // A cycle row: n taps on the one coordinate. Every tap rebuilds the page, so
 // this is n whole renders and not a gesture -- which is exactly what a finger
 // does to it.
@@ -2399,7 +2403,16 @@ int main(void) {
   // a thing to teach in a loop anyone can watch.
   g_seq_on = 1; pump(8);
   draw_cover();                                      // = the word; helper waits out COVER_OPEN_DELAY_MS
-  pump(5); g_seq_on = 0;                            // hold on the reveal, then stop recording
+  // The signer's own opening runs for another ninety ticks after the word is
+  // recognised: the fingerprint scrambles in mid screen, then flies into its
+  // pill and the four tile captions arrive. pump(5) stopped recording five
+  // frames in, so the GIF's last frame -- the one it holds on -- was a home
+  // page with 00000000 where the fingerprint goes and no captions under the
+  // icons. Reported from the bench as a pause on a dumb looking screen, and
+  // it was: the recording ended before the screen was finished. The tail is
+  // generous on purpose; gen_docs_shots.py finds where the screen stops
+  // moving and trims the rest.
+  pump(80); g_seq_on = 0;
   save("/tmp/sim_spare_home.ppm");                  // the spare, opened by the word alone
 
   // The passphrase keyboard takes the word AND the modifier stroke. Nothing
@@ -5082,21 +5095,23 @@ int main(void) {
   }
   touch(60, 440); pump(3); release(); pump(8);      // scrim -> dismissed
 
-  // THEME is the breathing dot on the action band now: what a theme pick
-  // CHANGES is the page, so the page is the preview and the dot is its own
-  // label -- the bench asked for "a tappable color dot pulsating". Enum
-  // order MONO, GREEN, CYPHERPINK, ORANGE, so two taps reach pink and two
-  // more come home. Tapped from DEVICE so the frames show a def list moving.
+  // THEME is the swatch and name in the chrome column now: what a theme pick
+  // CHANGES is the page, so the page is its own preview, and the name beside
+  // the swatch is what lets an owner say which one they are on. Enum order
+  // MONO, GREEN, CYPHERPINK, ORANGE, so two taps reach pink and two more come
+  // home -- and pink is the WIDEST name, which is the frame that says the
+  // control and the title are not sharing a pixel. Tapped from DEVICE so the
+  // frames show a def list moving.
   set_tab(SET_DEVICE);
-  band_theme();                                     // -> GREEN, page and all
+  head_theme();                                     // -> GREEN, page and all
   save("/tmp/sim_settings_green.ppm");              // every mark on the page moved
-  band_theme();                                     // -> CYPHERPINK
+  head_theme();                                     // -> CYPHERPINK
   save("/tmp/sim_settings_pink.ppm");               // accent recolors the chrome + title
   tap_str(STR_C_BACK, 3, 6);      // BACK, right corner -> home still pink
   save("/tmp/sim_home_pink.ppm");
   touch(670, 240); pump(3); release(); pump(6);     // Settings again
   set_tab(SET_DEVICE);
-  band_theme(); band_theme();                       // ORANGE, then back to MONO
+  head_theme(); head_theme();                       // ORANGE, then back to MONO
 
   // NETWORK, the first row on the SIGNER tab, MAINNET -> TESTNET -> SIGNET.
   // MAINNET first in the cycle is deliberate: the very NEXT tap off it turns

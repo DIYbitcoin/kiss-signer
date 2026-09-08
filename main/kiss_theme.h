@@ -1272,6 +1272,13 @@ lv_obj_t *wt_help_tab(lv_obj_t *scr, const char *hint,
 // accent's glyph metrics) and the whole tab simply gets wider.
 lv_obj_t *wt_help_tab_n(lv_obj_t *scr, const char *hint, int unread,
                         lv_event_cb_t cb, void *ud);
+// The theme control, in the same chrome column and on the rung above it: the
+// accent as a SWATCH with the theme's own name beside it, right-aligned to 752
+// like the tab under it. Wordless on the action band before this, where it did
+// not belong -- everything else on that band takes you somewhere, and this one
+// repaints the page you are standing on. It narrows the title's lane and moves
+// the cursor to match, so a caller adds nothing but the callback.
+lv_obj_t *wt_theme_tab(lv_obj_t *scr, lv_event_cb_t cb, void *ud);
 // Whether [ ? ] has ever been opened. RAM here, one NVS byte in settings:
 // kiss_settings_load restores it at boot via _set, and the hook (registered
 // once, at boot) is how the first open reaches the store without the theme

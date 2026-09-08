@@ -26,6 +26,13 @@ static const char WT_BARCAP_TAG[] = "wt_action_bar_cap";
 static const char WT_SLIDEBAND_TAG[] = "wt_slide_band";
 // The [ ? ] tab, so a trail sharing its strip can stop before it.
 static const char WT_HELPTAB_TAG[] = "wt_help_tab";
+static const char WT_THEMENAME_TAG[] = "wt_theme_name";
+// wt_theme_tab's geometry, up here because accent_walk resizes the control and
+// is defined long before the builder. The names are four different widths, so
+// the box is not a constant -- only the edge it hangs from is.
+#define WT_THEMETAB_SW    28    // the swatch
+#define WT_THEMETAB_GAP   12    // swatch to name
+#define WT_THEMETAB_RIGHT 752   // the page margin [ ? ] is pinned to as well
 // The word on a band slide, so a caller can change it on arrival without
 // counting children -- the sign screen turns SLIDE TO SIGN into SIGNING.
 static const char WT_SLIDELBL_TAG[] = "wt_slide_label";
@@ -729,10 +736,15 @@ int  wt_accent_get(void)   { return s_accent; }
 lv_color_t wt_accent(void) { return lv_color_hex(ACC_HEX[s_accent]); }
 lv_color_t wt_primary(void) { return wt_accent(); }
 lv_color_t wt_accent_bg(void) { return lv_color_hex(ACC_BG_HEX[s_accent]); }
+// File scope, because wt_theme_tab sizes the title's lane against the WIDEST
+// of them rather than the one that happens to be on.
+static const char *const WT_ACC_NAMES[WT_ACC_N] = {
+    "MONO", "GREEN", "CYPHERPINK", "ORANGE"
+};
+
 const char *wt_accent_name(void)
 {
-    static const char *NM[WT_ACC_N] = {"MONO", "GREEN", "CYPHERPINK", "ORANGE"};
-    return NM[s_accent];
+    return WT_ACC_NAMES[s_accent];
 }
 lv_color_t wt_accent_pressed(void) { return lv_color_hex(ACC_PRESS_HEX[s_accent]); }
 
@@ -2406,6 +2418,31 @@ static void accent_walk(lv_obj_t *o)
                     lv_spangroup_refresh(o);
                 }
             }
+        }
+    }
+    // The one label on the device whose TEXT is a function of the accent. Every
+    // flag here repaints; none of them can rewrite, so the theme control's own
+    // name went stale the moment the accent changed under a page that was not
+    // rebuilt -- a green swatch reading MONO, in the walk's accent frame. A
+    // user_data TAG rather than an eighth flag: WT_FLAGS_OR exists because two
+    // of these were once assigned the same bit, and a tag costs no bit at all.
+    if (lv_obj_get_user_data(o) == (void *)WT_THEMENAME_TAG) {
+        const char *nm = wt_accent_name();
+        lv_label_set_text(o, nm);
+        // And RESIZE, because the four names are four widths. Rewriting the
+        // text alone drew a box built for MONO around GREEN and clipped it to
+        // GREE -- one frame after the stale name it replaced, on the same
+        // stop. The box hangs off its right edge, so it is the LEFT one that
+        // moves, exactly as the builder places it.
+        lv_obj_t *p = lv_obj_get_parent(o);
+        if (p) {
+            lv_point_t ns;
+            lv_text_get_size(&ns, nm, lv_obj_get_style_text_font(o, LV_PART_MAIN),
+                             lv_obj_get_style_text_letter_space(o, LV_PART_MAIN),
+                             0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+            const int w = WT_THEMETAB_SW + WT_THEMETAB_GAP + ns.x;
+            lv_obj_set_width(p, w);
+            lv_obj_set_x(p, WT_THEMETAB_RIGHT - w);
         }
     }
     if (lv_obj_has_flag(o, WT_FLAG_ACCENT_BORDER))
@@ -4116,6 +4153,105 @@ lv_obj_t *wt_help_tab_n(lv_obj_t *scr, const char *hint, int unread,
         lv_obj_add_event_cb(b, help_first_cb, LV_EVENT_CLICKED, c);
         lv_obj_add_event_cb(b, help_free_cb, LV_EVENT_DELETE, c);
     }
+    if (cb) lv_obj_add_event_cb(b, cb, LV_EVENT_CLICKED, ud);
+    return b;
+}
+
+// The theme control: a colour SWATCH and the theme's own name, in the chrome
+// column directly above [ ? ], pinned by the same right edge at 752.
+//
+// It is a kit call and not forty lines on the settings page because it is the
+// second thing up here that has to know where [ ? ] ends, and because the page
+// that built it by hand got the one part a caller cannot see wrong -- see the
+// name tag below.
+//
+// The WORD is the point of it. It wore LV_SYMBOL_LOOP and nothing else, and a
+// colour a reader has no name for is a colour they cannot ask for or check.
+// Home has paired this swatch with MONO / GREEN / CYPHERPINK / ORANGE for its
+// whole life, so the name is already met by the time anyone reaches the screen
+// that changes it. Ink for the word, colour for the swatch, exactly as home
+// sets it: the swatch is a sample of the value, and a name painted in its own
+// colour is the one label here that could not be read against MONO.
+//
+// The TARGET is why the geometry is written out rather than aligned. This sits
+// directly over NO UNDO and [ ? ], and [ ? ] claims 12px of ext area ABOVE
+// itself, so its hit box starts at 58. This one is 10..50 with 6 of ext --
+// 4..56, two clear -- and 52 tall all in, which is the band height it gave up.
+// Wider than the 66px dot it replaces in every theme, and half again in the
+// long ones.
+lv_obj_t *wt_theme_tab(lv_obj_t *scr, lv_event_cb_t cb, void *ud)
+{
+    const char *nm = wt_accent_name();       // ASCII, so the mono face is safe
+    // A rung under the mono28 title it shares the row with, and the rung the
+    // [ ? ] mark under it wears. Never font14: this is a word, not a mark.
+    const lv_font_t *nf = wt_font_mono21();
+    lv_point_t ns;
+    lv_text_get_size(&ns, nm, nf, 1, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    const int sw = WT_THEMETAB_SW, gap = WT_THEMETAB_GAP, ch = 40, ty = 10;
+    const int cw = sw + gap + ns.x;
+    const int tx = WT_THEMETAB_RIGHT - cw;
+    // The title's lane is measured against the WIDEST of the four names, not
+    // this one. A lane cut to MONO is a lane CYPHERPINK grows into, and it
+    // would make the title's own type size depend on which theme is on -- the
+    // page re-fitting itself every time somebody taps a colour.
+    int widest = 0;
+    for (int i = 0; i < WT_ACC_N; i++) {
+        lv_point_t as;
+        lv_text_get_size(&as, WT_ACC_NAMES[i], nf, 1, 0, LV_COORD_MAX,
+                         LV_TEXT_FLAG_NONE);
+        if (as.x > widest) widest = as.x;
+    }
+    const int lane = (WT_THEMETAB_RIGHT - (sw + gap + widest)) - 24 - WT_LANE_X;
+
+    lv_obj_t *b = lv_obj_create(scr);
+    lv_obj_remove_style_all(b);
+    lv_obj_set_pos(b, tx, ty);
+    lv_obj_set_size(b, cw, ch);
+    lv_obj_add_flag(b, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(b, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_ext_click_area(b, 6);
+    wt_tap_feedback(b);
+
+    lv_obj_t *sq = lv_obj_create(b);
+    lv_obj_remove_style_all(sq);
+    lv_obj_set_size(sq, sw, 20);
+    lv_obj_set_style_radius(sq, 6, 0);
+    lv_obj_set_style_bg_color(sq, wt_accent(), 0);
+    lv_obj_set_style_bg_opa(sq, LV_OPA_COVER, 0);
+    lv_obj_add_flag(sq, WT_FLAG_ACCENT_FILL);
+    lv_obj_remove_flag(sq, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_align(sq, LV_ALIGN_LEFT_MID, 0, 0);
+
+    lv_obj_t *nl = wt_lbl(b, nm, 0, 0, nf, WT_INK);
+    lv_obj_set_style_text_letter_space(nl, 1, 0);
+    lv_obj_align(nl, LV_ALIGN_LEFT_MID, sw + gap, 0);
+    // TAGGED so accent_walk rewrites it. The swatch follows the accent through
+    // its flag and this cannot: a flag repaints and a name has to be re-read.
+    lv_obj_set_user_data(nl, (void *)WT_THEMENAME_TAG);
+
+    // The title now shares its rung, so it gets the lane this control leaves
+    // rather than the full WT_LANE_W the chrome head fitted it to. Done HERE
+    // and not by the caller, because a caller that forgets is a title that
+    // runs under a swatch in one locale and looks correct in the other twenty.
+    wt_title_fit(scr, lane);
+    // And the cursor came with that head, placed off the width the title had
+    // BEFORE the re-fit -- so a locale that just stepped down a rung leaves it
+    // floating in the gap. MEASURED off the style getters, never laid out:
+    // that is the read wt_title_cursor records getting wrong, and what
+    // check_layout_reads.py asks for.
+    lv_obj_t *cap = wt_screen_title(scr);
+    lv_obj_t *cur = wt_screen_cursor(scr);
+    if (cap && cur) {
+        lv_point_t cs;
+        const char *ct = lv_label_get_text(cap);
+        lv_text_get_size(&cs, ct ? ct : "",
+                         lv_obj_get_style_text_font(cap, LV_PART_MAIN),
+                         lv_obj_get_style_text_letter_space(cap, LV_PART_MAIN),
+                         0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+        lv_obj_set_pos(cur, lv_obj_get_style_x(cap, LV_PART_MAIN) + cs.x + 12,
+                       lv_obj_get_style_y(cap, LV_PART_MAIN) + (cs.y - 22) / 2 - 2);
+    }
+
     if (cb) lv_obj_add_event_cb(b, cb, LV_EVENT_CLICKED, ud);
     return b;
 }

@@ -2399,10 +2399,27 @@ void kiss_settings_open(lv_obj_t *parent)
     wt_swipe_watch(s_scr, settings_gesture_cb);
 
     // No first-run hint on this band any more: its centre holds the language
-    // and theme controls now, and the hint's one-line lane ran to 580 -- the
-    // mark's own breathe (motion 19) is what teaches [ ? ] here, plus the
-    // stroke past NO UNDO that now lands on it.
+    // control, and the hint's one-line lane ran to 580 -- the mark's own
+    // breathe (motion 19) is what teaches [ ? ] here, plus the stroke past
+    // NO UNDO that now lands on it.
     wt_help_tab(s_scr, NULL, settings_what_cb, NULL);
+
+    // DECIDED: the theme moved off the action band into the chrome column above [ ? ].
+    // It spent a version as a wordless chip in the header, one as a row on the
+    // DEVICE tab, and one as a swatch on the band's centre. The band was the
+    // wrong shelf: BACK, NEED ATTENTION and LANGUAGE all take you somewhere,
+    // and this control repaints the page you are already standing on. That is
+    // chrome, the same job as the title and the [ ? ], so it goes in the same
+    // column. The band had three controls sharing its right half because of
+    // it, and the bench had already filed that once -- "too close to the
+    // language picker" -- which was answered by centring it, moving the
+    // crowding rather than the control.
+    //
+    // It is a KIT call and the geometry is not here, for the reason the first
+    // draft of it proved: built by hand on this page, the swatch followed the
+    // accent through its flag and the NAME beside it did not, so an in-place
+    // restyle drew a green swatch labelled MONO.
+    wt_theme_tab(s_scr, theme_cb, NULL);
 
     // The group lives in a pane of its own so that a tab change can hold TWO
     // of them for the 200ms the outgoing one takes to leave. Built here and
@@ -2413,8 +2430,8 @@ void kiss_settings_open(lv_obj_t *parent)
 
     // BACK takes the bottom RIGHT corner as an ARROW rather than a pill, and
     // it is still what builds the action bar the attention chip stands on.
-    lv_obj_t *back = wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592,
-                                     WT_ACTION_Y, 160, true, close_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592,
+                    WT_ACTION_Y, 160, true, close_cb, NULL);
 
     // Opposite it, and only when there is something to say. No "all good" chip:
     // a badge that is always there is a badge nobody reads.
@@ -2426,8 +2443,10 @@ void kiss_settings_open(lv_obj_t *parent)
         wt_alert_chip(s_scr, lab, attn_cb, NULL);
     }
 
-    // DECIDED: language and theme live on the BAND, moved there out of the DEVICE tab.
-    // The band's centre: LANGUAGE and THEME, out of the DEVICE tab. The
+    // DECIDED: LANGUAGE lives on the BAND, moved there out of the DEVICE tab.
+    // It travelled with the theme and the theme has since gone up to the
+    // chrome column; this one stays, because picking a language OPENS a
+    // picker, which is what every other control on this band does. The
     // language control needs no caption -- its label IS the active language's
     // own name, stripped of the regional qualifier ("ESPANOL (ESPANA)" ->
     // "ESPANOL") because the picker's flag carries the variant.
@@ -2458,59 +2477,6 @@ void kiss_settings_open(lv_obj_t *parent)
         lv_obj_set_pos(lang, 512 - lv_obj_get_width(lang),
                        WT_ACTION_Y + (WT_ACTION_H - 40) / 2);
         lv_obj_set_ext_click_area(lang, 8);
-    }
-
-    // Beside it the theme: a solid colour SWATCH with the cycle mark trailing
-    // it, wordless, because the page IS the preview -- tap it and every mark
-    // on every tab is the new colour before the finger lifts. The hit box is
-    // the band's full 52px.
-    //
-    // CENTRED between the two controls it sits between, and measured rather
-    // than placed: its right edge was pinned at 586, which put it hard against
-    // the language control with 70px of empty band before BACK, and the bench
-    // filed exactly that -- "needs to be centred between the language picker
-    // and BACK, too close to language picker currently". BACK is right-aligned
-    // in its own lane, so where it actually STARTS depends on how long the word
-    // is in this locale; asking the object is the only way to land between them
-    // in all 21.
-    {
-        lv_point_t ms;
-        lv_text_get_size(&ms, LV_SYMBOL_LOOP, wt_font23(), 0, 0,
-                         LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-        const int sw = 28, cw = sw + 10 + ms.x;
-        lv_obj_update_layout(back);
-        const int gap_l = 512 + 16;                    // clear of the language
-        // BACK's MEASURED left edge, not its declared 592 lane. The lane is
-        // where a right-aligned control is allowed to start; the word inside
-        // it is 70px further right in English, and clamping to the lane is
-        // what pinned this control against the language picker in the first
-        // place. 20 of air is the clearance.
-        const int gap_r = lv_obj_get_x(back) - 20;
-        int tx = (gap_l + gap_r - cw) / 2;
-        if (tx < gap_l) tx = gap_l;
-        if (tx + cw > gap_r) tx = gap_r - cw;
-
-        lv_obj_t *td = lv_obj_create(s_scr);
-        lv_obj_remove_style_all(td);
-        lv_obj_set_pos(td, tx, WT_ACTION_Y);
-        lv_obj_set_size(td, cw, WT_ACTION_H);
-        lv_obj_add_flag(td, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_remove_flag(td, LV_OBJ_FLAG_SCROLLABLE);
-        wt_tap_feedback(td);
-        lv_obj_add_event_cb(td, theme_cb, LV_EVENT_CLICKED, NULL);
-        lv_obj_t *sq = lv_obj_create(td);
-        lv_obj_remove_style_all(sq);
-        lv_obj_set_size(sq, sw, 20);
-        lv_obj_set_style_radius(sq, 6, 0);
-        lv_obj_set_style_bg_color(sq, wt_accent(), 0);
-        lv_obj_set_style_bg_opa(sq, LV_OPA_COVER, 0);
-        lv_obj_add_flag(sq, WT_FLAG_ACCENT_FILL);
-        lv_obj_remove_flag(sq, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_align(sq, LV_ALIGN_LEFT_MID, 0, 0);
-        lv_obj_t *lp = wt_lbl(td, LV_SYMBOL_LOOP, 0, 0, wt_font23(),
-                              wt_accent());
-        lv_obj_add_flag(lp, WT_FLAG_ACCENT);
-        lv_obj_align(lp, LV_ALIGN_LEFT_MID, sw + 10, 0);
     }
 
     restyle();
