@@ -119,7 +119,7 @@
   "G_FW_RUNNING_FMT": "DZIAŁA %s",
   "G_FW_SAME_B": "karta zawiera wersję, którą to urządzenie już uruchamia.",
   "G_FW_SAME_H": "już działa",
-  "G_FW_SIG_PROMISE": "sprawdzany, zanim cokolwiek zostanie zapisane",
+  "G_FW_SIG_PROMISE": "sprawdzany, zanim cokolwiek zapiszemy",
   "G_FW_T": "FIRMWARE",
   "G_FW_UNSIGNED_B": "ta wersja nie ma klucza do sprawdzenia. wgraj podpisane wydanie przez USB.",
   "G_FW_UNSIGNED_H": "nie da się sprawdzić",

@@ -119,7 +119,7 @@
   "G_FW_RUNNING_FMT": "LÄUFT %s",
   "G_FW_SAME_B": "die Karte trägt die Version, die dieses Gerät ausführt.",
   "G_FW_SAME_H": "läuft bereits",
-  "G_FW_SIG_PROMISE": "geprüft, bevor irgendetwas geschrieben wird",
+  "G_FW_SIG_PROMISE": "geprüft, bevor etwas geschrieben wird",
   "G_FW_T": "FIRMWARE",
   "G_FW_UNSIGNED_B": "dieser Build hat keinen Schlüssel zum Prüfen. spiele eine signierte Version über USB auf.",
   "G_FW_UNSIGNED_H": "nicht prüfbar",

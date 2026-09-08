@@ -119,7 +119,7 @@
   "G_FW_RUNNING_FMT": "ĐANG CHẠY %s",
   "G_FW_SAME_B": "thẻ chứa đúng phiên bản thiết bị đang chạy.",
   "G_FW_SAME_H": "đang chạy rồi",
-  "G_FW_SIG_PROMISE": "kiểm tra trước khi ghi bất cứ thứ gì",
+  "G_FW_SIG_PROMISE": "kiểm tra trước khi ghi bất cứ gì",
   "G_FW_T": "PHẦN MỀM",
   "G_FW_UNSIGNED_B": "bản dựng này không có khóa để kiểm tra. nạp bản phát hành có chữ ký qua USB.",
   "G_FW_UNSIGNED_H": "không kiểm tra được",
