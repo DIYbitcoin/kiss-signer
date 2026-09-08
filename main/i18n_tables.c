@@ -134,7 +134,7 @@ static const char *const tbl_en[STR_N] = {
     [STR_G_FW_WHY_H] = "ecdsa + post quantum",
     [STR_G_FW_WRITING_FMT] = "WRITING %s",
     [STR_G_FW_WRITING_T] = "WRITING FIRMWARE",
-    [STR_G_HELP_BODY] = "Seed words + passphrase = your keys. Seed words alone = the decoy keys.",
+    [STR_G_HELP_BODY] = "Seed words + passphrase = your signer. Seed words alone = the decoy signer.",
     [STR_G_HELP_F1C] = "THE LOOP",
     [STR_G_HELP_F1V] = "tap to cycle",
     [STR_G_HELP_F2C] = "THE DOT",

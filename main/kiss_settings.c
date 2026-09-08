@@ -2293,8 +2293,8 @@ static void build_tab(void)
               .icon = LV_SYMBOL_TRASH },
         };
         // The body names BOTH doors -- seed words with the passphrase open
-        // your keys, seed words alone open the decoy -- because the pair is
-        // the whole lesson and one half alone reads as the only half.
+        // your signer, seed words alone open the decoy signer -- because the
+        // pair is the whole lesson and one half alone reads as the only half.
         //
         // IN EVERY SESSION, and the first attempt hid it in a decoy one. That
         // sounded right and was the opposite of what it did: the predicate
