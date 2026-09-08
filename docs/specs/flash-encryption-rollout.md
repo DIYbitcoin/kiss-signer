@@ -1,7 +1,8 @@
 # Flash encryption rollout: how the one way burn gets earned
 
-Status: build profiles complete, hardware acceptance not started. Written
-2026-08-06.
+Status: build profiles complete INCLUDING the secure boot pass, hardware
+acceptance not started. Written 2026-08-06; secure boot v2 folded into the
+release recipe 2026-08-26, when the Stage 2 choices below were settled.
 
 Two eFuse burns stand between the beta and a signer that protects a seed at
 rest: flash encryption and secure boot v2. Both are permanent. This spec is the
@@ -30,16 +31,18 @@ consequences survives unchanged:
 1. **Secure boot cannot be added later.** Unchanged, and it is the real
    constraint. Secure boot requires flashing a signed *bootloader*, and the
    board no longer takes a bootloader. Both burns happen in one pass or the
-   second one never happens.
+   second one never happens -- which is why the release recipe now carries
+   secure boot v2 itself, rather than deferring it to a pass that could never
+   reach a burned board.
 2. **A shipped encrypted device can be updated, over SD, with a signed image.**
-   It cannot be reflashed over the cable and it cannot be downgraded below
-   whatever the secure boot pass eventually enforces, but today an older SIGNED
-   build installs: `CONFIG_BOOTLOADER_APP_ANTI_ROLLBACK` is deliberately off
-   until then. So the encrypted lane is no longer gated on "firmware we are
-   willing to freeze" -- it is gated on the signing key being one we can keep.
+   It cannot be reflashed over the cable. `CONFIG_BOOTLOADER_APP_ANTI_ROLLBACK`
+   is armed at secure version 0: nothing is refused today, and the first
+   release that bumps the version can permanently shut the door on the builds
+   before it. The lane is gated on the signing key being one we can keep.
 3. **Every irreversible choice inside the profile has to be settled first**,
    because the burn is where the argument ends. Still true: the eFuse burn is
-   permanent even though the app on top of it is not.
+   permanent even though the app on top of it is not. Stage 2 below records
+   the settlements.
 
 ## Stage 1, rehearsal lane, repeat as often as needed
 
@@ -78,25 +81,41 @@ Exit criteria: all three storage modes migrate both directions, a sealed card
 survives a power cycle, a wipe leaves nothing, and the residue dump is
 ciphertext.
 
-## Stage 2, settle the irreversible choices
+## Stage 2, the irreversible choices, now settled
 
-Do this before any board is burned, because none of it can be revisited.
+Settled 2026-08-26, before any board was burned. The reasons live here; the
+enforcement lives in `tools/build_encrypted_release.sh`, whose force list and
+assertions now say each of these out loud.
 
-- **AES-128 versus AES-256.** `sdkconfig.encrypted` sets
-  `CONFIG_SECURE_FLASH_ENCRYPTION_AES128=y` on a part whose
-  `CONFIG_SOC_FLASH_ENCRYPTION_XTS_AES_256` is available. Inherited rather than
-  chosen, as far as the config history shows. Decide it deliberately and write
-  the reason down here.
-- **Secure boot key custody.** Secure boot v2 signs with a private key that
-  must outlive every device it signs for. Where it lives, who holds it, what
-  happens if it is lost. A lost signing key with `CONFIG_SECURE_BOOT_V2` burned
-  means no future firmware for any device that trusts it.
-- **Key revocation.** `CONFIG_SOC_EFUSE_SECURE_BOOT_KEY_DIGESTS=3`, so three
-  digests can be burned and revoked independently. Decide whether to burn one
-  or reserve spares.
-- **ROM download mode.** The release lane sets
-  `CONFIG_SECURE_ENABLE_SECURE_ROM_DL_MODE=y` rather than disabling download
-  mode outright. Confirm that is the intent with secure boot alongside it.
+- **AES-128 versus AES-256: AES-256.** The old 128 line called itself
+  deliberate and deferred the real choice to the secure boot pass; this was
+  that pass. The P4 has the 256-bit XTS eFuse scheme and key blocks to spare,
+  the key is generated on-device either way, and the first boot fixes the
+  size forever. No board was ever burned at 128. Both recipes, so the
+  rehearsal rehearses the size that ships.
+- **Secure boot key custody: the existing update key, one root.** The
+  bootloader and the app are signed with the same secp256r1 key the SD update
+  story already rests on (private half under `~/.kiss-signer/`, public half
+  committed at `docs/installer/kiss_ota_pub.pem` and cross-checked by the
+  build). That key already had to outlive every encrypted board -- a burned
+  board takes no image it did not sign -- so anchoring its digest in eFuse
+  adds no new custody obligation, and avoids a second key that could die
+  separately. What a lost key costs is unchanged and total: every burned
+  board frozen on its last firmware.
+- **Key revocation: burn one digest, keep two slots spare.**
+  `CONFIG_SOC_EFUSE_SECURE_BOOT_KEY_DIGESTS=3`; the bootloader carries one
+  signature block, so first boot burns one digest. The spare slots are what
+  make a future key rotation possible at all on a board that can never be
+  reflashed. Aggressive key revoke stays off.
+- **ROM download mode: the secure subset, confirmed.** Enough for a stranger
+  to erase a board and prove it erased, never to read or reprogram it. Was an
+  inherited default; the build script now forces it so no IDF default can
+  unmake it.
+- **Anti rollback: armed at secure version 0.** The check has to live in the
+  burned bootloader from birth or it never exists; at version 0 it burns
+  nothing and refuses nothing, until a release deliberately bumps the
+  version. The app half already existed: `kiss_fw_mark_valid` confirms a
+  trial slot only after the signer proves it can sign.
 
 ## Stage 3, the burn, on a dedicated board, both together
 
