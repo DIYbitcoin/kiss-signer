@@ -1226,6 +1226,43 @@ static void dump_labels(lv_obj_t *o, int depth, int *budget) {
 
 static int g_walk_fails;
 
+// Two long sources CUT to one output name meant the second signature wrote over
+// the first, silently, on the one file a hold-to-sign is needed to make again.
+// The pair below differ only past the cut, which is exactly the shape a
+// coordinator produces when it names exports after a wallet and a date.
+//
+// Here rather than in kisstest: kisstest does not link kiss_sign.c, and this
+// walk is the only runner that does.
+static void sign_name_check(void)
+{
+  const char *a = "zzzz-MANY-recipients-export-from-the-coordinator-app-01.psbt";
+  const char *b = "zzzz-MANY-recipients-export-from-the-coordinator-app-02.psbt";
+  char na[80];
+  snprintf(na, sizeof na, "%s", kiss_sign_test_signed_name(a));
+  const char *nb = kiss_sign_test_signed_name(b);
+  if (strcmp(na, nb) == 0) {
+    printf("FAIL: signed name: two sources cut to one name (%s)\n", na);
+    g_walk_fails++;
+  }
+  if (strlen(na) >= 64 || strlen(nb) >= 64) {
+    printf("FAIL: signed name: %zu bytes, past the card's 63\n", strlen(na));
+    g_walk_fails++;
+  }
+  // A name that fits is untouched: tagging it would rename every signed file on
+  // every card, and the tag is only there to replace what a cut throws away.
+  const char *sh = kiss_sign_test_signed_name("payment-01.psbt");
+  if (strcmp(sh, "payment-01-signed.psbt") != 0) {
+    printf("FAIL: signed name: a short name was rewritten to %s\n", sh);
+    g_walk_fails++;
+  }
+  // And signing a signature is still the same file, not a longer one.
+  const char *again = kiss_sign_test_signed_name("payment-01-signed.psbt");
+  if (strcmp(again, "payment-01-signed.psbt") != 0) {
+    printf("FAIL: signed name: re-signing made %s\n", again);
+    g_walk_fails++;
+  }
+}
+
 // The firmware screen's done_cb rebuilds Settings. The auto-lock teardown must
 // NOT fire it: Settings rebuilt under a locked device is the whole of the
 // recovery-words leak. Counted, not screenshotted, because what leaked was a
@@ -2219,6 +2256,10 @@ static void sd_write_psbt_fixtures(void)
     // only fixture that produces anything but a short one. The prefix and the
     // MANY body are unchanged, so it sorts where it always did and the walk's
     // position taps are untouched.
+    //
+    // Its output now carries the tag signed_name adds whenever it cuts, so the
+    // name is 63 bytes still but no longer the bare prefix. sign_name_check()
+    // is what holds the two apart.
     { "zzzz-MANY-recipients-export-from-the-coordinator-app-01.psbt", "MANY" },
     // ... and this one sorts after THAT, for the same reason. Twenty coins into
     // one recipient with no change: the shape the elided middle exists for, and
@@ -4062,6 +4103,7 @@ int main(void) {
       }
     }
     tap_str(STR_C_DONE, 3, 6);     // DONE -> home
+    sign_name_check();
     // /tmp/simsd outlives the process and sim_fixture_reset only WRITES the
     // fixtures, so a signature left here is an extra row in the file list on
     // the next run -- and every tap in the sign walk that goes by position
@@ -4070,7 +4112,7 @@ int main(void) {
     {
       char signed_out[384];
       snprintf(signed_out, sizeof signed_out, "%s/%s", SIMSD,
-               "zzzz-MANY-recipients-export-from-the-coordinator-ap-signed.psbt");
+               "zzzz-MANY-recipients-export-from-the-coordin-4d0638-signed.psbt");
       unlink(signed_out);
     }
   }

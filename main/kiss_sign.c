@@ -226,6 +226,43 @@ static bool is_signed_name(const char *nm)
 //    "x-signed-signed.psbt", growing seven characters a round toward that same
 //    cliff. Re-signing is deterministic, so writing the same name back is not a
 //    loss: it is the same bytes.
+//
+// A truncated name is not a UNIQUE name, and that took a third round to see.
+// Two sources agreeing in their first 51 characters produced ONE output name,
+// and platform_sd_write opens "wb": signing the second silently wrote over the
+// first one's signature, which is the only file on the card the owner cannot
+// re-derive without holding to sign again. Long coordinator exports are exactly
+// where it bites, because they agree on a wallet name and a date and differ at
+// the END -- the half the clamp throws away.
+//
+// So the clamp stays and pays for itself: what it cuts is replaced by a tag
+// over the WHOLE source name. Only on the truncating path -- an untruncated
+// name is already one-to-one with its source, and tagging it would rename every
+// signed file on every card to fix nothing.
+//
+// FNV-1a, 24 bits. This disambiguates a filename and commits to nothing, the
+// odds it has to beat are two long names on one card, and the sim build stubs
+// libwally out from under this file, so arithmetic is the primitive that is
+// actually here.
+//
+// DECIDED: a CUT filename carries six hex characters that the source name did
+// not. It looks like noise on the SIGNED screen and it is the fix, not a
+// leftover: the plain clamp was tried and shipped, and it made two coordinator
+// exports agreeing in their first 51 characters into one output name, so the
+// second signature wrote over the first with no error and no prompt. Refusing
+// the name instead is the wrong trade here and its own comment above says why
+// -- it throws away a signature that already exists in RAM. Only cut names are
+// tagged, so nothing an owner has seen before changes.
+static uint32_t name_tag(const char *s)
+{
+    uint32_t h = 2166136261u;
+    for (; *s; s++) {
+        h ^= (uint8_t)*s;
+        h *= 16777619u;
+    }
+    return h & 0xffffffu;
+}
+
 static const char *signed_name(const char *src)
 {
     if (is_signed_name(src)) {
@@ -237,10 +274,22 @@ static const char *signed_name(const char *src)
     // "-signed.psbt" is 12 bytes, and name_ok wants the whole thing under
     // SD_NAME_LEN including its NUL.
     size_t room = SD_NAME_LEN - 1 - 12;
-    if (bl > room) bl = room;
-    snprintf(s_done_name, sizeof s_done_name, "%.*s-signed.psbt", (int)bl, src);
+    if (bl <= room) {
+        snprintf(s_done_name, sizeof s_done_name, "%.*s-signed.psbt", (int)bl, src);
+        return s_done_name;
+    }
+    // "-xxxxxx" is the seven the tag costs, so this lands on the same 63 the
+    // untagged worst case did.
+    snprintf(s_done_name, sizeof s_done_name, "%.*s-%06x-signed.psbt",
+             (int)(room - 7), src, (unsigned)name_tag(src));
     return s_done_name;
 }
+
+#ifndef ESP_PLATFORM
+// Walk only. signed_name is where two files become one, and the walk is the
+// only runner that links this file.
+const char *kiss_sign_test_signed_name(const char *src) { return signed_name(src); }
+#endif
 
 // Every pointer into the screen about to go, and the timers that would call
 // back into it. One function and not two copies, because the two copies had
