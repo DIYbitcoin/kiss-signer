@@ -25,19 +25,19 @@ gpg --quick-generate-key "KISS Signer releases <diybitcoin@protonmail.com>" ed25
 gpg --armor --export <KEYID> > docs/installer/kiss_signer_pgp.asc   # commit this
 ```
 
-> **The key committed today does not carry that uid.** It reads
-> `KISS Wallet releases <diybitcoin@protonmail.com>`, because it was cut before
-> the rename, and its fingerprint is
-> `166A CBF3 7786 FCEA A694 96DE 886F 1BFE B84E F1C0`. That is not a problem in
-> itself — a uid is unauthenticated free text and the fingerprint is the real
-> identity — but `docs/guide.html` now quotes the **actual** output of
-> `gpg --verify`, uid and all, so nobody is told to expect a line they will
-> never see. The guide used to claim the uid said "Signer", which quietly taught
-> readers that a name mismatch on a signing key is nothing to worry about.
+> **The key committed today is that uid**, since 0d56077f, and its fingerprint
+> is `166A CBF3 7786 FCEA A694 96DE 886F 1BFE B84E F1C0`. It carries two older
+> uids underneath, from before the rename; `gpg --verify` prints the primary one
+> and nothing else, so what a user sees is the line above.
+>
+> A uid is unauthenticated free text and the fingerprint is the real identity,
+> but `docs/guide.html` quotes the **actual** output of `gpg --verify`, uid and
+> all, so nobody is told to expect a line they will never see. It named the
+> older uid for 540 commits after the export was refreshed, which is the drift
+> this note exists to catch.
 >
 > **If you rotate this key or change its uid, update that block in
-> `docs/guide.html` in the same commit** — the uid line and the fingerprint,
-> which appears there twice.
+> `docs/guide.html` in the same commit** — the uid line and the fingerprint.
 
 minisign (optional extra):
 
