@@ -282,6 +282,24 @@ docker run --rm \
 # hand is a staleness problem with nothing to buy it.
 ESPTOOL_PIN="${ESPTOOL_PIN:-esptool==5.3.1}"
 KISS_OTA_KEY="${KISS_OTA_KEY:-$HOME/.kiss-signer/kiss_ota.pem}"
+
+# The key does not have to be a file: espsecure speaks PKCS#11, so the same
+# secp256r1 key can live in a smartcard's signing slot and never exist on this
+# machine. When this config is present it wins over KISS_OTA_KEY. It carries no
+# "credentials" line on purpose, so the card PIN is prompted for rather than
+# stored beside the thing it unlocks. tools/build_release.sh grew this first;
+# docs/installer/SIGNING.md has the setup.
+KISS_OTA_HSM_CONFIG="${KISS_OTA_HSM_CONFIG:-$HOME/.kiss-signer/hsm.ini}"
+if [ -f "$KISS_OTA_HSM_CONFIG" ]; then
+  ESPSECURE=(uvx --from "$ESPTOOL_PIN" --with python-pkcs11 espsecure)
+  OTA_SIGN_KEY=(--hsm --hsm-config "$KISS_OTA_HSM_CONFIG")
+  OTA_KEY_DESC="the card described by $KISS_OTA_HSM_CONFIG"
+else
+  ESPSECURE=(uvx --from "$ESPTOOL_PIN" espsecure)
+  OTA_SIGN_KEY=(--keyfile "$KISS_OTA_KEY")
+  OTA_KEY_DESC="$KISS_OTA_KEY"
+fi
+
 # The one thing this recipe cannot do yet, and it is a key, not a bug.
 #
 # Hardware secure boot on this chip is RSA-3072 only (see the scheme block
@@ -326,19 +344,20 @@ if [ -n "${KISS_UNSIGNED:-}" ]; then
   echo "      No signature block, so this image must never be flashed to a board"
   echo "      whose fuses this recipe burns -- it could never be updated after."
   echo "      Wrote $BUILD_DIR/UNSIGNED to say so."
-elif [ ! -f "$KISS_OTA_KEY" ]; then
+elif [ ! -f "$KISS_OTA_HSM_CONFIG" ] && [ ! -f "$KISS_OTA_KEY" ]; then
   echo
-  echo "FAIL: OTA signing key not found at $KISS_OTA_KEY"
-  echo "      Generate it once (docs/installer/SIGNING.md), or set KISS_OTA_KEY."
+  echo "FAIL: no OTA signing key. Looked for a card config at"
+  echo "      $KISS_OTA_HSM_CONFIG and a key file at $KISS_OTA_KEY."
+  echo "      Set one up once (docs/installer/SIGNING.md), or set KISS_OTA_KEY."
   echo "      Without it this board can never accept an SD firmware update, and"
   echo "      the release recipe burns the fuses that would let you reflash it."
   echo "      For a reproducibility check on a machine with no key, set"
   echo "      KISS_UNSIGNED=1 and compare the unsigned hashes."
   exit 1
 else
-echo "signing app with $KISS_OTA_KEY"
-uvx --from "$ESPTOOL_PIN" espsecure sign-data \
-  --version 2 --keyfile "$KISS_OTA_KEY" \
+echo "signing app with $OTA_KEY_DESC"
+"${ESPSECURE[@]}" sign-data \
+  --version 2 "${OTA_SIGN_KEY[@]}" \
   --output "$BUILD_DIR/guition_kiss_bringup-signed.bin" \
   "$BUILD_DIR/guition_kiss_bringup.bin"
 mv "$BUILD_DIR/guition_kiss_bringup-signed.bin" \
@@ -346,21 +365,28 @@ mv "$BUILD_DIR/guition_kiss_bringup-signed.bin" \
 
 # The public half in the repo has to be the half that just signed, or a
 # verifier checks this build against a key the firmware does not carry.
-uvx --from "$ESPTOOL_PIN" espsecure extract-public-key \
-  --version 2 --keyfile "$KISS_OTA_KEY" /tmp/kiss_ota_pub_enc_check.pem
-if ! cmp -s /tmp/kiss_ota_pub_enc_check.pem docs/installer/kiss_ota_pub.pem; then
-  echo "FAIL: docs/installer/kiss_ota_pub.pem is not the public half of $KISS_OTA_KEY"
+#
+# Only the file lane can ask that of the key itself: a card will not hand over
+# a private key to derive a public half from. Nothing is lost -- the verify
+# below proves the signature checks out under the PUBLISHED key, which is the
+# same claim made against the shipped bytes.
+if [ "${OTA_SIGN_KEY[0]}" = "--keyfile" ]; then
+  "${ESPSECURE[@]}" extract-public-key \
+    --version 2 --keyfile "$KISS_OTA_KEY" /tmp/kiss_ota_pub_enc_check.pem
+  if ! cmp -s /tmp/kiss_ota_pub_enc_check.pem docs/installer/kiss_ota_pub.pem; then
+    echo "FAIL: docs/installer/kiss_ota_pub.pem is not the public half of $KISS_OTA_KEY"
+    rm -f /tmp/kiss_ota_pub_enc_check.pem
+    exit 1
+  fi
+  echo "PASS: published public key matches the signing key"
   rm -f /tmp/kiss_ota_pub_enc_check.pem
-  exit 1
 fi
-echo "PASS: published public key matches the signing key"
-rm -f /tmp/kiss_ota_pub_enc_check.pem
 
 # Prove the shipped file verifies against the PUBLISHED key, not just that the
 # two halves match. This is the check a stranger can repeat, and it is the one
 # that fails if signing was skipped, applied to the wrong file, or undone by a
 # later step that rewrites the binary.
-if ! uvx --from "$ESPTOOL_PIN" espsecure verify-signature \
+if ! "${ESPSECURE[@]}" verify-signature \
      --version 2 --keyfile docs/installer/kiss_ota_pub.pem \
      "$BUILD_DIR/guition_kiss_bringup.bin" >/dev/null 2>&1; then
   echo "FAIL: $BUILD_DIR/guition_kiss_bringup.bin does not verify against"
@@ -419,14 +445,14 @@ echo "PASS: signed app carries a post quantum signature that verifies"
 # Signed in place, before the flash recipe below reads flasher_args.json, so
 # the offsets and the hashes describe the bytes that actually get flashed.
 if [ "$RECIPE" = release ]; then
-  echo "signing bootloader with $KISS_OTA_KEY"
-  uvx --from "$ESPTOOL_PIN" espsecure sign-data \
-    --version 2 --keyfile "$KISS_OTA_KEY" \
+  echo "signing bootloader with $OTA_KEY_DESC"
+  "${ESPSECURE[@]}" sign-data \
+    --version 2 "${OTA_SIGN_KEY[@]}" \
     --output "$BUILD_DIR/bootloader/bootloader-signed.bin" \
     "$BUILD_DIR/bootloader/bootloader.bin"
   mv "$BUILD_DIR/bootloader/bootloader-signed.bin" \
      "$BUILD_DIR/bootloader/bootloader.bin"
-  if ! uvx --from "$ESPTOOL_PIN" espsecure verify-signature \
+  if ! "${ESPSECURE[@]}" verify-signature \
        --version 2 --keyfile docs/installer/kiss_ota_pub.pem \
        "$BUILD_DIR/bootloader/bootloader.bin" >/dev/null 2>&1; then
     echo "FAIL: the signed bootloader does not verify against the published key"
