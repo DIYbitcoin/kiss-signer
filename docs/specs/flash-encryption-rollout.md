@@ -93,15 +93,37 @@ assertions now say each of these out loud.
   the key is generated on-device either way, and the first boot fixes the
   size forever. No board was ever burned at 128. Both recipes, so the
   rehearsal rehearses the size that ships.
-- **Secure boot key custody: the existing update key, one root.** The
-  bootloader and the app are signed with the same secp256r1 key the SD update
-  story already rests on (private half under `~/.kiss-signer/`, public half
-  committed at `docs/installer/kiss_ota_pub.pem` and cross-checked by the
-  build). That key already had to outlive every encrypted board -- a burned
-  board takes no image it did not sign -- so anchoring its digest in eFuse
-  adds no new custody obligation, and avoids a second key that could die
-  separately. What a lost key costs is unchanged and total: every burned
-  board frozen on its last firmware.
+- **Secure boot key custody: NOT SETTLED, and it was thought to be.** This
+  read "the existing update key, one root" -- the same secp256r1 key the SD
+  update story rests on, its digest anchored in eFuse, no second key to lose.
+  That is not available on this chip. Hardware secure boot with ECDSA is
+  errata'd on the ESP32-P4: IDF's own bootloader Kconfig defaults
+  `SECURE_BOOT_V2_ECDSA_INSECURE` to y for this target, "not functional for
+  certain input vectors", and offers the scheme only behind
+  `SECURE_BOOT_INSECURE` + `SECURE_BOOT_V2_FORCE_ENABLE_ECDSA` -- a known
+  vulnerability, switched on by hand, on a board that can never be reflashed.
+  Not on a signing device.
+
+  So hardware secure boot here is **RSA-3072**, and the recipe follows the
+  chip rather than the key. Three things have to be decided before a board is
+  burned, and none of them can be revisited afterwards:
+
+  1. **One RSA-3072 root**, generated and held the way the OTA key is. A lost
+     key still costs the same and total: every burned board frozen on its last
+     firmware.
+  2. **Whether the SD update lane moves to it.** Under secure boot the app's
+     signature block IS the update check, judged against the burned digest
+     rather than against the running app's own block, so a burned board and a
+     beta board stop agreeing about what a valid update looks like.
+  3. **What `docs/installer/kiss_ota_pub.pem` becomes**, given 2.
+
+  How this was found is worth keeping: forcing
+  `CONFIG_SECURE_SIGNED_APPS_ECDSA_V2_SCHEME=y` looked like it worked -- the
+  symbol was set, the app and the bootloader were signed with the secp256r1
+  key, and every signature check in the build printed PASS. Each of those
+  checks verifies an image against the key it was signed with. Not one asks
+  what the FIRMWARE expects, and the built config said RSA. A board burned on
+  that pair refuses the exact images that produced it, on first boot.
 - **Key revocation: burn one digest, keep two slots spare.**
   `CONFIG_SOC_EFUSE_SECURE_BOOT_KEY_DIGESTS=3`; the bootloader carries one
   signature block, so first boot burns one digest. The spare slots are what

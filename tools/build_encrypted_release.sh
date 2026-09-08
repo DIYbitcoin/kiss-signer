@@ -169,19 +169,23 @@ force = {
     # of the running app - kiss_fw_available's CONFIG_SECURE_BOOT branch.
     "CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT":     "y" if rehearsal else None,
     "CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT": "y" if rehearsal else None,
-    # RSA off FIRST, then ECDSA on. These two are one Kconfig choice, and a
-    # choice resolves to the last member left standing -- so naming only the
-    # winner is not enough. Forcing ECDSA alone, this build came out
-    # CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME=y: firmware expecting an RSA-3072
-    # signature block, while the app and the bootloader had both been signed
-    # outside the container with the secp256r1 key. Every signature check in
-    # this script passed, because each one verified the image against the key
-    # it was signed with and none of them asked what the FIRMWARE expects. A
-    # board burned on that pair rejects the exact images that produced it, on
-    # first boot, permanently. sdkconfig.release has always carried the pair
-    # in this order; the secure boot recipe did not.
-    "CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME":         None,
-    "CONFIG_SECURE_SIGNED_APPS_ECDSA_V2_SCHEME":    "y",
+    # The signature scheme is NOT a preference here, and forcing the one this
+    # project's key uses does not work: on this chip, hardware secure boot with
+    # ECDSA is errata'd. SECURE_BOOT_V2_ECDSA_INSECURE is default y for the P4
+    # in IDF's own bootloader Kconfig -- "not functional for certain input
+    # vectors" -- so SECURE_SIGNED_APPS_ECDSA_V2_SCHEME loses its depends and
+    # the choice falls to RSA, whatever this list says. Reaching it needs
+    # SECURE_BOOT_INSECURE plus SECURE_BOOT_V2_FORCE_ENABLE_ECDSA, which is a
+    # known vulnerability turned on deliberately, on a board that can never be
+    # reflashed. Not on a signing device.
+    #
+    # So: RSA-3072 where secure boot burns, ECDSA where it does not. The
+    # rehearsal recipe has no hardware secure boot, its scheme is not gated,
+    # and it keeps the secp256r1 key the SD update lane already publishes.
+    "CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME":         None if rehearsal else "y",
+    "CONFIG_SECURE_SIGNED_APPS_ECDSA_V2_SCHEME":    "y" if rehearsal else None,
+    "CONFIG_SECURE_BOOT_V2_FORCE_ENABLE_ECDSA":     None,
+    "CONFIG_SECURE_BOOT_INSECURE":                  None,
     "CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES":     None,
 
     # The bootloader's own logs, quieted here for ROOM rather than for quiet.
@@ -278,6 +282,43 @@ docker run --rm \
 # hand is a staleness problem with nothing to buy it.
 ESPTOOL_PIN="${ESPTOOL_PIN:-esptool==5.3.1}"
 KISS_OTA_KEY="${KISS_OTA_KEY:-$HOME/.kiss-signer/kiss_ota.pem}"
+# The one thing this recipe cannot do yet, and it is a key, not a bug.
+#
+# Hardware secure boot on this chip is RSA-3072 only (see the scheme block
+# above). The bootloader and the app therefore carry an RSA signature block,
+# and the key that produces it is not the secp256r1 key under ~/.kiss-signer/
+# that the SD update lane publishes. Signing with that key anyway is exactly
+# the failure this exists to stop: espsecure verifies the image against the
+# key it was signed with, prints PASS, and the board rejects it on first boot
+# with no second attempt available.
+#
+# So the release recipe drops onto the UNSIGNED path rather than stopping. The
+# config assertions below are the whole point of running it today -- they are
+# what proves the secure boot recipe still resolves the way it is meant to --
+# and $BUILD_DIR/UNSIGNED is already the marker that says this image must
+# never reach a board whose fuses it burns.
+#
+# What has to be settled before this comes out, written up in Stage 2 of
+# docs/specs/flash-encryption-rollout.md:
+#   * one RSA-3072 root, generated and held the way the OTA key is
+#   * whether the SD update lane moves to it too -- under secure boot the app
+#     signature block IS the update check, judged against the eFuse digest
+#     rather than against kiss_ota_pub.pem
+#   * what the published key file becomes, since a beta board and a burned
+#     board would then no longer trust the same one
+if [ "$RECIPE" = release ] && [ -z "${KISS_SB_RSA_KEY:-}" ]; then
+  KISS_UNSIGNED=1
+  echo
+  echo "NOTE: no secure boot signing key, so this build is UNSIGNED."
+  echo "      Secure boot v2 on this target is RSA-3072 only: ECDSA is errata'd"
+  echo "      (SECURE_BOOT_V2_ECDSA_INSECURE is default y for this chip), so the"
+  echo "      secp256r1 key at $KISS_OTA_KEY cannot sign a bootloader this"
+  echo "      firmware will boot. Nothing this run produces may be flashed."
+  echo
+  echo "      The rehearsal recipe is unaffected and is the lane to use:"
+  echo "        KISS_ENC_REHEARSAL=1 bash tools/build_encrypted_release.sh"
+fi
+
 if [ -n "${KISS_UNSIGNED:-}" ]; then
   : > "$BUILD_DIR/UNSIGNED"
   echo
@@ -368,9 +409,12 @@ echo "PASS: signed app carries a post quantum signature that verifies"
 # Secure boot's first boot burns the digest of the key found in the
 # BOOTLOADER's signature block, then refuses any bootloader and any app that
 # key did not sign - an unsigned bootloader here would not boot even once.
-# Same key as the app: one root, one custody story. The rehearsal recipe
-# skips this: its board has no secure boot, and its bootloader stays
-# byte-identical to what that build has always flashed.
+# Same key as the app, necessarily: they share one signature scheme and one
+# burned digest. That key is RSA-3072 on this chip and is NOT the secp256r1
+# OTA key, which is why the gate above drops this recipe to UNSIGNED until
+# the root is settled. The rehearsal recipe skips this block entirely: its
+# board has no secure boot, and its bootloader stays byte-identical to what
+# that build has always flashed.
 #
 # Signed in place, before the flash recipe below reads flasher_args.json, so
 # the offsets and the hashes describe the bytes that actually get flashed.
@@ -457,11 +501,17 @@ checks += [
     (on("CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT") if rehearsal
      else on("CONFIG_SECURE_SIGNED_ON_UPDATE"),
      "SD update images are signature verified"),
-    # Both halves. "ECDSA is on" was the whole assertion and it is what let the
-    # choice above resolve to RSA unnoticed -- the symbol was set, the config
-    # that shipped said otherwise.
-    (on("CONFIG_SECURE_SIGNED_APPS_ECDSA_V2_SCHEME") and
-     not on("CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME"),    "signature scheme ECDSA v2, not RSA"),
+    # Both halves, and opposite per recipe. "ECDSA is on" was the whole
+    # assertion, it was TRUE in the force list, and the config that built said
+    # RSA -- which is how an image signed with one scheme nearly went onto a
+    # board expecting the other.
+    (on("CONFIG_SECURE_SIGNED_APPS_ECDSA_V2_SCHEME") is rehearsal and
+     on("CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME") is not rehearsal,
+     "signature scheme ECDSA v2 (no secure boot)" if rehearsal
+     else "signature scheme RSA-3072 (ECDSA secure boot is errata'd here)"),
+    (not on("CONFIG_SECURE_BOOT_V2_FORCE_ENABLE_ECDSA"),
+     "the errata'd ECDSA secure boot is not force enabled"),
+    (not on("CONFIG_SECURE_BOOT_INSECURE"),             "no insecure options"),
     # Armed, at version 0: burns nothing today, refuses nothing today. The
     # old comment here said arming it early would freeze the fleet on an
     # unfinished security model; the model this pass ships is the finished
