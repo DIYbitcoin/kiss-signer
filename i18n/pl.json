@@ -306,7 +306,7 @@
   "I_WTAB_PAPER": "PAPIER",
   "K_CAP_PAIRING": "PAROWANIE",
   "K_EXPL_COORD": "widzi każdą płatność. nigdy żadnej nie wyda.",
-  "K_HELP_BODY": "Dostaje tylko klucze publiczne. Może obserwować i budować płatności, nigdy podpisać.",
+  "K_HELP_BODY": "Dostaje tylko klucze publiczne. Buduje płatności, nigdy nie podpisuje.",
   "K_HELP_F1C": "ODCISK",
   "K_HELP_F1V": "koordynator go pokazuje",
   "K_HELP_F3C": "DESKRYPTOR",

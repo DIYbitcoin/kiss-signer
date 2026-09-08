@@ -306,7 +306,7 @@
   "I_WTAB_PAPER": "PAPIR",
   "K_CAP_PAIRING": "PARRING",
   "K_EXPL_COORD": "den ser hver betaling. den kan aldrig bruge en.",
-  "K_HELP_BODY": "Den får kun offentlige nøgler. Den kan følge med og bygge betalinger, aldrig signere en.",
+  "K_HELP_BODY": "Den får kun offentlige nøgler. Den kan følge og bygge, aldrig signere.",
   "K_HELP_F1C": "FINGERAFTRYK",
   "K_HELP_F1V": "din koordinator viser det",
   "K_HELP_F3C": "DESKRIPTOR",
