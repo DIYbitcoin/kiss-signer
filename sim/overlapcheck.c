@@ -1016,7 +1016,6 @@ static const char *OC_PORT_BACKLOG[] = {
     // now, and the whole point of measuring early is to make that a CHOICE.
     "compare lit characters",
     "how your keys were made",
-    "one QR, or 9A2C33E3.kef",
     "seed words. not your passphrase",
     NULL,
 };
