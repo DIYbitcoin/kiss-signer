@@ -322,7 +322,7 @@
   "L_BACKUP_PASS_BAD": "別の鍵が開きます。再入力してください。",
   "L_BACKUP_UNVERIFIED": "完全バックアップは未検証",
   "L_BACKUP_KEF_OPENED": "ENCRYPTED BACKUP OPENED",
-  "L_BACKUP_WORDS_USED": "RESTORED FROM YOUR WORDS",
+  "L_BACKUP_WORDS_USED": "RESTORED FROM YOUR SEED WORDS",
   "L_BACKUP_VERIFIED": "完全バックアップを検証済み",
   "L_CANCEL_SETUP_B": "いま作ったシード単語は失われます。\nメニューから最初からやり直しになります。",
   "L_CANCEL_SETUP_T": "セットアップを中止しますか?",

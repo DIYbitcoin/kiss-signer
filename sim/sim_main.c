@@ -6648,6 +6648,15 @@ int main(void) {
       must_show("warn/restored names the copy", tr(STR_L_BACKUP_KEF_OPENED));
       must_not_show("warn/restored drops the flat red",
                     tr(STR_L_BACKUP_UNVERIFIED));
+      // The OTHER restore wears the longest of the three chips, and it is the
+      // one no walk reaches on its own -- so it would have shipped beside a
+      // value card in twenty one locales with nothing having measured it.
+      kiss_seed_set_source(WSEED_SRC_RESTORE);
+      kiss_ui_sim_warn_screen(false, false);
+      pump(8);
+      save("/tmp/sim_warn_restored_words.ppm");
+      must_show("warn/typed restore names the copy",
+                tr(STR_L_BACKUP_WORDS_USED));
       kiss_seed_set_source(was_src);
     }
     // The screen owns itself; reopening it deletes the previous one, and the
