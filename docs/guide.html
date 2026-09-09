@@ -256,7 +256,7 @@
           <article>
             <span>TOUCHSCREEN + QR</span>
             <h3>Transactions in and out by QR, or microSD</h3>
-            <p>A whole transaction will not fit in one QR code, so KISS chops it into numbered pieces and plays them as a short loop for your coordinator&rsquo;s camera &mdash; a scheme called BC-UR. Or carry the file on a card instead. No cable ever carries your data.</p>
+            <p>A whole transaction will not fit in one QR code. So KISS chops it into numbered pieces and plays them as a short loop for your coordinator&rsquo;s camera, a scheme called BC-UR. Or carry the file on a card instead. No cable ever carries your data.</p>
           </article>
           <article>
             <span>SILENT PAYMENTS</span>
@@ -276,7 +276,7 @@
           <article>
             <span>AUDIT IT YOURSELF</span>
             <h3>The signer proves parts of itself</h3>
-            <p>Your keys are only as good as the randomness behind them, so the device audits its own: 5000 numbers from the chip into a live bar chart, scored for evenness. A lopsided chart means bad randomness. Nothing leaves the device.</p>
+            <p>Your keys are only as good as the randomness behind them. So the device audits its own: 5000 numbers from the chip into a live bar chart, scored for evenness. A lopsided chart means bad randomness. Nothing leaves the device.</p>
           </article>
         </div>
       </section>
@@ -294,17 +294,16 @@
         <p>
           The chip that runs KISS has no WiFi and no Bluetooth. It cannot go
           online even if it wanted to. The board does carry a <em>second</em>
-          chip that can, because the board is sold for other products too, and
-          the very first thing KISS does on power-up is pin that chip down,
-          before anything else runs. There is no wireless code inside KISS at
-          all.
+          chip that can, because the board is sold for other products too. The
+          very first thing KISS does on power-up is pin that chip down, before
+          anything else runs. There is no wireless code inside KISS at all.
         </p>
         <p>
           You do not have to take our word for it. The home screen and Settings
           both show <code>radio: held in reset</code>, read from the chip each
-          time rather than printed from memory, and with a multimeter you can
-          measure the radio chip&rsquo;s off switch (pin&nbsp;GPIO54) sitting at
-          zero volts.
+          time rather than printed from memory. With a multimeter you can
+          measure the radio chip&rsquo;s off switch (pin&nbsp;GPIO54) yourself
+          and watch it sit at zero volts.
         </p>
         <h3>Flip the camera (one-time mod, required for QR scanning)</h3>
         <p>
@@ -337,12 +336,15 @@
         <p class="eyebrow">04 / trust, then flash</p>
         <h2>Check the download before you trust it</h2>
         <p>
-          For the beta, release artifacts live on the GitHub Releases tab: the
-          merged firmware image
-          <code>kiss-signer-&lt;version&gt;.bin</code> (flashed at offset 0),
-          <code>SHA256SUMS</code> plus its detached GPG signature
-          <code>SHA256SUMS.asc</code>, the release public key
-          <code>kiss_signer_pgp.asc</code>, and <code>release.json</code>.
+          Everything for a release sits on the GitHub Releases tab:
+        </p>
+        <ul>
+          <li><code>kiss-signer-&lt;version&gt;.bin</code> &mdash; the firmware</li>
+          <li><code>SHA256SUMS</code> &mdash; its hashes</li>
+          <li><code>SHA256SUMS.asc</code> &mdash; the signature over those hashes</li>
+          <li><code>kiss_signer_pgp.asc</code> &mdash; the key that signed them</li>
+        </ul>
+        <p>
           Beside them sits
           <code>kiss-signer-&lt;version&gt;-offline.zip</code>, that same firmware
           with an install page and this guide, for flashing with no network at
@@ -417,10 +419,9 @@ sha256sum --ignore-missing -c SHA256SUMS         # Linux</code></pre>
           old one back by itself.
         </p>
         <p class="power-note">
-          This route keeps your keys and settings. The browser install on the
-          front page erases the whole chip, which is why it is the one to use
-          for a new device or a very old one, and this is the one to use for
-          everything else.
+          This route keeps your keys and settings. The browser install erases
+          the whole chip, so use that one for a new device or a very old one,
+          and this one for everything else.
         </p>
       </section>
 <section class="doc-card reveal" id="esptool" aria-label="Flash from the command line">
@@ -434,8 +435,8 @@ sha256sum --ignore-missing -c SHA256SUMS         # Linux</code></pre>
         </p>
         <p>
           One tool to install, one command to run. It works on macOS and Linux
-          as written; on Windows use WSL or Git Bash, or retype the last command
-          on a single line without the <code>\</code> marks at the ends.
+          as written. On Windows use WSL or Git Bash, or retype the last command
+          on one line without the <code>\</code> marks at the ends.
         </p>
 <pre><code>pip install esptool        # or: pipx install esptool
 
@@ -492,8 +493,8 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
 
         <h3>Start the page</h3>
         <p>
-          The install page has to be served rather than opened as a file, so a
-          small program in the folder shows it to your own computer only:
+          The install page has to be served, not opened as a file. A small
+          program in the folder does that, and shows it to your computer only:
           double click <code>serve.command</code> on macOS,
           <code>serve.bat</code> on Windows, or run <code>./serve.sh</code> on
           Linux. It prints an address beginning
@@ -530,8 +531,8 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           <em>nothing</em> can read it back &mdash; not your computer, not us,
           not you. Everything saved after that is scrambled with it, so someone
           who pries the memory open reads noise. Your seed words are kept in
-          their own store on the chip, which the scrambling does not cover on
-          its own, so it gets its own lock at the same time.
+          their own store on the chip, which the scrambling does not cover.
+          That store gets its own lock at the same time.
         </p>
 
         <h3>Lock two: the device stops running strangers&rsquo; software</h3>
@@ -585,12 +586,17 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         <p class="eyebrow">09 / hand it to anyone</p>
         <h2>Getting in the first time</h2>
         <p>
-          Three rules before the steps, because the device will not stop to say
-          them: <strong>every passphrase opens keys</strong>, so there is no
-          "wrong passphrase" error and never will be;
-          <strong>the fingerprint</strong> on the home screen is how you tell
-          which keys you opened; and <strong>this signer is never online</strong>,
-          so your coordinator does all the talking to the network.
+          Three rules first. The device will not stop to say them.
+        </p>
+        <ul>
+          <li><strong>Every passphrase opens keys.</strong> There is no "wrong
+          passphrase" error, and there never will be.</li>
+          <li><strong>The fingerprint tells you which keys you opened.</strong>
+          It is on the home screen.</li>
+          <li><strong>This signer is never online.</strong> Your coordinator
+          does all the talking to the network.</li>
+        </ul>
+        <p>
         </p>
         <ol>
           <li>
@@ -688,9 +694,9 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         <ul>
           <li><strong>High fee.</strong> The fee turns amber if it is a big
             share of what you send (the rule Krux uses) or an outsized sat/vB rate.</li>
-          <li><strong>Dust and privacy.</strong> Spending a tiny coin or
-            leaving tiny change is flagged, because both can be used to link and
-            track your addresses; change below the network dust limit is flagged
+          <li><strong>Dust and privacy.</strong> Spending a tiny coin, or
+            leaving tiny change, is flagged. Both can be used to link and track
+            your addresses. Change below the network dust limit is flagged
             louder.</li>
         </ul>
         <p>
@@ -766,7 +772,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         <h3>AMNESIC</h3>
         <p>
           Nothing is written anywhere. The seed words are held in RAM for the
-          session and are gone on lock or power off, so you load them again every time, by
+          session and are gone on lock or power off. You load them again every time, by
           typing them or by opening an encrypted backup. A device taken while
           locked holds nothing to find. This is the mode to use for anything
           that matters on beta firmware.
