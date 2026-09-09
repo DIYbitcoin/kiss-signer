@@ -105,6 +105,7 @@ jobs:
         if: always()
         run: |
           python3 tools/check_sig_scheme.py --selftest
+          python3 tools/check_efuse_fresh.py --selftest
 
       # preflight.sh claims to be this whole lane in one command, and that
       # claim is the only reason a green preflight means anything. It was
