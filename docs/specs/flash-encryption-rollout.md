@@ -152,6 +152,29 @@ assertions now say each of these out loud.
   (`esp_ota_revoke_secure_boot_public_key`). Three is what the chip holds and
   it is the whole rotation budget for the life of the board. The recipe
   asserts three RSA blocks on the bootloader and the slot option off.
+- **Two lanes, because the burn and an update need different keys.** The
+  recipe used to demand the whole root on every run, including a routine
+  release that only re-signs the app. That put the two spares on the build
+  machine every time, and the spares are the only thing that recovers a fleet
+  whose everyday key leaked: a rotation is an update signed with the next key.
+  A backup kept on the machine it is meant to survive is not a backup.
+
+  So `KISS_ENC_UPDATE=1` builds the app alone, with the key named by
+  `KISS_SB_KEY_INDEX`, and keys 1 and 2 stay offline. That lane signs no
+  bootloader, prints no flash or eFuse recipe, and deletes the unsigned
+  bootloader from its build directory. The deletion is the point, not
+  tidiness: a bootloader signed with one key burns one digest, revokes the
+  other two slots on the same first boot, and leaves a board that can never
+  rotate again — the exact failure the three-key root exists to prevent, now
+  reachable from a lane that holds one key. The build asserts the file is
+  gone.
+
+  The index only means something if the slot order is fixed, and nothing
+  recorded it: three key files on one disk, where a restore or a rename could
+  quietly change which key the fleet calls key 1 with no check noticing. The
+  burn now writes the order down once, as fingerprints of the public halves,
+  and both lanes refuse to sign as key *N* with a key that record does not
+  call key *N*.
 - **ROM download mode: the secure subset, confirmed.** Enough for a stranger
   to erase a board and prove it erased, never to read or reprogram it. Was an
   inherited default; the build script now forces it so no IDF default can
@@ -194,6 +217,12 @@ cycle, a sealed card opens, a wipe works, the builder's own next release
 installs from a card while the beta's signed image and an unsigned one are
 refused, a power cut mid-update rolls back, and a deliberate attempt to
 reflash it over the cable fails the way the header promises.
+
+That installed release must be one the UPDATE lane built: signed with key 0
+alone, with no bootloader beside it. It is the artifact every release after
+the burn will be, and the burn lane's output is not a substitute for it in
+this test. Nothing on a desktop can answer whether a board whose bootloader
+carries three keys accepts an app carrying one.
 
 ## Stage 4, what ships, and when
 

@@ -340,6 +340,31 @@ recipe, and nothing signed with the key above installs on it. The recipe reads
 every signature block back against the config it built, so a bootloader that
 carries the wrong scheme or fewer than three blocks never reaches a board.
 
+### Where the two spares live, and the lane that lets them
+
+The whole root is needed exactly once per board, at the burn. After that the
+bootloader can never be replaced, and an update is the app alone, carrying one
+key. So the recipe has two lanes:
+
+```sh
+bash tools/build_encrypted_release.sh                  # the burn: all three
+KISS_ENC_UPDATE=1 bash tools/build_encrypted_release.sh  # updates: one key
+```
+
+The update lane reads the key at `KISS_SB_KEY_INDEX` (0 unless a rotation has
+happened) and nothing else. It signs no bootloader, prints no eFuse recipe,
+and deletes the unsigned bootloader from its build directory, so its output
+cannot be mistaken for something to burn a board with. Keep keys 1 and 2
+somewhere the everyday machine cannot reach: they exist to recover a fleet
+whose key 0 leaked, and a spare stored beside the key it replaces is not a
+spare. The lane says so out loud when it finds them present.
+
+Slot numbers are what a rotation revokes, and they were fixed forever by the
+order the bootloader was signed in. The burn records that order once, as
+fingerprints of the three public halves, in `~/.kiss-signer/sb/root.txt`. It
+holds nothing secret: copy it to wherever updates are signed, and both lanes
+refuse to sign as key *N* with a key that record does not call key *N*.
+
 ## What this does and doesn't prove
 
 - **Does:** the binary is exactly what the key holder built, and from which

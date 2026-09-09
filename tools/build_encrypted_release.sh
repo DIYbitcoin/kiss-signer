@@ -20,6 +20,23 @@
 #   build never gets pointed at the rehearsal board at all - the burn goes to
 #   a fresh dedicated board, and the rehearsal board stays what it is.
 #
+# UPDATE BUILD:  KISS_ENC_UPDATE=1 tools/build_encrypted_release.sh
+#   -> build-encrypted-update/, the app alone, for boards already burned.
+#
+#   The release recipe has two lanes because they need different keys. The
+#   burn signs the bootloader with all three keys of the root, and needs all
+#   three on the machine. Every release afterwards only re-signs the APP,
+#   which carries one key, and this lane asks for that one alone: it does not
+#   sign a bootloader, does not print a flash or eFuse recipe, and deletes the
+#   unsigned bootloader the build produced so nothing can be burned with it.
+#
+#   Until it existed, a routine update dragged the whole root onto the build
+#   machine, which is the machine most likely to be compromised. The two
+#   spares are the only thing that recovers a fleet whose everyday key leaked,
+#   so they are worth nothing if they sit beside it. KISS_SB_KEY_INDEX picks
+#   which key signs, so a rotation -- an update signed with key 1 that revokes
+#   key 0 -- is something this recipe can actually perform.
+#
 # This is the step-8 hardening build: the release profile (KISS_RELEASE=1, dev
 # seed compiled OUT) PLUS:
 #   * flash encryption, RELEASE mode  - first boot burns the key into eFuse
@@ -65,8 +82,36 @@ else
     RECIPE=release;   BUILD_DIR=build-encrypted-release
     SDKCFG=sdkconfig.encrypted
 fi
-export RECIPE BUILD_DIR SDKCFG
-echo "recipe: $RECIPE -> $BUILD_DIR"
+
+# Two lanes on the release recipe, because they need different keys.
+#
+# PROVISION is the burn: it signs the bootloader with all three keys of the
+# root, so first boot burns three digests, and it prints the eFuse recipe. It
+# happens once per board and it needs the whole root on the machine.
+#
+# UPDATE is every day after that: the board's trust is already burned, the
+# bootloader can never be replaced, and an SD update is judged against those
+# digests. All it needs is the one key the app carries. So this lane asks for
+# that key alone, signs nothing but the app, and refuses to produce a
+# bootloader or a burn recipe at all.
+#
+# The two spares are the only escape hatch if the everyday key leaks: a
+# rotation is an update signed with the next key that revokes the one before
+# it. An escape hatch that sits on the same disk as the key it replaces is not
+# one, and until this split existed every routine build asked for all three.
+if [ -n "${KISS_ENC_UPDATE:-}" ]; then
+    if [ "$RECIPE" = rehearsal ]; then
+        echo "FAIL: KISS_ENC_UPDATE is a release-recipe lane. The rehearsal"
+        echo "      board has no secure boot and no root to rotate: its"
+        echo "      updates are judged by the running app's own OTA block."
+        exit 1
+    fi
+    LANE=update; BUILD_DIR=build-encrypted-update
+else
+    LANE=provision
+fi
+export RECIPE LANE BUILD_DIR SDKCFG
+echo "recipe: $RECIPE ($LANE) -> $BUILD_DIR"
 
 # The anti rollback counter, as a release INPUT rather than a literal in this
 # file. It was pinned at 0, so no release could ever advance it: the machinery
@@ -376,6 +421,30 @@ if [ -n "${KISS_SB_RSA_KEY:-}" ]; then
   echo "        $KISS_SB_KEYS"
   exit 1
 fi
+# Which key of the root signs the app. Zero on a burn, and zero on every
+# update until the day key 0 is retired: a rotation is an update signed with
+# key 1 that revokes key 0, and after it every later update is signed with key
+# 1. So the index is an input rather than a literal, or the rotation this root
+# was shaped for could be described and never performed.
+#
+# It is not a free choice on a burn. The app a board is born with has to be
+# signed with the key the fleet calls key 0, because a rotation revokes by slot
+# and the slots come from the order the bootloader was signed in.
+KISS_SB_KEY_INDEX="${KISS_SB_KEY_INDEX:-0}"
+case "$KISS_SB_KEY_INDEX" in
+  0|1|2) ;;
+  *) echo "FAIL: KISS_SB_KEY_INDEX is '$KISS_SB_KEY_INDEX'; the chip holds"
+     echo "      three keys, so it is 0, 1 or 2."
+     exit 1 ;;
+esac
+if [ "$LANE" = provision ] && [ "$KISS_SB_KEY_INDEX" != 0 ]; then
+  echo "FAIL: a burn signs the app with key 0, not key $KISS_SB_KEY_INDEX. Every"
+  echo "      board of this root numbers its slots by the order the bootloader"
+  echo "      was signed in, and a rotation revokes a slot by number. A board"
+  echo "      born on key $KISS_SB_KEY_INDEX would spend the key that is meant to save it."
+  exit 1
+fi
+
 SB_KEYS=()
 if [ "$RECIPE" = release ]; then
   read -r -a SB_KEYS <<< "$KISS_SB_KEYS"
@@ -385,8 +454,42 @@ if [ "$RECIPE" = release ]; then
   done
   if [ "${#SB_KEYS[@]}" -ne 3 ]; then
     echo "FAIL: KISS_SB_KEYS names ${#SB_KEYS[@]} key(s); a root is three."
+    echo "      All three are named even on the update lane, which needs only"
+    echo "      one of them present: the names are what fix the slot order."
     exit 1
-  elif [ "$SB_PRESENT" -eq 0 ]; then
+  fi
+  SB_ACTIVE="${SB_KEYS[$KISS_SB_KEY_INDEX]}"
+fi
+
+# The update lane: one key, and the absence of the other two is the point.
+if [ "$LANE" = update ]; then
+  if [ ! -f "$SB_ACTIVE" ] && [ "$SB_PRESENT" -eq 0 ]; then
+    KISS_UNSIGNED=1
+    echo
+    echo "NOTE: no secure boot key here, so this build is UNSIGNED."
+    echo "      Reproducibility only: no board will install it."
+  elif [ ! -f "$SB_ACTIVE" ]; then
+    echo "FAIL: the update key for index $KISS_SB_KEY_INDEX is not on this machine:"
+    echo "        $SB_ACTIVE"
+    echo "      Other keys of the root are here, but signing with one of those"
+    echo "      is a rotation, not an update, and it is not what was asked for."
+    echo "      Set KISS_SB_KEY_INDEX to the key this fleet is running on."
+    exit 1
+  fi
+  SB_SPARES=0
+  for i in 0 1 2; do
+    [ "$i" = "$KISS_SB_KEY_INDEX" ] && continue
+    [ -f "${SB_KEYS[$i]}" ] && SB_SPARES=$((SB_SPARES + 1))
+  done
+  if [ "$SB_SPARES" -gt 0 ]; then
+    echo
+    echo "NOTE: $SB_SPARES spare key(s) of the root are also on this machine."
+    echo "      This lane does not read them, and the reason it exists is that"
+    echo "      they should not be here: they are what recovers the fleet if"
+    echo "      the everyday key walks off it. Move them offline."
+  fi
+elif [ "$RECIPE" = release ]; then
+  if [ "$SB_PRESENT" -eq 0 ]; then
     KISS_UNSIGNED=1
     echo
     echo "NOTE: no secure boot root, so this build is UNSIGNED."
@@ -406,6 +509,9 @@ if [ "$RECIPE" = release ]; then
     echo "FAIL: a partial root, $SB_PRESENT of 3 keys present. A board burned"
     echo "      with fewer than three digests can never rotate. Missing:"
     for k in "${SB_KEYS[@]}"; do [ -f "$k" ] || echo "        $k"; done
+    echo "      If the spares are offline on purpose, this is the wrong lane:"
+    echo "      a burn needs the whole root, an update needs one key."
+    echo "        KISS_ENC_UPDATE=1 bash tools/build_encrypted_release.sh"
     exit 1
   fi
 fi
@@ -436,6 +542,9 @@ docker run --rm \
 if [ -n "${KISS_UNSIGNED:-}" ]; then
   # Through the helper, for the reason it gives; see tools/idf_image.sh.
   kiss_mark_unsigned "$BUILD_DIR"
+  # Here as well as on the signed path, so the update lane's promise holds
+  # whatever happened above: that directory never contains a bootloader.
+  if [ "$LANE" = update ]; then kiss_drop_update_bootloader "$BUILD_DIR"; fi
   echo
   echo "UNSIGNED build (KISS_UNSIGNED=1): reproducibility only."
   echo "      No signature block, so this image must never be flashed to a board"
@@ -462,16 +571,87 @@ trap 'rm -rf "$SIGTMP"' EXIT
 # A marker from an earlier unsigned run must not outlive the signed image.
 rm -f "$BUILD_DIR/UNSIGNED" 2>/dev/null || true
 if [ "$RECIPE" = release ]; then
-  APP_SIGN_KEY=(--keyfile "${SB_KEYS[0]}")
-  APP_KEY_DESC="${SB_KEYS[0]} (secure boot key 0 of 3)"
+  APP_SIGN_KEY=(--keyfile "$SB_ACTIVE")
+  APP_KEY_DESC="$SB_ACTIVE (secure boot key $KISS_SB_KEY_INDEX of 3)"
   EXPECT_SCHEME=rsa
-  for i in 0 1 2; do
+  # The provision lane holds the whole root and extracts all three public
+  # halves; the update lane holds one key on purpose and extracts only that
+  # one. Asking for the others here is what used to drag the spares onto the
+  # build machine on every routine release.
+  if [ "$LANE" = provision ]; then
+    for i in 0 1 2; do
+      "${ESPSECURE[@]}" extract-public-key --version 2 \
+        --keyfile "${SB_KEYS[$i]}" "$SIGTMP/sb_pub$i.pem" >/dev/null
+    done
+  else
     "${ESPSECURE[@]}" extract-public-key --version 2 \
-      --keyfile "${SB_KEYS[$i]}" "$SIGTMP/sb_pub$i.pem" >/dev/null
-  done
+      --keyfile "$SB_ACTIVE" "$SIGTMP/sb_pub$KISS_SB_KEY_INDEX.pem" >/dev/null
+  fi
   # The public halves, beside the image. Nothing on the device needs them;
   # they say which key is which when key 0 is rotated out years from now.
   cp "$SIGTMP"/sb_pub?.pem "$BUILD_DIR"/
+
+  # ---- the root's fixed identities, in slot order ----
+  #
+  # A rotation revokes a slot by NUMBER, and the numbers were fixed forever the
+  # moment a board's first boot burned the bootloader's signature sector in the
+  # order it was signed in. Nothing in this recipe used to record that order:
+  # the keys were three paths on one disk, and a renamed, restored or
+  # regenerated file could quietly change which key the fleet calls key 1
+  # without a single check noticing.
+  #
+  # So the order is written down once, as fingerprints of the public halves,
+  # beside the root. The provision lane refuses to burn a root that disagrees
+  # with a recorded one; the update lane refuses to sign as key N with a key
+  # the record does not call key N. That is the whole guard: a fingerprint file
+  # is not a secret and does not need to travel with the private keys.
+  SB_ROOT_MANIFEST="${KISS_SB_ROOT_MANIFEST:-$KISS_SB_DIR/root.txt}"
+  SB_FP=$(SIGTMP="$SIGTMP" LANE="$LANE" IDX="$KISS_SB_KEY_INDEX" python3 - <<'PY'
+import hashlib, os
+sig, lane, idx = os.environ["SIGTMP"], os.environ["LANE"], os.environ["IDX"]
+want = [0, 1, 2] if lane == "provision" else [int(idx)]
+for i in want:
+    d = hashlib.sha256(open(f"{sig}/sb_pub{i}.pem", "rb").read()).hexdigest()
+    print(f"{i} {d}")
+PY
+)
+  if [ -f "$SB_ROOT_MANIFEST" ]; then
+    while read -r idx fp; do
+      case "$idx" in ''|'#'*) continue ;; esac
+      rec=$(awk -v i="$idx" '$1 == i { print $2 }' "$SB_ROOT_MANIFEST")
+      if [ -z "$rec" ]; then
+        echo "FAIL: $SB_ROOT_MANIFEST records no key for slot $idx. The record"
+        echo "      is what makes a slot number mean anything; a partial one"
+        echo "      cannot be trusted to say which key is which."
+        exit 1
+      elif [ "$rec" != "$fp" ]; then
+        echo "FAIL: the key at slot $idx is not the key this root recorded."
+        echo "        recorded: $rec"
+        echo "        this key: $fp"
+        echo "      Either the key files moved around or this is a different"
+        echo "      root. A rotation revokes a slot by number, so signing as"
+        echo "      the wrong number spends the wrong key. Sort out custody"
+        echo "      before building; the record is at $SB_ROOT_MANIFEST."
+        echo "      A genuinely NEW root belongs in a directory of its own:"
+        echo "      point KISS_SB_DIR at it rather than editing this record,"
+        echo "      which the boards of the old root still answer to."
+        exit 1
+      fi
+    done <<< "$SB_FP"
+    echo "PASS: key $KISS_SB_KEY_INDEX is the key $SB_ROOT_MANIFEST calls key $KISS_SB_KEY_INDEX"
+  elif [ "$LANE" = provision ]; then
+    { echo "# kiss-signer secure boot root: sha256 of each public half, by"
+      echo "# slot. Written at the first burn and never edited afterwards."
+      echo "# Not a secret. Keep a copy wherever the update key is used."
+      printf '%s\n' "$SB_FP"
+    } > "$SB_ROOT_MANIFEST"
+    echo "wrote $SB_ROOT_MANIFEST (slot order of this root, recorded once)"
+  else
+    echo
+    echo "NOTE: no root record at $SB_ROOT_MANIFEST, so nothing here can check"
+    echo "      that this key really is key $KISS_SB_KEY_INDEX of the root the boards burned."
+    echo "      Copy it from the machine that ran the burn. It is not a secret."
+  fi
 else
   APP_SIGN_KEY=("${OTA_SIGN_KEY[@]}")
   APP_KEY_DESC="$OTA_KEY_DESC"
@@ -500,13 +680,13 @@ python3 tools/check_sig_scheme.py "$BUILD_DIR/guition_kiss_bringup.bin" \
 
 if [ "$RECIPE" = release ]; then
   if ! "${ESPSECURE[@]}" verify-signature \
-       --version 2 --keyfile "$SIGTMP/sb_pub0.pem" \
+       --version 2 --keyfile "$SIGTMP/sb_pub$KISS_SB_KEY_INDEX.pem" \
        "$BUILD_DIR/guition_kiss_bringup.bin" >/dev/null 2>&1; then
     echo "FAIL: $BUILD_DIR/guition_kiss_bringup.bin does not verify against"
-    echo "      secure boot key 0"
+    echo "      secure boot key $KISS_SB_KEY_INDEX"
     exit 1
   fi
-  echo "PASS: signed app verifies against secure boot key 0"
+  echo "PASS: signed app verifies against secure boot key $KISS_SB_KEY_INDEX"
 else
 
 # The public half in the repo has to be the half that just signed, or a
@@ -589,7 +769,15 @@ echo "PASS: signed app carries a post quantum signature that verifies"
 #
 # Signed in place, before the flash recipe below reads flasher_args.json, so
 # the offsets and the hashes describe the bytes that actually get flashed.
-if [ "$RECIPE" = release ]; then
+#
+# The provision lane only. An update lane that signed a bootloader would be
+# holding the one artifact this split exists to keep out of the everyday
+# environment, and a bootloader signed with the ONE key it has is worse than
+# no bootloader: burn a fresh board with it and first boot burns that single
+# digest, revokes the other two slots, and produces a board that can never be
+# rotated for the rest of its life. So the update lane does not sign it, and
+# does not leave it lying in the build directory to be flashed by hand either.
+if [ "$RECIPE" = release ] && [ "$LANE" = provision ]; then
   python3 tools/check_sig_scheme.py "$BUILD_DIR/bootloader/bootloader.bin" \
     --unsigned
   echo "signing bootloader with all three secure boot keys"
@@ -625,6 +813,8 @@ if [ "$RECIPE" = release ]; then
     exit 1
   fi
   echo "PASS: signed bootloader verifies against all three keys ($BL_SIZE bytes)"
+elif [ "$LANE" = update ]; then
+  kiss_drop_update_bootloader "$BUILD_DIR"
 fi
 fi
 
@@ -754,6 +944,18 @@ checks += [
      "flash recipe carries the table, otadata and the app"),
 ]
 
+# ...and on the update lane, that the bootloader the recipe describes is not
+# actually sitting there. The list above is read out of the build config and
+# still names all four files, which is right: it is the same board and the
+# same layout. What must not exist is the FILE, because the only bootloader
+# this lane could produce is one that would burn a fresh board into a state
+# with no rotation left. The check is on the bytes, not on the intention.
+if os.environ.get("LANE") == "update":
+    checks += [
+        (not os.path.exists(f"{bdir}/bootloader/bootloader.bin"),
+         "no bootloader binary in an update build (nothing here can sign one)"),
+    ]
+
 # no-wireless gate: the board's C6 radio chip is held in reset and nothing
 # may talk to it, so the ELF must link ZERO objects from any radio/network
 # library (linker map = what the binary actually contains).
@@ -788,6 +990,66 @@ python3 tools/check_rng_provenance.py "$BUILD_DIR/guition_kiss_bringup.map"
 # headroom to react, not on the flash step (set -e stops on a FAIL)
 python3 tools/check_flash_budget.py \
   "$BUILD_DIR/guition_kiss_bringup.bin" partitions_encrypted.csv
+
+# ---- the update lane stops here: one file, no flash recipe, no fuses ----
+#
+# Everything below this point describes erasing a board, writing four files to
+# it over a cable and burning eFuses that never come back. None of it applies
+# to an update: the board it is for burned its fuses long ago and refuses the
+# cable outright. Printing a burn recipe beside an image that cannot be burned
+# with is how the wrong one gets followed at two in the morning, so the lane
+# that cannot burn does not print one.
+if [ "$LANE" = update ]; then
+  kiss_drop_update_bootloader "$BUILD_DIR"
+  UPDATE_APP="$BUILD_DIR/guition_kiss_bringup.bin"
+  UPDATE_SHA=$(python3 -c 'import hashlib,sys
+print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$UPDATE_APP")
+  if [ -n "${KISS_UNSIGNED:-}" ]; then
+    echo
+    echo "unsigned UPDATE build: hash comparison only, and no board will take it."
+    echo "  $UPDATE_SHA  $(basename "$UPDATE_APP")"
+    exit 0
+  fi
+  cat <<EOF
+
+encrypted UPDATE build OK: $BUILD_DIR/
+
+################################################################################
+#  ONE FILE, FOR BOARDS THIS ROOT ALREADY BURNED
+#
+#  * Signed with secure boot key $KISS_SB_KEY_INDEX and with the post quantum release key.
+#    Nothing else on this machine was needed, and the other two keys of the
+#    root were not read: that is the point of this lane.
+#  * There is no bootloader and no eFuse recipe here. A burned board never
+#    replaces its bootloader, and this machine could not sign one that was
+#    safe to burn even if it tried.
+#  * To bring up a NEW board you need the whole root and the other lane:
+#      bash tools/build_encrypted_release.sh
+################################################################################
+
+1. copy the image to a FAT card. The name does not matter: the device reads
+   the version out of every image it finds and offers the newest.
+     $UPDATE_APP
+
+   sha256 of the file, so you can prove the card got the same bytes:
+     $UPDATE_SHA
+
+   It will NOT match the hash CI publishes, and nothing is wrong when it does
+   not: CI hashes an UNSIGNED build, and RSA signing puts fresh random bytes
+   in the file every run, so no two signed builds of one commit hash alike.
+   The reproducible comparison is its own build, from the same commit:
+     KISS_UNSIGNED=1 KISS_ENC_UPDATE=1 bash tools/build_encrypted_release.sh
+
+2. take the update from the device's own firmware update screen, then let it
+   boot and prove itself. The new image only becomes permanent after the
+   signer has signed with it once; a board that cannot boot the update rolls
+   back to the slot it came from.
+
+3. only boards burned with THIS root will take it. The beta's published image
+   and anything signed with another key are refused, on the eFuse digests.
+EOF
+  exit 0
+fi
 
 # hashed here, printed inside the flash recipes below: the flash is one way,
 # so the compare against the reproducible build CI output has to happen with
