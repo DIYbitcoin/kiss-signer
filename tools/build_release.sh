@@ -169,6 +169,17 @@ KISS_OTA_KEY="${KISS_OTA_KEY:-$HOME/.kiss-signer/kiss_ota.pem}"
 # unable to sign firmware quietly.
 KISS_OTA_HSM_CONFIG="${KISS_OTA_HSM_CONFIG:-$HOME/.kiss-signer/hsm.ini}"
 if [ -f "$KISS_OTA_HSM_CONFIG" ]; then
+  # gpg's card daemon and this signature want the same YubiKey, and gpg wins:
+  # scdaemon claims the card and keeps it, so PKCS#11 is then shown a reader
+  # with no token in it. espsecure does not check for that -- it loops over an
+  # empty slot list and dies on an unbound variable, five frames deep, saying
+  # nothing about a card. Every release after the first therefore failed here,
+  # because the first one's GPG signature over SHA256SUMS started the daemon
+  # and it never let go.
+  #
+  # Ask the daemon to let go. gpg restarts it by itself when it next needs the
+  # card, so nothing downstream notices.
+  gpgconf --kill scdaemon >/dev/null 2>&1 || true
   # python-pkcs11 is what espsecure imports for --hsm. It rides on the pinned
   # esptool rather than being installed anywhere.
   ESPSECURE=(uvx --from "$ESPTOOL_PIN" --with python-pkcs11 espsecure)
