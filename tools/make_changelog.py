@@ -55,15 +55,23 @@ GROUPS = [
                any(s in p for s in ("kiss_crypto", "kiss_seed", "kiss_fw",
                                     "kiss_duress", "kiss_kef", "pq_",
                                     "libwally", "secp256k1"))),
-    ("screens", "🎨", "Screens",
-     lambda p: p.startswith("main/") and p.endswith((".c", ".h"))),
-    ("words", "📝", "Words on screen",
-     lambda p: p == "i18n/en.json"),
-    ("builders", "🧰", "For builders",
-     lambda p: p.startswith(("tools/", "sim/", ".github/"))),
-    ("docs", "📚", "Docs",
-     lambda p: p.startswith(("docs/", "dev/")) or p.endswith(".md")),
+    ("screens", "💫", "Improvements",
+     lambda p: (p.startswith("main/") and p.endswith((".c", ".h")))
+               or p == "i18n/en.json"),
+    ("builders", "🧰", "Under the hood",
+     lambda p: p.startswith(("tools/", "sim/", ".github/", "docs/", "dev/"))
+               or p.endswith(".md")),
 ]
+
+# The two headings a file path cannot tell apart, and every comparable
+# project prints: Sparrow lists every change as one flat set of sentences,
+# Wasabi leads with highlights. Both let a reader find "was my bug fixed".
+# Which side a change falls on is a judgement about what it MEANT, not about
+# which file moved, so the draft asks for it and check() refuses an entry
+# that never answered.
+SORT = ("SORT: split anything that fixes a defect under '### \U0001f41b Bug "
+        "fixes', and anything genuinely new under '### \u2728 New features'. "
+        "Delete this line when done.")
 
 
 def sh(*args: str) -> str:
@@ -152,6 +160,7 @@ def draft() -> str:
         out += [f"- {s}" for s in buckets[key]]
         out.append("")
 
+    out += [SORT, ""]
     out += [f"Since {since}." if since else "First release.", ""]
     return "\n".join(out)
 
@@ -170,6 +179,11 @@ def check() -> int:
         print("  A generated list of commit subjects is not what a release")
         print("  means. Write the one line, then rerun.")
         return 1
+    if SORT.split(":")[0] + ":" in body:
+        print(f"the {VERSION} entry still carries the sorting line.")
+        print("  Split the fixes from the new features, the way every other")
+        print("  wallet's notes do, then delete the line and rerun.")
+        return 1
     if len(body) < 80:
         print(f"the {VERSION} entry is {len(body)} characters, which is not an entry.")
         return 1
@@ -185,13 +199,14 @@ def selftest() -> int:
          classify(["main/kiss_settings.c"]), "screens"),
         ("crypto wins over the screen it also touched",
          classify(["main/kiss_settings.c", "main/kiss_crypto.c"]), "security"),
-        ("english strings alone are words",
-         classify(["i18n/en.json"]), "words"),
+        ("english strings land with the screens they change",
+         classify(["i18n/en.json"]), "screens"),
         ("a screen carrying a string is a screen change",
          classify(["main/kiss_fw_ui.c", "i18n/en.json"]), "screens"),
         ("a workflow is for builders",
          classify([".github/workflows/ci.yml"]), "builders"),
-        ("a spec is docs", classify(["docs/specs/kef-backup.md"]), "docs"),
+        ("a spec is under the hood",
+         classify(["docs/specs/kef-backup.md"]), "builders"),
         ("nothing recognised still lands somewhere",
          classify(["VERSION"]), "builders"),
     ]
