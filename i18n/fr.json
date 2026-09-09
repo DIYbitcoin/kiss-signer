@@ -142,6 +142,7 @@
   "G_HIST_OFF_BTN": "ARRÊT",
   "G_HIST_ON_BTN": "MARCHE",
   "G_HOLD_WIPE": "GLISSER: EFFACER",
+  "G_HOLD_WIPE_BACK": "NOW SLIDE BACK",
   "G_MAINNET_NOTE": "du vrai bitcoin",
   "G_NOERASE_B": "vos mots seed sont peut-être ENCORE ici.\n\nne le vendez pas, ne le donnez pas.\nréessayez l'effacement.",
   "G_NOERASE_NEXT": "Pas effacé. Réessayez.",

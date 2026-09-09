@@ -142,6 +142,7 @@
   "G_HIST_OFF_BTN": "关",
   "G_HIST_ON_BTN": "开",
   "G_HOLD_WIPE": "滑动来删除",
+  "G_HOLD_WIPE_BACK": "NOW SLIDE BACK",
   "G_MAINNET_NOTE": "真正的比特币",
   "G_NOERASE_B": "助记词可能还留在本机上。\n\n不要卖掉，也不要送人。\n再试一次删除。",
   "G_NOERASE_NEXT": "没有擦除。请再试一次。",

@@ -1478,14 +1478,19 @@ static void erase_screen(void)
     // resting thumb could not do. Two opposite strokes cannot happen by
     // accident and cost a deliberate owner about a second.
     //
-    // ONCE MORE is the word between the legs, and it already ships in 21
-    // locales as the unlock stroke's own "draw it again" title -- the same
-    // sentence to the same person.
+    // The word between the legs NAMES THE DIRECTION. It used to be ONCE MORE,
+    // borrowed from the unlock stroke's "draw it again" title because that one
+    // already shipped in 21 locales -- but there the repeat is the same stroke,
+    // and here it is the opposite one. Read against a knob parked at the far
+    // end, "once more" says do that again and the control looks like it has
+    // already been done, so the gate reads as broken at the exact moment it is
+    // asking for the half that makes it deliberate. The owner of this device
+    // hit that on the bench.
     const lv_color_t wipe_ink = WT_STOP_INK, wipe_fill = WT_STOP;
     wt_slide_t wipe = {
         .txt   = tr(STR_G_HOLD_WIPE),
         .held  = tr(STR_G_FW_KEEP_HOLDING),
-        .again = tr(STR_GD_DRAW_AGAIN_T),
+        .again = tr(STR_G_HOLD_WIPE_BACK),
         .x = WT_ACT_X, .y = WT_ACTION_Y_SLIDE, .w = 330,
         .ink = &wipe_ink, .fill = &wipe_fill,
         .done = do_wipe,

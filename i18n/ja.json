@@ -142,6 +142,7 @@
   "G_HIST_OFF_BTN": "オフ",
   "G_HIST_ON_BTN": "オン",
   "G_HOLD_WIPE": "長押しで消去",
+  "G_HOLD_WIPE_BACK": "NOW SLIDE BACK",
   "G_MAINNET_NOTE": "本物のビットコイン",
   "G_NOERASE_B": "シード単語がまだ端末に残っているかもしれません。\n\n売ったり譲ったりしないでください。\nもう一度消去してください。",
   "G_NOERASE_NEXT": "消去できていません。もう一度。",

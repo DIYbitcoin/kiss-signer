@@ -142,6 +142,7 @@
   "G_HIST_OFF_BTN": "DISABLED",
   "G_HIST_ON_BTN": "ENABLED",
   "G_HOLD_WIPE": "SLIDE TO ERASE",
+  "G_HOLD_WIPE_BACK": "NOW SLIDE BACK",
   "G_MAINNET_NOTE": "real bitcoin",
   "G_NOERASE_B": "your seed words may STILL be on this device.\n\ndo not sell or give it away.\ntry the erase again.",
   "G_NOERASE_NEXT": "Not erased. Try again.",

@@ -1464,7 +1464,11 @@ static void hold_snap(wt_hold_t *h)
     lv_anim_set_duration(&a, WT_SLIDE_SNAP_MS);
     lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
     lv_anim_start(&a);
-    if (h->mark) lv_obj_remove_flag(h->mark, LV_OBJ_FLAG_HIDDEN);
+    if (h->mark) {
+        // The LOCK again, over whatever the return leg's arrow left there.
+        lv_label_set_text(h->mark, WT_ICON_LOCK);
+        lv_obj_remove_flag(h->mark, LV_OBJ_FLAG_HIDDEN);
+    }
 }
 
 static void hold_press_cb(lv_event_t *e)
@@ -1541,7 +1545,17 @@ static void hold_press_cb(lv_event_t *e)
             h->at = h->base = 0;
             h->saying_held = false;
             if (h->spent) lv_obj_remove_flag(h->spent, LV_OBJ_FLAG_HIDDEN);
-            if (h->mark)  lv_obj_add_flag(h->mark, LV_OBJ_FLAG_HIDDEN);
+            // The knob POINTS THE WAY BACK instead of going blank. The return
+            // leg is the one moment on this device where a control asks for a
+            // stroke in the opposite direction to the one just made, and the
+            // knob is parked at the far end looking exactly like a finished
+            // slide -- so the owner reads "done, and it is asking anyway".
+            // Emptying the knob at that moment took away the last thing on
+            // screen that could have said which way. The word says it too.
+            if (h->mark) {
+                lv_label_set_text(h->mark, WT_ICON_ARR_L);
+                lv_obj_remove_flag(h->mark, LV_OBJ_FLAG_HIDDEN);
+            }
             hold_rule_say(h, h->again ? h->again : h->txt);
             an_slide(h, 0);
             return;

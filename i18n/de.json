@@ -142,6 +142,7 @@
   "G_HIST_OFF_BTN": "AUS",
   "G_HIST_ON_BTN": "AN",
   "G_HOLD_WIPE": "SCHIEBEN: LÖSCHEN",
+  "G_HOLD_WIPE_BACK": "NOW SLIDE BACK",
   "G_MAINNET_NOTE": "echtes Bitcoin",
   "G_NOERASE_B": "deine Seed-Wörter sind vielleicht NOCH hier.\n\nnicht verkaufen, nicht weggeben.\nlöschen erneut versuchen.",
   "G_NOERASE_NEXT": "Nicht gelöscht. Erneut versuchen.",

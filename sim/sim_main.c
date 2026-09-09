@@ -6288,10 +6288,10 @@ int main(void) {
   // returns to the gate for the retry the headline names.
   s_sim_wipe_fail = 1;
   // OUT and BACK. The erase gate takes double travel in place of the 2000ms
-  // hold it used to take, so one full stroke arrives at ONCE MORE and commits
-  // nothing.
+  // hold it used to take, so one full stroke arrives at the return leg's word
+  // and commits nothing.
   slide_at(208, 430, 340); release(); pump(8);
-  must_show("erase/once more", tr(STR_GD_DRAW_AGAIN_T));
+  must_show("erase/slide back", tr(STR_G_HOLD_WIPE_BACK));
   save("/tmp/sim_wipe_once_more.ppm");              // knob parked, fill spent
   slide_back(348, 430, 340); release(); pump(10);    // the return leg -> refusal
   save("/tmp/sim_wipe_fail.ppm");
@@ -6307,7 +6307,7 @@ int main(void) {
   slide_go(340); release(); pump(8);                // leg one arrives
   // Between the legs, because the two of them are the whole safety mechanism
   // and a frame that only shows the end cannot say which one fired.
-  save("/tmp/sim_wipe_leg1.ppm");                   // ONCE MORE, nothing erased
+  save("/tmp/sim_wipe_leg1.ppm");                   // NOW SLIDE BACK + the left mark
   slide_back(348, 430, 340); release(); pump(6);     // leg two -> erased
   save("/tmp/sim_wiped.ppm");                       // SEED WORDS ERASED + two ways off
   must_show("erased", tr(STR_G_ERASED_T));
