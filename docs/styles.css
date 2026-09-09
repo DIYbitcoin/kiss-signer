@@ -80,11 +80,54 @@
   --line-soft: #1a2130;
   --control: #2a3346;
   --disabled: #4c5666;
+  --key: #10141d;       /* WT_KEY: the menu/tab key surface on the device */
 
-  --max: 900px;
+  /* The device's accent set, straight from ACC_HEX / ACC_BG_HEX in
+     main/kiss_theme.c. MONO is a cool steel, deliberately NOT the ink. The
+     four here are the four on the device, in the device's order. */
+  --accent: #9fb6d4;
+  --accent-bg: #232e42;
+
+  --max: 1180px;
   /* One typeface for the whole site, no sans anywhere. Ioskeley Mono is the
      Berkeley Mono match; IBM Plex Mono covers the gap before the files land. */
   --mono: "Ioskeley Mono", "IBM Plex Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+}
+
+:root[data-accent="green"] {
+  --accent: #35d07f;
+  --accent-bg: #102417;
+}
+
+:root[data-accent="pink"] {
+  --accent: #e85ab8;
+  --accent-bg: #261724;
+}
+
+:root[data-accent="orange"] {
+  --accent: #ff8a3d;
+  --accent-bg: #2b190d;
+}
+
+/* The accent picker, sitting where the device puts its theme tab. */
+.theme-pick {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.theme-pick .swatch {
+  width: 17px;
+  height: 17px;
+  padding: 0;
+  border: 1px solid var(--control);
+  border-radius: 50%;
+  background: var(--sw);
+  cursor: pointer;
+}
+
+.theme-pick .swatch[aria-pressed="true"] {
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 3px var(--sw);
 }
 
 * {
@@ -100,6 +143,10 @@
 
 html {
   scroll-behavior: smooth;
+  /* The whole type scale is in rem, so the root size sets it. 125% = 20px,
+     lifting the nav, the eyebrow labels and the fine print well off the
+     cramped 10-12px they sat at when this keyed off the browser default. */
+  font-size: 125%;
 }
 
 body {
@@ -115,7 +162,7 @@ body {
   background-size: 40px 40px;
   color: var(--ink);
   font-family: var(--mono);
-  font-size: 15.5px;
+  font-size: 1rem;
   line-height: 1.65;
   -webkit-font-smoothing: antialiased;
 }
@@ -136,13 +183,6 @@ a {
 a:hover {
   color: var(--ink);
   border-bottom-color: var(--ink);
-}
-
-/* guide.html: these are pills and a back arrow, not inline links */
-.toc a,
-.back-link {
-  border-bottom: 0;
-  padding-bottom: 0;
 }
 
 .topbar {
@@ -170,20 +210,36 @@ a:hover {
   letter-spacing: 0.18em;
 }
 
+/* The device's menu is a row of key-surface tabs with a 1px edge, so the site
+   header wears the same control rather than a row of bare text links. */
 .topnav {
   display: flex;
-  gap: 22px;
+  gap: 8px;
 }
 
 .topnav a {
-  border-bottom: 0;
-  padding-bottom: 0;
+  border: 1px solid transparent;
+  border-bottom: 1px solid transparent;
+  border-radius: 9px;
+  padding: 7px 14px;
   color: var(--dim);
-  font-size: 0.78rem;
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+  transition: color 170ms ease, border-color 170ms ease, background 170ms ease;
 }
 
 .topnav a:hover {
   color: var(--ink);
+  border-color: var(--line);
+  background: var(--key);
+}
+
+/* The tab you are on, matching the device's selected key, in the accent the
+   device would draw it in. */
+.topnav a[aria-current="page"] {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-bg);
 }
 
 .slab {
@@ -247,7 +303,7 @@ a:hover {
 }
 
 .steps li::before {
-  content: counter(step, decimal-leading-zero);
+  content: counter(step, decimal-leading-zero) ".";
   color: var(--dim);
   font-size: 0.66rem;
   letter-spacing: 0.18em;
@@ -493,7 +549,7 @@ a:hover {
   line-height: 1.35;
   margin: 0;
   color: var(--dim);
-  font-size: 0.66rem;
+  font-size: 0.8rem;
   letter-spacing: 0.13em;
   text-transform: uppercase;
 }
@@ -523,6 +579,363 @@ h2 {
   line-height: 1.25;
   letter-spacing: -0.02em;
   text-wrap: balance;
+}
+
+/* Section titles wear the firmware's brackets: the same framing the device
+   puts around a reticle or a revealed value. */
+.slab h2::before,
+.slab h2::after {
+  color: var(--accent);
+  font-weight: 400;
+}
+
+.slab h2::before { content: "[ "; }
+.slab h2::after { content: " ]"; }
+
+/* The docs intro is prose, not the install page's copy-beside-device split, so
+   it must not inherit .hero's two-column grid: that stranded the title in the
+   right-hand column and set the two ledes side by side. */
+.docs-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Inside the rail's narrower column, four step cards across is unreadable and
+   three feature cards is tight. Both drop to two. */
+.docs-body .steps,
+.docs-body .feats {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 720px) {
+  .docs-body .steps,
+  .docs-body .feats {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- docs: a sticky rail of the device's own tabs ----------
+   Eleven sections in one flat pill row read as a pile. Grouped into four
+   stages and pinned beside the text, they read as a path, and the tab for
+   the section you are in lights up the way the device marks a selected key. */
+.docs-layout {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+}
+
+.docs-rail {
+  position: sticky;
+  top: 74px;
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
+}
+
+.docs-rail nav {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+/* Collapsible, the way Sparrow's docs sidebar groups its sections. <details>
+   rather than a scripted menu: it is keyboard reachable and it still opens
+   with JavaScript off. */
+.rail-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 16px 0 0;
+}
+
+.rail-group:first-of-type {
+  margin-top: 0;
+}
+
+.rail-group > summary {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  list-style: none;
+  padding: 5px 0;
+  color: var(--dim);
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  user-select: none;
+}
+
+.rail-group > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* the brackets ride the label, not the summary: the summary is a flex row now
+   and pseudo-elements on it would become row items of their own. */
+.rail-group > summary span::before {
+  content: "[ ";
+  color: var(--accent);
+}
+
+.rail-group > summary span::after {
+  content: " ]";
+  color: var(--accent);
+}
+
+.rail-ico {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transform-origin: 50% 50%;
+}
+
+.rail-chev {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  margin-left: auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 220ms cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+.rail-group[open] > summary .rail-chev {
+  transform: rotate(180deg);
+}
+
+/* The tap. A spring rather than a fade, so the icon reads as a thing that
+   answered you. */
+@keyframes railPop {
+  0% { transform: scale(1) rotate(0deg); }
+  35% { transform: scale(1.3) rotate(-8deg); }
+  70% { transform: scale(0.94) rotate(3deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+.rail-ico.pop {
+  animation: railPop 440ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rail-ico.pop { animation: none; }
+  .rail-chev { transition: none; }
+}
+
+.rail-group > summary:hover {
+  color: var(--ink);
+}
+
+.rail-group[open] > summary {
+  color: var(--muted);
+}
+
+/* The docs open on the documentation itself, not on a title card: one compact
+   heading and one orienting line, then the first section. */
+.docs-head {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.docs-head h1 {
+  margin: 0;
+  font-size: 1.7rem;
+  line-height: 1.15;
+}
+
+.docs-rail a {
+  display: block;
+  border: 1px solid transparent;
+  border-bottom: 1px solid transparent;
+  border-radius: 8px;
+  padding: 6px 10px;
+  margin-left: 21px;
+  color: var(--dim);
+  font-size: 0.8rem;
+  line-height: 1.3;
+  transition: color 170ms ease, border-color 170ms ease, background 170ms ease;
+}
+
+.docs-rail a:hover {
+  color: var(--ink);
+  border-color: var(--line);
+  background: var(--key);
+}
+
+.docs-rail a[aria-current="true"] {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.docs-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* the card carries its own margin for the old single-column layout */
+.docs-body .doc-card {
+  margin-top: 0;
+  scroll-margin-top: 84px;
+}
+
+@media (max-width: 900px) {
+  .docs-layout {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .docs-rail {
+    position: static;
+    max-height: none;
+  }
+
+  .docs-rail nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .rail-group {
+    width: 100%;
+    margin: 10px 0 2px;
+  }
+}
+
+/* The install page is one screen. Nobody should have to scroll to reach the
+   button that does the thing the page is named after, so the vertical rhythm
+   here is tighter than the documentation pages. */
+.install-shell {
+  padding-top: 18px;
+  padding-bottom: 18px;
+  gap: 14px;
+}
+
+.install-shell .hero {
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 30px;
+}
+
+.install-shell .hero-copy {
+  gap: 12px;
+}
+
+.install-shell h1 {
+  font-size: clamp(2rem, 3.6vw, 2.6rem);
+}
+
+.install-shell .install-card {
+  gap: 11px;
+  padding: 18px;
+}
+
+/* The install page's footer earns less room than a docs page's: it is the only
+   thing left below the fold and there is no reason for it to push the button
+   toward it. */
+.install-shell ~ .foot {
+  padding: 14px 24px 20px;
+}
+
+/* The depth that used to sit in three paragraphs under the button, as one row
+   of links. Everything here is a page, not a thing to read now. */
+.fineprint {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+/* The install is three moves, and it reads as three moves. The counter is the
+   device's own zero-padded step numbering rather than a plain 1/2/3. */
+.install-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: istep;
+}
+
+.install-steps li {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--key);
+  counter-increment: istep;
+}
+
+.install-steps li::before {
+  content: counter(istep, decimal-leading-zero) ".";
+  color: var(--accent);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+}
+
+.install-steps h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+.install-steps p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+@media (max-width: 820px) {
+  .install-steps {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Four corner brackets from a single pseudo-element: eight hairline segments
+   pinned to the corners, the reticle the device frames a target with. */
+.framed {
+  position: relative;
+}
+
+.framed::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  pointer-events: none;
+  --bc: var(--control);
+  --bl: 18px;
+  --bt: 1px;
+  background:
+    linear-gradient(var(--bc), var(--bc)) top left,
+    linear-gradient(var(--bc), var(--bc)) top left,
+    linear-gradient(var(--bc), var(--bc)) top right,
+    linear-gradient(var(--bc), var(--bc)) top right,
+    linear-gradient(var(--bc), var(--bc)) bottom left,
+    linear-gradient(var(--bc), var(--bc)) bottom left,
+    linear-gradient(var(--bc), var(--bc)) bottom right,
+    linear-gradient(var(--bc), var(--bc)) bottom right;
+  background-repeat: no-repeat;
+  background-size:
+    var(--bl) var(--bt), var(--bt) var(--bl),
+    var(--bl) var(--bt), var(--bt) var(--bl),
+    var(--bl) var(--bt), var(--bt) var(--bl),
+    var(--bl) var(--bt), var(--bt) var(--bl);
 }
 
 .lede {
@@ -937,5 +1350,105 @@ button {
   .spec,
   .doclinks {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---------- accent, last so it wins the ties ----------
+   The accent goes on the SMALL type only: the step numbers, the punctuation
+   beside them, and the small caps labels. Headings stay ink on purpose. Every
+   one of these labels sits directly above a title, so tinting both stacked an
+   accent number on an accent heading and the pair fought each other -- the
+   small label is what the colour is for, and the title reads off it.
+   Body copy stays ink too; an accent that colours the prose is not an accent.
+   These tie on specificity with the base rules above, so order decides. */
+.doc-card .eyebrow,
+.steps li::before,
+.install-steps li::before,
+.feats span,
+.spec span {
+  color: var(--accent);
+}
+
+/* the separator between eyebrow segments on the install page */
+.eyebrow span:not(:last-child)::after {
+  color: var(--accent);
+}
+
+/* The markers of the ordinary lists in the docs: "1." "2." with their periods,
+   and the bullet dots. These are drawn by the browser, not by a rule of ours,
+   so they were the numbers the accent missed. */
+.doc-card li::marker,
+.docs-body li::marker {
+  color: var(--accent);
+}
+
+/* The sentence-ending full stops, wrapped by theme.js because no selector can
+   reach one character. Only terminal stops are wrapped, so decimals and file
+   names keep their dots.
+
+   NOT called .stop: that name is already the STATUS class here
+   (.status-pill.stop, .verify-light.stop, .know article.stop) and colouring a
+   status element with the accent is exactly what kiss_theme.h forbids. */
+.fullstop {
+  color: var(--accent);
+}
+
+/* One topic at a time: the hidden ones must not hold a flex slot open. */
+.docs-body .doc-card[hidden] {
+  display: none;
+}
+
+/* Where to go next, at the foot of every topic. Sparrow and Supabase both
+   carry this, and it is what turns a pile of sections into a path. */
+.docs-pager {
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.docs-pager a {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  transition: border-color 170ms ease, background 170ms ease;
+}
+
+.docs-pager .pager-next {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.docs-pager a:hover {
+  border-color: var(--accent);
+  background: var(--key);
+}
+
+.docs-pager span {
+  color: var(--dim);
+  font-size: 0.7rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.docs-pager strong {
+  color: var(--ink);
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+
+@media (max-width: 720px) {
+  .docs-pager {
+    flex-direction: column;
+  }
+
+  .docs-pager .pager-next {
+    align-items: flex-start;
+    text-align: left;
   }
 }
