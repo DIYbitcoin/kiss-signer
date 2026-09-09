@@ -256,7 +256,7 @@
           <article>
             <span>TOUCHSCREEN + QR</span>
             <h3>PSBTs in and out by QR, or by microSD</h3>
-            <p>A small payload fits in one still QR code. A whole transaction will not, so KISS chops it into numbered pieces and plays them as a short looping animation for your other wallet&rsquo;s camera to read &mdash; that scheme is called BC-UR, and every wallet worth pairing with speaks it. Or skip the camera and carry the file on a microSD card. No cable ever carries your data.</p>
+            <p>A small payload fits in one still QR code. A whole transaction will not, so KISS chops it into numbered pieces and plays them as a short looping animation for your coordinator&rsquo;s camera to read &mdash; that scheme is called BC-UR, and every coordinator worth pairing with speaks it. Or skip the camera and carry the file on a microSD card. No cable ever carries your data.</p>
           </article>
           <article>
             <span>SILENT PAYMENTS</span>
@@ -318,7 +318,7 @@
         <h3>Flip the camera (one-time mod, required for QR scanning)</h3>
         <p>
           The device ships with the camera facing the user, selfie style. Reading
-          a QR code from your other wallet needs it facing the other way. The job
+          a QR code from your coordinator needs it facing the other way. The job
           is simple but fiddly, so take it slowly:
         </p>
         <ol>
@@ -822,9 +822,9 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         <p class="lede">Seven habits for running a signing device. Every one of them is
         the reverse of a way people have lost coins.</p>
 
-        <h3>Start with a wallet that holds nothing</h3>
+        <h3>Start with keys that hold nothing</h3>
         <p>This is beta firmware on unencrypted flash. Practise the whole loop
-        &mdash; pair, receive, sign, broadcast &mdash; on a wallet you would not
+        &mdash; pair, receive, sign, broadcast &mdash; with keys you would not
         mind losing, and keep doing that until the flash-encrypted build has
         passed its hardware tests.</p>
 
@@ -834,33 +834,33 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         download</a>.</p>
 
         <h3>Treat the passphrase as part of the key</h3>
-        <p>It is not a password on top of your wallet. <strong>Every passphrase
+        <p>It is not a password on top of your keys. <strong>Every passphrase
         opens keys</strong>, so there is no wrong-passphrase error to warn you,
         and it is never stored anywhere on the device. Change one character and
-        you are in a different, empty wallet. Lose it and the coins are gone with
+        you are in a different, empty set of keys. Lose it and the coins are gone with
         it.</p>
 
-        <h3>Write the passphrase down, and keep it apart from the words</h3>
-        <p>The words and the passphrase together are the wallet. Stored in one
+        <h3>Write the passphrase down, and keep it apart from the seed words</h3>
+        <p>The seed words and the passphrase together are the keys. Stored in one
         place they are one secret, and whoever finds it has everything. Stored
         apart, neither half spends on its own.</p>
 
         <h3>Paper is the only way back</h3>
         <p>The encrypted card is sealed to this device, which makes it a second
         factor, not a backup: if the device is gone, so is the card&rsquo;s key.
-        A restore starts from the words on paper. See <a href="#storage">where
-        your words are kept</a>.</p>
+        A restore starts from the seed words on paper. See <a href="#storage">where
+        your seed words are kept</a>.</p>
 
         <h3>Read the amounts on the device, not on the computer</h3>
         <p>KISS works out every amount, the fee and your change for itself and
         shows them on its own screen. That screen is the one thing a compromised
         computer cannot rewrite, so it is the one worth reading. If the address
-        or the amount differs from what your wallet showed, do not hold to
+        or the amount differs from what your coordinator showed, do not hold to
         sign.</p>
 
         <h3>Keep the coordinator watch-only, and use a new address each time</h3>
-        <p>Your online wallet should hold nothing that can spend; if it ever asks
-        for your words or your passphrase, something is wrong. Hand out a fresh
+        <p>Your coordinator should hold nothing that can spend; if it ever asks
+        for your seed words or your passphrase, something is wrong. Hand out a fresh
         address for every payment, too &mdash; reusing one links those payments
         together in public, for anybody who looks.</p>
       </section>
