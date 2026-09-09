@@ -1,4 +1,4 @@
-# KISS Signer 0.1.0-beta10
+# KISS Signer 0.1.0-beta11
 
 Beta firmware for the Guition JC4880P443C ESP32-P4 device.
 
@@ -8,8 +8,8 @@ Beta firmware for the Guition JC4880P443C ESP32-P4 device.
 
 Download these assets from this release into one folder:
 
-- `kiss-signer-0.1.0-beta10.bin`: merged firmware image, for flashing over USB
-- `kiss-signer-0.1.0-beta10-update.bin`: the same firmware as an SD card update (see FIRMWARE below)
+- `kiss-signer-0.1.0-beta11.bin`: merged firmware image, for flashing over USB
+- `kiss-signer-0.1.0-beta11-update.bin`: the same firmware as an SD card update (see FIRMWARE below)
 - `SHA256SUMS`: firmware hashes
 - `SHA256SUMS.asc`: GPG signature for `SHA256SUMS`
 - `kiss_signer_pgp.asc`: KISS release public key
@@ -17,8 +17,8 @@ Download these assets from this release into one folder:
 
 Flashing on a machine with no network? Take these two instead:
 
-- `kiss-signer-0.1.0-beta10-offline.zip`: the install page, the firmware and the signed hashes in one file
-- `kiss-signer-0.1.0-beta10-offline.zip.asc`: GPG signature for the zip
+- `kiss-signer-0.1.0-beta11-offline.zip`: the install page, the firmware and the signed hashes in one file
+- `kiss-signer-0.1.0-beta11-offline.zip.asc`: GPG signature for the zip
 
 ## Verify
 
@@ -31,16 +31,16 @@ shasum -a 256 --ignore-missing -c SHA256SUMS
 # Linux: sha256sum --ignore-missing -c SHA256SUMS
 
 # the offline installer carries its own signature
-gpg --verify kiss-signer-0.1.0-beta10-offline.zip.asc kiss-signer-0.1.0-beta10-offline.zip
+gpg --verify kiss-signer-0.1.0-beta11-offline.zip.asc kiss-signer-0.1.0-beta11-offline.zip
 ```
 
 Main firmware SHA256:
 
-`776ceff9a354dbab7ed0d53290227317deba0c32ca658c7bd78dee918504b59f`
+`f32dda7ad432f6302454d6833d25edc3d4fe082a549fad60ae5af04720914b6d`
 
 Release commit:
 
-`e2092501`
+`a2f2836a`
 
 ## Install
 
@@ -55,7 +55,7 @@ install page and in the guide — this is the map, not the manual.
 | ⌨️ | **[Command line](https://diybitcoin.github.io/kiss-signer/guide.html#esptool)** | yes, USB | Safari or Firefox, or you would rather use a terminal |
 
 The SD card route is the only one that needs no computer at all, and it keeps
-your keys and settings: put `kiss-signer-0.1.0-beta10-update.bin` in the root of a card, then SETTINGS →
+your keys and settings: put `kiss-signer-0.1.0-beta11-update.bin` in the root of a card, then SETTINGS →
 FIRMWARE on the device and hold to install. Use that file, not the merged image.
 
 > ⚠️ **Coming from beta7 or earlier?** SD card updates did not exist yet, so you
@@ -65,60 +65,87 @@ FIRMWARE on the device and hold to install. Use that file, not the merged image.
 
 ## Changelog
 
-The device finishes its sentences. Beta9 measured the text and found dozens of
-lines that no longer fit their box in 21 languages; this release rewrites them
-instead of trimming them, so nothing an owner reads ends in a shrug.
+The device stops stranding you. A signature that could not be saved sent you
+back to the home screen, an empty card slot named a camera it would not open,
+and a signed receipt showed an address too short to read back; each of those
+now leads where it says it does.
 
 | | |
 | --- | --- |
-| 📝 **Sentences that fit** | around forty strings rewritten to their lane rather than cut off mid-word |
-| 💸 **Transaction, not payment** | one word for the thing you sign, in every language |
-| ✅ **A restore counts as a backup** | proving your words on the device credits the backup you just proved |
-| 🧰 **A release that checks itself** | the build refuses to ship if its randomness or its signatures are not what the recipe says |
+| 🔒 **Security** | 1 change |
+| 💫 **Improvements** | 10 changes |
+| 🧰 **Under the hood** | 52 changes |
 
 ### 🔒 Security
 
-- **A release build now proves where its randomness came from.** The check that
-  catches a host with no entropy ran on the ordinary release lane only. Both
-  release lanes run it now, and neither will produce a binary without it.
-- **The encryption row tells a rehearsed board from a finished one.** Three
-  corners of Settings each asked the chip their own question, and the one they
-  asked is answered yes by a board that is still open over the cable. One
-  reader answers for all three, and the calm state means what the recipe says.
-
-### ✨ New features
-
-- **A restore now counts as a backup.** Reading your seed words back into the
-  device proves the paper is right, so the backup reminder stops asking for
-  something you have already done.
+- Gate the PQ vectors, and check the card by its source
 
 ### 💫 Improvements
 
-- **Payment became transaction** on every screen and in every language. The two
-  words were mixed, and only one of them is what a signer actually handles.
-- **Around forty lines were rewritten to fit**, across all 21 languages: seed
-  explainers, the pairing note, the passphrase intro, the lock screen, SD card
-  notes, row labels and the coordinator articles. Each one now says the whole
-  thing at the size the screen can show.
-- **The screen that says what a restore recovered writes seed words out in
-  full**, instead of naming them in shorthand.
-
-### 🐛 Bug fixes
-
-- **An abandoned slide rewinds** to where it started, rather than jumping there.
-- **Controls sit above their own band's fill**, so a tap lands on the control
-  and not on the paint behind it.
-- **A translation that promised more than its English does** is caught by the
-  gate now, rather than by a reader.
+- Cut the Spanish seed words row to its lane
+- Say the card is not a backup at the choice
+- Stop the signing screens naming one coordinator
+- Send BACK on a failed signature to the list
+- Open the camera from the empty-card lane
+- Rename the key that no longer names Sparrow
+- Record what the failure screen cannot recover
+- Open the address scan from the pairing page
+- Open the full address from the signed receipt
+- Stop unselected tabs reading as disabled
 
 ### 🧰 Under the hood
 
-- The release recipe reads the chip's fuses before the step that burns them,
-  reads each signature block back against the configuration that will judge it,
-  and puts the bootloader back into the flash list where it belongs.
-- The reproducibility proof now covers arm64 as well as x86.
-- The changelog has a generator: it drafts the skeleton from the commits and
-  refuses a release whose entry was never written.
-- Four separate push workflows became one CI run.
-- The burn recipe in the documentation says what the build actually does, and
-  the pictures in the guide were re-rendered at the current build.
+- Cut the README to a front page
+- Correct three releases and archive the old ones
+- Name the sections the way every wallet does
+- Say which way to install, on each system
+- Rebuild the site theme on the firmware's tokens
+- Cut the install page to a single screen
+- Reorganise the docs into topics you navigate
+- Put the site header on the simulator page
+- Give the release check page the firmware look
+- Match the offline install page to the hosted one
+- Show the repo as a mark, not a tab
+- Give the mark the size a logo deserves
+- Let the lockup carry the header
+- Hyphenate the wordmark to match the project name
+- Give Safari and Firefox a way to flash
+- Show the browser warning where Safari can see it
+- Drop the simulator's back link
+- Point every link at the DIYbitcoin org
+- Explain the offline install instead of just linking it
+- Stop the install page calling the release bad
+- Read the fuse's protection, not just its value
+- Offer the SD card route, and show the digest again
+- Prove the three blocks carry three keys
+- Make the rollback counter a release input
+- Say signer and seed words, not wallet and words
+- Point the README at the rendered docs
+- Generate the social card, and gate it
+- Split the encrypted release into two key lanes
+- Stop pointing operators at unmatchable hashes
+- Stamp the pictures at the Spanish row label
+- Let a card hold the key that signs updates
+- Check the root before spending a compile
+- Build the update lane on every release push
+- Cut the guide back to one fact, one home
+- Watch the baked art and the scripts that bake it
+- Catch published notes drifting from the changelog
+- Name the two coordinators, promise no others
+- Make the release notes a map, not a manual
+- Say what a coordinator has to do, not who it is
+- Re-render the screens four commits moved
+- Rank the install routes, easiest first
+- Re-anchor the decisions index after three commits
+- Rebuild the published simulator from this tree
+- Record the card rehearsal, and correct one claim
+- Re-stamp the pictures the render left identical
+- Cut the pairing note to what a reader has to do
+- Break the long sentences a newcomer stalls on
+- Re-anchor the decisions index after three commits
+- Drop the frame that cost two locales their ceiling
+- Re-anchor the walk's decision link
+- Re-render the screens three commits moved
+- Number today's work beta11
+
+Since v0.1.0-beta10.
