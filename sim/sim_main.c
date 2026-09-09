@@ -6528,6 +6528,22 @@ int main(void) {
     kiss_ui_sim_warn_screen(true, false);           // verified, fingerprint back
     pump(8);
     save("/tmp/sim_warn_verified.ppm");             // green chip beside the card
+    // The RESTORED branch, which is a THIRD state and not a shade of the
+    // unverified one: the rehearsal has not been done, but a backup has just
+    // been used, so the chip names the copy that was proved. Forced the same
+    // way as the two above -- reaching it by walking would mean erasing and
+    // restoring a wallet mid-run.
+    {
+      const int was_src = kiss_seed_source();
+      kiss_seed_set_source(WSEED_SRC_KEF);
+      kiss_ui_sim_warn_screen(false, false);
+      pump(8);
+      save("/tmp/sim_warn_restored.ppm");           // amber chip, not the red one
+      must_show("warn/restored names the copy", tr(STR_L_BACKUP_KEF_OPENED));
+      must_not_show("warn/restored drops the flat red",
+                    tr(STR_L_BACKUP_UNVERIFIED));
+      kiss_seed_set_source(was_src);
+    }
     // The screen owns itself; reopening it deletes the previous one, and the
     // duress excursion below opens a session of its own straight after.
     kiss_ui_sim_warn_screen(false, false);

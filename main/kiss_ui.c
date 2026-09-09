@@ -1377,10 +1377,34 @@ static void setup_warn_screen(void) {
   lv_obj_t *card = fp_known
       ? wt_value_card(s_warnscr, tr(STR_D_FINGERPRINT), fpbuf, 110, 268, 300, true)
       : NULL;
+  // THREE states, because the flag behind this chip answers one question and
+  // the owner in front of it has usually answered another. s_backup_verified
+  // is the REHEARSAL: words typed back, passphrase typed back, fingerprint
+  // matched. A device that was just RESTORED has not done that rehearsal, and
+  // used to be told in red that its full backup was not verified -- at the end
+  // of the one flow that had just proved a backup works, by using it. The
+  // owner read that as the screen calling them unverified for restoring.
+  //
+  // So a restore says which copy it proved, in the mark colour rather than the
+  // stop colour: something IS proven and something is not. The unproven half
+  // is the paper, and VERIFY FULL BACKUP below is exactly the offer to prove
+  // it, so the chip does not have to carry the negative as well.
+  //
+  // A freshly MADE seed keeps the red: nothing has demonstrated a backup of
+  // it at all, which is what that colour was always for.
+  const int made_by = kiss_seed_source();
+  const int restored = !s_backup_verified
+                       && (made_by == WSEED_SRC_KEF || made_by == WSEED_SRC_RESTORE);
+  const lv_color_t state_col = s_backup_verified ? WT_OK
+                               : restored        ? WT_WARN
+                                                 : WT_STOP;
   lv_obj_t *state = wt_state_chip(s_warnscr,
                                   s_backup_verified ? tr(STR_L_BACKUP_VERIFIED)
-                                                    : tr(STR_L_BACKUP_UNVERIFIED),
-                                  s_backup_verified ? WT_OK : WT_STOP);
+                                  : made_by == WSEED_SRC_KEF && restored
+                                        ? tr(STR_L_BACKUP_KEF_OPENED)
+                                  : restored ? tr(STR_L_BACKUP_WORDS_USED)
+                                             : tr(STR_L_BACKUP_UNVERIFIED),
+                                  state_col);
   lv_obj_update_layout(state);
   if (card) {
     lv_obj_update_layout(card);
@@ -1406,7 +1430,7 @@ static void setup_warn_screen(void) {
   // Skipping is allowed, but it must look like a conscious decision.
   lv_obj_t *ok = wt_word_action(s_warnscr, LV_SYMBOL_OK,
                                 tr(STR_C_I_UNDERSTAND), true,
-                                s_backup_verified ? WT_OK : WT_STOP,
+                                state_col,
                                 false, setup_warn_ok_cb, NULL);
   // The tick alone carries the verdict; the word is a word.
   lv_obj_set_style_text_color(lv_obj_get_child(ok, 1), WT_INK, 0);
