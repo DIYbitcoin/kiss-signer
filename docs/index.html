@@ -75,7 +75,7 @@
         <ol class="install-steps">
           <li>
             <h3>Plug it in</h3>
-            <p>Connect the device by USB from a desktop. Chrome, Brave or Edge only &mdash; Safari and Firefox cannot talk to it. On those, <a href="guide.html#esptool">flash from the command line</a> instead.</p>
+            <p>Connect the device by USB from a desktop. Chrome, Brave or Edge &mdash; Safari and Firefox cannot reach USB.</p>
           </li>
           <li>
             <h3>Install</h3>
@@ -123,6 +123,40 @@
             </span>
           </esp-web-install-button>
         </div>
+
+
+        <!-- Route B from the release notes, and the easiest one there is: a
+             device already running beta8 or later needs no cable and no
+             computer. The page offered USB only and never said so. -->
+        <p class="sd-route">
+          <strong>Already running beta8 or later?</strong> You do not need this
+          page or a cable. Put the update file on an SD card and install it from
+          the device itself.
+          <a class="motion-link" href="guide.html#sdupdate">Update from an SD card &rarr;</a>
+        </p>
+
+        <!-- The digest and the key id, for a reader who wants to see them
+             rather than be told. app.js has always filled these in; the rows
+             were commented out, so it was writing into nothing. -->
+        <details class="receipt reveal" aria-label="Security checks">
+          <summary>What was checked</summary>
+          <div class="receipt-row">
+            <span>The file matches the release</span>
+            <strong id="hash-check">checking</strong>
+          </div>
+          <div class="receipt-row">
+            <span>Signed by the KISS key</span>
+            <strong id="signature-check">checking</strong>
+          </div>
+          <div class="receipt-row">
+            <span>Key fingerprint. Check it elsewhere too</span>
+            <strong id="key-check">checking</strong>
+          </div>
+          <div class="receipt-row">
+            <span>Rather not take this page&rsquo;s word for it</span>
+            <strong><a href="verify-release.html">Check it yourself &rarr;</a></strong>
+          </div>
+        </details>
 
         <p class="browser-note" id="browser-note" hidden>
           This browser has no Web Serial, so it cannot reach the device over the

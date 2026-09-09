@@ -855,14 +855,14 @@ h2 {
    button that does the thing the page is named after, so the vertical rhythm
    here is tighter than the documentation pages. */
 .install-shell {
-  padding-top: 18px;
-  padding-bottom: 18px;
-  gap: 14px;
+  padding-top: 14px;
+  padding-bottom: 14px;
+  gap: 12px;
 }
 
 .install-shell .hero {
-  grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 30px;
+  grid-template-columns: minmax(0, 1fr) 270px;
+  gap: 26px;
 }
 
 .install-shell .hero-copy {
@@ -1548,4 +1548,23 @@ button {
 .browser-note a {
   color: var(--amber);
   border-bottom-color: rgba(242, 184, 75, 0.5);
+}
+
+/* Route B. A device already running beta8 or later updates from a card with no
+   cable and no computer, which is easier than anything else on this page, so
+   it says so rather than hiding in the docs. */
+.sd-route {
+  margin: 0;
+  padding: 12px 15px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--key);
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+
+.sd-route strong {
+  color: var(--ink);
+  font-weight: 500;
 }
