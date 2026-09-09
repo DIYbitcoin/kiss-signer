@@ -63,6 +63,7 @@ if [ $? -ne 0 ] ||
     ! printf '%s\n' "$st" | grep -q 'STALE self test: 2 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'LAYER self test: 3 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'ROLE self test: 4 cases, all as expected' ||
+    ! printf '%s\n' "$st" | grep -q 'FAINT self test: 9 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'LADDER self test: 2 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'READ self test: 3 cases, all as expected' ||
     ! printf '%s\n' "$st" | grep -q 'MARK self test: 6 cases, all as expected' ||
@@ -179,6 +180,39 @@ heap_note() {
     return 0
 }
 
+# THE CONTRAST VERDICT, gathered the way the heap one is: read off each run,
+# kept at its worst, judged once at the end.
+#
+# Its unit is COLOUR PAIRINGS and not labels, so it barely moves between
+# locales -- a translation changes how many labels wear a colour, never which
+# colours the kit puts on glass. The worst locale is still the one taken, for
+# the case where a locale reaches a screen the others do not.
+#
+# The labels-weighed half is not decoration. A check that walks nothing reports
+# zero pairings, which reads exactly like a product with no contrast problem,
+# and this file already has that lesson written into it twice.
+faint_max=0; faint_who=""; faint_objs=0; faint_lines=""
+faint_note() {
+    local who="$1" out="$2" line n objs
+    line=$(printf '%s\n' "$out" | grep -m1 '^\[faint\] ') || return 1
+    [ -n "$line" ] || return 1
+    # "[faint] en: 12 colour pairing(s) below the floor, 5953 label(s) weighed"
+    # Words sit between the two numbers, so both are picked by name rather
+    # than by counting fields -- the mistake heap_note's own comment records.
+    n=$(printf '%s\n' "$line" | sed -n 's/.*: \([0-9][0-9]*\) colour pairing.*/\1/p')
+    objs=$(printf '%s\n' "$line" | sed -n 's/.*floor, \([0-9][0-9]*\) label.*/\1/p')
+    case "$n" in ''|*[!0-9]*) return 1;; esac
+    case "$objs" in ''|*[!0-9]*) return 1;; esac
+    # A walk that reached the screens weighs thousands. A hundred means it
+    # died early and its zero pairings mean nothing.
+    [ "$objs" -lt 1000 ] && return 1
+    if [ -z "$faint_who" ] || [ "$n" -gt "$faint_max" ]; then
+        faint_max=$n; faint_who=$who; faint_objs=$objs
+        faint_lines=$(printf '%s\n' "$out" | grep '^  FAINT ')
+    fi
+    return 0
+}
+
 # A run proves nothing unless it rendered and measured. A dead walk prints no
 # [overlap] summary at all, and a walk whose instrumentation vanished prints
 # one with zero stops; both used to read as "clean" (missing summaries became
@@ -212,6 +246,9 @@ for l in "${langs[@]}"; do
     fi
     if ! heap_note "$l" "$out"; then
         died="$died SIM_LANG=$l(no-heap)"
+    fi
+    if ! faint_note "$l" "$out"; then
+        died="$died SIM_LANG=$l(no-faint)"
     fi
     total=$((total + ${n:-0}))
     [ "$rc" -gt "$worst" ] && worst=$rc
@@ -391,6 +428,41 @@ echo "STALE backlog: $stale_n entry(s), $(printf '%s\n' "$stale_dead" | grep -c 
 # there is object count on whatever screen owns the peak, not a bigger pool:
 # the pool matches the device and raising it here would only move the assert
 # onto hardware.
+# THE CONTRAST CEILING, and why it is a ceiling rather than a pass.
+#
+# The check went in green in the sense that matters -- it adds nothing to the
+# [overlap] totals above and English stays a hard zero there -- and it went in
+# RED in the sense that matters more: twelve colour pairings on this product
+# are below the WCAG floor for the size they are drawn at, and one of them
+# covers 256 labels. That is not a bug list either. WT_DIM is a palette entry
+# used deliberately, in a hundred places, by a house style that wanted quiet
+# metadata; deciding it is too quiet is a design pass, not a patch.
+#
+# So it ratchets, the same shape the per-locale numbers above use. Twelve is
+# the first honest measurement, taken 2026-09-09 on the full walk. Every
+# pairing closed lowers it and the runner asks for the file to be edited. It
+# may never go up: a THIRTEENTH pairing is a new decision to paint something
+# in a colour nobody can read, and that is the case this whole check exists to
+# stop -- the SD CARD tab, dim enough to look switched off, that no gate here
+# could see.
+#
+# WHAT CLOSING ONE LOOKS LIKE. The worst are not WT_DIM at all. Two pairings
+# are surface colours used as ink, which main/kiss_theme.h forbids in its own
+# words -- "Never use one as a text colour except WT_DIM" -- and they measure
+# 1.23:1 and 1.57:1. Those are the ones to take first.
+FAINT_MAX="${FAINT_MAX:-12}"
+faint_ok=1
+if [ "$faint_objs" -gt 0 ]; then
+    echo
+    echo "contrast: $faint_max colour pairing(s) under the floor, worst locale $faint_who, $faint_objs labels weighed"
+    [ -n "$faint_lines" ] && printf '%s\n' "$faint_lines"
+    if [ "$faint_max" -gt "$FAINT_MAX" ]; then
+        faint_ok=0
+    elif [ "$faint_max" -lt "$FAINT_MAX" ]; then
+        echo "  down to $faint_max from a ceiling of $FAINT_MAX -- lower FAINT_MAX in sim/run_overlapcheck.sh"
+    fi
+fi
+
 HEAP_MAX_PCT="${HEAP_MAX_PCT:-88}"
 heap_ok=1
 if [ "${heap_peak_total:-0}" -gt 0 ]; then
@@ -441,6 +513,18 @@ if [ -n "$unceiled" ]; then
     echo "copy and has no allowance. Cut what the findings above name."
     exit 1
 fi
+if [ "$faint_ok" -eq 0 ]; then
+    echo
+    echo "FAILED: a colour pairing has been added under the contrast floor ($faint_max against a ceiling of $FAINT_MAX, worst in $faint_who)."
+    echo "Something is now drawn in a colour a reader cannot separate from what"
+    echo "is behind it. The FAINT lines above name the two colours, the ratio,"
+    echo "the floor for that size, and one label to go and look at."
+    echo "The fix is a lighter ink or a darker surface. It is never a bigger"
+    echo "font chosen to qualify for the 3:1 floor instead of 4.5:1."
+    echo "FAINT_MAX in this file may only go DOWN."
+    exit 1
+fi
+
 # A ceiling, not a ratchet. max_used is deterministic, but it moves with every
 # screen, label and font this project adds, so an exact-match ratchet turns
 # every UI commit red. The pool is 128K and a failed lv_malloc is an LVGL

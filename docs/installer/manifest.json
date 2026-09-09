@@ -1,6 +1,6 @@
 {
   "name": "KISS Signer",
-  "version": "0.1.0-beta10-e2092501",
+  "version": "0.1.0-beta10-6a885d83",
   "new_install_prompt_erase": true,
   "new_install_improv_wait_time": 0,
   "builds": [
