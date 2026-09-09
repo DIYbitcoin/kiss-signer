@@ -44,25 +44,24 @@ Release commit:
 
 ## Install
 
-**Pick the row that describes you.** Each one is written out, with pictures, on
-the install page and in the guide — this is the map, not the manual.
+**Four ways in, easiest first.** Each is written out with pictures on the
+install page and in the guide — this is the map, not the manual.
 
-| You are | Use | Cable? |
-| --- | --- | --- |
-| Already on beta8 or later | **[SD card update](https://diybitcoin.github.io/kiss-signer/guide.html#sdupdate)** | no |
-| New device, or on beta7 or earlier | **[Install page](https://diybitcoin.github.io/kiss-signer/)** | yes, USB |
-| No internet on the machine you flash from | **[Offline zip](https://diybitcoin.github.io/kiss-signer/guide.html#offline)** | yes, USB |
-| Safari or Firefox, or you prefer a terminal | **[Command line](https://diybitcoin.github.io/kiss-signer/guide.html#esptool)** | yes, USB |
+| | Route | Cable? | Who it suits |
+| --- | --- | --- | --- |
+| 🖱️ | **[Install page](https://diybitcoin.github.io/kiss-signer/)** | yes, USB | anyone. Plug in, tick the box, press the button |
+| 💾 | **[SD card update](https://diybitcoin.github.io/kiss-signer/guide.html#sdupdate)** | no | already on beta8 or later, and no computer to hand |
+| 📦 | **[Offline zip](https://diybitcoin.github.io/kiss-signer/guide.html#offline)** | yes, USB | the machine you flash from has no internet |
+| ⌨️ | **[Command line](https://diybitcoin.github.io/kiss-signer/guide.html#esptool)** | yes, USB | Safari or Firefox, or you would rather use a terminal |
 
-The SD card update is the easy one and needs no computer at all. It keeps your
-keys and settings; put `kiss-signer-0.1.0-beta10-update.bin` in the root of a card, then SETTINGS →
-FIRMWARE on the device and hold to install. Use that file, not the merged
-image.
+The SD card route is the only one that needs no computer at all, and it keeps
+your keys and settings: put `kiss-signer-0.1.0-beta10-update.bin` in the root of a card, then SETTINGS →
+FIRMWARE on the device and hold to install. Use that file, not the merged image.
 
-> **Coming from beta7 or earlier?** SD card updates did not exist yet, so you
+> ⚠️ **Coming from beta7 or earlier?** SD card updates did not exist yet, so you
 > have to use the install page, and **that erases the whole chip — including
-> your keys.** Have your seed words and passphrase on paper before you start,
-> and restore afterwards. Anyone on beta8 or later can ignore this.
+> your keys.** Have your seed words and passphrase on paper first. Anyone on
+> beta8 or later can ignore this.
 
 ## Changelog
 
