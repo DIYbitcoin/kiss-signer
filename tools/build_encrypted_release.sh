@@ -557,9 +557,14 @@ if [ "$RECIPE" = release ]; then
     "$BUILD_DIR/bootloader/bootloader.bin"
   mv "$BUILD_DIR/bootloader/bootloader-signed.bin" \
      "$BUILD_DIR/bootloader/bootloader.bin"
-  # Three RSA blocks in the bytes, or the spec's rotation promise is prose.
+  # Three RSA blocks in the bytes, carrying three DIFFERENT keys, or the
+  # spec's rotation promise is prose. Counting them is not enough: one key
+  # file passed three times produces three valid blocks, three valid
+  # signatures, and a board that burns one digest, revokes the other two
+  # slots on first boot, and can never be rotated. --distinct reads the
+  # modulus out of each block and refuses a repeat.
   python3 tools/check_sig_scheme.py "$BUILD_DIR/bootloader/bootloader.bin" \
-    --scheme rsa --blocks 3
+    --scheme rsa --blocks 3 --distinct
   for i in 0 1 2; do
     if ! "${ESPSECURE[@]}" verify-signature \
          --version 2 --keyfile "$SIGTMP/sb_pub$i.pem" \
