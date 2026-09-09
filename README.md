@@ -44,9 +44,10 @@
 - **Airgapped by hardware.** Transactions move by animated QR or SD card. The
   radio chip is held in reset from the first instruction of every boot, and the
   release build fails if any networking code links into it.
-- **Works with the coordinator you already use.** Sparrow on desktop, BlueWallet
-  on mobile, or anything that reads a descriptor or a zpub. The coordinator
-  watches balances and builds transactions. It cannot sign.
+- **Pairs with Sparrow Wallet or BlueWallet.** Those are the two the pairing
+  screen is built for: Sparrow on desktop, BlueWallet on mobile. The coordinator
+  watches balances and builds transactions. It cannot sign. Ask in
+  [Telegram](https://t.me/KISS_signer) before counting on a different one.
 - **Shows you everything before you sign.** Every amount, the fee and the change
   are worked out again on the device. A **?** on any unfamiliar word opens a
   plain words card.

@@ -547,7 +547,6 @@ DOCS_RULES = ["WALLET", "BARE-WORDS", "COINED-WORDS"]
 DOCS_ALLOW = {
     "online wallet": "the coordinator's object, watching the chain",
     "watch-only wallet": "what a coordinator calls the import it gets",
-    "any other wallet that reads": "any coordinator, generically",
     # The other legitimate sense, and the one W_WHATSEED_B is already allowed
     # for on the glass: every BIP39 wallet that exists, said about the shared
     # wordlist rather than about this box.
