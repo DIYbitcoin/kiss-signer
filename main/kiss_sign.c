@@ -785,6 +785,10 @@ static void sig_value_pair(lv_obj_t *par, int x, int y, bool from_qr,
                  wt_accent(), sig_fp_open_cb, from_qr ? (void *)1 : NULL);
 }
 
+// The full-address card's opener, declared up here because the receipt draws a
+// destination long before the card that opens one is defined. See addr_tap_cb.
+static void addr_tap_cb(lv_event_t *e);
+
 // The receipt: what left, what it cost, and where it went, in one card.
 //
 // Three rows, each a mark and a fact, and every one of them a string that was
@@ -863,6 +867,24 @@ static void done_summary(int y)
         // reads against their coordinator. Nothing to wrap here.
         lv_obj_t *ad = wt_addr_short(c, s_sum.outs[only].addr, wt_font_mono23());
         lv_obj_set_pos(ad, 40, 108);
+        // A FOLDED ADDRESS IS A CONTROL EVERYWHERE ELSE IT IS DRAWN. Every
+        // strand on the verify graph opens its own full address (see
+        // wt_bundle_addr_tap) and so does every row on the DETAILS outputs
+        // page; this one line was the exception, and it is the line an owner
+        // reads back to their coordinator after the signature exists. The fold
+        // hides the middle by design, so a screen that folds without opening is
+        // a screen that shows part of an address and offers no way to see the
+        // rest.
+        //
+        // Same handler and therefore the same card: the address blocked in
+        // fours with the compared tail lit, over the two-entry lesson. The
+        // press nudge is the graph's own, so the two feel like one control.
+        lv_obj_add_flag(ad, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_ext_click_area(ad, 8);
+        lv_obj_set_style_translate_x(ad, 0, 0);
+        lv_obj_set_style_translate_x(ad, 4, LV_STATE_PRESSED);
+        lv_obj_add_event_cb(ad, addr_tap_cb, LV_EVENT_CLICKED,
+                            (void *)s_sum.outs[only].addr);
     } else if (n_recip > 1) {
         char b[80];
         snprintf(b, sizeof b, tr(STR_S_D_OUTPUTS_FMT),
