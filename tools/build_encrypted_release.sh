@@ -68,6 +68,48 @@ fi
 export RECIPE BUILD_DIR SDKCFG
 echo "recipe: $RECIPE -> $BUILD_DIR"
 
+# The anti rollback counter, as a release INPUT rather than a literal in this
+# file. It was pinned at 0, so no release could ever advance it: the machinery
+# was armed and could not be used, and a bootloader under secure boot cannot be
+# replaced to fix that later.
+#
+# What raising it costs. The eFuse counter moves the first time a higher
+# version BOOTS, and it never moves back. Every earlier release is then refused
+# by the bootloader, on every board that has run the new one -- including the
+# owner's own, including the one they wanted to roll back to. The field is a
+# fixed width, so there are only so many increments in a chip, ever.
+#
+# So it moves when a firmware version has a hole worth closing permanently,
+# and on no other day. Raising it is a commit of its own, with a message
+# saying which release it retires. See docs/specs/flash-encryption-rollout.md.
+SECURE_VERSION="$(cat SECURE_VERSION 2>/dev/null | tr -d '[:space:]')"
+case "$SECURE_VERSION" in
+  ''|*[!0-9]*)
+    echo "FAIL: SECURE_VERSION must be a non-negative whole number."
+    echo "      Read: '$SECURE_VERSION'. The file is at the repo root."
+    exit 1 ;;
+esac
+# It may not go DOWN. A lower number does not un-burn the counter on any board
+# that already booted the higher one; it just builds firmware those boards
+# refuse, and the first anyone hears of it is a device that will not take an
+# update. Compared against the last release tag, which is the last number that
+# could have reached a board.
+PREV_TAG="$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || echo)"
+if [ -n "$PREV_TAG" ]; then
+  PREV_SV="$(git show "$PREV_TAG:SECURE_VERSION" 2>/dev/null \
+             | tr -d '[:space:]')"
+  case "$PREV_SV" in ''|*[!0-9]*) PREV_SV=0 ;; esac
+  if [ "$SECURE_VERSION" -lt "$PREV_SV" ]; then
+    echo "FAIL: SECURE_VERSION went backwards: $PREV_SV at $PREV_TAG,"
+    echo "      now $SECURE_VERSION. A board that booted $PREV_SV has burned"
+    echo "      that counter and will refuse this build."
+    exit 1
+  fi
+fi
+export SECURE_VERSION
+[ "$SECURE_VERSION" = 0 ] || \
+  echo "anti rollback: secure version $SECURE_VERSION (permanent once booted)"
+
 if [ -z "$ALLOW_DIRTY" ] && [ -n "$(git status --porcelain)" ]; then
     echo "You have uncommitted changes - an encrypted release must be built"
     echo "from a clean, committed tree. Commit first, then rerun."
@@ -130,7 +172,8 @@ force = {
     # slot only after the signer proves it can sign. Both recipes, same
     # fidelity argument as the key size.
     "CONFIG_BOOTLOADER_APP_ANTI_ROLLBACK":          "y",
-    "CONFIG_BOOTLOADER_APP_SECURE_VERSION":         "0",
+    "CONFIG_BOOTLOADER_APP_SECURE_VERSION":
+        os.environ["SECURE_VERSION"],
     # P4 defaults the NVS key-protection choice to the HMAC scheme (needs a
     # pre-burned eFuse key block); we want the flash-encryption scheme: XTS
     # keys auto-generated on first use into the nvs_key partition
@@ -613,6 +656,14 @@ checks = [
 
 cfg = open(os.environ["SDKCFG"]).read().splitlines()
 def on(k):  return f"{k}=y" in cfg
+def val(k, default=""):
+    for line in cfg:
+        if line.startswith(k + "="):
+            return line.split("=", 1)[1].strip('"')
+    return default
+# Read back from the generated config, not from the environment: the point of
+# an assertion is to check what the build did, not to repeat what it was told.
+secure_version = val("CONFIG_BOOTLOADER_APP_SECURE_VERSION", "?")
 # the two builds assert OPPOSITE things here on purpose: a rehearsal build that
 # quietly came out in RELEASE mode would burn the board it exists to protect
 checks += [
@@ -660,12 +711,19 @@ checks += [
     # carries three blocks; this proves nothing is left writable beside them.
     (not on("CONFIG_SECURE_BOOT_ALLOW_UNUSED_DIGEST_SLOTS"),
      "no digest slot left open (three burned, none writable)"),
-    # Armed, at version 0: burns nothing today, refuses nothing today. The
-    # old comment here said arming it early would freeze the fleet on an
-    # unfinished security model; the model this pass ships is the finished
-    # one, and a bootloader that can never be replaced either carries the
-    # check from birth or never gets it.
-    (on("CONFIG_BOOTLOADER_APP_ANTI_ROLLBACK"),         "anti rollback armed (secure version 0)"),
+    # Armed. At version 0 it burns nothing and refuses nothing; the old
+    # comment here said arming it early would freeze the fleet on an
+    # unfinished security model, and the model this pass ships is the
+    # finished one. A bootloader that can never be replaced either carries
+    # the check from birth or never gets it.
+    #
+    # The label reads the number the build actually used. It used to say
+    # "version 0" in prose while the config said whatever it said, which is
+    # the same class of defect as a docs page naming a release by hand.
+    (on("CONFIG_BOOTLOADER_APP_ANTI_ROLLBACK"),
+     "anti rollback armed (secure version %s)" % secure_version),
+    (secure_version == os.environ["SECURE_VERSION"],
+     "secure version is the one SECURE_VERSION asked for"),
 ]
 
 pt = open(f"{bdir}/partition_table/partition-table.bin", "rb").read()

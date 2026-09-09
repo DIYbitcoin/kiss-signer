@@ -162,6 +162,22 @@ assertions now say each of these out loud.
   version. The app half already existed: `kiss_fw_mark_valid` confirms a
   trial slot only after the signer proves it can sign.
 
+  **The number is a tracked file, and moving it is its own decision.** It
+  used to be a literal in the recipe, which meant the machinery was armed and
+  could never be used: no release could raise it, and a bootloader under
+  secure boot cannot be replaced later to fix that. It now comes from
+  `SECURE_VERSION` at the repo root, and the recipe refuses a value that went
+  down against the last release tag.
+
+  It moves only to retire a firmware version with a hole worth closing
+  permanently, and never as part of a routine release. The counter burns the
+  first time a higher version BOOTS, on every board that runs it, and it does
+  not come back: every earlier release is refused from then on, including the
+  one an owner wanted to roll back to. The eFuse field is a fixed width, so a
+  chip has only so many of these, ever. Raising it is a commit of its own,
+  whose message says which release it retires, and it is a DEVICE TEST before
+  it ships.
+
 ## Stage 3, the burn, on a dedicated board, both together
 
 One board, one pass, flash encryption release mode and secure boot v2 in the
