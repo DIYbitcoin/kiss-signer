@@ -549,7 +549,6 @@ DOCS_ALLOW = {
     "online wallet": "the coordinator's object, watching the chain",
     "watch-only wallet": "what a coordinator calls the import it gets",
     "any other wallet that reads": "any coordinator, generically",
-    "the imported wallet": "BlueWallet's own label, quoted",
     "lets your wallet find those payments":
         "the coordinator scanning for silent payments",
     # The other legitimate sense, and the one W_WHATSEED_B is already allowed
