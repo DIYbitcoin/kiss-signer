@@ -4826,7 +4826,7 @@ static void file_tap_cb(lv_event_t *e)
 // Both dead ends on the SD path: no card in the slot, and a card with no .psbt
 // on it. They render in the SD CARD tab's lane -- same card, same amber SD
 // glyph, same words as when they owned a page of their own.
-static void sign_tab_go(int tab);
+static void scan_pick_cb(lv_event_t *e);
 
 // Both dead ends offer the sibling that needs no card.
 //
@@ -4842,11 +4842,18 @@ static void sign_tab_go(int tab);
 // Only the card takes the tap. wt_word_action makes itself clickable when it
 // is handed a callback, and a clickable child inside a clickable parent fires
 // the handler twice; it is handed none.
-static void sd_empty_scan_cb(lv_event_t *e)
-{
-    (void)e;
-    sign_tab_go(0);                       // 0 is SCAN QR, 1 is SD CARD
-}
+//
+// And the tap opens the camera, rather than the tab the camera is on. The
+// card's word is OPEN CAMERA; landing on SCAN QR instead put that identical
+// word back under the owner's thumb, in the same locale, for the same
+// destination, and asked for it a second time -- which reads as the first tap
+// having failed. scan_pick_cb is the band's own handler on that tab, so both
+// routes into the viewfinder are now one path and cannot drift apart.
+//
+// Cancelling needs nothing remembered. The scanner's cancel reopens SIGN on
+// the remembered tab, this card only ever draws on the SD one, and
+// sd_tab_build mounts the card again on its way in -- so the unmount inside
+// scan_pick_cb costs the return trip nothing.
 
 static void sd_lane_empty(lv_obj_t *p, const char *head, const char *body)
 {
@@ -4866,15 +4873,15 @@ static void sd_lane_empty(lv_obj_t *p, const char *head, const char *body)
     // the card would have carried the same words twice on one screen -- and
     // act_for refused to tap either of them, which is the walk saying the same
     // thing. OPEN CAMERA ships in 21 locales, names the action rather than the
-    // method, and lives on the tab this card leads to, so the two are never on
-    // the glass together.
+    // method, and lives on the tab whose band this card borrows, so the two
+    // are never on the glass together.
     lv_obj_t *act = wt_word_action(card, WT_ICON_ARR_R, tr(STR_S_OPEN_CAM),
                                    false, wt_accent(), true, NULL, NULL);
     lv_obj_remove_flag(act, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_align(act, LV_ALIGN_BOTTOM_LEFT, 24, -10);
 
     lv_obj_add_flag(card, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_event_cb(card, sd_empty_scan_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_event_cb(card, scan_pick_cb, LV_EVENT_CLICKED, NULL);
 }
 
 // The trail the SD branch's opened-from screens wear: how the owner got here.
