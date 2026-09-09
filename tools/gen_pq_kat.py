@@ -103,7 +103,27 @@ def cbytes(h):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--cache", default=os.path.expanduser("~/.cache/kiss-acvp"))
+    ap.add_argument("--check", action="store_true",
+                    help="fail if the committed headers are not what this would write")
     args = ap.parse_args()
+
+    # --check regenerates and compares rather than writing. It needs the ACVP
+    # files, which are cached and never committed, so with no cache it reports
+    # SKIP instead of failing: a machine that has never fetched them cannot
+    # tell drift from absence, and a gate that fails for the wrong reason gets
+    # ignored. The vectors come from a pinned upstream commit, so what this
+    # actually catches is the pin or the case list moving without a regenerate.
+    global CHECK, PENDING
+    CHECK = args.check
+    PENDING = {}
+    if CHECK and not all(
+        os.path.exists(os.path.join(args.cache, n.replace("/", "_")))
+        for n in ("SLH-DSA-keyGen-FIPS205/internalProjection.json",
+                  "SLH-DSA-sigGen-FIPS205/internalProjection.json")
+    ):
+        print("pq vectors: SKIP, no ACVP cache at %s "
+              "(run tools/gen_pq_kat.py once to populate it)" % args.cache)
+        raise SystemExit(0)
 
     kg = fetch("SLH-DSA-keyGen-FIPS205/internalProjection.json", args.cache)
     sg = fetch("SLH-DSA-sigGen-FIPS205/internalProjection.json", args.cache)
@@ -187,10 +207,39 @@ def main():
     write("main/pq_selftest_vectors.h", "\n".join(d) + "\n")
 
 
+CHECK = False
+PENDING = {}
+
+
 def write(path, text):
+    if CHECK:
+        PENDING[path] = text
+        return
     open(path, "w", encoding="utf-8").write(text)
     sys.stderr.write("wrote %s (%d bytes)\n" % (path, len(text)))
 
 
+def verify():
+    """Compare what this run would have written against what is committed."""
+    stale = []
+    for path, text in PENDING.items():
+        try:
+            have = open(path, encoding="utf-8").read()
+        except FileNotFoundError:
+            stale.append("%s is missing" % path)
+            continue
+        if have != text:
+            stale.append("%s does not match its generator" % path)
+    if stale:
+        for line in stale:
+            sys.stderr.write("FAILED: %s\n" % line)
+        sys.stderr.write("re-run: python3 tools/gen_pq_kat.py\n")
+        raise SystemExit(1)
+    print("pq vectors: %d header(s) match tools/gen_pq_kat.py at ACVP %s"
+          % (len(PENDING), ACVP_COMMIT[:10]))
+
+
 if __name__ == "__main__":
     main()
+    if CHECK:
+        verify()

@@ -191,6 +191,7 @@ run "installer artifacts vs VERSION" \
 # whole reason they can sit here rather than in the skip list.
 run "every picture resolves to a frame" "python3 tools/gen_docs_shots.py --check"
 run "the social card still shows this home screen" "python3 assets/generators/og_card.py --check"
+run "the PQ vectors match their generator" "python3 tools/gen_pq_kat.py --check"
 run "the offline installer packs what the page loads" "python3 tools/make_offline_zip.py --check"
 run --note-if "commits have changed a screen since" \
     "how far the pictures trail the screens" \
