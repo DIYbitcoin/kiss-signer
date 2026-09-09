@@ -23,7 +23,7 @@
 
 *Keep it simple. Make it clear. Make it safe.*
 
-[Simulator](https://kkdao.github.io/kiss-signer/sim/) &nbsp;·&nbsp;
+[Simulator](https://diybitcoin.github.io/kiss-signer/sim/) &nbsp;·&nbsp;
 [Docs](docs/guide.html) &nbsp;·&nbsp;
 [Walkthrough](docs/walkthrough.md) &nbsp;·&nbsp;
 [Changelog](CHANGELOG.md) &nbsp;·&nbsp;
@@ -60,8 +60,8 @@ a Bitcoin signer hidden under a Tetris game.
 ## Install
 
 Everything you need is attached to the
-[latest release](https://github.com/kkdao/kiss-signer/releases/latest), and
-[the install page](https://kkdao.github.io/kiss-signer/) will flash it from your
+[latest release](https://github.com/DIYbitcoin/kiss-signer/releases/latest), and
+[the install page](https://diybitcoin.github.io/kiss-signer/) will flash it from your
 browser. To do it by hand, download the firmware, the hashes, the signature and
 the public key into one folder.
 
