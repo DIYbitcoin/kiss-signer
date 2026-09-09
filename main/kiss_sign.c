@@ -248,6 +248,34 @@ static const char *signed_name(const char *src)
     return s_done_name;
 }
 
+// The QR-out screen's widgets and the timer that paints them.
+//
+// THIS BELONGS TO THE SCREEN SWITCH, NOT TO THE ABANDON, and for a long time
+// it did not. Every other group of cached children in this file is nulled by
+// every teardown that leaves its screen; this one was nulled by widgets_drop
+// alone -- and widgets_drop is what ABANDONING calls. So any exit off the QR
+// screen that was not an abandon left s_qr_tmr running against an s_qr_img
+// the same exit had just deleted. qr_tick's `if (s_qr_img)` guard passes on a
+// stale pointer, so wt_qr_update writes into a freed object every 250ms.
+//
+// Reachable today, not in theory: tapping [ ? ] beside the SIGNATURE code
+// goes through sig_fp_help_cb, which deletes the screen and stops nothing,
+// and the walk does that on every run. Nothing saw it. sim/lv_conf.h hands
+// LVGL a 128 KB static pool, so the sanitized walk has no redzone to place on
+// any widget and reports a clean run over the write.
+//
+// mk_screen and mk_chrome call this, which is why the fix is one line in two
+// places rather than one line in six: every screen this module builds goes
+// through one of them, so the QR group cannot outlive its screen by
+// construction and a new exit cannot forget to drop it. The ENCODER is not
+// dropped here -- qr_out_screen rebuilds through qr_enc_start, which frees the
+// old one only once the new one exists.
+static void qr_widgets_drop(void)
+{
+    if (s_qr_tmr) { lv_timer_delete(s_qr_tmr); s_qr_tmr = NULL; }
+    s_qr_img = NULL; s_part_lbl = NULL; s_ez_act = NULL;
+}
+
 // Every pointer into the screen about to go, and the timers that would call
 // back into it. One function and not two copies, because the two copies had
 // drifted: both nulled the QR group and neither nulled the graph group, which
@@ -265,9 +293,8 @@ static void widgets_drop(void)
     s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
     s_inert[0] = NULL; s_page_lbl = NULL;
-    if (s_qr_tmr) { lv_timer_delete(s_qr_tmr); s_qr_tmr = NULL; }
+    qr_widgets_drop();
     if (s_qenc) { qrt_encoder_free(s_qenc); s_qenc = NULL; }
-    s_qr_img = NULL; s_part_lbl = NULL; s_ez_act = NULL;
     // The unsigned and the signed transaction, 13 KB of BSS, live here until
     // the next PSBT happens to overwrite them. kiss_scan wipes the identical
     // bytes on every exit path it has; this file had no wipe of any kind.
@@ -378,6 +405,7 @@ static void mk_screen(lv_obj_t *parent, const char *title, const char *sub)
 #endif
         lv_obj_delete_async(s_scr);
     }
+    qr_widgets_drop();          // the outgoing screen's, whatever it was
     s_scr = wt_screen(parent, title, sub);
     // The chrome contract's HEADER only. The rest of the contract stops at
     // this chain's door on purpose: the hero, the facts strip and the graph
@@ -400,6 +428,7 @@ static void mk_chrome(lv_obj_t *parent, const char *title)
 #endif
         lv_obj_delete_async(s_scr);
     }
+    qr_widgets_drop();
     s_scr = wt_chrome(parent, title);
 }
 
