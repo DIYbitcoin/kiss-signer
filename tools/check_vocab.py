@@ -366,23 +366,19 @@ LOCALE_WORDS = {
     "zh-CN": r"付款",
 }
 
-# Backlogged BY KEY, not by (key, locale): all twenty locales carry the same
-# key set, so a key clears when its whole row has been swept and not before.
-# The English half of each of these is already fixed, and the sixteen
-# Latin-script locales have been swept too. What is left is Japanese, Korean,
-# Chinese and Russian, which stay unread until a reader of each has them.
-# Shrink-only, like every other backlog here.
-LOCALE_BACKLOG = {
-    "K_EXPL_COORD", "K_HELP_BODY", "R_HELP_BODY", "R_HELP_F1V",
-    "R_HELP_HEAD", "R_ONE_EACH", "S_D_TXID_SAME", "S_GLOSSARY_B",
-    "S_HELP_BODY", "T_FEE_PLAIN", "T_PSBT_PLAIN",
-    # The one the English never had, and the reason this sweep is worth its
-    # word list: no English rule could ever have found it. "raise the fee
-    # there if it stalls" came back as "it says when the PAYMENT confirms" in
-    # most of the twenty. The word entered the product through the
-    # translations. I_PROVE was the same fault and is now clear.
-    "S_D_TXID_CHANGES",
-}
+# EMPTY, and that is the state to keep it in. It held thirteen keys across
+# twenty locales -- 228 translated strings still saying payment after the
+# English had stopped -- and they were swept in three passes: English, the
+# sixteen Latin-script locales, then Japanese, Korean, Chinese and Russian.
+#
+# Two of those keys were ones the English never had. "raise the fee there if
+# it stalls" came back as "it says when the PAYMENT confirms", and "practice
+# with a tiny send" as "a small PAYMENT". No English-only rule could have
+# found either: the word entered the product through the translations, which
+# is the whole reason this sweep reads twenty files instead of one.
+#
+# Anything that lands here again is a translation that reintroduced it.
+LOCALE_BACKLOG = set()
 
 
 def scan_locales():

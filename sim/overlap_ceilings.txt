@@ -44,9 +44,11 @@
 # so these are the honest numbers again rather than the allowance left over
 # from the screens that earned them.
 #
-# Japanese, Korean, Russian and Chinese are NOT touched here. That walk was
-# not run, and a ceiling nobody measured is the thing this file already got
-# wrong twice.
+# Japanese, Korean, Russian and Chinese were measured next, after payment
+# came out of those four as well. Japanese, Korean and Chinese landed exactly
+# on their existing numbers and keep them. Russian came in five under and
+# takes the lower one. All twenty are now the measurement rather than an
+# allowance, which is the first time that has been true.
 cs-CZ 9
 da-DK 15
 de 31
@@ -62,7 +64,7 @@ nl 39
 pl 26
 pt-BR 15
 pt-PT 20
-ru 38
+ru 33
 sv-SE 24
 tr 16
 vi 17
