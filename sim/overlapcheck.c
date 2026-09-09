@@ -25,6 +25,7 @@
 //   5. ROLE     is one element wearing a themed accent and a status colour
 //   6. BARE     is a screen just a wall of text, with none of the kit's chrome
 //   7. WALL     is the only chrome a box drawn around that wall of text
+//  20. FAINT    is the ink far enough from the surface behind it to READ
 //
 // The first three are the ones the review asked for. The fourth was added after
 // reading docs/media/sign-verify.png: a label can ask for a box taller than the
@@ -36,6 +37,15 @@
 // others are: it is a question about a rendered object, and this is the only
 // gate that has one. It runs per accent rather than per locale, since colours
 // do not change with language.
+//
+// FAINT is numbered out of sequence because it was added last and after the
+// list stopped being maintained, and it is listed anyway because it is the
+// only check here that reads COLOUR rather than geometry. Nineteen checks can
+// all be green on a screen nobody can read in daylight. It reports on its own
+// line with its own ceiling, deliberately outside the [overlap] totals: the
+// product has twelve colour pairings under the WCAG floor today, and folding
+// those into per-locale numbers that may only go down would either turn every
+// locale red at once or force those ceilings up.
 //
 // Asked once per locale, because a gate that only speaks English measures the
 // one language that was never going to break.
@@ -54,6 +64,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 #include "lvgl.h"
 #include "kiss_theme.h"
@@ -1972,6 +1983,202 @@ static void oc_check_amber(const char *tag)
     }
 }
 
+// ---- 20. FAINT: ink a reader cannot separate from what is behind it --------
+//
+// WHY THIS EXISTS, and it is the one blind spot every other check in this file
+// shares. Nineteen checks read GEOMETRY -- where a box is, how tall its font
+// is, whether two of them share pixels -- and not one of them has ever had an
+// opinion about whether the ink and the surface under it are far enough apart
+// to read. A screen can pass all nineteen, render exactly as drawn, and still
+// be a screen somebody has to tilt the panel to use.
+//
+// It was found the way this file's author would rather it were not: by a
+// person looking at a screenshot and saying the SD CARD tab looked switched
+// off. It was not switched off. Its label was painted in WT_DIM, which the
+// palette header defines as "ink for something present but inert", against
+// WT_BG -- about 2.7:1, under the 3:1 floor even a large glyph needs. Every
+// gate was green the whole time, because a colour nobody measures is a colour
+// nobody can be wrong about.
+//
+// WHAT IS MEASURED. WCAG 2.1 relative luminance, the sRGB formula exactly, and
+// the ratio (L1 + 0.05) / (L2 + 0.05). No approximation of it, because the
+// approximations are what let a number be argued with.
+//
+// WHAT IT IS MEASURED AGAINST is the part a gate usually gets wrong. Not
+// WT_BG: half of this product's text sits on a card, and wt_card's QR variant
+// is nearly white, so measuring everything against the page background would
+// call dark-on-light text a catastrophe and miss the real ones. The backdrop
+// is ACCUMULATED in paint order instead -- every node already drawn, whose box
+// contains this text, composited by its own fill opacity. A panel over the
+// page, a card over the panel, a quarter-opacity wash over the card: the
+// answer is what the eye actually receives.
+//
+// THE FLOOR follows the font, which is WCAG's own rule and also this repo's.
+// The house says font14 is for marks and anything an owner READS sits at 23 or
+// better; WCAG says large text may take 3:1 and everything else owes 4.5:1.
+// The two agree, so the boundary is drawn once, at the line height where the
+// kit stops writing captions and starts writing sentences.
+#define OC_FAINT_LARGE_LH  30   // line height at or above which 3:1 applies
+#define OC_FAINT_LARGE     3.0
+#define OC_FAINT_SMALL     4.5
+
+static double oc_srgb_lin(int c8)
+{
+    const double c = c8 / 255.0;
+    return c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4);
+}
+
+static double oc_luminance(uint32_t hex)
+{
+    return 0.2126 * oc_srgb_lin((int)((hex >> 16) & 0xFF))
+         + 0.7152 * oc_srgb_lin((int)((hex >> 8)  & 0xFF))
+         + 0.0722 * oc_srgb_lin((int)( hex        & 0xFF));
+}
+
+static double oc_contrast(uint32_t a, uint32_t b)
+{
+    double la = oc_luminance(a), lb = oc_luminance(b);
+    if (la < lb) { const double t = la; la = lb; lb = t; }
+    return (la + 0.05) / (lb + 0.05);
+}
+
+// Composite `src` at `opa` over `dst`, both packed 0xRRGGBB. The same sum
+// oc_over_bg does, except the destination is the surface really underneath
+// rather than an assumed WT_BG.
+static uint32_t oc_over(uint32_t dst, lv_color_t src, lv_opa_t opa)
+{
+    const int a = opa;
+    const int r = (src.red   * a + (int)((dst >> 16) & 0xFF) * (255 - a)) / 255;
+    const int g = (src.green * a + (int)((dst >> 8)  & 0xFF) * (255 - a)) / 255;
+    const int b = (src.blue  * a + (int)( dst        & 0xFF) * (255 - a)) / 255;
+    return ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;
+}
+
+static bool oc_area_covers(const lv_area_t *outer, const lv_area_t *inner)
+{
+    return outer->x1 <= inner->x1 && outer->y1 <= inner->y1 &&
+           outer->x2 >= inner->x2 && outer->y2 >= inner->y2;
+}
+
+// What is under the text at node `i`. s_node is filled by oc_collect, which
+// walks the tree depth first -- so it is already in paint order, and "under"
+// is every earlier index whose box contains this one.
+static uint32_t oc_backdrop(int i)
+{
+    lv_color_t bg = WT_BG;
+    uint32_t under = ((uint32_t)bg.red << 16) | ((uint32_t)bg.green << 8) | bg.blue;
+    for (int j = 0; j < i; j++) {
+        const oc_node_t *b = &s_node[j];
+        if (b->buried) continue;
+        if (!oc_area_covers(&b->vis, &s_node[i].vis)) continue;
+        const lv_opa_t opa = lv_obj_get_style_bg_opa(b->obj, LV_PART_MAIN);
+        if (opa == 0) continue;
+        under = oc_over(under, lv_obj_get_style_bg_color(b->obj, LV_PART_MAIN), opa);
+    }
+    return under;
+}
+
+// ONE FINDING PER PAIRING, not per label. The unit that matters is a colour
+// on a surface: WT_DIM on the page is a single decision taken once and
+// repeated a hundred times, and printing it a hundred times would bury the
+// eleven other pairings under it. So the signature is the two colours, the
+// first label to show it carries the example, and the rest are counted.
+//
+// That also makes the ceiling locale independent. Instance counts move with
+// how many labels a translation happens to draw; the set of colour pairings
+// the product puts on glass does not.
+#define OC_FAINT_MAX 64
+
+typedef struct {
+    uint32_t ink, under;
+    double   ratio, floor_;
+    int      hits;
+    char     first[96];
+    char     where[64];
+} oc_faint_t;
+
+static oc_faint_t s_faint[OC_FAINT_MAX];
+static int        s_faint_n;
+static int        s_faint_objs;   // labels weighed, so "0" and "never ran" differ
+
+static void oc_faint_note(const char *tag, uint32_t ink, uint32_t under,
+                          double ratio, double floor_, const char *txt)
+{
+    for (int i = 0; i < s_faint_n; i++)
+        if (s_faint[i].ink == ink && s_faint[i].under == under) {
+            s_faint[i].hits++;
+            // Keep the WORST example of the pairing. A span-lit tail and a
+            // plain run can share two colours and differ in ratio.
+            if (ratio < s_faint[i].ratio) s_faint[i].ratio = ratio;
+            return;
+        }
+    if (s_faint_n >= OC_FAINT_MAX) return;
+    oc_faint_t *f = &s_faint[s_faint_n++];
+    f->ink = ink; f->under = under; f->ratio = ratio; f->floor_ = floor_;
+    f->hits = 1;
+    snprintf(f->first, sizeof f->first, "%s", txt);
+    snprintf(f->where, sizeof f->where, "%s", oc_short_tag(tag));
+}
+
+static void oc_check_contrast(const char *tag)
+{
+    char t[96];
+    for (int i = 0; i < s_n; i++) {
+        const oc_node_t *n = &s_node[i];
+        if (n->buried || !n->is_label) continue;
+        const lv_opa_t topa = lv_obj_get_style_text_opa(n->obj, LV_PART_MAIN);
+        if (topa == 0) continue;
+        char spbuf[512];
+        const char *txt = oc_text_of(n->obj, spbuf, sizeof spbuf);
+        if (!txt || !*txt) continue;
+        // A zero-area label paints nothing, so it cannot be too faint to read.
+        if (area_w(&n->vis) <= 0 || area_h(&n->vis) <= 0) continue;
+
+        const uint32_t under = oc_backdrop(i);
+        // A SPANGROUP CARRIES NO INK OF ITS OWN, and reading it as if it did
+        // is the difference between a gate and a nuisance. Every folded
+        // address on this device is a spangroup, each span holding its own
+        // colour, and the group underneath keeps LVGL's stock 0x212121 --
+        // which measures 1.2:1 on this page and is painted nowhere. The first
+        // run of this check reported fifty of those and not one was real.
+        //
+        // So the group is judged by its FAINTEST span, which is the one a
+        // reader loses first, and the ratio the finding prints is that span's.
+        uint32_t ink = oc_over(under,
+                               lv_obj_get_style_text_color(n->obj, LV_PART_MAIN),
+                               topa);
+        double ratio = oc_contrast(ink, under);
+        if (lv_obj_check_type(n->obj, &lv_spangroup_class)) {
+            const uint32_t cnt = lv_spangroup_get_span_count(n->obj);
+            ratio = 0;
+            for (uint32_t k = 0; k < cnt; k++) {
+                lv_span_t *sp = lv_spangroup_get_child(n->obj, (int32_t)k);
+                const char *st = sp ? lv_span_get_text(sp) : NULL;
+                if (!st || !*st) continue;
+                const lv_style_t *ss = lv_span_get_style(sp);
+                lv_style_value_t v;
+                if (lv_style_get_prop(ss, LV_STYLE_TEXT_COLOR, &v) != LV_STYLE_RES_FOUND)
+                    continue;
+                const uint32_t sink = oc_over(under, v.color, topa);
+                const double sr = oc_contrast(sink, under);
+                if (ratio == 0 || sr < ratio) { ratio = sr; ink = sink; }
+            }
+            if (ratio == 0) continue;   // no span said anything about colour
+        }
+        const double floor_ = n->lh >= OC_FAINT_LARGE_LH ? OC_FAINT_LARGE
+                                                         : OC_FAINT_SMALL;
+        s_faint_objs++;
+
+        if (getenv("OVERLAPCHECK_FAINT"))
+            printf("[faint] %4.2f floor %.1f lh %2d ink %06X on %06X  %-28s %s\n",
+                   ratio, floor_, n->lh, ink, under, oc_short_tag(tag), txt);
+
+        if (ratio >= floor_) continue;
+        oc_text(n->obj, t, sizeof t);
+        oc_faint_note(tag, ink, under, ratio, floor_, t);
+    }
+}
+
 static void oc_check_colour_roles(const char *tag)
 {
     char t[64], sig[192], detail[320];
@@ -2385,6 +2592,65 @@ static int oc_selftest_case(const char *name, int accent,
     return got == want_finding ? 0 : 1;
 }
 
+
+// FAINT reports nothing that any locale sweep can be trusted to reach twice,
+// and its arithmetic is the kind that is wrong quietly: an sRGB curve applied
+// to the wrong side, or a ratio taken the wrong way up, still prints numbers
+// that look like contrast ratios. So both halves are proved here.
+//
+// The MATHS half is checked against values that are not this file's opinion.
+// White on black is 21:1 and any colour on itself is 1:1, both fixed by the
+// WCAG definition; the other three are this palette read through it.
+static int oc_selftest_ratio(const char *name, uint32_t a, uint32_t b,
+                             double want)
+{
+    const double got = oc_contrast(a, b);
+    const bool ok = got > want - 0.01 && got < want + 0.01;
+    printf("  %-46s %s (%.4f, wanted %.4f)\n", name, ok ? "ok" : "FAILED",
+           got, want);
+    return ok ? 0 : 1;
+}
+
+// The BACKDROP half, which is the part that would fail silently. A gate that
+// measured everything against WT_BG would pass all three of these by accident
+// on a dark product and then call the QR card's dark-on-light text a
+// catastrophe. `on_card` puts a near-white surface under the same ink to prove
+// the backdrop is read from the tree and not assumed.
+static int oc_selftest_faint(const char *name, lv_color_t ink, bool on_card,
+                             bool want_finding)
+{
+    lv_obj_t *scr = lv_obj_create(NULL);
+    lv_screen_load(scr);
+    lv_obj_set_style_bg_color(scr, WT_BG, LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, LV_PART_MAIN);
+
+    lv_obj_t *par = scr;
+    if (on_card) {
+        par = lv_obj_create(scr);
+        lv_obj_set_size(par, 400, 120);
+        lv_obj_set_pos(par, 20, 20);
+        lv_obj_set_style_bg_color(par, WT_CARD, LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(par, LV_OPA_COVER, LV_PART_MAIN);
+        lv_obj_set_style_border_width(par, 0, LV_PART_MAIN);
+        lv_obj_set_style_pad_all(par, 0, LV_PART_MAIN);
+    }
+    wt_lbl(par, "SOME WORDS", 40, 40, wt_font23(), ink);
+    lv_refr_now(NULL);
+
+    s_n = 0;
+    s_faint_n = 0;
+    s_faint_objs = 0;
+    lv_area_t full = { 0, 0, LV_HOR_RES - 1, LV_VER_RES - 1 };
+    oc_collect(scr, full, false);
+    oc_mark_buried();
+    oc_check_contrast("selftest");
+
+    const bool got = s_faint_n > 0;
+    printf("  %-46s %s (%d pairing%s)\n", name,
+           got == want_finding ? "ok" : "FAILED", s_faint_n,
+           s_faint_n == 1 ? "" : "s");
+    return got == want_finding ? 0 : 1;
+}
 
 // STALE fires only on a stop that FOLLOWS an accent change, which the walk
 // does in exactly two places -- so a clean sweep proves nothing about it
@@ -3258,6 +3524,22 @@ int oc_selftest(void)
     wt_accent_set(WT_ACC_MONO);
     if (bad) printf("ROLE self test: %d case(s) wrong\n", bad);
     else     printf("ROLE self test: 4 cases, all as expected\n");
+    printf("\n");
+
+    int was_role = bad;
+    printf("FAINT check self test\n");
+    bad += oc_selftest_ratio("white on black is 21:1", 0xFFFFFF, 0x000000, 21.0);
+    bad += oc_selftest_ratio("a colour on itself is 1:1", 0x070A10, 0x070A10, 1.0);
+    bad += oc_selftest_ratio("WT_INK on WT_BG", 0xE8EEF7, 0x070A10, 16.9860);
+    bad += oc_selftest_ratio("WT_MUT on WT_BG", 0x7A869C, 0x070A10, 5.3943);
+    bad += oc_selftest_ratio("WT_DIM on WT_BG", 0x4C5666, 0x070A10, 2.6702);
+    bad += oc_selftest_faint("WT_DIM on the page, fires", WT_DIM, false, true);
+    bad += oc_selftest_faint("WT_INK on the page, clear", WT_INK, false, false);
+    bad += oc_selftest_faint("WT_INK on a light card, fires", WT_INK, true, true);
+    bad += oc_selftest_faint("WT_BG on a light card, clear", WT_BG, true, false);
+    if (bad != was_role) printf("FAINT self test: %d case(s) wrong\n",
+                                bad - was_role);
+    else                 printf("FAINT self test: 9 cases, all as expected\n");
     return bad ? 1 : 0;
 }
 
@@ -3511,6 +3793,7 @@ void oc_check(const char *tag)
     oc_check_tiny(tag);
     oc_check_dots(tag);
     oc_check_amber(tag);
+    oc_check_contrast(tag);
     oc_check_ragged(tag);
     oc_check_layer(tag);
     // LAST: it rebuilds the node set against the overlay's tree, so anything
@@ -3540,6 +3823,35 @@ int oc_report(void)
         printf("[overlap] %s: role check saw %d accent and %d status objects, "
                "walk started in %s\n", lang, s_role_accent_objs,
                s_role_status_objs, acc && *acc ? acc : "MONO");
+
+    // ---- FAINT, on its own line and with its own number ------------------
+    //
+    // Separate from the [overlap] total on purpose. That total is ratcheted
+    // per locale in sim/overlap_ceilings.txt and English is a hard zero there;
+    // folding a hundred and thirty nine known-faint labels into it would
+    // either turn every locale red at once or force those ceilings UP, which
+    // that file says may never happen. This is a different question with a
+    // different unit and it gets its own answer.
+    //
+    // The unit is PAIRINGS. Sorted worst first, because the worst is the one
+    // somebody should look at, and a list nobody can rank is a list nobody
+    // reads.
+    for (int i = 1; i < s_faint_n; i++) {
+        oc_faint_t v = s_faint[i];
+        int j = i - 1;
+        for (; j >= 0 && s_faint[j].ratio > v.ratio; j--)
+            s_faint[j + 1] = s_faint[j];
+        s_faint[j + 1] = v;
+    }
+    for (int i = 0; i < s_faint_n; i++) {
+        const oc_faint_t *f = &s_faint[i];
+        printf("  FAINT    %06X on %06X is %.2f:1 against a floor of %.1f, "
+               "%d label(s) -- e.g. \"%s\" at %s\n",
+               f->ink, f->under, f->ratio, f->floor_, f->hits,
+               f->first, f->where);
+    }
+    printf("[faint] %s: %d colour pairing(s) below the floor, "
+           "%d label(s) weighed\n", lang, s_faint_n, s_faint_objs);
 
     // An entry that was never hit means its screen has been rebuilt (or renamed)
     // and the exemption is now protecting nothing. Printed rather than failed,
