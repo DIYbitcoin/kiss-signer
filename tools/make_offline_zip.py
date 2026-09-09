@@ -156,7 +156,7 @@ OFFLINE_INDEX = """<!doctype html>
     <header class="topbar">
       <a class="brand" href="./">
         <img src="assets/kiss-mark.svg" alt="" width="32" height="32">
-        KISS&nbsp;SIGNER
+        KISS-SIGNER
       </a>
       <nav class="topnav" aria-label="Site">
         <a href="guide.html">Docs</a>
@@ -433,7 +433,7 @@ def render_start_here(version: str, firmware: str, fingerprint: str | None,
         ]
 
     lines = [
-        "KISS SIGNER, OFFLINE INSTALLER",
+        "KISS-SIGNER, OFFLINE INSTALLER",
         f"version {version}",
         "",
         "Everything needed to flash the device is in this folder. Nothing here",
