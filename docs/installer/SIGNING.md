@@ -365,6 +365,36 @@ fingerprints of the three public halves, in `~/.kiss-signer/sb/root.txt`. It
 holds nothing secret: copy it to wherever updates are signed, and both lanes
 refuse to sign as key *N* with a key that record does not call key *N*.
 
+### The update key on a card
+
+The split takes two keys off the everyday machine. Putting the third on a
+smartcard takes the last one, and then no private half of the root is readable
+there at all: the key that signs every release lives inside a device that will
+not export it and wants a finger on it before it signs. A stolen laptop buys
+an attacker nothing.
+
+Point `KISS_SB_HSM_CONFIG` at an ini of the same shape as the OTA one, naming
+the slot that holds the key — a separate file, because it is a separate key
+even when it is the same card. The update lane then signs from the card, and
+says so before it does:
+
+```sh
+KISS_SB_HSM_CONFIG=~/.kiss-signer/sb_hsm.ini \
+  KISS_ENC_UPDATE=1 bash tools/build_encrypted_release.sh
+```
+
+Two things to know before planning on it. Secure boot on this chip is RSA-3072
+and many cards cap PIV RSA at 2048, so check what yours holds before importing
+anything. And a card cannot hand a public key back to the signing tool, so the
+lane reads the public half off disk instead: the burn writes it beside each
+private key as `kiss_sb_<n>.pub.pem`, and that file has to travel with
+`root.txt` to the update machine. It is what the card's signature is checked
+against, so a card holding the wrong key is caught there.
+
+The card gets a *copy* of the key, minted from the file. Once it has signed a
+release, that file belongs offline with the spares — the lane counts every
+private key of the root it can see and says so.
+
 ## What this does and doesn't prove
 
 - **Does:** the binary is exactly what the key holder built, and from which

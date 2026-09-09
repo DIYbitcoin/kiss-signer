@@ -376,12 +376,31 @@ KISS_OTA_KEY="${KISS_OTA_KEY:-$HOME/.kiss-signer/kiss_ota.pem}"
 # stored beside the thing it unlocks. tools/build_release.sh grew this first;
 # docs/installer/SIGNING.md has the setup.
 KISS_OTA_HSM_CONFIG="${KISS_OTA_HSM_CONFIG:-$HOME/.kiss-signer/hsm.ini}"
-if [ -f "$KISS_OTA_HSM_CONFIG" ]; then
+
+# The secure boot key can live on a card too, and the update lane is where that
+# pays. Splitting the lanes took the two spares off the everyday machine; this
+# takes the last one off it as well, so the key that signs every release exists
+# only inside a device that will not export it and asks for a finger before it
+# signs. A stolen laptop then buys an attacker nothing at all.
+#
+# A SEPARATE config from the OTA card above, even when it is the same YubiKey,
+# because it is a different key in a different slot: secure boot on this chip is
+# RSA-3072 and the OTA key is secp256r1. One ini names one slot.
+#
+# The burn lane ignores it, and says so: a bootloader has to be signed by all
+# three keys at once, which is a thing only the machine holding the whole root
+# can do.
+KISS_SB_HSM_CONFIG="${KISS_SB_HSM_CONFIG:-$HOME/.kiss-signer/sb_hsm.ini}"
+
+if [ -f "$KISS_OTA_HSM_CONFIG" ] || [ -f "$KISS_SB_HSM_CONFIG" ]; then
   ESPSECURE=(uvx --from "$ESPTOOL_PIN" --with python-pkcs11 espsecure)
+else
+  ESPSECURE=(uvx --from "$ESPTOOL_PIN" espsecure)
+fi
+if [ -f "$KISS_OTA_HSM_CONFIG" ]; then
   OTA_SIGN_KEY=(--hsm --hsm-config "$KISS_OTA_HSM_CONFIG")
   OTA_KEY_DESC="the card described by $KISS_OTA_HSM_CONFIG"
 else
-  ESPSECURE=(uvx --from "$ESPTOOL_PIN" espsecure)
   OTA_SIGN_KEY=(--keyfile "$KISS_OTA_KEY")
   OTA_KEY_DESC="$KISS_OTA_KEY"
 fi
@@ -463,7 +482,24 @@ fi
 
 # The update lane: one key, and the absence of the other two is the point.
 if [ "$LANE" = update ]; then
-  if [ ! -f "$SB_ACTIVE" ] && [ "$SB_PRESENT" -eq 0 ]; then
+  # The public half, beside the private one and named after it. Written by the
+  # burn, secret from nobody, and the only thing that lets a machine holding no
+  # private key at all check what it just signed: with the key on a card, this
+  # file is what the signature is verified against, and its fingerprint is what
+  # the root record is held to. Without it a card could sign with anything and
+  # nothing here would know.
+  SB_PUB_RECORDED="${SB_ACTIVE%.pem}.pub.pem"
+  if [ -f "$KISS_SB_HSM_CONFIG" ]; then
+    SB_ON_CARD=1
+    if [ ! -f "$SB_PUB_RECORDED" ]; then
+      echo "FAIL: signing from the card needs the public half of key $KISS_SB_KEY_INDEX on disk:"
+      echo "        $SB_PUB_RECORDED"
+      echo "      It is not a secret and the burn writes it. Copy it from the"
+      echo "      machine that minted the root, beside root.txt."
+      exit 1
+    fi
+    echo "signing key: the card described by $KISS_SB_HSM_CONFIG"
+  elif [ ! -f "$SB_ACTIVE" ] && [ "$SB_PRESENT" -eq 0 ]; then
     KISS_UNSIGNED=1
     echo
     echo "NOTE: no secure boot key here, so this build is UNSIGNED."
@@ -476,19 +512,36 @@ if [ "$LANE" = update ]; then
     echo "      Set KISS_SB_KEY_INDEX to the key this fleet is running on."
     exit 1
   fi
+  # What counts as a key that should not be here depends on where the signing
+  # key is. Off a card, the everyday key is meant to be on disk and only the
+  # two spares are out of place. On a card, all three are: the whole point of
+  # moving it there is that no private half of this root is readable here.
   SB_SPARES=0
   for i in 0 1 2; do
-    [ "$i" = "$KISS_SB_KEY_INDEX" ] && continue
+    if [ -z "${SB_ON_CARD:-}" ] && [ "$i" = "$KISS_SB_KEY_INDEX" ]; then continue; fi
     [ -f "${SB_KEYS[$i]}" ] && SB_SPARES=$((SB_SPARES + 1))
   done
   if [ "$SB_SPARES" -gt 0 ]; then
     echo
-    echo "NOTE: $SB_SPARES spare key(s) of the root are also on this machine."
+    echo "NOTE: $SB_SPARES key file(s) of this root are on this machine."
     echo "      This lane does not read them, and the reason it exists is that"
     echo "      they should not be here: they are what recovers the fleet if"
     echo "      the everyday key walks off it. Move them offline."
+    if [ -n "${SB_ON_CARD:-}" ]; then
+      echo "      The signing key is on the card now, so the file it was"
+      echo "      imported from is a copy that can still be stolen. Once the"
+      echo "      card has signed a release, that copy belongs offline with"
+      echo "      the spares, not here."
+    fi
   fi
 elif [ "$RECIPE" = release ]; then
+  if [ -f "$KISS_SB_HSM_CONFIG" ]; then
+    echo
+    echo "NOTE: a secure boot card is configured and the burn does not use it."
+    echo "      One signature sector carries all three keys, so only a machine"
+    echo "      holding the whole root can sign a bootloader. The card signs"
+    echo "      updates, which is where the everyday risk lives."
+  fi
   if [ "$SB_PRESENT" -eq 0 ]; then
     KISS_UNSIGNED=1
     echo
@@ -571,8 +624,13 @@ trap 'rm -rf "$SIGTMP"' EXIT
 # A marker from an earlier unsigned run must not outlive the signed image.
 rm -f "$BUILD_DIR/UNSIGNED" 2>/dev/null || true
 if [ "$RECIPE" = release ]; then
-  APP_SIGN_KEY=(--keyfile "$SB_ACTIVE")
-  APP_KEY_DESC="$SB_ACTIVE (secure boot key $KISS_SB_KEY_INDEX of 3)"
+  if [ -n "${SB_ON_CARD:-}" ]; then
+    APP_SIGN_KEY=(--hsm --hsm-config "$KISS_SB_HSM_CONFIG")
+    APP_KEY_DESC="the card described by $KISS_SB_HSM_CONFIG (secure boot key $KISS_SB_KEY_INDEX of 3)"
+  else
+    APP_SIGN_KEY=(--keyfile "$SB_ACTIVE")
+    APP_KEY_DESC="$SB_ACTIVE (secure boot key $KISS_SB_KEY_INDEX of 3)"
+  fi
   EXPECT_SCHEME=rsa
   # The provision lane holds the whole root and extracts all three public
   # halves; the update lane holds one key on purpose and extracts only that
@@ -582,7 +640,26 @@ if [ "$RECIPE" = release ]; then
     for i in 0 1 2; do
       "${ESPSECURE[@]}" extract-public-key --version 2 \
         --keyfile "${SB_KEYS[$i]}" "$SIGTMP/sb_pub$i.pem" >/dev/null
+      # Kept beside the private key, once. A machine that signs from a card
+      # holds no private half to derive this from, and espsecure will not read
+      # a public key back off the card, so without this file a card-signed
+      # image could not be checked against the root at all. Public halves are
+      # not secret: the fleet's boards carry their digests in fuses.
+      sb_pub_out="${SB_KEYS[$i]%.pem}.pub.pem"
+      if [ ! -f "$sb_pub_out" ]; then
+        cp "$SIGTMP/sb_pub$i.pem" "$sb_pub_out"
+        echo "wrote $sb_pub_out"
+      elif ! cmp -s "$SIGTMP/sb_pub$i.pem" "$sb_pub_out"; then
+        echo "FAIL: $sb_pub_out is not the public half of ${SB_KEYS[$i]}."
+        echo "      One of the two was replaced. Sort out custody before"
+        echo "      building: this file is what an update machine trusts."
+        exit 1
+      fi
     done
+  elif [ -n "${SB_ON_CARD:-}" ]; then
+    # No private key here at all. The recorded public half stands in for it,
+    # and the verify below is what proves the card holds its private twin.
+    cp "$SB_PUB_RECORDED" "$SIGTMP/sb_pub$KISS_SB_KEY_INDEX.pem"
   else
     "${ESPSECURE[@]}" extract-public-key --version 2 \
       --keyfile "$SB_ACTIVE" "$SIGTMP/sb_pub$KISS_SB_KEY_INDEX.pem" >/dev/null
@@ -665,6 +742,9 @@ python3 tools/check_sig_scheme.py "$BUILD_DIR/guition_kiss_bringup.bin" \
   --unsigned
 
 echo "signing app with $APP_KEY_DESC"
+# Without this line the build simply stops for a minute and then times out,
+# with nothing on screen to say the card is waiting on a finger.
+[ -n "${SB_ON_CARD:-}" ] && echo "      TOUCH THE CARD when it blinks - it will not sign until you do"
 "${ESPSECURE[@]}" sign-data \
   --version 2 "${APP_SIGN_KEY[@]}" \
   --output "$BUILD_DIR/guition_kiss_bringup-signed.bin" \
