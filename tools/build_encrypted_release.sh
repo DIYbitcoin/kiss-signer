@@ -569,69 +569,17 @@ elif [ "$RECIPE" = release ]; then
   fi
 fi
 
-GIT_REV=$(git describe --always --dirty 2>/dev/null || echo nogit)
-echo "commit: $GIT_REV"
-
-# The images this recipe signs must be the images this build produced. idf.py
-# writes each .bin from its ELF under a timestamp target and leaves it alone
-# while the ELF is unchanged, which on a rerun it is: last run's SIGNED
-# bootloader sat in the build directory and would have been signed a second
-# time, one sector hidden behind another. Dropping the timestamps makes ninja
-# regenerate both from the ELF; the --unsigned check before each signature is
-# the proof that it did.
-rm -f "$BUILD_DIR/.bin_timestamp" "$BUILD_DIR/bootloader/.bin_timestamp" \
-  2>/dev/null || true
-
-docker run --rm \
-  -e GIT_CONFIG_COUNT=1 \
-  -e GIT_CONFIG_KEY_0=safe.directory \
-  -e GIT_CONFIG_VALUE_0=/project \
-  -v "$PWD":/project -w /project "$KISS_IDF_IMAGE" \
-  idf.py -B "$BUILD_DIR" -DSDKCONFIG="/project/$SDKCFG" \
-  -DKISS_RELEASE=1 -DKISS_COMMIT="$GIT_REV" build
-
-# ---- sign, outside the container: the keys were settled above the build ----
-
-if [ -n "${KISS_UNSIGNED:-}" ]; then
-  # Through the helper, for the reason it gives; see tools/idf_image.sh.
-  kiss_mark_unsigned "$BUILD_DIR"
-  # Here as well as on the signed path, so the update lane's promise holds
-  # whatever happened above: that directory never contains a bootloader.
-  if [ "$LANE" = update ]; then kiss_drop_update_bootloader "$BUILD_DIR"; fi
-  echo
-  echo "UNSIGNED build (KISS_UNSIGNED=1): reproducibility only."
-  echo "      No signature block, so this image must never be flashed to a board"
-  echo "      whose fuses this recipe burns -- it could never be updated after."
-  echo "      Wrote $BUILD_DIR/UNSIGNED to say so."
-elif [ "$RECIPE" = rehearsal ] && [ ! -f "$KISS_OTA_HSM_CONFIG" ] \
-     && [ ! -f "$KISS_OTA_KEY" ]; then
-  echo
-  echo "FAIL: no OTA signing key. Looked for a card config at"
-  echo "      $KISS_OTA_HSM_CONFIG and a key file at $KISS_OTA_KEY."
-  echo "      Set one up once (docs/installer/SIGNING.md), or set KISS_OTA_KEY."
-  echo "      Without it this board can never accept an SD firmware update, and"
-  echo "      the release recipe burns the fuses that would let you reflash it."
-  echo "      For a reproducibility check on a machine with no key, set"
-  echo "      KISS_UNSIGNED=1 and compare the unsigned hashes."
-  exit 1
-else
-# Which key signs the app is the lane's decision, made once here. A rehearsal
-# app is judged by the running app's own block, so it carries the OTA key the
-# SD update lane publishes. A release app is judged against the eFuse digests,
-# so it carries the builder's key 0.
+# ---- the root, settled before anything is compiled ----
+#
+# The public halves come out here and the slot order is held against the
+# record here, before a single object file is built. Both used to sit beside
+# the signature, at the far end of a five minute compile, and what they catch
+# is a custody mistake: the wrong key in a slot, a restored file, a root that
+# is not the root these boards answer to. That is the class of error worth
+# hearing about in seconds, not after the build it invalidates.
 SIGTMP=$(mktemp -d)
 trap 'rm -rf "$SIGTMP"' EXIT
-# A marker from an earlier unsigned run must not outlive the signed image.
-rm -f "$BUILD_DIR/UNSIGNED" 2>/dev/null || true
-if [ "$RECIPE" = release ]; then
-  if [ -n "${SB_ON_CARD:-}" ]; then
-    APP_SIGN_KEY=(--hsm --hsm-config "$KISS_SB_HSM_CONFIG")
-    APP_KEY_DESC="the card described by $KISS_SB_HSM_CONFIG (secure boot key $KISS_SB_KEY_INDEX of 3)"
-  else
-    APP_SIGN_KEY=(--keyfile "$SB_ACTIVE")
-    APP_KEY_DESC="$SB_ACTIVE (secure boot key $KISS_SB_KEY_INDEX of 3)"
-  fi
-  EXPECT_SCHEME=rsa
+if [ "$RECIPE" = release ] && [ -z "${KISS_UNSIGNED:-}" ]; then
   # The provision lane holds the whole root and extracts all three public
   # halves; the update lane holds one key on purpose and extracts only that
   # one. Asking for the others here is what used to drag the spares onto the
@@ -664,9 +612,6 @@ if [ "$RECIPE" = release ]; then
     "${ESPSECURE[@]}" extract-public-key --version 2 \
       --keyfile "$SB_ACTIVE" "$SIGTMP/sb_pub$KISS_SB_KEY_INDEX.pem" >/dev/null
   fi
-  # The public halves, beside the image. Nothing on the device needs them;
-  # they say which key is which when key 0 is rotated out years from now.
-  cp "$SIGTMP"/sb_pub?.pem "$BUILD_DIR"/
 
   # ---- the root's fixed identities, in slot order ----
   #
@@ -729,6 +674,72 @@ PY
     echo "      that this key really is key $KISS_SB_KEY_INDEX of the root the boards burned."
     echo "      Copy it from the machine that ran the burn. It is not a secret."
   fi
+fi
+
+GIT_REV=$(git describe --always --dirty 2>/dev/null || echo nogit)
+echo "commit: $GIT_REV"
+
+# The images this recipe signs must be the images this build produced. idf.py
+# writes each .bin from its ELF under a timestamp target and leaves it alone
+# while the ELF is unchanged, which on a rerun it is: last run's SIGNED
+# bootloader sat in the build directory and would have been signed a second
+# time, one sector hidden behind another. Dropping the timestamps makes ninja
+# regenerate both from the ELF; the --unsigned check before each signature is
+# the proof that it did.
+rm -f "$BUILD_DIR/.bin_timestamp" "$BUILD_DIR/bootloader/.bin_timestamp" \
+  2>/dev/null || true
+
+docker run --rm \
+  -e GIT_CONFIG_COUNT=1 \
+  -e GIT_CONFIG_KEY_0=safe.directory \
+  -e GIT_CONFIG_VALUE_0=/project \
+  -v "$PWD":/project -w /project "$KISS_IDF_IMAGE" \
+  idf.py -B "$BUILD_DIR" -DSDKCONFIG="/project/$SDKCFG" \
+  -DKISS_RELEASE=1 -DKISS_COMMIT="$GIT_REV" build
+
+# ---- sign, outside the container: the keys were settled above the build ----
+
+if [ -n "${KISS_UNSIGNED:-}" ]; then
+  # Through the helper, for the reason it gives; see tools/idf_image.sh.
+  kiss_mark_unsigned "$BUILD_DIR"
+  # Here as well as on the signed path, so the update lane's promise holds
+  # whatever happened above: that directory never contains a bootloader.
+  if [ "$LANE" = update ]; then kiss_drop_update_bootloader "$BUILD_DIR"; fi
+  echo
+  echo "UNSIGNED build (KISS_UNSIGNED=1): reproducibility only."
+  echo "      No signature block, so this image must never be flashed to a board"
+  echo "      whose fuses this recipe burns -- it could never be updated after."
+  echo "      Wrote $BUILD_DIR/UNSIGNED to say so."
+elif [ "$RECIPE" = rehearsal ] && [ ! -f "$KISS_OTA_HSM_CONFIG" ] \
+     && [ ! -f "$KISS_OTA_KEY" ]; then
+  echo
+  echo "FAIL: no OTA signing key. Looked for a card config at"
+  echo "      $KISS_OTA_HSM_CONFIG and a key file at $KISS_OTA_KEY."
+  echo "      Set one up once (docs/installer/SIGNING.md), or set KISS_OTA_KEY."
+  echo "      Without it this board can never accept an SD firmware update, and"
+  echo "      the release recipe burns the fuses that would let you reflash it."
+  echo "      For a reproducibility check on a machine with no key, set"
+  echo "      KISS_UNSIGNED=1 and compare the unsigned hashes."
+  exit 1
+else
+# Which key signs the app is the lane's decision, made once here. A rehearsal
+# app is judged by the running app's own block, so it carries the OTA key the
+# SD update lane publishes. A release app is judged against the eFuse digests,
+# so it carries the builder's key 0.
+# A marker from an earlier unsigned run must not outlive the signed image.
+rm -f "$BUILD_DIR/UNSIGNED" 2>/dev/null || true
+if [ "$RECIPE" = release ]; then
+  if [ -n "${SB_ON_CARD:-}" ]; then
+    APP_SIGN_KEY=(--hsm --hsm-config "$KISS_SB_HSM_CONFIG")
+    APP_KEY_DESC="the card described by $KISS_SB_HSM_CONFIG (secure boot key $KISS_SB_KEY_INDEX of 3)"
+  else
+    APP_SIGN_KEY=(--keyfile "$SB_ACTIVE")
+    APP_KEY_DESC="$SB_ACTIVE (secure boot key $KISS_SB_KEY_INDEX of 3)"
+  fi
+  EXPECT_SCHEME=rsa
+  # The public halves, beside the image. Nothing on the device needs them;
+  # they say which key is which when key 0 is rotated out years from now.
+  cp "$SIGTMP"/sb_pub?.pem "$BUILD_DIR"/
 else
   APP_SIGN_KEY=("${OTA_SIGN_KEY[@]}")
   APP_KEY_DESC="$OTA_KEY_DESC"
