@@ -44,13 +44,67 @@ Release commit:
 
 ## Install
 
-For beta releases, flash this exact verified `.bin` using the README install steps.
+**Three ways in. Pick the row that describes you.**
 
-To flash from a browser instead, unzip `kiss-signer-0.1.0-beta10-offline.zip`, run the serve file inside it (`serve.command` on macOS, `serve.bat` on Windows, `./serve.sh` on Linux) and open the address it prints. It serves to that one computer only and reaches nothing else, so the machine you flash from can be offline the whole time. `00-START-HERE.txt` inside the zip walks through it.
+| You are | Use | Needs a cable? |
+| --- | --- | --- |
+| New device, or on beta7 or earlier | **A. Browser install** | yes, USB |
+| Already on beta8 or later | **B. SD card update** | no |
+| Flashing from a machine with no internet | **C. Offline zip** | yes, USB |
 
-Both browser routes, the hosted page and this zip, need Chrome, Brave or Edge on desktop. Safari and Firefox cannot flash ESP32 devices over Web Serial. The hosted page also stays off whenever a release is staged; the zip does not, because it is the release.
+Route B is the easy one and needs no computer at all. Route A erases the whole
+chip, so read the warning below it before choosing it.
 
-After flashing, unplug the device, wait about 3 seconds, then plug it back in.
+### A. Browser install, over USB
+
+Open the install page, plug the device in, follow the buttons. It hashes the
+firmware against this release before it offers you anything.
+
+Use **Chrome, Brave or Edge** on macOS, Windows or Linux. Safari and Firefox
+cannot talk to a USB device from a web page, so neither can flash this. On
+Linux, your user has to be able to read the serial port: if the page cannot see
+the device, add yourself to the `dialout` group and log out and back in.
+
+Prefer the command line? The README carries the `esptool` command for all three
+systems, including which port name to expect:
+
+| | Port looks like |
+| --- | --- |
+| macOS | `/dev/cu.usbmodem*` |
+| Linux | `/dev/ttyACM*` |
+| Windows | `COM3`, `COM4`, ... |
+
+### B. SD card update, no computer
+
+A running signer takes its next firmware off an SD card, so this needs no cable,
+no drivers and no operating system at all. Put `kiss-signer-0.1.0-beta10-update.bin` in the root of a card,
+then SETTINGS > FIRMWARE on the device and hold to install. It checks both
+signatures against the keys built into it before anything is written, and if the
+new firmware fails to start it goes back to the old one by itself.
+
+Use that file and not the merged image: the merged one starts with the
+bootloader, and the device looks for the application header instead, so it
+reports nothing to install.
+
+### C. Offline zip, for a machine with no internet
+
+`kiss-signer-0.1.0-beta10-offline.zip` holds the install page, the firmware and the signed hashes in one
+6 MB file. Verify its signature on a machine that has a network, carry it
+across, unzip it, then run the file for your system:
+
+| | Run |
+| --- | --- |
+| macOS | `serve.command` |
+| Windows | `serve.bat` |
+| Linux | `./serve.sh` |
+
+It opens a page that serves to that one computer and reaches nothing else, so
+the machine you flash from can stay offline the whole time. `00-START-HERE.txt`
+inside the zip says the same in more detail. Same browser rule as route A:
+Chrome, Brave or Edge.
+
+After any of the three: unplug the device, wait about 3 seconds, then plug it
+back in. It only starts new firmware from a real power-on.
 
 ### Coming from beta7 or earlier: this one erases your keys
 
@@ -102,29 +156,32 @@ instead of trimming them, so nothing an owner reads ends in a shrug.
   asked is answered yes by a board that is still open over the cable. One
   reader answers for all three, and the calm state means what the recipe says.
 
-### ✨ Better
+### ✨ New features
 
-- **A restore credits the backup it just proved.** Reading your words back into
-  the device is proof they are right, so the backup reminder stops asking for
+- **A restore now counts as a backup.** Reading your seed words back into the
+  device proves the paper is right, so the backup reminder stops asking for
   something you have already done.
-- **The seed words screen writes the words out in full** on the chip that says
-  what a restore recovered, instead of naming them in shorthand.
-- **An abandoned slide rewinds** to where it started rather than jumping there.
-- **Controls sit above their own band's fill**, so a tap lands on the control
-  and not on the paint behind it.
 
-### 📝 Words on screen
+### 💫 Improvements
 
 - **Payment became transaction** on every screen and in every language. The two
   words were mixed, and only one of them is what a signer actually handles.
-- **Around forty strings were rewritten to fit**, across all 21 languages: seed
+- **Around forty lines were rewritten to fit**, across all 21 languages: seed
   explainers, the pairing note, the passphrase intro, the lock screen, SD card
   notes, row labels and the coordinator articles. Each one now says the whole
   thing at the size the screen can show.
-- **A translation that promised more than its English does** is caught by the
-  gate now rather than by a reader.
+- **The screen that says what a restore recovered writes seed words out in
+  full**, instead of naming them in shorthand.
 
-### 🧰 For builders
+### 🐛 Bug fixes
+
+- **An abandoned slide rewinds** to where it started, rather than jumping there.
+- **Controls sit above their own band's fill**, so a tap lands on the control
+  and not on the paint behind it.
+- **A translation that promised more than its English does** is caught by the
+  gate now, rather than by a reader.
+
+### 🧰 Under the hood
 
 - The release recipe reads the chip's fuses before the step that burns them,
   reads each signature block back against the configuration that will judge it,
@@ -133,8 +190,5 @@ instead of trimming them, so nothing an owner reads ends in a shrug.
 - The changelog has a generator: it drafts the skeleton from the commits and
   refuses a release whose entry was never written.
 - Four separate push workflows became one CI run.
-
-### 📚 Docs
-
-- The burn recipe in the documentation says what the build actually does.
-- The pictures in the guide were re-rendered at the current build.
+- The burn recipe in the documentation says what the build actually does, and
+  the pictures in the guide were re-rendered at the current build.

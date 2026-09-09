@@ -27,29 +27,32 @@ instead of trimming them, so nothing an owner reads ends in a shrug.
   asked is answered yes by a board that is still open over the cable. One
   reader answers for all three, and the calm state means what the recipe says.
 
-### ✨ Better
+### ✨ New features
 
-- **A restore credits the backup it just proved.** Reading your words back into
-  the device is proof they are right, so the backup reminder stops asking for
+- **A restore now counts as a backup.** Reading your seed words back into the
+  device proves the paper is right, so the backup reminder stops asking for
   something you have already done.
-- **The seed words screen writes the words out in full** on the chip that says
-  what a restore recovered, instead of naming them in shorthand.
-- **An abandoned slide rewinds** to where it started rather than jumping there.
-- **Controls sit above their own band's fill**, so a tap lands on the control
-  and not on the paint behind it.
 
-### 📝 Words on screen
+### 💫 Improvements
 
 - **Payment became transaction** on every screen and in every language. The two
   words were mixed, and only one of them is what a signer actually handles.
-- **Around forty strings were rewritten to fit**, across all 21 languages: seed
+- **Around forty lines were rewritten to fit**, across all 21 languages: seed
   explainers, the pairing note, the passphrase intro, the lock screen, SD card
   notes, row labels and the coordinator articles. Each one now says the whole
   thing at the size the screen can show.
-- **A translation that promised more than its English does** is caught by the
-  gate now rather than by a reader.
+- **The screen that says what a restore recovered writes seed words out in
+  full**, instead of naming them in shorthand.
 
-### 🧰 For builders
+### 🐛 Bug fixes
+
+- **An abandoned slide rewinds** to where it started, rather than jumping there.
+- **Controls sit above their own band's fill**, so a tap lands on the control
+  and not on the paint behind it.
+- **A translation that promised more than its English does** is caught by the
+  gate now, rather than by a reader.
+
+### 🧰 Under the hood
 
 - The release recipe reads the chip's fuses before the step that burns them,
   reads each signature block back against the configuration that will judge it,
@@ -58,11 +61,8 @@ instead of trimming them, so nothing an owner reads ends in a shrug.
 - The changelog has a generator: it drafts the skeleton from the commits and
   refuses a release whose entry was never written.
 - Four separate push workflows became one CI run.
-
-### 📚 Docs
-
-- The burn recipe in the documentation says what the build actually does.
-- The pictures in the guide were re-rendered at the current build.
+- The burn recipe in the documentation says what the build actually does, and
+  the pictures in the guide were re-rendered at the current build.
 
 ## [0.1.0-beta9], 2026-09-08
 
