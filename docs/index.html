@@ -25,6 +25,7 @@
          to any third party. See the @font-face block at the top of styles.css. -->
     <link rel="stylesheet" href="styles.css">
     <script type="module" src="installer/vendor/esp-web-tools/install-button.js"></script>
+      <script src="theme.js"></script>
   </head>
   <body>
     <header class="topbar">
@@ -32,37 +33,26 @@
         <img src="assets/kiss-mark.svg" alt="" width="17" height="17">
         KISS&nbsp;SIGNER
       </a>
+      <!-- Four tabs, one per destination that is actually its own page. The
+           in-page jumps (how it works, features, hardware) are sections you
+           scroll to, not places to go, and Telegram lives in the footer. -->
       <nav class="topnav" aria-label="Site">
-        <a href="#install">Install</a>
-        <a href="#how">How it works</a>
-        <a href="#features">Features</a>
-        <a href="#hardware">Hardware</a>
-        <a href="sim/index.html">Simulator</a>
+        <a href="./" aria-current="page">Install</a>
         <a href="guide.html">Docs</a>
+        <a href="sim/index.html">Simulator</a>
         <a href="https://github.com/kkdao/kiss-signer">Source</a>
-        <a href="https://t.me/KISS_signer">Telegram</a>
       </nav>
     </header>
 
-    <main class="shell">
+    <main class="shell install-shell">
       <section class="hero reveal">
         <div class="hero-copy">
-        <p class="eyebrow"><span>DIY airgapped bitcoin signer</span><span>ESP32-P4</span><span>decoy signer</span></p>
-        <h1>Install KISS Signer on your device.</h1>
-        <p class="lede">
-          Writes the firmware to a Guition JC4880P443C over Web Serial, in about
-          a minute. Needs Chrome, Brave or Edge on a desktop. Safari and Firefox
-          have no Web Serial implementation, so they cannot reach the device.
-        </p>
-        <div class="status-row" aria-label="Release status">
-          <!-- back with the install card: nothing is hashed here while it is
-               pulled, and this pill is the page's loudest claim that it is. -->
-          <span class="status-pill caution">beta firmware</span>
-          <span class="status-pill stop">test wallets only</span>
-        </div>
-        <a class="docs-link motion-link" href="guide.html">
-          Docs: verifying the release, esptool, reproducible builds, and the eFuses the encrypted build burns &rarr;
-        </a>
+          <p class="eyebrow"><span>DIY airgapped bitcoin signer</span><span>ESP32-P4</span></p>
+          <h1>Install KISS Signer</h1>
+          <div class="status-row" aria-label="Release status">
+            <span class="status-pill caution">beta firmware</span>
+            <span class="status-pill stop">test wallets only</span>
+          </div>
         </div>
 
         <figure class="hero-device">
@@ -78,7 +68,24 @@
         </figure>
       </section>
 
-      <section class="install-card reveal" id="install" aria-label="Firmware install">
+      <section class="install-card reveal framed" id="install" aria-label="Firmware install">
+        <!-- Three moves, read left to right. Everything needed to flash is on
+             this screen; the depth lives in Docs. -->
+        <ol class="install-steps">
+          <li>
+            <h3>Plug it in</h3>
+            <p>Connect the device by USB from a desktop. Chrome, Brave or Edge only &mdash; Safari and Firefox cannot talk to it.</p>
+          </li>
+          <li>
+            <h3>Install</h3>
+            <p>Tick the box, press the button, then pick the port when the browser asks. About a minute.</p>
+          </li>
+          <li>
+            <h3>Power cycle</h3>
+            <p>Unplug, wait three seconds, plug back in. Cold boot only. You land on FRUIT ISLAND.</p>
+          </li>
+        </ol>
+
         <div class="verify-line">
           <div class="verify-light pending" id="verify-light"></div>
           <div>
@@ -114,221 +121,11 @@
           </esp-web-install-button>
         </div>
 
-        <div class="card-rule"></div>
-
-        <p class="power-note">
-          When it finishes, power cycle the device: unplug, wait three seconds,
-          plug back in. New firmware only starts from a cold boot. You should
-          land on FRUIT ISLAND.
+        <p class="fineprint">
+          <a class="motion-link" href="guide.html#storage">Where your recovery words are kept &rarr;</a>
+          <a class="motion-link" href="verify-release.html">Verify the release yourself &rarr;</a>
+          <a class="motion-link" href="https://github.com/kkdao/kiss-signer/releases/latest">Offline installer &rarr;</a>
         </p>
-
-        <p class="power-note">
-          Setup then asks where the recovery words are kept: <strong>FLASH</strong>
-          (stays on the device), <strong>SD CARD</strong> (sealed to this device,
-          so a lost card on its own is inert) or <strong>AMNESIC</strong> (RAM
-          only, reload every session). Which of them encrypts what depends on the
-          build you are running.
-          <a class="motion-link" href="guide.html#storage">Read the three modes first &rarr;</a>
-        </p>
-
-        <!-- Inside the install card on purpose: when the staged artifacts go
-             stale the whole card is pulled, and the offline download has to go
-             with it rather than outlive the release it belongs to. -->
-        <p class="power-note">
-          <strong>No internet where you flash?</strong> The offline installer is
-          one 6 MB download: a stripped back version of this install card, the
-          firmware, and the signed hashes. Get it once, unzip it anywhere, run
-          the serve file inside, and flash with the network off.
-          <a class="motion-link" href="https://github.com/kkdao/kiss-signer/releases/latest">Offline installer, on the latest release &rarr;</a>
-        </p>
-      </section>
-
-      <details class="receipt reveal" aria-label="Security checks">
-        <summary>What was checked</summary>
-        <!-- The three rows this browser fills in are parked with the install
-             button: nothing is being hashed here while the card is pulled, and
-             a row reading "checking" says the opposite. The row below is not
-             this page's own verdict and stands on its own.
-        <div class="receipt-row">
-          <span>The file matches the release</span>
-          <strong id="hash-check">checking</strong>
-        </div>
-        <div class="receipt-row">
-          <span>Signed by the KISS key</span>
-          <strong id="signature-check">checking</strong>
-        </div>
-        <div class="receipt-row">
-          <span>Key fingerprint. Check it elsewhere too</span>
-          <strong id="key-check">checking</strong>
-        </div>
-        -->
-        <div class="receipt-row">
-          <span>Rather not take this page's word for it</span>
-          <strong><a href="verify-release.html">Check it yourself &rarr;</a></strong>
-          &nbsp;&middot;&nbsp;
-        </div>
-      </details>
-
-      <section class="know reveal" aria-label="What this does">
-        <article class="ok">
-          <span>CHECKED FIRST</span>
-          <p>Every release ships a SHA256SUMS manifest and a detached signature from the KISS key. Check both before you write anything to a device.</p>
-        </article>
-        <article>
-          <span>STAYS OFFLINE</span>
-          <p>Your online wallet watches the chain and sends transactions. This device only checks them and signs.</p>
-        </article>
-        <article class="stop">
-          <span>NOT YET</span>
-          <p>Beta firmware on unencrypted flash. Disposable wallets only until the flash-encrypted build ships.</p>
-        </article>
-      </section>
-      <section class="slab reveal" id="how" aria-label="How it works">
-        <h2>How signing works</h2>
-        <p class="lede">Your keys stay on this device. Everything that needs the internet happens somewhere else. That other app is called a coordinator.</p>
-        <ol class="steps">
-          <li>
-            <h3>Pair a watch-only wallet</h3>
-            <p>KISS shows a QR holding your public keys, called a descriptor or a zpub. Your online wallet can then see your balance and give out addresses, but it holds nothing that can spend.</p>
-          </li>
-          <li>
-            <h3>Build the transaction there</h3>
-            <p>It picks the coins and the fee and makes a PSBT, a transaction with no signature on it yet. Nothing can move.</p>
-          </li>
-          <li>
-            <h3>Verify and sign here</h3>
-            <p>Pass the PSBT over by QR or microSD. KISS works out every amount for itself, shows you, and signs only after a deliberate hold.</p>
-          </li>
-          <li>
-            <h3>Broadcast from the coordinator</h3>
-            <p>Take the signed transaction back the same way and your online wallet sends it. KISS never touched the network.</p>
-          </li>
-        </ol>
-        <p class="power-note">
-          Pairing offers <strong>Sparrow</strong> on desktop and
-          <strong>BlueWallet</strong> on mobile, and any other wallet that reads
-          a descriptor or a zpub will work. If it calls itself watch-only, that
-          is correct, and it is the point.
-        </p>
-      </section>
-
-      <section class="slab reveal" id="features" aria-label="Features">
-        <h2>What it does</h2>
-        <div class="feats">
-          <article>
-            <span>DECOY SIGNER</span>
-            <h3>It boots into a game</h3>
-            <p>FRUIT ISLAND is a real, playable game. A secret gesture on its menu opens the signer; a different one opens a spare set of keys, so there is always something to show.</p>
-          </article>
-          <article>
-            <span>TOUCHSCREEN + QR</span>
-            <h3>PSBTs in and out by QR, or by microSD</h3>
-            <p>Small payloads are one static QR. A PSBT is split into BC-UR parts and played as a loop for the coordinator's camera, or passed as a file on microSD. No cable carries data.</p>
-          </article>
-          <article>
-            <span>SILENT PAYMENTS</span>
-            <h3>One address you can reuse</h3>
-            <p>One <code>sp1</code> address you can hand out again and again, without the privacy cost of reusing a normal one. An optional scan key lets your wallet find those payments but never spend them.</p>
-          </article>
-          <article>
-            <span>VERIFIED ON DEVICE</span>
-            <h3>Nothing is signed unseen</h3>
-            <p>Every amount, the fee and your change are worked out here, not taken on trust. A high fee, or change so tiny it harms your privacy, turns amber first.</p>
-          </article>
-          <article>
-            <span>THE AIRGAP</span>
-            <h3>Proven by the build, not promised</h3>
-            <p>There is a radio chip on the device, and KISS holds it switched off from the first instruction of every boot. The build fails outright if any networking code reaches the firmware.</p>
-          </article>
-          <article>
-            <span>21 LANGUAGES</span>
-            <h3>Including CJK and Cyrillic</h3>
-            <p>Latin, Cyrillic, Japanese, Korean and Simplified Chinese, each with its own font. Buttons resize rather than truncate, and the build fails if a key action gets too small to read.</p>
-          </article>
-          <article>
-            <span>AUDIT IT YOURSELF</span>
-            <h3>The signer proves parts of itself</h3>
-            <p>A randomness audit counts 5000 numbers from the chip into a live histogram and scores the spread with chi square, and states the fact no statistic can: the noise source is on. On the device; nothing leaves it.</p>
-          </article>
-        </div>
-      </section>
-
-      <section class="slab reveal" id="hardware" aria-label="Hardware">
-        <h2>Hardware</h2>
-        <p class="lede">One device, no soldering. The camera and SD slot are on it already.</p>
-        <div class="spec">
-          <div><span>Device</span><strong>Guition JC4880P443C</strong></div>
-          <div><span>Target</span><strong>ESP32-P4</strong></div>
-          <div><span>Display</span><strong>480&times;800 MIPI DSI, capacitive touch</strong></div>
-          <div><span>Camera</span><strong>Included, for QR capture</strong></div>
-          <div><span>Storage</span><strong>microSD slot, and internal flash</strong></div>
-          <div><span>Radio</span><strong>ESP32-C6 present, held in reset every boot</strong></div>
-        </div>
-        <p class="power-note">
-          The card carries transactions, and on the flash-encrypted build it can
-          also hold the recovery words, sealed as <code>kiss-seed.enc</code>
-          under a key that never leaves the device. That makes it a second
-          factor, not a backup: paper is still the only way back. The mode is
-          visible but disabled here until the encrypted firmware passes its
-          hardware tests.
-        </p>
-      </section>
-
-      <section class="slab reveal" aria-label="Documentation">
-        <h2>Documentation</h2>
-        <div class="doclinks">
-          <a href="sim/index.html">
-            <strong>Try it in your browser</strong>
-            <span>The real firmware, every screen, no hardware and no install</span>
-          </a>
-          <a href="guide.html#verify">
-            <strong>Verify the release</strong>
-            <span>GPG and SHA256, including Windows</span>
-          </a>
-          <a href="guide.html#source">
-            <strong>Build from source</strong>
-            <span>Reproducible Docker builds, hashes match CI</span>
-          </a>
-          <a href="guide.html#storage">
-            <strong>Where your seed words are kept</strong>
-            <span>FLASH, AMNESIC, and why encrypted SD is gated</span>
-          </a>
-          <a href="guide.html#encryption">
-            <strong>Flash encryption</strong>
-            <span>The build that cannot be undone, and what it costs</span>
-          </a>
-          <a href="https://github.com/kkdao/kiss-signer/blob/main/ROADMAP.md">
-            <strong>Roadmap</strong>
-            <span>Every feature, and whether it ships today</span>
-          </a>
-          <a href="https://github.com/kkdao/kiss-signer/blob/main/docs/security-plan.md">
-            <strong>Security plan</strong>
-            <span>Threat model, flash encryption in progress, secure boot next</span>
-          </a>
-          <a href="https://github.com/kkdao/kiss-signer/blob/main/CONTRIBUTING.md">
-            <strong>Contributing</strong>
-            <span>Project layout, conventions, and how to get changes merged</span>
-          </a>
-          <a href="https://github.com/kkdao/kiss-signer/blob/main/CHANGELOG.md">
-            <strong>Changelog</strong>
-            <span>What changed between releases, written for non-developers</span>
-          </a>
-        </div>
-      </section>
-
-      <section class="slab reveal" aria-label="Community">
-        <h2>Community</h2>
-        <p class="lede">Testing reports and development chat. Bug reports very welcome.</p>
-        <div class="doclinks">
-          <a href="https://t.me/KISS_signer">
-            <strong>Telegram</strong>
-            <span>t.me/KISS_signer, for users and contributors</span>
-          </a>
-          <a href="https://github.com/kkdao/kiss-signer/issues">
-            <strong>GitHub issues</strong>
-            <span>Source, issues and pull requests</span>
-          </a>
-        </div>
       </section>
     </main>
 
