@@ -44,10 +44,12 @@
 - **Airgapped by hardware.** Transactions move by animated QR or SD card. The
   radio chip is held in reset from the first instruction of every boot, and the
   release build fails if any networking code links into it.
-- **Pairs with Sparrow Wallet or BlueWallet.** Those are the two the pairing
-  screen is built for: Sparrow on desktop, BlueWallet on mobile. The coordinator
-  watches balances and builds transactions. It cannot sign. Ask in
-  [Telegram](https://t.me/KISS_signer) before counting on a different one.
+- **Works with coordinators that do both halves.** Import a descriptor or a zpub
+  as watch-only, and pass transactions back by animated QR or on a microSD card.
+  Reading a zpub is not enough on its own. Sparrow Wallet on desktop and
+  BlueWallet on mobile are the two the pairing screen has exports for; ask in
+  [Telegram](https://t.me/KISS_signer) about any other. The coordinator watches
+  balances and builds transactions. It cannot sign.
 - **Shows you everything before you sign.** Every amount, the fee and the change
   are worked out again on the device. A **?** on any unfamiliar word opens a
   plain words card.
