@@ -313,17 +313,46 @@ check out*. Every release published before this existed lands there, and it
 really is a KISS release correctly signed with the release key — telling that
 owner the signature failed would send them hunting for a corrupt download.
 
+## The fourth key: secure boot, and it is the builder's
+
+The flash-encryption release recipe also enables secure boot v2, and on the
+ESP32-P4 that is RSA-3072 only: the secp256r1 key above cannot sign a
+bootloader this chip will boot, because its ECDSA secure boot is errata'd. So
+a burned board trusts a different root, and it is the builder's, not the
+project's. Whoever runs `tools/build_encrypted_release.sh` mints three keys
+once and keeps them exactly the way this page says to keep the OTA key:
+
+```sh
+mkdir -p ~/.kiss-signer/sb && for i in 0 1 2; do
+  uvx --from esptool==5.3.1 espsecure generate-signing-key \
+    --version 2 --scheme rsa3072 ~/.kiss-signer/sb/kiss_sb_$i.pem
+done
+```
+
+Three, because the chip holds three key digests, burns every one the
+bootloader's signature sector carries on first boot, and revokes any slot left
+empty. The bootloader is signed with all three and the app with the first.
+Losing one key later costs a rotation, an update signed with the next key that
+revokes the old one; losing all three freezes every board burned with them on
+its last firmware. No public half is published, because there is no single one
+to publish: a burned board's SD update is its builder's own output of the same
+recipe, and nothing signed with the key above installs on it. The recipe reads
+every signature block back against the config it built, so a bootloader that
+carries the wrong scheme or fewer than three blocks never reaches a board.
+
 ## What this does and doesn't prove
 
 - **Does:** the binary is exactly what the key holder built, and from which
   commit (rebuildable via the pinned Docker toolchain).
 - **Doesn't:** that the device will only *boot* signed firmware. That is
-  **secure boot**, a separate hardware feature handled in the flash-encryption
-  hardening pass (one-way eFuse burn). Release signatures protect the
+  **secure boot**, a separate hardware feature in the flash-encryption release
+  recipe (one-way eFuse burn), and on a burned board the key is the fourth one
+  above, the builder's own, not this one. Release signatures protect the
   download; secure boot protects the device.
 
-  The SD update check above sits between the two: it is the same signature
-  secure boot will later enforce in hardware, verified in software today. It
-  stops a bad image being *installed*; it cannot stop one written past it, with
-  a programmer, straight to flash. Burning the eFuse is what closes that, and
-  the update path is already in the shape that pass needs.
+  The SD update check above sits between the two. On a beta board it is
+  verified in software against the running app's own block; on a burned board
+  the same check is made against the eFuse digests, in hardware. It stops a
+  bad image being *installed*; on a beta board it cannot stop one written past
+  it, with a programmer, straight to flash. Burning the eFuse is what closes
+  that.
