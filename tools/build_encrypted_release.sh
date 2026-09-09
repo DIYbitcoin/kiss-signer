@@ -1124,8 +1124,14 @@ encrypted REHEARSAL build OK: $BUILD_DIR/
      --no-stub write-flash --flash-mode dio --flash-size 16MB --flash-freq 80m \\
 $FLASH_LINES
 
-   sha256 of those $N_FILES files (compare with the reproducible build run in CI):
+   sha256 of those $N_FILES files, so you can prove the board got these bytes:
 $SHA_LINES
+
+   The app's hash will NOT match the one CI publishes. CI hashes an UNSIGNED
+   build and signing writes fresh random bytes into the file every run, so no
+   two signed builds of one commit hash alike. Unsigned is where the two are
+   comparable, and it is its own build:
+     KISS_UNSIGNED=1 KISS_ENC_REHEARSAL=1 bash tools/build_encrypted_release.sh
 
 3. unplug -> ~3s -> replug, WAIT for the menu, then run the wallet for real:
    create, lock, unlock, sign, wipe. Reflash and repeat as needed.
@@ -1182,9 +1188,17 @@ encrypted release build OK: $BUILD_DIR/
      --no-stub write-flash --flash-mode dio --flash-size 16MB --flash-freq 80m \\
 $FLASH_LINES
 
-   sha256 of those $N_FILES files. The flash is one way, so hold them against
-   the reproducible build run in CI BEFORE step 2, not after:
+   sha256 of those $N_FILES files. The flash is one way, so read them BEFORE
+   step 2, not after, and prove the board got these exact bytes:
 $SHA_LINES
+
+   Two of those four are signed - the app and the bootloader - and their
+   hashes will NOT match the ones CI publishes. That is not a fault: CI
+   hashes an UNSIGNED build, and RSA signing writes fresh random bytes into
+   the file on every run, so no two signed builds of one commit hash alike.
+   The table and the otadata carry no signature and must match exactly.
+   To check the build itself against CI, build the same commit unsigned:
+     KISS_UNSIGNED=1 bash tools/build_encrypted_release.sh
 
 3. unplug -> ~3s -> replug, then WAIT (see warning above).
    When Settings shows encryption ON and calm, not amber, the fuses say
