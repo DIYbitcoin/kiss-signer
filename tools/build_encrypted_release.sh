@@ -746,6 +746,10 @@ encrypted REHEARSAL build OK: $BUILD_DIR/
 #    because DEVELOPMENT mode is not "secure" and must not look like it is.
 ################################################################################
 
+0. read the fuses FIRST. Erasing proves nothing about them: a board erases
+   fine with its cable already locked. This must print PASS:
+   python3 tools/check_efuse_fresh.py --reflashable -p <port>
+
 1. erase the board:
    uvx esptool --chip esp32p4 -p <port> erase-flash
 
@@ -797,7 +801,12 @@ encrypted release build OK: $BUILD_DIR/
 #    Losing power mid-encryption can brick the board.
 ################################################################################
 
-1. erase the fresh board (proves it is fresh, wipes any factory demo):
+0. prove the board is fresh. erase-flash does NOT: it succeeds on a board
+   whose fuses are already burned, and the rehearsal board would pass it.
+   Only the eFuse block knows, so this must print PASS before anything else:
+   python3 tools/check_efuse_fresh.py --fresh -p <port>
+
+1. erase the board (wipes any factory demo):
    uvx esptool --chip esp32p4 -p <port> erase-flash
 
 2. one full plaintext flash (first boot encrypts it in place; note the

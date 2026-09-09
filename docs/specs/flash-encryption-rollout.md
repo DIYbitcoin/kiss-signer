@@ -169,9 +169,15 @@ same image. The partition table already left bootloader headroom for exactly
 this, which is why the table sits at `0x10000` rather than `0x8000`.
 
 Treat this board as the acceptance article, not a development board. It will
-never take another build. Test on it: first boot burns and comes up, the wallet
-survives a power cycle, a sealed card opens, a wipe works, and a deliberate
-attempt to reflash it fails the way the header promises.
+never take another build. Before it: `tools/check_efuse_fresh.py --fresh` must
+PASS on this board and FAIL on the rehearsal board, because erasing flash
+proves nothing about fuses and the recipe used to say it did. Test on it:
+first boot burns and comes up, Settings shows encryption calm (the rehearsal
+board shows it amber: encrypted, not locked), the wallet survives a power
+cycle, a sealed card opens, a wipe works, the builder's own next release
+installs from a card while the beta's signed image and an unsigned one are
+refused, a power cut mid-update rolls back, and a deliberate attempt to
+reflash it over the cable fails the way the header promises.
 
 ## Stage 4, what ships, and when
 
