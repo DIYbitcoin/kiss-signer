@@ -170,6 +170,11 @@ run "a string with no glyph" "python3 tools/check_text_glyphs.py"
 # is caught at release time by make_release_notes dying -- which is late,
 # and after the artifacts are built.
 run "the changelog has this version" "python3 tools/make_changelog.py --check"
+# ...and the notes generated FROM that entry, which are the body of the
+# GitHub release and the copy inside the offline zip. An edit to the entry
+# after a release leaves those published words describing something else.
+run "the published notes match the changelog" \
+    "python3 tools/make_release_notes.py --check"
 # A translation that says more than its English. The screen gate can only
 # see text that overflows something; a body twice as long as it should be,
 # in a box big enough to hold it, is invisible to every other check here.

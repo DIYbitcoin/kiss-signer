@@ -197,9 +197,48 @@ reports nothing to install.
 """
 
 
+def check() -> int:
+    """The committed notes against what this script would write today.
+
+    These notes are generated from the changelog entry and from
+    release.json, and they are published: they are the body of the GitHub
+    release and the copy inside the offline installer. So an edit to the
+    changelog entry AFTER a release leaves the published notes describing
+    something else, and nothing noticed. That happened on the beta10 entry
+    and was caught by hand, which is not a mechanism.
+
+    A file that names an OLDER version is not a failure. Between a version
+    bump and the release build that regenerates it, that is simply where a
+    release is, and failing there would make the gate red for a whole
+    normal step of the process.
+    """
+    if not NOTES_OUT.is_file():
+        print(f"no {NOTES_OUT.relative_to(ROOT)} yet")
+        return 0
+    have = NOTES_OUT.read_text(encoding="utf-8")
+    first = have.splitlines()[0] if have else ""
+    if VERSION not in first:
+        print(f"release notes are still for {first.lstrip('# ').strip()!r}, "
+              f"and VERSION says {VERSION}: not regenerated since the bump, "
+              f"which the release build does.")
+        return 0
+    if have == render(VERSION):
+        print(f"release notes match the changelog and release.json "
+              f"({VERSION})")
+        return 0
+    print(f"FAIL: {NOTES_OUT.relative_to(ROOT)} is not what this script "
+          f"writes today.")
+    print("      The published notes and the changelog disagree. Regenerate:")
+    print("      python3 tools/make_release_notes.py --write")
+    return 1
+
+
 def main() -> int:
+    arg = sys.argv[1] if len(sys.argv) > 1 else ""
+    if arg == "--check":
+        return check()
     notes = render(VERSION)
-    if len(sys.argv) > 1 and sys.argv[1] in {"-w", "--write"}:
+    if arg in {"-w", "--write"}:
         NOTES_OUT.write_text(notes, encoding="utf-8")
         print(f"wrote {NOTES_OUT.relative_to(ROOT)}")
     else:
