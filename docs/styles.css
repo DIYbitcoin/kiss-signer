@@ -233,19 +233,19 @@ a:hover {
 /* The mark is the logo, so it leads and the wordmark follows it. Sized here
    rather than only on the tag, so it stays one number across every page. */
 .brand img {
-  width: 26px;
-  height: 26px;
+  width: 32px;
+  height: 32px;
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 11px;
   border-bottom: 0;
   padding-bottom: 0;
-  font-size: 0.76rem;
+  font-size: 0.95rem;
   font-weight: 500;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.16em;
 }
 
 /* The device's menu is a row of key-surface tabs with a 1px edge, so the site
@@ -1489,5 +1489,44 @@ button {
   .docs-pager .pager-next {
     align-items: flex-start;
     text-align: left;
+  }
+}
+
+/* The header carries a lockup, three tabs, the repo mark and four swatches.
+   That fits a laptop and not a phone, so on a narrow screen everything in it
+   gives up a little rather than the bar growing to three rows. */
+@media (max-width: 640px) {
+  .topbar {
+    gap: 10px;
+    padding: 10px 16px;
+  }
+
+  .brand {
+    gap: 8px;
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+  }
+
+  .brand img {
+    width: 26px;
+    height: 26px;
+  }
+
+  .topnav {
+    gap: 4px;
+  }
+
+  .topnav a {
+    padding: 6px 10px;
+    font-size: 0.78rem;
+  }
+
+  .theme-pick {
+    padding-left: 8px;
+  }
+
+  .icon-link {
+    width: 26px;
+    height: 26px;
   }
 }
