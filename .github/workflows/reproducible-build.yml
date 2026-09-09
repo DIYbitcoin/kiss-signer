@@ -47,9 +47,13 @@
 # exact failure this job exists to rule out.
 name: reproducible release build
 
+# Called by ci.yml rather than triggered on its own, so one push is one run
+# instead of four. workflow_dispatch stays: this lane is worth being able to
+# fire by hand without the other three. The branch rules that used to live in
+# the `on:` block below are in ci.yml now, beside the other three, where they
+# can be read together.
 on:
-  push:
-    branches: [main]
+  workflow_call:
   workflow_dispatch:
 
 env:
