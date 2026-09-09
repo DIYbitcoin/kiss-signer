@@ -1560,6 +1560,85 @@ static lv_obj_t *find_accent_line(lv_obj_t *o)
 // next-step hint is drawn by the game's own sampler rather than by LVGL -- the
 // tiles are too -- so ctrl_for, which walks up for a clickable parent, cannot
 // see it and reports it as a missing action.
+// ---- THE INK CHECK: a control found by its text must actually be painted ----
+//
+// Every tap-by-text stop in this walk located its control in the LVGL TREE and
+// tapped the middle of it. A control can be in that tree, carry the right
+// label, take the tap and run its callback while painting nothing at all --
+// and the walk cannot tell, because it never looked at the screen. That is not
+// hypothetical: SAVE TO SD CARD shipped invisible on the encrypted backup
+// screen, under a band fill created after it, and this walk tapped it happily
+// and went green while the picture beside it showed no such button.
+//
+// So the frame gets asked. The control's own rectangle must carry INK: pixels
+// that differ from the surface it sits on. A buried control's rectangle is the
+// surface and nothing else.
+//
+// The test is deliberately the weakest one that catches burial. Not "is it the
+// right colour", not "is the text legible" -- only "is anything drawn here at
+// all". A control mid fade still has contrast; a control under an opaque fill
+// has none. The mode is taken over the whole rectangle rather than assumed
+// from a corner, because these controls sit on cards, bands and the page
+// itself, and each is a different flat colour.
+#define INK_ROW_MIN   3   // pixels off the surface colour before a row counts
+#define INK_ROWS_MIN  4   // rows like that before the control counts as drawn
+static bool obj_has_ink(lv_obj_t *o)
+{
+    lv_area_t a;
+    lv_obj_get_coords(o, &a);
+    int x1 = a.x1 < 0 ? 0 : a.x1, y1 = a.y1 < 0 ? 0 : a.y1;
+    int x2 = a.x2 >= HRES ? HRES - 1 : a.x2, y2 = a.y2 >= VRES ? VRES - 1 : a.y2;
+    // Off screen, or too small to say anything about: not this check's call.
+    if (x2 - x1 < 3 || y2 - y1 < 3) return true;
+
+    // The surface colour, as the most common value in the rectangle. Flat
+    // chrome means a handful of distinct values, so a small table holds them
+    // and anything past it is already contrast.
+    uint16_t val[16];
+    int cnt[16], n = 0;
+    for (int y = y1; y <= y2; y++)
+        for (int x = x1; x <= x2; x++) {
+            const uint16_t c = g_fb[y * HRES + x];
+            int i = 0;
+            for (; i < n; i++) if (val[i] == c) { cnt[i]++; break; }
+            if (i == n && n < 16) { val[n] = c; cnt[n] = 1; n++; }
+        }
+    int mode = 0;
+    for (int i = 1; i < n; i++) if (cnt[i] > cnt[mode]) mode = i;
+    const uint16_t surface = val[mode];
+
+    // ROWS, not a pixel total. A hairline crossing the rectangle, or the edge
+    // of a neighbour, is one or two rows of difference and is not this control
+    // being drawn; a word is fifteen or more.
+    int rows = 0;
+    for (int y = y1; y <= y2; y++) {
+        int off = 0;
+        for (int x = x1; x <= x2; x++)
+            if (g_fb[y * HRES + x] != surface) off++;
+        if (off >= INK_ROW_MIN && ++rows >= INK_ROWS_MIN) return true;
+    }
+    return false;
+}
+
+// A control that is ARRIVING is blank for a few frames and is not the fault
+// this looks for: the card explainers, the firmware rows and the intro
+// staggers all fade in, and the walk reaches some of them mid flight. So a
+// blank rectangle is a question rather than a verdict -- let the frame settle
+// and ask again. What never paints stays blank however long it is given, and
+// that is the only thing that fails here.
+//
+// The frames are spent ONLY on a control that looked blank, so a walk with
+// nothing buried in it runs exactly as it did before, on the same clock.
+static bool obj_ink_settled(lv_obj_t *o)
+{
+    for (int i = 0; i < 10; i++) {
+        if (obj_has_ink(o)) return true;
+        pump(4);
+        lv_refr_now(NULL);
+    }
+    return false;
+}
+
 static lv_obj_t *ctrl_for(const char *txt, const char *how)
 {
     s_hit = NULL; s_hits = 0; s_bar_hit = NULL; s_bar_hits = 0;
@@ -1573,6 +1652,16 @@ static lv_obj_t *ctrl_for(const char *txt, const char *how)
     if (!s_hit || s_hits != 1) {
         printf("FAIL: %s \"%s\": %s\n", how, txt,
                !s_hit ? "no visible action says that" : "more than one does");
+        g_walk_fails++;
+        return NULL;
+    }
+    // Found in the tree. Now prove it is on the GLASS -- see obj_has_ink.
+    lv_refr_now(NULL);
+    if (!obj_ink_settled(s_hit)) {
+        lv_area_t a; lv_obj_get_coords(s_hit, &a);
+        printf("FAIL: %s \"%s\": in the tree at (%d,%d)-(%d,%d) and painting "
+               "nothing -- it is under something, or drawn in its own "
+               "background\n", how, txt, a.x1, a.y1, a.x2, a.y2);
         g_walk_fails++;
         return NULL;
     }
@@ -1596,6 +1685,16 @@ static lv_obj_t *act_for(int key, const char *how)
     if (!s_hit || s_hits != 1) {
         printf("FAIL: %s \"%s\": %s\n", how, txt,
                !s_hit ? "no visible action says that" : "more than one does");
+        g_walk_fails++;
+        return NULL;
+    }
+    // Found in the tree. Now prove it is on the GLASS -- see obj_has_ink.
+    lv_refr_now(NULL);
+    if (!obj_ink_settled(s_hit)) {
+        lv_area_t a; lv_obj_get_coords(s_hit, &a);
+        printf("FAIL: %s \"%s\": in the tree at (%d,%d)-(%d,%d) and painting "
+               "nothing -- it is under something, or drawn in its own "
+               "background\n", how, txt, a.x1, a.y1, a.x2, a.y2);
         g_walk_fails++;
         return NULL;
     }
