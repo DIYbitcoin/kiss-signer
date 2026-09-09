@@ -1189,8 +1189,23 @@ static void fail_screen(const char *why)
              tr(s_src == SRC_SD ? STR_S_FROM_SD : STR_S_SCAN_QR));
     wt_trail(s_scr, WT_ICON_SIGN, trail, false);
     fail_body(why);
+    // BACK goes where the trail two lines above says the owner came from, and
+    // that is the whole of the fix. This was close_cb: the one refusal in the
+    // flow that answered a failure by unmounting the card and dropping the
+    // owner on the home screen. Both SD refusals that read the card already
+    // step back a single screen, so a PSBT that would not parse cost one tap
+    // and a PSBT that would not sign cost the entire trip back in through
+    // SIGN, the card, the list and the page it was on. Nothing about a failed
+    // signature earns a longer walk back than a failed read.
+    //
+    // Neither handler is the looser one for secrets: step_back calls the same
+    // widgets_drop that close_cb does, so the transaction and its workspace
+    // are wiped on both, and only the destination differs. The SD side leaves
+    // the card mounted and s_keep_page returns the list to the page it was
+    // read from; the QR side unmounts, because that path never wanted a card.
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160,
-                    true, close_cb, NULL);
+                    true, s_src == SRC_SD ? files_back_cb : choose_back_cb,
+                    NULL);
 }
 
 // Spending from receive index N proves N was used: record it so the Receive

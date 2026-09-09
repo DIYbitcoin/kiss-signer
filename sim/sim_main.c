@@ -4124,7 +4124,22 @@ int main(void) {
   release(); pump(10);
   save("/tmp/sim_sign_failed.ppm");
   must_show("sign failed", tr(STR_S_FAIL_SIGN));
-  tap_str(STR_C_BACK, 3, 8);     // BACK -> home, the only way off a failure
+  // BACK off a failure returns to the list, ON THE PAGE THE FILE CAME FROM.
+  // This used to be the one BACK in the flow that meant "abandon SIGN": it
+  // unmounted the card and dropped the owner on the home screen, so a
+  // transaction that would not sign cost the whole trip back in through SIGN,
+  // the card, the list and a swipe. zzzzz-MERGE is alone on page two, which
+  // makes this stop the only one that can tell a return to the list from a
+  // return to the top of it -- the file is on screen or the page was lost.
+  tap_str(STR_C_BACK, 3, 8);     // BACK -> the file list, page two
+  save("/tmp/sim_sign_failed_back.ppm");
+  if (!find_label_prefix(lv_screen_active(), "zzzzz-MERGE")) {
+    printf("FAIL: BACK off a signing failure did not return to page two\n");
+    g_walk_fails++;
+  } else {
+    printf("ok: a signature that failed costs one screen, not the whole trip\n");
+  }
+  tap_str(STR_C_BACK, 3, 6);     // BACK -> home
 
   // The RECEIPT, on the only transaction whose receipt could be wrong: five
   // recipients under a 63 byte filename. Nothing had ever signed a multi output
