@@ -85,6 +85,15 @@ gpg_sign() {
     return 0
 }
 
+# 0a. the inline Python in this script and its two siblings.
+#
+# These blocks run on release day and on no other day, so one that names a
+# variable it never defines sits there until somebody is eight minutes into a
+# build with a signing key in their hand. That is not hypothetical: the badge
+# block below did exactly that, and the release died after the card had
+# already signed the firmware. Checked here, first, where it costs a second.
+python3 tools/check_release_lane.py
+
 # 0. the documentation screenshots, BEFORE the clean-tree check below.
 #
 # Every frame bakes the version in: sim/build_sim.sh compiles VERSION into

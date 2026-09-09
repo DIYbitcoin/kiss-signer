@@ -177,6 +177,8 @@ run "a translation that says too much" "I18NBLOAT_SELFTEST=1 python3 tools/check
 run "a checker nothing runs" "GATECHECK_SELFTEST=1 python3 tools/check_gates.py"
 run "a signature block the firmware would refuse" "python3 tools/check_sig_scheme.py --selftest"
 run "a burned board called fresh" "python3 tools/check_efuse_fresh.py --selftest"
+run "a release block that names what it never defined" \
+    "python3 tools/check_release_lane.py --selftest"
 run "a measurement before its layout" \
     "python3 tools/check_layout_reads.py --selftest && python3 tools/check_layout_reads.py"
 run "the sim's LVGL config vs the device's" "LVCONF_SELFTEST=1 python3 tools/check_lv_conf.py"
