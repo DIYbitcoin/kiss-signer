@@ -576,7 +576,7 @@
   "S_SIG_FP_CAP": "ASSINATURA",
   "S_SIG_FP_HELP_B": "este código vem da própria assinatura.\n\nassine de novo em um assinador de confiança.\n\no mesmo código quer dizer que ninguém mudou nada.",
   "S_SIG_FP_HELP_T": "CONFERIR ASSINATURA",
-  "S_SPARROW_SAVE": "in your coordinator: save the transaction as a PSBT file onto the card",
+  "S_COORD_SAVE": "in your coordinator: save the transaction as a PSBT file onto the card",
   "S_SP_BADGE": "pagamento silencioso",
   "S_SP_ONCHAIN_FMT": "deram a você um endereço %s.... cada pagamento para ele ganha o próprio endereço %s..., então este não vai bater.",
   "S_STEP_CAST": "broadcast",

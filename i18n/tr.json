@@ -576,7 +576,7 @@
   "S_SIG_FP_CAP": "İMZA",
   "S_SIG_FP_HELP_B": "bu kod imzanın kendisinden gelir.\n\ngüvendiğiniz bir imzalayıcıda yeniden imzalayın.\n\naynı kod, kimsenin bir şey değiştirmediği anlamına gelir.",
   "S_SIG_FP_HELP_T": "İMZA KONTROLÜ",
-  "S_SPARROW_SAVE": "in your coordinator: save the transaction as a PSBT file onto the card",
+  "S_COORD_SAVE": "in your coordinator: save the transaction as a PSBT file onto the card",
   "S_SP_BADGE": "sessiz ödeme",
   "S_SP_ONCHAIN_FMT": "size bir %s... adresi verildi. ona yapılan her ödeme kendi %s... adresini alır, bu yüzden bu eşleşmeyecek.",
   "S_STEP_CAST": "broadcast",

@@ -576,7 +576,7 @@
   "S_SIG_FP_CAP": "서명 지문",
   "S_SIG_FP_HELP_B": "이 코드는 서명 자체에서 나옵니다.\n\n믿는 다른 서명기에서 다시 서명하세요.\n\n같은 코드면 아무도 바꾸지 않은 것입니다.",
   "S_SIG_FP_HELP_T": "서명 확인",
-  "S_SPARROW_SAVE": "in your coordinator: save the transaction as a PSBT file onto the card",
+  "S_COORD_SAVE": "in your coordinator: save the transaction as a PSBT file onto the card",
   "S_SP_BADGE": "사일런트",
   "S_SP_ONCHAIN_FMT": "받은 것은 %s... 주소입니다. 그리로 가는 결제는 저마다 %s... 주소를 받으므로 이것과는 맞지 않습니다.",
   "S_STEP_CAST": "broadcast",

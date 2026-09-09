@@ -576,7 +576,7 @@
   "S_SIG_FP_CAP": "POTPIS",
   "S_SIG_FP_HELP_B": "ovaj kod dolazi iz samog potpisa.\n\npotpiši opet na potpisniku kojem vjeruješ.\n\nisti kod znači da nitko ništa nije mijenjao.",
   "S_SIG_FP_HELP_T": "PROVJERA POTPISA",
-  "S_SPARROW_SAVE": "in your coordinator: save the transaction as a PSBT file onto the card",
+  "S_COORD_SAVE": "in your coordinator: save the transaction as a PSBT file onto the card",
   "S_SP_BADGE": "tiha uplata",
   "S_SP_ONCHAIN_FMT": "dobili ste adresu %s.... svako plaćanje na nju dobiva svoju %s... adresu, pa se ova neće podudarati.",
   "S_STEP_CAST": "broadcast",

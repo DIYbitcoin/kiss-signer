@@ -493,7 +493,7 @@ UNTRANSLATED_OK = {
     # being device-bound. Both say something the old wording did not, so the
     # twenty translations of the old sentence are not translations of these:
     # English until the sweep. S_STEP_OPEN is above, already English-only.
-    "S_QR_SUB", "S_DONE_SD_SUB", "S_SPARROW_SAVE", "W_SD_NOTE",
+    "S_QR_SUB", "S_DONE_SD_SUB", "S_COORD_SAVE", "W_SD_NOTE",
 }
 
 

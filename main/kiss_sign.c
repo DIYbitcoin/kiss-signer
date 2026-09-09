@@ -1130,7 +1130,7 @@ static void done_screen(const char *outname)
 // What to DO after a file this device cannot use. Both file failures said what
 // was wrong and stopped, which leaves a new owner holding an SD card and a
 // reader with no idea which direction to walk. The empty-card screen has taught
-// the route all along (S_SPARROW_SAVE); these two had nothing.
+// the route all along (S_COORD_SAVE); these two had nothing.
 //
 // Under the refusal, never inside it: the red note is the verdict and this is
 // the way out, and one paragraph carrying both would make the instruction part
@@ -5233,7 +5233,7 @@ static void sd_tab_build(lv_obj_t *p)
     if (s_nsig < 0) s_nsig = 0;
     if (s_nfiles <= 0) {
         s_nfiles = 0;
-        sd_lane_empty(p, tr(STR_S_NO_PSBT_FILES), tr(STR_S_SPARROW_SAVE));
+        sd_lane_empty(p, tr(STR_S_NO_PSBT_FILES), tr(STR_S_COORD_SAVE));
         return;
     }
     files_build();

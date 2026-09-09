@@ -576,7 +576,7 @@
   "S_SIG_FP_CAP": "CHỮ KÝ",
   "S_SIG_FP_HELP_B": "mã này sinh ra từ chính chữ ký.\n\nký lại trên một thiết bị ký bạn tin.\n\ncùng một mã nghĩa là không ai đổi gì.",
   "S_SIG_FP_HELP_T": "KIỂM TRA CHỮ KÝ",
-  "S_SPARROW_SAVE": "in your coordinator: save the transaction as a PSBT file onto the card",
+  "S_COORD_SAVE": "in your coordinator: save the transaction as a PSBT file onto the card",
   "S_SP_BADGE": "thanh toán ẩn",
   "S_SP_ONCHAIN_FMT": "bạn được đưa một địa chỉ %s.... mỗi khoản trả tới nó nhận địa chỉ %s... riêng, nên cái này sẽ không khớp.",
   "S_STEP_CAST": "broadcast",

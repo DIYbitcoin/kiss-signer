@@ -576,7 +576,7 @@
   "S_SIG_FP_CAP": "FIRMA",
   "S_SIG_FP_HELP_B": "questo codice viene dalla firma stessa.\n\nfirma di nuovo su un firmatario di cui ti fidi.\n\nlo stesso codice vuol dire che nessuno ha cambiato nulla.",
   "S_SIG_FP_HELP_T": "CONTROLLO FIRMA",
-  "S_SPARROW_SAVE": "in your coordinator: save the transaction as a PSBT file onto the card",
+  "S_COORD_SAVE": "in your coordinator: save the transaction as a PSBT file onto the card",
   "S_SP_BADGE": "pagamento silenzioso",
   "S_SP_ONCHAIN_FMT": "ti è stato dato un indirizzo %s.... ogni pagamento verso di esso riceve il proprio indirizzo %s..., quindi questo non corrisponderà.",
   "S_STEP_CAST": "broadcast",

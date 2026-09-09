@@ -576,7 +576,7 @@
   "S_SIG_FP_CAP": "SIGNATUR",
   "S_SIG_FP_HELP_B": "denne koden kommer fra selve signaturen.\n\nsigner igjen på en signerer du stoler på.\n\nsamme kode betyr at ingen har endret noe.",
   "S_SIG_FP_HELP_T": "SIGNATUR SJEKK",
-  "S_SPARROW_SAVE": "in your coordinator: save the transaction as a PSBT file onto the card",
+  "S_COORD_SAVE": "in your coordinator: save the transaction as a PSBT file onto the card",
   "S_SP_BADGE": "stille betaling",
   "S_SP_ONCHAIN_FMT": "du fikk en %s...-adresse. hver betaling til den får sin egen %s...-adresse, så denne stemmer ikke.",
   "S_STEP_CAST": "broadcast",
