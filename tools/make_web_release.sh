@@ -526,8 +526,10 @@ PY
 # live inside it rather than be fetched. A stale bake is worse than no page: it
 # would call a genuine download corrupt, or stay green for the previous release.
 # tools/check_installer_version.py fails the build if these drift.
-"$PY" - <<'PY'
-import json, pathlib, re
+VERSION="$VERSION" "$PY" - <<'PY'
+import json, os, pathlib, re
+
+version = os.environ["VERSION"]
 page = pathlib.Path("docs/verify-release.html")
 if page.is_file():
     rel = json.loads(pathlib.Path("docs/installer/release.json").read_text())
