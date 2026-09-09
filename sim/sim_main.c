@@ -4185,7 +4185,15 @@ int main(void) {
   // makes this stop the only one that can tell a return to the list from a
   // return to the top of it -- the file is on screen or the page was lost.
   tap_str(STR_C_BACK, 3, 8);     // BACK -> the file list, page two
-  save("/tmp/sim_sign_failed_back.ppm");
+  // NO save() HERE, and the reason is worth keeping. One was added with this
+  // stop and it put German and Dutch one finding over their ceilings each: it
+  // was the first frame in the walk to photograph the pager line at a six file
+  // count, and in those two locales "dateien 4 bis 6 von 6, unsignierte z..."
+  // runs out of lane and ellipsises. That defect is real, it is older than this
+  // stop, and it belongs to the translation pass that owns the other ellipsis
+  // entries -- but a frame is not what proves this stop anyway. The assertion
+  // below reads the list directly, so the photograph bought nothing and cost
+  // two locales their ceiling.
   if (!find_label_prefix(lv_screen_active(), "zzzzz-MERGE")) {
     printf("FAIL: BACK off a signing failure did not return to page two\n");
     g_walk_fails++;
