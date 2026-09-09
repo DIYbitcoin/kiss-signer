@@ -230,10 +230,17 @@ a:hover {
   backdrop-filter: blur(10px);
 }
 
+/* The mark is the logo, so it leads and the wordmark follows it. Sized here
+   rather than only on the tag, so it stays one number across every page. */
+.brand img {
+  width: 26px;
+  height: 26px;
+}
+
 .brand {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 10px;
   border-bottom: 0;
   padding-bottom: 0;
   font-size: 0.76rem;

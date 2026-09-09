@@ -155,7 +155,7 @@ OFFLINE_INDEX = """<!doctype html>
   <body>
     <header class="topbar">
       <a class="brand" href="./">
-        <img src="assets/kiss-mark.svg" alt="" width="17" height="17">
+        <img src="assets/kiss-mark.svg" alt="" width="26" height="26">
         KISS&nbsp;SIGNER
       </a>
       <nav class="topnav" aria-label="Site">
