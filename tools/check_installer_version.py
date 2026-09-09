@@ -74,6 +74,20 @@ def button_is_live(html: str) -> bool:
 #
 # So the self test is that regex, in the four shapes docs/index.html has
 # actually held it, and the version comparison beside it.
+#
+# What a commit field may look like. `git describe` output is the shape this
+# rejects: it names the newest tag reachable from HEAD, and a release is built
+# before it is tagged, so describe always names the PREVIOUS release -- two
+# releases back when the branch has not merged main. beta9 shipped saying
+# `v0.1.0-beta7-1054-gbdcfa7be`, which reads to anyone comparing the page
+# against the device as the wrong firmware entirely.
+COMMIT_RE = re.compile(r"^[0-9a-f]{7,40}(-dirty)?$")
+
+
+def is_commit(rev: str) -> bool:
+    return bool(COMMIT_RE.match(rev or ""))
+
+
 def selftest() -> int:
     bad = 0
     cases = [
@@ -96,11 +110,11 @@ def selftest() -> int:
         bad += not ok
 
     # The version rule the manifest is held to: a prefix match, because the
-    # generator writes "<version>-<git describe>".
+    # generator writes "<version>-<commit>".
     for name, manifest_version, version, want in [
         ("an exact manifest version matches", "0.1.0-beta9", "0.1.0-beta9", True),
-        ("a describe suffix still matches",
-         "0.1.0-beta9-12-gabc1234", "0.1.0-beta9", True),
+        ("a commit suffix still matches",
+         "0.1.0-beta9-abc1234", "0.1.0-beta9", True),
         ("a different version does not match",
          "0.1.0-beta8", "0.1.0-beta9", False),
     ]:
@@ -109,7 +123,18 @@ def selftest() -> int:
         print("  %-52s %s (%s)" % (name, "ok" if ok else "FAILED", got))
         bad += not ok
 
-    print("installer version selftest: %d cases, %d broken" % (len(cases) + 3, bad))
+    for name, rev, want in [
+        ("a bare short hash is a commit", "bdcfa7be", True),
+        ("a dirty hash is still a commit", "bdcfa7be-dirty", True),
+        ("a describe string is NOT", "v0.1.0-beta7-1054-gbdcfa7be", False),
+        ("a bare tag is NOT", "v0.1.0-beta9", False),
+    ]:
+        got = is_commit(rev)
+        ok = got == want
+        print("  %-52s %s (%s)" % (name, "ok" if ok else "FAILED", got))
+        bad += not ok
+
+    print("installer version selftest: %d cases, %d broken" % (len(cases) + 7, bad))
     return 1 if bad else 0
 
 
@@ -142,6 +167,18 @@ def main() -> int:
             problems.append("release.json has no browserFirmware.path")
         elif not (INSTALLER / firmware).is_file():
             problems.append(f"release.json names {firmware}, which does not exist")
+
+        # The commit the page shows a verifier, beside the firmware hash. It
+        # has to be the string the device's own Settings line carries, or the
+        # two disagree about one build and the verifier has no way to tell
+        # which is lying.
+        rev = release.get("commit")
+        if not is_commit(rev):
+            problems.append(
+                f"release.json commit is {rev!r}, which is not a commit. "
+                f"It must be the bare short hash the firmware carries, not a "
+                f"git describe string naming an older tag."
+            )
 
     manifest_path = INSTALLER / "manifest.json"
     try:

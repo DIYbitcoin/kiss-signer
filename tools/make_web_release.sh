@@ -157,7 +157,24 @@ if [ -f build-release/UNSIGNED ]; then
 fi
 
 VERSION=$(cat VERSION)
-GIT_REV=$(git describe --always --dirty 2>/dev/null || echo nogit)
+# A bare short hash, NOT `git describe`, for the same reason build_release.sh
+# already gives -- and for one worse reason that actually shipped.
+#
+# describe names the newest tag REACHABLE from HEAD and the distance from it.
+# A release is built before it is tagged, so at build time the newest reachable
+# tag is always the PREVIOUS release. Worse on a branch that has not merged
+# main back: beta8 and beta9 were both tagged on main, so from develop the
+# newest reachable tag was still beta7. The beta9 release therefore published
+# `v0.1.0-beta7-1054-gbdcfa7be` as its commit and
+# `0.1.0-beta9-v0.1.0-beta7-1054-gbdcfa7be` as its manifest version, naming a
+# release two tags stale on the page that tells people what they are flashing.
+#
+# It also disagreed with the device. build_release.sh bakes a bare short hash
+# into the Settings line, so a verifier holding the board beside this page saw
+# two different strings for one build. A bare hash cannot go stale, cannot name
+# the wrong release, and is the same string the firmware itself carries.
+GIT_REV=$(git rev-parse --short HEAD 2>/dev/null || echo nogit)
+git diff --quiet HEAD 2>/dev/null || GIT_REV="$GIT_REV-dirty"
 # Clean, beginner-readable filename: just the version. The exact commit lives
 # inside release.json and on the device Settings screen for verifiers.
 NAME="kiss-signer-${VERSION}.bin"
