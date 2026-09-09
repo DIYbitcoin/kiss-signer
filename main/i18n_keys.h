@@ -606,7 +606,6 @@ enum {
     STR_S_WHY_TINYCH,
     STR_S_WHY_UNPROVEN,
     STR_S_HELD_T,
-    STR_S_HELD_B,
     STR_S_OUT_QR,
     STR_S_OUT_SD,
     STR_T_CHANGE_CAP,

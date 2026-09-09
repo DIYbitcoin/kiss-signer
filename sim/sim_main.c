@@ -4574,7 +4574,13 @@ int main(void) {
   // hold happens between the failure and this frame.
   tap_str(STR_C_TRY_AGAIN, 3, 40);
   touch(400, 240); pump(3); release(); pump(20);    // past the arrival motion
-  save("/tmp/sim_qr_held_retried.ppm");
+  // NO save() HERE, and it is the same reasoning the receipt's page-two stop
+  // records. A new frame is a new stop, and a stop photographs screens no
+  // frame had caught before -- which can put a locale over a shrink-only
+  // ceiling on a defect older than the change. This one would photograph the
+  // QR screen that sim_qr_out1 already holds, from the same builder. The
+  // assertion below is what proves the retry, and it reads the screen
+  // directly.
   must_show("QR came back from a retry", tr(STR_S_EASY_SCAN));
   // ...and now the OTHER way off the same screen, which needs the failure a
   // second time to get back to it.
@@ -4584,7 +4590,9 @@ int main(void) {
   must_show("held signature, second time", tr(STR_S_HELD_T));
   tap_str(STR_S_OUT_SD, 3, 150);                    // ...take the card instead
   touch(400, 240); pump(3); release(); pump(20);    // past the arrival motion
-  save("/tmp/sim_qr_held_saved.ppm");
+  // Nor here: this is the SD receipt, which sim_sign_done_many already holds
+  // from the same builder. What is new is the NAME on it, and a name is what
+  // an assertion reads better than a frame does.
   // A scanned transaction has no source file to take a name from, so the
   // signature names itself with its own eight hex. The receipt is the SD one,
   // filename card and all, which is the proof the bytes really went to a file.

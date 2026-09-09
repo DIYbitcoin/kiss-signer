@@ -1360,30 +1360,63 @@ static void held_screen(lv_obj_t *parent, const char *why)
     snprintf(trail, sizeof trail, "%s / %s", tr(STR_S_T),
              tr(s_src == SRC_SD ? STR_S_FROM_SD : STR_S_SCAN_QR));
     wt_trail(s_scr, WT_ICON_SIGN, trail, false);
+    // THE ARTIFACT, FRAMED, and it is doing two jobs. It is the proof of the
+    // claim the whole screen rests on -- a sentence saying a signature exists
+    // is a sentence, and the code is the thing itself -- and it is the framed
+    // element the BARE rule asks every screen to put above its action row. A
+    // title, one grey paragraph and a button is the shape that rule rejects,
+    // and this screen was exactly that shape when it landed.
+    //
+    // Conditional, because kiss_psbt_sig_fingerprint can fail and do_sign_cb
+    // treats that as survivable. The body below stays under BARE's wall
+    // threshold on its own, so the screen without a code is plain rather than
+    // reported.
+    int by = 136;
+    if (s_sig_fp[0]) {
+        char code[12];
+        sig_fp_code(code, sizeof code);
+        lv_obj_t *vc = wt_value_card(s_scr, tr(STR_S_SIG_FP_CAP), code,
+                                     48, 130, 704, false);
+        lv_obj_update_layout(vc);
+        by = 130 + lv_obj_get_height(vc) + 20;
+    }
     char body[384];                        // the cap fail_body uses, same reason
-    snprintf(body, sizeof body, "%s\n\n%s", why, tr(STR_S_HELD_B));
-    // Floored at 336 rather than at WT_CONTENT_BOTTOM, to leave the other way
-    // out its own line under the paragraph.
-    wt_body_para_to(s_scr, body, 136, 336);
-    // THE SECOND ROUTE IS CONTENT, NOT A THIRD CONTROL ON THE BAND. It reads
-    // as "or go out the other way", directly under the sentence saying nothing
-    // has gone out yet -- and it gets the full 704px lane, which a band slot
-    // between the action at 48 and the exit at 592 does not. "save to card"
-    // is four words in several languages and would have run into the exit.
-    lv_obj_t *other = wt_word_action(s_scr,
-                                     s_src == SRC_SD ? WT_ICON_QR : WT_ICON_SD,
-                                     tr(s_src == SRC_SD ? STR_S_OUT_QR
-                                                        : STR_S_OUT_SD),
-                                     true, INK_COL, false, held_other_cb, NULL);
-    lv_obj_set_pos(other, 48, 344);
-    // The exit keeps the corner and keeps its destination: abandoning here is
-    // the same abandoning fail_screen does, one step back to where the trail
-    // says the transaction came from.
-    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160,
-                    true, s_src == SRC_SD ? files_back_cb : choose_back_cb,
+    // S_FAIL_SAFE_B, the same guarantee the failure screen carries, and not a
+    // second sentence of its own. It was one for a while -- "the signature is
+    // finished and held on this signer" -- and it cost twice over: it was a
+    // three line wall with nothing framed beside it, and it would not re-flow
+    // onto the 320 wide board, which is a rebuild rather than a narrowing. The
+    // card above says the signature exists, in the one form that cannot be
+    // read two ways, so the words are free to carry only the guarantee.
+    snprintf(body, sizeof body, "%s\n\n%s", why, tr(STR_S_FAIL_SAFE_B));
+    wt_body_para_to(s_scr, body, by, WT_CONTENT_BOTTOM);
+    // The exit keeps the corner, at the position the kit reserves for a bar
+    // that ALSO holds the screen's own actions, and it keeps its destination:
+    // abandoning here is the same abandoning fail_screen does, one step back
+    // to where the trail says the transaction came from.
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_EXIT_X, WT_ACTION_Y,
+                    140, true, s_src == SRC_SD ? files_back_cb : choose_back_cb,
                     NULL);
-    wt_arrow_action(s_scr, tr(STR_C_TRY_AGAIN), false, true, WT_ACT_X,
-                    WT_ACTION_Y, 0, false, held_retry_cb, NULL);
+    lv_obj_t *again = wt_arrow_action(s_scr, tr(STR_C_TRY_AGAIN), false, true,
+                                      WT_ACT_X, WT_ACTION_Y, 0, false,
+                                      held_retry_cb, NULL);
+    // THE SECOND ROUTE IS MEASURED IN, not placed at a constant. It has to be
+    // on the band: it was a word action in the content lane first, and the
+    // content lane is the one thing this screen cannot spare -- every pixel it
+    // took came off the body's budget, and the body is what has to re-flow
+    // onto the 320 wide board.
+    //
+    // A three-control row elsewhere in the app can use a fixed middle slot
+    // because its left label is a fixed word. This one's is TRY AGAIN, which
+    // is "TENTAR OUTRA VEZ" in European Portuguese -- 20px past a slot at 330,
+    // and the overlap gate found it in exactly one locale out of twenty one.
+    // A constant here is a constant that is right in English.
+    lv_obj_update_layout(again);
+    int ox = WT_ACT_X + lv_obj_get_width(again) + 32;
+    if (ox < 330) ox = 330;              // ...and never tighter than that row
+    wt_arrow_action(s_scr, tr(s_src == SRC_SD ? STR_S_OUT_QR : STR_S_OUT_SD),
+                    false, false, ox, WT_ACTION_Y, 0, false, held_other_cb,
+                    NULL);
 }
 
 // The dead end: a hold that produced no signature at all. Everything about
