@@ -224,7 +224,6 @@ RULES = [
             "I_NOTE_BW": "BlueWallet's own menu path, quoted",
             "I_NOTE_SPARROW": "Sparrow's own menu path, quoted",
             "R_SP_WHY_B": "the SENDER's wallet: someone else's software",
-            "S_SPARROW_SAVE": "Sparrow's own name for itself",
             "W_WHATSEED_B": "every BIP39 wallet that exists, not this one",
         },
         fires_on="erases the wallet history stored now",
