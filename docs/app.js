@@ -68,9 +68,11 @@ function renderAuthenticity(release) {
   const keyId = auth.gpgFingerprint || auth.publicKey;
   if (keyId) {
     setReceipt(keyCheck, shortHex(keyId), hasSig ? "ok" : "warn");
-    keyCheck.title = keyId + " (tap to copy, cross-check via a second channel)";
-    keyCheck.style.cursor = "copy";
-    keyCheck.onclick = () => navigator.clipboard?.writeText(keyId);
+    if (keyCheck) {
+      keyCheck.title = keyId + " (tap to copy, cross-check via a second channel)";
+      keyCheck.style.cursor = "copy";
+      keyCheck.onclick = () => navigator.clipboard?.writeText(keyId);
+    }
   } else {
     setReceipt(keyCheck, auth.keyLabel || "not published", "warn");
   }
@@ -90,6 +92,19 @@ function shortHex(s) {
 function readError(message) {
   const error = new Error(message);
   error.kind = "read";
+  return error;
+}
+
+// The disagreements that ARE about trust: the file is not the size or the
+// hash the release published, or the manifest points somewhere else. Tagged
+// for the same reason read failures are, and it matters more here: anything
+// the catch below cannot place used to be reported as tampering, so one
+// unrelated bug in this file accused the release of being corrupt on every
+// visit. It did exactly that, live, after the receipt rows were removed from
+// the page and three lines here went on writing to them.
+function mismatchError(message) {
+  const error = new Error(message);
+  error.kind = "mismatch";
   return error;
 }
 
@@ -133,20 +148,25 @@ async function verifyFirmware() {
     // an arbitrary offset while this page still went green: manifest.json is
     // not listed in SHA256SUMS, so the PGP signature covers none of it.
     if (!Array.isArray(manifest.builds) || manifest.builds.length !== 1) {
-      throw new Error("manifest declares more than one build");
+      throw mismatchError("manifest declares more than one build");
     }
     const parts = manifest.builds[0].parts;
     if (!Array.isArray(parts) || parts.length !== 1) {
-      throw new Error("manifest declares more than one flash part");
+      throw mismatchError("manifest declares more than one flash part");
     }
     const part = parts[0];
     if (part.offset !== release.browserFirmware.offset || part.path !== release.browserFirmware.path) {
-      throw new Error("manifest does not match release metadata");
+      throw mismatchError("manifest does not match release metadata");
     }
     // An absolute path in a part silently overrides `base`. Resolve it the way
     // esp-web-tools will and require it to stay on this origin.
-    if (new URL(part.path, manifestUrl).origin !== location.origin) {
-      throw new Error("manifest part is not same origin");
+    // Both arguments have to be absolute: manifestUrl is a relative string,
+    // and `new URL(relative, relative)` throws rather than resolving. It threw
+    // on every load, and the catch below called that a hash mismatch, so the
+    // page told every visitor the firmware was bad and hid the button.
+    const partUrl = new URL(part.path, new URL(manifestUrl, location.href));
+    if (partUrl.origin !== location.origin) {
+      throw mismatchError("manifest part is not same origin");
     }
 
     setVerifyState("pending", "Hashing firmware");
@@ -154,29 +174,37 @@ async function verifyFirmware() {
     const firmwareResponse = await readFile(`${base}${release.browserFirmware.path}`, "the firmware");
     const firmware = await firmwareResponse.arrayBuffer();
     if (firmware.byteLength !== release.browserFirmware.size) {
-      throw new Error(`size mismatch: got ${firmware.byteLength}`);
+      throw mismatchError(`size mismatch: got ${firmware.byteLength}`);
     }
 
     const digest = hex(await crypto.subtle.digest("SHA-256", firmware));
     if (digest !== release.browserFirmware.sha256) {
-      throw new Error(`hash mismatch: ${digest}`);
+      throw mismatchError(`hash mismatch: ${digest}`);
     }
 
     verified = true;
     setVerifyState("ready", "This file matches the published release");
     // show the actual hash, not just a verdict; tap to copy the full digest
     setReceipt(hashCheck, shortHex(digest), "ok");
-    hashCheck.title = digest;
-    hashCheck.style.cursor = "copy";
-    hashCheck.onclick = () => navigator.clipboard?.writeText(digest);
+    if (hashCheck) {
+      hashCheck.title = digest;
+      hashCheck.style.cursor = "copy";
+      hashCheck.onclick = () => navigator.clipboard?.writeText(digest);
+    }
   } catch (error) {
     verified = false;
+    // A silent catch is why the page spent a release telling everyone the
+    // firmware was bad without saying which line decided that.
+    console.error("verifyFirmware:", error);
     if (error && error.kind === "read") {
       setVerifyState("stop", "Could not read the install files in this folder");
       setReceipt(hashCheck, "not read", "warn");
-    } else {
+    } else if (error && error.kind === "mismatch") {
       setVerifyState("stop", "This file does not match the release, do not flash it");
       setReceipt(hashCheck, "failed", "stop");
+    } else {
+      setVerifyState("stop", "The check did not finish, so this page will not offer the button");
+      setReceipt(hashCheck, "not checked", "warn");
     }
     // release.json is what fills these in, so a failure before it lands leaves
     // both rows saying "checking" forever, which reads as a check still running
