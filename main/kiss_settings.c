@@ -1761,16 +1761,21 @@ static void device_screen(void)
     // Same four facts, as the page's own def rows, at the size the rest of
     // SETTINGS reads at. The lamps carry the two that have a bad state; the
     // fifth row is the card, which is the only one that opens anything.
-    bool enc = false, radio = true, noise = true;
-    kiss_build_id_facts(NULL, &enc, &radio, &noise);
+    // ON is any encryption; calm is LOCKED alone. A rehearsal board is
+    // encrypted and still takes any image over the cable, so its row says ON
+    // in amber until the release burn closes it.
+    int lock = KISS_FLASH_OFF;
+    bool radio = true, noise = true;
+    kiss_build_id_facts(NULL, &lock, &radio, &noise);
 
     wt_def_t defs[5] = {
         { .cap = tr(STR_I_DEV_BUILD), .val = KISS_VERSION_STR,
           .sub = kiss_build_commit() },
         { .cap = tr(STR_I_DEV_ENC),
-          .val = tr(enc ? STR_G_HIST_ON_BTN : STR_G_HIST_OFF_BTN),
-          .val_col = enc ? (lv_color_t){0} : WT_WARN,
-          .lamp = true, .lamp_col = enc ? WT_OK : WT_WARN },
+          .val = tr(lock ? STR_G_HIST_ON_BTN : STR_G_HIST_OFF_BTN),
+          .val_col = lock == KISS_FLASH_LOCKED ? (lv_color_t){0} : WT_WARN,
+          .lamp = true,
+          .lamp_col = lock == KISS_FLASH_LOCKED ? WT_OK : WT_WARN },
         // HELD is the SAFE state: the C6 is kept in reset, so the radio is
         // not merely off, it cannot come up. NOT HELD is the one worth a lamp.
         { .cap = tr(STR_I_DEV_RADIO),

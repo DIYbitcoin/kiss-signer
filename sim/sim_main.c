@@ -347,7 +347,14 @@ int kiss_seed_set_mode(int m) {
 // ever seen -- and the unwarned one, which every device with flash encryption
 // on will show, unrendered.
 static int s_sim_flash_enc;
-int kiss_seed_flash_encrypted(void) { return s_sim_flash_enc; }
+// The stub carries the lock state the device reads (kiss_seed.h): 0 OFF,
+// 1 ENCRYPTED, 2 LOCKED. The walk poses 1, which is what its 1 always meant:
+// a rehearsal board, encrypted and still open over the cable.
+int kiss_seed_flash_lock_state(void) { return s_sim_flash_enc; }
+int kiss_seed_flash_encrypted(void)
+{
+  return s_sim_flash_enc >= KISS_FLASH_ENCRYPTED;
+}
 
 // The screen walk creates seeds through the same funnel the device uses, so it
 // reaches the entropy note. RAM here: the walk is one process and there is no

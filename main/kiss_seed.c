@@ -19,6 +19,8 @@
 
 #ifdef ESP_PLATFORM
 #include "esp_efuse.h"
+#include "esp_flash_encrypt.h"   // which MODE the flash fuses say
+#include "esp_secure_boot.h"     // whether the bootloader is judged at all
 #include "nvs.h"
 #include "nvs_flash.h"
 #else
@@ -784,17 +786,37 @@ int kiss_seed_source(void)
 // must NOT be written, and the encrypted lane where it is allowed and must
 // still behave. Same seam convention as kiss_seed_test_fail_next above.
 #ifndef ESP_PLATFORM
-static int s_test_flash_enc;
-void kiss_seed_test_set_flash_encrypted(int on) { s_test_flash_enc = on ? 1 : 0; }
+static int s_test_flash_lock;
+void kiss_seed_test_set_flash_encrypted(int on)
+{
+    s_test_flash_lock = on ? KISS_FLASH_ENCRYPTED : KISS_FLASH_OFF;
+}
+void kiss_seed_test_set_flash_lock_state(int st) { s_test_flash_lock = st; }
 #endif
+
+// One reader for three screens and one storage gate. Each corner of the UI
+// used to ask the eFuse for itself, and asked the one question the eFuse
+// answers yes to on a rehearsal board as readily as on a burned one -- so the
+// board the recipe says is NOT locked shut wore the calm state the burn recipe
+// tells the operator to wait for. RELEASE mode is the flash fuses that close
+// the cable; secure boot is the digest the bootloader is judged by. Both, or
+// it is not locked.
+int kiss_seed_flash_lock_state(void)
+{
+#ifdef ESP_PLATFORM
+    if (!esp_efuse_is_flash_encryption_enabled()) return KISS_FLASH_OFF;
+    if (esp_get_flash_encryption_mode() == ESP_FLASH_ENC_MODE_RELEASE
+        && esp_secure_boot_enabled())
+        return KISS_FLASH_LOCKED;
+    return KISS_FLASH_ENCRYPTED;
+#else
+    return s_test_flash_lock;
+#endif
+}
 
 int kiss_seed_flash_encrypted(void)
 {
-#ifdef ESP_PLATFORM
-    return esp_efuse_is_flash_encryption_enabled() ? 1 : 0;
-#else
-    return s_test_flash_enc;
-#endif
+    return kiss_seed_flash_lock_state() >= KISS_FLASH_ENCRYPTED;
 }
 
 // SD is deliberately a separate backend instead of teaching platform_sd about

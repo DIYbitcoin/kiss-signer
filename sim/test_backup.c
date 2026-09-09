@@ -15,6 +15,7 @@
 // sim_main.c: the paper check record carries a master fingerprint, so it is
 // only written when flash encryption is under it. Tests drive both lanes.
 void kiss_seed_test_set_flash_encrypted(int on);
+void kiss_seed_test_set_flash_lock_state(int st);
 
 static int bfails;
 
@@ -96,6 +97,22 @@ int test_backup_layer(void) {
          !kiss_backup_checked(fp_a));
 
     kiss_backup_forget();
+
+    // One reader, three states. The storage gate is DERIVED from the lock
+    // state, so the note that says "encrypted" and the corner that says
+    // "locked" can never disagree about the same fuses.
+    kiss_seed_test_set_flash_lock_state(KISS_FLASH_OFF);
+    bchk("lock state: OFF is not encrypted", !kiss_seed_flash_encrypted());
+    kiss_seed_test_set_flash_lock_state(KISS_FLASH_ENCRYPTED);
+    bchk("lock state: ENCRYPTED is encrypted and not locked",
+         kiss_seed_flash_encrypted()
+         && kiss_seed_flash_lock_state() != KISS_FLASH_LOCKED);
+    kiss_seed_test_set_flash_lock_state(KISS_FLASH_LOCKED);
+    bchk("lock state: LOCKED is encrypted", kiss_seed_flash_encrypted());
+    kiss_seed_test_set_flash_encrypted(1);
+    bchk("lock state: the on/off seam lands on ENCRYPTED, never LOCKED",
+         kiss_seed_flash_lock_state() == KISS_FLASH_ENCRYPTED);
+
     kiss_seed_test_set_flash_encrypted(0);   // leave the sim on the beta lane
     return bfails;
 }

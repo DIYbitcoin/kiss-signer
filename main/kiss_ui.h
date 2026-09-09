@@ -114,7 +114,9 @@ int kiss_build_id_right(void);
 // fucking tiny when there is a lot of space to be filled". The corner
 // diagnostic stays a corner diagnostic; the page gets rows.
 // `ver` is a pointer to static storage and is never NULL.
-void kiss_build_id_facts(const char **ver, bool *enc, bool *radio,
+// `lock` is a KISS_FLASH_* state (kiss_seed.h): ON is any nonzero value and
+// calm is LOCKED alone. A rehearsal board is ON, in amber.
+void kiss_build_id_facts(const char **ver, int *lock, bool *radio,
                          bool *noise);
 // The commit alone, for a row whose VALUE is already the version: a sub
 // repeating the value beside it is the copy rule's first cut.

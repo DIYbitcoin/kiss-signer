@@ -776,8 +776,9 @@ encrypted REHEARSAL build OK: $BUILD_DIR/
 #    reflashing this board over USB. That is the whole point of this build.
 #  * First boot encrypts ~6MB in place: minutes on a black screen.
 #    DO NOT UNPLUG until the game menu appears.
-#  * Settings will report encryption ENABLED. The build id stays amber,
-#    because DEVELOPMENT mode is not "secure" and must not look like it is.
+#  * Settings will report encryption ON, in amber, and the build id stays
+#    amber: DEVELOPMENT mode is not locked and must not look like it is.
+#    Calm is the release burn alone (kiss_seed_flash_lock_state).
 ################################################################################
 
 0. read the fuses FIRST. Erasing proves nothing about them: a board erases
@@ -855,7 +856,8 @@ $FLASH_LINES
 $SHA_LINES
 
 3. unplug -> ~3s -> replug, then WAIT (see warning above).
-   When Settings shows "flash encryption: ENABLED" (calm, not amber),
-   the eFuse says encryption is live - only then create the wallet.
+   When Settings shows encryption ON and calm, not amber, the fuses say
+   RELEASE mode and secure boot are both live - only then create the
+   wallet. ON in amber is a board that is encrypted but not locked.
 EOF
 fi
