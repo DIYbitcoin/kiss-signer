@@ -1530,3 +1530,22 @@ button {
     height: 26px;
   }
 }
+
+/* Shown only when the browser has no Web Serial. It sits outside the install
+   gate on purpose: the gate cannot open for this reader, so anything inside it
+   is invisible to exactly the person it is written for. */
+.browser-note {
+  margin: 0;
+  padding: 13px 15px;
+  border: 1px solid rgba(242, 184, 75, 0.4);
+  border-radius: 10px;
+  background: rgba(242, 184, 75, 0.06);
+  color: var(--amber);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.browser-note a {
+  color: var(--amber);
+  border-bottom-color: rgba(242, 184, 75, 0.5);
+}
