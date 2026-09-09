@@ -36,11 +36,11 @@ gpg --verify kiss-signer-0.1.0-beta11-offline.zip.asc kiss-signer-0.1.0-beta11-o
 
 Main firmware SHA256:
 
-`f32dda7ad432f6302454d6833d25edc3d4fe082a549fad60ae5af04720914b6d`
+`7f38de2c84ebf287693fa8de0a987cbeaf46a88aa69ee5a3715415f80b6285c4`
 
 Release commit:
 
-`a2f2836a`
+`b2a0c90a`
 
 ## Install
 
