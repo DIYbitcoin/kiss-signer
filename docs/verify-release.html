@@ -11,17 +11,41 @@
     <title>KISS Signer Release Check</title>
     <style>
       /* Self contained on purpose: this page must open from a FAT card over
-         file:// with no network, so everything it needs is in this one file. */
+         file:// with no network, so everything it needs is in this one file.
+         That rules out styles.css and the self-hosted woff2 faces, so the
+         firmware look is rebuilt here from system monospace and the same
+         WT_* colours rather than linked. Do NOT swap this for a stylesheet
+         link: it would break opening the file straight off a card. */
       * { box-sizing: border-box; }
       body {
         margin: 0;
         background: #070a10;
         color: #e8eef7;
-        font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+        font: 18px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       }
-      main { max-width: 780px; margin: 0 auto; padding: 28px 18px 60px; }
-      h1 { font-size: 1.7rem; margin: 0 0 4px; }
+      /* The device's own header bar. No nav links: this page is opened
+         standalone off a card, where a link to index.html is a dead end. */
+      .topbar {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 13px 24px;
+        border-bottom: 1px solid #1e2531;
+        color: #e8eef7;
+        font-size: .76rem;
+        font-weight: 500;
+        letter-spacing: .18em;
+      }
+      .topbar .dot {
+        width: 9px; height: 9px; border-radius: 50%;
+        background: #ff4d5e;
+      }
+      main { max-width: 900px; margin: 0 auto; padding: 28px 18px 60px; }
+      h1 { font-size: 2.1rem; margin: 0 0 4px; letter-spacing: -.02em; }
       h2 { font-size: 1.05rem; margin: 0 0 8px; letter-spacing: .04em; color: #7a869c; text-transform: uppercase; }
+      /* The firmware's bracket framing, same as the site's section titles. */
+      h2::before { content: "[ "; color: #2a3346; }
+      h2::after { content: " ]"; color: #2a3346; }
       p { margin: 8px 0; }
       .mut { color: #7a869c; }
       .mono { font-family: ui-monospace, Menlo, Consolas, monospace; }
@@ -90,10 +114,15 @@
         font-size: .85rem;
         line-height: 1.5;
       }
-      a { color: #8ce8b8; }
+      a { color: #e8eef7; border-bottom: 1px solid #2a3346; text-decoration: none; }
+      a:hover { border-bottom-color: #e8eef7; }
     </style>
   </head>
   <body>
+    <header class="topbar">
+      <span class="dot"></span>
+      KISS-SIGNER
+    </header>
     <main>
       <h1>Release check</h1>
       <p class="mut">

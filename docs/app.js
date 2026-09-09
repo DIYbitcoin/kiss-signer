@@ -10,6 +10,7 @@ const releaseTitle = document.querySelector("#release-title");
 const hashCheck = document.querySelector("#hash-check");
 const signatureCheck = document.querySelector("#signature-check");
 const keyCheck = document.querySelector("#key-check");
+const browserNote = document.querySelector("#browser-note");
 let verified = false;
 
 const hex = (buffer) =>
@@ -27,6 +28,12 @@ function updateFlashGate() {
 
   installButton.classList.toggle("is-hidden", !ready);
   lockedButton.classList.toggle("is-hidden", ready);
+
+  /* The unsupported slot lives inside installButton, which is hidden whenever
+     the gate is shut -- and a browser with no Web Serial can never open it. So
+     the one reader who most needs an explanation was the one who never saw it.
+     This note is outside the gate. */
+  if (browserNote) browserNote.hidden = supported;
 
   if (!supported) {
     lockedButton.textContent = "This browser can't talk to the device";
