@@ -1478,14 +1478,19 @@ static void erase_screen(void)
     // resting thumb could not do. Two opposite strokes cannot happen by
     // accident and cost a deliberate owner about a second.
     //
-    // ONCE MORE is the word between the legs, and it already ships in 21
-    // locales as the unlock stroke's own "draw it again" title -- the same
-    // sentence to the same person.
+    // The word between the legs NAMES THE DIRECTION. It used to be ONCE MORE,
+    // borrowed from the unlock stroke's "draw it again" title because that one
+    // already shipped in 21 locales -- but there the repeat is the same stroke,
+    // and here it is the opposite one. Read against a knob parked at the far
+    // end, "once more" says do that again and the control looks like it has
+    // already been done, so the gate reads as broken at the exact moment it is
+    // asking for the half that makes it deliberate. The owner of this device
+    // hit that on the bench.
     const lv_color_t wipe_ink = WT_STOP_INK, wipe_fill = WT_STOP;
     wt_slide_t wipe = {
         .txt   = tr(STR_G_HOLD_WIPE),
         .held  = tr(STR_G_FW_KEEP_HOLDING),
-        .again = tr(STR_GD_DRAW_AGAIN_T),
+        .again = tr(STR_G_HOLD_WIPE_BACK),
         .x = WT_ACT_X, .y = WT_ACTION_Y_SLIDE, .w = 330,
         .ink = &wipe_ink, .fill = &wipe_fill,
         .done = do_wipe,
@@ -1756,16 +1761,21 @@ static void device_screen(void)
     // Same four facts, as the page's own def rows, at the size the rest of
     // SETTINGS reads at. The lamps carry the two that have a bad state; the
     // fifth row is the card, which is the only one that opens anything.
-    bool enc = false, radio = true, noise = true;
-    kiss_build_id_facts(NULL, &enc, &radio, &noise);
+    // ON is any encryption; calm is LOCKED alone. A rehearsal board is
+    // encrypted and still takes any image over the cable, so its row says ON
+    // in amber until the release burn closes it.
+    int lock = KISS_FLASH_OFF;
+    bool radio = true, noise = true;
+    kiss_build_id_facts(NULL, &lock, &radio, &noise);
 
     wt_def_t defs[5] = {
         { .cap = tr(STR_I_DEV_BUILD), .val = KISS_VERSION_STR,
           .sub = kiss_build_commit() },
         { .cap = tr(STR_I_DEV_ENC),
-          .val = tr(enc ? STR_G_HIST_ON_BTN : STR_G_HIST_OFF_BTN),
-          .val_col = enc ? (lv_color_t){0} : WT_WARN,
-          .lamp = true, .lamp_col = enc ? WT_OK : WT_WARN },
+          .val = tr(lock ? STR_G_HIST_ON_BTN : STR_G_HIST_OFF_BTN),
+          .val_col = lock == KISS_FLASH_LOCKED ? (lv_color_t){0} : WT_WARN,
+          .lamp = true,
+          .lamp_col = lock == KISS_FLASH_LOCKED ? WT_OK : WT_WARN },
         // HELD is the SAFE state: the C6 is kept in reset, so the radio is
         // not merely off, it cannot come up. NOT HELD is the one worth a lamp.
         { .cap = tr(STR_I_DEV_RADIO),

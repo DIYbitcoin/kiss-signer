@@ -319,8 +319,10 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           <code>tools/build_encrypted_release.sh</code> builds the hardened profile:
           flash encryption in <strong>release mode</strong> plus
           <strong>NVS encryption</strong> (the stored seed words are covered; plain
-          flash encryption alone would leave the NVS data partition readable).
-          Secure boot lands later as its own pass.
+          flash encryption alone would leave the NVS data partition readable),
+          and <strong>secure boot v2</strong> in the same first boot, signed with
+          three keys you mint yourself. A board encrypted alone could never take a
+          secure bootloader afterwards, so the two burn together or not at all.
         </p>
         <p>
           <strong>What it gives you:</strong> the flash contents, including the
@@ -337,8 +339,9 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
               cable</strong>: no serial, no web installer. That locks out
               evil-maid reflashing, which is the point. Firmware still updates
               from an SD card, but only from an image
-              <strong>signed with the KISS key</strong>, checked before anything
-              is written.
+              <strong>signed with the secure boot keys that burned it</strong>:
+              yours, checked against eFuse before anything is written. Nothing
+              published for the beta will install on it.
             </li>
             <li>
               First boot encrypts ~6 MB in place and can sit on a black screen for
@@ -351,21 +354,26 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
             </li>
           </ul>
         </div>
-<pre><code>tools/build_encrypted_release.sh    # builds + 14 safety checks,
-                                    # prints the one-time flash command</code></pre>
+<pre><code>tools/build_encrypted_release.sh    # builds, verifies, and prints
+                                    # the one-time flash procedure</code></pre>
         <p>
           The script never flashes anything itself. It refuses a dirty tree, builds
-          in Docker, then verifies the binary (no dev seed, version and commit
+          in Docker, signs the bootloader with all three of your keys and the app
+          with the first, reads every signature block back against the config that
+          built it, then verifies the binary (no dev seed, version and commit
           present) and the security config (release-mode flash encryption on,
-          development mode off, NVS encryption on, secure boot off, no-stub esptool)
-          before printing the one-time erase + flash procedure with the encrypted
-          lane's shifted offsets.
+          development mode off, NVS encryption on, secure boot v2 on, no digest
+          slot left open, no-stub esptool) before printing the one-time procedure.
+          That procedure starts by reading the eFuses, because erasing a board
+          proves nothing about them, and only then erases and flashes with the
+          encrypted lane's shifted offsets.
         </p>
         <p>
-          Settings and the signer home show an amber "flash encryption: OFF" line
-          read live from eFuse. After the encrypted first boot it flips to a calm
-          "flash encryption: ENABLED", and only then create keys you care
-          about.
+          Settings and the signer home show an amber "encryption: OFF" line read
+          live from eFuse. After the release first boot it says ON and goes calm,
+          and only then create keys you care about. Calm means locked: RELEASE-mode
+          fuses and secure boot both live. A rehearsal board says ON in amber,
+          because it is encrypted but still open over the cable.
         </p>
       </section>
 

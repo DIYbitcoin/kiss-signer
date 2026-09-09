@@ -36,23 +36,36 @@
 #
 # They are a ratchet from here and the rule is unchanged. The next number
 # that moves goes down.
-cs-CZ 16
-da-DK 22
-de 60
-es-ES 49
-es-MX 49
-fr 52
-hr-HR 20
-it 29
+#
+# AND THEY CAME DOWN, sixteen at once, which is the direction this file is
+# for. Measured on a full walk of every Latin-script locale after the band
+# controls were lifted above their own fill and after payment was swept out
+# of those sixteen. Every one came in under, by between 5 and 29 findings,
+# so these are the honest numbers again rather than the allowance left over
+# from the screens that earned them.
+#
+# Japanese, Korean, Russian and Chinese were measured next, after payment
+# came out of those four as well. Japanese, Korean and Chinese landed exactly
+# on their existing numbers and keep them. Russian came in five under and
+# takes the lower one. All twenty are now the measurement rather than an
+# allowance, which is the first time that has been true.
+cs-CZ 9
+da-DK 15
+de 31
+es-ES 33
+es-MX 33
+fr 30
+hr-HR 15
+it 17
 ja 10
 ko 4
-nb-NO 33
-nl 48
-pl 40
-pt-BR 29
-pt-PT 34
-ru 38
-sv-SE 47
-tr 33
-vi 34
+nb-NO 15
+nl 39
+pl 26
+pt-BR 15
+pt-PT 20
+ru 33
+sv-SE 24
+tr 16
+vi 17
 zh-CN 12

@@ -74,11 +74,11 @@ someone who does not know the design. It does not defend against an attacker who
 has read this page, knows there is a second stroke, and is willing to keep
 asking. Nothing on a device can.
 
-## Phase 1, flash and NVS encryption
+## Phase 1, flash and NVS encryption, secure boot in the same burn
 
-**Status: in progress. Build profile complete, hardware testing underway.**
-The staged plan, and why this burn happens in the same pass as secure boot
-rather than before it, is in
+**Status: in progress. Build profile complete, hardware acceptance not
+started.** The staged plan, and why secure boot burns in the same first boot
+rather than a later one, is in
 [`specs/flash-encryption-rollout.md`](specs/flash-encryption-rollout.md).
 
 `tools/build_encrypted_release.sh` produces flash encryption in RELEASE mode
@@ -86,14 +86,21 @@ plus NVS encryption. Plain flash encryption does not cover `nvs` data
 partitions and the words live in NVS, so both are needed; the XTS keys go in an
 `nvs_key` partition which is itself flash-encrypted.
 
-The key size is XTS-AES-128, chosen deliberately: it is not weak, the size is
-fixed by the first boot's eFuse burn, and AES-256 waits for the later pass
-with secure boot.
+The key size is XTS-AES-256. An earlier version of this page said AES-128 and
+deferred the choice to the secure boot pass; that pass is this one, and no
+board was ever burned at 128.
+
+The same first boot enables secure boot v2. It has to: secure boot needs a
+signed bootloader flashed over the cable, and after the encryption burn the
+cable is gone, so a board encrypted alone could never take it later. Phase 2
+below says what that means for who signs.
 
 The first boot burns eFuses. It cannot be undone, and the device can never be
 reflashed over serial afterwards. A separate rehearsal profile
-(`KISS_ENC_REHEARSAL=1`) leaves reflashing available but still burns a flash
-encryption key permanently.
+(`KISS_ENC_REHEARSAL=1`) leaves reflashing available and carries no secure
+boot, but still burns a flash encryption key permanently. Before either recipe
+touches a board, `tools/check_efuse_fresh.py` reads its fuses: erasing flash
+proves nothing about them.
 
 What this changes per storage mode:
 
@@ -202,27 +209,29 @@ point is to track the device, not the wallet.
 
 ## Phase 2, secure boot v2
 
-**Status: on the roadmap. Not started, and it follows phase 1.**
+**Status: in the release recipe, burned in the same first boot as phase 1.
+Hardware acceptance not started.**
 
 Secure boot v2 cryptographically binds the device to firmware signed by a
 known key, so a modified image will not boot.
 
-Until it ships, state the gap plainly: **an attacker with prolonged physical
-access to an unencrypted device can flash modified firmware, and the interface
-will look identical.** Reproducible builds and signed release hashes let you
-verify what *you* install. They cannot stop someone else installing something
-different later.
+Until a board is burned, state the gap plainly: **an attacker with prolonged
+physical access to an unencrypted device can flash modified firmware, and the
+interface will look identical.** Reproducible builds and signed release hashes
+let you verify what *you* install. They cannot stop someone else installing
+something different later.
 
-It comes after flash encryption for a practical reason. Both burn eFuses, both
-are irreversible, and on a self assembled device they should be burned together
-on a final signer rather than one at a time.
-
-One design question to settle before it ships, because it decides who the
-signer is for: signing with a project key means a device that only runs
-official firmware, which is stronger against tampering and weaker for a DIY
-signer whose owners are meant to build and flash their own. Letting owners
-enrol their own key keeps that open. Whichever is chosen should be written here
-before any eFuse is burned.
+The design question this section used to leave open is settled, and the
+answer decides who the signer is for: **the key is the builder's.** Whoever
+runs the encrypted recipe mints their own three RSA-3072 keys, the board
+trusts those and nothing else, and its updates from then on are that
+builder's own signed output. A project key would have made a device that runs
+only official firmware, which is stronger against tampering and wrong for a
+DIY signer whose owners are meant to build and flash their own. Three keys
+because the chip holds three digests and revokes any slot left empty on first
+boot, so a leaked key can be rotated out by the next one, where one key never
+could be. The scheme is RSA-3072 rather than the secp256r1 key the SD update
+lane publishes, because ECDSA secure boot is errata'd on this chip.
 
 ## External review
 

@@ -426,12 +426,19 @@ if [ -n "$over" ]; then
     echo "raise it deliberately -- never as a side effect."
     exit 1
 fi
-# STRICT is the contract for any locale WITHOUT a ceiling, which is English
-# and only English. The translations answer to the ceiling above instead.
+# No ceiling is the contract for English, and English only. The translations
+# answer to the ceiling above instead.
+#
+# This said "OVERLAPCHECK_STRICT is set and a locale with no ceiling found
+# something", and the check has never read that variable. It runs on every
+# invocation. Naming a variable in a verdict that does not consult it sends
+# the reader to look at the wrong thing when the gate is already telling them
+# the right one.
 if [ -n "$unceiled" ]; then
     echo
-    echo "FAILED: OVERLAPCHECK_STRICT is set and a locale with no ceiling"
-    echo "found something:$unceiled"
+    echo "FAILED: a locale with no ceiling found something:$unceiled"
+    echo "English ships without an entry in $ceilfile because it is the source"
+    echo "copy and has no allowance. Cut what the findings above name."
     exit 1
 fi
 # A ceiling, not a ratchet. max_used is deterministic, but it moves with every
@@ -450,8 +457,28 @@ if [ "$heap_ok" -eq 0 ]; then
     exit 1
 fi
 
+# What actually held, in the terms this script actually enforces.
+#
+# This line read "Reported without failing: OVERLAPCHECK_STRICT is unset (CI
+# sets it)" and printed whenever total was above zero, without ever reading
+# the variable it named. Two faults in one sentence. It said unset to a
+# caller who had set it, so a strict run that genuinely passed read exactly
+# like one that never checked -- the same class as the summary that once said
+# "0 findings across 21 locales" while fourteen of them had died mid-walk.
+# And "without failing" implied nothing was enforced, when every verdict
+# above this point runs unconditionally: over a ceiling fails, any finding in
+# a locale that has no ceiling fails, and so does the heap.
+#
+# So name the verdicts that held, and report the variable's real state
+# instead of asserting one.
 if [ "$total" -gt 0 ]; then
     echo
-    echo "Reported without failing: OVERLAPCHECK_STRICT is unset (CI sets it)."
+    echo "PASSED with $total finding(s): every locale is at or under its"
+    echo "ceiling in $ceilfile, and no locale without one found anything."
+    if [ -z "${OVERLAPCHECK_STRICT:-}" ]; then
+        echo "OVERLAPCHECK_STRICT is unset here (CI sets it). It changes the"
+        echo "WALK's own exit code, not the three verdicts above, which run"
+        echo "either way."
+    fi
 fi
 exit 0

@@ -165,7 +165,20 @@ run "the same, for the mono faces" "python3 tools/check_mono_glyphs.py"
 # became a checker nothing ran -- which is the exact failure check_gates.py
 # exists to catch, and it caught it.
 run "a string with no glyph" "python3 tools/check_text_glyphs.py"
+# A release with no entry, or one still carrying the drafted placeholder.
+# The release notes are generated FROM this section, so a missing entry
+# is caught at release time by make_release_notes dying -- which is late,
+# and after the artifacts are built.
+run "the changelog has this version" "python3 tools/make_changelog.py --check"
+# A translation that says more than its English. The screen gate can only
+# see text that overflows something; a body twice as long as it should be,
+# in a box big enough to hold it, is invisible to every other check here.
+run "a translation that says too much" "I18NBLOAT_SELFTEST=1 python3 tools/check_i18n_bloat.py"
 run "a checker nothing runs" "GATECHECK_SELFTEST=1 python3 tools/check_gates.py"
+run "a signature block the firmware would refuse" "python3 tools/check_sig_scheme.py --selftest"
+run "a burned board called fresh" "python3 tools/check_efuse_fresh.py --selftest"
+run "a release block that names what it never defined" \
+    "python3 tools/check_release_lane.py --selftest"
 run "a measurement before its layout" \
     "python3 tools/check_layout_reads.py --selftest && python3 tools/check_layout_reads.py"
 run "the sim's LVGL config vs the device's" "LVCONF_SELFTEST=1 python3 tools/check_lv_conf.py"

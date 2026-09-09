@@ -85,6 +85,15 @@ gpg_sign() {
     return 0
 }
 
+# 0a. the inline Python in this script and its two siblings.
+#
+# These blocks run on release day and on no other day, so one that names a
+# variable it never defines sits there until somebody is eight minutes into a
+# build with a signing key in their hand. That is not hypothetical: the badge
+# block below did exactly that, and the release died after the card had
+# already signed the firmware. Checked here, first, where it costs a second.
+python3 tools/check_release_lane.py
+
 # 0. the documentation screenshots, BEFORE the clean-tree check below.
 #
 # Every frame bakes the version in: sim/build_sim.sh compiles VERSION into
@@ -157,7 +166,24 @@ if [ -f build-release/UNSIGNED ]; then
 fi
 
 VERSION=$(cat VERSION)
-GIT_REV=$(git describe --always --dirty 2>/dev/null || echo nogit)
+# A bare short hash, NOT `git describe`, for the same reason build_release.sh
+# already gives -- and for one worse reason that actually shipped.
+#
+# describe names the newest tag REACHABLE from HEAD and the distance from it.
+# A release is built before it is tagged, so at build time the newest reachable
+# tag is always the PREVIOUS release. Worse on a branch that has not merged
+# main back: beta8 and beta9 were both tagged on main, so from develop the
+# newest reachable tag was still beta7. The beta9 release therefore published
+# `v0.1.0-beta7-1054-gbdcfa7be` as its commit and
+# `0.1.0-beta9-v0.1.0-beta7-1054-gbdcfa7be` as its manifest version, naming a
+# release two tags stale on the page that tells people what they are flashing.
+#
+# It also disagreed with the device. build_release.sh bakes a bare short hash
+# into the Settings line, so a verifier holding the board beside this page saw
+# two different strings for one build. A bare hash cannot go stale, cannot name
+# the wrong release, and is the same string the firmware itself carries.
+GIT_REV=$(git rev-parse --short HEAD 2>/dev/null || echo nogit)
+git diff --quiet HEAD 2>/dev/null || GIT_REV="$GIT_REV-dirty"
 # Clean, beginner-readable filename: just the version. The exact commit lives
 # inside release.json and on the device Settings screen for verifiers.
 NAME="kiss-signer-${VERSION}.bin"
@@ -509,8 +535,10 @@ PY
 # live inside it rather than be fetched. A stale bake is worse than no page: it
 # would call a genuine download corrupt, or stay green for the previous release.
 # tools/check_installer_version.py fails the build if these drift.
-"$PY" - <<'PY'
-import json, pathlib, re
+VERSION="$VERSION" "$PY" - <<'PY'
+import json, os, pathlib, re
+
+version = os.environ["VERSION"]
 page = pathlib.Path("docs/verify-release.html")
 if page.is_file():
     rel = json.loads(pathlib.Path("docs/installer/release.json").read_text())

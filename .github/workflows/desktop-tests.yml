@@ -97,6 +97,17 @@ jobs:
         run: |
           GATECHECK_SELFTEST=1 python3 tools/check_gates.py
 
+      # Two readers for the burn recipe. The scheme checker reads the signature
+      # block an image carries and holds it against the config that built it,
+      # which no verify step did; the eFuse checker reads the fuses a board has
+      # before the step that burns them, which erase-flash was said to prove.
+      - name: the burn recipe's two readers still fire
+        if: always()
+        run: |
+          python3 tools/check_sig_scheme.py --selftest
+          python3 tools/check_efuse_fresh.py --selftest
+          python3 tools/check_release_lane.py --selftest
+
       # preflight.sh claims to be this whole lane in one command, and that
       # claim is the only reason a green preflight means anything. It was
       # false the day it landed. This asks it mechanically, the way
@@ -168,6 +179,14 @@ jobs:
           GLYPHCHECK_SELFTEST=1 python3 tools/check_glyphs.py
           python3 tools/check_mono_glyphs.py
           python3 tools/check_text_glyphs.py
+
+      - name: the changelog carries an entry for this version
+        if: always()
+        run: python3 tools/make_changelog.py --check
+
+      - name: no translation says more than its English
+        if: always()
+        run: I18NBLOAT_SELFTEST=1 python3 tools/check_i18n_bloat.py
 
       # sim/lv_conf.h overrides five LVGL settings and each one mirrors a
       # Kconfig line the device actually reads. Move one and nothing fails:

@@ -134,6 +134,17 @@ def pick_order():
 # names other wallets print in English too. Anything added here needs a reason
 # on its line; "we did not get round to it" is not one.
 UNTRANSLATED_OK = {
+    # What the post-setup screen says about a backup a RESTORE just
+    # proved, in place of the flat red "not verified" it used to show at
+    # the end of the one flow that had demonstrated a working backup.
+    # Born under the English-only rule; English in the other twenty
+    # until the sweep.
+    "L_BACKUP_KEF_OPENED", "L_BACKUP_WORDS_USED",
+    # The erase gate's return leg. Its predecessor said ONCE MORE, which
+    # read as "repeat the stroke" over a knob already at the far end; this
+    # one names the direction instead. Born under the English-only rule;
+    # English in the other twenty until the sweep.
+    "G_HOLD_WIPE_BACK",
     # The band's unread count, and the second page a term card can have. Born
     # under the English-only rule; English in the other twenty until the sweep.
     "H_UNREAD_FMT", "H_MORE", "T_FEE2_HEAD", "T_FEE2_C1", "T_FEE2_C2",

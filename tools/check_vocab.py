@@ -230,6 +230,31 @@ RULES = [
         fires_on="erases the wallet history stored now",
         clean="erases what this signer has seen",
     ),
+    Rule(
+        "PAYMENT",
+        r"(?<!silent )\bpayments?\b",
+        'say "transaction"',
+        "GLOSSARY.md: a payment is what one person sends another; a "
+        "transaction is the object with inputs, outputs, change, a fee and a "
+        "txid, which is what every row on the signing screen already says. It "
+        "also quietly narrows -- a consolidation, a sweep and a coinjoin are "
+        "all transactions and none of them is a payment. Silent payments are "
+        "the exception: BIP352's own name, and the only place the word stays",
+        allow={
+            "K_SPGATE_GOES": "the silent-payment scan key gate: privacy of "
+                             "payments to the silent address",
+            "K_SP_SUB":      "what a scan key is for, on the silent-payment row",
+            "R_SP_EXPORT_NOTE": "silent payments, the sentence names the "
+                                "silent address in its next line",
+            "R_SP_FACT_FIND":   "the silent-payment fact strip",
+            "R_SP_FRESH":       "the silent-payment fact strip",
+            "R_SP_WHY_B":       "how a silent payment derives its address",
+            "S_SP_ONCHAIN_FMT": "a payment TO a silent address, on the badge "
+                                "that explains the mismatch",
+        },
+        fires_on="What you pay to get this payment mined.",
+        clean="What you pay to get this transaction mined.",
+    ),
     # ---- PLAIN: the rest of the sentence ---------------------------------
     Rule(
         "APHORISM",
@@ -297,6 +322,100 @@ NAME_RULES = ["WALLET"]
 
 # Names that keep the word on purpose, same contract as a rule's ALLOW.
 NAME_ALLOW = {}
+
+
+# ---- the same vocabulary rule, in the other twenty languages -----------
+#
+# This gate read i18n/en.json and nothing else, which is why one English word
+# could be fixed on the glass and stay wrong on twenty screens. "payment" went
+# out of the English strings in one pass; the German still said Zahlung, the
+# French paiement, the Japanese 支払い, and no check in the tree could see any
+# of them. A vocabulary rule that only speaks English is a rule about one
+# locale, not about the product.
+#
+# Only PAYMENT is swept this way, because it is the only rule whose word has a
+# clean equivalent in every language here. The named rules above are about
+# English house terms and do not translate.
+#
+# Silent payments keep the word in every language, same as in English -- BIP352
+# names itself that way and every coordinator repeats it. Keyed off the KEY
+# rather than the text, because "silent" is not the adjacent word in most of
+# these languages and a lookbehind cannot find it.
+SP_KEY = re.compile(r"_SP_|_SPGATE")
+
+LOCALE_WORDS = {
+    "cs-CZ": r"platb|platby|platbu",
+    "da-DK": r"betaling",
+    "de":    r"zahlung",
+    "es-ES": r"pago",
+    "es-MX": r"pago",
+    "fr":    r"paiement",
+    "hr-HR": r"plaćanj|placanj",
+    "it":    r"pagament",
+    "ja":    r"支払",
+    "ko":    r"결제",
+    "nb-NO": r"betaling",
+    "nl":    r"betaling",
+    "pl":    r"płatnoś|platnos",
+    "pt-BR": r"pagament",
+    "pt-PT": r"pagament",
+    "ru":    r"платеж|платёж",
+    "sv-SE": r"betalning",
+    "tr":    r"ödeme|odeme",
+    "vi":    r"thanh toán|thanh toan",
+    "zh-CN": r"付款",
+}
+
+# EMPTY, and that is the state to keep it in. It held thirteen keys across
+# twenty locales -- 228 translated strings still saying payment after the
+# English had stopped -- and they were swept in three passes: English, the
+# sixteen Latin-script locales, then Japanese, Korean, Chinese and Russian.
+#
+# Two of those keys were ones the English never had. "raise the fee there if
+# it stalls" came back as "it says when the PAYMENT confirms", and "practice
+# with a tiny send" as "a small PAYMENT". No English-only rule could have
+# found either: the word entered the product through the translations, which
+# is the whole reason this sweep reads twenty files instead of one.
+#
+# Anything that lands here again is a translation that reintroduced it.
+LOCALE_BACKLOG = set()
+
+
+def scan_locales():
+    """[(lang, key)] for every translated string still saying payment."""
+    found = []
+    for lang, word in LOCALE_WORDS.items():
+        path = ROOT / "i18n" / f"{lang}.json"
+        if not path.exists():
+            continue
+        rx = re.compile(word, re.I)
+        with open(path, encoding="utf-8") as f:
+            strings = json.load(f)
+        for key, text in strings.items():
+            if SP_KEY.search(key) or not isinstance(text, str):
+                continue
+            if rx.search(text):
+                found.append((lang, key))
+    return found
+
+
+def report_locales():
+    """0 when nothing new says payment in a language other than English."""
+    found = scan_locales()
+    new = [(lang, key) for lang, key in found if key not in LOCALE_BACKLOG]
+    still = {key for _, key in found}
+
+    for lang, key in new:
+        print(f"  {lang}/{key}: says payment where the English says "
+              f"transaction")
+    for key in sorted(LOCALE_BACKLOG - still):
+        print(f"  retire {key} from LOCALE_BACKLOG: swept in every locale")
+
+    print(f"vocabulary: {len(LOCALE_WORDS)} locales, {len(new)} new, "
+          f"{len(found)} backlogged strings across "
+          f"{len(still & LOCALE_BACKLOG)} keys, "
+          f"{len(LOCALE_BACKLOG - still)} backlog entries to retire")
+    return 1 if new else 0
 
 
 def names():
@@ -703,7 +822,8 @@ def main():
     print(f"vocabulary: {len(docs_strings())} lines of docs prose, "
           f"{len(doc_found)} bad, {len(DOCS_ALLOW)} allowed, "
           f"{len(doc_stale)} allow entries to retire")
-    return 1 if (found or named or doc_found) else 0
+    locales_bad = report_locales()
+    return 1 if (found or named or doc_found or locales_bad) else 0
 
 
 if __name__ == "__main__":

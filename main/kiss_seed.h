@@ -56,6 +56,17 @@
 // would reveal. Host/simulator: false, since the desktop store is a plain file.
 int kiss_seed_flash_encrypted(void);
 
+// The same eFuse block, read as the three states it actually has. OFF is a
+// plaintext board. ENCRYPTED is the rehearsal lane: the XTS key is burned, but
+// the cable still takes a plaintext flash and nothing checks who signed the
+// bootloader. LOCKED is the release burn, RELEASE-mode fuses plus secure boot,
+// and the only state a signer holding real keys is meant to show calmly.
+// kiss_seed_flash_encrypted() is this >= ENCRYPTED, so the two cannot disagree.
+#define KISS_FLASH_OFF       0
+#define KISS_FLASH_ENCRYPTED 1
+#define KISS_FLASH_LOCKED    2
+int kiss_seed_flash_lock_state(void);
+
 // The staged choice if setup is mid-flight, otherwise what flash holds.
 int  kiss_seed_mode(void);
 // Persists the choice IMMEDIATELY. Switching TO amnesic wipes any stored seed,

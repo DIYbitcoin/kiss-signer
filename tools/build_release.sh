@@ -169,6 +169,17 @@ KISS_OTA_KEY="${KISS_OTA_KEY:-$HOME/.kiss-signer/kiss_ota.pem}"
 # unable to sign firmware quietly.
 KISS_OTA_HSM_CONFIG="${KISS_OTA_HSM_CONFIG:-$HOME/.kiss-signer/hsm.ini}"
 if [ -f "$KISS_OTA_HSM_CONFIG" ]; then
+  # gpg's card daemon and this signature want the same YubiKey, and gpg wins:
+  # scdaemon claims the card and keeps it, so PKCS#11 is then shown a reader
+  # with no token in it. espsecure does not check for that -- it loops over an
+  # empty slot list and dies on an unbound variable, five frames deep, saying
+  # nothing about a card. Every release after the first therefore failed here,
+  # because the first one's GPG signature over SHA256SUMS started the daemon
+  # and it never let go.
+  #
+  # Ask the daemon to let go. gpg restarts it by itself when it next needs the
+  # card, so nothing downstream notices.
+  gpgconf --kill scdaemon >/dev/null 2>&1 || true
   # python-pkcs11 is what espsecure imports for --hsm. It rides on the pinned
   # esptool rather than being installed anywhere.
   ESPSECURE=(uvx --from "$ESPTOOL_PIN" --with python-pkcs11 espsecure)
@@ -320,6 +331,19 @@ else:
 print(f"release app: {len(blob)} bytes")
 sys.exit(1 if fails else 0)
 PY
+
+# RNG provenance. The wireless check above reads the linker map to prove what
+# is NOT in the image; this reads its cross reference table to prove what IS,
+# and who reaches it: esp_fill_random and bootloader_random_enable resolve to
+# Espressif's own objects, the seed path in kiss_setup.c references the first,
+# kiss_crypto.c references the second and main.c calls kiss_trng_start, so boot
+# switches the noise source on. That is the check Coinkite named as missing
+# after the Coldcard seed bug: the TRNG code was in the binary and reviewed,
+# and the seed path resolved to a PRNG with the same signature. The map says
+# which object a call lands in; it cannot say the call ran, and does not claim
+# to. tools/check_rng_provenance.py carries the rules and the account.
+python3 tools/check_rng_provenance.py --selftest
+python3 tools/check_rng_provenance.py build-release/guition_kiss_bringup.map
 
 # flash budget: baked art is ~75% of the binary; fail while there is still
 # headroom to react, not on the flash step (set -e stops on a FAIL)

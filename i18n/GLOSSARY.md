@@ -203,6 +203,18 @@ else.
   a screen naming the same list two ways, with the second name on the page
   explaining the first. Say **UTXO** only inside an explainer that defines it,
   never on the front of a screen a newcomer meets first.
+- **transaction**, not **payment**, for the thing this device signs. A
+  payment is what one person sends another; a transaction is the object with
+  inputs, outputs, change, a fee and a txid, and the device shows every one of
+  those parts. The FEE card said "what you pay to get this payment mined" over
+  a screen already headed INPUTS and OUTPUTS, and the sighash card captioned
+  the whole object THIS PAYMENT -- so the one screen where an owner is deciding
+  whether to sign named its subject with a word none of its own rows used.
+  It also quietly narrows: a consolidation, a change-only sweep and a coinjoin
+  are all transactions and none of them is a payment.
+  **Silent payments are the single exception**, because that is the protocol's
+  own name (BIP352) and every coordinator says it that way. The scan-key and
+  receive screens keep the word for that reason, and only there.
 - **Keys** is the plain word for what the signer holds and what the fingerprint
   identifies. Use it where "wallet" would be ambiguous about device versus key
   set, and on the home tile, which names what is behind it.

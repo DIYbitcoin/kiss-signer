@@ -1109,6 +1109,30 @@ static void action_bar_ensure_at(lv_obj_t *scr, int top)
     lv_obj_set_style_border_side(cap, LV_BORDER_SIDE_TOP, 0);
     lv_obj_remove_flag(cap, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_remove_flag(cap, LV_OBJ_FLAG_SCROLLABLE);
+
+    // The band is a SURFACE, so a control that sits on it belongs ON TOP of it
+    // -- and this fill arrives when the first widget that KNOWS about the band
+    // is built, which is not necessarily the first control placed there. A word
+    // action takes its position from the caller and ensures nothing, so a screen
+    // that built one before its arrow action had the fill laid over a live
+    // control: still in the tree, still tappable, painting nothing. That is
+    // exactly how SAVE TO SD CARD went missing from the encrypted backup
+    // screen, and no gate could see it -- the walk finds a control by its text,
+    // and the text was there. Lift them in the order they were built.
+    //
+    // CLICKABLE only, and the STYLE y for the same reason the grow loop above
+    // reads it. Content that merely spills into the band is a layout fault the
+    // CONTENT check reports, and covering it is this fill doing its job.
+    const uint32_t built = lv_obj_get_child_count(scr);
+    for (uint32_t i = 0, seen = 0; seen < built; seen++) {
+        lv_obj_t *c = lv_obj_get_child(scr, i);
+        if (c != bar && c != cap && lv_obj_has_flag(c, LV_OBJ_FLAG_CLICKABLE)
+            && lv_obj_get_style_y(c, LV_PART_MAIN) >= top) {
+            lv_obj_move_foreground(c);   // index i now holds the next child
+            continue;
+        }
+        i++;
+    }
 }
 
 static void action_bar_ensure(lv_obj_t *scr)
@@ -1397,7 +1421,23 @@ static void hold_reset(wt_hold_t *h, bool animate)
     // How far along the CURRENT leg, which on the return leg is the knob's
     // distance from the far end rather than from zero.
     const int kx = lv_obj_get_x(h->knob);
-    int32_t at = h->pass == 0 ? kx : h->travel - kx;
+    // The rewind runs LEFT in one sweep, whichever leg it is undoing. Under
+    // the return leg's mirrored mapping the retraction walked the knob back
+    // to the far END, and hold_home then flipped the pass under it and put it
+    // at zero -- the whole width of the track crossed in a single frame, with
+    // no motion. That is what the owner saw as a glitch on the erase gate: let
+    // go halfway back and the knob vanishes from one end and appears at the
+    // other. Dropping to the outward mapping FIRST makes the knob's own
+    // position the thing that animates, so an abandoned second leg rewinds the
+    // gesture exactly the way an abandoned first one does, and both legs go
+    // back on the track together -- which is also the honest picture, because
+    // hold_home is about to drop the first leg too.
+    if (h->pass != 0) {
+        h->pass = 0;
+        if (h->spent) lv_obj_add_flag(h->spent, LV_OBJ_FLAG_HIDDEN);
+        an_slide(h, kx);
+    }
+    int32_t at = kx;
     if (!animate || h->release_ms <= 0 || at <= 0) {
         hold_home(h);
         return;
@@ -1440,7 +1480,11 @@ static void hold_snap(wt_hold_t *h)
     lv_anim_set_duration(&a, WT_SLIDE_SNAP_MS);
     lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
     lv_anim_start(&a);
-    if (h->mark) lv_obj_remove_flag(h->mark, LV_OBJ_FLAG_HIDDEN);
+    if (h->mark) {
+        // The LOCK again, over whatever the return leg's arrow left there.
+        lv_label_set_text(h->mark, WT_ICON_LOCK);
+        lv_obj_remove_flag(h->mark, LV_OBJ_FLAG_HIDDEN);
+    }
 }
 
 static void hold_press_cb(lv_event_t *e)
@@ -1517,7 +1561,17 @@ static void hold_press_cb(lv_event_t *e)
             h->at = h->base = 0;
             h->saying_held = false;
             if (h->spent) lv_obj_remove_flag(h->spent, LV_OBJ_FLAG_HIDDEN);
-            if (h->mark)  lv_obj_add_flag(h->mark, LV_OBJ_FLAG_HIDDEN);
+            // The knob POINTS THE WAY BACK instead of going blank. The return
+            // leg is the one moment on this device where a control asks for a
+            // stroke in the opposite direction to the one just made, and the
+            // knob is parked at the far end looking exactly like a finished
+            // slide -- so the owner reads "done, and it is asking anyway".
+            // Emptying the knob at that moment took away the last thing on
+            // screen that could have said which way. The word says it too.
+            if (h->mark) {
+                lv_label_set_text(h->mark, WT_ICON_ARR_L);
+                lv_obj_remove_flag(h->mark, LV_OBJ_FLAG_HIDDEN);
+            }
             hold_rule_say(h, h->again ? h->again : h->txt);
             an_slide(h, 0);
             return;

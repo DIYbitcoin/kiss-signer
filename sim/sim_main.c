@@ -347,7 +347,14 @@ int kiss_seed_set_mode(int m) {
 // ever seen -- and the unwarned one, which every device with flash encryption
 // on will show, unrendered.
 static int s_sim_flash_enc;
-int kiss_seed_flash_encrypted(void) { return s_sim_flash_enc; }
+// The stub carries the lock state the device reads (kiss_seed.h): 0 OFF,
+// 1 ENCRYPTED, 2 LOCKED. The walk poses 1, which is what its 1 always meant:
+// a rehearsal board, encrypted and still open over the cable.
+int kiss_seed_flash_lock_state(void) { return s_sim_flash_enc; }
+int kiss_seed_flash_encrypted(void)
+{
+  return s_sim_flash_enc >= KISS_FLASH_ENCRYPTED;
+}
 
 // The screen walk creates seeds through the same funnel the device uses, so it
 // reaches the entropy note. RAM here: the walk is one process and there is no
@@ -1560,6 +1567,85 @@ static lv_obj_t *find_accent_line(lv_obj_t *o)
 // next-step hint is drawn by the game's own sampler rather than by LVGL -- the
 // tiles are too -- so ctrl_for, which walks up for a clickable parent, cannot
 // see it and reports it as a missing action.
+// ---- THE INK CHECK: a control found by its text must actually be painted ----
+//
+// Every tap-by-text stop in this walk located its control in the LVGL TREE and
+// tapped the middle of it. A control can be in that tree, carry the right
+// label, take the tap and run its callback while painting nothing at all --
+// and the walk cannot tell, because it never looked at the screen. That is not
+// hypothetical: SAVE TO SD CARD shipped invisible on the encrypted backup
+// screen, under a band fill created after it, and this walk tapped it happily
+// and went green while the picture beside it showed no such button.
+//
+// So the frame gets asked. The control's own rectangle must carry INK: pixels
+// that differ from the surface it sits on. A buried control's rectangle is the
+// surface and nothing else.
+//
+// The test is deliberately the weakest one that catches burial. Not "is it the
+// right colour", not "is the text legible" -- only "is anything drawn here at
+// all". A control mid fade still has contrast; a control under an opaque fill
+// has none. The mode is taken over the whole rectangle rather than assumed
+// from a corner, because these controls sit on cards, bands and the page
+// itself, and each is a different flat colour.
+#define INK_ROW_MIN   3   // pixels off the surface colour before a row counts
+#define INK_ROWS_MIN  4   // rows like that before the control counts as drawn
+static bool obj_has_ink(lv_obj_t *o)
+{
+    lv_area_t a;
+    lv_obj_get_coords(o, &a);
+    int x1 = a.x1 < 0 ? 0 : a.x1, y1 = a.y1 < 0 ? 0 : a.y1;
+    int x2 = a.x2 >= HRES ? HRES - 1 : a.x2, y2 = a.y2 >= VRES ? VRES - 1 : a.y2;
+    // Off screen, or too small to say anything about: not this check's call.
+    if (x2 - x1 < 3 || y2 - y1 < 3) return true;
+
+    // The surface colour, as the most common value in the rectangle. Flat
+    // chrome means a handful of distinct values, so a small table holds them
+    // and anything past it is already contrast.
+    uint16_t val[16];
+    int cnt[16], n = 0;
+    for (int y = y1; y <= y2; y++)
+        for (int x = x1; x <= x2; x++) {
+            const uint16_t c = g_fb[y * HRES + x];
+            int i = 0;
+            for (; i < n; i++) if (val[i] == c) { cnt[i]++; break; }
+            if (i == n && n < 16) { val[n] = c; cnt[n] = 1; n++; }
+        }
+    int mode = 0;
+    for (int i = 1; i < n; i++) if (cnt[i] > cnt[mode]) mode = i;
+    const uint16_t surface = val[mode];
+
+    // ROWS, not a pixel total. A hairline crossing the rectangle, or the edge
+    // of a neighbour, is one or two rows of difference and is not this control
+    // being drawn; a word is fifteen or more.
+    int rows = 0;
+    for (int y = y1; y <= y2; y++) {
+        int off = 0;
+        for (int x = x1; x <= x2; x++)
+            if (g_fb[y * HRES + x] != surface) off++;
+        if (off >= INK_ROW_MIN && ++rows >= INK_ROWS_MIN) return true;
+    }
+    return false;
+}
+
+// A control that is ARRIVING is blank for a few frames and is not the fault
+// this looks for: the card explainers, the firmware rows and the intro
+// staggers all fade in, and the walk reaches some of them mid flight. So a
+// blank rectangle is a question rather than a verdict -- let the frame settle
+// and ask again. What never paints stays blank however long it is given, and
+// that is the only thing that fails here.
+//
+// The frames are spent ONLY on a control that looked blank, so a walk with
+// nothing buried in it runs exactly as it did before, on the same clock.
+static bool obj_ink_settled(lv_obj_t *o)
+{
+    for (int i = 0; i < 10; i++) {
+        if (obj_has_ink(o)) return true;
+        pump(4);
+        lv_refr_now(NULL);
+    }
+    return false;
+}
+
 static lv_obj_t *ctrl_for(const char *txt, const char *how)
 {
     s_hit = NULL; s_hits = 0; s_bar_hit = NULL; s_bar_hits = 0;
@@ -1573,6 +1659,16 @@ static lv_obj_t *ctrl_for(const char *txt, const char *how)
     if (!s_hit || s_hits != 1) {
         printf("FAIL: %s \"%s\": %s\n", how, txt,
                !s_hit ? "no visible action says that" : "more than one does");
+        g_walk_fails++;
+        return NULL;
+    }
+    // Found in the tree. Now prove it is on the GLASS -- see obj_has_ink.
+    lv_refr_now(NULL);
+    if (!obj_ink_settled(s_hit)) {
+        lv_area_t a; lv_obj_get_coords(s_hit, &a);
+        printf("FAIL: %s \"%s\": in the tree at (%d,%d)-(%d,%d) and painting "
+               "nothing -- it is under something, or drawn in its own "
+               "background\n", how, txt, a.x1, a.y1, a.x2, a.y2);
         g_walk_fails++;
         return NULL;
     }
@@ -1596,6 +1692,16 @@ static lv_obj_t *act_for(int key, const char *how)
     if (!s_hit || s_hits != 1) {
         printf("FAIL: %s \"%s\": %s\n", how, txt,
                !s_hit ? "no visible action says that" : "more than one does");
+        g_walk_fails++;
+        return NULL;
+    }
+    // Found in the tree. Now prove it is on the GLASS -- see obj_has_ink.
+    lv_refr_now(NULL);
+    if (!obj_ink_settled(s_hit)) {
+        lv_area_t a; lv_obj_get_coords(s_hit, &a);
+        printf("FAIL: %s \"%s\": in the tree at (%d,%d)-(%d,%d) and painting "
+               "nothing -- it is under something, or drawn in its own "
+               "background\n", how, txt, a.x1, a.y1, a.x2, a.y2);
         g_walk_fails++;
         return NULL;
     }
@@ -6288,10 +6394,10 @@ int main(void) {
   // returns to the gate for the retry the headline names.
   s_sim_wipe_fail = 1;
   // OUT and BACK. The erase gate takes double travel in place of the 2000ms
-  // hold it used to take, so one full stroke arrives at ONCE MORE and commits
-  // nothing.
+  // hold it used to take, so one full stroke arrives at the return leg's word
+  // and commits nothing.
   slide_at(208, 430, 340); release(); pump(8);
-  must_show("erase/once more", tr(STR_GD_DRAW_AGAIN_T));
+  must_show("erase/slide back", tr(STR_G_HOLD_WIPE_BACK));
   save("/tmp/sim_wipe_once_more.ppm");              // knob parked, fill spent
   slide_back(348, 430, 340); release(); pump(10);    // the return leg -> refusal
   save("/tmp/sim_wipe_fail.ppm");
@@ -6307,7 +6413,7 @@ int main(void) {
   slide_go(340); release(); pump(8);                // leg one arrives
   // Between the legs, because the two of them are the whole safety mechanism
   // and a frame that only shows the end cannot say which one fired.
-  save("/tmp/sim_wipe_leg1.ppm");                   // ONCE MORE, nothing erased
+  save("/tmp/sim_wipe_leg1.ppm");                   // NOW SLIDE BACK + the left mark
   slide_back(348, 430, 340); release(); pump(6);     // leg two -> erased
   save("/tmp/sim_wiped.ppm");                       // SEED WORDS ERASED + two ways off
   must_show("erased", tr(STR_G_ERASED_T));
@@ -6528,6 +6634,31 @@ int main(void) {
     kiss_ui_sim_warn_screen(true, false);           // verified, fingerprint back
     pump(8);
     save("/tmp/sim_warn_verified.ppm");             // green chip beside the card
+    // The RESTORED branch, which is a THIRD state and not a shade of the
+    // unverified one: the rehearsal has not been done, but a backup has just
+    // been used, so the chip names the copy that was proved. Forced the same
+    // way as the two above -- reaching it by walking would mean erasing and
+    // restoring a wallet mid-run.
+    {
+      const int was_src = kiss_seed_source();
+      kiss_seed_set_source(WSEED_SRC_KEF);
+      kiss_ui_sim_warn_screen(false, false);
+      pump(8);
+      save("/tmp/sim_warn_restored.ppm");           // amber chip, not the red one
+      must_show("warn/restored names the copy", tr(STR_L_BACKUP_KEF_OPENED));
+      must_not_show("warn/restored drops the flat red",
+                    tr(STR_L_BACKUP_UNVERIFIED));
+      // The OTHER restore wears the longest of the three chips, and it is the
+      // one no walk reaches on its own -- so it would have shipped beside a
+      // value card in twenty one locales with nothing having measured it.
+      kiss_seed_set_source(WSEED_SRC_RESTORE);
+      kiss_ui_sim_warn_screen(false, false);
+      pump(8);
+      save("/tmp/sim_warn_restored_words.ppm");
+      must_show("warn/typed restore names the copy",
+                tr(STR_L_BACKUP_WORDS_USED));
+      kiss_seed_set_source(was_src);
+    }
     // The screen owns itself; reopening it deletes the previous one, and the
     // duress excursion below opens a session of its own straight after.
     kiss_ui_sim_warn_screen(false, false);

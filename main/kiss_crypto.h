@@ -72,6 +72,13 @@ int kiss_entropy_mix4(const uint8_t a[32], const uint8_t b[32],
 //
 // So the app switches the source on itself, once, and leaves it on. It clashes
 // with only the ADC and the radio, and this firmware uses neither.
+//
+// The release build holds the linker map to this. tools/check_rng_provenance.py
+// fails the build if esp_fill_random or bootloader_random_enable resolve to
+// anything but Espressif's own objects, if the seed path stops referencing
+// them, or if anything in main/ references the disable. It reads the map's
+// cross reference table, so it can say which object a call lands in and not
+// whether the call ran; that half is what kiss_trng_live latches.
 void kiss_trng_start(void);
 
 // False until kiss_trng_start has run. Key material with no second source

@@ -30,6 +30,17 @@
 # writes an SD update, so it refuses these images. build-*/UNSIGNED is written
 # beside them to say so, and it is uploaded with the artifact deliberately.
 #
+# TWO ARCHITECTURES, because one proved nothing to the people most likely to
+# check. The published hash is not reproducible across hosts even though the
+# build is: ESP-IDF stamps a hash of the ELF -- debug sections included -- into
+# the image, and that depends on the machine that compiled it. So an arm64 Mac
+# gets a different sha256 from an amd64 runner for the same commit, and until
+# now the only evidence that this was harmless was one measurement taken by
+# hand in August and never repeated. A verifier on Apple silicon saw a
+# mismatch, had nothing to compare against, and had no way to tell that window
+# from a real difference. The arm64 lane below rebuilds the same commit and
+# compares byte for byte, failing on any difference outside that window.
+#
 # Both lanes name the toolchain by digest, from tools/idf_image.sh, not by the
 # espressif/idf:v6.1 tag. A tag can be repushed, and a rebuild that silently
 # used a different compiler than the one that made the published hashes is the
@@ -116,6 +127,73 @@ jobs:
             SHA256SUMS-ci.txt
             LICENSE
             THIRD_PARTY_NOTICES.md
+
+  # The Mac-shaped half of the answer. Same commit, same pinned toolchain
+  # digest (the index digest resolves per arch), different CPU.
+  arm64-cross-check:
+    needs: release-build
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # A comparison that always passes is worse than no comparison, and this
+      # one is a hand-written byte window over a struct layout. Prove it still
+      # rejects a changed instruction before trusting it about a real build.
+      - name: Prove the comparison still fails on a real difference
+        run: python3 tools/check_repro_match.py --selftest
+
+      - name: Build verified release, unsigned (Docker ESP-IDF v6.1, arm64)
+        run: tools/build_release.sh
+
+      - name: Refuse to compare a signed image
+        run: |
+          test -f build-release/UNSIGNED || {
+            echo "FAIL: build-release/UNSIGNED is missing, so this app was signed."
+            echo "      A signature is ECDSA and differs every time, so this"
+            echo "      comparison would fail for a reason that means nothing."
+            exit 1
+          }
+
+      - name: Fetch the amd64 image built from this commit
+        uses: actions/download-artifact@v4
+        with:
+          name: kiss-signer-release-unsigned-${{ github.sha }}
+          path: amd64
+
+      # The bootloader and the partition table carry no ELF hash, so those two
+      # are a plain cmp and any difference at all is a failure.
+      - name: Compare arm64 against amd64
+        run: |
+          python3 tools/check_repro_match.py \
+            amd64/build-release/guition_kiss_bringup.bin \
+            build-release/guition_kiss_bringup.bin
+          cmp amd64/build-release/bootloader/bootloader.bin \
+              build-release/bootloader/bootloader.bin
+          cmp amd64/build-release/partition_table/partition-table.bin \
+              build-release/partition_table/partition-table.bin
+          echo "bootloader and partition table are byte-identical across arch"
+
+      - name: Firmware hashes (unsigned, arm64)
+        run: |
+          sha256sum \
+            build-release/guition_kiss_bringup.bin \
+            build-release/bootloader/bootloader.bin \
+            build-release/partition_table/partition-table.bin \
+            | tee SHA256SUMS-arm64-ci.txt
+          {
+            echo "### Release firmware SHA256, UNSIGNED, arm64 (commit ${GITHUB_SHA::7})"
+            echo '```'
+            cat SHA256SUMS-arm64-ci.txt
+            echo '```'
+            echo "The app hash differs from the amd64 lane ON PURPOSE, in the"
+            echo "32 bytes of app_elf_sha256 and the two checksums that cover"
+            echo "it. Every instruction and data byte matched, and the"
+            echo "bootloader and partition table matched exactly. If you build"
+            echo "on an Apple silicon Mac, these are the hashes to compare"
+            echo "against."
+          } >> "$GITHUB_STEP_SUMMARY"
 
   encrypted-release-build:
     runs-on: ubuntu-latest

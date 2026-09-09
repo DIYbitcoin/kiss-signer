@@ -22,7 +22,6 @@
 
 #include "main.h"   // radio_is_held
 #ifndef SIMULATOR
-#include "esp_efuse.h"
 #endif
 #ifndef KISS_VERSION_STR
 #define KISS_VERSION_STR "dev"
@@ -1377,10 +1376,34 @@ static void setup_warn_screen(void) {
   lv_obj_t *card = fp_known
       ? wt_value_card(s_warnscr, tr(STR_D_FINGERPRINT), fpbuf, 110, 268, 300, true)
       : NULL;
+  // THREE states, because the flag behind this chip answers one question and
+  // the owner in front of it has usually answered another. s_backup_verified
+  // is the REHEARSAL: words typed back, passphrase typed back, fingerprint
+  // matched. A device that was just RESTORED has not done that rehearsal, and
+  // used to be told in red that its full backup was not verified -- at the end
+  // of the one flow that had just proved a backup works, by using it. The
+  // owner read that as the screen calling them unverified for restoring.
+  //
+  // So a restore says which copy it proved, in the mark colour rather than the
+  // stop colour: something IS proven and something is not. The unproven half
+  // is the paper, and VERIFY FULL BACKUP below is exactly the offer to prove
+  // it, so the chip does not have to carry the negative as well.
+  //
+  // A freshly MADE seed keeps the red: nothing has demonstrated a backup of
+  // it at all, which is what that colour was always for.
+  const int made_by = kiss_seed_source();
+  const int restored = !s_backup_verified
+                       && (made_by == WSEED_SRC_KEF || made_by == WSEED_SRC_RESTORE);
+  const lv_color_t state_col = s_backup_verified ? WT_OK
+                               : restored        ? WT_WARN
+                                                 : WT_STOP;
   lv_obj_t *state = wt_state_chip(s_warnscr,
                                   s_backup_verified ? tr(STR_L_BACKUP_VERIFIED)
-                                                    : tr(STR_L_BACKUP_UNVERIFIED),
-                                  s_backup_verified ? WT_OK : WT_STOP);
+                                  : made_by == WSEED_SRC_KEF && restored
+                                        ? tr(STR_L_BACKUP_KEF_OPENED)
+                                  : restored ? tr(STR_L_BACKUP_WORDS_USED)
+                                             : tr(STR_L_BACKUP_UNVERIFIED),
+                                  state_col);
   lv_obj_update_layout(state);
   if (card) {
     lv_obj_update_layout(card);
@@ -1406,7 +1429,7 @@ static void setup_warn_screen(void) {
   // Skipping is allowed, but it must look like a conscious decision.
   lv_obj_t *ok = wt_word_action(s_warnscr, LV_SYMBOL_OK,
                                 tr(STR_C_I_UNDERSTAND), true,
-                                s_backup_verified ? WT_OK : WT_STOP,
+                                state_col,
                                 false, setup_warn_ok_cb, NULL);
   // The tick alone carries the verdict; the word is a word.
   lv_obj_set_style_text_color(lv_obj_get_child(ok, 1), WT_INK, 0);
@@ -2388,15 +2411,18 @@ void kiss_ui_kef_pass_open(bool create,
 // reset pad read back from the GPIO, never assumed from the build. Bad
 // states are amber WARNINGS; good states go calm. Dev builds carry a "dev"
 // marker in amber (dev seed, no release hardening).
+//
+// Calm is LOCKED alone (kiss_seed_flash_lock_state): RELEASE-mode fuses AND
+// secure boot. The three readers here used to ask the eFuse one question
+// each, "is encryption on", which a rehearsal board answers yes to while it
+// still takes any image over the cable -- so it wore the calm state the burn
+// recipe tells the operator to wait for. One reader now, three states.
 void kiss_build_id_restyle(lv_obj_t *version_label)
 {
   if (!version_label) return;
 #ifdef KISS_RELEASE
-  bool enc = false;
-#ifndef SIMULATOR
-  enc = esp_efuse_is_flash_encryption_enabled();
-#endif
-  lv_obj_set_style_text_color(version_label, enc ? MUT_COL : wt_accent(), 0);
+  bool locked = kiss_seed_flash_lock_state() == KISS_FLASH_LOCKED;
+  lv_obj_set_style_text_color(version_label, locked ? MUT_COL : wt_accent(), 0);
 #else
   lv_obj_set_style_text_color(version_label, wt_ink_for(WT_WARN), 0);
 #endif
@@ -2490,9 +2516,9 @@ lv_obj_t *kiss_build_id_make_at(lv_obj_t *parent, int x, int y,
                                 bool with_radio, bool stacked,
                                 bool with_version)
 {
-  bool enc = false, radio_held = true;   // sim: no radio hardware exists
+  int lock = kiss_seed_flash_lock_state();
+  bool radio_held = true;                // sim: no radio hardware exists
 #ifndef SIMULATOR
-  enc = esp_efuse_is_flash_encryption_enabled();
   radio_held = radio_is_held();
 #endif
   // The corner keeps font14 where the VERSION is in it -- that block is a
@@ -2542,7 +2568,8 @@ lv_obj_t *kiss_build_id_make_at(lv_obj_t *parent, int x, int y,
   // at all when it is ON -- a satisfied condition is not news. Recoloured
   // rather than split into three labels, the same answer wt_state_chip reached,
   // so the line stays ONE object with the words still in its raw text.
-  build_id_fact(w, "encryption", enc ? "ON" : "OFF", enc);
+  build_id_fact(w, "encryption", lock ? "ON" : "OFF",
+                lock == KISS_FLASH_LOCKED);
   if (stacked) {
     // Row two, and the version keeps row one to ITSELF. Encryption was tried up
     // there beside it and the gate caught what the arithmetic missed: a DEV
@@ -2661,7 +2688,7 @@ const char *kiss_build_commit(void)
 #endif
 }
 
-void kiss_build_id_facts(const char **ver, bool *enc, bool *radio, bool *noise)
+void kiss_build_id_facts(const char **ver, int *lock, bool *radio, bool *noise)
 {
   static char v[64];
 #ifdef KISS_RELEASE
@@ -2670,11 +2697,10 @@ void kiss_build_id_facts(const char **ver, bool *enc, bool *radio, bool *noise)
   snprintf(v, sizeof v, "%s dev (%s)", KISS_VERSION_STR, KISS_COMMIT_STR);
 #endif
   if (ver) *ver = v;
+  if (lock)  *lock = kiss_seed_flash_lock_state();
 #ifdef SIMULATOR
-  if (enc)   *enc = false;
   if (radio) *radio = true;          // sim: no radio hardware exists
 #else
-  if (enc)   *enc = esp_efuse_is_flash_encryption_enabled();
   if (radio) *radio = radio_is_held();
 #endif
   if (noise) *noise = kiss_trng_live();
