@@ -186,6 +186,7 @@
             </summary>
             <a href="#verify">Verify</a>
             <a href="#esptool">Command line</a>
+            <a href="#offline">No internet</a>
             <a href="#encryption">Encryption</a>
           </details>
           <details class="rail-group" open>
@@ -427,8 +428,61 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           so every flash starts you from clean ground.
         </p>
       </section>
+<section class="doc-card reveal" id="offline" aria-label="Flash with no internet">
+        <p class="eyebrow">06 / nothing reaches the network</p>
+        <h2>Flash on a machine with no internet</h2>
+        <p class="lede">
+          The install page fetches the firmware while you flash, so pulling the
+          plug halfway breaks it. This is the same install, packed into one
+          download you carry to a machine that never goes online.
+        </p>
+
+        <h3>Get the one file</h3>
+        <p>
+          On the <a href="https://github.com/DIYbitcoin/kiss-signer/releases/latest">latest
+          release</a>, take <strong>kiss-signer-&lt;version&gt;-offline.zip</strong>,
+          about 6.5&nbsp;MB. Inside it are the firmware, the install page and this
+          whole guide. Nothing in it reaches out for anything.
+        </p>
+        <p>
+          Check it before you trust it. The zip is signed on its own, and the
+          command is the same one from <a href="#verify">checking the
+          download</a> &mdash; the folder has a <code>00-START-HERE.txt</code>
+          with it written out.
+        </p>
+
+        <h3>Unzip it, then turn the network off</h3>
+        <p>
+          From here nothing needs a connection, so this is the moment to
+          disconnect if you want to.
+        </p>
+
+        <h3>Start the page</h3>
+        <p>
+          The install page has to be served rather than opened as a file, so a
+          small program in the folder shows it to your own computer only:
+          double click <code>serve.command</code> on macOS,
+          <code>serve.bat</code> on Windows, or run <code>./serve.sh</code> on
+          Linux. It prints an address beginning
+          <code>http://localhost</code>. Open that in Chrome, Brave or Edge and
+          flash as normal.
+        </p>
+        <div class="note">
+          Your computer may warn you about those files. It is right to: they
+          carry no Apple or Microsoft signature, and this project does not buy
+          one. The way that raises no warning at all is to open a terminal in
+          the folder and run <code>python3 serve.py</code> instead.
+        </div>
+        <p class="power-note">
+          On Safari or Firefox none of this helps, because the browser itself
+          cannot reach a USB device. Use
+          <a href="#esptool">the command line</a> instead &mdash; the firmware
+          is in the same folder, under
+          <code>site/installer/firmware</code>.
+        </p>
+      </section>
 <section class="doc-card reveal" id="encryption">
-        <p class="eyebrow">06 / read twice, flash once</p>
+        <p class="eyebrow">07 / read twice, flash once</p>
         <h2>Flash encryption, the final signer build</h2>
         <p>
           On the beta you are using today, someone who steals the device and
@@ -502,7 +556,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         </p>
       </section>
 <section class="doc-card reveal" id="firstboot">
-        <p class="eyebrow">07 / hand it to anyone</p>
+        <p class="eyebrow">08 / hand it to anyone</p>
         <h2>Getting in the first time</h2>
         <p>
           Three rules before the steps, because the device will not stop to say
@@ -663,7 +717,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         </p>
       </section>
 <section class="doc-card reveal" id="storage">
-        <p class="eyebrow">08 / three storage modes</p>
+        <p class="eyebrow">09 / three storage modes</p>
         <h2>Where your recovery words are kept</h2>
         <p>
           Setup asks this once, and Settings can change it later. All three
@@ -721,7 +775,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         </div>
       </section>
 <section class="doc-card reveal" id="practices" aria-label="Best practices">
-        <p class="eyebrow">09 / habits that hold</p>
+        <p class="eyebrow">10 / habits that hold</p>
         <h2>Best practices</h2>
         <p class="lede">Seven habits for running a signing device. Every one of them is
         the reverse of a way people have lost coins.</p>
@@ -769,7 +823,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         together in public, for anybody who looks.</p>
       </section>
 <section class="doc-card reveal" id="simulator">
-        <p class="eyebrow">10 / no hardware required</p>
+        <p class="eyebrow">11 / no hardware required</p>
         <h2>Try it without hardware</h2>
         <p>
           <strong><a href="sim/index.html">Open the simulator</a></strong> — the signer's
