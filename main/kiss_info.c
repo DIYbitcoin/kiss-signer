@@ -403,6 +403,27 @@ static void pair_qr_back_cb(lv_event_t *e)
     pair_screen();
 }
 
+// The address proof, from the page that asks for it.
+//
+// The card below already says to scan the coordinator's first address and
+// check it is yours; what it has never had is a way to do that. An owner who
+// read it had to leave for KEYS, open FIRST ADDRESS, and find VERIFY on the
+// receive screen -- two screens and three taps between an instruction and the
+// act, on the one page whose subject is that pairing is not finished until it
+// has been proved.
+//
+// The same shape FIRST ADDRESS uses one page back: take the parent, close this
+// section, hand the glass over. close_cb rather than swap_screen, because the
+// next screen is not one of this file's -- swap_screen leaves the section
+// context half-alive for a page that will never be built.
+static void pair_verify_go_cb(lv_event_t *e)
+{
+    (void)e;
+    lv_obj_t *par = s_parent;
+    close_cb(NULL);
+    kiss_recv_open_verify(par);
+}
+
 static void pair_instructions_cb(lv_event_t *e)
 {
     (void)e;
@@ -449,7 +470,18 @@ static void pair_instructions_cb(lv_event_t *e)
     lv_obj_t *prove = wt_note(c2, tr(STR_I_PROVE), 16, b2, 688, 132 - b2 - 10);
     lv_obj_set_style_text_color(prove, WT_INK, 0);
 
-    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 48, WT_ACTION_Y, 0, false, pair_qr_back_cb, NULL);
+    // RECEIVE's band, in RECEIVE's own three positions: the screen's action on
+    // the left at WT_ACT_X, the secondary at 300, the exit in the corner. BACK
+    // moves out of the left slot because it is page navigation and VERIFY is
+    // what this page is FOR -- the rule at WT_ACT_X in kiss_theme.h, applied
+    // the moment the page acquired an action of its own.
+    //
+    // Primary and forward-arrowed, exactly as the same word is on RECEIVE, so
+    // the control an owner meets here and the one they meet there are visibly
+    // the same control. It opens the camera directly; see kiss_recv_open_verify.
+    wt_arrow_action(s_scr, tr(STR_R_VERIFY), false, true, WT_ACT_X, WT_ACTION_Y,
+                    0, false, pair_verify_go_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 300, WT_ACTION_Y, 0, false, pair_qr_back_cb, NULL);
     wt_arrow_action(s_scr, tr(STR_C_DONE), true, false, 592, WT_ACTION_Y, 160, true, pair_back_cb, NULL);
 }
 

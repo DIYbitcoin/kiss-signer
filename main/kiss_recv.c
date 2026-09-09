@@ -1511,3 +1511,29 @@ void kiss_recv_open_first(lv_obj_t *parent) {
   s_idx = 0;
   recv_refresh();
 }
+
+// PAIR COORDINATOR's VERIFY: the camera, immediately.
+//
+// The pairing instructions have told an owner to prove the import by scanning
+// the coordinator's first address since the day they were written, and the
+// sentence had no control under it. The route was DONE, then FIRST ADDRESS on
+// KEYS, then VERIFY on RECEIVE -- three taps across two screens between
+// reading an instruction and being able to follow it, on the one screen where
+// the whole point is that pairing is not finished until it has been proved.
+//
+// NO RECEIVE SCREEN IS BUILT FIRST, and that is deliberate rather than a
+// shortcut: vfy_scan closes whatever is up and hands the glass to
+// kiss_scan_open_raw, and the verdict it comes back to derives from the
+// session keys alone -- it reads none of the index, page or fold state that
+// recv_open_at exists to set. Building the address screen only to delete it
+// would put a screen the owner did not ask for between the tap and the camera.
+//
+// Both ways out of the scan already land somewhere sane without help here:
+// vfy_cancel and vfy_done_cb call kiss_recv_open, so a backed-out or finished
+// check leaves the owner on RECEIVE holding their own address, which is where
+// somebody who has just proved one wants to be.
+void kiss_recv_open_verify(lv_obj_t *parent) {
+  if (s_scr) return;
+  s_parent = parent;
+  vfy_scan(NULL);
+}

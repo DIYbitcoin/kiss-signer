@@ -3285,6 +3285,34 @@ int main(void) {
   // owner actually follows, so it gets walked and rendered like any other.
   tap_str(STR_R_NEXT, 3, 6);     // NEXT -> HOW TO PAIR
   save("/tmp/sim_pair_steps.ppm");
+  {
+    // THE VERIFY CONTROL'S SEAM, and the seam is the whole reason this stop
+    // exists. The card has told an owner to prove the import by scanning the
+    // coordinator's first address since the day it was written; the band now
+    // carries the control that does it, and the tap crosses two screen owners
+    // -- kiss_info deletes its own screen and kiss_recv hands the glass
+    // straight to the camera. Every use-after-free this file has caught lived
+    // in a handoff exactly that shape.
+    //
+    // Nothing is saved. The four verdict screens past the scanner are already
+    // photographed from RECEIVE, and a fifth copy of one of them would be a
+    // frame in 21 locales that answers a question already answered.
+    tap_str(STR_R_VERIFY, 3, 8);        // VERIFY -> the raw scan screen
+    // Deliberately not an address: this stop is about the handoff, and the
+    // INVALID verdict is the one answer that does not depend on which chain
+    // the walk happens to be standing on.
+    const char *junk = "not-an-address";
+    kiss_scan_inject(junk, strlen(junk)); pump(6);
+    must_show("pair/verify reaches the scan", tr(STR_R_INVALID));
+    tap_str(STR_C_DONE, 3, 8);          // DONE -> RECEIVE, the scan's own way out
+    must_show("pair/verify lands on receive", tr(STR_R_TAB_THIS));
+    tap_str(STR_C_BACK, 3, 8);          // BACK -> home
+    // Back to where the excursion started, by the route the walk already
+    // knows, so every stop after this one reads the same screen it always did.
+    touch(490, 240); pump(3); release(); pump(45);   // Wallet tile -> KEYS
+    touch(400, 150); pump(3); release(); pump(6);    // PAIRING -> PAIR COORDINATOR
+    tap_str(STR_R_NEXT, 3, 6);                       // NEXT -> HOW TO PAIR
+  }
   tap_str(STR_C_BACK, 3, 6);     // BACK -> the QR page
   // BACK lands on the tab it left, which is what the context remembers for.
   tap_str(STR_C_BACK, 3, 6);     // BACK -> KEYS, still on COORDINATOR
