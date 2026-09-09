@@ -109,11 +109,42 @@
   --accent-bg: #2b190d;
 }
 
+/* The repo, as the mark people already recognise rather than a word in the
+   tab row. It sits with the accent picker: both are tools about the site, not
+   places in it. */
+.icon-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-bottom: 1px solid transparent;
+  border-radius: 9px;
+  color: var(--dim);
+  transition: color 170ms ease, border-color 170ms ease, background 170ms ease;
+}
+
+.icon-link svg {
+  width: 17px;
+  height: 17px;
+  fill: currentColor;
+}
+
+.icon-link:hover {
+  color: var(--ink);
+  border-color: var(--line);
+  background: var(--key);
+}
+
 /* The accent picker, sitting where the device puts its theme tab. */
 .theme-pick {
   display: flex;
   align-items: center;
   gap: 6px;
+  padding-left: 12px;
+  border-left: 1px solid var(--line);
 }
 
 .theme-pick .swatch {
@@ -191,8 +222,8 @@ a:hover {
   z-index: 10;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 20px;
+  justify-content: flex-start;
+  gap: 14px;
   padding: 13px 24px;
   border-bottom: 1px solid var(--line);
   background: rgba(7, 10, 16, 0.88);
@@ -215,6 +246,7 @@ a:hover {
 .topnav {
   display: flex;
   gap: 8px;
+  margin-left: auto;
 }
 
 .topnav a {
