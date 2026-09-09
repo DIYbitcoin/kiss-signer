@@ -3,6 +3,7 @@
 what the firmware was built to expect.
 
     check_sig_scheme.py <image.bin> --scheme rsa|ecdsa --blocks N
+    check_sig_scheme.py <image.bin> --scheme rsa --blocks 3 --distinct
     check_sig_scheme.py <image.bin> --unsigned
     check_sig_scheme.py --selftest
 
@@ -33,6 +34,7 @@ reader depends on; a trailer already present is reported, not skipped.
 """
 import struct
 import sys
+import hashlib
 import zlib
 
 SECTOR = 4096
@@ -40,6 +42,17 @@ BLOCK = 1216
 MAGIC = 0xE7
 VERSION = {"rsa": 0x02, "ecdsa": 0x03}
 NAME = {v: k for k, v in VERSION.items()}
+
+# Where the public key sits inside an RSA block: the modulus at 36, little
+# endian, 384 bytes for RSA-3072, then the exponent in the next 4. Confirmed
+# against a real three key bootloader rather than read off a diagram -- each
+# block's modulus, reversed, is byte for byte the modulus openssl prints for
+# the key that signed it, and the exponent read 65537 in all three.
+#
+# Only RSA. The ECDSA block puts a curve id and a shorter key somewhere else,
+# and this project's release lane is RSA only, so --distinct refuses an ECDSA
+# sector rather than digesting the wrong bytes and calling them a key.
+RSA_KEY_SPAN = (36, 424)
 
 
 def blocks(image):
@@ -62,6 +75,49 @@ def blocks(image):
             break
         out.append(NAME[version])
     return out
+
+
+def key_digests(image):
+    """SHA-256 over each RSA block's public key, in block order.
+
+    Raises ValueError on a sector this cannot read a key out of, because a
+    digest of the wrong bytes would compare as happily as a right one.
+    """
+    sector = image[-SECTOR:]
+    out = []
+    for k in range(len(blocks(image))):
+        blk = sector[k * BLOCK:(k + 1) * BLOCK]
+        if blk[1] != VERSION["rsa"]:
+            raise ValueError("block %d is %s; --distinct reads RSA blocks only"
+                             % (k, NAME.get(blk[1], "unknown")))
+        lo, hi = RSA_KEY_SPAN
+        out.append(hashlib.sha256(blk[lo:hi]).hexdigest())
+    return out
+
+
+def distinct(image):
+    """(ok, message): every signature block carries a different key.
+
+    Three blocks are the whole of the rotation policy: secure boot burns a
+    digest per block on first boot and revokes every slot it did not fill, so
+    three copies of one key is a board with one key and no way back. The
+    scheme and count checks both pass on that board, and so does espsecure's
+    own verify, because each block really is a valid signature.
+    """
+    try:
+        digests = key_digests(image)
+    except ValueError as e:
+        return False, str(e)
+    if len(digests) < 2:
+        return True, "%d signature block, nothing to compare" % len(digests)
+    seen = {}
+    for k, d in enumerate(digests):
+        if d in seen:
+            return False, ("blocks %d and %d carry the SAME public key: three "
+                           "blocks are not three keys, and rotation needs "
+                           "three" % (seen[d], k))
+        seen[d] = k
+    return True, "%d different keys" % len(seen)
 
 
 def judge(image, scheme=None, count=None, unsigned=False):
@@ -92,10 +148,14 @@ def make_block(scheme, filler=b"\x5a"):
     return body + struct.pack("<I", zlib.crc32(body) & 0xFFFFFFFF) + b"\x00" * 16
 
 
-def make_image(*schemes, trailer=b"", corrupt=False):
+def make_image(*schemes, trailer=b"", corrupt=False, keys=None):
+    """keys: one filler byte per block, so two blocks can differ in their key
+    span the way two real keys do. Left alone, every block is identical, which
+    is itself the case --distinct exists to catch."""
     base = bytes(range(256)) * 40             # 10240 bytes, not aligned
     base += b"\xff" * (SECTOR - len(base) % SECTOR)
-    sector = b"".join(make_block(s) for s in schemes)
+    fillers = keys or [b"\x5a"] * len(schemes)
+    sector = b"".join(make_block(s, f) for s, f in zip(schemes, fillers))
     if corrupt and sector:
         sector = sector[:100] + bytes([sector[100] ^ 1]) + sector[101:]
     sector += b"\xff" * (SECTOR - len(sector))
@@ -104,9 +164,11 @@ def make_image(*schemes, trailer=b"", corrupt=False):
 
 def selftest():
     bad = 0
+    ran = 0
 
     def case(label, want, ok):
-        nonlocal bad
+        nonlocal bad, ran
+        ran += 1
         good = ok == want
         print("  %-52s %s" % (label, "ok" if good else "FAILED"))
         bad += not good
@@ -131,7 +193,29 @@ def selftest():
          judge(make_image(), unsigned=True)[0])
     case("a signed image is not unsigned", False,
          judge(make_image("rsa"), unsigned=True)[0])
-    print("signature scheme selftest: 9 cases, %d broken" % bad)
+
+    # Three blocks are not three keys. Everything above passes on a bootloader
+    # signed three times with one key file, which is a board that burns one
+    # digest, revokes the other two slots, and can never be rotated.
+    three = make_image("rsa", "rsa", "rsa",
+                       keys=[b"\x11", b"\x22", b"\x33"])
+    case("three different keys are distinct", True, distinct(three)[0])
+    case("...and it says how many", True,
+         "3 different keys" in distinct(three)[1])
+    same = make_image("rsa", "rsa", "rsa", keys=[b"\x11", b"\x22", b"\x11"])
+    ok, msg = distinct(same)
+    case("the same key twice is refused", False, ok)
+    case("...and names both blocks", True, "blocks 0 and 2" in msg)
+    case("all three the same is refused", False,
+         distinct(make_image("rsa", "rsa", "rsa"))[0])
+    case("one block alone is not a duplicate", True,
+         distinct(make_image("rsa"))[0])
+    case("an ECDSA sector is refused rather than guessed", False,
+         distinct(make_image("ecdsa", "ecdsa"))[0])
+    case("...saying it reads RSA only", True,
+         "RSA blocks only" in distinct(make_image("ecdsa", "ecdsa"))[1])
+
+    print("signature scheme selftest: %d cases, %d broken" % (ran, bad))
     return 1 if bad else 0
 
 
@@ -153,6 +237,11 @@ def main(argv):
         if scheme not in VERSION or not 1 <= count <= 3:
             sys.exit(__doc__)
         ok, msg = judge(image, scheme, count)
+        # Count first, then identity. A sector with the wrong number of blocks
+        # has a more useful thing to say than "they are all different".
+        if ok and "--distinct" in argv:
+            ok, extra = distinct(image)
+            msg = msg + ", " + extra
     print(("PASS: " if ok else "FAIL: ") + path.rsplit("/", 1)[-1] + ": " + msg)
     return 0 if ok else 1
 

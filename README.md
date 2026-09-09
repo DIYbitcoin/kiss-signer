@@ -24,7 +24,7 @@
 *Keep it simple. Make it clear. Make it safe.*
 
 [Simulator](https://diybitcoin.github.io/kiss-signer/sim/) &nbsp;·&nbsp;
-[Docs](docs/guide.html) &nbsp;·&nbsp;
+[Docs](https://diybitcoin.github.io/kiss-signer/guide.html) &nbsp;·&nbsp;
 [Walkthrough](docs/walkthrough.md) &nbsp;·&nbsp;
 [Changelog](CHANGELOG.md) &nbsp;·&nbsp;
 [Roadmap](ROADMAP.md) &nbsp;·&nbsp;
@@ -161,7 +161,7 @@ publish forever instead.
 
 ## Docs
 
-The [guide](docs/guide.html) covers verifying a release, flashing on each
+The [guide](https://diybitcoin.github.io/kiss-signer/guide.html) covers verifying a release, flashing on each
 operating system, flashing with no internet, first boot, pairing Sparrow, and
 building from source. The [walkthrough](docs/walkthrough.md) is the short
 version: the five things to do before the signer holds anything you care about.

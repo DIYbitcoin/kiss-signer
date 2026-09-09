@@ -185,6 +185,7 @@
               <svg class="rail-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
             </summary>
             <a href="#verify">Verify</a>
+            <a href="#sdupdate">SD card update</a>
             <a href="#esptool">Command line</a>
             <a href="#offline">No internet</a>
             <a href="#encryption">Encryption</a>
@@ -255,7 +256,7 @@
           <article>
             <span>TOUCHSCREEN + QR</span>
             <h3>PSBTs in and out by QR, or by microSD</h3>
-            <p>A small payload fits in one still QR code. A whole transaction will not, so KISS chops it into numbered pieces and plays them as a short looping animation for your other wallet&rsquo;s camera to read &mdash; that scheme is called BC-UR, and every wallet worth pairing with speaks it. Or skip the camera and carry the file on a microSD card. No cable ever carries your data.</p>
+            <p>A small payload fits in one still QR code. A whole transaction will not, so KISS chops it into numbered pieces and plays them as a short looping animation for your coordinator&rsquo;s camera to read &mdash; that scheme is called BC-UR, and every coordinator worth pairing with speaks it. Or skip the camera and carry the file on a microSD card. No cable ever carries your data.</p>
           </article>
           <article>
             <span>SILENT PAYMENTS</span>
@@ -317,7 +318,7 @@
         <h3>Flip the camera (one-time mod, required for QR scanning)</h3>
         <p>
           The device ships with the camera facing the user, selfie style. Reading
-          a QR code from your other wallet needs it facing the other way. The job
+          a QR code from your coordinator needs it facing the other way. The job
           is simple but fiddly, so take it slowly:
         </p>
         <ol>
@@ -390,8 +391,49 @@ sha256sum --ignore-missing -c SHA256SUMS         # Linux</code></pre>
           place. Do that yourself once per release.
         </p>
       </section>
+<section class="doc-card reveal" id="sdupdate" aria-label="Update from an SD card">
+        <p class="eyebrow">05 / no cable, no computer</p>
+        <h2>Update from an SD card</h2>
+        <p class="lede">
+          If your device already runs beta8 or later, this is the easiest route
+          there is. The signer takes its next firmware straight off a card, so
+          there is no cable, no driver, and no computer involved at all.
+        </p>
+
+        <h3>What to put on the card</h3>
+        <p>
+          From the <a href="https://github.com/DIYbitcoin/kiss-signer/releases/latest">latest
+          release</a>, take the file ending
+          <strong>-update.bin</strong> and drop it in the top level of an SD
+          card. That is the whole preparation.
+        </p>
+        <div class="note">
+          Take the <code>-update.bin</code> file, not the plain
+          <code>.bin</code>. The plain one starts with the bootloader, and a
+          running device looks past that for the application, so it will simply
+          report that there is nothing to install.
+        </div>
+
+        <h3>Install it from the device</h3>
+        <p>
+          Put the card in, then on the signer go to
+          <strong>SETTINGS &rarr; FIRMWARE</strong> and hold to install.
+        </p>
+        <p>
+          It checks both signatures against keys built into the device before it
+          writes anything, so a file that is not ours is refused rather than
+          installed. And if the new firmware fails to start, the device puts the
+          old one back by itself.
+        </p>
+        <p class="power-note">
+          This route keeps your keys and settings. The browser install on the
+          front page erases the whole chip, which is why it is the one to use
+          for a new device or a very old one, and this is the one to use for
+          everything else.
+        </p>
+      </section>
 <section class="doc-card reveal" id="esptool" aria-label="Flash from the command line">
-        <p class="eyebrow">05 / the other way in</p>
+        <p class="eyebrow">06 / the other way in</p>
         <h2>Flash it from the command line</h2>
         <p class="lede">
           The install page needs Chrome, Brave or Edge, because Safari and
@@ -429,7 +471,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         </p>
       </section>
 <section class="doc-card reveal" id="offline" aria-label="Flash with no internet">
-        <p class="eyebrow">06 / nothing reaches the network</p>
+        <p class="eyebrow">07 / nothing reaches the network</p>
         <h2>Flash on a machine with no internet</h2>
         <p class="lede">
           The install page fetches the firmware while you flash, so pulling the
@@ -482,7 +524,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         </p>
       </section>
 <section class="doc-card reveal" id="encryption">
-        <p class="eyebrow">07 / read twice, flash once</p>
+        <p class="eyebrow">08 / read twice, flash once</p>
         <h2>Flash encryption, the final signer build</h2>
         <p>
           On the beta you are using today, someone who steals the device and
@@ -556,7 +598,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         </p>
       </section>
 <section class="doc-card reveal" id="firstboot">
-        <p class="eyebrow">08 / hand it to anyone</p>
+        <p class="eyebrow">09 / hand it to anyone</p>
         <h2>Getting in the first time</h2>
         <p>
           Three rules before the steps, because the device will not stop to say
@@ -717,7 +759,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         </p>
       </section>
 <section class="doc-card reveal" id="storage">
-        <p class="eyebrow">09 / three storage modes</p>
+        <p class="eyebrow">10 / three storage modes</p>
         <h2>Where your recovery words are kept</h2>
         <p>
           Setup asks this once, and Settings can change it later. All three
@@ -775,14 +817,14 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         </div>
       </section>
 <section class="doc-card reveal" id="practices" aria-label="Best practices">
-        <p class="eyebrow">10 / habits that hold</p>
+        <p class="eyebrow">11 / habits that hold</p>
         <h2>Best practices</h2>
         <p class="lede">Seven habits for running a signing device. Every one of them is
         the reverse of a way people have lost coins.</p>
 
-        <h3>Start with a wallet that holds nothing</h3>
+        <h3>Start with keys that hold nothing</h3>
         <p>This is beta firmware on unencrypted flash. Practise the whole loop
-        &mdash; pair, receive, sign, broadcast &mdash; on a wallet you would not
+        &mdash; pair, receive, sign, broadcast &mdash; with keys you would not
         mind losing, and keep doing that until the flash-encrypted build has
         passed its hardware tests.</p>
 
@@ -792,38 +834,38 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         download</a>.</p>
 
         <h3>Treat the passphrase as part of the key</h3>
-        <p>It is not a password on top of your wallet. <strong>Every passphrase
+        <p>It is not a password on top of your keys. <strong>Every passphrase
         opens keys</strong>, so there is no wrong-passphrase error to warn you,
         and it is never stored anywhere on the device. Change one character and
-        you are in a different, empty wallet. Lose it and the coins are gone with
+        you are in a different, empty set of keys. Lose it and the coins are gone with
         it.</p>
 
-        <h3>Write the passphrase down, and keep it apart from the words</h3>
-        <p>The words and the passphrase together are the wallet. Stored in one
+        <h3>Write the passphrase down, and keep it apart from the seed words</h3>
+        <p>The seed words and the passphrase together are the keys. Stored in one
         place they are one secret, and whoever finds it has everything. Stored
         apart, neither half spends on its own.</p>
 
         <h3>Paper is the only way back</h3>
         <p>The encrypted card is sealed to this device, which makes it a second
         factor, not a backup: if the device is gone, so is the card&rsquo;s key.
-        A restore starts from the words on paper. See <a href="#storage">where
-        your words are kept</a>.</p>
+        A restore starts from the seed words on paper. See <a href="#storage">where
+        your seed words are kept</a>.</p>
 
         <h3>Read the amounts on the device, not on the computer</h3>
         <p>KISS works out every amount, the fee and your change for itself and
         shows them on its own screen. That screen is the one thing a compromised
         computer cannot rewrite, so it is the one worth reading. If the address
-        or the amount differs from what your wallet showed, do not hold to
+        or the amount differs from what your coordinator showed, do not hold to
         sign.</p>
 
         <h3>Keep the coordinator watch-only, and use a new address each time</h3>
-        <p>Your online wallet should hold nothing that can spend; if it ever asks
-        for your words or your passphrase, something is wrong. Hand out a fresh
+        <p>Your coordinator should hold nothing that can spend; if it ever asks
+        for your seed words or your passphrase, something is wrong. Hand out a fresh
         address for every payment, too &mdash; reusing one links those payments
         together in public, for anybody who looks.</p>
       </section>
 <section class="doc-card reveal" id="simulator">
-        <p class="eyebrow">11 / no hardware required</p>
+        <p class="eyebrow">12 / no hardware required</p>
         <h2>Try it without hardware</h2>
         <p>
           <strong><a href="sim/index.html">Open the simulator</a></strong> — the signer's
