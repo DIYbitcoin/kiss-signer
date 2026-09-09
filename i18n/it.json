@@ -814,7 +814,7 @@
   "W_SD_MISSING_B": "inserisci la scheda SD con le tue parole, poi riprova.",
   "W_SD_MISSING_S": "le tue parole stanno sulla scheda SD",
   "W_SD_MISSING_T": "INSERISCI LA TUA SCHEDA SD",
-  "W_SD_NOTE": "solo questo apparecchio la apre. scheda prima",
+  "W_SD_NOTE": "not a backup: only this device opens it",
   "W_SEED_HELP": "nuovo qui? le parole seed",
   "W_SETUP_S": "ancora nessuna chiave su questo firmatario",
   "W_SETUP_T": "CONFIGURA QUESTO FIRMATARIO",

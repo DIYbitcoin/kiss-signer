@@ -814,7 +814,7 @@
   "W_SD_MISSING_B": "把存着助记词的 SD 卡插上，再试一次。",
   "W_SD_MISSING_S": "你的助记词存在 SD 卡上",
   "W_SD_MISSING_T": "插入你的 SD 卡",
-  "W_SD_NOTE": "只有这台设备能打开。先插卡",
+  "W_SD_NOTE": "not a backup: only this device opens it",
   "W_SEED_HELP": "第一次来？助记词是什么",
   "W_SETUP_S": "这台签名器上还没有密钥",
   "W_SETUP_T": "设置签名器",

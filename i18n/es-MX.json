@@ -814,7 +814,7 @@
   "W_SD_MISSING_B": "mete la tarjeta SD que guarda tus palabras y prueba otra vez.",
   "W_SD_MISSING_S": "tus palabras se guardan en la tarjeta SD",
   "W_SD_MISSING_T": "INSERTA TU TARJETA SD",
-  "W_SD_NOTE": "solo este equipo la abre. tarjeta primero",
+  "W_SD_NOTE": "not a backup: only this device opens it",
   "W_SEED_HELP": "nuevo aquí? qué son las semillas",
   "W_SETUP_S": "todavía no hay llaves en este firmante",
   "W_SETUP_T": "CONFIGURA ESTE FIRMANTE",

@@ -814,7 +814,7 @@
   "W_SD_MISSING_B": "vložte kartu SD se svými slovy a zkuste to znovu.",
   "W_SD_MISSING_S": "vaše slova jsou na kartě SD",
   "W_SD_MISSING_T": "VLOŽTE SVOU SD KARTU",
-  "W_SD_NOTE": "otevře ji jen toto zařízení. karta první",
+  "W_SD_NOTE": "not a backup: only this device opens it",
   "W_SEED_HELP": "nový tady? co jsou seed slova",
   "W_SETUP_S": "v tomto podepisovač zatím nejsou klíče",
   "W_SETUP_T": "NASTAVTE ZAŘÍZENÍ",

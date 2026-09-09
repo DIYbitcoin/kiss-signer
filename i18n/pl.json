@@ -814,7 +814,7 @@
   "W_SD_MISSING_B": "włóż kartę SD ze swoimi słowami i spróbuj ponownie.",
   "W_SD_MISSING_S": "twoje słowa są na karcie SD",
   "W_SD_MISSING_T": "WŁÓŻ SWOJĄ KARTĘ SD",
-  "W_SD_NOTE": "otworzy ją tylko to urządzenie. karta",
+  "W_SD_NOTE": "not a backup: only this device opens it",
   "W_SEED_HELP": "nowy tutaj? czym są słowa seed",
   "W_SETUP_S": "w tym podpisujący nie ma jeszcze kluczy",
   "W_SETUP_T": "USTAW URZĄDZENIE",

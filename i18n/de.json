@@ -814,7 +814,7 @@
   "W_SD_MISSING_B": "stecken Sie die SD-Karte mit Ihren Seed-Wörtern ein und versuchen Sie es erneut.",
   "W_SD_MISSING_S": "Ihre Seed-Wörter liegen auf der SD-Karte",
   "W_SD_MISSING_T": "DEINE SD-KARTE EINLEGEN",
-  "W_SD_NOTE": "nur dieses Gerät öffnet sie. Karte zuerst",
+  "W_SD_NOTE": "not a backup: only this device opens it",
   "W_SEED_HELP": "neu hier? was Seed-Wörter sind",
   "W_SETUP_S": "noch keine Schlüssel auf diesem Signer",
   "W_SETUP_T": "SIGNER EINRICHTEN",

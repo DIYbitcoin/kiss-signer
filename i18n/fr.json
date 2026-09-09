@@ -814,7 +814,7 @@
   "W_SD_MISSING_B": "insérez la carte SD qui garde vos mots, puis réessayez.",
   "W_SD_MISSING_S": "vos mots sont gardés sur la carte SD",
   "W_SD_MISSING_T": "INSÉREZ VOTRE CARTE SD",
-  "W_SD_NOTE": "seul cet appareil l ouvre. carte d abord",
+  "W_SD_NOTE": "not a backup: only this device opens it",
   "W_SEED_HELP": "nouveau ici? les mots seed",
   "W_SETUP_S": "pas encore de clés sur ce signataire",
   "W_SETUP_T": "CONFIGURE CE SIGNATAIRE",

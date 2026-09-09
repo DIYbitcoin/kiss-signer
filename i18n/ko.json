@@ -814,7 +814,7 @@
   "W_SD_MISSING_B": "시드 문구가 든 SD 카드를 꽂고 다시 해 보세요.",
   "W_SD_MISSING_S": "시드 문구는 SD 카드에 있습니다",
   "W_SD_MISSING_T": "SD 카드를 삽입하세요",
-  "W_SD_NOTE": "이 기기만 엽니다. 카드를 먼저",
+  "W_SD_NOTE": "not a backup: only this device opens it",
   "W_SEED_HELP": "처음이신가요? 시드 단어란",
   "W_SETUP_S": "이 서명 기기에 아직 키가 없습니다",
   "W_SETUP_T": "기기 설정",

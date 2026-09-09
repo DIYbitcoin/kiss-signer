@@ -471,6 +471,11 @@ UNTRANSLATED_OK = {
     # DETAILS rebuilt as a deck, one subject per tab. Born under the
     # English-only rule; English in the other twenty until the sweep.
     "S_D_TAB_INS", "S_D_TAB_OUTS", "S_D_TAB_TX",
+    # The SD note on the storage chooser, which gained the consequence of
+    # being device-bound. It says something the old sentence did not, so the
+    # twenty translations of that one are not translations of this: English
+    # until the sweep.
+    "W_SD_NOTE",
 }
 
 

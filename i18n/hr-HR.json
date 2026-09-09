@@ -814,7 +814,7 @@
   "W_SD_MISSING_B": "umetnite SD karticu s vašim riječima i pokušajte ponovno.",
   "W_SD_MISSING_S": "vaše riječi stoje na SD kartici",
   "W_SD_MISSING_T": "UMETNI SVOJU SD KARTICU",
-  "W_SD_NOTE": "otvara je samo ovaj uređaj. prvo kartica",
+  "W_SD_NOTE": "not a backup: only this device opens it",
   "W_SEED_HELP": "novi ovdje? što su seed riječi",
   "W_SETUP_S": "na ovom potpisnik još nema ključeva",
   "W_SETUP_T": "POSTAVITE OVAJ UREĐAJ",

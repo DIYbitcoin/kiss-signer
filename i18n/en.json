@@ -814,7 +814,7 @@
   "W_SD_MISSING_B": "insert the SD card that holds your seed words, then try again.",
   "W_SD_MISSING_S": "your seed words are kept on the SD card",
   "W_SD_MISSING_T": "INSERT YOUR SD CARD",
-  "W_SD_NOTE": "only this device opens it. card in first",
+  "W_SD_NOTE": "not a backup: only this device opens it",
   "W_SEED_HELP": "new here? what seed words are",
   "W_SETUP_S": "no keys on this signer yet",
   "W_SETUP_T": "SET UP THIS SIGNER",

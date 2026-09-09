@@ -814,7 +814,7 @@
   "W_SD_MISSING_B": "steek de SD-kaart met je woorden erin en probeer opnieuw.",
   "W_SD_MISSING_S": "je woorden staan op de SD-kaart",
   "W_SD_MISSING_T": "PLAATS JE SD-KAART",
-  "W_SD_NOTE": "alleen dit toestel opent hem. kaart eerst",
+  "W_SD_NOTE": "not a backup: only this device opens it",
   "W_SEED_HELP": "nieuw hier? wat seed-woorden zijn",
   "W_SETUP_S": "nog geen sleutels op deze signer",
   "W_SETUP_T": "STEL DE SIGNER IN",

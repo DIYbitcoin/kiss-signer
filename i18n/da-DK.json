@@ -814,7 +814,7 @@
   "W_SD_MISSING_B": "sæt det SD-kort i der har dine ord, og prøv igen.",
   "W_SD_MISSING_S": "dine ord ligger på SD-kortet",
   "W_SD_MISSING_T": "INDSÆT DIT SD-KORT",
-  "W_SD_NOTE": "kun denne enhed åbner den. kort først",
+  "W_SD_NOTE": "not a backup: only this device opens it",
   "W_SEED_HELP": "ny her? hvad seed-ord er",
   "W_SETUP_S": "der er endnu ingen nøgler på denne signer",
   "W_SETUP_T": "OPSÆT DENNE SIGNER",

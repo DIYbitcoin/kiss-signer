@@ -814,7 +814,7 @@
   "W_SD_MISSING_B": "シードフレーズの入ったSDカードを入れて、もう一度お試しください。",
   "W_SD_MISSING_S": "シードフレーズはSDカードにあります",
   "W_SD_MISSING_T": "SDカードを挿入",
-  "W_SD_NOTE": "この機器だけが開けます。先にカードを",
+  "W_SD_NOTE": "not a backup: only this device opens it",
   "W_SEED_HELP": "はじめて? シード単語とは",
   "W_SETUP_S": "この署名端末にはまだ鍵がありません",
   "W_SETUP_T": "署名端末のセットアップ",

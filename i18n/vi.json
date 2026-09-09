@@ -814,7 +814,7 @@
   "W_SD_MISSING_B": "cắm thẻ SD chứa cụm từ của bạn rồi thử lại.",
   "W_SD_MISSING_S": "cụm từ của bạn nằm trên thẻ SD",
   "W_SD_MISSING_T": "LẮP THẺ SD CỦA BẠN",
-  "W_SD_NOTE": "chỉ thiết bị này mở được. lắp thẻ trước",
+  "W_SD_NOTE": "not a backup: only this device opens it",
   "W_SEED_HELP": "mới ở đây? từ seed là gì",
   "W_SETUP_S": "máy ký này chưa có khóa nào",
   "W_SETUP_T": "THIẾT LẬP MÁY KÝ NÀY",

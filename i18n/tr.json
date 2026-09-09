@@ -814,7 +814,7 @@
   "W_SD_MISSING_B": "kelimelerinizin durduğu SD kartı takın ve yeniden deneyin.",
   "W_SD_MISSING_S": "kelimeleriniz SD kartta duruyor",
   "W_SD_MISSING_T": "SD KARTINI TAK",
-  "W_SD_NOTE": "bunu sadece bu cihaz açar. önce kart",
+  "W_SD_NOTE": "not a backup: only this device opens it",
   "W_SEED_HELP": "yeni misin? seed kelimeleri",
   "W_SETUP_S": "bu imzalayıcı henüz anahtar yok",
   "W_SETUP_T": "BU CİHAZI KURUN",
