@@ -27,14 +27,15 @@
 #   * NVS encryption                  - plain flash encryption does NOT cover
 #     "nvs" data partitions, and the seed words live in NVS; NVS encryption
 #     stores XTS keys in the new nvs_key partition, which IS flash-encrypted
-#   * secure boot v2, ECDSA secp256r1 - first boot ALSO burns the digest of the
-#     signing key and from then on the ROM only runs our signed bootloader and
-#     the bootloader only runs our signed apps. Release recipe only: the
-#     rehearsal board must stay reflashable, and this burn is as one way as the
-#     other. This used to read "OFF - added later as its own pass"; this is
-#     that pass, and the two burns happen together in one first boot because a
-#     board burned for encryption alone can never take the secure bootloader
-#     afterwards.
+#   * secure boot v2, RSA-3072, three keys - first boot ALSO burns the digests
+#     of the three keys in the bootloader's signature sector, and from then on
+#     the ROM only runs a bootloader those keys signed and the bootloader only
+#     runs apps they signed. The keys are the BUILDER's own (KISS_SB_KEYS): a
+#     burned board trusts whoever burned it and nobody else, and rotates by
+#     revoking one key for the next. Release recipe only: the rehearsal board
+#     must stay reflashable, and this burn is as one way as the other. The two
+#     burns happen together in one first boot because a board burned for
+#     encryption alone can never take the secure bootloader afterwards.
 #
 # THIS BUILD IS FOR A FRESH / FINAL BOARD ONLY. It never touches the v1.3
 # engineering sample. This script only builds and verifies - it never flashes.
@@ -51,7 +52,8 @@
 #     secure version 0: nothing is refused today, but the first release that
 #     bumps the version can permanently shut the door on the builds before it.
 #   * an attacker with the board can erase it (denial of service) but can
-#     never read the seed out of flash, and can never boot code we did not sign
+#     never read the seed out of flash, and can never boot code its builder
+#     did not sign
 set -e
 cd "$(dirname "$0")/.."
 . tools/idf_image.sh
@@ -97,13 +99,13 @@ force = {
     "CONFIG_SECURE_FLASH_ENCRYPTION_AES128":        None,
     "CONFIG_SECURE_FLASH_ENCRYPTION_AES256":        "y",
     # secure boot v2, release recipe only: a secure boot bootloader burns its
-    # key digest on FIRST BOOT, so putting it in the rehearsal build would
+    # key digests on FIRST BOOT, so putting it in the rehearsal build would
     # spend the one thing that build exists to protect - a board that still
     # takes any image over the cable. Signing stays outside the container
-    # (BUILD_SIGNED_BINARIES off, forced below): the bootloader and the app
-    # are both signed after the build with the SAME secp256r1 key the SD
-    # update story already rests on. One root, already under custody, already
-    # the key this project cannot lose - the eFuse digest just anchors it.
+    # (BUILD_SIGNED_BINARIES off, forced below): the bootloader is signed
+    # after the build with all three of the builder's RSA-3072 keys and the
+    # app with the first of them. The key block before the signing step says
+    # why three and why the builder's.
     "CONFIG_SECURE_BOOT":                           None if rehearsal else "y",
     "CONFIG_SECURE_BOOT_V2_ENABLED":                None if rehearsal else "y",
     "CONFIG_SECURE_BOOT_ECDSA_KEY_LEN_256_BITS":    "y",
@@ -234,17 +236,6 @@ print("wrote %s (flash enc %s + NVS enc%s, logs WARN)"
          "" if rehearsal else " + secure boot v2 + anti rollback"))
 PY
 
-GIT_REV=$(git describe --always --dirty 2>/dev/null || echo nogit)
-echo "commit: $GIT_REV"
-
-docker run --rm \
-  -e GIT_CONFIG_COUNT=1 \
-  -e GIT_CONFIG_KEY_0=safe.directory \
-  -e GIT_CONFIG_VALUE_0=/project \
-  -v "$PWD":/project -w /project "$KISS_IDF_IMAGE" \
-  idf.py -B "$BUILD_DIR" -DSDKCONFIG="/project/$SDKCFG" \
-  -DKISS_RELEASE=1 -DKISS_COMMIT="$GIT_REV" build
-
 # ---- sign the app, outside the container ----
 # Same key and same step as the plain release lane, and for the same reason
 # stated there: esp_ota_end verifies an incoming image against the public key
@@ -300,42 +291,87 @@ else
   OTA_KEY_DESC="$KISS_OTA_KEY"
 fi
 
-# The one thing this recipe cannot do yet, and it is a key, not a bug.
+# ---- the secure boot root: three RSA-3072 keys, the builder's own ----
 #
 # Hardware secure boot on this chip is RSA-3072 only (see the scheme block
-# above). The bootloader and the app therefore carry an RSA signature block,
-# and the key that produces it is not the secp256r1 key under ~/.kiss-signer/
-# that the SD update lane publishes. Signing with that key anyway is exactly
-# the failure this exists to stop: espsecure verifies the image against the
-# key it was signed with, prints PASS, and the board rejects it on first boot
-# with no second attempt available.
+# above), so the key that signs a burned board's bootloader and app is not the
+# secp256r1 OTA key, and it is not the project's either: whoever runs this
+# recipe mints their own root, and the board trusts nothing else, forever.
+# That is the DIY answer to "who is the signer for", settled in Stage 2 of
+# docs/specs/flash-encryption-rollout.md, and it is why no RSA public key is
+# published anywhere. A burned board's SD update is its builder's own output
+# of this recipe, judged against the digests its first boot burned.
 #
-# So the release recipe drops onto the UNSIGNED path rather than stopping. The
-# config assertions below are the whole point of running it today -- they are
-# what proves the secure boot recipe still resolves the way it is meant to --
-# and $BUILD_DIR/UNSIGNED is already the marker that says this image must
-# never reach a board whose fuses it burns.
+# Three keys, not one, and all three on the BOOTLOADER. First boot burns the
+# digest of every key in the bootloader's signature sector and REVOKES every
+# slot it did not fill; IDF leaves a slot open only behind SECURE_BOOT_INSECURE,
+# which this recipe asserts off. A bootloader signed with one key is a board
+# that can never rotate, and three is all the chip holds. The app carries key
+# 0 alone, the current key. Rotation later is an update signed with key 1
+# that revokes key 0 (esp_ota_revoke_secure_boot_public_key), so a leaked key
+# costs a rotation rather than the fleet.
 #
-# What has to be settled before this comes out, written up in Stage 2 of
-# docs/specs/flash-encryption-rollout.md:
-#   * one RSA-3072 root, generated and held the way the OTA key is
-#   * whether the SD update lane moves to it too -- under secure boot the app
-#     signature block IS the update check, judged against the eFuse digest
-#     rather than against kiss_ota_pub.pem
-#   * what the published key file becomes, since a beta board and a burned
-#     board would then no longer trust the same one
-if [ "$RECIPE" = release ] && [ -z "${KISS_SB_RSA_KEY:-}" ]; then
-  KISS_UNSIGNED=1
-  echo
-  echo "NOTE: no secure boot signing key, so this build is UNSIGNED."
-  echo "      Secure boot v2 on this target is RSA-3072 only: ECDSA is errata'd"
-  echo "      (SECURE_BOOT_V2_ECDSA_INSECURE is default y for this chip), so the"
-  echo "      secp256r1 key at $KISS_OTA_KEY cannot sign a bootloader this"
-  echo "      firmware will boot. Nothing this run produces may be flashed."
-  echo
-  echo "      The rehearsal recipe is unaffected and is the lane to use:"
-  echo "        KISS_ENC_REHEARSAL=1 bash tools/build_encrypted_release.sh"
+# The variable that used to sit here, KISS_SB_RSA_KEY, bypassed the UNSIGNED
+# guard and did nothing else: with it set, both images were signed with the
+# OTA key while the built config said RSA, and every verify below printed
+# PASS, because each checks the key that signed and none asks what the
+# firmware expects. It is refused now, and tools/check_sig_scheme.py asks the
+# missing question after every signature.
+KISS_SB_DIR="${KISS_SB_DIR:-$HOME/.kiss-signer/sb}"
+KISS_SB_KEYS="${KISS_SB_KEYS:-$KISS_SB_DIR/kiss_sb_0.pem $KISS_SB_DIR/kiss_sb_1.pem $KISS_SB_DIR/kiss_sb_2.pem}"
+if [ -n "${KISS_SB_RSA_KEY:-}" ]; then
+  echo "FAIL: KISS_SB_RSA_KEY is gone. It never signed anything: it only let"
+  echo "      the OTA key sign an RSA recipe. A root is three RSA-3072 keys,"
+  echo "      named in KISS_SB_KEYS (space separated) or at the default paths:"
+  echo "        $KISS_SB_KEYS"
+  exit 1
 fi
+SB_KEYS=()
+if [ "$RECIPE" = release ]; then
+  read -r -a SB_KEYS <<< "$KISS_SB_KEYS"
+  SB_PRESENT=0
+  for k in "${SB_KEYS[@]}"; do
+    [ -f "$k" ] && SB_PRESENT=$((SB_PRESENT + 1))
+  done
+  if [ "${#SB_KEYS[@]}" -ne 3 ]; then
+    echo "FAIL: KISS_SB_KEYS names ${#SB_KEYS[@]} key(s); a root is three."
+    exit 1
+  elif [ "$SB_PRESENT" -eq 0 ]; then
+    KISS_UNSIGNED=1
+    echo
+    echo "NOTE: no secure boot root, so this build is UNSIGNED."
+    echo "      Secure boot v2 on this target is RSA-3072 only, and the root is"
+    echo "      the builder's own. Mint it once, keep it the way the OTA key is"
+    echo "      kept, and never lose it: every board burned with it is frozen"
+    echo "      on its last firmware if you do."
+    echo "        mkdir -p $KISS_SB_DIR && for i in 0 1 2; do"
+    echo "          uvx --from $ESPTOOL_PIN espsecure generate-signing-key \\"
+    echo "            --version 2 --scheme rsa3072 $KISS_SB_DIR/kiss_sb_\$i.pem"
+    echo "        done"
+    echo "      Nothing this run produces may be flashed."
+    echo
+    echo "      The rehearsal recipe needs no root and is the lane to use:"
+    echo "        KISS_ENC_REHEARSAL=1 bash tools/build_encrypted_release.sh"
+  elif [ "$SB_PRESENT" -ne 3 ]; then
+    echo "FAIL: a partial root, $SB_PRESENT of 3 keys present. A board burned"
+    echo "      with fewer than three digests can never rotate. Missing:"
+    for k in "${SB_KEYS[@]}"; do [ -f "$k" ] || echo "        $k"; done
+    exit 1
+  fi
+fi
+
+GIT_REV=$(git describe --always --dirty 2>/dev/null || echo nogit)
+echo "commit: $GIT_REV"
+
+docker run --rm \
+  -e GIT_CONFIG_COUNT=1 \
+  -e GIT_CONFIG_KEY_0=safe.directory \
+  -e GIT_CONFIG_VALUE_0=/project \
+  -v "$PWD":/project -w /project "$KISS_IDF_IMAGE" \
+  idf.py -B "$BUILD_DIR" -DSDKCONFIG="/project/$SDKCFG" \
+  -DKISS_RELEASE=1 -DKISS_COMMIT="$GIT_REV" build
+
+# ---- sign, outside the container: the keys were settled above the build ----
 
 if [ -n "${KISS_UNSIGNED:-}" ]; then
   # Through the helper, for the reason it gives; see tools/idf_image.sh.
@@ -345,7 +381,8 @@ if [ -n "${KISS_UNSIGNED:-}" ]; then
   echo "      No signature block, so this image must never be flashed to a board"
   echo "      whose fuses this recipe burns -- it could never be updated after."
   echo "      Wrote $BUILD_DIR/UNSIGNED to say so."
-elif [ ! -f "$KISS_OTA_HSM_CONFIG" ] && [ ! -f "$KISS_OTA_KEY" ]; then
+elif [ "$RECIPE" = rehearsal ] && [ ! -f "$KISS_OTA_HSM_CONFIG" ] \
+     && [ ! -f "$KISS_OTA_KEY" ]; then
   echo
   echo "FAIL: no OTA signing key. Looked for a card config at"
   echo "      $KISS_OTA_HSM_CONFIG and a key file at $KISS_OTA_KEY."
@@ -356,13 +393,59 @@ elif [ ! -f "$KISS_OTA_HSM_CONFIG" ] && [ ! -f "$KISS_OTA_KEY" ]; then
   echo "      KISS_UNSIGNED=1 and compare the unsigned hashes."
   exit 1
 else
-echo "signing app with $OTA_KEY_DESC"
+# Which key signs the app is the lane's decision, made once here. A rehearsal
+# app is judged by the running app's own block, so it carries the OTA key the
+# SD update lane publishes. A release app is judged against the eFuse digests,
+# so it carries the builder's key 0.
+SIGTMP=$(mktemp -d)
+trap 'rm -rf "$SIGTMP"' EXIT
+if [ "$RECIPE" = release ]; then
+  APP_SIGN_KEY=(--keyfile "${SB_KEYS[0]}")
+  APP_KEY_DESC="${SB_KEYS[0]} (secure boot key 0 of 3)"
+  EXPECT_SCHEME=rsa
+  for i in 0 1 2; do
+    "${ESPSECURE[@]}" extract-public-key --version 2 \
+      --keyfile "${SB_KEYS[$i]}" "$SIGTMP/sb_pub$i.pem" >/dev/null
+  done
+  # The public halves, beside the image. Nothing on the device needs them;
+  # they say which key is which when key 0 is rotated out years from now.
+  cp "$SIGTMP"/sb_pub?.pem "$BUILD_DIR"/
+else
+  APP_SIGN_KEY=("${OTA_SIGN_KEY[@]}")
+  APP_KEY_DESC="$OTA_KEY_DESC"
+  EXPECT_SCHEME=ecdsa
+fi
+
+# Never sign an image twice. idf.py regenerates the .bin only when the ELF
+# changed, so a second run on the same build directory would sign last run's
+# SIGNED image and hide one signature sector behind another.
+python3 tools/check_sig_scheme.py "$BUILD_DIR/guition_kiss_bringup.bin" \
+  --unsigned
+
+echo "signing app with $APP_KEY_DESC"
 "${ESPSECURE[@]}" sign-data \
-  --version 2 "${OTA_SIGN_KEY[@]}" \
+  --version 2 "${APP_SIGN_KEY[@]}" \
   --output "$BUILD_DIR/guition_kiss_bringup-signed.bin" \
   "$BUILD_DIR/guition_kiss_bringup.bin"
 mv "$BUILD_DIR/guition_kiss_bringup-signed.bin" \
    "$BUILD_DIR/guition_kiss_bringup.bin"
+
+# The question none of the verifies below ask: is this the block the FIRMWARE
+# expects? Each of them checks the image against the key that signed it, and
+# each passed on an ECDSA block over an RSA config. This reads the block.
+python3 tools/check_sig_scheme.py "$BUILD_DIR/guition_kiss_bringup.bin" \
+  --scheme "$EXPECT_SCHEME" --blocks 1
+
+if [ "$RECIPE" = release ]; then
+  if ! "${ESPSECURE[@]}" verify-signature \
+       --version 2 --keyfile "$SIGTMP/sb_pub0.pem" \
+       "$BUILD_DIR/guition_kiss_bringup.bin" >/dev/null 2>&1; then
+    echo "FAIL: $BUILD_DIR/guition_kiss_bringup.bin does not verify against"
+    echo "      secure boot key 0"
+    exit 1
+  fi
+  echo "PASS: signed app verifies against secure boot key 0"
+else
 
 # The public half in the repo has to be the half that just signed, or a
 # verifier checks this build against a key the firmware does not carry.
@@ -373,14 +456,12 @@ mv "$BUILD_DIR/guition_kiss_bringup-signed.bin" \
 # same claim made against the shipped bytes.
 if [ "${OTA_SIGN_KEY[0]}" = "--keyfile" ]; then
   "${ESPSECURE[@]}" extract-public-key \
-    --version 2 --keyfile "$KISS_OTA_KEY" /tmp/kiss_ota_pub_enc_check.pem
-  if ! cmp -s /tmp/kiss_ota_pub_enc_check.pem docs/installer/kiss_ota_pub.pem; then
+    --version 2 --keyfile "$KISS_OTA_KEY" "$SIGTMP/kiss_ota_pub_enc_check.pem"
+  if ! cmp -s "$SIGTMP/kiss_ota_pub_enc_check.pem" docs/installer/kiss_ota_pub.pem; then
     echo "FAIL: docs/installer/kiss_ota_pub.pem is not the public half of $KISS_OTA_KEY"
-    rm -f /tmp/kiss_ota_pub_enc_check.pem
     exit 1
   fi
   echo "PASS: published public key matches the signing key"
-  rm -f /tmp/kiss_ota_pub_enc_check.pem
 fi
 
 # Prove the shipped file verifies against the PUBLISHED key, not just that the
@@ -395,6 +476,7 @@ if ! "${ESPSECURE[@]}" verify-signature \
   exit 1
 fi
 echo "PASS: signed app verifies against the published public key"
+fi
 
 # ---- and the post quantum signature, on the same image ----
 #
@@ -433,32 +515,40 @@ echo "PASS: signed app carries a post quantum signature that verifies"
 
 # ---- and the bootloader, on the release recipe only ----
 #
-# Secure boot's first boot burns the digest of the key found in the
-# BOOTLOADER's signature block, then refuses any bootloader and any app that
-# key did not sign - an unsigned bootloader here would not boot even once.
-# Same key as the app, necessarily: they share one signature scheme and one
-# burned digest. That key is RSA-3072 on this chip and is NOT the secp256r1
-# OTA key, which is why the gate above drops this recipe to UNSIGNED until
-# the root is settled. The rehearsal recipe skips this block entirely: its
-# board has no secure boot, and its bootloader stays byte-identical to what
-# that build has always flashed.
+# Secure boot's first boot burns the digest of EVERY key in the BOOTLOADER's
+# signature sector, revokes the slots it did not fill, and from then on
+# refuses any bootloader and any app none of those keys signed - an unsigned
+# bootloader here would not boot even once. So the bootloader carries all
+# three keys of the root, and the app carries key 0: the app can be re-signed
+# with an update, the bootloader never can, and the sector it is burned with
+# is the whole rotation budget for the life of the board. The rehearsal recipe
+# skips this block entirely: its board has no secure boot, and its bootloader
+# stays byte-identical to what that build has always flashed.
 #
 # Signed in place, before the flash recipe below reads flasher_args.json, so
 # the offsets and the hashes describe the bytes that actually get flashed.
 if [ "$RECIPE" = release ]; then
-  echo "signing bootloader with $OTA_KEY_DESC"
+  python3 tools/check_sig_scheme.py "$BUILD_DIR/bootloader/bootloader.bin" \
+    --unsigned
+  echo "signing bootloader with all three secure boot keys"
   "${ESPSECURE[@]}" sign-data \
-    --version 2 "${OTA_SIGN_KEY[@]}" \
+    --version 2 \
+    --keyfile "${SB_KEYS[0]}" --keyfile "${SB_KEYS[1]}" --keyfile "${SB_KEYS[2]}" \
     --output "$BUILD_DIR/bootloader/bootloader-signed.bin" \
     "$BUILD_DIR/bootloader/bootloader.bin"
   mv "$BUILD_DIR/bootloader/bootloader-signed.bin" \
      "$BUILD_DIR/bootloader/bootloader.bin"
-  if ! "${ESPSECURE[@]}" verify-signature \
-       --version 2 --keyfile docs/installer/kiss_ota_pub.pem \
-       "$BUILD_DIR/bootloader/bootloader.bin" >/dev/null 2>&1; then
-    echo "FAIL: the signed bootloader does not verify against the published key"
-    exit 1
-  fi
+  # Three RSA blocks in the bytes, or the spec's rotation promise is prose.
+  python3 tools/check_sig_scheme.py "$BUILD_DIR/bootloader/bootloader.bin" \
+    --scheme rsa --blocks 3
+  for i in 0 1 2; do
+    if ! "${ESPSECURE[@]}" verify-signature \
+         --version 2 --keyfile "$SIGTMP/sb_pub$i.pem" \
+         "$BUILD_DIR/bootloader/bootloader.bin" >/dev/null 2>&1; then
+      echo "FAIL: the signed bootloader does not verify against secure boot key $i"
+      exit 1
+    fi
+  done
   # The signature block sits on the end, the bootloader is flashed at 0x2000
   # and the partition table at 0x10000: a signed bootloader that outgrew
   # those 57344 bytes would be flashed over its own partition table.
@@ -467,7 +557,7 @@ if [ "$RECIPE" = release ]; then
     echo "FAIL: signed bootloader is $BL_SIZE bytes; 57344 is the ceiling"
     exit 1
   fi
-  echo "PASS: signed bootloader verifies against the published key ($BL_SIZE bytes)"
+  echo "PASS: signed bootloader verifies against all three keys ($BL_SIZE bytes)"
 fi
 fi
 
@@ -539,6 +629,13 @@ checks += [
     (not on("CONFIG_SECURE_BOOT_V2_FORCE_ENABLE_ECDSA"),
      "the errata'd ECDSA secure boot is not force enabled"),
     (not on("CONFIG_SECURE_BOOT_INSECURE"),             "no insecure options"),
+    # The three-key root only exists if the slots it fills are the only
+    # slots: IDF revokes every unused digest slot on first boot unless this
+    # INSECURE-menu option holds them open, and an open slot is one a stranger
+    # with the board can fill. check_sig_scheme.py proves the bootloader
+    # carries three blocks; this proves nothing is left writable beside them.
+    (not on("CONFIG_SECURE_BOOT_ALLOW_UNUSED_DIGEST_SLOTS"),
+     "no digest slot left open (three burned, none writable)"),
     # Armed, at version 0: burns nothing today, refuses nothing today. The
     # old comment here said arming it early would freeze the fleet on an
     # unfinished security model; the model this pass ships is the finished
@@ -687,9 +784,11 @@ encrypted release build OK: $BUILD_DIR/
 #    the bootloader runs only our signed apps, and JTAG is gone.
 #  * After first boot this board can NEVER be serial-reflashed again. The web
 #    installer and the cable will never work on it again. That is the point.
-#  * If the signing key is ever lost, every board burned with this recipe is
-#    frozen on its last firmware forever. Custody first, burn second.
-#  * Firmware is still UPDATABLE, over SD, for images signed with our key.
+#  * If all three secure boot keys are ever lost, every board burned with them
+#    is frozen on its last firmware forever. Custody first, burn second.
+#  * Firmware is still UPDATABLE, over SD, for images signed with key 0 of
+#    this root. The app this run produced IS that update, for every board
+#    burned with these keys; nothing published for the beta will install.
 #    This banner used to say frozen; the table has carried two app slots and an
 #    otadata since the SD update work landed, and this is the line an operator
 #    reads immediately before a burn they cannot undo.

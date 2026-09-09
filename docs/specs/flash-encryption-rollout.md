@@ -2,7 +2,9 @@
 
 Status: build profiles complete INCLUDING the secure boot pass, hardware
 acceptance not started. Written 2026-08-06; secure boot v2 folded into the
-release recipe 2026-08-26, when the Stage 2 choices below were settled.
+release recipe 2026-08-26; key custody and the digest slot model settled
+2026-09-09, after a review found the recipe could sign an RSA build with the
+ECDSA key and this spec promised spare slots the chip revokes.
 
 Two eFuse burns stand between the beta and a signer that protects a seed at
 rest: flash encryption and secure boot v2. Both are permanent. This spec is the
@@ -93,11 +95,11 @@ assertions now say each of these out loud.
   the key is generated on-device either way, and the first boot fixes the
   size forever. No board was ever burned at 128. Both recipes, so the
   rehearsal rehearses the size that ships.
-- **Secure boot key custody: NOT SETTLED, and it was thought to be.** This
-  read "the existing update key, one root" -- the same secp256r1 key the SD
-  update story rests on, its digest anchored in eFuse, no second key to lose.
-  That is not available on this chip. Hardware secure boot with ECDSA is
-  errata'd on the ESP32-P4: IDF's own bootloader Kconfig defaults
+- **Secure boot key custody: settled 2026-09-09, builder-owned, three keys.**
+  This once read "the existing update key, one root" -- the same secp256r1
+  key the SD update story rests on, its digest anchored in eFuse, no second
+  key to lose. That is not available on this chip. Hardware secure boot with
+  ECDSA is errata'd on the ESP32-P4: IDF's own bootloader Kconfig defaults
   `SECURE_BOOT_V2_ECDSA_INSECURE` to y for this target, "not functional for
   certain input vectors", and offers the scheme only behind
   `SECURE_BOOT_INSECURE` + `SECURE_BOOT_V2_FORCE_ENABLE_ECDSA` -- a known
@@ -105,30 +107,51 @@ assertions now say each of these out loud.
   Not on a signing device.
 
   So hardware secure boot here is **RSA-3072**, and the recipe follows the
-  chip rather than the key. Three things have to be decided before a board is
-  burned, and none of them can be revisited afterwards:
+  chip rather than the key. The three questions that had to be answered
+  before a burn, and the answers:
 
-  1. **One RSA-3072 root**, generated and held the way the OTA key is. A lost
-     key still costs the same and total: every burned board frozen on its last
+  1. **Whose root.** The builder's. Whoever runs the release recipe mints
+     three RSA-3072 keys (`KISS_SB_KEYS`; the recipe prints the command) and
+     the board trusts those and nothing else, forever. This is the DIY answer
+     to the question `security-plan.md` left open: a signer whose owners
+     build and flash their own firmware cannot be told to run only ours. It
+     is the shape the post quantum key already has, and a lost root costs
+     what it always did: every board burned with it frozen on its last
      firmware.
-  2. **Whether the SD update lane moves to it.** Under secure boot the app's
-     signature block IS the update check, judged against the burned digest
-     rather than against the running app's own block, so a burned board and a
-     beta board stop agreeing about what a valid update looks like.
-  3. **What `docs/installer/kiss_ota_pub.pem` becomes**, given 2.
+  2. **The SD update lane.** Under secure boot the app's signature block IS
+     the update check, judged against the burned digests rather than the
+     running app's own block. So a burned board's update is its builder's own
+     output of the release recipe, signed with key 0 of the same root, and
+     nothing published for the beta installs on it. `kiss_fw.c`'s
+     `CONFIG_SECURE_BOOT` branch already anchors there.
+  3. **`docs/installer/kiss_ota_pub.pem`** stays exactly what it is, the beta
+     lane's key. No RSA public key is published, because there is no single
+     one to publish.
 
-  How this was found is worth keeping: forcing
+  How the ECDSA mistake was found is worth keeping: forcing
   `CONFIG_SECURE_SIGNED_APPS_ECDSA_V2_SCHEME=y` looked like it worked -- the
   symbol was set, the app and the bootloader were signed with the secp256r1
   key, and every signature check in the build printed PASS. Each of those
-  checks verifies an image against the key it was signed with. Not one asks
+  checks verifies an image against the key it was signed with. Not one asked
   what the FIRMWARE expects, and the built config said RSA. A board burned on
-  that pair refuses the exact images that produced it, on first boot.
-- **Key revocation: burn one digest, keep two slots spare.**
-  `CONFIG_SOC_EFUSE_SECURE_BOOT_KEY_DIGESTS=3`; the bootloader carries one
-  signature block, so first boot burns one digest. The spare slots are what
-  make a future key rotation possible at all on a board that can never be
-  reflashed. Aggressive key revoke stays off.
+  that pair refuses the exact images that produced it, on first boot. It
+  nearly happened twice: the variable meant to hold the RSA key only lifted
+  the UNSIGNED guard, and the OTA key signed on. `tools/check_sig_scheme.py`
+  now reads the block after every signature and holds it against the recipe,
+  and that variable is refused outright.
+- **Key revocation: burn three digests, none spare.** This used to promise
+  "burn one, keep two slots spare" for a later rotation, and the promise was
+  false: IDF revokes every digest slot the bootloader's signature sector did
+  not fill, on the same first boot, and the only Kconfig that keeps a slot
+  open (`SECURE_BOOT_ALLOW_UNUSED_DIGEST_SLOTS`) lives behind
+  `SECURE_BOOT_INSECURE`, which this recipe asserts off. "Aggressive key
+  revoke stays off" is a different knob and preserves nothing. So rotation is
+  pre-provisioned: the bootloader carries all three keys, first boot burns all
+  three digests, the app carries key 0, and a rotation is an update signed
+  with the next key that revokes the one before it
+  (`esp_ota_revoke_secure_boot_public_key`). Three is what the chip holds and
+  it is the whole rotation budget for the life of the board. The recipe
+  asserts three RSA blocks on the bootloader and the slot option off.
 - **ROM download mode: the secure subset, confirmed.** Enough for a stranger
   to erase a board and prove it erased, never to read or reprogram it. Was an
   inherited default; the build script now forces it so no IDF default can
