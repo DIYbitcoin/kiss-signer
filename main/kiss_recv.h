@@ -10,6 +10,10 @@ void kiss_recv_open(lv_obj_t *parent);    // derive + show address, static QR, i
 void kiss_recv_open_first(lv_obj_t *parent);
 // The scan key gate's way home: lands on the SILENT tab.
 void kiss_recv_open_sp(lv_obj_t *parent);
+// PAIR COORDINATOR's VERIFY control: straight into the address scan, with no
+// receive screen built in front of it. Backing out or finishing lands on
+// RECEIVE, the way every other exit from the scan already does.
+void kiss_recv_open_verify(lv_obj_t *parent);
 void kiss_recv_close(void);               // idle auto-lock: drop whichever is up
 #ifdef SIMULATOR
 // The derivation path's "?" sits after its caption, so its x moves with the
