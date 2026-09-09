@@ -4,25 +4,51 @@ All notable, user-facing changes to KISS Signer. Dates are ISO (YYYY-MM-DD).
 This is a Bitcoin signer, so entries are written so a non-developer can tell what
 changed and why it matters. Versions follow the firmware tags.
 
-## [0.1.0-beta11], 2026-09-09
+## [0.1.0-beta10], 2026-09-09
 
-The device stops stranding you. A signature that could not be saved sent you
-back to the home screen, an empty card slot named a camera it would not open,
-and a signed receipt showed an address too short to read back; each of those
-now leads where it says it does.
+The device finishes its sentences, and stops stranding you. Beta9 measured the
+text and found dozens of lines that no longer fit their box in 21 languages;
+this release rewrites them instead of trimming them, so nothing an owner reads
+ends in a shrug. Behind those lines it closes the dead ends: a signature that
+could not be saved sent you back to the home screen, an empty card slot named a
+camera it would not open, and a signed receipt showed an address too short to
+read back.
 
 | | |
 | --- | --- |
-| 🔒 **Security** | 1 change |
-| 💫 **Improvements** | 10 changes |
-| 🧰 **Under the hood** | 52 changes |
+| 🔒 **Security** | 3 changes |
+| 💫 **Improvements** | 31 changes |
+| 🧰 **Under the hood** | 82 changes |
 
 ### 🔒 Security
 
+- Gate the release on the RNG's provenance
+- Read the lock state once, calm only when locked
 - Gate the PQ vectors, and check the card by its source
 
 ### 💫 Improvements
 
+- Cut six translated strings to their lanes
+- Cut three more translated strings to their lanes
+- Cut the tap note and the signature promise to their lanes
+- Cut the passphrase intro and the lock screen body
+- Cut the pairing note's second line to fit its box
+- Cut three seed explainer bodies to their lanes
+- Cut five more strings, two of them row labels
+- Cut four more strings, including the seed words possessive
+- Finish the sd note and the seed words possessive
+- Cut five more keys, and fix three coordinator articles
+- Cut eight more keys to their lanes
+- Cut the last fourteen keys to their lanes
+- Catch a translation that says more than its English
+- Say transaction where the screens said payment
+- Lift a band's controls above its own fill
+- Sweep payment out of the Latin locales
+- Say which way the erase gate's second leg goes
+- Finish the payment sweep in the last four locales
+- Rewind an abandoned slide instead of teleporting
+- Credit the backup a restore just proved
+- Write seed words in full on the restored chip
 - Cut the Spanish seed words row to its lane
 - Say the card is not a backup at the choice
 - Stop the signing screens naming one coordinator
@@ -36,6 +62,32 @@ now leads where it says it does.
 
 ### 🧰 Under the hood
 
+- Write the UNSIGNED marker from inside the container
+- Write the UNSIGNED marker through one helper
+- Call the four push workflows from one CI run
+- Draft the changelog and refuse a missing entry
+- Prove the release build reproduces on arm64
+- Name the commit, not the tag before it
+- Lower sixteen locale ceilings to the measurement
+- Say which verdicts held, not which flag was unset
+- Re-render the docs pictures at the current tip
+- Ask the frame whether a tapped control is drawn
+- Read the signature block back against the recipe
+- Read the fuses before the step that burns them
+- Sign the release lane with a three key RSA root
+- Make the burn recipe read fuses before erasing
+- Regenerate the images before signing them
+- Put the bootloader back in the flash recipe
+- Say what the burn recipe does in the docs
+- Gate the encrypted lane on RNG provenance
+- Cut the beta10 entry and bump the version
+- Re-render the home screens at beta10
+- Define the two names the badge bake needs
+- Bake the version badge at beta10
+- Release the card from gpg before signing
+- Check the release scripts before release day
+- Publish the beta10 install page
+- Re-point the decisions index at its lines
 - Cut the README to a front page
 - Correct three releases and archive the old ones
 - Name the sections the way every wallet does
@@ -88,68 +140,13 @@ now leads where it says it does.
 - Re-anchor the walk's decision link
 - Re-render the screens three commits moved
 - Number today's work beta11
+- Write the beta11 changelog section
+- Measure the contrast no other gate can see
+- Publish beta11 to the install page
+- Re-sign beta11 with a terminal attached
 
-Since v0.1.0-beta10.
 
-## [0.1.0-beta10], 2026-09-09
-
-The device finishes its sentences. Beta9 measured the text and found dozens of
-lines that no longer fit their box in 21 languages; this release rewrites them
-instead of trimming them, so nothing an owner reads ends in a shrug.
-
-| | |
-| --- | --- |
-| 📝 **Sentences that fit** | around forty strings rewritten to their lane rather than cut off mid-word |
-| 💸 **Transaction, not payment** | one word for the thing you sign, in every language |
-| ✅ **A restore counts as a backup** | proving your words on the device credits the backup you just proved |
-| 🧰 **A release that checks itself** | the build refuses to ship if its randomness or its signatures are not what the recipe says |
-
-### 🔒 Security
-
-- **A release build now proves where its randomness came from.** The check that
-  catches a host with no entropy ran on the ordinary release lane only. Both
-  release lanes run it now, and neither will produce a binary without it.
-- **The encryption row tells a rehearsed board from a finished one.** Three
-  corners of Settings each asked the chip their own question, and the one they
-  asked is answered yes by a board that is still open over the cable. One
-  reader answers for all three, and the calm state means what the recipe says.
-
-### ✨ New features
-
-- **A restore now counts as a backup.** Reading your seed words back into the
-  device proves the paper is right, so the backup reminder stops asking for
-  something you have already done.
-
-### 💫 Improvements
-
-- **Payment became transaction** on every screen and in every language. The two
-  words were mixed, and only one of them is what a signer actually handles.
-- **Around forty lines were rewritten to fit**, across all 21 languages: seed
-  explainers, the pairing note, the passphrase intro, the lock screen, SD card
-  notes, row labels and the coordinator articles. Each one now says the whole
-  thing at the size the screen can show.
-- **The screen that says what a restore recovered writes seed words out in
-  full**, instead of naming them in shorthand.
-
-### 🐛 Bug fixes
-
-- **An abandoned slide rewinds** to where it started, rather than jumping there.
-- **Controls sit above their own band's fill**, so a tap lands on the control
-  and not on the paint behind it.
-- **A translation that promised more than its English does** is caught by the
-  gate now, rather than by a reader.
-
-### 🧰 Under the hood
-
-- The release recipe reads the chip's fuses before the step that burns them,
-  reads each signature block back against the configuration that will judge it,
-  and puts the bootloader back into the flash list where it belongs.
-- The reproducibility proof now covers arm64 as well as x86.
-- The changelog has a generator: it drafts the skeleton from the commits and
-  refuses a release whose entry was never written.
-- Four separate push workflows became one CI run.
-- The burn recipe in the documentation says what the build actually does, and
-  the pictures in the guide were re-rendered at the current build.
+Since v0.1.0-beta9.
 
 ## [0.1.0-beta9], 2026-09-08
 
