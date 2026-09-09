@@ -500,7 +500,7 @@
   "S_D_OUTPUTS_FMT": "OUTPUT (%u) · %u TIL DIG",
   "S_D_RBF_OFF": "endelig: kan ikke erstattes efter afsendelse",
   "S_D_RBF_ON": "kan erstattes (RBF): gebyret kan\nhæves efter afsendelse",
-  "S_D_SH_CAP": "THIS PAYMENT",
+  "S_D_SH_CAP": "THIS TRANSACTION",
   "S_D_SH_VAL": "NOBODY CAN REDIRECT IT",
   "S_D_SIGHASH": "sighash ALL: signaturerne dækker hver\nmodtager og dens beløb",
   "S_D_TAB_INS": "INPUT",

@@ -500,7 +500,7 @@
   "S_D_OUTPUTS_FMT": "출력 (%u) · %u 개가 당신에게",
   "S_D_RBF_OFF": "확정: 브로드캐스트 후 교체 불가",
   "S_D_RBF_ON": "교체 가능 (RBF): 브로드캐스트 후\n수수료를 올릴 수 있음",
-  "S_D_SH_CAP": "THIS PAYMENT",
+  "S_D_SH_CAP": "THIS TRANSACTION",
   "S_D_SH_VAL": "NOBODY CAN REDIRECT IT",
   "S_D_SIGHASH": "sighash ALL: 서명이 모든 목적지와\n그 금액을 보호합니다",
   "S_D_TAB_INS": "입력",

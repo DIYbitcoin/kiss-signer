@@ -500,7 +500,7 @@
   "S_D_OUTPUTS_FMT": "UTDATA (%u) · %u TILL DIG",
   "S_D_RBF_OFF": "slutgiltig: kan inte ersättas efter sändning",
   "S_D_RBF_ON": "kan ersättas (RBF): avgiften kan\nhöjas efter sändning",
-  "S_D_SH_CAP": "THIS PAYMENT",
+  "S_D_SH_CAP": "THIS TRANSACTION",
   "S_D_SH_VAL": "NOBODY CAN REDIRECT IT",
   "S_D_SIGHASH": "sighash ALL: signaturerna täcker varje\nmottagare och dess belopp",
   "S_D_TAB_INS": "INGÅNGAR",

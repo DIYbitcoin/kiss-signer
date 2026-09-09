@@ -500,7 +500,7 @@
   "S_D_OUTPUTS_FMT": "SALIDAS (%u) · %u PARA TI",
   "S_D_RBF_OFF": "final: no reemplazable tras transmitir",
   "S_D_RBF_ON": "reemplazable (RBF): la comisión puede\nsubirse tras transmitir",
-  "S_D_SH_CAP": "THIS PAYMENT",
+  "S_D_SH_CAP": "THIS TRANSACTION",
   "S_D_SH_VAL": "NOBODY CAN REDIRECT IT",
   "S_D_SIGHASH": "sighash ALL: las firmas cubren cada destino\ny su monto",
   "S_D_TAB_INS": "ENTRADAS",

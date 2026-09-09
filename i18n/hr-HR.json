@@ -500,7 +500,7 @@
   "S_D_OUTPUTS_FMT": "IZLAZI (%u) · %u VAMA",
   "S_D_RBF_OFF": "konačna: nije zamjenjiva nakon objave",
   "S_D_RBF_ON": "zamjenjiva (RBF): naknada se može\npovećati nakon objave",
-  "S_D_SH_CAP": "THIS PAYMENT",
+  "S_D_SH_CAP": "THIS TRANSACTION",
   "S_D_SH_VAL": "NOBODY CAN REDIRECT IT",
   "S_D_SIGHASH": "sighash ALL: potpisi pokrivaju svako\nodredište i njegov iznos",
   "S_D_TAB_INS": "ULAZI",

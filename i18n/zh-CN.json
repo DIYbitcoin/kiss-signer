@@ -500,7 +500,7 @@
   "S_D_OUTPUTS_FMT": "输出 (%u) · %u 个给你",
   "S_D_RBF_OFF": "final: 广播后不可替换",
   "S_D_RBF_ON": "可替换 (RBF): 广播后手续费\n可以上调",
-  "S_D_SH_CAP": "THIS PAYMENT",
+  "S_D_SH_CAP": "THIS TRANSACTION",
   "S_D_SH_VAL": "NOBODY CAN REDIRECT IT",
   "S_D_SIGHASH": "sighash ALL: 签名覆盖每个去向\n与它的金额",
   "S_D_TAB_INS": "输入",

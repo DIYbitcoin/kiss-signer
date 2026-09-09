@@ -500,7 +500,7 @@
   "S_D_OUTPUTS_FMT": "UTGANGER (%u) · %u TIL DEG",
   "S_D_RBF_OFF": "endelig: kan ikke erstattes etter kringkasting",
   "S_D_RBF_ON": "kan erstattes (RBF): gebyret kan\nøkes etter kringkasting",
-  "S_D_SH_CAP": "THIS PAYMENT",
+  "S_D_SH_CAP": "THIS TRANSACTION",
   "S_D_SH_VAL": "NOBODY CAN REDIRECT IT",
   "S_D_SIGHASH": "sighash ALL: signaturene dekker hver\nmottaker og beløpet",
   "S_D_TAB_INS": "INNGANGER",

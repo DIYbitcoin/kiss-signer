@@ -500,7 +500,7 @@
   "S_D_OUTPUTS_FMT": "OUTPUTS (%u) · %u AN SIE",
   "S_D_RBF_OFF": "final: nach dem Übertragen nicht ersetzbar",
   "S_D_RBF_ON": "ersetzbar (RBF): die Gebühr kann nach dem\nÜbertragen erhöht werden",
-  "S_D_SH_CAP": "THIS PAYMENT",
+  "S_D_SH_CAP": "THIS TRANSACTION",
   "S_D_SH_VAL": "NOBODY CAN REDIRECT IT",
   "S_D_SIGHASH": "Sighash ALL: Signaturen decken jedes Ziel\nund dessen Betrag ab",
   "S_D_TAB_INS": "EINGÄNGE",

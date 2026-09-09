@@ -500,7 +500,7 @@
   "S_D_OUTPUTS_FMT": "SAÍDAS (%u) · %u PARA VOCÊ",
   "S_D_RBF_OFF": "final: não substituível depois de transmitir",
   "S_D_RBF_ON": "substituível (RBF): a taxa pode subir\ndepois de transmitir",
-  "S_D_SH_CAP": "THIS PAYMENT",
+  "S_D_SH_CAP": "THIS TRANSACTION",
   "S_D_SH_VAL": "NOBODY CAN REDIRECT IT",
   "S_D_SIGHASH": "sighash ALL: as assinaturas cobrem cada destino\ne o seu valor",
   "S_D_TAB_INS": "ENTRADAS",

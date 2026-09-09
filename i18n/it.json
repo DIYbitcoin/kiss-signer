@@ -500,7 +500,7 @@
   "S_D_OUTPUTS_FMT": "OUTPUT (%u) · %u A TE",
   "S_D_RBF_OFF": "definitiva: non sostituibile dopo la trasmissione",
   "S_D_RBF_ON": "sostituibile (RBF): la commissione può\nsalire dopo la trasmissione",
-  "S_D_SH_CAP": "THIS PAYMENT",
+  "S_D_SH_CAP": "THIS TRANSACTION",
   "S_D_SH_VAL": "NOBODY CAN REDIRECT IT",
   "S_D_SIGHASH": "sighash ALL: le firme coprono ogni destinazione\ne il suo importo",
   "S_D_TAB_INS": "INGRESSI",

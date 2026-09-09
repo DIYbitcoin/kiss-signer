@@ -500,7 +500,7 @@
   "S_D_OUTPUTS_FMT": "ВЫХОДЫ (%u) · %u ВАМ",
   "S_D_RBF_OFF": "финальная: не заменяемая после отправки",
   "S_D_RBF_ON": "заменяемая (RBF): комиссию можно поднять\nпосле отправки в сеть",
-  "S_D_SH_CAP": "THIS PAYMENT",
+  "S_D_SH_CAP": "THIS TRANSACTION",
   "S_D_SH_VAL": "NOBODY CAN REDIRECT IT",
   "S_D_SIGHASH": "sighash ALL: подписи покрывают каждый адрес\nи его сумму",
   "S_D_TAB_INS": "ВХОДЫ",
