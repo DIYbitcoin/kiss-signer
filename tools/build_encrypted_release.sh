@@ -363,6 +363,16 @@ fi
 GIT_REV=$(git describe --always --dirty 2>/dev/null || echo nogit)
 echo "commit: $GIT_REV"
 
+# The images this recipe signs must be the images this build produced. idf.py
+# writes each .bin from its ELF under a timestamp target and leaves it alone
+# while the ELF is unchanged, which on a rerun it is: last run's SIGNED
+# bootloader sat in the build directory and would have been signed a second
+# time, one sector hidden behind another. Dropping the timestamps makes ninja
+# regenerate both from the ELF; the --unsigned check before each signature is
+# the proof that it did.
+rm -f "$BUILD_DIR/.bin_timestamp" "$BUILD_DIR/bootloader/.bin_timestamp" \
+  2>/dev/null || true
+
 docker run --rm \
   -e GIT_CONFIG_COUNT=1 \
   -e GIT_CONFIG_KEY_0=safe.directory \
@@ -399,6 +409,8 @@ else
 # so it carries the builder's key 0.
 SIGTMP=$(mktemp -d)
 trap 'rm -rf "$SIGTMP"' EXIT
+# A marker from an earlier unsigned run must not outlive the signed image.
+rm -f "$BUILD_DIR/UNSIGNED" 2>/dev/null || true
 if [ "$RECIPE" = release ]; then
   APP_SIGN_KEY=(--keyfile "${SB_KEYS[0]}")
   APP_KEY_DESC="${SB_KEYS[0]} (secure boot key 0 of 3)"
