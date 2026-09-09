@@ -1421,7 +1421,23 @@ static void hold_reset(wt_hold_t *h, bool animate)
     // How far along the CURRENT leg, which on the return leg is the knob's
     // distance from the far end rather than from zero.
     const int kx = lv_obj_get_x(h->knob);
-    int32_t at = h->pass == 0 ? kx : h->travel - kx;
+    // The rewind runs LEFT in one sweep, whichever leg it is undoing. Under
+    // the return leg's mirrored mapping the retraction walked the knob back
+    // to the far END, and hold_home then flipped the pass under it and put it
+    // at zero -- the whole width of the track crossed in a single frame, with
+    // no motion. That is what the owner saw as a glitch on the erase gate: let
+    // go halfway back and the knob vanishes from one end and appears at the
+    // other. Dropping to the outward mapping FIRST makes the knob's own
+    // position the thing that animates, so an abandoned second leg rewinds the
+    // gesture exactly the way an abandoned first one does, and both legs go
+    // back on the track together -- which is also the honest picture, because
+    // hold_home is about to drop the first leg too.
+    if (h->pass != 0) {
+        h->pass = 0;
+        if (h->spent) lv_obj_add_flag(h->spent, LV_OBJ_FLAG_HIDDEN);
+        an_slide(h, kx);
+    }
+    int32_t at = kx;
     if (!animate || h->release_ms <= 0 || at <= 0) {
         hold_home(h);
         return;
