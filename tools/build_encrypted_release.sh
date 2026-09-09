@@ -715,6 +715,12 @@ print(f"encrypted {os.environ['RECIPE']} app: {len(blob)} bytes")
 sys.exit(1 if fails else 0)
 PY
 
+# rng provenance gate: same rule as build_release.sh. The map says which
+# object each seed-path RNG call lands in; tools/check_rng_provenance.py
+# holds the rules and the account.
+python3 tools/check_rng_provenance.py --selftest
+python3 tools/check_rng_provenance.py "$BUILD_DIR/guition_kiss_bringup.map"
+
 # flash budget: baked art is ~75% of the binary; fail while there is still
 # headroom to react, not on the flash step (set -e stops on a FAIL)
 python3 tools/check_flash_budget.py \
