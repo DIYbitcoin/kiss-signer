@@ -1157,6 +1157,35 @@ static void fail_body(const char *why)
     wt_body_para(s_scr, body, 136);
 }
 
+// WHAT THIS SCREEN STILL CANNOT DO. Written next to the code rather than left
+// in a review, because the next person to open it will reach for the wrong fix.
+//
+// A card write that fails AFTER a successful signature lands here, and the only
+// way off is BACK. The signature is still in s_out with its length in
+// s_signed_len -- nothing on this path wipes either -- so a transaction the
+// owner has already approved is sitting in memory with no way to retry the save
+// and no way to export it. Finishing it means signing again: every recipient
+// read a second time, every caution acknowledged a second time, another hold.
+// Deterministic signing makes the second signature identical to the first, so
+// the cost is in taps rather than in risk, and it is still the wrong price for
+// a card that was pulled a moment early.
+//
+// The line to KEEP while fixing that is S_FAIL_SAFE_B. "no signature left this
+// signer" is true after a failed write and not merely reassuring:
+// platform_sd_write_atomic removes its temp file and renames the previous file
+// back on every negative return it has, so nothing reached the card. Softening
+// it would trade a true sentence for a vaguer one.
+//
+// A retry cannot travel by either BACK handler below. files_back_cb and
+// choose_back_cb both call step_back, which calls the same widgets_drop that
+// close_cb does, and widgets_drop wipes s_in and s_out. Recovery needs an exit
+// of its own, and only abandoning should reach widgets_drop.
+//
+// The QR side carries the same hole in a different shape: the encoder failure
+// inside qr_out_screen is built by hand rather than coming through here, and
+// its BACK is still close_cb. The fact underneath is identical -- a signature
+// exists and cannot be exported -- so whatever is built for the card belongs
+// on that screen too.
 static void fail_screen(const char *why)
 {
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
