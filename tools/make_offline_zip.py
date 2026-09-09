@@ -62,6 +62,8 @@ SITE_REQUIRED = [
     "verify-release.html",
     "app.js",
     "styles.css",
+    # the accent picker; sets the theme attributes before first paint
+    "theme.js",
     "assets/kiss-mark.svg",
     "fonts/IBMPlexMono-Regular.woff2",
     "fonts/IBMPlexMono-Medium.woff2",
@@ -147,6 +149,7 @@ OFFLINE_INDEX = """<!doctype html>
     <!-- Both faces are self-hosted under fonts/, so this page makes no request
          to any third party. See the @font-face block at the top of styles.css. -->
     <link rel="stylesheet" href="styles.css">
+    <script src="theme.js"></script>
     <script type="module" src="installer/vendor/esp-web-tools/install-button.js"></script>
   </head>
   <body>
@@ -161,18 +164,33 @@ OFFLINE_INDEX = """<!doctype html>
       </nav>
     </header>
 
-    <main class="shell">
+    <main class="shell install-shell">
       <div class="hero-copy">
         <p class="eyebrow"><span>offline installer</span><span>ESP32-P4</span></p>
-        <h1>Install KISS Signer.</h1>
+        <h1>Install KISS Signer</h1>
         <p class="lede">
           Everything is already on this computer. Nothing below touches the
-          network. Needs Chrome, Brave or Edge: Safari and Firefox cannot reach
-          the device.
+          network.
         </p>
       </div>
 
-      <section class="install-card" id="install" aria-label="Firmware install">
+      <section class="install-card framed" id="install" aria-label="Firmware install">
+        <!-- Three moves, read left to right, matching the hosted install page. -->
+        <ol class="install-steps">
+          <li>
+            <h3>Plug it in</h3>
+            <p>Connect the device by USB. Chrome, Brave or Edge only &mdash; Safari and Firefox cannot talk to it.</p>
+          </li>
+          <li>
+            <h3>Install</h3>
+            <p>Tick the box, press the button, then pick the port when the browser asks. About a minute.</p>
+          </li>
+          <li>
+            <h3>Power cycle</h3>
+            <p>Unplug, wait three seconds, plug back in. Cold boot only. You land on FRUIT ISLAND.</p>
+          </li>
+        </ol>
+
         <div class="verify-line">
           <div class="verify-light pending" id="verify-light"></div>
           <div>
@@ -209,13 +227,10 @@ OFFLINE_INDEX = """<!doctype html>
           </esp-web-install-button>
         </div>
 
-        <div class="card-rule"></div>
-
-        <p class="power-note">
-          When it finishes, power cycle the device: unplug, wait three seconds,
-          plug back in. New firmware only starts from a cold boot. You should
-          land on FRUIT ISLAND.
+        <p class="fineprint">
           <a class="motion-link" href="guide.html#firstboot">What happens next &rarr;</a>
+          <a class="motion-link" href="guide.html#storage">Where your recovery words are kept &rarr;</a>
+          <a class="motion-link" href="verify-release.html">Check the file yourself &rarr;</a>
         </p>
       </section>
 
