@@ -96,4 +96,15 @@ int qrt_encoder_parts(const qrt_encoder_t *e);
 // that is what makes lossy scanning converge). 0 on success.
 int qrt_encoder_next(qrt_encoder_t *e, char *out, size_t cap);
 
+#ifndef ESP_PLATFORM
+// Native-test fault seam, the same shape platform_sd.h carries: the next
+// encoder built returns NULL, once, and the flag clears as it fires.
+//
+// The encoder is the last step of the QR route out, so its failure is the one
+// that leaves a finished signature with nowhere to go -- and the screen that
+// recovers from that had no way to be rendered by anything. A recovery path a
+// walk cannot open is a recovery path nobody has looked at.
+void qrt_test_fail_next_encoder(void);
+#endif
+
 #endif // QR_TRANSPORT_H

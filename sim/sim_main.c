@@ -4224,8 +4224,25 @@ int main(void) {
       for (int i = 0; i <= 8; i++) { touch(600 - i * 14, 250); pump(3); }
       release(); pump(40);
     }
+    // A CARD WRITE THAT FAILS AFTER A GOOD SIGNATURE, on the one transaction
+    // this walk signs successfully -- so the whole recovery costs no second
+    // fixture and no second hold. The fault is one shot (test_fail clears the
+    // flag as it fires), which is what makes TRY AGAIN below write for real
+    // and land on the receipt every assertion under it already reads.
+    //
+    // Nothing else in the walk opens this screen, and until it existed the
+    // failure it stands for threw the signature away: SIGN FAILED, one BACK,
+    // and the owner paying for a second reading of every recipient to get
+    // identical bytes back.
+    platform_sd_test_fail_next(PLATFORM_SD_TEST_FAIL_WRITE);
     slide_grip(STR_S_HOLD_TO_SIGN); slide_go(320);
-    release(); pump(150);                           // past the reveal, writes SD
+    release(); pump(150);                           // past the reveal, no SD
+    save("/tmp/sim_sign_held.ppm");
+    must_show("held signature", tr(STR_S_HELD_T));
+    // The SECOND way off, which is the half a retry alone does not give: a
+    // card that will not take the file is walked around with a QR.
+    must_show("held signature/the other way out", tr(STR_S_OUT_QR));
+    tap_str(STR_C_TRY_AGAIN, 3, 150);               // ...and now it writes
     touch(400, 240); pump(3); release(); pump(20);  // past the arrival motion
     save("/tmp/sim_sign_done_many.ppm");
     // What the card must say, and what it must not. The count comes from the
@@ -4481,7 +4498,63 @@ int main(void) {
     }
   }
   save("/tmp/sim_qr_out_back.ppm");
+
+  // THE RECOVERY FROM THE QR SIDE. The encoder is the last step of this route,
+  // so a failure there leaves exactly what a failed card write leaves: a
+  // signature that is made and cannot get out. Until the recovery screen
+  // existed this was a hand-built dead end whose BACK was close_cb -- the one
+  // exit in the flow that unmounted the card, went home, and threw the
+  // signature away on the way.
+  //
+  // The panel's BACK rebuilds this screen through qr_out_screen, which is the
+  // only re-entry the walk has, so the fault is armed across it. It is armed
+  // AFTER the EASY SCAN check above, because that check needs the rebuild to
+  // succeed.
+  tap_label_exact("?");                             // ? -> the panel again
+  qrt_test_fail_next_encoder();
+  tap_str(STR_C_BACK, 3, 8);                        // BACK -> a rebuild that fails
+  save("/tmp/sim_qr_held.ppm");
+  must_show("held signature, QR side", tr(STR_S_HELD_T));
+  // The card is the other way out of a QR that will not build, and it is the
+  // half a retry alone does not give.
+  must_show("held signature/the card instead", tr(STR_S_OUT_SD));
+  // TRY AGAIN first. The fault is one shot, so the second attempt at the same
+  // channel is the one that works -- and the QR screen coming back is the
+  // proof the signature was still here to encode. Nothing is re-signed: no
+  // hold happens between the failure and this frame.
+  tap_str(STR_C_TRY_AGAIN, 3, 40);
+  touch(400, 240); pump(3); release(); pump(20);    // past the arrival motion
+  save("/tmp/sim_qr_held_retried.ppm");
+  must_show("QR came back from a retry", tr(STR_S_EASY_SCAN));
+  // ...and now the OTHER way off the same screen, which needs the failure a
+  // second time to get back to it.
+  tap_label_exact("?");
+  qrt_test_fail_next_encoder();
+  tap_str(STR_C_BACK, 3, 8);
+  must_show("held signature, second time", tr(STR_S_HELD_T));
+  tap_str(STR_S_OUT_SD, 3, 150);                    // ...take the card instead
+  touch(400, 240); pump(3); release(); pump(20);    // past the arrival motion
+  save("/tmp/sim_qr_held_saved.ppm");
+  // A scanned transaction has no source file to take a name from, so the
+  // signature names itself with its own eight hex. The receipt is the SD one,
+  // filename card and all, which is the proof the bytes really went to a file.
+  must_show("QR signature saved to the card", tr(STR_S_FILE_CAP));
   tap_str(STR_C_DONE, 3, 6);     // DONE -> home
+  // /tmp/simsd outlives the process, and every tap in the sign walk's list
+  // goes by COORDINATE -- so a row left here lands the next run's taps one
+  // row off, silently. The name is the signature's own hex, which this walk
+  // cannot know in advance, so the sweep goes by shape: eight characters and
+  // the suffix every signed output carries.
+  {
+    DIR *d = opendir(SIMSD);
+    struct dirent *de;
+    while (d && (de = readdir(d)) != NULL) {
+      size_t n = strlen(de->d_name);
+      if (n == 8 + 12 && strcmp(de->d_name + 8, "-signed.psbt") == 0)
+        sd_unlink(de->d_name);
+    }
+    if (d) closedir(d);
+  }
   save("/tmp/sim_qr_end.ppm");
 
   // The ownership refusal, both of its shapes. Delivered by QR and not by a
