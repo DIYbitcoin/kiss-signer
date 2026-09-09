@@ -368,19 +368,20 @@ LOCALE_WORDS = {
 
 # Backlogged BY KEY, not by (key, locale): all twenty locales carry the same
 # key set, so a key clears when its whole row has been swept and not before.
-# The English half of each of these is already fixed; what is left is a
-# translation job, and the CJK locales stay unread until a native reader has
-# them. Shrink-only, like every other backlog here.
+# The English half of each of these is already fixed, and the sixteen
+# Latin-script locales have been swept too. What is left is Japanese, Korean,
+# Chinese and Russian, which stay unread until a reader of each has them.
+# Shrink-only, like every other backlog here.
 LOCALE_BACKLOG = {
     "K_EXPL_COORD", "K_HELP_BODY", "R_HELP_BODY", "R_HELP_F1V",
     "R_HELP_HEAD", "R_ONE_EACH", "S_D_TXID_SAME", "S_GLOSSARY_B",
     "S_HELP_BODY", "T_FEE_PLAIN", "T_PSBT_PLAIN",
-    # The two the English never had, and the reason this sweep is worth its
-    # word list: no English rule could ever have found them. "raise the fee
-    # there if it stalls" came back as "it says when the PAYMENT confirms",
-    # and "practice with a tiny send" as "a small PAYMENT", in most of the
-    # twenty. The word entered the product through the translations.
-    "S_D_TXID_CHANGES", "I_PROVE",
+    # The one the English never had, and the reason this sweep is worth its
+    # word list: no English rule could ever have found it. "raise the fee
+    # there if it stalls" came back as "it says when the PAYMENT confirms" in
+    # most of the twenty. The word entered the product through the
+    # translations. I_PROVE was the same fault and is now clear.
+    "S_D_TXID_CHANGES",
 }
 
 
