@@ -3728,13 +3728,27 @@ static void tabs_flex_paint(lv_obj_t *b, bool selected)
         else                           l  = c;
     }
     if (!l && ic) { l = ic; ic = NULL; }         // a tab with no mark
+    // WT_MUT for the unselected pair, not WT_DIM, and the palette says why in
+    // its own words: WT_DIM is "ink for something PRESENT BUT INERT", which a
+    // tab is not -- it is the one control on the page guaranteed to do
+    // something when it is tapped. The two states were told apart by a colour
+    // that means "you cannot have this", and on the sign screen that read as a
+    // disabled SD tab on a device with a card slot.
+    //
+    // It is measurable and not a taste: WT_DIM on WT_BG is about 2.7:1, under
+    // the 3:1 floor a large glyph needs, while WT_MUT is about 5.4:1. Nothing
+    // in the gate suite has an opinion about contrast, which is why this stood.
+    //
+    // Selection loses nothing. The brackets still appear and disappear, the
+    // selected word still goes to full WT_INK and its mark to the accent, and
+    // that is three signals to WT_MUT's one job of staying readable.
     if (l) lv_obj_set_style_text_color(l, stop ? WT_STOP
-                                              : (selected ? WT_INK : WT_DIM),
+                                              : (selected ? WT_INK : WT_MUT),
                                        0);
     if (ic) {
         lv_obj_set_style_text_color(ic, stop ? WT_STOP
                                              : (selected ? wt_accent()
-                                                         : WT_DIM), 0);
+                                                         : WT_MUT), 0);
         // Only the SELECTED icon is accent-painted, so only it may carry
         // the flag, or a restyle would light every tab's mark at once.
         if (selected && !stop) lv_obj_add_flag(ic, WT_FLAG_ACCENT);
