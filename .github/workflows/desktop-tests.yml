@@ -97,6 +97,15 @@ jobs:
         run: |
           GATECHECK_SELFTEST=1 python3 tools/check_gates.py
 
+      # Two readers for the burn recipe. The scheme checker reads the signature
+      # block an image carries and holds it against the config that built it,
+      # which no verify step did; the eFuse checker reads the fuses a board has
+      # before the step that burns them, which erase-flash was said to prove.
+      - name: the burn recipe's two readers still fire
+        if: always()
+        run: |
+          python3 tools/check_sig_scheme.py --selftest
+
       # preflight.sh claims to be this whole lane in one command, and that
       # claim is the only reason a green preflight means anything. It was
       # false the day it landed. This asks it mechanically, the way
