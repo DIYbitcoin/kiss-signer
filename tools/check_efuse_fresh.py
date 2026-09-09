@@ -22,6 +22,20 @@ Reads `espefuse summary --format json` through the pinned esptool, or a saved
 copy via --json. A field the summary does not carry FAILS: absent must never
 look like zero, which is the class of mistake the erase step was. Exit 1 on a
 burned fuse, 2 when the board could not be read.
+
+Zero is not the whole question, and reading only the value was the same class
+of mistake one level down. A fuse the summary reports as NOT READABLE prints
+zero as readily as a fuse that is genuinely clear, and the burn that follows
+is permanent, so an unreadable field fails in both modes. A fuse that reads
+zero but is already WRITE PROTECTED cannot be set by the provisioning that
+comes next, so it fails --fresh: the board would take the recipe and then
+refuse the fuse halfway through. A rehearsal board is allowed write-protected
+fuses, because it has been through a first boot, so --reflashable asks only
+that the ones it names read zero and are readable.
+
+A field carrying neither flag is treated as unreadable rather than as fine.
+If espefuse omits them for some fields on some chips, this says which field
+and stops, instead of guessing on the one operation with no undo.
 """
 import json
 import os
@@ -84,11 +98,14 @@ def read_board(port):
     return run.stdout
 
 
-def burned(summary, fields):
-    """[(name, raw, meaning)] for every listed fuse that is not zero.
+def burned(summary, fields, need_writeable=False):
+    """[(name, raw, why)] for every listed fuse that does not pass.
 
-    A field missing from the summary is reported as burned: it cannot be
-    proven zero, and the burn that follows this check is permanent.
+    Three ways to fail, and only the first is about the value. A field
+    missing from the summary cannot be proven zero. A field the chip says is
+    not readable cannot be proven zero either, whatever it printed. And when
+    the caller is about to provision (need_writeable), a fuse that reads zero
+    but is already write protected will refuse the burn halfway through.
     """
     out = []
     for name in fields:
@@ -97,24 +114,34 @@ def burned(summary, fields):
             out.append((name, "absent", "not in the summary"))
             continue
         raw = str(e.get("raw_value", ""))
+        # `is not True` on purpose: a missing flag is not a passing flag.
+        if e.get("readable") is not True:
+            out.append((name, raw, "not readable, so zero cannot be proven"))
+            continue
         try:
             zero = int(raw, 16) == 0
         except ValueError:
             zero = False
         if not zero:
             out.append((name, raw, str(e.get("value", ""))))
+        elif need_writeable and e.get("writeable") is not True:
+            out.append((name, raw, "reads zero but is already write protected"))
     return out
 
 
 def judge(summary, mode):
     fields = MODES[mode]
-    hits = burned(summary, fields)
-    what = "fresh" if mode == "--fresh" else "reflashable"
+    fresh = mode == "--fresh"
+    hits = burned(summary, fields, need_writeable=fresh)
+    what = "fresh" if fresh else "reflashable"
     if hits:
-        lines = ["FAIL: board is NOT %s, %d of %d fuses set:" % (what, len(hits), len(fields))]
+        lines = ["FAIL: board is NOT %s, %d of %d fuses did not pass:"
+                 % (what, len(hits), len(fields))]
         lines += ["      %-30s %-8s %s" % h for h in hits]
         return False, "\n".join(lines)
-    return True, "PASS: board is %s, all %d security fuses read zero" % (what, len(fields))
+    return True, ("PASS: board is %s, all %d security fuses read zero and "
+                  "are readable" % (what, len(fields))
+                  + (" and writable" if fresh else ""))
 
 
 def fixture(**nonzero):
@@ -130,9 +157,11 @@ def fixture(**nonzero):
 
 def selftest():
     bad = 0
+    ran = 0
 
     def case(label, want, got):
-        nonlocal bad
+        nonlocal bad, ran
+        ran += 1
         good = got == want
         print("  %-52s %s" % (label, "ok" if good else "FAILED"))
         bad += not good
@@ -163,6 +192,34 @@ def selftest():
     case("a summary missing a field fails", False, ok)
     case("...and says which", True, "SECURE_BOOT_EN" in msg and "absent" in msg)
 
+    # Zero from a fuse nobody can read is not a zero. This is the summary the
+    # reviewer built: SECURE_BOOT_EN reading 0 with readable false, which the
+    # value-only reader passed.
+    blind = fixture()
+    blind["SECURE_BOOT_EN"]["readable"] = False
+    ok, msg = judge(blind, "--fresh")
+    case("a fuse reading zero but unreadable fails", False, ok)
+    case("...and says it could not be proven", True, "not readable" in msg)
+    case("...in the rehearsal mode too", False,
+         judge(blind, "--reflashable")[0])
+
+    # Write protected and clear: nothing can burn it, so the provisioning that
+    # follows --fresh would stop partway. A rehearsal board is past that.
+    shut = fixture()
+    shut["SECURE_BOOT_KEY_REVOKE1"]["writeable"] = False
+    ok, msg = judge(shut, "--fresh")
+    case("a clear fuse that cannot be written fails --fresh", False, ok)
+    case("...and says why", True, "write protected" in msg)
+    case("...but --reflashable does not care", True,
+         judge(shut, "--reflashable")[0])
+
+    # A summary that carries neither flag is not evidence of anything.
+    bare = fixture()
+    bare["KEY_PURPOSE_0"] = {"name": "KEY_PURPOSE_0", "raw_value": "0x0",
+                             "value": 0}
+    case("a field with no readable flag fails", False,
+         judge(bare, "--fresh")[0])
+
     # espefuse talks before it dumps; the JSON has to be found, not assumed.
     text = "espefuse v5.3.1\nConnecting....\nDetecting chip type... ESP32-P4\n" \
         + json.dumps(fresh, indent=4) + "\n"
@@ -172,7 +229,7 @@ def selftest():
     except ValueError:
         case("JSON is found after the connection banner", True, False)
 
-    print("efuse fresh selftest: 9 cases, %d broken" % bad)
+    print("efuse fresh selftest: %d cases, %d broken" % (ran, bad))
     return 1 if bad else 0
 
 
