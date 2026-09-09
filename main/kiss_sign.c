@@ -174,6 +174,12 @@ static int s_part_i;
 static bool s_qr_ez;                   // easy-scan mode: sparser QRs, slower loop
 static size_t s_out_len;               // signed PSBT length (easy-scan re-encodes)
 static lv_obj_t *s_ez_act;
+// How many bytes of s_out the hold produced. Declared up here with the rest of
+// the signed-transaction state rather than beside the timer that sets it,
+// because widgets_drop clears it and widgets_drop is four hundred lines above
+// where it used to live. It is the one flag that says a signature EXISTS, and
+// the recovery screen below is reachable only while it does.
+static size_t s_signed_len;
 static char s_sig_fp[9];               // fingerprint of the just-signed PSBT (8 hex)
 static char s_done_name[SD_NAME_LEN + 8]; // saved outname, so the ? panel can rebuild
 
@@ -274,6 +280,11 @@ static void widgets_drop(void)
     kiss_wipe(s_in, sizeof s_in);
     kiss_wipe(s_out, sizeof s_out);
     s_out_len = 0;
+    // With the bytes gone, the length that described them is a lie, and it is
+    // the flag the recovery screen tests before it offers to send a signature
+    // out again. Left set, an abandoned transaction would arm a RETRY over a
+    // wiped buffer on the next one.
+    s_signed_len = 0;
     kiss_wipe(s_sig_fp, sizeof s_sig_fp);
     kiss_wipe(s_done_name, sizeof s_done_name);
 }
@@ -1179,35 +1190,163 @@ static void fail_body(const char *why)
     wt_body_para(s_scr, body, 136);
 }
 
-// WHAT THIS SCREEN STILL CANNOT DO. Written next to the code rather than left
-// in a review, because the next person to open it will reach for the wrong fix.
+// ---- a signature that exists and has not got out -----------------------
 //
-// A card write that fails AFTER a successful signature lands here, and the only
-// way off is BACK. The signature is still in s_out with its length in
-// s_signed_len -- nothing on this path wipes either -- so a transaction the
-// owner has already approved is sitting in memory with no way to retry the save
-// and no way to export it. Finishing it means signing again: every recipient
-// read a second time, every caution acknowledged a second time, another hold.
-// Deterministic signing makes the second signature identical to the first, so
-// the cost is in taps rather than in risk, and it is still the wrong price for
-// a card that was pulled a moment early.
+// TWO DIFFERENT FAILURES WEAR THE SAME WORDS, and until this screen existed
+// they wore the same screen too. "the transaction could not be signed" is a
+// dead end: nothing was made, and the only honest way forward is to start
+// over. "could not write to the SD card" is not a dead end at all -- the
+// signature was made, it is in s_out with its length in s_signed_len, and the
+// only thing that went wrong was the last few centimetres to the card. Both
+// used to print SIGN FAILED and offer BACK, which threw the signature away and
+// charged the owner a second reading of every recipient, a second
+// acknowledgement of every caution and a second hold to get the identical
+// bytes back. Deterministic signing means the second signature is the same as
+// the first, so that price was never about risk. It was about taps, and it was
+// the wrong price for a card pulled a moment early.
 //
-// The line to KEEP while fixing that is S_FAIL_SAFE_B. "no signature left this
-// signer" is true after a failed write and not merely reassuring:
+// So this screen says what is true -- the signature is finished and still
+// here -- and carries the two ways out of it:
+//
+//   TRY AGAIN     the same channel, one more time. A reseated card, a card
+//                 swapped for one that is not full or write protected.
+//   the other way the channel it did not come in by. A card that will not
+//                 take the file can be walked around with a QR, and a QR the
+//                 encoder will not build can be walked around with a card.
+//
+// S_FAIL_SAFE_B does NOT come to this screen, and that is deliberate. "no
+// signature left this signer" is exactly true on the failure screen -- and it
+// is the sentence a reader would hold against the two controls under it here,
+// which exist to make a signature leave. S_HELD_B carries the same guarantee
+// in the shape this screen needs: nothing has left YET, so the coins have not
+// moved, and the owner is the one who decides which route it takes.
+//
+// The guarantee itself is unchanged and is worth stating once more, because
+// the temptation on a screen offering a retry is to soften it:
 // platform_sd_write_atomic removes its temp file and renames the previous file
-// back on every negative return it has, so nothing reached the card. Softening
-// it would trade a true sentence for a vaguer one.
+// back on every negative return it has, so a failed write really did put
+// nothing on the card.
 //
-// A retry cannot travel by either BACK handler below. files_back_cb and
-// choose_back_cb both call step_back, which calls the same widgets_drop that
-// close_cb does, and widgets_drop wipes s_in and s_out. Recovery needs an exit
-// of its own, and only abandoning should reach widgets_drop.
-//
-// The QR side carries the same hole in a different shape: the encoder failure
-// inside qr_out_screen is built by hand rather than coming through here, and
-// its BACK is still close_cb. The fact underneath is identical -- a signature
-// exists and cannot be exported -- so whatever is built for the card belongs
-// on that screen too.
+// NEITHER BACK HANDLER MAY CARRY A RETRY, which is why the two controls above
+// are not BACK with a different label. files_back_cb and choose_back_cb both
+// call step_back, which calls the same widgets_drop that close_cb does, and
+// widgets_drop wipes s_in, s_out and now s_signed_len with them. Abandoning is
+// the only thing that gets to reach widgets_drop; recovery goes through
+// held_deliver, which touches none of it.
+static void held_screen(lv_obj_t *parent, const char *why);
+
+// The name a QR-sourced signature gets when the owner sends it out by card
+// instead. There is no source file to derive one from, so the signature names
+// itself with the eight hex the SIGNED screen prints -- the one string on the
+// page an owner can hold against the file afterwards. The fallback covers the
+// case where the fingerprint itself could not be computed, which do_sign_cb
+// already treats as survivable.
+static const char *held_name(void)
+{
+    snprintf(s_done_name, sizeof s_done_name, "%s-signed.psbt",
+             s_sig_fp[0] ? s_sig_fp : "scanned");
+    return s_done_name;
+}
+
+static void mo_start(lv_obj_t *parent, size_t sw);
+
+// Send the signature already in s_out out by the channel `to_qr` names, and
+// land the owner on that channel's finished screen. NOTHING IS RE-SIGNED here
+// and nothing may be: these are the same bytes the hold produced, taking a
+// route out. A failure here comes straight back to the screen above with the
+// new reason, so a second bad card reads as a second bad card rather than as
+// a tap that did nothing.
+static void held_deliver(bool to_qr)
+{
+    lv_obj_t *parent = lv_obj_get_parent(s_scr);
+    if (to_qr) {
+        s_qr_sw = s_signed_len;
+        qr_out_screen(s_signed_len, false);
+        mo_start(lv_obj_get_parent(s_scr), s_signed_len);
+        return;
+    }
+    // Mount rather than assume. The card is still mounted on the SD path, where
+    // this is a retry and the mount is a no-op; on the QR path it was never
+    // wanted and the slot may well be empty, which is its own answer and not a
+    // write error.
+    if (platform_sd_mount() != 0) {
+        held_screen(parent, tr(STR_S_NO_SD));
+        return;
+    }
+    // Keyed off s_src, never off s_cur being set: s_cur holds whatever file was
+    // last picked, so a QR signed in the same session as an earlier card would
+    // otherwise be written under the earlier transaction's name.
+    const char *outname = s_src == SRC_SD ? signed_name(s_cur) : held_name();
+    if (platform_sd_write_atomic(outname, s_out, s_signed_len) < 0) {
+        held_screen(parent, tr(STR_S_FAIL_SD_WRITE));
+        return;
+    }
+    done_screen(outname);
+    mo_start(lv_obj_get_parent(s_scr), s_signed_len);
+}
+
+static void held_retry_cb(lv_event_t *e)
+{
+    (void)e;
+    held_deliver(s_src == SRC_QR);          // the channel that just failed
+}
+
+static void held_other_cb(lv_event_t *e)
+{
+    (void)e;
+    held_deliver(s_src != SRC_QR);          // ...and the one that did not
+}
+
+static void held_screen(lv_obj_t *parent, const char *why)
+{
+    // s_scr is already NULL when qr_out_screen calls this: it tears its own
+    // outgoing screen down before it finds out the encoder will not start.
+    // Every other caller arrives with a live screen, so the teardown is
+    // conditional rather than assumed, and the parent is passed rather than
+    // read back off a pointer that may be gone.
+    if (s_scr) {
+        // EVERY cached child is dropped BEFORE the delete, never after -- see
+        // done_screen for the use-after-free this ordering is about.
+        lv_obj_t *dying = s_scr;
+        s_scr = NULL; s_sign_lbl = NULL;
+        s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
+        s_inert[0] = NULL; s_page_lbl = NULL;
+        lv_obj_delete(dying);
+    }
+    mk_chrome(parent, tr(STR_S_HELD_T));
+    char trail[96];
+    snprintf(trail, sizeof trail, "%s / %s", tr(STR_S_T),
+             tr(s_src == SRC_SD ? STR_S_FROM_SD : STR_S_SCAN_QR));
+    wt_trail(s_scr, WT_ICON_SIGN, trail, false);
+    char body[384];                        // the cap fail_body uses, same reason
+    snprintf(body, sizeof body, "%s\n\n%s", why, tr(STR_S_HELD_B));
+    // Floored at 336 rather than at WT_CONTENT_BOTTOM, to leave the other way
+    // out its own line under the paragraph.
+    wt_body_para_to(s_scr, body, 136, 336);
+    // THE SECOND ROUTE IS CONTENT, NOT A THIRD CONTROL ON THE BAND. It reads
+    // as "or go out the other way", directly under the sentence saying nothing
+    // has gone out yet -- and it gets the full 704px lane, which a band slot
+    // between the action at 48 and the exit at 592 does not. "save to card"
+    // is four words in several languages and would have run into the exit.
+    lv_obj_t *other = wt_word_action(s_scr,
+                                     s_src == SRC_SD ? WT_ICON_QR : WT_ICON_SD,
+                                     tr(s_src == SRC_SD ? STR_S_OUT_QR
+                                                        : STR_S_OUT_SD),
+                                     true, INK_COL, false, held_other_cb, NULL);
+    lv_obj_set_pos(other, 48, 344);
+    // The exit keeps the corner and keeps its destination: abandoning here is
+    // the same abandoning fail_screen does, one step back to where the trail
+    // says the transaction came from.
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160,
+                    true, s_src == SRC_SD ? files_back_cb : choose_back_cb,
+                    NULL);
+    wt_arrow_action(s_scr, tr(STR_C_TRY_AGAIN), false, true, WT_ACT_X,
+                    WT_ACTION_Y, 0, false, held_retry_cb, NULL);
+}
+
+// The dead end: a hold that produced no signature at all. Everything about
+// recovery lives on held_screen above, because there is nothing here to
+// recover -- kiss_psbt_sign returned nothing and s_out is untouched.
 static void fail_screen(const char *why)
 {
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
@@ -1830,8 +1969,6 @@ static void mo_start(lv_obj_t *parent, size_t sw)
     s_mo.tmr = lv_timer_create(mo_tick, MO_TICK, NULL);
 }
 
-static size_t s_signed_len;
-
 static void finish_sign_cb(lv_timer_t *t)
 {
     lv_timer_delete(t);
@@ -1849,7 +1986,9 @@ static void finish_sign_cb(lv_timer_t *t)
     // form keeps the old file until the new one is written and verified.
     int rc = platform_sd_write_atomic(outname, s_out, sw);
     if (rc < 0) {
-        fail_screen(tr(STR_S_FAIL_SD_WRITE));
+        // NOT fail_screen: the signature exists. held_screen keeps it and
+        // offers the card again or a QR instead.
+        held_screen(lv_obj_get_parent(s_scr), tr(STR_S_FAIL_SD_WRITE));
         return;
     }
     done_screen(outname);
@@ -4719,14 +4858,12 @@ static void qr_out_screen(size_t sw, bool rebuild)
     if (!rebuild) s_qr_ez = false;
     s_out_len = sw;
     if (qr_enc_start() != 0) {
-        mk_chrome(parent, tr(STR_S_FAIL_T));
-        char trail[96];
-        snprintf(trail, sizeof trail, "%s / %s", tr(STR_S_T),
-                 tr(STR_S_SCAN_QR));
-        wt_trail(s_scr, WT_ICON_SIGN, trail, false);
-        fail_body(tr(STR_S_QR_FAIL_ENC));
-        wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y,
-                        160, true, close_cb, NULL);
+        // The encoder is the last step of the QR route and the signature is
+        // already made, so this is the same state a failed card write leaves:
+        // held, not lost. It used to be a hand-built dead end whose BACK was
+        // close_cb -- the one exit in the flow that unmounted the card and
+        // dropped the owner home, throwing the signature away on the way.
+        held_screen(parent, tr(STR_S_QR_FAIL_ENC));
         return;
     }
 
