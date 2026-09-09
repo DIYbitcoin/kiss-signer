@@ -108,6 +108,13 @@ force = {
     # why three and why the builder's.
     "CONFIG_SECURE_BOOT":                           None if rehearsal else "y",
     "CONFIG_SECURE_BOOT_V2_ENABLED":                None if rehearsal else "y",
+    # idf.py drops the bootloader from its flash list the moment secure boot
+    # is on, so that a board already burned is not handed a second bootloader
+    # its digests may refuse. This recipe flashes a FRESH board exactly once,
+    # and the recipe printed below is whatever the build says it writes --
+    # which was three files, no bootloader, and a board that never boots. The
+    # option puts it back; the flasher_args assertion below holds it there.
+    "CONFIG_SECURE_BOOT_FLASH_BOOTLOADER_DEFAULT":  None if rehearsal else "y",
     "CONFIG_SECURE_BOOT_ECDSA_KEY_LEN_256_BITS":    "y",
     # ROM download mode after the burn: switched to the SECURE subset, not
     # disabled outright - secure mode still lets a stranger erase a board and
@@ -667,6 +674,21 @@ checks += [
     (b"ota_0" in pt and b"ota_1" in pt, "two app slots present (SD update lane)"),
     (b"otadata" in pt, "otadata present (rollback needs it)"),
     (b"factory" not in pt, "no factory partition (slots are the boot path)"),
+]
+
+# The flash list the recipe prints is read from the build, so it has to be the
+# whole board: bootloader at 0x2000, table, otadata, app. Secure boot silently
+# dropped the bootloader from it (see the force list) and the recipe printed
+# three files as if they were all of them.
+import json
+fa = json.load(open(f"{bdir}/flasher_args.json"))["flash_files"]
+names = {f.rsplit("/", 1)[-1] for f in fa.values()}
+checks += [
+    (fa.get("0x2000", "").endswith("bootloader.bin"),
+     "flash recipe carries the bootloader at 0x2000"),
+    ({"partition-table.bin", "ota_data_initial.bin",
+      "guition_kiss_bringup.bin"} <= names,
+     "flash recipe carries the table, otadata and the app"),
 ]
 
 # no-wireless gate: the board's C6 radio chip is held in reset and nothing
