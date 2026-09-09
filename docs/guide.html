@@ -185,6 +185,7 @@
               <svg class="rail-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
             </summary>
             <a href="#verify">Verify</a>
+            <a href="#esptool">Command line</a>
             <a href="#encryption">Encryption</a>
           </details>
           <details class="rail-group" open>
@@ -388,8 +389,46 @@ sha256sum --ignore-missing -c SHA256SUMS         # Linux</code></pre>
           place. Do that yourself once per release.
         </p>
       </section>
+<section class="doc-card reveal" id="esptool" aria-label="Flash from the command line">
+        <p class="eyebrow">05 / the other way in</p>
+        <h2>Flash it from the command line</h2>
+        <p class="lede">
+          The install page needs Chrome, Brave or Edge, because Safari and
+          Firefox will not let a web page talk to a USB device. If you would
+          rather not install a second browser, this does exactly the same job
+          from a terminal.
+        </p>
+        <p>
+          One tool to install, one command to run. It works on macOS and Linux
+          as written; on Windows use WSL or Git Bash, or retype the last command
+          on a single line without the <code>\</code> marks at the ends.
+        </p>
+<pre><code>pip install esptool        # or: pipx install esptool
+
+# find your device's port:
+#   macOS    /dev/cu.usbmodem*
+#   Linux    /dev/ttyACM*
+#   Windows  COM3, COM4, ...
+
+# check the download first, the same check as the page before this one
+shasum -a 256 --ignore-missing -c SHA256SUMS
+
+esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
+  --before default-reset --after no-reset write-flash \
+  --flash-mode dio --flash-size 16MB --flash-freq 80m \
+  0 kiss-signer-&lt;version&gt;.bin</code></pre>
+        <p class="power-note">
+          Then unplug the device, wait three seconds, and plug it back in. It
+          only starts new firmware after a proper power cycle, so a black screen
+          almost always means this step got skipped.
+        </p>
+        <p>
+          The file you just wrote covers the part of the chip that holds keys,
+          so every flash starts you from clean ground.
+        </p>
+      </section>
 <section class="doc-card reveal" id="encryption">
-        <p class="eyebrow">05 / read twice, flash once</p>
+        <p class="eyebrow">06 / read twice, flash once</p>
         <h2>Flash encryption, the final signer build</h2>
         <p>
           On the beta you are using today, someone who steals the device and
@@ -463,7 +502,7 @@ sha256sum --ignore-missing -c SHA256SUMS         # Linux</code></pre>
         </p>
       </section>
 <section class="doc-card reveal" id="firstboot">
-        <p class="eyebrow">06 / hand it to anyone</p>
+        <p class="eyebrow">07 / hand it to anyone</p>
         <h2>Getting in the first time</h2>
         <p>
           Three rules before the steps, because the device will not stop to say
@@ -624,7 +663,7 @@ sha256sum --ignore-missing -c SHA256SUMS         # Linux</code></pre>
         </p>
       </section>
 <section class="doc-card reveal" id="storage">
-        <p class="eyebrow">07 / three storage modes</p>
+        <p class="eyebrow">08 / three storage modes</p>
         <h2>Where your recovery words are kept</h2>
         <p>
           Setup asks this once, and Settings can change it later. All three
@@ -682,7 +721,7 @@ sha256sum --ignore-missing -c SHA256SUMS         # Linux</code></pre>
         </div>
       </section>
 <section class="doc-card reveal" id="practices" aria-label="Best practices">
-        <p class="eyebrow">08 / habits that hold</p>
+        <p class="eyebrow">09 / habits that hold</p>
         <h2>Best practices</h2>
         <p class="lede">Seven habits for running a signing device. Every one of them is
         the reverse of a way people have lost coins.</p>
@@ -730,7 +769,7 @@ sha256sum --ignore-missing -c SHA256SUMS         # Linux</code></pre>
         together in public, for anybody who looks.</p>
       </section>
 <section class="doc-card reveal" id="simulator">
-        <p class="eyebrow">09 / no hardware required</p>
+        <p class="eyebrow">10 / no hardware required</p>
         <h2>Try it without hardware</h2>
         <p>
           <strong><a href="sim/index.html">Open the simulator</a></strong> — the signer's

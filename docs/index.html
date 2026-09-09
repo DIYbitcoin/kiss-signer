@@ -33,9 +33,10 @@
         <img src="assets/kiss-mark.svg" alt="" width="32" height="32">
         KISS-SIGNER
       </a>
-      <!-- Four tabs, one per destination that is actually its own page. The
-           in-page jumps (how it works, features, hardware) are sections you
-           scroll to, not places to go, and Telegram lives in the footer. -->
+      <!-- One tab per destination that is actually its own page. The in-page
+           jumps (how it works, features, hardware) are sections you scroll to,
+           not places to go; Telegram lives in the footer, and the repo is the
+           mark beside the swatches because it leaves the site. -->
       <nav class="topnav" aria-label="Site">
         <a href="./" aria-current="page">Install</a>
         <a href="guide.html">Docs</a>
@@ -74,7 +75,7 @@
         <ol class="install-steps">
           <li>
             <h3>Plug it in</h3>
-            <p>Connect the device by USB from a desktop. Chrome, Brave or Edge only &mdash; Safari and Firefox cannot talk to it.</p>
+            <p>Connect the device by USB from a desktop. Chrome, Brave or Edge only &mdash; Safari and Firefox cannot talk to it. On those, <a href="guide.html#esptool">flash from the command line</a> instead.</p>
           </li>
           <li>
             <h3>Install</h3>
@@ -113,7 +114,9 @@
             </button>
             <span slot="unsupported">
               This browser can&rsquo;t talk to the device. Open the page in Chrome,
-              Brave or Edge. They all work on macOS too.
+              Brave or Edge &mdash; they all work on macOS too &mdash; or
+              <a href="guide.html#esptool">flash it from the command line</a>
+              instead, which needs no new browser.
             </span>
             <span slot="not-allowed">
               This needs to be served over HTTPS, or from localhost.
