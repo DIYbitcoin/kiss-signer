@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="138" height="20" role="img" aria-label="version: 0.1.0-beta9">
+<svg xmlns="http://www.w3.org/2000/svg" width="138" height="20" role="img" aria-label="version: 0.1.0-beta10">
   <linearGradient id="s" x2="0" y2="100%"><stop offset="0" stop-color="#bbb" stop-opacity=".1"></stop><stop offset="1" stop-opacity=".1"></stop></linearGradient>
   <clipPath id="r"><rect width="138" height="20" rx="3" fill="#fff"></rect></clipPath>
   <g clip-path="url(#r)">
@@ -9,7 +9,7 @@
   <g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" font-size="110" text-rendering="geometricPrecision">
     <text x="285" y="150" transform="scale(.1)" fill="#010101" fill-opacity=".3" textLength="430">version</text>
     <text x="285" y="140" transform="scale(.1)" textLength="430">version</text>
-    <text x="975" y="150" transform="scale(.1)" fill="#010101" fill-opacity=".3" textLength="670">0.1.0-beta9</text>
-    <text x="975" y="140" transform="scale(.1)" textLength="670">0.1.0-beta9</text>
+    <text x="975" y="150" transform="scale(.1)" fill="#010101" fill-opacity=".3" textLength="670">0.1.0-beta10</text>
+    <text x="975" y="140" transform="scale(.1)" textLength="670">0.1.0-beta10</text>
   </g>
 </svg>
