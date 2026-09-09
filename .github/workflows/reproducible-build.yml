@@ -232,6 +232,36 @@ jobs:
             echo "it carries no signature, so that board could never be updated."
           } >> "$GITHUB_STEP_SUMMARY"
 
+      # The lane that ships every release after the burn, and nothing built it
+      # here. The burn happens once per board; this is the one an owner
+      # installs from a card for the rest of the board's life, so a break in it
+      # would first be noticed while trying to ship a fix. It costs a second
+      # full compile, on a workflow that already runs only on pushes to main.
+      - name: Build the update lane, unsigned
+        run: KISS_ENC_UPDATE=1 tools/build_encrypted_release.sh
+
+      - name: The update lane builds the same firmware, and no bootloader
+        run: |
+          # Same commit, same config: an update IS the burn's app, signed with
+          # one key instead of three. Different bytes would mean the lane
+          # changed the firmware rather than only the signing, and the hashes
+          # published above would describe an image no board ever runs.
+          cmp build-encrypted-release/guition_kiss_bringup.bin \
+              build-encrypted-update/guition_kiss_bringup.bin || {
+            echo "FAIL: the update lane produced different firmware bytes than"
+            echo "      the burn lane built from the same commit."
+            exit 1
+          }
+          # A bootloader in that directory is the one way this lane could hurt
+          # a board: signed with the single key it holds, it would burn one
+          # digest, revoke the other two slots on first boot, and leave a board
+          # that can never rotate a leaked key again.
+          test ! -f build-encrypted-update/bootloader/bootloader.bin || {
+            echo "FAIL: the update lane left a bootloader in its build."
+            exit 1
+          }
+          echo "PASS: identical firmware, and no bootloader to burn with"
+
       - name: Upload firmware artifact
         uses: actions/upload-artifact@v4
         with:

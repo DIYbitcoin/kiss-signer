@@ -107,6 +107,8 @@ jobs:
           python3 tools/check_sig_scheme.py --selftest
           python3 tools/check_efuse_fresh.py --selftest
           python3 tools/check_release_lane.py --selftest
+          python3 tools/check_art_provenance.py --selftest
+          python3 tools/check_art_provenance.py
 
       # preflight.sh claims to be this whole lane in one command, and that
       # claim is the only reason a green preflight means anything. It was

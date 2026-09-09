@@ -102,94 +102,24 @@ Release commit:
 
 ## Install
 
-**Three ways in. Pick the row that describes you.**
+**Four ways in, easiest first.** Each is written out with pictures on the
+install page and in the guide — this is the map, not the manual.
 
-| You are | Use | Needs a cable? |
-| --- | --- | --- |
-| New device, or on beta7 or earlier | **A. Browser install** | yes, USB |
-| Already on beta8 or later | **B. SD card update** | no |
-| Flashing from a machine with no internet | **C. Offline zip** | yes, USB |
+| | Route | Cable? | Who it suits |
+| --- | --- | --- | --- |
+| 🖱️ | **[Install page](https://diybitcoin.github.io/kiss-signer/)** | yes, USB | anyone. Plug in, tick the box, press the button |
+| 💾 | **[SD card update](https://diybitcoin.github.io/kiss-signer/guide.html#sdupdate)** | no | already on beta8 or later, and no computer to hand |
+| 📦 | **[Offline zip](https://diybitcoin.github.io/kiss-signer/guide.html#offline)** | yes, USB | the machine you flash from has no internet |
+| ⌨️ | **[Command line](https://diybitcoin.github.io/kiss-signer/guide.html#esptool)** | yes, USB | Safari or Firefox, or you would rather use a terminal |
 
-Route B is the easy one and needs no computer at all. Route A erases the whole
-chip, so read the warning below it before choosing it.
+The SD card route is the only one that needs no computer at all, and it keeps
+your keys and settings: put `{update}` in the root of a card, then SETTINGS →
+FIRMWARE on the device and hold to install. Use that file, not the merged image.
 
-### A. Browser install, over USB
-
-Open the install page, plug the device in, follow the buttons. It hashes the
-firmware against this release before it offers you anything.
-
-Use **Chrome, Brave or Edge** on macOS, Windows or Linux. Safari and Firefox
-cannot talk to a USB device from a web page, so neither can flash this. On
-Linux, your user has to be able to read the serial port: if the page cannot see
-the device, add yourself to the `dialout` group and log out and back in.
-
-Prefer the command line? The README carries the `esptool` command for all three
-systems, including which port name to expect:
-
-| | Port looks like |
-| --- | --- |
-| macOS | `/dev/cu.usbmodem*` |
-| Linux | `/dev/ttyACM*` |
-| Windows | `COM3`, `COM4`, ... |
-
-### B. SD card update, no computer
-
-A running signer takes its next firmware off an SD card, so this needs no cable,
-no drivers and no operating system at all. Put `{update}` in the root of a card,
-then SETTINGS > FIRMWARE on the device and hold to install. It checks both
-signatures against the keys built into it before anything is written, and if the
-new firmware fails to start it goes back to the old one by itself.
-
-Use that file and not the merged image: the merged one starts with the
-bootloader, and the device looks for the application header instead, so it
-reports nothing to install.
-
-### C. Offline zip, for a machine with no internet
-
-`{offline}` holds the install page, the firmware and the signed hashes in one
-6 MB file. Verify its signature on a machine that has a network, carry it
-across, unzip it, then run the file for your system:
-
-| | Run |
-| --- | --- |
-| macOS | `serve.command` |
-| Windows | `serve.bat` |
-| Linux | `./serve.sh` |
-
-It opens a page that serves to that one computer and reaches nothing else, so
-the machine you flash from can stay offline the whole time. `00-START-HERE.txt`
-inside the zip says the same in more detail. Same browser rule as route A:
-Chrome, Brave or Edge.
-
-After any of the three: unplug the device, wait about 3 seconds, then plug it
-back in. It only starts new firmware from a real power-on.
-
-### Coming from beta7 or earlier: this one erases your keys
-
-This release splits the flash into two firmware slots, which is what lets every
-release after it arrive on an SD card instead of a USB cable. A partition table
-cannot be replaced by the thing it defines, so the crossing itself has to be
-done over USB, once.
-
-**Your recovery words do not survive this flash.** `nvs`, where they live, moves
-from `0x9000` to `0x11000` in the new layout, so the crossing takes them with
-it. The browser and offline routes erase the whole chip; flashing the pieces by
-hand leaves the old words at an address this firmware no longer reads. Either
-way the keys are gone from this signer until you restore them.
-
-So treat it as a restore, not an update. Have the recovery words in your hand on
-paper, check them against the device before you unplug it, and expect to restore
-from that paper once the new firmware is running. If those keys control coins and
-you cannot find the words, do not flash.
-
-After this, Settings has a FIRMWARE button. Put `{update}` in the root of an SD
-card, hold to install, and the device checks the signature against the key built
-into it before anything is written. If the new firmware fails to start, the
-device goes back to this one on its own.
-
-Use that file and not the merged image: the merged one starts with the
-bootloader, and the device looks for the application header instead, so it
-reports nothing to install.
+> ⚠️ **Coming from beta7 or earlier?** SD card updates did not exist yet, so you
+> have to use the install page, and **that erases the whole chip — including
+> your keys.** Have your seed words and passphrase on paper first. Anyone on
+> beta8 or later can ignore this.
 
 ## Changelog
 
@@ -197,9 +127,48 @@ reports nothing to install.
 """
 
 
+def check() -> int:
+    """The committed notes against what this script would write today.
+
+    These notes are generated from the changelog entry and from
+    release.json, and they are published: they are the body of the GitHub
+    release and the copy inside the offline installer. So an edit to the
+    changelog entry AFTER a release leaves the published notes describing
+    something else, and nothing noticed. That happened on the beta10 entry
+    and was caught by hand, which is not a mechanism.
+
+    A file that names an OLDER version is not a failure. Between a version
+    bump and the release build that regenerates it, that is simply where a
+    release is, and failing there would make the gate red for a whole
+    normal step of the process.
+    """
+    if not NOTES_OUT.is_file():
+        print(f"no {NOTES_OUT.relative_to(ROOT)} yet")
+        return 0
+    have = NOTES_OUT.read_text(encoding="utf-8")
+    first = have.splitlines()[0] if have else ""
+    if VERSION not in first:
+        print(f"release notes are still for {first.lstrip('# ').strip()!r}, "
+              f"and VERSION says {VERSION}: not regenerated since the bump, "
+              f"which the release build does.")
+        return 0
+    if have == render(VERSION):
+        print(f"release notes match the changelog and release.json "
+              f"({VERSION})")
+        return 0
+    print(f"FAIL: {NOTES_OUT.relative_to(ROOT)} is not what this script "
+          f"writes today.")
+    print("      The published notes and the changelog disagree. Regenerate:")
+    print("      python3 tools/make_release_notes.py --write")
+    return 1
+
+
 def main() -> int:
+    arg = sys.argv[1] if len(sys.argv) > 1 else ""
+    if arg == "--check":
+        return check()
     notes = render(VERSION)
-    if len(sys.argv) > 1 and sys.argv[1] in {"-w", "--write"}:
+    if arg in {"-w", "--write"}:
         NOTES_OUT.write_text(notes, encoding="utf-8")
         print(f"wrote {NOTES_OUT.relative_to(ROOT)}")
     else:

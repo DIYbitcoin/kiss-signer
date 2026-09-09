@@ -224,7 +224,6 @@ RULES = [
             "I_NOTE_BW": "BlueWallet's own menu path, quoted",
             "I_NOTE_SPARROW": "Sparrow's own menu path, quoted",
             "R_SP_WHY_B": "the SENDER's wallet: someone else's software",
-            "S_SPARROW_SAVE": "Sparrow's own name for itself",
             "W_WHATSEED_B": "every BIP39 wallet that exists, not this one",
         },
         fires_on="erases the wallet history stored now",
@@ -548,9 +547,6 @@ DOCS_RULES = ["WALLET", "BARE-WORDS", "COINED-WORDS"]
 DOCS_ALLOW = {
     "online wallet": "the coordinator's object, watching the chain",
     "watch-only wallet": "what a coordinator calls the import it gets",
-    "any other wallet that reads": "any coordinator, generically",
-    "lets your wallet find those payments":
-        "the coordinator scanning for silent payments",
     # The other legitimate sense, and the one W_WHATSEED_B is already allowed
     # for on the glass: every BIP39 wallet that exists, said about the shared
     # wordlist rather than about this box.

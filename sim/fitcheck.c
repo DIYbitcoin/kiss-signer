@@ -109,7 +109,7 @@ static const slot_t SLOTS[] = {
     { "sign/not-psbt",    STR_S_NOT_PSBT,       704, 232 },
     { "sign/scan-bad",    STR_S_SCAN_NOT_PSBT,  704, 232 },
     { "sign/insert-card", STR_S_INSERT_CARD,    704, 116 },
-    { "sign/sparrow-save",STR_S_SPARROW_SAVE,   704, 116 },
+    { "sign/coord-save",  STR_S_COORD_SAVE,     704, 116 },
     // kiss_sign.c sd_open — the one hint line at y=98, drawn at font14 by
     // design (may_be_small), one line wide as the whole content lane. The %d
     // pair expands to at most 2 digits each, no wider than the specifiers.

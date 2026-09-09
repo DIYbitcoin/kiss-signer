@@ -1130,7 +1130,7 @@ static void done_screen(const char *outname)
 // What to DO after a file this device cannot use. Both file failures said what
 // was wrong and stopped, which leaves a new owner holding an SD card and a
 // reader with no idea which direction to walk. The empty-card screen has taught
-// the route all along (S_SPARROW_SAVE); these two had nothing.
+// the route all along (S_COORD_SAVE); these two had nothing.
 //
 // Under the refusal, never inside it: the red note is the verdict and this is
 // the way out, and one paragraph carrying both would make the instruction part
@@ -1157,6 +1157,35 @@ static void fail_body(const char *why)
     wt_body_para(s_scr, body, 136);
 }
 
+// WHAT THIS SCREEN STILL CANNOT DO. Written next to the code rather than left
+// in a review, because the next person to open it will reach for the wrong fix.
+//
+// A card write that fails AFTER a successful signature lands here, and the only
+// way off is BACK. The signature is still in s_out with its length in
+// s_signed_len -- nothing on this path wipes either -- so a transaction the
+// owner has already approved is sitting in memory with no way to retry the save
+// and no way to export it. Finishing it means signing again: every recipient
+// read a second time, every caution acknowledged a second time, another hold.
+// Deterministic signing makes the second signature identical to the first, so
+// the cost is in taps rather than in risk, and it is still the wrong price for
+// a card that was pulled a moment early.
+//
+// The line to KEEP while fixing that is S_FAIL_SAFE_B. "no signature left this
+// signer" is true after a failed write and not merely reassuring:
+// platform_sd_write_atomic removes its temp file and renames the previous file
+// back on every negative return it has, so nothing reached the card. Softening
+// it would trade a true sentence for a vaguer one.
+//
+// A retry cannot travel by either BACK handler below. files_back_cb and
+// choose_back_cb both call step_back, which calls the same widgets_drop that
+// close_cb does, and widgets_drop wipes s_in and s_out. Recovery needs an exit
+// of its own, and only abandoning should reach widgets_drop.
+//
+// The QR side carries the same hole in a different shape: the encoder failure
+// inside qr_out_screen is built by hand rather than coming through here, and
+// its BACK is still close_cb. The fact underneath is identical -- a signature
+// exists and cannot be exported -- so whatever is built for the card belongs
+// on that screen too.
 static void fail_screen(const char *why)
 {
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
@@ -1189,8 +1218,23 @@ static void fail_screen(const char *why)
              tr(s_src == SRC_SD ? STR_S_FROM_SD : STR_S_SCAN_QR));
     wt_trail(s_scr, WT_ICON_SIGN, trail, false);
     fail_body(why);
+    // BACK goes where the trail two lines above says the owner came from, and
+    // that is the whole of the fix. This was close_cb: the one refusal in the
+    // flow that answered a failure by unmounting the card and dropping the
+    // owner on the home screen. Both SD refusals that read the card already
+    // step back a single screen, so a PSBT that would not parse cost one tap
+    // and a PSBT that would not sign cost the entire trip back in through
+    // SIGN, the card, the list and the page it was on. Nothing about a failed
+    // signature earns a longer walk back than a failed read.
+    //
+    // Neither handler is the looser one for secrets: step_back calls the same
+    // widgets_drop that close_cb does, so the transaction and its workspace
+    // are wiped on both, and only the destination differs. The SD side leaves
+    // the card mounted and s_keep_page returns the list to the page it was
+    // read from; the QR side unmounts, because that path never wanted a card.
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160,
-                    true, close_cb, NULL);
+                    true, s_src == SRC_SD ? files_back_cb : choose_back_cb,
+                    NULL);
 }
 
 // Spending from receive index N proves N was used: record it so the Receive
@@ -4811,7 +4855,7 @@ static void file_tap_cb(lv_event_t *e)
 // Both dead ends on the SD path: no card in the slot, and a card with no .psbt
 // on it. They render in the SD CARD tab's lane -- same card, same amber SD
 // glyph, same words as when they owned a page of their own.
-static void sign_tab_go(int tab);
+static void scan_pick_cb(lv_event_t *e);
 
 // Both dead ends offer the sibling that needs no card.
 //
@@ -4827,11 +4871,18 @@ static void sign_tab_go(int tab);
 // Only the card takes the tap. wt_word_action makes itself clickable when it
 // is handed a callback, and a clickable child inside a clickable parent fires
 // the handler twice; it is handed none.
-static void sd_empty_scan_cb(lv_event_t *e)
-{
-    (void)e;
-    sign_tab_go(0);                       // 0 is SCAN QR, 1 is SD CARD
-}
+//
+// And the tap opens the camera, rather than the tab the camera is on. The
+// card's word is OPEN CAMERA; landing on SCAN QR instead put that identical
+// word back under the owner's thumb, in the same locale, for the same
+// destination, and asked for it a second time -- which reads as the first tap
+// having failed. scan_pick_cb is the band's own handler on that tab, so both
+// routes into the viewfinder are now one path and cannot drift apart.
+//
+// Cancelling needs nothing remembered. The scanner's cancel reopens SIGN on
+// the remembered tab, this card only ever draws on the SD one, and
+// sd_tab_build mounts the card again on its way in -- so the unmount inside
+// scan_pick_cb costs the return trip nothing.
 
 static void sd_lane_empty(lv_obj_t *p, const char *head, const char *body)
 {
@@ -4851,15 +4902,15 @@ static void sd_lane_empty(lv_obj_t *p, const char *head, const char *body)
     // the card would have carried the same words twice on one screen -- and
     // act_for refused to tap either of them, which is the walk saying the same
     // thing. OPEN CAMERA ships in 21 locales, names the action rather than the
-    // method, and lives on the tab this card leads to, so the two are never on
-    // the glass together.
+    // method, and lives on the tab whose band this card borrows, so the two
+    // are never on the glass together.
     lv_obj_t *act = wt_word_action(card, WT_ICON_ARR_R, tr(STR_S_OPEN_CAM),
                                    false, wt_accent(), true, NULL, NULL);
     lv_obj_remove_flag(act, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_align(act, LV_ALIGN_BOTTOM_LEFT, 24, -10);
 
     lv_obj_add_flag(card, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_event_cb(card, sd_empty_scan_cb, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_event_cb(card, scan_pick_cb, LV_EVENT_CLICKED, NULL);
 }
 
 // The trail the SD branch's opened-from screens wear: how the owner got here.
@@ -5211,7 +5262,7 @@ static void sd_tab_build(lv_obj_t *p)
     if (s_nsig < 0) s_nsig = 0;
     if (s_nfiles <= 0) {
         s_nfiles = 0;
-        sd_lane_empty(p, tr(STR_S_NO_PSBT_FILES), tr(STR_S_SPARROW_SAVE));
+        sd_lane_empty(p, tr(STR_S_NO_PSBT_FILES), tr(STR_S_COORD_SAVE));
         return;
     }
     files_build();

@@ -376,12 +376,31 @@ KISS_OTA_KEY="${KISS_OTA_KEY:-$HOME/.kiss-signer/kiss_ota.pem}"
 # stored beside the thing it unlocks. tools/build_release.sh grew this first;
 # docs/installer/SIGNING.md has the setup.
 KISS_OTA_HSM_CONFIG="${KISS_OTA_HSM_CONFIG:-$HOME/.kiss-signer/hsm.ini}"
-if [ -f "$KISS_OTA_HSM_CONFIG" ]; then
+
+# The secure boot key can live on a card too, and the update lane is where that
+# pays. Splitting the lanes took the two spares off the everyday machine; this
+# takes the last one off it as well, so the key that signs every release exists
+# only inside a device that will not export it and asks for a finger before it
+# signs. A stolen laptop then buys an attacker nothing at all.
+#
+# A SEPARATE config from the OTA card above, even when it is the same YubiKey,
+# because it is a different key in a different slot: secure boot on this chip is
+# RSA-3072 and the OTA key is secp256r1. One ini names one slot.
+#
+# The burn lane ignores it, and says so: a bootloader has to be signed by all
+# three keys at once, which is a thing only the machine holding the whole root
+# can do.
+KISS_SB_HSM_CONFIG="${KISS_SB_HSM_CONFIG:-$HOME/.kiss-signer/sb_hsm.ini}"
+
+if [ -f "$KISS_OTA_HSM_CONFIG" ] || [ -f "$KISS_SB_HSM_CONFIG" ]; then
   ESPSECURE=(uvx --from "$ESPTOOL_PIN" --with python-pkcs11 espsecure)
+else
+  ESPSECURE=(uvx --from "$ESPTOOL_PIN" espsecure)
+fi
+if [ -f "$KISS_OTA_HSM_CONFIG" ]; then
   OTA_SIGN_KEY=(--hsm --hsm-config "$KISS_OTA_HSM_CONFIG")
   OTA_KEY_DESC="the card described by $KISS_OTA_HSM_CONFIG"
 else
-  ESPSECURE=(uvx --from "$ESPTOOL_PIN" espsecure)
   OTA_SIGN_KEY=(--keyfile "$KISS_OTA_KEY")
   OTA_KEY_DESC="$KISS_OTA_KEY"
 fi
@@ -463,7 +482,24 @@ fi
 
 # The update lane: one key, and the absence of the other two is the point.
 if [ "$LANE" = update ]; then
-  if [ ! -f "$SB_ACTIVE" ] && [ "$SB_PRESENT" -eq 0 ]; then
+  # The public half, beside the private one and named after it. Written by the
+  # burn, secret from nobody, and the only thing that lets a machine holding no
+  # private key at all check what it just signed: with the key on a card, this
+  # file is what the signature is verified against, and its fingerprint is what
+  # the root record is held to. Without it a card could sign with anything and
+  # nothing here would know.
+  SB_PUB_RECORDED="${SB_ACTIVE%.pem}.pub.pem"
+  if [ -f "$KISS_SB_HSM_CONFIG" ]; then
+    SB_ON_CARD=1
+    if [ ! -f "$SB_PUB_RECORDED" ]; then
+      echo "FAIL: signing from the card needs the public half of key $KISS_SB_KEY_INDEX on disk:"
+      echo "        $SB_PUB_RECORDED"
+      echo "      It is not a secret and the burn writes it. Copy it from the"
+      echo "      machine that minted the root, beside root.txt."
+      exit 1
+    fi
+    echo "signing key: the card described by $KISS_SB_HSM_CONFIG"
+  elif [ ! -f "$SB_ACTIVE" ] && [ "$SB_PRESENT" -eq 0 ]; then
     KISS_UNSIGNED=1
     echo
     echo "NOTE: no secure boot key here, so this build is UNSIGNED."
@@ -476,19 +512,36 @@ if [ "$LANE" = update ]; then
     echo "      Set KISS_SB_KEY_INDEX to the key this fleet is running on."
     exit 1
   fi
+  # What counts as a key that should not be here depends on where the signing
+  # key is. Off a card, the everyday key is meant to be on disk and only the
+  # two spares are out of place. On a card, all three are: the whole point of
+  # moving it there is that no private half of this root is readable here.
   SB_SPARES=0
   for i in 0 1 2; do
-    [ "$i" = "$KISS_SB_KEY_INDEX" ] && continue
+    if [ -z "${SB_ON_CARD:-}" ] && [ "$i" = "$KISS_SB_KEY_INDEX" ]; then continue; fi
     [ -f "${SB_KEYS[$i]}" ] && SB_SPARES=$((SB_SPARES + 1))
   done
   if [ "$SB_SPARES" -gt 0 ]; then
     echo
-    echo "NOTE: $SB_SPARES spare key(s) of the root are also on this machine."
+    echo "NOTE: $SB_SPARES key file(s) of this root are on this machine."
     echo "      This lane does not read them, and the reason it exists is that"
     echo "      they should not be here: they are what recovers the fleet if"
     echo "      the everyday key walks off it. Move them offline."
+    if [ -n "${SB_ON_CARD:-}" ]; then
+      echo "      The signing key is on the card now, so the file it was"
+      echo "      imported from is a copy that can still be stolen. Once the"
+      echo "      card has signed a release, that copy belongs offline with"
+      echo "      the spares, not here."
+    fi
   fi
 elif [ "$RECIPE" = release ]; then
+  if [ -f "$KISS_SB_HSM_CONFIG" ]; then
+    echo
+    echo "NOTE: a secure boot card is configured and the burn does not use it."
+    echo "      One signature sector carries all three keys, so only a machine"
+    echo "      holding the whole root can sign a bootloader. The card signs"
+    echo "      updates, which is where the everyday risk lives."
+  fi
   if [ "$SB_PRESENT" -eq 0 ]; then
     KISS_UNSIGNED=1
     echo
@@ -516,64 +569,17 @@ elif [ "$RECIPE" = release ]; then
   fi
 fi
 
-GIT_REV=$(git describe --always --dirty 2>/dev/null || echo nogit)
-echo "commit: $GIT_REV"
-
-# The images this recipe signs must be the images this build produced. idf.py
-# writes each .bin from its ELF under a timestamp target and leaves it alone
-# while the ELF is unchanged, which on a rerun it is: last run's SIGNED
-# bootloader sat in the build directory and would have been signed a second
-# time, one sector hidden behind another. Dropping the timestamps makes ninja
-# regenerate both from the ELF; the --unsigned check before each signature is
-# the proof that it did.
-rm -f "$BUILD_DIR/.bin_timestamp" "$BUILD_DIR/bootloader/.bin_timestamp" \
-  2>/dev/null || true
-
-docker run --rm \
-  -e GIT_CONFIG_COUNT=1 \
-  -e GIT_CONFIG_KEY_0=safe.directory \
-  -e GIT_CONFIG_VALUE_0=/project \
-  -v "$PWD":/project -w /project "$KISS_IDF_IMAGE" \
-  idf.py -B "$BUILD_DIR" -DSDKCONFIG="/project/$SDKCFG" \
-  -DKISS_RELEASE=1 -DKISS_COMMIT="$GIT_REV" build
-
-# ---- sign, outside the container: the keys were settled above the build ----
-
-if [ -n "${KISS_UNSIGNED:-}" ]; then
-  # Through the helper, for the reason it gives; see tools/idf_image.sh.
-  kiss_mark_unsigned "$BUILD_DIR"
-  # Here as well as on the signed path, so the update lane's promise holds
-  # whatever happened above: that directory never contains a bootloader.
-  if [ "$LANE" = update ]; then kiss_drop_update_bootloader "$BUILD_DIR"; fi
-  echo
-  echo "UNSIGNED build (KISS_UNSIGNED=1): reproducibility only."
-  echo "      No signature block, so this image must never be flashed to a board"
-  echo "      whose fuses this recipe burns -- it could never be updated after."
-  echo "      Wrote $BUILD_DIR/UNSIGNED to say so."
-elif [ "$RECIPE" = rehearsal ] && [ ! -f "$KISS_OTA_HSM_CONFIG" ] \
-     && [ ! -f "$KISS_OTA_KEY" ]; then
-  echo
-  echo "FAIL: no OTA signing key. Looked for a card config at"
-  echo "      $KISS_OTA_HSM_CONFIG and a key file at $KISS_OTA_KEY."
-  echo "      Set one up once (docs/installer/SIGNING.md), or set KISS_OTA_KEY."
-  echo "      Without it this board can never accept an SD firmware update, and"
-  echo "      the release recipe burns the fuses that would let you reflash it."
-  echo "      For a reproducibility check on a machine with no key, set"
-  echo "      KISS_UNSIGNED=1 and compare the unsigned hashes."
-  exit 1
-else
-# Which key signs the app is the lane's decision, made once here. A rehearsal
-# app is judged by the running app's own block, so it carries the OTA key the
-# SD update lane publishes. A release app is judged against the eFuse digests,
-# so it carries the builder's key 0.
+# ---- the root, settled before anything is compiled ----
+#
+# The public halves come out here and the slot order is held against the
+# record here, before a single object file is built. Both used to sit beside
+# the signature, at the far end of a five minute compile, and what they catch
+# is a custody mistake: the wrong key in a slot, a restored file, a root that
+# is not the root these boards answer to. That is the class of error worth
+# hearing about in seconds, not after the build it invalidates.
 SIGTMP=$(mktemp -d)
 trap 'rm -rf "$SIGTMP"' EXIT
-# A marker from an earlier unsigned run must not outlive the signed image.
-rm -f "$BUILD_DIR/UNSIGNED" 2>/dev/null || true
-if [ "$RECIPE" = release ]; then
-  APP_SIGN_KEY=(--keyfile "$SB_ACTIVE")
-  APP_KEY_DESC="$SB_ACTIVE (secure boot key $KISS_SB_KEY_INDEX of 3)"
-  EXPECT_SCHEME=rsa
+if [ "$RECIPE" = release ] && [ -z "${KISS_UNSIGNED:-}" ]; then
   # The provision lane holds the whole root and extracts all three public
   # halves; the update lane holds one key on purpose and extracts only that
   # one. Asking for the others here is what used to drag the spares onto the
@@ -582,14 +588,30 @@ if [ "$RECIPE" = release ]; then
     for i in 0 1 2; do
       "${ESPSECURE[@]}" extract-public-key --version 2 \
         --keyfile "${SB_KEYS[$i]}" "$SIGTMP/sb_pub$i.pem" >/dev/null
+      # Kept beside the private key, once. A machine that signs from a card
+      # holds no private half to derive this from, and espsecure will not read
+      # a public key back off the card, so without this file a card-signed
+      # image could not be checked against the root at all. Public halves are
+      # not secret: the fleet's boards carry their digests in fuses.
+      sb_pub_out="${SB_KEYS[$i]%.pem}.pub.pem"
+      if [ ! -f "$sb_pub_out" ]; then
+        cp "$SIGTMP/sb_pub$i.pem" "$sb_pub_out"
+        echo "wrote $sb_pub_out"
+      elif ! cmp -s "$SIGTMP/sb_pub$i.pem" "$sb_pub_out"; then
+        echo "FAIL: $sb_pub_out is not the public half of ${SB_KEYS[$i]}."
+        echo "      One of the two was replaced. Sort out custody before"
+        echo "      building: this file is what an update machine trusts."
+        exit 1
+      fi
     done
+  elif [ -n "${SB_ON_CARD:-}" ]; then
+    # No private key here at all. The recorded public half stands in for it,
+    # and the verify below is what proves the card holds its private twin.
+    cp "$SB_PUB_RECORDED" "$SIGTMP/sb_pub$KISS_SB_KEY_INDEX.pem"
   else
     "${ESPSECURE[@]}" extract-public-key --version 2 \
       --keyfile "$SB_ACTIVE" "$SIGTMP/sb_pub$KISS_SB_KEY_INDEX.pem" >/dev/null
   fi
-  # The public halves, beside the image. Nothing on the device needs them;
-  # they say which key is which when key 0 is rotated out years from now.
-  cp "$SIGTMP"/sb_pub?.pem "$BUILD_DIR"/
 
   # ---- the root's fixed identities, in slot order ----
   #
@@ -652,6 +674,72 @@ PY
     echo "      that this key really is key $KISS_SB_KEY_INDEX of the root the boards burned."
     echo "      Copy it from the machine that ran the burn. It is not a secret."
   fi
+fi
+
+GIT_REV=$(git describe --always --dirty 2>/dev/null || echo nogit)
+echo "commit: $GIT_REV"
+
+# The images this recipe signs must be the images this build produced. idf.py
+# writes each .bin from its ELF under a timestamp target and leaves it alone
+# while the ELF is unchanged, which on a rerun it is: last run's SIGNED
+# bootloader sat in the build directory and would have been signed a second
+# time, one sector hidden behind another. Dropping the timestamps makes ninja
+# regenerate both from the ELF; the --unsigned check before each signature is
+# the proof that it did.
+rm -f "$BUILD_DIR/.bin_timestamp" "$BUILD_DIR/bootloader/.bin_timestamp" \
+  2>/dev/null || true
+
+docker run --rm \
+  -e GIT_CONFIG_COUNT=1 \
+  -e GIT_CONFIG_KEY_0=safe.directory \
+  -e GIT_CONFIG_VALUE_0=/project \
+  -v "$PWD":/project -w /project "$KISS_IDF_IMAGE" \
+  idf.py -B "$BUILD_DIR" -DSDKCONFIG="/project/$SDKCFG" \
+  -DKISS_RELEASE=1 -DKISS_COMMIT="$GIT_REV" build
+
+# ---- sign, outside the container: the keys were settled above the build ----
+
+if [ -n "${KISS_UNSIGNED:-}" ]; then
+  # Through the helper, for the reason it gives; see tools/idf_image.sh.
+  kiss_mark_unsigned "$BUILD_DIR"
+  # Here as well as on the signed path, so the update lane's promise holds
+  # whatever happened above: that directory never contains a bootloader.
+  if [ "$LANE" = update ]; then kiss_drop_update_bootloader "$BUILD_DIR"; fi
+  echo
+  echo "UNSIGNED build (KISS_UNSIGNED=1): reproducibility only."
+  echo "      No signature block, so this image must never be flashed to a board"
+  echo "      whose fuses this recipe burns -- it could never be updated after."
+  echo "      Wrote $BUILD_DIR/UNSIGNED to say so."
+elif [ "$RECIPE" = rehearsal ] && [ ! -f "$KISS_OTA_HSM_CONFIG" ] \
+     && [ ! -f "$KISS_OTA_KEY" ]; then
+  echo
+  echo "FAIL: no OTA signing key. Looked for a card config at"
+  echo "      $KISS_OTA_HSM_CONFIG and a key file at $KISS_OTA_KEY."
+  echo "      Set one up once (docs/installer/SIGNING.md), or set KISS_OTA_KEY."
+  echo "      Without it this board can never accept an SD firmware update, and"
+  echo "      the release recipe burns the fuses that would let you reflash it."
+  echo "      For a reproducibility check on a machine with no key, set"
+  echo "      KISS_UNSIGNED=1 and compare the unsigned hashes."
+  exit 1
+else
+# Which key signs the app is the lane's decision, made once here. A rehearsal
+# app is judged by the running app's own block, so it carries the OTA key the
+# SD update lane publishes. A release app is judged against the eFuse digests,
+# so it carries the builder's key 0.
+# A marker from an earlier unsigned run must not outlive the signed image.
+rm -f "$BUILD_DIR/UNSIGNED" 2>/dev/null || true
+if [ "$RECIPE" = release ]; then
+  if [ -n "${SB_ON_CARD:-}" ]; then
+    APP_SIGN_KEY=(--hsm --hsm-config "$KISS_SB_HSM_CONFIG")
+    APP_KEY_DESC="the card described by $KISS_SB_HSM_CONFIG (secure boot key $KISS_SB_KEY_INDEX of 3)"
+  else
+    APP_SIGN_KEY=(--keyfile "$SB_ACTIVE")
+    APP_KEY_DESC="$SB_ACTIVE (secure boot key $KISS_SB_KEY_INDEX of 3)"
+  fi
+  EXPECT_SCHEME=rsa
+  # The public halves, beside the image. Nothing on the device needs them;
+  # they say which key is which when key 0 is rotated out years from now.
+  cp "$SIGTMP"/sb_pub?.pem "$BUILD_DIR"/
 else
   APP_SIGN_KEY=("${OTA_SIGN_KEY[@]}")
   APP_KEY_DESC="$OTA_KEY_DESC"
@@ -665,6 +753,9 @@ python3 tools/check_sig_scheme.py "$BUILD_DIR/guition_kiss_bringup.bin" \
   --unsigned
 
 echo "signing app with $APP_KEY_DESC"
+# Without this line the build simply stops for a minute and then times out,
+# with nothing on screen to say the card is waiting on a finger.
+[ -n "${SB_ON_CARD:-}" ] && echo "      TOUCH THE CARD when it blinks - it will not sign until you do"
 "${ESPSECURE[@]}" sign-data \
   --version 2 "${APP_SIGN_KEY[@]}" \
   --output "$BUILD_DIR/guition_kiss_bringup-signed.bin" \

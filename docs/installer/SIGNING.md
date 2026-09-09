@@ -365,6 +365,113 @@ fingerprints of the three public halves, in `~/.kiss-signer/sb/root.txt`. It
 holds nothing secret: copy it to wherever updates are signed, and both lanes
 refuse to sign as key *N* with a key that record does not call key *N*.
 
+### The update key on a card
+
+The split takes two keys off the everyday machine. Putting the third on a
+smartcard takes the last one, and then no private half of the root is readable
+there at all: the key that signs every release lives inside a device that will
+not export it and wants a finger on it before it signs. A stolen laptop buys
+an attacker nothing.
+
+Point `KISS_SB_HSM_CONFIG` at an ini of the same shape as the OTA one, naming
+the slot that holds the key — a separate file, because it is a separate key
+even when it is the same card. The update lane then signs from the card, and
+says so before it does:
+
+```sh
+KISS_SB_HSM_CONFIG=~/.kiss-signer/sb_hsm.ini \
+  KISS_ENC_UPDATE=1 bash tools/build_encrypted_release.sh
+```
+
+Secure boot on this chip is RSA-3072, and a card that caps PIV RSA at 2048
+cannot hold the key at all. On a YubiKey that means firmware 5.7 or newer:
+RSA-3072 arrived in 5.7, and `ykman list` prints the version in brackets.
+
+The public half is recorded on disk as well, as `kiss_sb_<n>.pub.pem` beside
+each private key, and it travels with `root.txt` to the update machine. NOT
+because the card cannot produce it -- espsecure reads it off the card from the
+`label_pubkey` object and says so in its log. Because a public key the card
+hands over proves nothing about WHICH key it is: a card with the wrong key
+would hand over that key's public half and sign consistently with it. The
+recorded file is the independent copy the signature is checked against, so a
+card holding a key outside this root is caught rather than trusted.
+
+### The card, measured
+
+Everything below was run end to end on a YubiKey 5C NFC at firmware 5.7.4,
+with a throwaway key, before any real key existed. It is written down because
+the failure it rules out -- a card that cannot sign what this chip needs --
+would otherwise be found on burn day, with three keys already generated.
+
+The OTA key lives in slot 9c, so secure boot needs a slot of its own even on
+the same card. The rehearsal used 9a. Its PKCS#11 labels are fixed by the
+library, and the ini names them exactly:
+
+```ini
+[hsm_config]
+credentials = <the card PIN>
+pkcs11_lib = /opt/homebrew/lib/libykcs11.dylib
+slot = 0
+label = Private key for PIV Authentication
+label_pubkey = Public key for PIV Authentication
+```
+
+Slot 9d and the retired slots 82 through 95 carry labels of the same shape
+(`Private key for Key Management`, `Private key for Retired Key 1`), so any of
+them can hold it. Not 9e: card authentication needs no PIN, and a signing key
+that signs for whoever holds the card is not what the card was bought for.
+
+PIN policy ONCE and touch policy ALWAYS, which is the pair the OTA key already
+uses and the only pair proven here. The reason is in the OTA ini's own comment:
+espsecure opens two PKCS#11 sessions, reads the public key in the first and
+signs in the second, and logs in only to the first. A key set to ask for its
+PIN on every operation dies in that second session. Touch every time is what
+carries the security, and it is unaffected -- the PIN alone signs nothing while
+the card still wants a finger on it.
+
+Making the key needs two commands, because the library enumerates keys through
+the certificate in the slot: a key with no certificate beside it is invisible
+to it.
+
+```sh
+ykman piv keys generate --algorithm rsa3072 --touch-policy always \
+    9a kiss_sb_0.pub.pem
+ykman piv certificates generate --subject "CN=KISS secure boot key 0" \
+    --valid-days 7300 9a kiss_sb_0.pub.pem
+```
+
+Both ask for the PIN; the second also asks for a touch, because it signs the
+certificate with the key it just made. Then the signature itself, which is the
+part worth having proof of:
+
+```sh
+espsecure sign-data --version 2 --hsm --hsm-config ~/.kiss-signer/sb_hsm.ini \
+    --output signed.bin data.bin        # blinks, and waits for a touch
+espsecure verify-signature --version 2 --keyfile kiss_sb_0.pub.pem signed.bin
+```
+
+The rehearsal's verdict: the key on the card is 3072 bits, signing succeeded
+with a touch, verification against the card's public half exited 0, and the
+same signed file against a different RSA-3072 key exited 2. That last one is
+the half that makes the first mean anything.
+
+Undoing a rehearsal takes the key and its certificate back out:
+
+```sh
+ykman piv keys delete 9a
+ykman piv certificates delete 9a
+```
+
+One thing the rehearsal does NOT settle. A real key cannot be generated on the
+card, because the burn has to sign a bootloader with all three keys at once and
+the card holds one. The three start as files, the board takes all three
+digests, and only then does the working one move onto a card and its file go
+offline with the spares.
+
+The card gets a *copy* of the key, minted from the file. Once it has signed a
+release, that file belongs offline with the spares — the lane counts every
+private key of the root it can see and says so.
+
 ## What this does and doesn't prove
 
 - **Does:** the binary is exactly what the key holder built, and from which

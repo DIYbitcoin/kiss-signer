@@ -1871,6 +1871,31 @@ static void tap_str(int key, int hold, int settle)
     tap_obj(act_for(key, "tap"), hold, settle);
 }
 
+// Either SD dead end, opened and cancelled. The tap goes to the CARD and not
+// to the words on it: the card is the control, and its OPEN CAMERA is drawn
+// with its clickable flag removed so a child and a parent cannot both answer
+// one press. find_row_prefix climbs from the heading to the nearest clickable
+// ancestor, which is the card, exactly as it does for a file row.
+//
+// head_key is the dead end's own heading, and it is asserted twice: once to
+// find the card, and once after CANCEL, because landing back on it is the
+// whole of the return contract. SIGN reopens on the tab it remembers and the
+// SD tab mounts on its way in, so nothing about the origin is stored -- and
+// this is the stop that would notice if that stopped being true.
+static void dead_end_camera(const char *what, int head_key)
+{
+    lv_obj_t *card = find_row_prefix(lv_screen_active(), tr(head_key));
+    if (!card) {
+        printf("FAIL: %s: no card to tap\n", what);
+        g_walk_fails++;
+        return;
+    }
+    tap_obj(card, 3, 30);
+    must_show(what, tr(STR_N_NOTHING_SIGNED));   // the viewfinder's own line
+    tap_str(STR_C_CANCEL, 3, 30);
+    must_show(what, tr(head_key));
+}
+
 // The nth action carrying this label, top to bottom. A page of caution rows
 // gives every row the same I UNDERSTAND, so act_for is right to refuse it --
 // but the walk still has to press ROW ZERO, and a hard coded x cannot do it
@@ -4124,7 +4149,22 @@ int main(void) {
   release(); pump(10);
   save("/tmp/sim_sign_failed.ppm");
   must_show("sign failed", tr(STR_S_FAIL_SIGN));
-  tap_str(STR_C_BACK, 3, 8);     // BACK -> home, the only way off a failure
+  // BACK off a failure returns to the list, ON THE PAGE THE FILE CAME FROM.
+  // This used to be the one BACK in the flow that meant "abandon SIGN": it
+  // unmounted the card and dropped the owner on the home screen, so a
+  // transaction that would not sign cost the whole trip back in through SIGN,
+  // the card, the list and a swipe. zzzzz-MERGE is alone on page two, which
+  // makes this stop the only one that can tell a return to the list from a
+  // return to the top of it -- the file is on screen or the page was lost.
+  tap_str(STR_C_BACK, 3, 8);     // BACK -> the file list, page two
+  save("/tmp/sim_sign_failed_back.ppm");
+  if (!find_label_prefix(lv_screen_active(), "zzzzz-MERGE")) {
+    printf("FAIL: BACK off a signing failure did not return to page two\n");
+    g_walk_fails++;
+  } else {
+    printf("ok: a signature that failed costs one screen, not the whole trip\n");
+  }
+  tap_str(STR_C_BACK, 3, 6);     // BACK -> home
 
   // The RECEIPT, on the only transaction whose receipt could be wrong: five
   // recipients under a 63 byte filename. Nothing had ever signed a multi output
@@ -4231,6 +4271,14 @@ int main(void) {
   tap_str(STR_S_FROM_SD, 3, 30);                    // SD CARD tab
   save("/tmp/sim_sign_no_psbt.ppm");                // a card, and nothing on it
   must_show("sign/no psbt on the card", tr(STR_S_NO_PSBT_FILES));
+  // The card says OPEN CAMERA and the tap has to reach a camera. It used to
+  // reach the SCAN QR TAB, whose band then said OPEN CAMERA a second time in
+  // the same locale for the same destination -- a second ask that reads as the
+  // first tap having failed. Both dead ends are one call to sd_lane_empty, so
+  // the two stops here are the same mechanism twice; they are both walked
+  // because the acceptance was written about either empty state, and because
+  // the return trip differs: this one remounts a card, the next one cannot.
+  dead_end_camera("sd dead end: card with nothing on it", STR_S_NO_PSBT_FILES);
   tap_str(STR_C_BACK, 3, 6);     // BACK -> home
 
   platform_sd_test_set_present(0);                  // the slot, empty
@@ -4238,6 +4286,7 @@ int main(void) {
   tap_str(STR_S_FROM_SD, 3, 30);                    // SD CARD tab
   save("/tmp/sim_sign_no_card.ppm");                // no card at all
   must_show("sign/no card in the slot", tr(STR_S_NO_SD));
+  dead_end_camera("sd dead end: nothing in the slot", STR_S_NO_SD);
   tap_str(STR_C_BACK, 3, 6);     // BACK -> home
   platform_sd_test_set_present(1);
   sd_write_psbt_fixtures();      // the card is a fixture again for later steps

@@ -198,7 +198,6 @@
             </summary>
             <a href="#firstboot">First boot</a>
             <a href="#storage">Storage</a>
-            <a href="#practices">Best practices</a>
           </details>
           <details class="rail-group" open>
             <summary>
@@ -239,9 +238,14 @@
         </ol>
         <p class="power-note">
           Pairing offers <strong>Sparrow</strong> on desktop and
-          <strong>BlueWallet</strong> on mobile, and any other wallet that reads
-          a descriptor or a zpub will work. If it calls itself watch-only, that
-          is correct, and it is the point.
+          <strong>BlueWallet</strong> on mobile. Any other coordinator works too,
+          provided it does both halves: import a descriptor or a zpub as
+          watch-only, and pass PSBTs back and forth by animated QR or on a
+          microSD card. Software can read a zpub happily and still have no way to
+          hand a signed transaction back, so both halves matter. Ask in
+          <a href="https://t.me/KISS_signer">Telegram</a> about anything you have
+          not seen tried. If it calls the import watch-only, that is correct, and
+          it is the point.
         </p>
       </section>
 <section class="doc-card reveal" id="features" aria-label="Features">
@@ -251,37 +255,32 @@
           <article>
             <span>DECOY SIGNER</span>
             <h3>It boots into a game</h3>
-            <p>FRUIT ISLAND is a real, playable game. A secret gesture on its menu opens the signer; a different one opens a spare set of keys, so there is always something to show.</p>
+            <p>FRUIT ISLAND is a real, playable game. One secret gesture on its menu opens the signer, a different one opens a spare set of keys, so there is always something to show.</p>
           </article>
           <article>
             <span>TOUCHSCREEN + QR</span>
-            <h3>PSBTs in and out by QR, or by microSD</h3>
-            <p>A small payload fits in one still QR code. A whole transaction will not, so KISS chops it into numbered pieces and plays them as a short looping animation for your coordinator&rsquo;s camera to read &mdash; that scheme is called BC-UR, and every coordinator worth pairing with speaks it. Or skip the camera and carry the file on a microSD card. No cable ever carries your data.</p>
+            <h3>Transactions in and out by QR, or microSD</h3>
+            <p>A whole transaction will not fit in one QR code, so KISS chops it into numbered pieces and plays them as a short loop for your coordinator&rsquo;s camera &mdash; a scheme called BC-UR. Or carry the file on a card instead. No cable ever carries your data.</p>
           </article>
           <article>
             <span>SILENT PAYMENTS</span>
             <h3>One address you can reuse</h3>
-            <p>One <code>sp1</code> address you can hand out again and again, without the privacy cost of reusing a normal one. An optional scan key lets your wallet find those payments but never spend them.</p>
+            <p>One <code>sp1</code> address you can hand out again and again, without the privacy cost of reusing a normal one. An optional scan key lets your coordinator find those payments but never spend them.</p>
           </article>
           <article>
             <span>VERIFIED ON DEVICE</span>
             <h3>Nothing is signed unseen</h3>
-            <p>Every amount, the fee and your change are worked out here, not taken on trust. A high fee, or change so tiny it harms your privacy, turns amber first.</p>
-          </article>
-          <article>
-            <span>THE AIRGAP</span>
-            <h3>Proven by the build, not promised</h3>
-            <p>There is a radio chip on the device, and KISS holds it switched off from the first instruction of every boot. The build fails outright if any networking code reaches the firmware.</p>
+            <p>Every amount, the fee and your change are worked out here rather than taken on trust, and anything risky turns amber before you can sign.</p>
           </article>
           <article>
             <span>21 LANGUAGES</span>
             <h3>Including CJK and Cyrillic</h3>
-            <p>Latin, Cyrillic, Japanese, Korean and Simplified Chinese, each with its own font. Buttons resize rather than truncate, and the build fails if a key action gets too small to read.</p>
+            <p>Each with its own font. Buttons resize rather than truncate, and the build fails if a key action gets too small to read.</p>
           </article>
           <article>
             <span>AUDIT IT YOURSELF</span>
             <h3>The signer proves parts of itself</h3>
-            <p>Your keys are only as good as the randomness behind them, so the device lets you audit its own. It draws 5000 numbers from the chip, stacks them into a live bar chart, and scores how evenly they landed &mdash; a lopsided chart means bad randomness. It also tells you the one thing no score can prove: that the noise source is switched on. All on the device; nothing leaves it.</p>
+            <p>Your keys are only as good as the randomness behind them, so the device audits its own: 5000 numbers from the chip into a live bar chart, scored for evenness. A lopsided chart means bad randomness. Nothing leaves the device.</p>
           </article>
         </div>
       </section>
@@ -297,23 +296,19 @@
         </p>
         <h3>About the radio, said plainly</h3>
         <p>
-          The chip that runs KISS has no WiFi and no Bluetooth. None. It
-          cannot go online even if it wanted to.
-        </p>
-        <p>
-          The board does carry a <em>second</em> chip that can do wireless,
-          because the board is sold for other products too. KISS switches it
-          off and holds it off. The very first thing the device does when you
-          power it on is pin that chip down, before anything else runs, so the
-          software it came with never gets a chance to start. There is no
-          wireless code inside KISS at all.
+          The chip that runs KISS has no WiFi and no Bluetooth. It cannot go
+          online even if it wanted to. The board does carry a <em>second</em>
+          chip that can, because the board is sold for other products too, and
+          the very first thing KISS does on power-up is pin that chip down,
+          before anything else runs. There is no wireless code inside KISS at
+          all.
         </p>
         <p>
           You do not have to take our word for it. The home screen and Settings
-          both show <code>radio: held in reset</code>, and that line is read
-          from the chip itself each time, not printed from memory. If you own a
-          multimeter, you can measure the radio chip&rsquo;s off switch
-          (pin&nbsp;GPIO54) and watch it sit at zero volts.
+          both show <code>radio: held in reset</code>, read from the chip each
+          time rather than printed from memory, and with a multimeter you can
+          measure the radio chip&rsquo;s off switch (pin&nbsp;GPIO54) sitting at
+          zero volts.
         </p>
         <h3>Flip the camera (one-time mod, required for QR scanning)</h3>
         <p>
@@ -529,39 +524,32 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         <p>
           On the beta you are using today, someone who steals the device and
           has the right equipment can read your seed words straight off the
-          chip. The hardened build is what closes that hole. It turns two
-          locks, and it turns them both the first time it starts.
+          chip. The hardened build closes that, by turning two locks on its
+          first boot.
         </p>
 
         <h3>Lock one: the chip scrambles everything it stores</h3>
         <p>
-          The device makes up an encryption key, all by itself, and writes it
-          into the chip where <em>nothing</em> can read it back &mdash; not
-          your computer, not us, not you. From then on everything saved on the
-          chip is scrambled with it. Someone who pries the memory open reads
-          noise.
-        </p>
-        <p>
-          Your seed words need saying separately, because they are kept in
-          their own little filing cabinet on the chip, and that cabinet is not
-          covered by the scrambling on its own. It gets its own lock at the
-          same time. Otherwise the one thing worth stealing would be the one
-          thing left readable.
+          The device makes up an encryption key by itself and writes it where
+          <em>nothing</em> can read it back &mdash; not your computer, not us,
+          not you. Everything saved after that is scrambled with it, so someone
+          who pries the memory open reads noise. Your seed words are kept in
+          their own store on the chip, which the scrambling does not cover on
+          its own, so it gets its own lock at the same time.
         </p>
 
         <h3>Lock two: the device stops running strangers&rsquo; software</h3>
         <p>
-          From then on it will only start firmware that has been signed with
-          keys <em>you</em> made and keep. Someone who gets hold of the device
-          cannot quietly replace the signer with a lookalike that phones your
-          seed home, because their version is not signed and the device simply
-          will not run it.
+          It will only start firmware signed with keys <em>you</em> made and
+          keep, so nobody can quietly swap the signer for a lookalike that
+          phones your seed home.
         </p>
         <p>
-          Both locks turn together, on the same first boot. That is not a
-          preference: a device that got only the first lock can never accept
-          the second one afterwards, so it is both or neither.
+          Both locks turn together, on that first boot. A device that got only
+          the first can never accept the second afterwards, so it is both or
+          neither.
         </p>
+
         <div class="danger">
           <h3>These costs are permanent</h3>
           <ul>
@@ -609,17 +597,6 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           so your coordinator does all the talking to the network.
         </p>
         <ol>
-          <li>You get a fruit game. It really plays. Hand it to anyone.</li>
-          <li>
-            <strong>Unlock:</strong> draw the word <strong>KISS</strong> across the
-            menu with your finger: a clear <strong>K</strong> first, then the
-            remaining letters stretching well to the right.
-          </li>
-          <li>
-            Type a <strong>passphrase</strong>. Yours opens your keys; another one
-            opens a different, empty set. The fingerprint after entry is which
-            set you got.
-          </li>
           <li>
             First time: <strong>SET UP THIS SIGNER</strong> &rarr;
             <strong>NEW SEED WORDS</strong>. Pick where the randomness comes
@@ -627,36 +604,28 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
             they are kept, set your passphrase.
           </li>
           <li>
-            After creation, KISS offers an optional
-            <strong>VERIFY FULL BACKUP</strong> rehearsal. Type every word from
-            paper, then type the exact passphrase again. Until both recreate the
-            same fingerprint, <strong>I UNDERSTAND</strong> keeps a red border;
-            success turns it green. You can skip the rehearsal, but it is the
-            strongest check before funding.
+            Write the passphrase down too, and keep it somewhere other than the
+            seed words. Together they are your keys; in one place they are one
+            secret, and whoever finds it has everything. Apart, neither half
+            spends on its own.
+          </li>
+          <li>
+            Then take the optional <strong>VERIFY FULL BACKUP</strong>
+            rehearsal: type every word from paper and the exact passphrase
+            again. Until both recreate the same fingerprint,
+            <strong>I UNDERSTAND</strong> keeps a red border. You can skip it,
+            and it is the strongest check you can make before funding.
           </li>
           <li>
             Later, <strong>SETTINGS &rarr; BACKUP &rarr; SEED WORDS</strong>
-            lets you SHOW THEM behind a warning, or CHECK MY COPY against your
-            paper without revealing the stored set. A wrong or missing word is
-            reported by position. Neither check alters anything.
+            shows them behind a warning, or checks your paper copy without
+            revealing the stored set. A wrong or missing word is reported by
+            position, and neither check alters anything.
           </li>
           <li>
-            Rehearse on <strong>TESTNET</strong>
-            (SETTINGS &rarr; SIGNER &rarr; NETWORK) while you learn: free coins
-            from coinfaucet.eu, the same screens, nothing at stake. The chip
-            beside the home title says TESTNET until you switch back.
-          </li>
-          <li>
-            Pair a coordinator: <strong>KEYS &rarr; PAIR COORDINATOR</strong>,
-            pick DESKTOP (Sparrow, descriptor) or MOBILE (BlueWallet, zpub).
-            The app watches and broadcasts. It cannot sign by itself, and the
-            device verifies and signs PSBTs via camera QR or <code>.psbt</code>
-            on SD card. BlueWallet calls the import &ldquo;watch-only&rdquo;,
-            that is expected and correct.
-          </li>
-          <li>
-            First time? Do a practice run before trusting the setup with real
-            coins: send a tiny amount in, then back out again.
+            Switch to <strong>TESTNET</strong> while you learn
+            (SETTINGS &rarr; SIGNER &rarr; NETWORK): free coins, the same
+            screens, nothing at stake. Then walk the checklist below.
           </li>
         </ol>
         <h3>Your first TESTNET round trip</h3>
@@ -816,56 +785,8 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           it moved seed words it no longer has.
         </div>
       </section>
-<section class="doc-card reveal" id="practices" aria-label="Best practices">
-        <p class="eyebrow">11 / habits that hold</p>
-        <h2>Best practices</h2>
-        <p class="lede">Seven habits for running a signing device. Every one of them is
-        the reverse of a way people have lost coins.</p>
-
-        <h3>Start with keys that hold nothing</h3>
-        <p>This is beta firmware on unencrypted flash. Practise the whole loop
-        &mdash; pair, receive, sign, broadcast &mdash; with keys you would not
-        mind losing, and keep doing that until the flash-encrypted build has
-        passed its hardware tests.</p>
-
-        <h3>Check the download before you flash it</h3>
-        <p>A signer you did not verify is a signer somebody else may have written.
-        The hashes and the signature take a minute: <a href="#verify">check the
-        download</a>.</p>
-
-        <h3>Treat the passphrase as part of the key</h3>
-        <p>It is not a password on top of your keys. <strong>Every passphrase
-        opens keys</strong>, so there is no wrong-passphrase error to warn you,
-        and it is never stored anywhere on the device. Change one character and
-        you are in a different, empty set of keys. Lose it and the coins are gone with
-        it.</p>
-
-        <h3>Write the passphrase down, and keep it apart from the seed words</h3>
-        <p>The seed words and the passphrase together are the keys. Stored in one
-        place they are one secret, and whoever finds it has everything. Stored
-        apart, neither half spends on its own.</p>
-
-        <h3>Paper is the only way back</h3>
-        <p>The encrypted card is sealed to this device, which makes it a second
-        factor, not a backup: if the device is gone, so is the card&rsquo;s key.
-        A restore starts from the seed words on paper. See <a href="#storage">where
-        your seed words are kept</a>.</p>
-
-        <h3>Read the amounts on the device, not on the computer</h3>
-        <p>KISS works out every amount, the fee and your change for itself and
-        shows them on its own screen. That screen is the one thing a compromised
-        computer cannot rewrite, so it is the one worth reading. If the address
-        or the amount differs from what your coordinator showed, do not hold to
-        sign.</p>
-
-        <h3>Keep the coordinator watch-only, and use a new address each time</h3>
-        <p>Your coordinator should hold nothing that can spend; if it ever asks
-        for your seed words or your passphrase, something is wrong. Hand out a fresh
-        address for every payment, too &mdash; reusing one links those payments
-        together in public, for anybody who looks.</p>
-      </section>
 <section class="doc-card reveal" id="simulator">
-        <p class="eyebrow">12 / no hardware required</p>
+        <p class="eyebrow">11 / no hardware required</p>
         <h2>Try it without hardware</h2>
         <p>
           <strong><a href="sim/index.html">Open the simulator</a></strong> — the signer's
