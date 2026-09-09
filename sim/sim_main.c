@@ -1816,6 +1816,29 @@ static int tap_row_prefix(const char *pre) {
 // time -- the input total sits past a caption of translated width and the "?"
 // after it -- pressing where it actually landed is the only tap that proves
 // anything, and a fixed coordinate would only ever prove the English screen.
+// A CLICKABLE SPANGROUP, which every text helper above is blind to.
+//
+// find_label_prefix and must_show walk for lv_label_class, and a folded address
+// is an lv_spangroup: three styled runs in one object with no label anywhere in
+// it. So the receipt's destination line was invisible to the whole toolbox, the
+// walk could not tap what it could not find, and the control shipped with every
+// gate green and no test having touched it. It then failed on the bench, on a
+// target a simulated tap hits dead centre and a finger does not.
+//
+// Clickable is the filter because screens carry decorative spangroups too, and
+// only the control answers a press.
+static lv_obj_t *find_span_click(lv_obj_t *o) {
+  if (!o || lv_obj_has_flag(o, LV_OBJ_FLAG_HIDDEN)) return NULL;
+  if (lv_obj_check_type(o, &lv_spangroup_class) &&
+      lv_obj_has_flag(o, LV_OBJ_FLAG_CLICKABLE))
+    return o;
+  for (uint32_t i = 0; i < lv_obj_get_child_count(o); i++) {
+    lv_obj_t *r = find_span_click(lv_obj_get_child(o, i));
+    if (r) return r;
+  }
+  return NULL;
+}
+
 static lv_obj_t *find_label_obj_exact(lv_obj_t *o, const char *needle) {
   if (!o || lv_obj_has_flag(o, LV_OBJ_FLAG_HIDDEN)) return NULL;
   if (lv_obj_check_type(o, &lv_label_class)) {
@@ -3728,6 +3751,33 @@ int main(void) {
   // scramble -- if the skip did not land, this frame says so.
   touch(400, 240); pump(3); release(); pump(20);
   save("/tmp/sim_sign_done.ppm");
+  // The destination line, which is a CONTROL and had never been pressed.
+  // Tapped by its own object rather than by coordinate: the address is placed
+  // on a width the locale's font decides, so a fixed x would prove only the
+  // English screen. The press lands 12px BELOW the object's own bottom edge --
+  // inside the widened click area and outside the glyphs -- because a target
+  // only a dead-centre tap can hit is what shipped, and what a finger missed.
+  {
+    lv_obj_t *ad = find_span_click(lv_screen_active());
+    if (!ad) {
+      printf("FAIL: the signed receipt has no tappable destination\n");
+      g_walk_fails++;
+    } else {
+      lv_area_t a; lv_obj_get_coords(ad, &a);
+      const int before = g_walk_fails;
+      touch((a.x1 + a.x2) / 2, a.y2 + 12); pump(3); release(); pump(12);
+      // STR_R_VT, the card's title, and not the lesson body: ADDR_HELP_B is
+      // two sentences with a newline between them and must_show matches a
+      // needle against one label's whole text, so the body can never match.
+      must_show("receipt address opens", tr(STR_R_VT));
+      tap_str(STR_C_OK, 3, 8);                      // close -> the same receipt
+      // Guarded, because an unconditional ok: printed itself beside its own
+      // FAIL the first time this ran against the narrow target, which is a
+      // walk telling a reader two opposite things about one stop.
+      if (g_walk_fails == before)
+        printf("ok: the receipt's address opens under a press off the glyphs\n");
+    }
+  }
   // By the glyph, not by pixel. The chip is right aligned against the artifact
   // card's edge now, so its x is whatever the code's width leaves -- a number
   // that changes with the font the locale picked. The failure mode of getting

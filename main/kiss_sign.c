@@ -920,7 +920,20 @@ static void done_summary(int y)
         // fours with the compared tail lit, over the two-entry lesson. The
         // press nudge is the graph's own, so the two feel like one control.
         lv_obj_add_flag(ad, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_set_ext_click_area(ad, 8);
+        // 16, up from 8, and the number is the ROW rather than a guess. The
+        // line is mono23, so the object is 24px tall and 8px of slop made a
+        // 40px target -- about 3mm on this panel. It opened every time under a
+        // simulated tap, which lands dead centre, and would not open under a
+        // finger on the bench; the owner reported it as the card not opening
+        // at all. A control that only a machine can hit is not a control.
+        //
+        // 16 takes it to the band the address already owns: the WT_DIV rule
+        // sits 16px above at card-y 92 and the card ends 16px below at 148, so
+        // the target is now 92..148 and stops exactly where the row does. It
+        // can grow no further without reaching into the amounts above or off
+        // the card, and it needs to grow no further -- 56px is a finger.
+        // Nothing moves on the glass; only what counts as a press.
+        lv_obj_set_ext_click_area(ad, 16);
         lv_obj_set_style_translate_x(ad, 0, 0);
         lv_obj_set_style_translate_x(ad, 4, LV_STATE_PRESSED);
         lv_obj_add_event_cb(ad, addr_tap_cb, LV_EVENT_CLICKED,
