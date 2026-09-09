@@ -1109,6 +1109,30 @@ static void action_bar_ensure_at(lv_obj_t *scr, int top)
     lv_obj_set_style_border_side(cap, LV_BORDER_SIDE_TOP, 0);
     lv_obj_remove_flag(cap, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_remove_flag(cap, LV_OBJ_FLAG_SCROLLABLE);
+
+    // The band is a SURFACE, so a control that sits on it belongs ON TOP of it
+    // -- and this fill arrives when the first widget that KNOWS about the band
+    // is built, which is not necessarily the first control placed there. A word
+    // action takes its position from the caller and ensures nothing, so a screen
+    // that built one before its arrow action had the fill laid over a live
+    // control: still in the tree, still tappable, painting nothing. That is
+    // exactly how SAVE TO SD CARD went missing from the encrypted backup
+    // screen, and no gate could see it -- the walk finds a control by its text,
+    // and the text was there. Lift them in the order they were built.
+    //
+    // CLICKABLE only, and the STYLE y for the same reason the grow loop above
+    // reads it. Content that merely spills into the band is a layout fault the
+    // CONTENT check reports, and covering it is this fill doing its job.
+    const uint32_t built = lv_obj_get_child_count(scr);
+    for (uint32_t i = 0, seen = 0; seen < built; seen++) {
+        lv_obj_t *c = lv_obj_get_child(scr, i);
+        if (c != bar && c != cap && lv_obj_has_flag(c, LV_OBJ_FLAG_CLICKABLE)
+            && lv_obj_get_style_y(c, LV_PART_MAIN) >= top) {
+            lv_obj_move_foreground(c);   // index i now holds the next child
+            continue;
+        }
+        i++;
+    }
 }
 
 static void action_bar_ensure(lv_obj_t *scr)
