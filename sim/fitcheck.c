@@ -124,7 +124,6 @@ static const slot_t SLOTS[] = {
     // 23, and a definition that wraps mid-clause is the one place a glossary
     // must not be hard to read.
     { "sign/glossary",    STR_S_GLOSSARY_B,     704, 232 },
-    { "sign/no-network",  STR_S_NO_NETWORK,     322,  29 },
     { "sign/ez-note",     STR_S_EZ_NOTE,        322,  87 },
     { "sign/saved-note",  STR_S_SAVED_NOTE,     704,  90 },
     { "login/qr-warn",    STR_L_SCAN_WARN_B,704, 274 },
