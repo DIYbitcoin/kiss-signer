@@ -27,7 +27,7 @@
 [Docs](https://diybitcoin.github.io/kiss-signer/guide.html) &nbsp;·&nbsp;
 [Walkthrough](docs/walkthrough.md) &nbsp;·&nbsp;
 [Changelog](CHANGELOG.md) &nbsp;·&nbsp;
-[Roadmap](ROADMAP.md) &nbsp;·&nbsp;
+[Roadmap](docs/ROADMAP.md) &nbsp;·&nbsp;
 [Security](SECURITY.md) &nbsp;·&nbsp;
 [Telegram](https://t.me/KISS_signer)
 
