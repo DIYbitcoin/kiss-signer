@@ -467,6 +467,12 @@ lv_obj_t *wt_section(lv_obj_t *scr, const char *txt, int x, int y);  // column c
 // card is tappable and has an external "+" cue; tapping opens a crisp,
 // re-encoded full-screen view rather than scaling the original bitmap.
 lv_obj_t *wt_qr_card(lv_obj_t *scr, lv_obj_t **qr, int x, int y, int card_px, int qr_px);
+// The same card with NO off-card "+" cue. That cue is pinned at x - 36, which
+// is only outside the layout when the card sits at the page's left margin; a
+// card set into a column drops it on top of whatever shares the lane. Use this
+// wherever the page draws its own way into the zoom (wt_qr_zoom opens the same
+// overlay from any control) or wants the tappable card alone.
+lv_obj_t *wt_qr_card_bare(lv_obj_t *scr, lv_obj_t **qr, int x, int y, int card_px, int qr_px);
 // Open the zoom overlay from somewhere that is not the card: RECEIVE's
 // "TAP TO ENLARGE" line is a second way into the same overlay, and the state
 // the opener needs already hangs off the QR.

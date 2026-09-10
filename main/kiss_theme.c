@@ -2073,8 +2073,16 @@ void wt_qr_refusal(lv_obj_t *qr, bool locked)
     else        lv_obj_remove_flag(card, LV_OBJ_FLAG_HIDDEN);
 }
 
-lv_obj_t *wt_qr_card(lv_obj_t *scr, lv_obj_t **qr,
-                     int x, int y, int card_px, int qr_px)
+// The cue is OPTIONAL, and that is the whole difference between the two
+// entry points below. It is drawn at x - 36, which only lands anywhere sane
+// when the card is at the page's left margin -- on a card set into a column it
+// falls INSIDE the layout, over whatever shares the lane. Two screens wanted
+// the card somewhere else at once (PAIR COORDINATOR puts it in the right half
+// of a split card with its own enlarge ring beside it, and the SIGNED QR page
+// wants no edge cue at all), and both of them would otherwise have had to
+// delete a child the kit had just built.
+static lv_obj_t *qr_card_make(lv_obj_t *scr, lv_obj_t **qr,
+                              int x, int y, int card_px, int qr_px, bool cue)
 {
     lv_obj_t *q = NULL;
     lv_obj_t *card = qr_card_raw(scr, &q, x, y, card_px, qr_px);
@@ -2097,11 +2105,24 @@ lv_obj_t *wt_qr_card(lv_obj_t *scr, lv_obj_t **qr,
     lv_obj_add_event_cb(card, qr_zoom_open_cb, LV_EVENT_CLICKED, s);
     lv_obj_add_event_cb(card, qr_state_delete_cb, LV_EVENT_DELETE, s);
     // Outside the white card, so the cue never damages the QR quiet zone.
-    round_chip(scr, LV_SYMBOL_PLUS, x - 36, y + 8, WT_MUT,
-               qr_zoom_open_cb, s);
+    if (cue)
+        round_chip(scr, LV_SYMBOL_PLUS, x - 36, y + 8, WT_MUT,
+                   qr_zoom_open_cb, s);
 
     if (qr) *qr = q;
     return card;
+}
+
+lv_obj_t *wt_qr_card(lv_obj_t *scr, lv_obj_t **qr,
+                     int x, int y, int card_px, int qr_px)
+{
+    return qr_card_make(scr, qr, x, y, card_px, qr_px, true);
+}
+
+lv_obj_t *wt_qr_card_bare(lv_obj_t *scr, lv_obj_t **qr,
+                          int x, int y, int card_px, int qr_px)
+{
+    return qr_card_make(scr, qr, x, y, card_px, qr_px, false);
 }
 
 static void qr_zoom_open_cb(lv_event_t *e)
