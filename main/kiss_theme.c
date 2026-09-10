@@ -2210,12 +2210,13 @@ void wt_addr_fold(const char *addr, char *out, size_t len)
     size_t n = addr ? strlen(addr) : 0;
     if (!out || !len) return;
     if (n < 20) { snprintf(out, len, "%s", addr ? addr : ""); return; }
-    int pre = !strncmp(addr, "tsp1", 4) ? 5
-            : (!strncmp(addr, "bc1", 3) || !strncmp(addr, "tb1", 3) ||
-               !strncmp(addr, "sp1", 3)) ? 4 : 0;
-    const char *t = addr + n - 12;
+    // wt_group4's blocks, same as wt_addr_short and the card -- see the note
+    // there. A row's sub-line and the screen it opens have to break one
+    // address in one place.
+    const size_t first = n % 4 == 0 ? 4 : n % 4 + 4;
     snprintf(out, len, "%.*s %.4s \xE2\x80\xA6 %.4s %.4s %.4s",
-             pre, addr, addr + pre, t, t + 4, t + 8);
+             (int)first, addr, addr + first,
+             addr + n - 12, addr + n - 8, addr + n - 4);
 }
 
 const char *wt_name_fold(const char *name, const lv_font_t *f, int lane,
@@ -2280,30 +2281,32 @@ lv_obj_t *wt_addr_short(lv_obj_t *par, const char *addr, const lv_font_t *f)
     //
     // The rendered string is unchanged, character for character. Only which
     // span carries the accent moved.
-    int pre = !strncmp(addr, "tsp1", 4) ? 5
-            : (!strncmp(addr, "bc1", 3) || !strncmp(addr, "tb1", 3) ||
-               !strncmp(addr, "sp1", 3)) ? 4 : 0;
-    char head[8] = {0}, key[8] = {0}, mid[32] = {0}, tail[16] = {0};
-    lv_memcpy(head, addr, (size_t)pre);
-    lv_memcpy(key, addr + pre, 4);
-    // Twelve from the end, in three blocks of four. Chunking from the RIGHT is
-    // the point: 42 characters do not divide by four, so grouping from the left
-    // would leave the final block short and the lit run would straddle a gap.
-    // The first of the three stays grey; the last two ARE the eight.
-    const char *t = addr + n - 12;
-    snprintf(mid, sizeof mid, "  \xE2\x80\xA6  %.4s ", t);
-    snprintf(tail, sizeof tail, "%.4s %.4s", t + 4, t + 8);
+    // THE SAME BLOCKS THE FULL ADDRESS IS DRAWN IN, sliced out of the same
+    // rule. This used to cut its own: a prefix span through the first data
+    // character, then the four after it. wt_group4 puts the address's one
+    // short token at the head instead, so "bc1qcr 8te4" there was "bc1q cr8t"
+    // here -- the same eight characters in different blocks, which reads as a
+    // block repeating when the card opens over the fold. The tail had the
+    // matching split at the other end.
+    //
+    // Boundaries are computed, not parsed: wt_group4's first token is the
+    // remainder joined to a full block and every token after it is four, so
+    // n-12, n-8 and n-4 are all token starts. The three tail blocks are
+    // therefore the grouped string's final three, character for character,
+    // and the lit two are its final two -- the same run addr_spans lights on
+    // the card. The two forms cannot show different blocks again unless
+    // wt_group4 changes, and then they both change together.
+    const size_t first = n % 4 == 0 ? 4 : n % 4 + 4;
+    char head[16] = {0}, mid[32] = {0}, tail[16] = {0};
+    snprintf(head, sizeof head, "%.*s %.4s", (int)first, addr, addr + first);
+    snprintf(mid, sizeof mid, "  \xE2\x80\xA6  %.4s ", addr + n - 12);
+    snprintf(tail, sizeof tail, "%.4s %.4s", addr + n - 8, addr + n - 4);
 
     lv_obj_t *sg = lv_spangroup_create(par);
     addr_spans_no_click(sg);
     lv_spangroup_set_mode(sg, LV_SPAN_MODE_EXPAND);   // one line, sized to fit
     lv_obj_set_style_text_font(sg, f, 0);
-    if (pre) {
-        char pfx[8];
-        snprintf(pfx, sizeof pfx, "%s ", head);
-        addr_span(sg, pfx, false);
-    }
-    addr_span(sg, key, false);
+    addr_span(sg, head, false);
     addr_span(sg, mid, false);
     addr_span(sg, tail, true);
     // The same flag addr_spans sets, and for the same reason: a span carries
