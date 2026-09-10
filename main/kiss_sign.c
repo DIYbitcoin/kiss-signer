@@ -173,7 +173,9 @@ static lv_obj_t *s_qr_img, *s_part_lbl;
 static int s_part_i;
 static bool s_qr_ez;                   // easy-scan mode: sparser QRs, slower loop
 static size_t s_out_len;               // signed PSBT length (easy-scan re-encodes)
-static lv_obj_t *s_ez_act;
+// The EASY SCAN row: the box a finger presses, the word inside it, and the
+// knob that says which way the switch is thrown.
+static lv_obj_t *s_ez_act, *s_ez_word, *s_ez_knob;
 // How many bytes of s_out the hold produced. Declared up here with the rest of
 // the signed-transaction state rather than beside the timer that sets it,
 // because widgets_drop clears it and widgets_drop is four hundred lines above
@@ -273,7 +275,8 @@ static const char *signed_name(const char *src)
 static void qr_widgets_drop(void)
 {
     if (s_qr_tmr) { lv_timer_delete(s_qr_tmr); s_qr_tmr = NULL; }
-    s_qr_img = NULL; s_part_lbl = NULL; s_ez_act = NULL;
+    s_qr_img = NULL; s_part_lbl = NULL;
+    s_ez_act = s_ez_word = s_ez_knob = NULL;
 }
 
 // Every pointer into the screen about to go, and the timers that would call
@@ -842,17 +845,17 @@ static void addr_tap_cb(lv_event_t *e);
 // make the answer harder to find, which is ADDENDUM-02 rule 3.
 static void done_summary(int y)
 {
-    // 148, up from 104. The two amounts are one fact and where the money went
-    // is another; stacked 8px apart on a 104px card they read as three lines
-    // of the same thing. A WT_DIV rule and its own row says which is which.
-    const int H = 148;
+    // 168, and the two amounts take the top of it side by side: they are one
+    // fact split in half, the way the hero on the verify screen showed it. A
+    // WT_DIV rule under them says where the money went is a different fact.
+    const int H = 168;
     lv_obj_t *c = wt_card(s_scr, 48, y, 704, H);
 
     // Recipient and fee side by side, because they are the two halves of the
     // number the hero on the verify screen showed as one.
     struct { const char *icon; int str; uint64_t sats; int x; } cells[2] = {
-        { LV_SYMBOL_DOWNLOAD, STR_S_SENDING_CAP, s_sum.send_sats,  14 },
-        { LV_SYMBOL_CUT,      STR_S_FEE,         s_sum.fee_sats,  366 },
+        { LV_SYMBOL_DOWNLOAD, STR_S_SENDING_CAP, s_sum.send_sats,  20 },
+        { LV_SYMBOL_CUT,      STR_S_FEE,         s_sum.fee_sats,  400 },
     };
     for (int i = 0; i < 2; i++) {
         char a[40], b[64];
@@ -860,13 +863,21 @@ static void done_summary(int y)
         // only accent on this screen is gone (see signed_title_row), so the
         // colour is free -- and these are the same three marks, in the same
         // order, the verify screen lit before the signature existed.
-        lv_obj_t *ic = wt_lbl(c, cells[i].icon, cells[i].x, 16, wt_font14(),
+        //
+        // A rung UP, both of them. The LADDER gate's whole subject is a mark
+        // set rungs below the words it belongs to, and these two sat at font14
+        // beside a caption that has moved to 17 and an amount that has moved
+        // to 34. Nothing on either exit screen reads below the 17px rung now.
+        lv_obj_t *ic = wt_lbl(c, cells[i].icon, cells[i].x, 20, wt_font23(),
                               wt_accent());
         lv_obj_add_flag(ic, WT_FLAG_ACCENT);
-        wt_lbl(c, tr(cells[i].str), cells[i].x + 26, 14, wt_font14(), MUT_COL);
+        const char *cp = tr(cells[i].str);
+        lv_obj_t *cl = wt_lbl(c, cp, cells[i].x + 30, 18, wt_chrome18(cp),
+                              MUT_COL);
+        lv_obj_set_style_text_letter_space(cl, 2, 0);
         wt_fmt_amount(cells[i].sats, a, sizeof a);
         snprintf(b, sizeof b, "%s %s", a, wt_denom_unit());
-        lv_obj_t *v = wt_lbl(c, b, cells[i].x, 38, wt_font28(), INK_COL);
+        lv_obj_t *v = wt_lbl(c, b, cells[i].x, 44, wt_font34(), INK_COL);
         wt_denom_bind(v);
     }
 
@@ -893,20 +904,20 @@ static void done_summary(int y)
         if (s_sum.outs[i].is_change) { n_ours++; continue; }
         if (!n_recip++) only = i;
     }
-    wt_line_rule(c, 14, 92, 704 - 28);
+    wt_line_rule(c, 20, 104, 704 - 40);
     if (n_recip == 1) {
         // mono23. This is WHERE the money went, on the screen that confirms it
         // went -- an owner reads it against their coordinator, so it is not a
         // mark and font14 is not its size. The GPS glyph beside it IS a mark
         // and keeps font14.
-        lv_obj_t *pin = wt_lbl(c, LV_SYMBOL_GPS, 14, 116, wt_font14(),
+        lv_obj_t *pin = wt_lbl(c, LV_SYMBOL_GPS, 20, 122, wt_font23(),
                                wt_accent());
         lv_obj_add_flag(pin, WT_FLAG_ACCENT);
         // wt_addr_short already lights the last eight characters in the
         // accent, which is what this row is FOR -- the tail is what an owner
         // reads against their coordinator. Nothing to wrap here.
         lv_obj_t *ad = wt_addr_short(c, s_sum.outs[only].addr, wt_font_mono23());
-        lv_obj_set_pos(ad, 40, 108);
+        lv_obj_set_pos(ad, 50, 120);
         // A FOLDED ADDRESS IS A CONTROL EVERYWHERE ELSE IT IS DRAWN. Every
         // strand on the verify graph opens its own full address (see
         // wt_bundle_addr_tap) and so does every row on the DETAILS outputs
@@ -942,7 +953,7 @@ static void done_summary(int y)
         char b[80];
         snprintf(b, sizeof b, tr(STR_S_D_OUTPUTS_FMT),
                  (unsigned)s_sum.n_out, (unsigned)n_ours);
-        lv_obj_t *lm = wt_lbl(c, LV_SYMBOL_LIST, 14, 114, wt_font14(),
+        lv_obj_t *lm = wt_lbl(c, LV_SYMBOL_LIST, 20, 122, wt_font23(),
                               wt_accent());
         lv_obj_add_flag(lm, WT_FLAG_ACCENT);
         // font23, matching the address this row stands in for. The single
@@ -950,50 +961,36 @@ static void done_summary(int y)
         // is the same fact counted, so at font14 the card said one of its two
         // destinations facts in a mark's size. Sans, not mono: it is a
         // translated string and the mono set has no CJK.
-        lv_obj_t *l = wt_lbl(c, b, 40, 110, wt_font23(), MUT_COL);
-        lv_obj_set_width(l, 640);
+        lv_obj_t *l = wt_lbl(c, b, 50, 120, wt_font23(), MUT_COL);
+        lv_obj_set_width(l, 614);
         lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
     }
 }
 
-// The tick, the word, and -- on the SD path -- the condition it was reached
-// under, on one row.
-//
-// `outs_fixed` draws the padlock pair. The SD screen takes it and the QR
-// screen does not: the claim is equally true of both, but the QR page spends
-// its right column on the code, the part counter, a control and two notes, and
-// a sixth thing on the head is what the column was already too full of. It
-// also has somewhere to say it -- the standing NEVER ON THE NETWORK on the
-// band, which the SD screen has no room for.
+// The tick, the word, and the cursor. Nothing else on the row.
 //
 // DECIDED: the montserrat48 tick at y=236 and the padlock beside it are GONE,
 // and the tick joins the title. SIGNED was claimed three times on this screen
 // -- the page title, that 48px checkmark, and a note under it -- while the two
 // facts an owner actually leaves with, which file and what to do next, had no
-// room. One claim, once, on the row that already carries the word. The lock
-// keeps its meaning beside it: where this can go is settled.
-static void signed_title_row(bool outs_fixed)
+// room. One claim, once, on the row that already carries the word.
+//
+// ...and then OUTPUTS FIXED went too, which is what took the last parameter
+// off this function. It was a font14 pair riding the title of the one screen
+// whose whole job is to say what to do next, and it answered a question about
+// sighash flags the owner was asked and had already approved two screens back.
+// Both exit screens carry the same head now.
+static void signed_title_row(void)
 {
-    // Measured before anything is placed. The title has to be re-fitted to
-    // the lane the marks leave, and fitting it after the move would put the
-    // trailing pair wherever the old width happened to end.
-    lv_point_t ts, ks, os;
+    // Measured before anything is placed. The title has to be re-fitted to the
+    // lane the tick leaves, and fitting it after the move would put the cursor
+    // wherever the old width happened to end.
+    lv_point_t ts;
     lv_text_get_size(&ts, LV_SYMBOL_OK, wt_font34(), 0, 0, LV_COORD_MAX,
                      LV_TEXT_FLAG_NONE);
-    // The lock a rung UP from its caption. wt_chrome_head sets a page title at
-    // 28, and the LADDER gate's whole point is that a font14 glyph beside a
-    // line that big is a speck rather than a mark -- it reported this one four
-    // rungs under SIGNED. font23 is the shape the kit's own explainer rows use.
-    lv_text_get_size(&ks, WT_ICON_LOCK, wt_font23(), 0, 0, LV_COORD_MAX,
-                     LV_TEXT_FLAG_NONE);
-    lv_text_get_size(&os, tr(STR_S_OUTS_FIXED), wt_font14(), 0, 0,
-                     LV_COORD_MAX, LV_TEXT_FLAG_NONE);
 
     const int cx = 48 + ts.x + 14;                   // where the word starts
-    // The lane the WORD gets: what is left after the tick before it and the
-    // blinking block, the lock and its label after it.
-    const int trail = outs_fixed ? 14 + ks.x + 8 + os.x : 0;
-    wt_title_fit(s_scr, 752 - cx - (12 + 10 + trail));
+    wt_title_fit(s_scr, 752 - cx - (12 + 10));
 
     mk_lbl(LV_SYMBOL_OK, 48, 18, wt_font34(), OK_COL);
     lv_obj_t *cap = wt_screen_title(s_scr);
@@ -1005,136 +1002,56 @@ static void signed_title_row(bool outs_fixed)
     // OLD x=48, so it is sitting in the middle of the word now. Moved, not
     // dropped: it is the accent's one appearance on a page head and it belongs
     // to the contract, and the frame this row came from did not know about it.
-    int after = cx + lv_obj_get_width(cap);
     lv_obj_t *cur = wt_screen_cursor(s_scr);
-    if (cur) {
-        lv_obj_set_x(cur, after + 12);
-        // The STYLE width, not lv_obj_get_width: nothing has laid this screen
-        // out yet and obj->coords is still zero, which is the same read
-        // wt_title_cursor records getting wrong on its own x.
-        after += 12 + lv_obj_get_style_width(cur, LV_PART_MAIN);
-    }
-
-    if (!outs_fixed) return;
-
-    // Centred on the title's line, not hung off its top: font14 beside font34
-    // sharing a y sits the pair up on the capitals with nothing under them.
-    const int ky = 18 + (lv_obj_get_height(cap) -
-                         lv_font_get_line_height(wt_font14())) / 2;
-    const int kx = after + 14;
-    lv_obj_t *lk = mk_lbl(WT_ICON_LOCK, kx,
-                          18 + (lv_obj_get_height(cap) -
-                                lv_font_get_line_height(wt_font23())) / 2,
-                          wt_font23(), wt_accent());
-    lv_obj_add_flag(lk, WT_FLAG_ACCENT);
-    mk_lbl(tr(STR_S_OUTS_FIXED), kx + ks.x + 8, ky, wt_font14(), MUT_COL);
+    if (cur) lv_obj_set_x(cur, cx + lv_obj_get_width(cap) + 12);
 }
 
-// The file that was written and the code that proves it: two facts, one card.
-//
-// The filename used to be a centred font28 line with 110px of nothing under it
-// and the SIGNATURE caption floating below that. A caption on the left and its
-// value on the right is how every other fact on this device is drawn, and it
-// fits both of them in 96px.
-static void done_artifact(const char *outname, int y)
+// The file that was written and the code that proves it, on one row under the
+// receipt. Neither wants a card round it: the receipt above is the framed
+// thing on this screen, and a frame is how a page says "this is the subject".
+// A pair of captions on the baseline says "and these are its details", which
+// is what these are.
+#define DONE_TAIL_CAP_Y  300
+#define DONE_TAIL_VAL_Y  326
+
+static void done_tail(const char *outname)
 {
-    const int W = 704, PAD = 18, R = W - PAD;
-    lv_obj_t *c = wt_card(s_scr, 48, y, W, 96);
-    wt_line_rule(c, PAD, 47, W - PAD * 2);
+    const int R = 752;
+    const char *fcap = tr(STR_S_FILE_CAP), *scap = tr(STR_S_SIG_FP_CAP);
 
-    lv_obj_t *cap = wt_lbl(c, tr(STR_S_FILE_CAP), PAD, 14, wt_font14(), MUT_COL);
-    lv_obj_update_layout(cap);
+    lv_obj_t *fc = wt_lbl(s_scr, fcap, 48, DONE_TAIL_CAP_Y,
+                          wt_chrome18(fcap), MUT_COL);
+    lv_obj_set_style_text_letter_space(fc, 2, 0);
 
-    // The guarded face, not mono21 flat: a card can carry a name this device
-    // did not write, and the mono set has no CJK -- a filename outside it
-    // would draw a row of placeholder boxes on the one screen a name is read
-    // back to a coordinator from.
+    // The code first, because it decides the lane the filename gets.
+    const lv_font_t *cf = wt_font_mono23();
+    const int vx = R - sig_pair_w(cf);
+    lv_obj_t *sc = wt_lbl(s_scr, scap, 0, DONE_TAIL_CAP_Y, wt_chrome18(scap),
+                          MUT_COL);
+    lv_obj_set_style_text_letter_space(sc, 2, 0);
+    lv_obj_update_layout(sc);
+    lv_obj_set_x(sc, R - lv_obj_get_width(sc));
+    sig_value_pair(s_scr, vx, DONE_TAIL_VAL_Y, false, cf);
+    // In SCREEN coordinates, for the arrival motion to fly the code into.
+    s_sig_val_x = vx;
+    s_sig_val_y = DONE_TAIL_VAL_Y;
+    s_sig_val_f = cf;
+
+    // The guarded face, not a mono rung flat: a card can carry a name this
+    // device did not write, and the mono set has no CJK -- a filename outside
+    // it would draw a row of placeholder boxes on the one screen a name is
+    // read back to a coordinator from.
     //
-    // FOLDED to the lane the caption leaves, keeping the tail. The reader is
+    // FOLDED to the lane the code leaves, keeping the tail. The reader is
     // checking WHICH file was written and a coordinator export shares its
     // whole head with every other one it made; DOT gave
     // "zzzz-MANY-recipients-export-from-the-c...". Bounded because signed_name
     // clamps to 63 bytes and unbounded at font28 that was ~900px of text laid
     // out on an 800px panel, running off BOTH edges.
-    const lv_font_t *nf = wt_chrome21(outname);
+    const lv_font_t *nf = wt_chrome23(outname);
     char fold[SD_NAME_LEN + 8];
-    wt_name_fold(outname, nf, R - (PAD + lv_obj_get_width(cap) + 20),
-                 fold, sizeof fold);
-    lv_obj_t *fn = wt_lbl(c, fold, 0, 10, nf, INK_COL);
-    lv_obj_update_layout(fn);
-    lv_obj_set_x(fn, R - lv_obj_get_width(fn));
-
-    wt_lbl(c, tr(STR_S_SIG_FP_CAP), PAD, 62, wt_font14(), MUT_COL);
-    const lv_font_t *cf = wt_font_mono21();
-    const int vx = R - sig_pair_w(cf);
-    sig_value_pair(c, vx, 58, false, cf);
-    // In SCREEN coordinates, for the arrival motion to fly the code into.
-    s_sig_val_x = 48 + vx;
-    s_sig_val_y = y + 58;
-    s_sig_val_f = cf;
-}
-
-// Three steps, and only the first one happens here.
-//
-// DECIDED: the two-line note is gone. "put the card back in Sparrow, then
-// broadcast" was the whole point of the screen set in a 14px note, and it ran
-// three separate actions together in one sentence -- so a reader standing at
-// the device had to work out which of them was theirs to do NOW. Numbered and
-// split, with step 1 lit and the other two not, the strip says where this
-// device's part ends without spending a word on it.
-static void done_steps(void)
-{
-    static const int steps[3] = { STR_S_STEP_TAKE, STR_S_STEP_OPEN,
-                                  STR_S_STEP_CAST };
-    const lv_font_t *f = wt_font23();
-    const int lh = lv_font_get_line_height(f);
-    // Bottom anchored, not pinned to the frame's y=374. font23's line box is
-    // 29 in Latin and taller in CJK, and this strip is the last thing above
-    // the action band -- measured down from WT_CONTENT_BOTTOM it can never
-    // cross it, and in English it lands within a pixel of the frame.
-    const int ly = WT_CONTENT_BOTTOM - lh;
-    const int sy = ly + lh / 2 - 10;
-
-    // The gap is what the labels leave, not a constant: the English strip
-    // measures about 600 of the 704 lane and a longer locale would walk the
-    // third cell off the right edge. Shared out, it closes instead.
-    lv_point_t sz[3];
-    int wsum = 0;
-    for (int i = 0; i < 3; i++) {
-        lv_text_get_size(&sz[i], tr(steps[i]), f, 0, 0, LV_COORD_MAX,
-                         LV_TEXT_FLAG_NONE);
-        wsum += sz[i].x;
-    }
-    int gap = (704 - 3 * 30 - wsum) / 2;
-    if (gap < 10) gap = 10;
-    if (gap > 26) gap = 26;
-
-    int x = 48;
-    for (int i = 0; i < 3; i++) {
-        const bool lit = (i == 0);
-        lv_obj_t *sq = lv_obj_create(s_scr);
-        lv_obj_remove_style_all(sq);
-        lv_obj_set_pos(sq, x, sy);
-        lv_obj_set_size(sq, 20, 20);
-        lv_obj_remove_flag(sq, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_remove_flag(sq, LV_OBJ_FLAG_SCROLLABLE);
-        if (lit) {
-            lv_obj_set_style_bg_color(sq, wt_accent(), 0);
-            lv_obj_set_style_bg_opa(sq, LV_OPA_COVER, 0);
-            lv_obj_add_flag(sq, WT_FLAG_ACCENT_FILL);
-        } else {
-            lv_obj_set_style_border_width(sq, 1, 0);
-            lv_obj_set_style_border_color(sq, WT_EDGE, 0);
-        }
-        lv_obj_t *n = lv_label_create(sq);
-        lv_label_set_text_fmt(n, "%d", i + 1);
-        lv_obj_set_style_text_font(n, wt_font_mono14(), 0);
-        lv_obj_set_style_text_color(n, lit ? WT_BG : MUT_COL, 0);
-        lv_obj_center(n);
-
-        mk_lbl(tr(steps[i]), x + 30, ly, f, lit ? INK_COL : MUT_COL);
-        x += 30 + sz[i].x + gap;
-    }
+    wt_name_fold(outname, nf, vx - 20 - 48, fold, sizeof fold);
+    wt_lbl(s_scr, fold, 48, DONE_TAIL_VAL_Y, nf, INK_COL);
 }
 
 static void done_screen(const char *outname)
@@ -1171,8 +1088,14 @@ static void done_screen(const char *outname)
     // is not a sense anybody outside cryptography reads. The screen already
     // says SIGNED and the amounts are on the card below it, so the line was
     // spending the most-read row on this screen to restate both, badly.
-    mk_screen(parent, tr(STR_S_SIGNED_T), NULL);
-    signed_title_row(true);
+    // THE SUB LINE IS BACK, and it says the one thing this screen is for. The
+    // three steps it replaced -- take the card out / open coordinator /
+    // broadcast -- were a numbered strip at the foot with the first badge lit,
+    // which spent the bottom of the page teaching a sequence the owner is
+    // already halfway through. One sentence at the top, where a screen says
+    // what to do next, and the foot gets back to the file and the code.
+    mk_screen(parent, tr(STR_S_SIGNED_T), tr(STR_S_SD_NEXT));
+    signed_title_row();
 
     // ---- what was signed ------------------------------------------------
     //
@@ -1185,9 +1108,8 @@ static void done_screen(const char *outname)
     // Every string here already shipped. The amounts are wt_denom_bind, so a
     // tap still flips the whole device between sats and BTC on this screen too.
     // The address is the same fold RECEIVE and the verify screen draw.
-    done_summary(100);
-    done_artifact(outname, 262);
-    done_steps();
+    done_summary(112);
+    done_tail(outname);
 
     // S_SAVED_NOTE went with the space it was filling. "saved to the card" sat
     // under a filename ending in .psbt, on a screen whose subtitle already says
@@ -4906,29 +4828,28 @@ static int qr_enc_start(void)
 // The toggle's state is the MARK: the tick sits in the layout at all times
 // (opa 0 when off) so the word never shifts under the finger -- a control
 // that moves between visits is the thing the duress screens already banned.
+// The knob's travel is the track less its two pads, and the two colours are
+// the whole of the state. WT_FLAG_ACCENT_FILL rather than WT_FLAG_ACCENT: the
+// knob IS the mark rather than something with ink on it, so a theme change has
+// to repaint its fill or the switch stays on in last theme's colour.
+#define EZ_TRACK_W  44
+#define EZ_TRACK_H  24
+#define EZ_KNOB_D   18
+#define EZ_KNOB_PAD ((EZ_TRACK_H - EZ_KNOB_D) / 2)
+
 static void ez_sync(void)
 {
-    if (!s_ez_act) return;
-    lv_obj_t *mark = lv_obj_get_child(s_ez_act, 0);
-    lv_obj_t *word = lv_obj_get_child(s_ez_act, 1);
-    // DECIDED: this toggle's mark stays VISIBLE when it is off, dimmed rather
-    // than transparent. The two-state word action hides its mark elsewhere and
-    // that is right where a PAIR of them sits side by side -- the dice screen
-    // -- because the pair is the affordance. This one stands alone in a left
-    // aligned column, and hidden-but-still-occupying-space gave it no
-    // affordance at all AND pushed its word 33px inside the column's edge, so
-    // it read as a centred heading rather than a control. An inert mark says
-    // both things at once: there is a switch here, and it is not on.
-    lv_obj_set_style_opa(mark, LV_OPA_COVER, 0);
-    lv_obj_set_style_text_color(mark, s_qr_ez ? wt_accent() : WT_EDGE, 0);
-    lv_obj_set_style_text_color(word, s_qr_ez ? wt_accent() : INK_COL, 0);
-    if (s_qr_ez) {
-        lv_obj_add_flag(mark, WT_FLAG_ACCENT);
-        lv_obj_add_flag(word, WT_FLAG_ACCENT);
-    } else {
-        lv_obj_remove_flag(mark, WT_FLAG_ACCENT);
-        lv_obj_remove_flag(word, WT_FLAG_ACCENT);
+    if (s_ez_word) {
+        lv_obj_set_style_text_color(s_ez_word, s_qr_ez ? wt_accent() : INK_COL, 0);
+        if (s_qr_ez) lv_obj_add_flag(s_ez_word, WT_FLAG_ACCENT);
+        else         lv_obj_remove_flag(s_ez_word, WT_FLAG_ACCENT);
     }
+    if (!s_ez_knob) return;
+    lv_obj_set_x(s_ez_knob, s_qr_ez ? EZ_TRACK_W - EZ_KNOB_PAD - EZ_KNOB_D
+                                    : EZ_KNOB_PAD);
+    lv_obj_set_style_bg_color(s_ez_knob, s_qr_ez ? wt_accent() : WT_MUT, 0);
+    if (s_qr_ez) lv_obj_add_flag(s_ez_knob, WT_FLAG_ACCENT_FILL);
+    else         lv_obj_remove_flag(s_ez_knob, WT_FLAG_ACCENT_FILL);
 }
 
 static void qr_ez_cb(lv_event_t *e)
@@ -5000,89 +4921,127 @@ static void qr_out_screen(size_t sw, bool rebuild)
     mk_screen(parent, tr(STR_S_SIGNED_T), tr(STR_S_QR_SUB));
     // The tick, without the padlock pair the SD screen carries -- see
     // signed_title_row for why this page leaves it off.
-    signed_title_row(false);
+    signed_title_row();
     // 302/274, down from 316/288 at y=100. The old card ran to y=415 and the
     // QR bitmap itself to 401, so its bottom 4px sat in the action band and is
     // now painted over by the bar: a signed transaction that will not scan.
     // The card shrinks rather than the quiet zone, so the 14px of white around
     // the code is exactly what it was and only the modules are 5% smaller.
-    wt_qr_card(s_scr, &s_qr_img, 48, 96, 302, 274);
+    // _bare: the kit's "+" cue hangs 36px off the LEFT of the card, which on a
+    // card at the page margin puts it 6px from the edge of the panel. The card
+    // is the control -- it has been tappable since the zoom existed -- and a
+    // cue pinned outside the lane was the page pointing at a second one. The
+    // square itself is the affordance here; the sub line says to scan it.
+    wt_qr_card_bare(s_scr, &s_qr_img, 48, 96, 302, 274);
 
     int n = qrt_encoder_parts(s_qenc);
-    // The signature fingerprint takes the top slot of the right column, as a
-    // caption and a VALUE -- the same pair the SD screen's artifact card
-    // carries, from the same builder. The redundant "OK SIGNED" label that sat
-    // here is dropped: the page title and the sub line both already say the
-    // transaction is signed, and this is the one place the QR path can show
-    // the code without crowding (the card below is 302 square, running to the
-    // action band).
-    //
-    // 96 tops the column flush with the QR card beside it. Then a WT_DIV rule,
-    // because what is above it is the ARTIFACT -- what this device made, and
-    // the one thing on the page to compare against a second signer -- and
-    // everything below it is the machinery for getting the square into a
-    // camera. Stacked without the rule the column read as six things of equal
-    // weight, which is the problem the marks and the standing claim were
-    // already fixing from the other end.
-    mk_lbl(tr(STR_S_SIG_FP_CAP), 430, 96, wt_font14(), MUT_COL);
-    sig_value_pair(s_scr, 430, 118, true, wt_font_mono23());
-    s_sig_val_x = 430;                // where the motion flies the code to
-    s_sig_val_y = 118;
-    s_sig_val_f = wt_font_mono23();
-    wt_line_rule(s_scr, 430, 160, 322);
 
-    // Everything below the rule keeps the rhythm it was device tested on --
-    // 130 / 168 / 212 / 254 -- shifted down by the 42px the artifact block
-    // above it takes. The last note ends at 383, clear of WT_CONTENT_BOTTOM.
-    s_part_lbl = mk_lbl(n > 1 ? "" : tr(STR_S_QR_SINGLE), 430, 172,
-                        wt_font28(), INK_COL);
-    // What to DO with the QR on screen, previously all at 14 beside a 28px
-    // part counter. The right column is 322 wide and nothing but the EASY SCAN
-    // control sits between here and DONE, so each of these gets its own line.
-    // MARKS, because these two lines are different KINDS and read identically
-    // without them. One is what to do with the square on screen; the other is
-    // the claim that nothing here has touched a network. Stacked as bare
-    // sentences at the same size and colour, the column was six things of
-    // equal weight -- a caption, a count, an instruction, a caution, a control
-    // and the control's own note -- and the reader had to sort them.
+    // THE COLUMN, top to bottom: how many squares there are, what to do with
+    // them, a rule, the one control, and the artefact at the foot.
     //
-    // The marks are the sorting, and they cost no key: a loop for the thing
-    // that loops, a lock for the thing that never leaves.
-    // The column held six things of equal weight -- a caption, a count, an
-    // instruction, a caution, a control and the control's own note -- and the
-    // reader had to sort them. Marks were the obvious sorting and they DO NOT
-    // FIT: this lane is 322 and wt_note takes the biggest font that fits the
-    // box, so a glyph and its two spaces put "it loops, hold steady" at font14
-    // while its sibling stayed at 23. Two lines of one kind at two sizes is
-    // worse than the problem.
+    // It used to open with the signature code and close with a three line
+    // paragraph about that control, which is the order a reader standing in
+    // front of a looping QR with a phone in their hand needs them in exactly
+    // backwards: the code is what they check AFTERWARDS against a second
+    // signer, and the paragraph explained a switch whose two states are
+    // visible the moment it is thrown. The paragraph is gone and the code has
+    // the foot.
     //
-    // So the caution LEAVES the column instead. "never on the network" is not
-    // an instruction competing with the one above it, it is what is
-    // permanently true of this page -- and wt_standing is the element for
-    // exactly that, on the band's own left lane, with the dot the kit gives a
-    // claim. The column keeps the one line that tells the reader what to DO,
-    // at full width and full size.
+    // mono34 for a counter and the sans 34 for a word: the mono faces are
+    // ASCII only and carry no CJK, so "single QR" pointed at one would draw a
+    // row of placeholder boxes in four locales. "1/2" is digits and a slash.
+    s_part_lbl = mk_lbl(n > 1 ? "" : tr(STR_S_QR_SINGLE), 430, 110,
+                        n > 1 ? wt_font_mono34() : wt_font34(), INK_COL);
     if (n > 1) {
-        wt_note(s_scr, tr(STR_S_QR_LOOP), 430, 210, 322, 29);
+        // Still a fit helper, and still with the 29px budget it was device
+        // tested on: "it loops, hold steady" runs to 364px in the widest
+        // locale against a 322 lane, so a fixed rung here would wrap into the
+        // rule under it rather than drop one.
+        wt_note(s_scr, tr(STR_S_QR_LOOP), 430, 162, 322, 29);
         // The same two periods qr_ez_cb uses. Hardcoded 250 here was harmless
         // while the control could only be off at build time; it is the second
         // half of carrying it across, and without it EASY SCAN would come back
         // ticked with the fast loop it exists to slow down.
         s_qr_tmr = lv_timer_create(qr_tick, s_qr_ez ? 600 : 250, NULL);
     }
-    // The standing line here said "never on the network". True of the whole
-    // device and of every screen on it, so on the one screen showing a QR it
-    // read as a claim about the QR and left owners asking what it meant. The
-    // airgap is the product, not a caption.
-    s_ez_act = wt_word_action(s_scr, LV_SYMBOL_OK, tr(STR_S_EASY_SCAN), true,
-                               INK_COL, false, qr_ez_cb, NULL);
-    lv_obj_set_pos(s_ez_act, 430, 254);
+    wt_line_rule(s_scr, 430, 214, 322);
+
+    // EASY SCAN, as a ROW with a switch in it rather than a word with a tick
+    // in front of it. The tick said "this is on" and "press me" with one
+    // glyph, and a dimmed tick reads as a disabled control -- which is how it
+    // came back from the bench. A knob that slides says which state it is in
+    // AND that it has another one.
+    //
+    // Hand built rather than lv_switch. Nothing else on this device is an LVGL
+    // widget, and a widget's own parts do not answer WT_FLAG_ACCENT_*, so the
+    // first theme change would leave the knob in the old accent -- the exact
+    // failure the flags exist for. Two rounded boxes cost less than that and
+    // repaint with everything else. It moves into the kit the day a second
+    // screen wants one.
+    {
+        lv_obj_t *row = lv_obj_create(s_scr);
+        lv_obj_remove_style_all(row);
+        lv_obj_set_pos(row, 430, 232);
+        lv_obj_set_size(row, 322, 56);
+        lv_obj_set_style_radius(row, 8, 0);
+        lv_obj_set_style_border_width(row, 1, 0);
+        lv_obj_set_style_border_color(row, WT_EDGE, 0);
+        lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
+        wt_tap_feedback(row);
+        lv_obj_add_event_cb(row, qr_ez_cb, LV_EVENT_CLICKED, NULL);
+        s_ez_act = row;
+
+        // The word drops a rung when its translation cannot take the lane the
+        // switch leaves -- 232px, and MAKKELIJK SCANNEN wants 270 at font23.
+        // A rung down is readable; the dots would cut the only word on the
+        // control.
+        const char *ez = tr(STR_S_EASY_SCAN);
+        const int lane = 322 - 18 - EZ_TRACK_W - 10 - 18;
+        lv_point_t es;
+        lv_text_get_size(&es, ez, wt_font23(), 2, 0, LV_COORD_MAX,
+                         LV_TEXT_FLAG_NONE);
+        const lv_font_t *ef = es.x <= lane ? wt_font23() : wt_chrome18(ez);
+        s_ez_word = wt_lbl(row, ez, 18, (56 - lv_font_get_line_height(ef)) / 2,
+                           ef, INK_COL);
+        lv_obj_set_style_text_letter_space(s_ez_word, 2, 0);
+        lv_obj_set_width(s_ez_word, lane);
+        lv_obj_set_height(s_ez_word, lv_font_get_line_height(ef));
+        lv_label_set_long_mode(s_ez_word, LV_LABEL_LONG_DOT);
+
+        lv_obj_t *track = lv_obj_create(row);
+        lv_obj_remove_style_all(track);
+        lv_obj_set_pos(track, 322 - 18 - EZ_TRACK_W, (56 - EZ_TRACK_H) / 2);
+        lv_obj_set_size(track, EZ_TRACK_W, EZ_TRACK_H);
+        lv_obj_set_style_radius(track, EZ_TRACK_H / 2, 0);
+        lv_obj_set_style_bg_color(track, WT_KEY, 0);
+        lv_obj_set_style_bg_opa(track, LV_OPA_COVER, 0);
+        lv_obj_set_style_border_width(track, 1, 0);
+        lv_obj_set_style_border_color(track, WT_EDGE, 0);
+        lv_obj_remove_flag(track, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_remove_flag(track, LV_OBJ_FLAG_SCROLLABLE);
+
+        s_ez_knob = lv_obj_create(track);
+        lv_obj_remove_style_all(s_ez_knob);
+        lv_obj_set_pos(s_ez_knob, EZ_KNOB_PAD, EZ_KNOB_PAD);
+        lv_obj_set_size(s_ez_knob, EZ_KNOB_D, EZ_KNOB_D);
+        lv_obj_set_style_radius(s_ez_knob, EZ_KNOB_D / 2, 0);
+        lv_obj_set_style_bg_opa(s_ez_knob, LV_OPA_COVER, 0);
+        lv_obj_remove_flag(s_ez_knob, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_remove_flag(s_ez_knob, LV_OBJ_FLAG_SCROLLABLE);
+    }
     ez_sync();
-    // Its own note, directly under it rather than sixty pixels below. This
-    // sentence explains THAT control and nothing else -- "phone won't catch
-    // it? bigger dots, slower loop" -- and floating it away from the thing it
-    // is about is what made the column read as a list of unrelated lines.
-    wt_note(s_scr, tr(STR_S_EZ_NOTE), 430, 296, 322, 87);
+
+    // The artefact at the foot: what this device made, and the one thing on
+    // the page to hold against a second signer.
+    const char *scap = tr(STR_S_SIG_FP_CAP);
+    lv_obj_t *sc = mk_lbl(scap, 430, 314, wt_chrome18(scap), MUT_COL);
+    lv_obj_set_style_text_letter_space(sc, 2, 0);
+    sig_value_pair(s_scr, 430, 342, true, wt_font_mono23());
+    s_sig_val_x = 430;                // where the motion flies the code to
+    s_sig_val_y = 342;
+    s_sig_val_f = wt_font_mono23();
+
     wt_arrow_action(s_scr, tr(STR_C_DONE), false, true, 592, WT_ACTION_Y, 160,
                     true, close_cb, NULL);
     s_part_i = 0;

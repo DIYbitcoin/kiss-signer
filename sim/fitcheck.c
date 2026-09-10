@@ -124,7 +124,6 @@ static const slot_t SLOTS[] = {
     // 23, and a definition that wraps mid-clause is the one place a glossary
     // must not be hard to read.
     { "sign/glossary",    STR_S_GLOSSARY_B,     704, 232 },
-    { "sign/ez-note",     STR_S_EZ_NOTE,        322,  87 },
     { "sign/saved-note",  STR_S_SAVED_NOTE,     704,  90 },
     // kiss_sign.c mo_start() -- the one sentence under the code in the
     // arrival motion. Its box is ONE line at the 23 rung, deliberately: the
