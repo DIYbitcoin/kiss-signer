@@ -3031,6 +3031,25 @@ int main(void) {
   must_show("recv/help head after BACK", tr(STR_R_HELP_HEAD));
   touch(720, 85); pump(3); release(); pump(45);   // 45 outlasts the exit stagger
   must_show("recv/help closed", tr(STR_R_NEXT_ADDR));
+  // VIEWING AN ADDRESS IS NOT USING IT, so walking forward and coming back
+  // lands where it landed before. A session high-water mark that any viewed
+  // index raised used to seed the next open, so reading #5 moved the landing
+  // to #6 for good -- reported from the bench as selecting an UNUSED #1,
+  // leaving to the main menu and returning to #6. Skipped indices are holes a
+  // coordinator has to scan across and it stops after twenty, so a page that
+  // walks itself forward on every read can push funds past that window.
+  {
+    char landed[48], again[48];
+    snprintf(landed, sizeof landed, tr(STR_R_ADDR_N_FMT), 0u);
+    must_show("recv/lands on the first unused", landed);
+    tap_str(STR_R_NEXT_ADDR, 3, 20);
+    tap_str(STR_R_NEXT_ADDR, 3, 20);
+    snprintf(again, sizeof again, tr(STR_R_ADDR_N_FMT), 2u);
+    must_show("recv/walks forward", again);
+    tap_str(STR_C_BACK, 3, 20);                    // out to the home screen
+    touch(310, 240); pump(3); release(); pump(30); // and back into RECEIVE
+    must_show("recv/returns to the first unused", landed);
+  }
   wt_help_seen_set(false);
   // The flex strip sizes its brackets to the words, so the tabs are tapped
   // by their labels rather than by a pitch that no longer exists.
