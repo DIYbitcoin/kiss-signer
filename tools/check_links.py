@@ -51,8 +51,40 @@ def targets(text):
     return [m.group(1) for m in INLINE.finditer(text)] + REFDEF.findall(text)
 
 
-def scan(root, files):
-    """Return a list of (file, target) that do not resolve."""
+def known_paths(root):
+    """Every path git TRACKS, plus every directory one of them sits in.
+
+    The filesystem is the wrong question, and asking it is the whole of the
+    bug this function exists for. `managed_components/` is fetched by the
+    component manager and gitignored, so it is on every developer's disk and
+    in no clone and no CI checkout. A link into it resolved here, failed
+    there, and sat red for six weeks because nobody could reproduce it.
+
+    What a reader gets is what git carries. Asking that question gives the
+    same answer on every machine, and it is also the honest one: a link to a
+    path the repository does not hold is broken for whoever follows it,
+    whatever happens to be lying around locally.
+    """
+    out = subprocess.run(["git", "-C", root, "ls-files", "-z"],
+                         capture_output=True, text=True, check=True).stdout
+    paths = set()
+    for f in out.split("\0"):
+        if not f:
+            continue
+        paths.add(f)
+        d = os.path.dirname(f)
+        while d:
+            paths.add(d)
+            d = os.path.dirname(d)
+    return paths
+
+
+def scan(root, files, known=None):
+    """Return a list of (file, target) that do not resolve.
+
+    `known` is the tracked path set; without one the check falls back to the
+    filesystem, which is what the selftest's temporary tree wants.
+    """
     bad = []
     for rel in files:
         path = os.path.join(root, rel)
@@ -66,8 +98,11 @@ def scan(root, files):
             if not target or target.startswith(SKIP_SCHEME):
                 continue
             here = os.path.dirname(rel)
-            resolved = os.path.normpath(os.path.join(root, here, target))
-            if not os.path.exists(resolved):
+            resolved = os.path.normpath(os.path.join(here, target))
+            ok = (not resolved.startswith("..")          # out of the repo
+                  and (resolved in known if known is not None
+                       else os.path.exists(os.path.join(root, resolved))))
+            if not ok:
                 bad.append((rel, raw))
     return bad
 
@@ -86,15 +121,17 @@ def check(root):
     if not files:
         print("::error::no tracked Markdown found -- this gate read nothing")
         return 1
-    bad = scan(root, files)
+    bad = scan(root, files, known_paths(root))
     print(f"read {len(files)} tracked Markdown file(s)")
     print(f"broken relative links: {len(bad)}")
     for f, t in bad:
         print(f"  {f} -> {t}")
     if bad:
-        print("::error::a tracked Markdown file links to a path that is not "
-              "there. A link resolves from the file holding it, not from the "
-              "repository root.")
+        print("::error::a tracked Markdown file links to a path this "
+              "repository does not carry. A link resolves from the file "
+              "holding it, not from the repository root -- and a path that is "
+              "only on your disk (managed_components/, build output) is not "
+              "one the reader gets.")
         return 1
     return 0
 
@@ -131,6 +168,23 @@ def selftest():
         open(planted, "w").write("Text [x].\n\n[x]: docs/security-plan.md\n")
         if len(scan(d, ["docs/ROADMAP.md"])) != 1:
             print("::error::a reference-style definition was not read")
+            fails += 1
+
+        # THE ONE THIS GATE WAS BLIND TO: a link to a file that is on the disk
+        # and not in the repository. Both forms are planted in one tree, so a
+        # scan that answered from the filesystem would call both of them fine
+        # -- which is exactly what shipped, and what CI then failed on.
+        subprocess.run(["git", "-C", d, "init", "-q"], check=True)
+        subprocess.run(["git", "-C", d, "add", "docs/security-plan.md"],
+                       check=True)
+        os.makedirs(os.path.join(d, "vendored"), exist_ok=True)
+        open(os.path.join(d, "vendored", "upstream.c"), "w").close()
+        open(planted, "w").write(
+            "[tracked](security-plan.md) and "
+            "[on disk only](../vendored/upstream.c)\n")
+        got = scan(d, ["docs/ROADMAP.md"], known_paths(d))
+        if len(got) != 1 or "upstream.c" not in got[0][1]:
+            print(f"::error::an untracked link target was not caught: {got}")
             fails += 1
 
     print(f"selftest: {fails} failure(s)")

@@ -180,6 +180,12 @@ run "the published notes match the changelog" \
 # in a box big enough to hold it, is invisible to every other check here.
 run "a translation that says too much" "I18NBLOAT_SELFTEST=1 python3 tools/check_i18n_bloat.py"
 run "a checker nothing runs" "GATECHECK_SELFTEST=1 python3 tools/check_gates.py"
+# The lane this script claimed to cover and did not. It was absent because it
+# read the FILESYSTEM and so passed on any machine with a component fetch on
+# it, which made it a check nobody could fail locally and CI failed for six
+# weeks. It asks git now, so it answers the same here as it does there.
+run "every link in the docs points at something" \
+    "python3 tools/check_links.py --selftest && python3 tools/check_links.py"
 run "a signature block the firmware would refuse" "python3 tools/check_sig_scheme.py --selftest"
 run "a burned board called fresh" "python3 tools/check_efuse_fresh.py --selftest"
 run "a release block that names what it never defined" \
