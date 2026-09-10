@@ -647,7 +647,7 @@ int kiss_session_descriptor(char *out, unsigned long len) {
 #include <string.h>
 static bool s_sim_payee_known;
 bool kiss_payee_seen(const char *dest) {
-  return s_sim_payee_known && dest && strstr(dest, "bc1qzyg3") != NULL;
+  return s_sim_payee_known && dest && strstr(dest, "bc1qcr8") != NULL;
 }
 void kiss_payee_mark(const char *dest) { (void)dest; }
 void kiss_payee_wipe(void) { s_sim_payee_known = false; }
@@ -668,7 +668,7 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
   s->in_sats = 100000; s->send_sats = 60000; s->change_sats = 39000; s->fee_sats = 1000;
   s->est_vsize = 141; s->fee_rate_x10 = 70; s->rbf = true;
   snprintf(s->outs[0].addr, sizeof s->outs[0].addr,
-           "bc1qzyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3h8ffkz");
+           "bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu");
   s->outs[0].sats = 60000;
   snprintf(s->outs[1].addr, sizeof s->outs[1].addr,
            "bc1q8c6fshw2dlwun7ekn9qwf37cu2rn755upcp6el");
@@ -726,7 +726,7 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
     s->in_sats = 100000; s->send_sats = 60000; s->change_sats = 39000;
     for (int i = 0; i < 5; i++) {
       snprintf(s->outs[i].addr, sizeof s->outs[i].addr,
-               "bc1q%02dg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3h8ffkz", i);
+               "bc1q%02d8te4kr609gcawutmrza0j4xv80jy8z306fyu", i);
       s->outs[i].sats = 12000;
       s->outs[i].is_change = false;
     }
@@ -1139,7 +1139,7 @@ static int find_label_exact(lv_obj_t *o, const char *needle) {
 // taller pushes the list down and a hard coded tap lands on background. That is
 // the derail det_chip already exists for, and it bit again here: the tap at
 // (200, 300) opened nothing in fourteen locales, while the needle checking it
-// had worked -- "bc1q zyg3" -- matched the FOLD still showing on the page
+// had worked -- "bc1qcr 8te4" -- matched the FOLD still showing on the page
 // underneath. A spurious pass, from a prefix the two renderings share.
 //
 // Found by what it is instead: the address spangroups are the only clickable
@@ -3454,7 +3454,7 @@ int main(void) {
   // away on the card below, and that card is where the full grouped form is
   // asserted -- so the two needles together pin both renderings and which
   // screen each belongs to.
-  must_show("verify/address", "bc1q zyg3  \xE2\x80\xA6  g3zy g3h8 ffkz");
+  must_show("verify/address", "bc1qcr 8te4  \xE2\x80\xA6  80jy 8z30 6fyu");
   // The output ROW is the control now, at every recipient count -- the card
   // below the graph is gone and every destination rides its own strand. The
   // first output row sits at the top of the graph's output lane, which starts
@@ -3467,7 +3467,7 @@ int main(void) {
   // BY NAME, not by coordinate. The address line moves whenever the graph band
   // does, and a tap that lands on empty glass does not fail here -- it fails
   // two screens later, as a segfault in whatever the miss eventually reaches.
-  if (!tap_lit("g3h8 ffkz", 3, 8)) {
+  if (!tap_lit("8z30 6fyu", 3, 8)) {
     printf("FAIL: the recipient's address line was not tappable\n");
     return 1;
   }
@@ -3475,7 +3475,7 @@ int main(void) {
   pump(30);                                          // let the stagger settle
   save("/tmp/sim_sign_addr.ppm");
   must_show("address card/title", tr(STR_R_VT));
-  must_show("address card/addr", "bc1q zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 h8ffkz");   // every character, on the card
+  must_show("address card/addr", "bc1qcr 8te4 kr60 9gca wutm rza0 j4xv 80jy 8z30 6fyu");   // every character, on the card
   must_show("address card/cmp", tr(STR_S_CMP_8));
   tap_str(STR_C_OK, 3, 8);     // OK closes the card
 
@@ -3546,11 +3546,11 @@ int main(void) {
     }
   }
   save("/tmp/sim_sign_details_addr.ppm");
-  // The WHOLE grouped address, not the "bc1q zyg3" prefix the fold shares with
+  // The WHOLE grouped address, not the "bc1qcr 8te4" prefix the fold shares with
   // it: that prefix is on the OUTPUTS tab too, so it would pass with the card
   // never opened at all.
   must_show("details row/full addr",
-            "bc1q zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 h8ffkz");
+            "bc1qcr 8te4 kr60 9gca wutm rza0 j4xv 80jy 8z30 6fyu");
   must_show("details row/cmp", tr(STR_S_CMP_8));
   tap_str(STR_C_OK, 3, 8);            // OK closes the card, OUTPUTS stays up
   // TRANSACTION: the facts strip, each with its own "?". The chips are found
@@ -3829,11 +3829,11 @@ int main(void) {
     // ...and the address is still whole and unmoved. The mark is an addition
     // to the row, never a claim that takes the destination's place.
     must_show("paid before (address)",
-              "bc1q zyg3  \xE2\x80\xA6  g3zy g3h8 ffkz");
+              "bc1qcr 8te4  \xE2\x80\xA6  80jy 8z30 6fyu");
     // The recipient ROW, which is the control an owner presses now: one
     // layout at every count, and the card that used to be here is gone.
     // By name, for the reason the first address tap gives above.
-    if (!tap_lit("g3h8 ffkz", 3, 30)) {
+    if (!tap_lit("8z30 6fyu", 3, 30)) {
       printf("FAIL: the paid-before address line was not tappable\n");
       return 1;
     }
@@ -3987,7 +3987,7 @@ int main(void) {
   // screenful". The end of the list is walked below.
   must_show("verify (5 cautions)", "800");            // the fee
   must_show("verify (5 cautions, address)",
-            "bc1q zyg3  \xE2\x80\xA6  g3zy g3h8 ffkz");
+            "bc1qcr 8te4  \xE2\x80\xA6  80jy 8z30 6fyu");
   // The input TOTAL, and it is a control. Above one coin the graph draws a
   // breakdown, so the sum goes on the caption line: 4 000 in, against 3 000 and
   // 800 and 200 out, is the only arithmetic that says whether the fee is the
@@ -4077,7 +4077,7 @@ int main(void) {
   // destinations without naming them.
   touch(328, 282); pump(3); release(); pump(8);     // zzzz-MANY (row 2) -> verify
   save("/tmp/sim_sign_many.ppm");                   // 5 recipients, HOLD inert
-  must_show("many recipients", "bc1q 00g3  \xE2\x80\xA6  g3zy g3h8 ffkz");
+  must_show("many recipients", "bc1q00 8te4  \xE2\x80\xA6  80jy 8z30 6fyu");
   // The locktime badge and the mark beside it. A badge nothing taps is a badge
   // no gate has an opinion about, and this one is the whole point of promoting
   // the fact off the DETAILS deck: the block is on the glass and what a block
@@ -4108,7 +4108,7 @@ int main(void) {
     release(); pump(40);
   }
   save("/tmp/sim_sign_many_end.ppm");               // last recipient, HOLD live
-  must_show("many recipients (end)", "bc1q 04g3  \xE2\x80\xA6  g3zy g3h8 ffkz");
+  must_show("many recipients (end)", "bc1q04 8te4  \xE2\x80\xA6  80jy 8z30 6fyu");
   if (!kiss_sign_test_armed()) {
     printf("FAIL: HOLD TO SIGN still inert after the list was read to its end\n");
     return 1;
