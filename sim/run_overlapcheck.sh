@@ -117,6 +117,7 @@ over=""
 unceiled=""
 total=0
 summary=""
+bl_seen=""             # set -u: the locale loop appends to it
 # The LVGL heap watermark, out of runs this script already makes. Every one
 # of these 24 walks prints an [lvheap] line at its end and every one of them
 # was thrown away; the number was in the log of a gate nobody parsed, which is
@@ -236,6 +237,11 @@ for l in "${langs[@]}"; do
     rm -rf "$KISS_SIM_TMP/simsd"
     out=$(SIM_LANG="$l" "$KISS_SIM_TMP/kissoverlap" 2>&1)
     rc=$?
+    # Each run says which shrink-only backlog entries IT matched. The
+    # verdict is taken after the loop; see the block below for why it
+    # cannot be taken here.
+    bl_seen="$bl_seen
+$(printf '%s\n' "$out" | grep -oE '(BARE|WALL|VOID|EXIT|FIT) backlog entry (matched|unmatched) \|.*\|')"
     sline=$(summary_of "$out")
     n=$(printf '%s\n' "$sline" | sed -n \
         's/^\[overlap\] [^:]*: \([0-9][0-9]*\) stops checked, [0-9][0-9]* game frames skipped, \([0-9][0-9]*\) distinct findings$/\2/p')
@@ -316,6 +322,34 @@ done
 echo
 echo "totals: $summary"
 echo "text overlap gate: $total findings across ${#langs[@]} locales"
+
+# Whether one of these exemptions still earns its place is the SWEEP's verdict,
+# never one locale's. Every condition they excuse is measured against the text
+# and the text is a translation, so a live entry goes unmatched wherever the
+# copy happens to be long enough not to need it: sim_sign_failed is unmatched
+# in tr and vi and load-bearing in en. The per run "never matched a stop --
+# rebuild it or delete the line" these used to print would have told somebody
+# to cut a line English still needs, in four locales out of twenty one.
+#
+# Same shape STALE uses below for the accent dimension, and for the same
+# reason. Printed, not failed, exactly like the others: a list of excuses going
+# stale is a thing to see, not a build break.
+bl_dead_n=0
+for kind in BARE WALL VOID EXIT FIT; do
+    dead=$(printf '%s\n' "$bl_seen" |
+        sed -n "s/^$kind backlog entry [a-z]* |\(.*\)|$/\\1/p" | sort -u |
+        while IFS= read -r e; do
+            [ -n "$e" ] || continue
+            printf '%s\n' "$bl_seen" |
+                grep -qF "$kind backlog entry matched |$e|" || printf '%s\n' "$e"
+        done)
+    [ -n "$dead" ] || continue
+    echo
+    echo "$kind backlog entries that matched in NO locale -- cut them:"
+    printf '%s\n' "$dead" | sed 's/^/  /'
+    bl_dead_n=$((bl_dead_n + $(printf '%s\n' "$dead" | grep -c .)))
+done
+echo "shrink-only backlogs: $bl_dead_n entry(s) excusing nothing in any locale"
 
 # The ROLE check asks about colour, and colour does not change with language, so
 # sweeping it over 21 locales would be 21 identical answers. It changes with the

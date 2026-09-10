@@ -3853,17 +3853,34 @@ int oc_report(void)
     printf("[faint] %s: %d colour pairing(s) below the floor, "
            "%d label(s) weighed\n", lang, s_faint_n, s_faint_objs);
 
-    // An entry that was never hit means its screen has been rebuilt (or renamed)
-    // and the exemption is now protecting nothing. Printed rather than failed,
-    // because the same list is read by every locale's run and a screen only
-    // reachable in some walks would otherwise turn a fix into a build break.
+    // An entry that was never hit means its screen has been rebuilt (or
+    // renamed) and the exemption is now protecting nothing -- but ONE run
+    // cannot tell that from an entry its own locale simply did not need.
+    //
+    // Every condition these five excuse is measured against the text, and the
+    // text is a translation. VOID asks what share of the lane the body covers,
+    // so on a long language the screen clears the floor by itself and the
+    // excuse is never consulted: sim_sign_failed goes unmatched in tr and vi
+    // while all twelve entries match in en. "Never matched a stop -- rebuild
+    // it or delete the line" was telling the reader to cut a line English
+    // still needs, and a gate that hands out a wrong instruction is worse than
+    // one that stays quiet.
+    //
+    // So each run says only what IT saw, and run_overlapcheck.sh takes the
+    // verdict across the sweep. That is what STALE below already does, for the
+    // same reason in the accent dimension. SLACK and PORT need none of this:
+    // they are measured in English only and are guarded that way.
+    //
+    // Printed rather than failed, here and there. A list of excuses going
+    // stale is a thing to see, not a build break.
     {
         int bare_left = 0;
         for (unsigned i = 0; i < sizeof OC_BARE_BACKLOG / sizeof OC_BARE_BACKLOG[0]; i++) {
             if (!OC_BARE_BACKLOG[i]) continue;
-            if (s_bare_hit[i]) { bare_left++; continue; }
-            printf("[overlap] %s: BARE backlog entry \"%s\" never matched a stop"
-                   " -- rebuild it or delete the line\n", lang, OC_BARE_BACKLOG[i]);
+            if (s_bare_hit[i]) bare_left++;
+            printf("[overlap] %s: BARE backlog entry %s |%s|\n",
+                   lang, s_bare_hit[i] ? "matched" : "unmatched",
+                   OC_BARE_BACKLOG[i]);
         }
         printf("[overlap] %s: %d screens still on the BARE backlog\n",
                lang, bare_left);
@@ -3872,9 +3889,10 @@ int oc_report(void)
         int wall_left = 0;
         for (unsigned i = 0; i < sizeof OC_WALL_BACKLOG / sizeof OC_WALL_BACKLOG[0]; i++) {
             if (!OC_WALL_BACKLOG[i]) continue;
-            if (s_wall_hit[i]) { wall_left++; continue; }
-            printf("[overlap] %s: WALL backlog entry \"%s\" never matched a stop"
-                   " -- rebuild it or delete the line\n", lang, OC_WALL_BACKLOG[i]);
+            if (s_wall_hit[i]) wall_left++;
+            printf("[overlap] %s: WALL backlog entry %s |%s|\n",
+                   lang, s_wall_hit[i] ? "matched" : "unmatched",
+                   OC_WALL_BACKLOG[i]);
         }
         printf("[overlap] %s: %d screens still on the WALL backlog\n",
                lang, wall_left);
@@ -3883,9 +3901,10 @@ int oc_report(void)
         int void_left = 0;
         for (unsigned i = 0; i < sizeof OC_VOID_BACKLOG / sizeof OC_VOID_BACKLOG[0]; i++) {
             if (!OC_VOID_BACKLOG[i]) continue;
-            if (s_void_hit[i]) { void_left++; continue; }
-            printf("[overlap] %s: VOID backlog entry \"%s\" never matched a stop"
-                   " -- rebuild it or delete the line\n", lang, OC_VOID_BACKLOG[i]);
+            if (s_void_hit[i]) void_left++;
+            printf("[overlap] %s: VOID backlog entry %s |%s|\n",
+                   lang, s_void_hit[i] ? "matched" : "unmatched",
+                   OC_VOID_BACKLOG[i]);
         }
         printf("[overlap] %s: %d screens still on the VOID backlog\n",
                lang, void_left);
@@ -3894,9 +3913,10 @@ int oc_report(void)
         int exit_left = 0;
         for (unsigned i = 0; i < sizeof OC_EXIT_BACKLOG / sizeof OC_EXIT_BACKLOG[0]; i++) {
             if (!OC_EXIT_BACKLOG[i]) continue;
-            if (s_exit_hit[i]) { exit_left++; continue; }
-            printf("[overlap] %s: EXIT backlog entry \"%s\" never matched a stop"
-                   " -- rebuild it or delete the line\n", lang, OC_EXIT_BACKLOG[i]);
+            if (s_exit_hit[i]) exit_left++;
+            printf("[overlap] %s: EXIT backlog entry %s |%s|\n",
+                   lang, s_exit_hit[i] ? "matched" : "unmatched",
+                   OC_EXIT_BACKLOG[i]);
         }
         printf("[overlap] %s: %d screens still on the EXIT backlog\n",
                lang, exit_left);
@@ -3905,10 +3925,10 @@ int oc_report(void)
         int fit_left = 0;
         for (unsigned i = 0; i < sizeof OC_FIT_BACKLOG / sizeof OC_FIT_BACKLOG[0]; i++) {
             if (!OC_FIT_BACKLOG[i]) continue;
-            if (s_fit_hit[i]) { fit_left++; continue; }
-            printf("[overlap] %s: FIT backlog entry \"%s\" never matched a stop"
-                   " -- cut it from the list, the string it excused is gone\n",
-                   lang, OC_FIT_BACKLOG[i]);
+            if (s_fit_hit[i]) fit_left++;
+            printf("[overlap] %s: FIT backlog entry %s |%s|\n",
+                   lang, s_fit_hit[i] ? "matched" : "unmatched",
+                   OC_FIT_BACKLOG[i]);
         }
         printf("[overlap] %s: %d strings still on the FIT backlog\n",
                lang, fit_left);
