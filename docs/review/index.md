@@ -2,7 +2,7 @@
 
 # Review sets
 
-The walkthrough renders in one state: MONO, English, mainnet, funded. These are the same screens under the conditions nothing has been reviewed against yet. What each screen is for is written once, in [the walkthrough](../walkthrough.md).
+The walkthrough renders in one state: MONO, English, mainnet, funded. These are the same screens under the conditions nothing has been reviewed against yet. What each screen is for is written once, in [the walkthrough](walkthrough.md).
 
 ## green
 
