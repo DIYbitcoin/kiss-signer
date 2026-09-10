@@ -103,6 +103,10 @@ that opens a modest set of keys. See `main/kiss_duress.h`.
 - **The normal beta does not encrypt flash.** Keys in FLASH are extractable by
   someone with the device and the right equipment. Use AMNESIC, or SD, or wait
   for the encrypted build, for anything that matters.
+- **20 of the 21 locales have not been read by a native speaker.** The English
+  copy is reviewed; the rest is machine-written against a term glossary. One
+  screen carries a security caveat that a translation can quietly turn into a
+  reassurance. See [`i18n/GLOSSARY.md`](../i18n/GLOSSARY.md).
 - **No audit.** Nobody outside the project has reviewed the signing path, the
   PSBT parser, or the BIP39 and BIP352 implementations.
 - **No secure boot**, so an attacker with prolonged physical access to an

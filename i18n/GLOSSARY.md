@@ -342,3 +342,26 @@ Review workflow: edit `i18n/<code>.json`, run `python3 tools/gen_i18n.py`,
 then rebuild the fonts and simulator. The generator enforces key parity,
 specifier parity, punctuation constraints, and glyph coverage. It warns on
 large length growth, but cannot certify native grammar or fit on every screen.
+
+## Strings awaiting a native read
+
+`G_STORAGE_OK_FMT` is the STORAGE CHANGED screen. Its second sentence limits
+the first, and that is the whole point of it:
+
+> your seed words are now in %s.
+>
+> the new copy was verified before the old was erased. erased is not gone until
+> flash encryption is on.
+
+A reviewer should check three things, in this order:
+
+1. The second sentence still reads as a **caveat**. A translation that softens
+   it into reassurance inverts the meaning and tells the owner their old copy
+   is safely gone, which is false. See
+   [`../docs/security-plan.md`](../docs/security-plan.md) for why.
+2. **"Erased is not gone" survives as a distinction.** Several languages reach
+   for one word covering both, which collapses the sentence into a tautology.
+3. It still fits. The generator refuses a `_FMT` string above roughly 190 bytes
+   with its substitutions, and `ja` already sits at that ceiling while `ko` is
+   the most compressed of the set, so those two have the least room and the
+   most opportunity to have lost the sense.
