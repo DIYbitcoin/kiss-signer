@@ -1295,7 +1295,7 @@ static const char *held_name(void)
     return s_done_name;
 }
 
-static void mo_start(lv_obj_t *parent, size_t sw);
+static void mo_start(lv_obj_t *parent, size_t sw, bool sd);
 
 // Send the signature already in s_out out by the channel `to_qr` names, and
 // land the owner on that channel's finished screen. NOTHING IS RE-SIGNED here
@@ -1309,7 +1309,7 @@ static void held_deliver(bool to_qr)
     if (to_qr) {
         s_qr_sw = s_signed_len;
         qr_out_screen(s_signed_len, false);
-        mo_start(lv_obj_get_parent(s_scr), s_signed_len);
+        mo_start(lv_obj_get_parent(s_scr), s_signed_len, false);
         return;
     }
     // Mount rather than assume. The card is still mounted on the SD path, where
@@ -1329,7 +1329,7 @@ static void held_deliver(bool to_qr)
         return;
     }
     done_screen(outname);
-    mo_start(lv_obj_get_parent(s_scr), s_signed_len);
+    mo_start(lv_obj_get_parent(s_scr), s_signed_len, true);
 }
 
 static void held_retry_cb(lv_event_t *e)
@@ -1561,66 +1561,78 @@ static void mark_paid_recipients(void)
 
 // ---- the arrival motion (both exit screens) --------------------------------
 //
-// The transaction resolving into the thing you can check. A block of the
-// signed PSBT settles top down out of noise while the signature's code locks
-// out of the middle of it, and both hand over to the screen underneath.
+// The transaction resolving into the thing you can check. A ribbon of the
+// signed PSBT settles top down out of noise, the signature's code locks under
+// it, a line above says what the device did with the bytes and a sentence
+// below says what the code is -- and all of it hands over to the screen
+// underneath.
 //
 // ONE timer drives all of it and every state is a function of ELAPSED MS
 // rather than of ticks. The P4 repaints a full screen in about 130ms, so a
 // tick counted wave would run at a different speed on the panel than in the
 // simulator; late ticks make this one coarser and never longer.
 //
-// Per character colour without 727 objects. The faces are fixed pitch, so
+// Per character colour without 200 objects. The faces are fixed pitch, so
 // three labels at ONE origin, each space padded where a character is not its
 // colour, compose into exactly the per span picture the reference draws --
-// 14 rows x 3, plus two a line for the caption and two for the code, is 48
-// labels rather than one per character. They take lv_label_set_text_static
-// into buffers that live in BSS, so a re-roll every 122ms allocates nothing.
+// 4 rows x 3, plus a tick, a status line, a sentence and two for the code, is
+// 17 labels rather than one per character. They take lv_label_set_text_static
+// into buffers that live in BSS, so a re-roll every 90ms allocates nothing.
+//
+// DECIDED: the block is FOUR rows, not fourteen. Nobody reads base64, so it
+// is the TEXTURE the code comes out of and never something to read, and
+// fourteen rows of it was a wall the eye had to get past before the one
+// checkable thing on the page arrived. Four says the same in 600ms, and the
+// room that buys goes to a line saying what the device did with the bytes
+// and one sentence saying what the code is. The beat moves with it: the code
+// is fully locked at 1.7s, the handover starts at 2.2 and the overlay is
+// gone by 3.2, against 1.9 / 3.1 / 4.0 before.
 //
 // And no lv_anim, and no opacity on the container. Fading a parent puts LVGL
 // on the layer path, and this parent covers the whole 800x480: 768KB of
 // composite against a 126KB heap. A label carries its own opa without a
 // layer, and the timer is already running.
 
-#define MO_ROWS      14
+#define MO_ROWS       4
 #define MO_COLS      46
 #define MO_CELLS     (MO_ROWS * MO_COLS)
-#define MO_TOP       52          // the block's first row
+#define MO_TOP      118          // the block's rows: 118, 138, 158, 178
 #define MO_LINE      20          // ...and the pitch between them
-#define MO_CAP_BOT  396          // the caption's floor, clear of the band
+#define MO_LBL_Y     88          // the status line, centred, above the block
+#define MO_CODE_Y   226          // the code, centred, below it
+#define MO_LINE_Y   292          // ...and the one sentence about the code
 
 // Every number below is the reference at its approved speed, in absolute ms.
 #define MO_TICK       33
-#define MO_FLIP      122         // an unlocked cell re-rolls this often
-#define MO_WAVE     1378         // the lock front, first row to last
+#define MO_FLIP       90         // an unlocked cell re-rolls this often
+#define MO_WAVE      600         // the lock front, first row to last
 #define MO_FLASH     170         // accent, before a locked cell settles
-#define MO_CODE_T0   489         // the first character of the code locks
-#define MO_CODE_GAP  222         // ...and the rest, one at a time
-#define MO_CAP_GAP   244         // a caption line lights after the block
-#define MO_CAP_JIT   178         // ...with this much scatter inside the line
-#define MO_HAND     3065         // the block lifts, the code starts travelling
+#define MO_CODE_T0   700         // the first character of the code locks
+#define MO_CODE_GAP  120         // ...and the rest, one at a time
+#define MO_LBL_DONE (MO_WAVE + 250)  // the status line flips to its done form
+#define MO_SENT_T0  1500         // the sentence arrives
+#define MO_SENT_IN   300         // ...over this long
+#define MO_HAND     2200         // the block lifts, the code starts travelling
 #define MO_TRAVEL    578         // ...and lands
 #define MO_FADE      380         // the overlay dissolves off the exit screen
 #define MO_END      (MO_HAND + MO_TRAVEL + MO_FADE)
 
-#define MO_CAP_MAX    96         // characters of one caption line
-
 static struct {
     lv_obj_t *ovl;
     lv_obj_t *row[MO_ROWS][3];       // dim scramble / accent flash / settled
-    lv_obj_t *cap[2][2];             // the line, and the accent rolling over it
+    lv_obj_t *lbl;                   // the status line's words
+    lv_obj_t *mark;                  // ...and the tick that joins them
+    lv_obj_t *sent;                  // the one sentence under the code
     lv_obj_t *code[2];               // scrambling, and locked
     lv_timer_t *tmr;
     uint32_t  t0;
     uint32_t  flip;                  // when the unlocked cells last re-rolled
     uint32_t  rng;
-    int       cap_n[2];
-    bool      cap_pitch[2];          // the picked face is fixed pitch
-    bool      cap_lit[2];            // ...and the line is already all accent
+    bool      sd;                    // the bytes went to the card, not a QR
+    bool      lbl_done;              // the status line has flipped
+    bool      sent_in;               // ...and the sentence is all the way up
     int       code_n;
     int       code_x0, code_y0;      // where the code starts its travel
-    int       hole_c0, hole_c1;      // the cells the code is standing in front of
-    int       hole_r0, hole_r1;
     bool      row_still[MO_ROWS];    // this row has settled; stop repainting it
     bool      handed;                // the handover has been done once
     bool      swapped;               // ...and the code is at its target rung
@@ -1629,10 +1641,6 @@ static struct {
 static char    s_mo_b64[MO_CELLS + 1];
 static uint8_t s_mo_jit[MO_CELLS];               // where in its row's band a cell locks
 static char    s_mo_buf[MO_ROWS][3][MO_COLS + 1];
-static const char *s_mo_cap_txt[2];              // the line, untouched
-static char    s_mo_cap_src[2][MO_CAP_MAX + 1];  // ...and its per character copy
-static char    s_mo_cap_buf[2][2][MO_CAP_MAX + 1];
-static uint8_t s_mo_cap_jit[2][MO_CAP_MAX];
 static char    s_mo_code_src[16];
 static char    s_mo_code_buf[2][16];
 
@@ -1682,9 +1690,9 @@ static void mo_skip_cb(lv_event_t *e)
     mo_stop();
 }
 
-// 483 bytes is exactly 644 base64 characters, which is exactly the block: 14
+// 138 bytes is exactly 184 base64 characters, which is exactly the block: 4
 // rows of 46, and no padding character anywhere in it.
-#define MO_B64_BYTES 483
+#define MO_B64_BYTES 138
 
 // DECIDED: the motion draws the REAL s_out base64 and the REAL s_sig_fp, never
 // invented bytes. A motion that scrambles plausible looking characters and
@@ -1698,10 +1706,12 @@ static bool mo_fill_b64(size_t sw)
     if (!n || qrt_b64_encode(s_out, n, enc, sizeof enc) != 0) return false;
     const size_t len = strlen(enc);
     if (!len) return false;
-    // A transaction shorter than 483 bytes repeats rather than gains
+    // A transaction shorter than 138 bytes repeats rather than gains
     // characters nothing signed. There is no such PSBT in practice -- the
     // smallest single-input spend is several KB -- and repeating is the only
-    // answer here that stays true.
+    // answer here that stays true. The ribbon asks for less of the
+    // transaction than the old block did, so this branch is further from
+    // being reachable than it was, not closer.
     for (int i = 0; i < MO_CELLS; i++) s_mo_b64[i] = enc[(size_t)i % len];
     s_mo_b64[MO_CELLS] = 0;
     kiss_wipe(enc, sizeof enc);
@@ -1720,45 +1730,61 @@ static lv_obj_t *mo_lbl(const char *buf, int x, int y, const lv_font_t *f,
     return l;
 }
 
-// One caption line: the words, and the accent that rolls through them.
-static void mo_cap_line(int i, const char *txt, const lv_font_t *f,
-                        lv_color_t base, int y)
+// mono14 where the words fit the mono set, and the guarded sans rung where
+// they do not. The kit exports no guard at 14 -- wt_chrome18 is the lowest --
+// but the mono faces are ONE ASCII-only set, so the 18 guard answers exactly
+// the question being asked and only the rung it hands back needs correcting.
+// This is the same fall mo_cap_line made when a translated caption left the
+// mono set, asked once instead of by comparing four font pointers.
+static const lv_font_t *mo_lbl_font(const char *s)
 {
-    const int n = (int)strlen(txt);
-    s_mo_cap_txt[i] = txt;
-    s_mo.cap_n[i] = n;
-    // Per character only where the face is FIXED PITCH: the roll is two
-    // labels at one origin and that only composes if every glyph is the same
-    // width. A locale whose caption leaves the mono set gets the sans face and
-    // the line lights in one step -- the wave still rolls block, line, line,
-    // which is what the beat is there for.
-    //
-    // Length is part of the same question. A line that will not fit the per
-    // character buffer takes the one step path rather than being cut to fit:
-    // a translated string chopped to a byte count loses half a codepoint, and
-    // the mono faces this branch needs are ASCII anyway.
-    s_mo.cap_pitch[i] = n <= MO_CAP_MAX &&
-                        (f == wt_font_mono14() || f == wt_font_mono18() ||
-                         f == wt_font_mono21() || f == wt_font_mono23());
+    const lv_font_t *g = wt_chrome18(s);
+    return g == wt_font_mono18() ? wt_font_mono14() : g;
+}
 
-    lv_point_t sz;
+// Which of the four status strings this run wears. The words are the step
+// strip's -- the card, or the square -- because that is what the owner is
+// about to be handed, and BIP174 lives in the [ ? ] panel where somebody has
+// asked for it.
+static int mo_lbl_key(bool done)
+{
+    if (done) return s_mo.sd ? STR_S_MO_WRITTEN_SD : STR_S_MO_WRITTEN_QR;
+    return s_mo.sd ? STR_S_MO_WRITING_SD : STR_S_MO_WRITING_QR;
+}
+
+// The status line, centred on the 800 lane as a PAIR: a tick and the words, or
+// the words on their own.
+//
+// Two objects and not one string, because the mono faces are built 0x20-0x7E
+// and carry no symbol at all -- LV_SYMBOL_OK inside one of them draws LVGL's
+// placeholder box, and kiss_theme.h names that as the failure that survives
+// every gate and is found on glass. The kit splits a mark off its words for
+// the same reason everywhere else.
+static void mo_lbl_set(const char *txt, lv_color_t col, bool tick)
+{
+    if (!s_mo.lbl) return;
+    const lv_font_t *f = mo_lbl_font(txt);
+    lv_point_t sz, ms = { 0, 0 };
     lv_text_get_size(&sz, txt, f, 2, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-    const int x = (800 - sz.x) / 2;
-
-    if (s_mo.cap_pitch[i]) {
-        lv_memcpy(s_mo_cap_src[i], txt, (size_t)n);
-        s_mo_cap_src[i][n] = 0;
-        lv_memcpy(s_mo_cap_buf[i][0], txt, (size_t)n);
-        s_mo_cap_buf[i][0][n] = 0;
-        s_mo_cap_buf[i][1][0] = 0;
-        for (int c = 0; c < n; c++)
-            s_mo_cap_jit[i][c] = (uint8_t)(mo_glyph() & 0x7F);
-        s_mo.cap[i][0] = mo_lbl(s_mo_cap_buf[i][0], x, y, f, base, 2);
-        s_mo.cap[i][1] = mo_lbl(s_mo_cap_buf[i][1], x, y, f, wt_accent(), 2);
-    } else {
-        s_mo.cap[i][0] = mo_lbl(txt, x, y, f, base, 2);
-        s_mo.cap[i][1] = mo_lbl("", x, y, f, wt_accent(), 2);
+    int w = sz.x, mw = 0;
+    if (tick) {
+        lv_text_get_size(&ms, LV_SYMBOL_OK, wt_font14(), 0, 0, LV_COORD_MAX,
+                         LV_TEXT_FLAG_NONE);
+        mw = ms.x + 10;                       // mark_draw's own gap, at 14
+        w += mw;
     }
+    const int x = (800 - w) / 2;
+    lv_label_set_text_static(s_mo.lbl, txt);
+    lv_obj_set_style_text_font(s_mo.lbl, f, 0);
+    lv_obj_set_style_text_color(s_mo.lbl, col, 0);
+    lv_obj_set_pos(s_mo.lbl, x + mw, MO_LBL_Y);
+    if (!s_mo.mark) return;
+    if (!tick) { lv_obj_add_flag(s_mo.mark, LV_OBJ_FLAG_HIDDEN); return; }
+    lv_obj_remove_flag(s_mo.mark, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_style_text_color(s_mo.mark, col, 0);
+    // Centred on the WORDS' line box. Two faces at two heights sharing a y
+    // floats one of them, which is the whole reason mark_draw exists.
+    lv_obj_set_pos(s_mo.mark, x, MO_LBL_Y + (sz.y - ms.y) / 2);
 }
 
 // ---- the tick -------------------------------------------------------------
@@ -1769,24 +1795,16 @@ static void mo_paint_block(uint32_t t)
     const bool flip = (t - s_mo.flip) >= MO_FLIP;
     if (flip) s_mo.flip = t;
 
+    // No HOLE any more. The old block was fourteen rows deep with the code
+    // standing in the middle of it, and the cells behind it were cleared so
+    // the code read as having come OUT of the block rather than as sitting on
+    // top of noise. At four rows the code has a line of its own underneath,
+    // so there is nothing for it to stand in front of and nothing to clear.
     for (int r = 0; r < MO_ROWS; r++) {
         if (s_mo.row_still[r]) continue;
         bool still = true;
-        const bool hole_row = r >= s_mo.hole_r0 && r <= s_mo.hole_r1;
         for (int c = 0; c < MO_COLS; c++) {
             const int i = r * MO_COLS + c;
-            // The block has a HOLE where the code stands. The reference lifts
-            // the code off the noise with a 22px dark text-shadow and LVGL has
-            // none -- a plate behind it would be a hard edged chip, which is a
-            // different object. Clearing the cells says the same thing and
-            // says it better: the code is coming OUT of the block, so the
-            // block is missing exactly where it went.
-            if (hole_row && c >= s_mo.hole_c0 && c <= s_mo.hole_c1) {
-                s_mo_buf[r][0][c] = ' ';
-                s_mo_buf[r][1][c] = ' ';
-                s_mo_buf[r][2][c] = ' ';
-                continue;
-            }
             // The front moves BY ROW, with the jitter scattering each cell
             // inside a band 1.6 rows deep -- so it reads as a front coming
             // down rather than as text being typed left to right.
@@ -1828,39 +1846,34 @@ static void mo_paint_code(uint32_t t)
     lv_label_set_text_static(s_mo.code[1], s_mo_code_buf[1]);
 }
 
-static void mo_paint_cap(uint32_t t)
+// The status line flips ONCE, a quarter second after the block has settled:
+// it spends the wave saying what the device is doing with the bytes and the
+// rest of the motion saying it is done.
+//
+// WT_OK and never the accent. A done state is status semantics, so it keeps
+// its green on every theme -- the same rule the [ ? ] panel's verdict tick is
+// dropped out of the accent flag for.
+static void mo_paint_lbl(uint32_t t)
 {
-    for (int i = 0; i < 2; i++) {
-        const int n = s_mo.cap_n[i];
-        if (!n || s_mo.cap_lit[i]) continue;
-        // Down through line one, then line two, once the block is done.
-        const uint32_t t0 = MO_WAVE + (uint32_t)(i + 1) * MO_CAP_GAP;
-        if (t < t0) continue;
-
-        if (!s_mo.cap_pitch[i]) {
-            s_mo.cap_lit[i] = true;                 // one step: the whole line
-            lv_label_set_text_static(s_mo.cap[i][0], "");
-            lv_label_set_text_static(s_mo.cap[i][1], s_mo_cap_txt[i]);
-            continue;
-        }
-        bool all = true;
-        for (int c = 0; c < n; c++) {
-            const uint32_t lock = t0 + (uint32_t)s_mo_cap_jit[i][c] *
-                                       MO_CAP_JIT / 127;
-            const bool lit = t >= lock;
-            s_mo_cap_buf[i][0][c] = lit ? ' ' : s_mo_cap_src[i][c];
-            s_mo_cap_buf[i][1][c] = lit ? s_mo_cap_src[i][c] : ' ';
-            if (!lit) all = false;
-        }
-        lv_label_set_text_static(s_mo.cap[i][0], s_mo_cap_buf[i][0]);
-        lv_label_set_text_static(s_mo.cap[i][1], s_mo_cap_buf[i][1]);
-        // Lit stays lit: the caption never reverts, so once every character
-        // has turned there is nothing left to repaint.
-        s_mo.cap_lit[i] = all;
-    }
+    if (s_mo.lbl_done || t < MO_LBL_DONE) return;
+    s_mo.lbl_done = true;
+    mo_lbl_set(tr(mo_lbl_key(true)), OK_COL, true);
 }
 
-// The block drops back to a tenth and lifts 8px, the caption goes, and the
+// The sentence comes UP rather than switching on. By 1500 the code is locked
+// and the eye is on it, and a line appearing whole beside a settled screen
+// reads as a glitch. One label's own opa, never the container's -- see the
+// note above the constants for why a parent may not carry one.
+static void mo_paint_sent(uint32_t t)
+{
+    if (s_mo.sent_in || !s_mo.sent || t < MO_SENT_T0) return;
+    const uint32_t d = t - MO_SENT_T0;
+    s_mo.sent_in = d >= MO_SENT_IN;
+    lv_obj_set_style_opa(s_mo.sent, s_mo.sent_in ? LV_OPA_COVER :
+                         (lv_opa_t)(LV_OPA_COVER * d / MO_SENT_IN), 0);
+}
+
+// The block drops back to a tenth and lifts 8px, the two lines go, and the
 // code flies into the row that will hold it. LVGL cannot scale text, so the
 // reference's shrink is a travel plus a font swap at arrival -- the two the
 // handoff names, and the one it calls better.
@@ -1873,10 +1886,9 @@ static void mo_handover(uint32_t t)
                 lv_obj_set_style_opa(s_mo.row[r][k], LV_OPA_10, 0);
                 lv_obj_set_y(s_mo.row[r][k], MO_TOP + r * MO_LINE - 8);
             }
-        for (int i = 0; i < 2; i++)
-            for (int k = 0; k < 2; k++)
-                if (s_mo.cap[i][k]) lv_obj_set_style_opa(s_mo.cap[i][k],
-                                                         LV_OPA_TRANSP, 0);
+        if (s_mo.lbl)  lv_obj_set_style_opa(s_mo.lbl,  LV_OPA_TRANSP, 0);
+        if (s_mo.mark) lv_obj_set_style_opa(s_mo.mark, LV_OPA_TRANSP, 0);
+        if (s_mo.sent) lv_obj_set_style_opa(s_mo.sent, LV_OPA_TRANSP, 0);
         if (s_mo.code[0]) lv_obj_set_style_opa(s_mo.code[0], LV_OPA_TRANSP, 0);
     }
     if (!s_mo.code[1] || !s_sig_val_f) return;
@@ -1934,7 +1946,8 @@ static void mo_tick(lv_timer_t *tm)
     if (t < MO_HAND) {
         mo_paint_block(t);
         mo_paint_code(t);
-        mo_paint_cap(t);
+        mo_paint_lbl(t);
+        mo_paint_sent(t);
         return;
     }
     mo_handover(t);
@@ -1960,10 +1973,13 @@ static void mo_tick(lv_timer_t *tm)
 // of the signature panel rebuilds whichever screen it came from, and a motion
 // that replayed there would scramble a filename somebody had gone to read the
 // explainer about.
-static void mo_start(lv_obj_t *parent, size_t sw)
+static void mo_start(lv_obj_t *parent, size_t sw, bool sd)
 {
     lv_memzero(&s_mo, sizeof s_mo);
     s_mo.rng = lv_tick_get() | 1u;
+    // The CHANNEL, not the source. A signature scanned in and then written to
+    // a card is on the card, and that is what the status line has to say.
+    s_mo.sd  = sd;
     if (!mo_fill_b64(sw)) return;
 
     for (int i = 0; i < MO_CELLS; i++) s_mo_jit[i] = (uint8_t)(mo_glyph() & 0x7F);
@@ -2002,7 +2018,7 @@ static void mo_start(lv_obj_t *parent, size_t sw)
         s_mo.row[r][2] = mo_lbl(s_mo_buf[r][2], bx, y, bf, MUT_COL, 1);
     }
 
-    // The code, centred in the block it is coming out of.
+    // The code, on a line of its own under the ribbon rather than inside it.
     if (s_sig_fp[0]) {
         sig_fp_code(s_mo_code_src, sizeof s_mo_code_src);
         s_mo.code_n = (int)strlen(s_mo_code_src);
@@ -2010,7 +2026,7 @@ static void mo_start(lv_obj_t *parent, size_t sw)
         lv_text_get_size(&sz, s_mo_code_src, cf, 6, 0, LV_COORD_MAX,
                          LV_TEXT_FLAG_NONE);
         s_mo.code_x0 = (800 - sz.x) / 2;
-        s_mo.code_y0 = MO_TOP + (MO_ROWS * MO_LINE - sz.y) / 2;
+        s_mo.code_y0 = MO_CODE_Y;
         for (int k = 0; k < 2; k++) {
             lv_memset(s_mo_code_buf[k], ' ', (size_t)s_mo.code_n);
             s_mo_code_buf[k][s_mo.code_n] = 0;
@@ -2022,28 +2038,46 @@ static void mo_start(lv_obj_t *parent, size_t sw)
         lv_obj_set_style_opa(s_mo.code[0], LV_OPA_30, 0);
         s_mo.code[1] = mo_lbl(s_mo_code_buf[1], s_mo.code_x0, s_mo.code_y0,
                               cf, wt_accent(), 6);
-
-        // The cells it stands in front of, with a character of air each side.
-        lv_point_t one;
-        lv_text_get_size(&one, "M", bf, 1, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-        const int pitch = one.x ? one.x : 9;
-        s_mo.hole_c0 = (s_mo.code_x0 - bx) / pitch - 1;
-        s_mo.hole_c1 = (s_mo.code_x0 + sz.x - bx) / pitch + 1;
-        s_mo.hole_r0 = (s_mo.code_y0 - MO_TOP) / MO_LINE;
-        s_mo.hole_r1 = (s_mo.code_y0 + sz.y - MO_TOP) / MO_LINE;
-    } else {
-        s_mo.hole_r0 = 1; s_mo.hole_r1 = 0;         // no code, no hole
     }
 
-    // The caption, bottom anchored off the action band rather than pinned to
-    // the reference's y: the faces differ by locale and this is the last
-    // thing above the bar.
-    const char *c1 = tr(STR_S_MOTION_CAP), *c2 = tr(STR_T_PSBT_TERM);
-    const lv_font_t *f1 = wt_chrome18(c1), *f2 = wt_font_mono14();
-    const int h1 = lv_font_get_line_height(f1);
-    const int h2 = lv_font_get_line_height(f2);
-    mo_cap_line(1, c2, f2, WT_DIM, MO_CAP_BOT - h2);
-    mo_cap_line(0, c1, f1, MUT_COL, MO_CAP_BOT - h2 - 6 - h1);
+    // DECIDED: the status line says what the device DID with the bytes, in
+    // the words of the step strip -- the card, or the square. That is the one
+    // thing an owner standing here wants confirmed, and it is checkable
+    // against the screen underneath rather than a claim only this overlay
+    // makes. BIP174 is what the old caption spent its line on; the term has a
+    // home in the [ ? ] panel, where somebody has asked for it.
+    //
+    // The tick is built now and hidden, so the flip at 850ms is two style
+    // writes rather than an object arriving on a settled screen -- and it is
+    // built off wt_font14, the Latin face that actually carries the symbol
+    // range, while the words take the mono rung beside it.
+    s_mo.mark = mo_lbl(LV_SYMBOL_OK, 0, MO_LBL_Y, wt_font14(), OK_COL, 0);
+    s_mo.lbl  = mo_lbl("", 0, MO_LBL_Y, wt_font_mono14(), WT_DIM, 2);
+    mo_lbl_set(tr(mo_lbl_key(false)), WT_DIM, false);
+
+    // DECIDED: ONE sentence, in sans, under the code, and no per character
+    // roll on it. The old caption rolled two mono lines a character at a time
+    // and that is a second thing moving while the code is still locking -- the
+    // eye was given two subjects and only one of them is checkable. This line
+    // is still, and it arrives after the code has settled.
+    //
+    // ONLY where there is a code for it to be about: the fingerprint can
+    // fail, do_sign_cb treats that as survivable, and both exit screens
+    // simply omit the aid rather than explaining a missing one.
+    if (s_sig_fp[0]) {
+        const char *st = tr(STR_S_MO_SENT);
+        // Capped at the 23 rung by the budget it is given. The code above it
+        // is mono34 and a font28 line underneath competes with it instead of
+        // captioning it, so the box is exactly one line of 23 -- measured in
+        // the ACTIVE locale's face, which is taller in ja, ko and zh.
+        const lv_font_t *sf = wt_body_font(st, 704,
+                                  lv_font_get_line_height(wt_font23()));
+        s_mo.sent = mo_lbl(st, 48, MO_LINE_Y, sf, MUT_COL, 0);
+        lv_obj_set_width(s_mo.sent, 704);
+        lv_label_set_long_mode(s_mo.sent, LV_LABEL_LONG_WRAP);
+        lv_obj_set_style_text_align(s_mo.sent, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_style_opa(s_mo.sent, LV_OPA_TRANSP, 0);
+    }
 
     s_mo.t0  = lv_tick_get();
     s_mo.tmr = lv_timer_create(mo_tick, MO_TICK, NULL);
@@ -2056,7 +2090,7 @@ static void finish_sign_cb(lv_timer_t *t)
     if (s_src == SRC_QR) {                       // came by QR: goes back by QR
         s_qr_sw = sw;
         qr_out_screen(sw, false);
-        mo_start(lv_obj_get_parent(s_scr), sw);
+        mo_start(lv_obj_get_parent(s_scr), sw, s_src != SRC_QR);
         return;
     }
     const char *outname = signed_name(s_cur);
@@ -2074,7 +2108,7 @@ static void finish_sign_cb(lv_timer_t *t)
     done_screen(outname);
     // AFTER the screen, never instead of it: the motion is drawn over a
     // finished page, so a skip is a delete and DONE was live the whole time.
-    mo_start(lv_obj_get_parent(s_scr), sw);
+    mo_start(lv_obj_get_parent(s_scr), sw, s_src != SRC_QR);
 }
 
 static void do_sign_cb(lv_timer_t *t)

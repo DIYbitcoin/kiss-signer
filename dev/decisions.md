@@ -10,7 +10,7 @@ construction.
 route to the comment that answers it, which is how seven findings were filed
 and withdrawn in one review pass.
 
-38 decisions.
+41 decisions.
 
 ## `main/kiss_duress_ui.c`
 
@@ -154,41 +154,59 @@ SIGNED was claimed three times on this screen -- the page title, that 48px check
 
 [`main/kiss_sign.c:1079`](../main/kiss_sign.c#L1079)
 
+### the block is FOUR rows, not fourteen
+
+Nobody reads base64, so it is the TEXTURE the code comes out of and never something to read, and fourteen rows of it was a wall the eye had to get past before the one checkable thing on the page arrived. Four says the same in 600ms, and the room that buys goes to a line saying what the device did with the bytes and one sentence saying what the code is. The beat moves with it: the code is fully locked at 1.7s, the handover starts at 2.2 and the overlay is gone by 3.2, against 1.9 / 3.1 / 4.0 before. And no lv_anim, and no opacity on the container. Fading a parent puts LVGL on the layer path, and this parent covers the whole 800x480: 768KB of composite against a 126KB heap. A label carries its own opa without a layer, and the timer is already running.
+
+[`main/kiss_sign.c:1582`](../main/kiss_sign.c#L1582)
+
 ### any press anywhere ends the motion at once, and nothing ever waits on it
 
 The exit screen is already built and DONE is already live underneath -- the motion is drawn OVER a finished screen rather than in front of one being prepared, so a skip is a delete and not a fast forward. Same rule the drift-home timer was deleted for: a filename an owner is reading back must never be mid scramble, and a screen that will not let go reads as a crash.
 
-[`main/kiss_sign.c:1673`](../main/kiss_sign.c#L1673)
+[`main/kiss_sign.c:1681`](../main/kiss_sign.c#L1681)
 
 ### the motion draws the REAL s_out base64 and the REAL s_sig_fp, never invented bytes
 
 A motion that scrambles plausible looking characters and resolves to something else is a lie told by the one screen whose whole job is to hand back something checkable, and an owner who photographed the frame and compared it would find it. The first row genuinely reads cHNidP8B.
 
-[`main/kiss_sign.c:1689`](../main/kiss_sign.c#L1689)
+[`main/kiss_sign.c:1697`](../main/kiss_sign.c#L1697)
+
+### the status line says what the device DID with the bytes, in the words of the step strip -- the card, or the square
+
+That is the one thing an owner standing here wants confirmed, and it is checkable against the screen underneath rather than a claim only this overlay makes. BIP174 is what the old caption spent its line on; the term has a home in the [ ? ] panel, where somebody has asked for it. The tick is built now and hidden, so the flip at 850ms is two style writes rather than an object arriving on a settled screen -- and it is built off wt_font14, the Latin face that actually carries the symbol range, while the words take the mono rung beside it.
+
+[`main/kiss_sign.c:2043`](../main/kiss_sign.c#L2043)
+
+### ONE sentence, in sans, under the code, and no per character roll on it
+
+The old caption rolled two mono lines a character at a time and that is a second thing moving while the code is still locking -- the eye was given two subjects and only one of them is checkable. This line is still, and it arrives after the code has settled. ONLY where there is a code for it to be about: the fingerprint can fail, do_sign_cb treats that as survivable, and both exit screens simply omit the aid rather than explaining a missing one.
+
+[`main/kiss_sign.c:2058`](../main/kiss_sign.c#L2058)
 
 ### the two change rows are exclusive and the dust one wins, even though kiss_psbt.c raises them PER OUTPUT and can therefore set both -- one change output under the dust floor and a second between the floor and 5000
 
 Both bits set draws the dust row only, and caution_all_bits reads back through here, so the gate asks for the rows the owner can see and stays consistent. Splitting them was considered and dropped. It takes the stack to six on a page built for five (SG_ROW_MAX, and the ceiling argument above), and it buys a second row saying "tiny change" beside a row already saying "dust change" -- the same sentence about the same fault, for a two change output transaction almost no coordinator builds. What is lost is real and it is one line of a soft privacy caution, not a claim about where the money goes.
 
-[`main/kiss_sign.c:2731`](../main/kiss_sign.c#L2731)
+[`main/kiss_sign.c:2765`](../main/kiss_sign.c#L2765)
 
 ### the NETWORK badge yields its lane to the LOCKTIME badge, not the other way round
 
 Both are placed out of the same right to left fr chain and both used to end in a bare lv_obj_delete when the line ran out -- and on a long title the one that lost was always the locktime, because it is placed last. That is backwards, and each block's own comment says so. The network drops "because the network is on the DETAILS deck as well, so dropping it here costs the reader a tap, not the fact". The locktime badge EXISTS because its deck row is "where a fact goes to be unread" -- it was added to get that fact off the third tab and onto the glass. So dropping the locktime costs the fact, and dropping the network costs a tap. Measured, not theoretical: on the Dutch and Russian sign screens the title, the network chip and the fingerprint left the locktime badge under its 12px clearance even in the degraded form below, so it took the else branch and an owner signing a time locked payment was never told. The German case in the comment further down is the same bug caught one locale earlier and fixed only as far as German needed. The trade only arises on TESTNET, because that is the only time a network chip is drawn at all, and it fails in the safe direction. A missing network chip is what MAINNET looks like, so an owner who loses it reads the screen as more serious than it is and is more careful, not less. A missing locktime is the opposite: the payment reads as spendable now, and it is not.
 
-[`main/kiss_sign.c:2991`](../main/kiss_sign.c#L2991)
+[`main/kiss_sign.c:3025`](../main/kiss_sign.c#L3025)
 
 ### the sign review band does NOT name the transaction's file; that line was cut rather than fixed
 
 NO FILENAME HERE, and no "camera" either. Both were cut rather than fixed. The reader tapped that name on the file list one screen back, or watched the camera assemble the transaction, so the line restated what they had just done -- which is the copy rule's own example of a string to cut. And a filename is the COORDINATOR'S bookkeeping, not a fact about the payment: what says this is the right transaction is the amount and the destination, and both are on this screen at full size. A name in the corner never checked anything. What it cost to keep was the whole band. The line ran under the title beside the signed badge, the network chip and the fingerprint, and it was the only unlabelled string among them. It also carried two defects for as long as it existed: set in the smallest face on the device, and, once that was corrected, handing a translated phrase to a filename tail-fold so a scanned transaction read "scan...ansaction" on the screen where a payment is approved. fx survives because the badge and the chip above measure their lane against it: they may not run back under the title.
 
-[`main/kiss_sign.c:3173`](../main/kiss_sign.c#L3173)
+[`main/kiss_sign.c:3207`](../main/kiss_sign.c#L3207)
 
 ### this toggle's mark stays VISIBLE when it is off, dimmed rather than transparent
 
 The two-state word action hides its mark elsewhere and that is right where a PAIR of them sits side by side -- the dice screen -- because the pair is the affordance. This one stands alone in a left aligned column, and hidden-but-still-occupying-space gave it no affordance at all AND pushed its word 33px inside the column's edge, so it read as a centred heading rather than a control. An inert mark says both things at once: there is a switch here, and it is not on.
 
-[`main/kiss_sign.c:4880`](../main/kiss_sign.c#L4880)
+[`main/kiss_sign.c:4914`](../main/kiss_sign.c#L4914)
 
 ## `main/kiss_theme.c`
 

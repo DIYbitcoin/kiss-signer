@@ -126,6 +126,12 @@ static const slot_t SLOTS[] = {
     { "sign/glossary",    STR_S_GLOSSARY_B,     704, 232 },
     { "sign/ez-note",     STR_S_EZ_NOTE,        322,  87 },
     { "sign/saved-note",  STR_S_SAVED_NOTE,     704,  90 },
+    // kiss_sign.c mo_start() -- the one sentence under the code in the
+    // arrival motion. Its box is ONE line at the 23 rung, deliberately: the
+    // code above it is mono34 and a font28 line under that competes with it
+    // instead of captioning it. 29 is that line in the Latin faces; the call
+    // site measures the ACTIVE locale's, which is taller in ja, ko and zh.
+    { "sign/mo-sent",     STR_S_MO_SENT,        704,  29 },
     { "login/qr-warn",    STR_L_SCAN_WARN_B,704, 274 },
     // kiss_settings.c — the network row's sub-line on the SIGNER tab. It is a
     // ROW SUB now rather than a note floating in a gap between controls: one
