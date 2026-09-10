@@ -6721,6 +6721,156 @@ static void span_run(lv_obj_t *sg, const char *txt, const char *hi)
 // _fit twin that re-texts them after the fact -- the settings chooser caption
 // swaps on every tap -- so the rebuild has to be a first class operation, not
 // something only the constructor can do.
+// Does this text end a sentence anywhere? The one rule, shared by prebreak
+// (which protects the stops) and the span loop below (which colours them), so
+// the two can never disagree about what a stop is.
+static bool is_stop_at(const char *txt, size_t i)
+{
+    const bool cjk = (unsigned char)txt[i] == 0xE3 &&
+                     (unsigned char)txt[i + 1] == 0x80 &&
+                     (unsigned char)txt[i + 2] == 0x82 && i > 0;
+    return cjk || (txt[i] == '.' && i > 0 &&
+                   ((txt[i - 1] >= 'a' && txt[i - 1] <= 'z') ||
+                    (txt[i - 1] >= 'A' && txt[i - 1] <= 'Z') ||
+                    (txt[i - 1] >= '0' && txt[i - 1] <= '9')) &&
+                   (txt[i + 1] == '\0' || txt[i + 1] == ' ' ||
+                    txt[i + 1] == '\n'));
+}
+
+// Any CJK, kana or Hangul codepoint. 0x2E80 up starts above every script that
+// separates words with spaces -- Cyrillic, Greek, Arabic and Devanagari are
+// all below it.
+static bool has_cjk(const char *txt)
+{
+    for (const char *p = txt; *p; ) {
+        const unsigned char c = (unsigned char)*p;
+        const int cl = c < 0xC0 ? 1 : c < 0xE0 ? 2 : c < 0xF0 ? 3 : 4;
+        if (cl >= 4) return true;
+        if (cl == 3) {
+            const unsigned cp = ((unsigned)(c & 0x0F) << 12) |
+                                ((unsigned)(p[1] & 0x3F) << 6) |
+                                (unsigned)(p[2] & 0x3F);
+            if (cp >= 0x2E80) return true;
+        }
+        p += cl;
+    }
+    return false;
+}
+
+static bool has_stop(const char *txt)
+{
+    for (size_t i = 0; txt[i]; i++)
+        if (is_stop_at(txt, i)) return true;
+    return false;
+}
+
+// Append a byte range, bounded. Leaves what is there when it will not fit.
+static bool out_put(char *out, size_t out_len, size_t *o, const char *s, size_t n)
+{
+    if (*o + n + 1 > out_len) return false;
+    lv_memcpy(out + *o, s, n);
+    *o += n;
+    out[*o] = 0;
+    return true;
+}
+
+// Choose the lines a body wraps onto, and write them back as hard breaks.
+//
+// The accent stop is its own span and a lone span is a break opportunity, so
+// LVGL could put ". " at the head of a line -- "it sees every transaction" /
+// ". it can never spend one." reached the bench twice. spans_fill recorded it
+// as unfixable because LVGL cannot bond one span to the span before it, and
+// the answer was to move the copy. That answer depends on the lane width, the
+// font the fit picked and the word that happens to land at the edge, in each
+// of 21 locales, which is not an answer.
+//
+// So the line breaks stop being LVGL's to choose. Greedy, on WHOLE WORDS,
+// measured with the public lv_text_get_size. "transaction." is one word to
+// this loop, so a stop cannot be the first thing on a line -- an invariant of
+// the layout instead of a property of the string. With every line already
+// fitted, no span boundary is left for LVGL to break at.
+//
+// lv_text_get_next_line does this job and is what LVGL breaks with itself, but
+// it lives in lv_text_private.h. App code reaching into a vendored private
+// header is a build break at the next LVGL bump, and wt_name_fold in this file
+// already measures the same way.
+//
+// Original bytes are copied through verbatim, never re-joined: a mark glued on
+// by tr_sym carries two spaces after it, and normalising runs of spaces would
+// tear that apart.
+static void prebreak(const char *txt, lv_obj_t *sg, char *out, size_t out_len)
+{
+    size_t o = 0;
+    if (!out || !out_len) return;
+    out[0] = 0;
+    if (!txt) return;
+
+    const lv_font_t *f = lv_obj_get_style_text_font(sg, 0);
+    const int32_t ls = lv_obj_get_style_text_letter_space(sg, 0);
+    int lane = lv_obj_get_content_width(sg);
+    // ZERO HERE, always, on the first fill. spans_fill runs while a screen is
+    // being BUILT and no layout pass has happened, so the computed width is
+    // not yet a number. The SET width is: every caller arrives through
+    // spans_new, which sets it explicitly and strips every style, so there is
+    // no padding standing between the two.
+    if (lane <= 0) {
+        const int32_t w = lv_obj_get_style_width(sg, 0);
+        if (w > 0) lane = (int)w;
+    }
+    // No font or no width yet: hand the text back untouched and let LVGL wrap
+    // it as before. Worse than the fix, never worse than not having it.
+    if (!f || lane <= 0) { snprintf(out, out_len, "%s", txt); return; }
+
+    char cand[640];
+    lv_point_t sz;
+
+    const char *line = txt;      // first byte of the line being measured
+    const char *brk  = NULL;     // last space on it: the break candidate
+    const char *p    = txt;
+
+    for (;;) {
+        // One token: a run of non-space bytes. Whole words only, which is
+        // what makes the guarantee -- "transaction." is one token, so a stop
+        // cannot be the first thing on a line.
+        while (*p && *p != ' ' && *p != '\n') p++;
+
+        const size_t n = (size_t)(p - line);
+        if (n && n < sizeof cand) {
+            lv_memcpy(cand, line, n);
+            cand[n] = 0;
+            lv_text_get_size(&sz, cand, f, ls, 0, LV_COORD_MAX,
+                             LV_TEXT_FLAG_NONE);
+            // Past the lane, and there is somewhere to give back: the line
+            // ends there and this token opens the next one. A single token
+            // longer than the whole lane has nowhere to give and stays put,
+            // which leaves LVGL to break it mid-token exactly as it does now.
+            if (sz.x > lane && brk && brk > line) {
+                if (!out_put(out, out_len, &o, line, (size_t)(brk - line)) ||
+                    !out_put(out, out_len, &o, "\n", 1))
+                    return;
+                // The space is consumed by the break it caused.
+                line = brk + 1;
+                while (*line == ' ') line++;
+                p   = line;
+                brk = NULL;
+                continue;                        // re-measure on the new line
+            }
+        }
+        if (*p == '\n') {                        // a break the copy asked for
+            if (!out_put(out, out_len, &o, line, (size_t)(p - line) + 1))
+                return;
+            p++;
+            line = p;
+            brk  = NULL;
+            continue;
+        }
+        if (!*p) break;
+        brk = p;                                 // a space, and a candidate
+        p++;
+    }
+    if (*line) out_put(out, out_len, &o, line, strlen(line));
+}
+
 static void spans_fill(lv_obj_t *sg, const char *txt, const char *hi)
 {
     // The _fit helpers are public and are called on labels this file did not
@@ -6734,6 +6884,26 @@ static void spans_fill(lv_obj_t *sg, const char *txt, const char *hi)
     while (lv_spangroup_get_span_count(sg))
         lv_spangroup_delete_span(sg, lv_spangroup_get_child(sg, 0));
     if (!txt) txt = "";
+    // The lines are chosen before the spans are cut, so that no span boundary
+    // is a break opportunity LVGL can put a full stop after. See prebreak.
+    //
+    // ONLY for text that actually carries a stop. Everything reaching here
+    // with none -- a row label, a caption, a value -- is a single span, has no
+    // boundary to orphan anything at, and must keep the wrapping it has: the
+    // first cut of this re-wrapped all of them and moved Japanese row labels
+    // like the transaction id into the value beneath, two findings over ja's
+    // overlap ceiling on screens that never had a full stop to protect.
+    // NOT CJK. Those scripts put no space between words, so every character
+    // is a break opportunity and choosing lines well needs the kinsoku rules
+    // and per-character metrics that LVGL already applies -- a greedy pass on
+    // whole tokens does it WORSE, measurably: it cost ja an extra wrapped line
+    // and put that locale over its overlap ceiling, which the runner refuses
+    // to raise and should. LVGL keeps those locales, unchanged.
+    char pre[1280];
+    if (has_stop(txt) && !has_cjk(txt)) {
+        prebreak(txt, sg, pre, sizeof pre);
+        txt = pre;
+    }
     size_t i = 0, run = 0;
     char buf[640];
     while (txt[i]) {
@@ -6747,13 +6917,7 @@ static void spans_fill(lv_obj_t *sg, const char *txt, const char *hi)
         const bool cjk_stop = (unsigned char)txt[i] == 0xE3 &&
                               (unsigned char)txt[i + 1] == 0x80 &&
                               (unsigned char)txt[i + 2] == 0x82 && i > 0;
-        const bool stop = cjk_stop ||
-                          (txt[i] == '.' && i > 0 &&
-                           ((txt[i - 1] >= 'a' && txt[i - 1] <= 'z') ||
-                            (txt[i - 1] >= 'A' && txt[i - 1] <= 'Z') ||
-                            (txt[i - 1] >= '0' && txt[i - 1] <= '9')) &&
-                           (txt[i + 1] == '\0' || txt[i + 1] == ' ' ||
-                            txt[i + 1] == '\n'));
+        const bool stop = is_stop_at(txt, i);
         if (!stop) {
             if (run + 1 < sizeof buf) buf[run++] = txt[i];
             i++;
