@@ -5,6 +5,11 @@ main/build-disp/
 # the offline installer zip: derived from docs/ and the release build, attached
 # to the GitHub Release rather than carried in git history
 /dist/
+# the hash lists CI writes beside a build, uploaded as run artifacts.
+# They land in the working tree, and the encrypted recipe refuses to
+# build from a dirty tree, so an unignored one fails the second lane.
+/SHA256SUMS-*-ci.txt
+/SHA256SUMS-ci.txt
 sdkconfig.release
 sdkconfig.encrypted
 sdkconfig.encrypted-rehearsal
