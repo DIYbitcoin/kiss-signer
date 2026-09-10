@@ -2587,7 +2587,18 @@ static void verify_gesture_cb(lv_event_t *e)
 // 290, not 344: the slide grew the action band to WT_ACTION_Y_SLIDE and the
 // bar has to finish above it. 290 + 44 is 334, two clear of WT_SLIDE_BOTTOM.
 #define SG_BAR_Y_G   290   // ... and where it sits under the bundle graph
-#define SG_BAR_H      44
+// 56, up from 44, and the number is the ack control's target rather than the
+// sentence's height. The bar carries I UNDERSTAND, whose own object is 40 tall
+// with 8px of slop -- but a child's slop is gated by the parent it sits in, so
+// the target was the BAR's 44px, about 3.3mm on this panel. That is the same
+// too-small-for-a-finger the receipt's address had at 40, reported from the
+// bench in the same words: it would not open under a finger and opened every
+// time under a simulated tap, which lands dead centre.
+//
+// The band has the room. The graph owns 172..282 and the bar starts at 290, so
+// 56 ends it at 346 with WT_CONTENT_BOTTOM at 398 -- 52px still clear for the
+// action row. Nothing else keys off this height.
+#define SG_BAR_H      56
 // The graph's box. 118 tall on a clean screen; 110 when the caution bar is
 // under it, which is the 8px the bar's band needs back.
 // The caption line's right edge, and the lane held for the page counter beside
@@ -2888,6 +2899,11 @@ static void cautions_screen(void)
             ctl = wt_word_action(row, LV_SYMBOL_OK, tr(STR_C_I_UNDERSTAND),
                                  true, wt_accent(), true, row_ack_cb,
                                  (void *)(uintptr_t)bits[i]);
+        // FILL THE BAR'S HEIGHT. wt_word_action sizes itself to 40 for the
+        // rows it usually lives on; here the bar is the target's ceiling, so
+        // the control takes all of it and the 8px slop it carries stops being
+        // clipped away to nothing.
+        lv_obj_set_height(ctl, SG_BAR_H);
         lv_obj_align(ctl, LV_ALIGN_RIGHT_MID, -SG_PAD, 0);
         if (i) sg_rule(24, y - 2, 752, 1);
         y += SG_ROW_H + 4;
