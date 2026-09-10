@@ -147,8 +147,24 @@ static lv_obj_t *s_addr_hit;          // the tap target over the address
 
 bool kiss_recv_active(void) { return s_scr != NULL; }
 
+// Whether the content lane is showing the page's [ ? ] explainer instead of
+// the selected tab. Reset on every open of the page: it is a view, not a
+// remembered state. Declared up here because BACK reads it.
+static bool s_help_open;
+
+// The page's [ ? ] toggle, declared here because BACK has to be able to shut
+// it and the toggle is defined with the pane code far below.
+static void recv_help_cb(lv_event_t *e);
+
 static void close_cb(lv_event_t *e) {
   (void)e;
+  // BACK SHUTS THE [ ? ] FIRST, and only leaves the page when it is already
+  // shut. Opening the explainer swaps the content lane, so it reads as having
+  // gone somewhere -- and then BACK reads as coming back from it. It is a pane
+  // swap and not a navigation level, so this stayed the page's own back and
+  // dropped the owner on the home screen, losing the address they were on.
+  // One step per BACK, which is what the control has always claimed.
+  if (s_help_open) { recv_help_cb(NULL); return; }
   // The detail-only five, which recv_list_open() already nulls and this did
   // not. Two of them are read UNGUARDED -- wt_qr_refusal(s_qr, ...) and
   // lv_label_set_text_fmt(s_idx_lbl, ...) in recv_refresh() -- so a stale
@@ -736,11 +752,6 @@ static void recv_detail_open(void);
 
 #define RECV_COL_X 296
 #define RECV_COL_W 456
-
-// Whether the content lane is showing the page's [ ? ] explainer instead of
-// the selected tab. Reset on every open of the page: it is a view, not a
-// remembered state.
-static bool s_help_open;
 
 static void recv_help_cb(lv_event_t *e) {
   (void)e;

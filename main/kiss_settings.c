@@ -2399,6 +2399,23 @@ static void settings_what_cb(lv_event_t *e)
     wt_pane_exit(&s_pane_ctx, dir);
 }
 
+// BACK SHUTS THE [ ? ] FIRST, and leaves the page only when it is shut.
+//
+// Opening the explainer swaps the content lane, so it reads as having gone
+// somewhere, and BACK then reads as coming back from it. It is a pane swap and
+// not a navigation level, so the page's own back ran instead and dropped the
+// owner on the home screen -- two steps for one press, on all three screens
+// that carry this control.
+//
+// Deliberately NOT folded into close_cb: kiss_settings_close routes the idle
+// auto-lock through that, and a lock that declined to close because an
+// explainer happened to be open would leave the session on the glass.
+static void settings_back_cb(lv_event_t *e)
+{
+    if (s_what_open) { settings_what_cb(NULL); return; }
+    close_cb(e);
+}
+
 void kiss_settings_open(lv_obj_t *parent)
 {
     s_fw_waiting = -1;          // one card scan per visit; see fw_update_waiting
@@ -2487,7 +2504,7 @@ void kiss_settings_open(lv_obj_t *parent)
     // BACK takes the bottom RIGHT corner as an ARROW rather than a pill, and
     // it is still what builds the action bar the attention chip stands on.
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592,
-                    WT_ACTION_Y, 160, true, close_cb, NULL);
+                    WT_ACTION_Y, 160, true, settings_back_cb, NULL);
 
     // Opposite it, and only when there is something to say. No "all good" chip:
     // a badge that is always there is a badge nobody reads.

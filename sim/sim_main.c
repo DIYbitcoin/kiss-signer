@@ -3018,6 +3018,17 @@ int main(void) {
   touch(720, 85); pump(3); release(); pump(45);   // 45: the fact rows land on the stagger
   save("/tmp/sim_recv_what.ppm");
   must_show("recv/help head", tr(STR_R_HELP_HEAD));
+  // BACK WHILE THE [ ? ] IS OPEN SHUTS THE EXPLAINER AND KEEPS THE PAGE.
+  // It used to run the page's own back and land on the home screen -- two
+  // steps for one press, and the address being read was gone with it. The
+  // same control behaves the same way on SETTINGS and on the SIGN chooser,
+  // which is where the bench found it; all three guard their own back now.
+  // Asserted by what is on the glass after the press: this page's action row,
+  // which the home screen does not carry.
+  tap_str(STR_C_BACK, 3, 45);
+  must_show("recv/BACK shuts the ? and stays", tr(STR_R_NEXT_ADDR));
+  touch(720, 85); pump(3); release(); pump(45);   // reopen, to leave as found
+  must_show("recv/help head after BACK", tr(STR_R_HELP_HEAD));
   touch(720, 85); pump(3); release(); pump(45);   // 45 outlasts the exit stagger
   must_show("recv/help closed", tr(STR_R_NEXT_ADDR));
   wt_help_seen_set(false);

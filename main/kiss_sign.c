@@ -5758,6 +5758,18 @@ static void choose_help_cb(lv_event_t *e)
     sign_band_update();
 }
 
+// BACK SHUTS THE [ ? ] FIRST -- see the note on kiss_settings.c's
+// settings_back_cb. The explainer is a pane swap on this screen too, so the
+// page's own back was running for a press that meant "close the explainer",
+// and the owner lost the file list they had picked from.
+//
+// Not folded into close_cb: kiss_sign_close routes the idle auto-lock there.
+static void choose_lane_back_cb(lv_event_t *e)
+{
+    if (s_choose_help) { choose_help_cb(NULL); return; }
+    close_cb(e);
+}
+
 void kiss_sign_open(lv_obj_t *parent)
 {
     if (s_scr) return;
@@ -5787,6 +5799,6 @@ void kiss_sign_open(lv_obj_t *parent)
     s_cctx.pane = wt_pane_new(&s_cctx);
     sign_tab_build();
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160,
-                    true, close_cb, NULL);
+                    true, choose_lane_back_cb, NULL);
     sign_band_update();
 }
