@@ -233,6 +233,66 @@ boot, so a leaked key can be rotated out by the next one, where one key never
 could be. The scheme is RSA-3072 rather than the secp256r1 key the SD update
 lane publishes, because ECDSA secure boot is errata'd on this chip.
 
+## Accepted risks
+
+Four findings from the internal audit that will not be fixed as written. Two
+wait on the flash and secure boot burn above; two are properties the design
+chose on purpose. They are recorded here so a reader can weigh them, and so
+nobody rediscovers them as new.
+
+### Erased seed words stay in flash (F3)
+
+Changing storage mode migrates the words, verifies the new copy, then erases
+the old one with `nvs_erase_key`. That is a logical delete: the entry is marked
+dead and the bytes stay in the partition until the page is compacted. The
+partition is plaintext on the beta lane, so a flash dump still recovers words
+that were supposedly removed.
+
+The STORAGE CHANGED screen says exactly that rather than claiming the old copy
+is gone. Closing this needs flash encryption on the shipping lane, at which
+point the screen's wording should be revisited too.
+
+### Sealed words and their key share one partition (F14)
+
+The words are no longer stored as a cleartext string. They live in a sealed
+blob encrypted under a key, and both sit in the same plaintext NVS partition,
+so a dump reads the blob and the key that opens it. Moving the key to another
+partition protected by the same absent encryption would buy nothing.
+
+Stated plainly: against an attacker who can dump flash, the beta protects the
+words by obscurity of format, not by cryptography. The passphrase is what
+stands between a dump and the coins.
+
+### The cover word is the front door without a passphrase
+
+The cover word opens the decoy signer straight from the game, with no login
+screen. Its template is plaintext, matching is geometric so timing tells an
+attacker nothing, and the stroke is replayable by anyone who watched it drawn
+once. There is deliberately no attempt counter and no failure message, because
+either would prove a decoy exists, which is the property the feature is for.
+
+Where the real keys sit behind a passphrase this is fine, since the decoy is
+meant to be opened. On a device with no passphrase the decoy is the funded
+wallet, so the word alone guards real coins. The device refuses to arm the
+feature on a passphrase-less wallet and says why. Changing this further is a
+duress-model decision, not a patch: requiring a passphrase before the feature
+can be armed at all, or a second factor that does not leak the decoy's
+existence. Neither is obviously right.
+
+### Firmware signing without secure boot resists a card, not a cable (F16)
+
+SD update verifies signatures for real. An image that does not verify is
+refused, the running slot survives a rejection, and a build with no signing key
+refuses updates outright rather than waving them through. That stops an
+attacker who hands you a card. It does nothing against one who can write flash
+directly, because without secure boot the bootloader runs whatever is in the
+slot, and the verification key comes from the running app's own signature
+block, which is circular once that app is replaced.
+
+Flash encryption pins AES-128 today and asserts it, because the key size is
+burned into eFuse on first boot and a device flashed at 128 cannot be moved by
+a later build. AES-256 belongs to the same later pass, on new units.
+
 ## External review
 
 **Status: not scheduled.**
