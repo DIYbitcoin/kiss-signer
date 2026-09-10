@@ -38,7 +38,14 @@ static void (*s_words_done)(void);
 // flow either way -- the second door opens the same gate, never a copy of it.
 static void (*s_scan_key_done)(void);
 static int s_pair_fmt;                  // 0 = descriptor (Sparrow), 1 = BlueWallet
-static lv_obj_t *s_pair_app[2], *s_pair_note, *s_pair_qr;
+static lv_obj_t *s_pair_qr, *s_pair_tabs;
+// The import path, as a ladder the selected tab fills in: an eyebrow naming
+// the category, up to three rungs cut out of the note's first line, the two
+// connectors between them, and the note's second line under the lot. The
+// locked one replaces the whole ladder when the session cannot export.
+#define PAIR_RUNGS 3
+static lv_obj_t *s_pair_eyebrow, *s_pair_rung[PAIR_RUNGS],
+                *s_pair_conn[PAIR_RUNGS - 1], *s_pair_tail, *s_pair_locked;
 
 static void info_screen(void);
 static void kef_warn_screen(lv_event_t *e);
@@ -309,9 +316,57 @@ lv_obj_t *kiss_info_help_card_open(lv_obj_t *parent, const char *title,
 // it. English fits in 108 and never showed it. Ten locales overflowed into
 // that line, and it took the twenty one locale sweep's first complete run to
 // say so.
-#define PAIR_NOTE_Y   204
-#define PAIR_EXPL_Y   318
-#define PAIR_NOTE_H   (PAIR_EXPL_Y - PAIR_NOTE_Y - 6)
+// THE CARD, and the two bays inside it. One card about one app: the import
+// path on the left, the code on the right, and the vertical rule that says
+// which is which.
+//
+// The rule is at 440 rather than the frame's 404, and the six pixels that buys
+// are the whole reason. Rung three of the Sparrow path is "Airgapped Hardware
+// Wallet" -- a menu item in Sparrow's own words, carried untranslated in all
+// twenty one locales because that is what the owner has to find on their
+// screen -- and it measures 350px at font23. In the 320 the frame left it, the
+// one instruction this page exists to give would have rendered "Airgapped
+// Hardware Wa..." in every language on the device.
+#define PAIR_CARD_Y     122
+#define PAIR_CARD_H     258
+#define PAIR_RULE_X     440
+#define PAIR_BAY_X       70
+#define PAIR_BAY_W      (PAIR_RULE_X - 14 - PAIR_BAY_X)   // 356; the widest rung is 350
+#define PAIR_EYE_Y      140
+#define PAIR_RUNG_Y     172
+#define PAIR_RUNG_PITCH  52   // 30 of rung and 22 for the connector between
+#define PAIR_TAIL_Y     318
+#define PAIR_QR_X       462
+#define PAIR_QR_Y       138
+#define PAIR_RING_X     696
+#define PAIR_RING_D      40
+
+// The note's FIRST line, cut on " > " into ladder rungs. The separator is
+// literal and never per-locale: the paths themselves are the coordinator's own
+// menu items and ship the same in every language, arrows included, so one
+// split covers all twenty one. A line with no separator in it is one rung
+// carrying the whole thing, which is what a coordinator with a one-step import
+// would leave here.
+static int pair_ladder(const char *note, char out[PAIR_RUNGS][96],
+                       const char **tail)
+{
+    const char *nl = strchr(note, '\n');
+    *tail = nl ? nl + 1 : "";
+    const char *p = note;
+    const char *end = nl ? nl : note + strlen(note);
+    int n = 0;
+    while (p < end && n < PAIR_RUNGS) {
+        const char *sep = strstr(p, " > ");
+        if (!sep || sep > end) sep = end;
+        size_t len = (size_t)(sep - p);
+        if (len >= sizeof out[0]) len = sizeof out[0] - 1;
+        memcpy(out[n], p, len);
+        out[n][len] = 0;
+        n++;
+        p = sep < end ? sep + 3 : end;
+    }
+    return n;
+}
 
 static void pair_refresh(void)
 {
@@ -323,29 +378,60 @@ static void pair_refresh(void)
     // content was the words "SESSION LOCKED" -- an import that fails somewhere
     // over there instead of being refused here. See wt_qr_refusal.
     wt_qr_refusal(s_pair_qr, rc != 0);
-    if (rc != 0) {
-        wt_note_fit(s_pair_note, tr(STR_C_LOCKED_B), 360, PAIR_NOTE_H);
-        return;
+    // The LOCKED note takes the whole ladder's lane, not the tail's. It is
+    // three sentences about why there is no code, and the two lines the second
+    // half of a working import gets would have dot-truncated the middle one.
+    if (s_pair_locked) {
+        if (rc != 0) lv_obj_remove_flag(s_pair_locked, LV_OBJ_FLAG_HIDDEN);
+        else         lv_obj_add_flag(s_pair_locked, LV_OBJ_FLAG_HIDDEN);
     }
-    if (s_pair_qr)
+    if (rc == 0 && s_pair_qr)
         wt_qr_update(s_pair_qr, txt, (uint32_t)strlen(txt));
-    wt_note_fit(s_pair_note, s_pair_fmt ? tr(STR_I_NOTE_BW) : tr(STR_I_NOTE_SPARROW),
-                360, PAIR_NOTE_H);
-    for (int i = 0; i < 2; i++) {
-        bool on = (s_pair_fmt == i);
-        // The flag rides with the paint, or the selected app name keeps the
-        // OLD accent after a theme change -- this runs on every pick, so the
-        // stale colour survives until the control is tapped again.
-        lv_obj_set_style_text_color(s_pair_app[i],   // app name above the category
-                                    on ? wt_accent() : lv_color_hex(0x525C6E), 0);
-        if (on) lv_obj_add_flag(s_pair_app[i], WT_FLAG_ACCENT);
-        else    lv_obj_remove_flag(s_pair_app[i], WT_FLAG_ACCENT);
+
+    const char *note = s_pair_fmt ? tr(STR_I_NOTE_BW) : tr(STR_I_NOTE_SPARROW);
+    if (s_pair_eyebrow)
+        lv_label_set_text(s_pair_eyebrow,
+                          tr(s_pair_fmt ? STR_I_MOBILE : STR_I_DESKTOP));
+
+    char rung[PAIR_RUNGS][96];
+    const char *tail = "";
+    const int n = rc == 0 ? pair_ladder(note, rung, &tail) : 0;
+    for (int i = 0; i < PAIR_RUNGS; i++) {
+        if (!s_pair_rung[i]) continue;
+        if (i < n) {
+            lv_label_set_text(s_pair_rung[i], rung[i]);
+            lv_obj_remove_flag(s_pair_rung[i], LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_add_flag(s_pair_rung[i], LV_OBJ_FLAG_HIDDEN);
+        }
+        // The connector belongs to the rung BELOW it, so a two rung path draws
+        // one and a one rung path draws none.
+        if (i < PAIR_RUNGS - 1 && s_pair_conn[i]) {
+            if (i + 1 < n) lv_obj_remove_flag(s_pair_conn[i], LV_OBJ_FLAG_HIDDEN);
+            else           lv_obj_add_flag(s_pair_conn[i], LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+    if (s_pair_tail) {
+        // The face is chosen per STRING, not once at build: chrome18 hands
+        // back the mono rung for a line it can draw and the locale's own 14
+        // for one it cannot, and the two apps' second lines disagree about
+        // that inside a single locale (es-MX draws one and not the other).
+        const lv_font_t *tf = wt_chrome18(tail);
+        lv_obj_set_style_text_font(s_pair_tail, tf, 0);
+        lv_obj_set_height(s_pair_tail, 2 * lv_font_get_line_height(tf));
+        lv_label_set_text(s_pair_tail, rc == 0 ? tail : "");
     }
 }
 
+// The pick, from the tab strip that IS the pick now. The strip carries the
+// state the two 175x60 panes used to carry in an accent on an app name, so
+// nothing here recolours anything: it moves the brackets and re-fills the bay.
 static void pair_fmt_cb(lv_event_t *e)
 {
-    s_pair_fmt = (int)(intptr_t)lv_event_get_user_data(e);
+    const int to = (int)(intptr_t)lv_event_get_user_data(e);
+    if (to == s_pair_fmt) return;
+    if (s_pair_tabs) wt_tabs_flex_select(s_pair_tabs, s_pair_fmt, to, false);
+    s_pair_fmt = to;
     pair_refresh();
 }
 
@@ -362,6 +448,7 @@ static void pair_gesture_cb(lv_event_t *e)
     if (!step) return;
     const int to = s_pair_fmt + step;
     if (to < 0 || to > 1) return;      // a deck of two, and it does not wrap
+    if (s_pair_tabs) wt_tabs_flex_select(s_pair_tabs, s_pair_fmt, to, false);
     s_pair_fmt = to;
     pair_refresh();
 }
@@ -428,7 +515,7 @@ static void pair_instructions_cb(lv_event_t *e)
 {
     (void)e;
     swap_screen();
-    s_pair_qr = s_pair_note = NULL;
+    s_pair_qr = NULL;
     // The trail, not the app name: the card's own mark and steps already say
     // which app these instructions are for.
     s_scr = wt_screen(s_parent, tr(STR_I_PAIR_T), NULL);
@@ -580,34 +667,103 @@ static void pair_terms_cb(lv_event_t *e)
                     WT_ACTION_Y, 140, true, pair_terms_back_cb, NULL);
 }
 
+// The ring, into the overlay the card already opens.
+static void pair_enlarge_cb(lv_event_t *e)
+{
+    (void)e;
+    wt_qr_zoom(s_pair_qr);
+}
+
+// WHAT THIS QR HANDS OVER, at the moment it is handed over -- on the BAND now
+// rather than in the lane, because the lane belongs to the one card about the
+// one app and this sentence is true of both of them.
+//
+// K_EXPL_COORD carries both halves in one string and ships in 21 locales, so
+// this costs no key: "it sees every transaction. it can never spend one." The
+// two halves are two labels rather than one paragraph, because the accent has
+// to fall on the SECOND sentence and not merely on the stop between them --
+// the reassurance and the limit are the point, and the limit is the half
+// worth finding at a glance. Centred between NEXT on the left and the exit in
+// the corner.
+//
+// ja and zh end a sentence with U+3002 and never with ". ", which is the same
+// split spans_fill has to make; a locale with neither takes the whole string
+// on one line rather than being cut at a boundary it does not have.
+static void pair_band_claim(void)
+{
+    const char *txt = tr(STR_K_EXPL_COORD);
+    const char *sp = strstr(txt, ". ");
+    const char *cjk = strstr(txt, "\xE3\x80\x82");
+    char head[192];
+    const char *rest = NULL;
+    if (sp) {
+        size_t n = (size_t)(sp - txt) + 1;              // the stop stays with it
+        if (n >= sizeof head) n = sizeof head - 1;
+        memcpy(head, txt, n); head[n] = 0;
+        rest = sp + 2;
+    } else if (cjk) {
+        size_t n = (size_t)(cjk - txt) + 3;
+        if (n >= sizeof head) n = sizeof head - 1;
+        memcpy(head, txt, n); head[n] = 0;
+        rest = cjk + 3;
+    }
+    const char *one = rest && *rest ? head : txt;
+    const lv_font_t *f = wt_chrome18(one);
+    const int lh = lv_font_get_line_height(f);
+    const int n = rest && *rest ? 2 : 1;
+    // Centred in the band the way wt_standing centres its own line, so the
+    // claim sits on the same rung as every other sentence down here.
+    int y = WT_ACTION_Y + (WT_ACTION_H - n * lh) / 2;
+    const char *line[2] = { one, rest };
+    for (int i = 0; i < n; i++) {
+        lv_obj_t *l = wt_lbl(s_scr, line[i], 190, y + i * lh, f,
+                             i ? wt_accent() : WT_MUT);
+        if (i) lv_obj_add_flag(l, WT_FLAG_ACCENT);
+        lv_obj_set_width(l, 400);
+        lv_obj_set_height(l, lh);
+        lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
+        lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+    }
+}
+
 static void pair_screen(void)
 {
     swap_screen();
-    s_pair_qr = s_pair_note = NULL;
+    s_pair_qr = s_pair_tabs = s_pair_eyebrow = NULL;
+    s_pair_tail = s_pair_locked = NULL;
+    for (int i = 0; i < PAIR_RUNGS; i++) s_pair_rung[i] = NULL;
+    for (int i = 0; i < PAIR_RUNGS - 1; i++) s_pair_conn[i] = NULL;
     // No subtitle: a full screen QR under PAIR COORDINATOR is its own
-    // instruction, and the note lane below the format chooser says the rest.
+    // instruction, and the card below says the rest.
     s_scr = wt_screen(s_parent, tr(STR_I_PAIR_T), NULL);
     wt_chrome_head(s_scr);
-    // The TAB FIRST, so the trail beside it knows where to stop: they share
-    // one 30px strip and the trail's box runs to 752 unless something is
-    // already there.
+    // THE STRIP TAKES THE ROW, and the KEYS trail that used to share it is
+    // gone. A page may carry tabs or a breadcrumb on the 30px strip and never
+    // both (kiss_theme.h), and the tabs are the more useful of the two here:
+    // the title already says PAIR COORDINATOR and BACK already goes to KEYS,
+    // so the trail was spending half a row to repeat two things on screen.
+    //
+    // Desktop against mobile was a pair of 175x60 panes in the content lane,
+    // which is the one thing this page could not afford -- it is a decision
+    // ABOUT the lane, not a thing in it. On the strip it costs the lane
+    // nothing and the accent brackets say which app is open, which is what
+    // recolouring an app name was trying to say from inside the content.
+    //
+    // The marks are page two's: a file for a coordinator on a computer, a
+    // phone for one in a pocket.
+    const wt_tab_t ptabs[2] = {
+        { LV_SYMBOL_FILE,  tr(STR_I_APP_DESKTOP), false, false },
+        { WT_ICON_PHONE,   tr(STR_I_APP_MOBILE),  false, false },
+    };
+    s_pair_tabs = wt_tabs_flex(s_scr, ptabs, 2, s_pair_fmt, pair_fmt_cb);
     wt_help_tab_n(s_scr, NULL, kiss_terms_unread(KISS_TERMS_PAIR, 3),
                   pair_terms_cb, NULL);
-    // DECIDED: the KEYS page has no tab strip, and the COORDINATOR element beside its
-    // title is a breadcrumb rather than a lone tab.
-    // ONE segment. It was "KEYS / COORDINATOR" and the second half restates
-    // the title this page already carries.
-    // ...and its box STOPS at the head. wt_trail runs to 752 (or 12 short of a
-    // [ ? ]) so a short word still owns the strip, which is right on every
-    // other screen and wrong on this one: SHOW IT TO now shares the row, and
-    // the overlap gate reads boxes rather than glyphs.
-    {
-        lv_obj_t *t = wt_trail(s_scr, WT_ICON_QR, tr(STR_I_T), false);
-        lv_obj_update_layout(t);          // or get_x answers 0 and the box grows
-        lv_obj_set_width(t, 400 - 12 - lv_obj_get_x(t));
-    }
     if (kiss_testnet()) {
-        lv_obj_t *net = wt_lbl(s_scr, kiss_net_name(), 672, 30, wt_font14(),
+        // The 17px rung, not font14. Nothing on this page reads below it now,
+        // and a network badge is the one thing on the header an owner checks
+        // before they trust anything else on the screen.
+        lv_obj_t *net = wt_lbl(s_scr, kiss_net_name(), 672, 30,
+                               wt_chrome18(kiss_net_name()),
                                wt_ink_for(WT_WARN));
         lv_obj_set_style_bg_color(net, lv_color_hex(0x2A2113), 0);
         lv_obj_set_style_bg_opa(net, LV_OPA_COVER, 0);
@@ -621,69 +777,122 @@ static void pair_screen(void)
         lv_obj_set_style_pad_ver(net, 3, 0);
         lv_obj_set_style_text_letter_space(net, 1, 0);
     }
-    wt_qr_card(s_scr, &s_pair_qr, 48, 96, 300, 264);
-
-    // where does the coordinator live? two parallel choices, side by side like
-    // the Settings ADDRESS TYPE picker (a dropdown would hide one of only two)
-    // The chip goes after the caption's MEASURED width, the way every other
-    // one on this screen does. Pinned at 526 it assumed the caption was 126px,
-    // which "GÖSTERİLECEK YER" is not.
-    // The page's own [ ? n ] took the section chip's job, up on the chrome
-    // strip where a page level explanation belongs.
-    // MARKED, like the two heads on page two -- an eye, because watching is
-    // the whole of what the thing on the other end of this QR does, and it is
-    // the glyph the KEYS explainer already uses to say so. This head was the
-    // one on the flow with no mark at all.
-    //
-    // ON THE CHROME STRIP, level with the KEYS trail on the left and the
-    // [ ? ] on the right, which is what the bench asked for: three things
-    // reading along one line instead of a head floating a rung below them.
-    // Centred in the 30px row the same way both of its neighbours are.
-    // The y is computed from the rung wt_section will use for the WORDS, not
-    // measured off the finished object: the head is two labels now and moving
-    // one of them afterwards leaves the mark behind.
-    wt_section(s_scr, tr_sym(LV_SYMBOL_EYE_OPEN, STR_I_SHOW_TO), 400,
-               WT_CHROME_STRIP_Y
-               + (WT_BR_H
-                  - lv_font_get_line_height(wt_chrome21(tr(STR_I_SHOW_TO))))
-                 / 2);
-    const char *CAT[2] = {tr(STR_I_DESKTOP), tr(STR_I_MOBILE)};
-    const char *APP[2] = {tr(STR_I_APP_DESKTOP), tr(STR_I_APP_MOBILE)};
-    for (int i = 0; i < 2; i++) {
-        // The app is the decision, so it owns the readable 23px line; the
-        // desktop/mobile category is the small eyebrow underneath. No box:
-        // the selected app's accent name is the state, the same way a tab
-        // strip says which tab is open.
-        lv_obj_t *p = lv_obj_create(s_scr);
-        lv_obj_remove_style_all(p);
-        lv_obj_set_pos(p, 400 + i * 185, 120);
-        lv_obj_set_size(p, 175, 60);
-        lv_obj_remove_flag(p, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_add_flag(p, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_set_ext_click_area(p, 8);
-        lv_obj_add_event_cb(p, pair_fmt_cb, LV_EVENT_CLICKED,
-                            (void *)(intptr_t)i);
-        lv_obj_t *name = wt_lbl(p, APP[i], 0, 6, wt_chrome23(APP[i]), WT_INK);
-        lv_obj_set_style_text_letter_space(name, 2, 0);
-        wt_lbl(p, CAT[i], 0, 36, wt_font14(), WT_MUT);
-        s_pair_app[i] = name;                     // pair_refresh() recolors it
+    // ---- the card: one app, its path on the left and its code on the right
+    wt_card(s_scr, WT_LANE_X, PAIR_CARD_Y, WT_LANE_W, PAIR_CARD_H);
+    {
+        // The rule is VERTICAL, which wt_line_rule is not: that one is a row's
+        // 1px underline and it draws itself in left to right. Same ink, same
+        // 1px, turned ninety degrees and inset from both card edges so it
+        // reads as a divider between two bays rather than as the card being
+        // cut in half.
+        lv_obj_t *v = lv_obj_create(s_scr);
+        lv_obj_remove_style_all(v);
+        lv_obj_set_pos(v, PAIR_RULE_X, PAIR_CARD_Y + 16);
+        lv_obj_set_size(v, 1, PAIR_CARD_H - 32);
+        lv_obj_set_style_bg_color(v, WT_DIV, 0);
+        lv_obj_set_style_bg_opa(v, LV_OPA_COVER, 0);
+        lv_obj_remove_flag(v, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_remove_flag(v, LV_OBJ_FLAG_SCROLLABLE);
     }
 
-    // The QR is primary on page one; the selected app's import directions are
-    // readable here and repeated with the proof step on the static NEXT page.
-    s_pair_note = wt_note(s_scr, "", 400, PAIR_NOTE_Y, 360, PAIR_NOTE_H);
-
-    // WHAT THIS QR HANDS OVER, at the moment it is handed over. The KEYS page
-    // says it as a standing line one screen back, and this is the screen where
-    // the owner actually shows the code to something -- a fact worth teaching
-    // in help is worth stating at the decision.
+    // ---- steps bay: the eyebrow, the ladder, and the line under it --------
     //
-    // K_EXPL_COORD already carries BOTH halves in one string and ships in 21
-    // locales, so this costs no key: "it sees every payment. it can never
-    // spend one." The accent stop between the two sentences is what separates
-    // the reassurance from the limit, which is the whole reason that treatment
-    // exists.
-    wt_note(s_scr, tr(STR_K_EXPL_COORD), 400, PAIR_EXPL_Y, 360, 76);
+    // DESKTOP / MOBILE is an eyebrow now rather than a caption under an app
+    // name. The tab strip says WHICH app; this says what kind of thing it runs
+    // on, which is the half of the old pair the strip cannot carry.
+    s_pair_eyebrow = wt_lbl(s_scr, "", PAIR_BAY_X, PAIR_EYE_Y,
+                            wt_chrome18(tr(STR_I_DESKTOP)), WT_MUT);
+    lv_obj_set_style_text_letter_space(s_pair_eyebrow, 3, 0);
+
+    for (int i = 0; i < PAIR_RUNGS; i++) {
+        const int ry = PAIR_RUNG_Y + i * PAIR_RUNG_PITCH;
+        lv_obj_t *r = wt_lbl(s_scr, "", PAIR_BAY_X, ry, wt_font23(), WT_INK);
+        lv_obj_set_width(r, PAIR_BAY_W);
+        lv_obj_set_height(r, lv_font_get_line_height(wt_font23()));
+        lv_label_set_long_mode(r, LV_LABEL_LONG_DOT);
+        s_pair_rung[i] = r;
+        if (i >= PAIR_RUNGS - 1) continue;
+        // The connector, as a 2px L rather than a glyph. U+21B3 is not in
+        // IoskeleyMono and not in the generated Latin face either, so it would
+        // draw the blank half-line box kiss_theme.h warns about -- identically
+        // in the simulator, so no gate would ever say so. Two rectangles
+        // cannot be missing from a font.
+        lv_obj_t *c = lv_obj_create(s_scr);
+        lv_obj_remove_style_all(c);
+        lv_obj_set_pos(c, PAIR_BAY_X + 4, ry + 30);
+        lv_obj_set_size(c, 16, 18);
+        lv_obj_remove_flag(c, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_remove_flag(c, LV_OBJ_FLAG_SCROLLABLE);
+        for (int k = 0; k < 2; k++) {
+            lv_obj_t *b = lv_obj_create(c);
+            lv_obj_remove_style_all(b);
+            if (k) { lv_obj_set_pos(b, 0, 16); lv_obj_set_size(b, 14, 2); }
+            else   { lv_obj_set_pos(b, 0, 0);  lv_obj_set_size(b, 2, 18); }
+            lv_obj_set_style_bg_color(b, WT_MUT, 0);
+            lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
+            lv_obj_remove_flag(b, LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_remove_flag(b, LV_OBJ_FLAG_SCROLLABLE);
+        }
+        s_pair_conn[i] = c;
+    }
+
+    // The note's second line: what else works, or what the import is called on
+    // the other end. Two lines at the 17px rung, never a fit helper -- a fixed
+    // rung says the same thing in every locale and cannot quietly hand this
+    // page the smallest type on the device.
+    s_pair_tail = wt_lbl(s_scr, "", PAIR_BAY_X, PAIR_TAIL_Y,
+                         wt_font_mono18(), WT_MUT);
+    lv_obj_set_width(s_pair_tail, PAIR_BAY_W);
+    lv_label_set_long_mode(s_pair_tail, LV_LABEL_LONG_DOT);
+
+    // The refusal, over the ladder's whole lane. Hidden unless the session
+    // cannot export; pair_refresh decides.
+    s_pair_locked = wt_note(s_scr, tr(STR_C_LOCKED_B), PAIR_BAY_X,
+                            PAIR_RUNG_Y, PAIR_BAY_W,
+                            PAIR_CARD_Y + PAIR_CARD_H - 18 - PAIR_RUNG_Y);
+    lv_obj_add_flag(s_pair_locked, LV_OBJ_FLAG_HIDDEN);
+
+    // ---- QR bay: the code, and the one control that makes it bigger -------
+    //
+    // _bare, because the kit's own "+" cue is pinned 36px LEFT of the card and
+    // this card is not at the page margin -- it would land on the rule and the
+    // ladder beside it. The ring below is this page's way into the same zoom.
+    wt_qr_card_bare(s_scr, &s_pair_qr, PAIR_QR_X, PAIR_QR_Y, 216, 200);
+    {
+        lv_obj_t *ring = lv_obj_create(s_scr);
+        lv_obj_remove_style_all(ring);
+        lv_obj_set_pos(ring, PAIR_RING_X, PAIR_QR_Y);
+        lv_obj_set_size(ring, PAIR_RING_D, PAIR_RING_D);
+        lv_obj_set_style_radius(ring, PAIR_RING_D / 2, 0);
+        lv_obj_set_style_border_width(ring, 1, 0);
+        lv_obj_set_style_border_color(ring, WT_EDGE, 0);
+        lv_obj_add_flag(ring, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_remove_flag(ring, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_set_ext_click_area(ring, 8);
+        wt_tap_feedback(ring);
+        lv_obj_add_event_cb(ring, pair_enlarge_cb, LV_EVENT_CLICKED, NULL);
+        lv_obj_t *plus = lv_label_create(ring);
+        lv_label_set_text(plus, LV_SYMBOL_PLUS);
+        lv_obj_set_style_text_font(plus, wt_font23(), 0);
+        lv_obj_set_style_text_color(plus, wt_accent(), 0);
+        lv_obj_add_flag(plus, WT_FLAG_ACCENT);
+        lv_obj_center(plus);
+    }
+    // UNDER THE CARD, not under the ring. The frame asks for the word centred
+    // on the ring, and the word this device owns is R_ENLARGE -- "TAP TO
+    // ENLARGE", 180px at the 17px rung in the widest locale against a 40px
+    // ring. Centred on the ring it would have run off the right edge of the
+    // panel; clamped back inside it, it would have sat on the white QR. Under
+    // the card it is true of both controls, because both of them open the
+    // same overlay.
+    {
+        lv_obj_t *e = wt_lbl(s_scr, tr(STR_R_ENLARGE), PAIR_QR_X,
+                             PAIR_QR_Y + 216 + 6,
+                             wt_chrome18(tr(STR_R_ENLARGE)), WT_MUT);
+        lv_obj_set_width(e, 752 - PAIR_QR_X);
+        lv_obj_set_style_text_align(e, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_style_text_letter_space(e, 2, 0);
+    }
 
     // This BACK used to take the corner on the theory that an escape from the
     // whole flow earns it while a step back to one page does not. That rule was
@@ -697,6 +906,7 @@ static void pair_screen(void)
     // here, and both pages agree on where the exit is.
     wt_arrow_action(s_scr, tr(STR_R_NEXT), false, false, WT_ACT_X, WT_ACTION_Y, 0, false, pair_instructions_cb, NULL);
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, pair_back_cb, NULL);
+    pair_band_claim();
     wt_swipe_watch(s_scr, pair_gesture_cb);
     // The silent-payment SCAN KEY used to live HERE, buried one tap inside PAIR
     // COORDINATOR. It is its own export with its own consent warning, and
