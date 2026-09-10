@@ -316,30 +316,31 @@ lv_obj_t *kiss_info_help_card_open(lv_obj_t *parent, const char *title,
 // it. English fits in 108 and never showed it. Ten locales overflowed into
 // that line, and it took the twenty one locale sweep's first complete run to
 // say so.
-// THE CARD, and the two bays inside it. One card about one app: the import
-// path on the left, the code on the right, and the vertical rule that says
-// which is which.
+// THE TWO BAYS. The code on the left at the size it has always been, the
+// import path on the right, and a rule between them.
 //
-// The rule is at 440 rather than the frame's 404, and the six pixels that buys
-// are the whole reason. Rung three of the Sparrow path is "Airgapped Hardware
-// Wallet" -- a menu item in Sparrow's own words, carried untranslated in all
-// twenty one locales because that is what the owner has to find on their
-// screen -- and it measures 350px at font23. In the 320 the frame left it, the
-// one instruction this page exists to give would have rendered "Airgapped
-// Hardware Wa..." in every language on the device.
-#define PAIR_CARD_Y     122
-#define PAIR_CARD_H     258
-#define PAIR_RULE_X     440
-#define PAIR_BAY_X       70
-#define PAIR_BAY_W      (PAIR_RULE_X - 14 - PAIR_BAY_X)   // 356; the widest rung is 350
-#define PAIR_EYE_Y      140
-#define PAIR_RUNG_Y     172
-#define PAIR_RUNG_PITCH  52   // 30 of rung and 22 for the connector between
-#define PAIR_TAIL_Y     318
-#define PAIR_QR_X       462
-#define PAIR_QR_Y       138
-#define PAIR_RING_X     696
-#define PAIR_RING_D      40
+// THE QR DOES NOT SHRINK. The frame put it in the right half of a 704x258
+// card at 200px, on the reasoning that 200 still gives seven pixels a dot at
+// 25 to 29 dots. A pairing descriptor is not 25 dots. It is 138 bytes, which
+// qrcodegen fits at version 8 -- 49 dots -- so 200px is 4.1 pixels a dot
+// against the 5.4 this screen shipped with, a quarter gone off the one code
+// on the device with no fallback behind it. The signed transaction has EASY
+// SCAN when a phone struggles; this page has nothing, because a static
+// descriptor has no loop to slow down and no frames to fatten. So the code
+// keeps its 264, which means it keeps the left margin and its full height,
+// and the card that would have framed both bays goes instead. The white QR
+// card is the frame on this page, as it was before.
+#define PAIR_QR_X        48
+#define PAIR_QR_Y        96
+#define PAIR_QR_CARD    300
+#define PAIR_QR_PX      264
+#define PAIR_RULE_X     372
+#define PAIR_BAY_X      392
+#define PAIR_BAY_W      (752 - PAIR_BAY_X)   // 360; the widest rung is 350
+#define PAIR_EYE_Y      116
+#define PAIR_RUNG_Y     152
+#define PAIR_RUNG_PITCH  56   // 30 of rung and 26 for the connector between
+#define PAIR_TAIL_Y     308
 
 // The note's FIRST line, cut on " > " into ladder rungs. The separator is
 // literal and never per-locale: the paths themselves are the coordinator's own
@@ -667,13 +668,6 @@ static void pair_terms_cb(lv_event_t *e)
                     WT_ACTION_Y, 140, true, pair_terms_back_cb, NULL);
 }
 
-// The ring, into the overlay the card already opens.
-static void pair_enlarge_cb(lv_event_t *e)
-{
-    (void)e;
-    wt_qr_zoom(s_pair_qr);
-}
-
 // WHAT THIS QR HANDS OVER, at the moment it is handed over -- on the BAND now
 // rather than in the lane, because the lane belongs to the one card about the
 // one app and this sentence is true of both of them.
@@ -790,18 +784,20 @@ static void pair_screen(void)
         lv_obj_set_style_pad_ver(net, 3, 0);
         lv_obj_set_style_text_letter_space(net, 1, 0);
     }
-    // ---- the card: one app, its path on the left and its code on the right
-    wt_card(s_scr, WT_LANE_X, PAIR_CARD_Y, WT_LANE_W, PAIR_CARD_H);
+    // The code, at the size and the place it has always had. wt_qr_card and
+    // not _bare: with the card back at the page margin its "+" cue is outside
+    // the layout again, which is the one position that cue was ever right in.
+    wt_qr_card(s_scr, &s_pair_qr, PAIR_QR_X, PAIR_QR_Y, PAIR_QR_CARD,
+               PAIR_QR_PX);
     {
         // The rule is VERTICAL, which wt_line_rule is not: that one is a row's
         // 1px underline and it draws itself in left to right. Same ink, same
-        // 1px, turned ninety degrees and inset from both card edges so it
-        // reads as a divider between two bays rather than as the card being
-        // cut in half.
+        // 1px, turned ninety degrees, saying the code and the steps are two
+        // halves of one instruction rather than two unrelated blocks.
         lv_obj_t *v = lv_obj_create(s_scr);
         lv_obj_remove_style_all(v);
-        lv_obj_set_pos(v, PAIR_RULE_X, PAIR_CARD_Y + 16);
-        lv_obj_set_size(v, 1, PAIR_CARD_H - 32);
+        lv_obj_set_pos(v, PAIR_RULE_X, PAIR_QR_Y + 8);
+        lv_obj_set_size(v, 1, PAIR_QR_CARD - 16);
         lv_obj_set_style_bg_color(v, WT_DIV, 0);
         lv_obj_set_style_bg_opa(v, LV_OPA_COVER, 0);
         lv_obj_remove_flag(v, LV_OBJ_FLAG_CLICKABLE);
@@ -862,50 +858,8 @@ static void pair_screen(void)
     // cannot export; pair_refresh decides.
     s_pair_locked = wt_note(s_scr, tr(STR_C_LOCKED_B), PAIR_BAY_X,
                             PAIR_RUNG_Y, PAIR_BAY_W,
-                            PAIR_CARD_Y + PAIR_CARD_H - 18 - PAIR_RUNG_Y);
+                            PAIR_QR_Y + PAIR_QR_CARD - PAIR_RUNG_Y);
     lv_obj_add_flag(s_pair_locked, LV_OBJ_FLAG_HIDDEN);
-
-    // ---- QR bay: the code, and the one control that makes it bigger -------
-    //
-    // _bare, because the kit's own "+" cue is pinned 36px LEFT of the card and
-    // this card is not at the page margin -- it would land on the rule and the
-    // ladder beside it. The ring below is this page's way into the same zoom.
-    wt_qr_card_bare(s_scr, &s_pair_qr, PAIR_QR_X, PAIR_QR_Y, 216, 200);
-    {
-        lv_obj_t *ring = lv_obj_create(s_scr);
-        lv_obj_remove_style_all(ring);
-        lv_obj_set_pos(ring, PAIR_RING_X, PAIR_QR_Y);
-        lv_obj_set_size(ring, PAIR_RING_D, PAIR_RING_D);
-        lv_obj_set_style_radius(ring, PAIR_RING_D / 2, 0);
-        lv_obj_set_style_border_width(ring, 1, 0);
-        lv_obj_set_style_border_color(ring, WT_EDGE, 0);
-        lv_obj_add_flag(ring, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_remove_flag(ring, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_set_ext_click_area(ring, 8);
-        wt_tap_feedback(ring);
-        lv_obj_add_event_cb(ring, pair_enlarge_cb, LV_EVENT_CLICKED, NULL);
-        lv_obj_t *plus = lv_label_create(ring);
-        lv_label_set_text(plus, LV_SYMBOL_PLUS);
-        lv_obj_set_style_text_font(plus, wt_font23(), 0);
-        lv_obj_set_style_text_color(plus, wt_accent(), 0);
-        lv_obj_add_flag(plus, WT_FLAG_ACCENT);
-        lv_obj_center(plus);
-    }
-    // UNDER THE CARD, not under the ring. The frame asks for the word centred
-    // on the ring, and the word this device owns is R_ENLARGE -- "TAP TO
-    // ENLARGE", 180px at the 17px rung in the widest locale against a 40px
-    // ring. Centred on the ring it would have run off the right edge of the
-    // panel; clamped back inside it, it would have sat on the white QR. Under
-    // the card it is true of both controls, because both of them open the
-    // same overlay.
-    {
-        lv_obj_t *e = wt_lbl(s_scr, tr(STR_R_ENLARGE), PAIR_QR_X,
-                             PAIR_QR_Y + 216 + 6,
-                             wt_chrome18(tr(STR_R_ENLARGE)), WT_MUT);
-        lv_obj_set_width(e, 752 - PAIR_QR_X);
-        lv_obj_set_style_text_align(e, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_set_style_text_letter_space(e, 2, 0);
-    }
 
     // This BACK used to take the corner on the theory that an escape from the
     // whole flow earns it while a step back to one page does not. That rule was
