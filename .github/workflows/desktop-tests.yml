@@ -73,6 +73,17 @@ jobs:
         if: always()
         run: python3 tools/check_vocab.py
 
+      # docs/ is what Pages serves, so a link in one of those files is a
+      # link a reader clicks on the site. Six were broken, four of them the
+      # roadmap pointing at the security plan by its path from the repository
+      # root -- a 404 on the two documents somebody deciding whether to trust
+      # this firmware reads first.
+      - name: every link in the docs points at something
+        if: always()
+        run: |
+          python3 tools/check_links.py --selftest
+          python3 tools/check_links.py
+
       # tr_reason ends `return r;`, so a refusal it has no entry for shows
       # the C string itself -- developer English, in all 21 locales, on the
       # screen that exists to say why an owner's money is not moving. Three
