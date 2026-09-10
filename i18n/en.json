@@ -306,7 +306,7 @@
   "I_WTAB_ENC": "ENCRYPTED",
   "I_WTAB_PAPER": "PAPER",
   "K_CAP_PAIRING": "PAIRING",
-  "K_EXPL_COORD": "it sees every transaction. it can never spend one.",
+  "K_EXPL_COORD": "it sees every transaction and can never spend one.",
   "K_HELP_BODY": "It gets public keys only. It can watch and build transactions, never sign one.",
   "K_HELP_F1C": "FINGERPRINT",
   "K_HELP_F1V": "your coordinator shows it",
