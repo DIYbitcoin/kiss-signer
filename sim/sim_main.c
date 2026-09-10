@@ -3769,12 +3769,16 @@ int main(void) {
   // enough to read. 1600ms is 100 frames. Landing short here does not fail
   // here -- it fails four screens later on a DONE action that is not up yet, and
   // then cascades through every BACK after it.
-  pump(110);                                        // past REVEAL_MS: writes SD
-  // The arrival motion, drawn OVER the finished exit screen. This lands about
-  // 570ms in -- the pump above clears REVEAL_MS with 10 frames to spare and
-  // the motion has been running since the timer fired -- which is the lock
-  // front a third of the way down the block, with the first characters of the
-  // code already out of it.
+  // 152, not 110. The first 36 clear REVEAL_MS (1600ms, 100 frames) and write
+  // the card; the rest are the motion's own, and they are counted so that this
+  // stop lands 1856ms into it. That is the one moment the whole overlay is on
+  // the glass at once: the block settled at 600, the status line flipped green
+  // at 850, the last character of the code locked at 1660 and the sentence all
+  // the way up at 1800, with the handover at 2200 still ahead. 110 landed at
+  // 1184 -- mid code, before the sentence exists -- so the two lines this
+  // motion was rebuilt around were in no frame any gate ever looked at.
+  pump(152);                                        // past REVEAL_MS: writes SD
+  // The arrival motion, drawn OVER the finished exit screen.
   save("/tmp/sim_sign_arrival.ppm");
   // Any press ends it. Photographed straight after, because the whole point
   // of the rule is that a filename an owner is reading back must never be mid
@@ -4541,8 +4545,13 @@ int main(void) {
   pump(45); release(); pump(120);
   // ...and the same arrival motion on this path, over the QR screen. The code
   // flies to the right column here rather than to a card row, so it is a
-  // different handover and gets its own frame.
-  pump(40);
+  // different handover and gets its own frame -- and the status line says
+  // BUILDING THE QR here where the card path says WRITING TO THE CARD, which
+  // is the only thing that differs between them.
+  //
+  // 100, not 40, for the reason the SD stop above carries: 40 landed at 900ms,
+  // with two characters of the code out and no sentence. 100 lands at 1860.
+  pump(100);
   save("/tmp/sim_qr_arrival.ppm");
   touch(400, 240); pump(3); release(); pump(20);    // any press ends it
   save("/tmp/sim_qr_out1.ppm");                     // animated UR out, first part
