@@ -9030,18 +9030,36 @@ void wt_group4(const char *in, char *out, size_t out_len)
 {
     size_t o = 0;
     if (!out || !out_len) return;
-    // A trailing group of one or two characters JOINS the group before it. An
-    // address is rarely a multiple of four -- a 42 character bech32 leaves two
-    // -- and that stub is a separate token, so a line that is one group too
-    // long wraps it alone: the verify screen showed forty characters on one
-    // line and "kz" on the next, which reads as the address being cut off.
-    // Merged, the last token is five or six characters and there is no orphan
-    // to strand. Nothing is dropped and no other group changes.
+    // GROUPED FROM THE RIGHT, and the direction is the whole point.
+    //
+    // An address is rarely a multiple of four -- a 42 character bech32 leaves
+    // two -- so exactly one token is short, and which END carries it decides
+    // whether this string and the FOLDED form of the same address can agree.
+    //
+    // They could not. This grouped from the left and merged the trailing stub,
+    // so a 42 character address ended  ...[3233 3435][36-41], while
+    // wt_addr_short takes its last twelve characters as three fours and ended
+    // ...[3033][3437][3841]. Two renderings of one destination, cut into
+    // different blocks, on the screen whose only job is comparing characters
+    // against a coordinator. The lit run diverged with them: addr_spans snaps
+    // the tail out to a group boundary, which widened it to TEN characters
+    // here while the folded line lit eight. The bench read that as the device
+    // expanding a DIFFERENT address, and it was right to.
+    //
+    // Right-aligned, the last eight characters are exactly the final two
+    // tokens in both forms, the fold's twelve are exactly the final three, and
+    // the snap becomes a no-op instead of a widening. The two cannot disagree
+    // again without this line changing.
     size_t n = strlen(in);
     size_t rem = n % 4;
-    size_t last = (rem == 1 || rem == 2) && n > 4 ? n - rem - 4 : n;
+    // The one short token sits at the HEAD, joined to the block after it so it
+    // is five or six characters and not one or two. That is the same orphan
+    // this used to avoid by merging at the other end -- a lone "kz" wrapping
+    // onto its own line, which reads as the address being cut off -- moved to
+    // the end that no comparison is ever made against.
+    size_t first = rem == 0 ? 4 : (n > 4 ? rem + 4 : n);
     for (size_t i = 0; in[i]; i++) {
-        size_t need = (i && i % 4 == 0 && i <= last) ? 2u : 1u;
+        size_t need = (i >= first && (i - first) % 4 == 0) ? 2u : 1u;
         if (o + need + 1 > out_len) break;          // +1 keeps room for the NUL
         if (need == 2) out[o++] = ' ';
         out[o++] = in[i];
