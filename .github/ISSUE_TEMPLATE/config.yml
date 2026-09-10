@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Found a vulnerability?
+    url: https://github.com/diybitcoin/kiss-signer/blob/main/SECURITY.md
+    about: Do not open an issue. SECURITY.md says where to send it privately.
+  - name: Question about using the device
+    url: https://t.me/KISS_signer
+    about: Ask in the Telegram group. Send no security details there.

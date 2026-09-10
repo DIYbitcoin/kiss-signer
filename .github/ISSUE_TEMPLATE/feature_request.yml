@@ -1,0 +1,26 @@
+name: Feature request
+description: Something the device should do and does not
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do
+      description: Describe the situation you are in, not the feature you have in mind. It is easier to find a simple answer from the problem.
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help
+      description: Your idea, if you have one. Leave it blank if you would rather we work it out.
+    validations:
+      required: false
+
+  - type: markdown
+    attributes:
+      value: |
+        This is a signing device, so it keeps a small surface on purpose.
+        A request may be declined for that reason alone, and that is not a
+        judgement on the idea.
