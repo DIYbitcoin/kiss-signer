@@ -27,7 +27,18 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: commit messages name no agent
+      # The range every commit scan below reads, worked out ONCE and published
+      # where the other steps can see it.
+      #
+      # It used to be computed inside the first scanning step, which is where it
+      # was needed first. A `run:` block is its own shell, so the third step
+      # read a variable that had never been set in it. Under `set -u` that kills
+      # the command substitution before it runs; the `2>/dev/null` swallowed the
+      # message and the `|| :` swallowed the status, so the step printed "clean"
+      # having read nothing, and had done so since the day it was written.
+      # $GITHUB_ENV is the only thing that carries a value from one step to the
+      # next, and a variable is now either in it or a step's own.
+      - name: the commit range every scan below reads
         run: |
           set -u
           if [ "${{ github.event_name }}" = "pull_request" ]; then
@@ -42,6 +53,45 @@ jobs:
             esac
           fi
           echo "scanning: $RANGE"
+          echo "RANGE=$RANGE" >> "$GITHUB_ENV"
+
+      # A check that has never been observed to fail is not known to work. The
+      # prose scan reported "clean" for its entire life while reading nothing,
+      # and no run ever said otherwise, because a scan that FINDS nothing and a
+      # scan that LOOKS AT nothing print the same word. So each pattern is now
+      # made to catch a violation planted for it, in a throwaway repository, on
+      # every run. A pattern that stops firing fails the lane instead of going
+      # quiet. This is deliberately inline rather than a checker in tools/: this
+      # file is already excluded from the greps below, and a new tracked file
+      # full of tool names would need an exclusion of its own, which is exactly
+      # the kind of carve-out that let the last hole stay open.
+      - name: the scanners still catch a planted violation
+        run: |
+          set -eu
+          : "${RANGE:?unset -- every scan below would read nothing and pass}"
+          T="$(mktemp -d)"
+          git init -q "$T"
+          cd "$T"
+          git -c user.email=ci@local -c user.name=ci commit -q --allow-empty \
+            -m "Plant a trailer" -m "Co-Authored-By: Claude <noreply@anthropic.com>"
+          git -c user.email=ci@local -c user.name=ci commit -q --allow-empty \
+            -m "Plant prose" -m "This sentence names Claude to be caught."
+          M="$(git log --format='%H%n%B%n--%n')"
+          printf '%s' "$M" | grep -qiE 'co-authored-by:.*(anthropic|claude|openai|copilot|cursor|codex|chatgpt|gpt-|gemini|devin|aider)' \
+            || { echo "::error::the trailer pattern no longer fires"; exit 1; }
+          printf '%s' "$M" | grep -qiE -e '(superpowers|copilot|cursor|chatgpt|aider|devin)' \
+                                       -e '\bclaude\b|\banthropic\b' \
+            || { echo "::error::the prose pattern no longer fires"; exit 1; }
+          mkdir -p docs/claude && : > docs/claude/planted.md && git add -A
+          git ls-files | grep -qiE "(^|/)(superpowers|claude|anthropic|copilot|cursor|codex|chatgpt|aider|devin)" \
+            || { echo "::error::the path pattern no longer fires"; exit 1; }
+          echo "selftest: trailer, prose and path patterns all fire"
+
+      - name: commit messages name no agent
+        run: |
+          set -u
+          : "${RANGE:?unset -- this scan would read nothing and report clean}"
+          echo "scanning $(git log $RANGE --format=%H | wc -l) commit(s): $RANGE"
 
           BAD=$(git log $RANGE --format='%H%n%B%n--%n' \
                 | grep -iE -e 'co-authored-by:.*(anthropic|claude|openai|copilot|cursor|codex|chatgpt|gpt-|gemini|devin|aider)' \
@@ -73,7 +123,10 @@ jobs:
       - name: commit messages name no tool in prose
         run: |
           set -u
-          BAD=$(git log $RANGE --format='%H%n%B%n--%n' 2>/dev/null \
+          : "${RANGE:?unset -- this scan would read nothing and report clean}"
+          echo "scanning $(git log $RANGE --format=%H | wc -l) commit(s): $RANGE"
+
+          BAD=$(git log $RANGE --format='%H%n%B%n--%n' \
                 | grep -inE -e '(superpowers|copilot|cursor|chatgpt|aider|devin)' \
                             -e '\bclaude\b|\banthropic\b' -e '\.claude/' \
                             -e '\bagentic\b|\bsub-?agent\b' \
