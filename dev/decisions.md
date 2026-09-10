@@ -236,7 +236,7 @@ It used to draw a dimmed one, on the reasoning that the shape of the transaction
 
 ### the destructive group is a TAB with its own tint and cross-fade, not a row buried on another page
 
-[`main/kiss_theme.h:960`](../main/kiss_theme.h#L960)
+[`main/kiss_theme.h:959`](../main/kiss_theme.h#L959)
 
 ## `main/main.c`
 

@@ -535,15 +535,20 @@ static void pair_instructions_cb(lv_event_t *e)
     // two small captions above them, all floating on the page, left the reader to
     // work out which caption owned which paragraph. Both bodies keep a three line
     // budget at font23, which is what they had.
-    // Marks before words, and the mark says which device the steps are for: a
-    // phone for BlueWallet, a file for Sparrow on a computer. Both are in SYMS.
+    // ONE MARK, and it is the thing being shown. This branched on the app: a
+    // file for Sparrow, a telephone for BlueWallet. U+F095 is a HANDSET -- the
+    // curved receiver off a desk phone -- so the glyph standing for "a wallet
+    // in your pocket" was reading as "place a call", on a device that has no
+    // radio and makes no calls. The same trap as a lightning bolt on a fee.
+    //
+    // Nothing is lost by dropping the distinction. The eyebrow under the tabs
+    // already says DESKTOP or MOBILE in words, and the head says SHOW IT TO --
+    // so the mark's job is to name what gets shown, which is the QR.
     // The body clears the HEAD, measured rather than guessed: wt_section moved
     // up a rung and both bodies were sitting inside the head's own line box,
     // which the overlap gate read as text on text on both cards.
     lv_obj_t *c1 = wt_card(s_scr, 36, 96, 716, 162);
-    lv_obj_t *h1 = wt_section(c1, tr_sym(s_pair_fmt ? WT_ICON_PHONE
-                                                    : LV_SYMBOL_FILE,
-                                         STR_I_SHOW_TO), 16, 10);
+    lv_obj_t *h1 = wt_section(c1, tr_sym(WT_ICON_QR, STR_I_SHOW_TO), 16, 10);
     lv_obj_update_layout(h1);
     const int b1 = 10 + lv_obj_get_height(h1) + 4;
     lv_obj_t *steps = wt_note(c1,
@@ -756,11 +761,14 @@ static void pair_screen(void)
     // nothing and the accent brackets say which app is open, which is what
     // recolouring an app name was trying to say from inside the content.
     //
-    // The marks are page two's: a file for a coordinator on a computer, a
-    // phone for one in a pocket.
+    // NO MARKS. The labels are the two apps by name and the eyebrow under
+    // them says DESKTOP or MOBILE, so a glyph on each tab is decoration on a
+    // row that already reads. The first cut copied page two's pair, which put
+    // a telephone handset on this screen to mean "a wallet on a phone" -- a
+    // glyph about placing calls, on a signer with no radio.
     const wt_tab_t ptabs[2] = {
-        { LV_SYMBOL_FILE,  tr(STR_I_APP_DESKTOP), false, false },
-        { WT_ICON_PHONE,   tr(STR_I_APP_MOBILE),  false, false },
+        { NULL, tr(STR_I_APP_DESKTOP), false, false },
+        { NULL, tr(STR_I_APP_MOBILE),  false, false },
     };
     s_pair_tabs = wt_tabs_flex(s_scr, ptabs, 2, s_pair_fmt, pair_fmt_cb);
     wt_help_tab_n(s_scr, NULL, kiss_terms_unread(KISS_TERMS_PAIR, 3),

@@ -292,7 +292,6 @@ void wt_sub_fit(lv_obj_t *scr, int w);
 // explainers make in words. Already in SYMS.
 #define WT_ICON_HIDDEN  "\xEF\x81\xB0"   // U+F070 eye-slash
 // A coordinator running on a phone, for the pairing steps. Already in SYMS.
-#define WT_ICON_PHONE   "\xEF\x82\x95"   // U+F095 phone
 // The SETTINGS SECURITY tab. Deliberately NOT WT_ICON_SECRET: that glyph means
 // silent payments everywhere else in the app, and a mark cannot say two
 // things. Added to SYMS in the same edit that named it here -- an icon missing
