@@ -689,7 +689,12 @@ static void pair_enlarge_cb(lv_event_t *e)
 // ja and zh end a sentence with U+3002 and never with ". ", which is the same
 // split spans_fill has to make; a locale with neither takes the whole string
 // on one line rather than being cut at a boundary it does not have.
-static void pair_band_claim(void)
+//
+// The lane is MEASURED off the control beside it, not pinned at 190. Turkish
+// says NEXT in a word wide enough to reach past that, and the walk caught both
+// halves of this sentence sitting on its arrow -- a fixed left edge here is a
+// promise about how long a translation is.
+static void pair_band_claim(lv_obj_t *next_act)
 {
     const char *txt = tr(STR_K_EXPL_COORD);
     const char *sp = strstr(txt, ". ");
@@ -714,12 +719,20 @@ static void pair_band_claim(void)
     // Centred in the band the way wt_standing centres its own line, so the
     // claim sits on the same rung as every other sentence down here.
     int y = WT_ACTION_Y + (WT_ACTION_H - n * lh) / 2;
+    int x0 = 190;
+    if (next_act) {
+        lv_obj_update_layout(next_act);   // or the width answers zero
+        const int after = WT_ACT_X + lv_obj_get_width(next_act) + 16;
+        if (after > x0) x0 = after;
+    }
+    const int w = 592 - 12 - x0;
+    if (w < 120) return;                  // no lane left: the controls win
     const char *line[2] = { one, rest };
     for (int i = 0; i < n; i++) {
-        lv_obj_t *l = wt_lbl(s_scr, line[i], 190, y + i * lh, f,
+        lv_obj_t *l = wt_lbl(s_scr, line[i], x0, y + i * lh, f,
                              i ? wt_accent() : WT_MUT);
         if (i) lv_obj_add_flag(l, WT_FLAG_ACCENT);
-        lv_obj_set_width(l, 400);
+        lv_obj_set_width(l, w);
         lv_obj_set_height(l, lh);
         lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
         lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
@@ -904,9 +917,9 @@ static void pair_screen(void)
     // Neither pairing bar holds a pager PAIR -- page 1 has only NEXT and page 2
     // only its page-back -- so the adjacency exemption has nothing to protect
     // here, and both pages agree on where the exit is.
-    wt_arrow_action(s_scr, tr(STR_R_NEXT), false, false, WT_ACT_X, WT_ACTION_Y, 0, false, pair_instructions_cb, NULL);
+    lv_obj_t *nx = wt_arrow_action(s_scr, tr(STR_R_NEXT), false, false, WT_ACT_X, WT_ACTION_Y, 0, false, pair_instructions_cb, NULL);
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, pair_back_cb, NULL);
-    pair_band_claim();
+    pair_band_claim(nx);
     wt_swipe_watch(s_scr, pair_gesture_cb);
     // The silent-payment SCAN KEY used to live HERE, buried one tap inside PAIR
     // COORDINATOR. It is its own export with its own consent warning, and
