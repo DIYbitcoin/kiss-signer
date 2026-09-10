@@ -555,7 +555,7 @@
   "S_PAYEE_HELP": "BETALT FØR: disse nøklene har allerede signert til denne adressen.",
   "S_POINT_CAM": "rett kameraet mot koordinatoren",
   "S_QR_FAIL_ENC": "kunne ikke kode den signerte transaksjonen",
-  "S_QR_LOOP": "den gjentas, hold stille",
+  "S_QR_LOOP": "gjentas, hold stille",
   "S_QR_PART_FMT": "%d/%d",
   "S_QR_SINGLE": "én QR-kode",
   "S_QR_SUB": "scan this QR in your coordinator, then broadcast",
