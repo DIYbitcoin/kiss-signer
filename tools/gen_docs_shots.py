@@ -411,7 +411,12 @@ def write_review_index():
            "The walkthrough renders in one state: MONO, English, mainnet, "
            "funded. These are the same screens under the conditions nothing "
            "has been reviewed against yet. What each screen is for is written "
-           "once, in [the walkthrough](walkthrough.md).", ""]
+           # ../, because this page is written into docs/review/ and the
+           # walkthrough sits one level up in docs/. It said "walkthrough.md"
+           # and somebody corrected the OUTPUT by hand; the next render put
+           # the break straight back, which is what generated files do to a
+           # hand fix. The link belongs here, where it is written.
+           "once, in [the walkthrough](../walkthrough.md).", ""]
     for axis in AXES:
         out += ["## " + axis, "", AXES[axis]["note"], ""]
         if axis not in live_axes():
