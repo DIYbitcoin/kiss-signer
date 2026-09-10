@@ -3269,7 +3269,9 @@ int main(void) {
   // nothing else on the walk exercises it.
   touch(490, 240); pump(3); release(); pump(45);    // KEYS tile -> the QR direct
   save("/tmp/sim_winfo_unpaired.ppm");
-  must_show("keys/unpaired goes to pairing", tr(STR_I_SHOW_TO));
+  // By the TAB, not by the SHOW IT TO head: the head is gone and the strip
+  // is the answer to "show it to whom". "Sparrow" is on no other screen.
+  must_show("keys/unpaired goes to pairing", tr(STR_I_APP_DESKTOP));
   // And BACK from it leaves for HOME rather than landing on the page that
   // just forwarded here. If this ever regresses the walk hangs on a bounce
   // rather than failing, so the needle is a HOME string.
@@ -3304,10 +3306,18 @@ int main(void) {
   must_show("keys/swipe closes help", tr(STR_K_CAP_PAIRING));
   touch(400, 150); pump(3); release(); pump(6);     // PAIRING -> PAIR COORDINATOR
   save("/tmp/sim_pair.ppm");                        // descriptor (Sparrow) active
-  touch(198, 228); pump(3); release(); pump(6);     // descriptor QR -> zoom
+  // The QR moved into the right bay of the page's one card, so its centre
+  // moved with it. A stale coordinate here landed on nothing, the zoom never
+  // opened, and the next four taps walked a page the walk thought it had left.
+  touch(570, 246); pump(3); release(); pump(6);     // descriptor QR -> zoom
   save("/tmp/sim_pair_zoom.ppm");
   touch(763, 35); pump(3); release(); pump(6);      // close zoom
-  touch(672, 150); pump(3); release(); pump(4);     // MOBILE / BlueWallet segment
+  // BY THE TAB'S OWN WORD. The two 175x60 panes are the chrome strip's tab
+  // deck now, and a coordinate aimed where the MOBILE pane used to be lands
+  // on the QR card instead -- which opens the zoom and derails everything
+  // after it, silently, because a tap that opens the wrong thing still hits
+  // something.
+  tap_str(STR_I_APP_MOBILE, 3, 6);                  // BlueWallet tab
   save("/tmp/sim_pair_bw.ppm");
   // The page's own [ ? 2 ], where the section chip beside SHOW TO used to be:
   // DESCRIPTOR and FINGERPRINT, the two words this page is about, as rows
