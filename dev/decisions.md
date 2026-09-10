@@ -48,13 +48,13 @@ The buffer was a fifth of the main task's 20KB stack, claimed in the frame that 
 
 There was a popover here: five rows, its own pager, its own remembered page, opened by a chevron that bounced forever under the caption. It was a second address picker standing beside ALL ADDRESSES, which is a list of the same hundred indices with a different pagination (3, not 5) and a different remembered position -- and the two drifted apart by construction. A swipe through the list moves s_list_base and never touches s_idx, so an owner who paged the list back to #0 and returned found the popover built around #5. That is the bench's report, and no amount of fixing the popover's memory makes two pickers on one screen agree about which one the reader meant. So the caption IS the way in, and the list is the picker. Tapping it lands on ALL ADDRESSES with the page holding s_idx already under the finger and that row already ticked; row_tap_cb picks and comes straight back. One list, one pagination, and the position is computed from the selection every time, so there is nothing left to drift.
 
-[`main/kiss_recv.c:1010`](../main/kiss_recv.c#L1010)
+[`main/kiss_recv.c:1016`](../main/kiss_recv.c#L1016)
 
 ### VERIFY belongs to THIS ADDRESS, not to the whole page
 
 It was on the band from every pane, including the [ ? ] explainer, on the argument that the explainer's own second sentence -- "check one here before you trust it" -- is what VERIFY does, so the screen was offering the thing it had just taught. The owner disagrees, twice: a control that has nothing to do with the pane under it reads as belonging to that pane. It follows the same rule NEXT ADDRESS already did. The band on the other panes is then BACK alone, which is correct here and not an EXIT finding: this screen has a tab strip, and the strip is the way between panes.
 
-[`main/kiss_recv.c:1122`](../main/kiss_recv.c#L1122)
+[`main/kiss_recv.c:1128`](../main/kiss_recv.c#L1128)
 
 ## `main/kiss_rngaudit.c`
 
@@ -94,19 +94,19 @@ The row was absent whenever kiss_session_decoy() was true, on the sound-sounding
 
 The proposal was HOW IT SIGNS / WHAT IT KEEPS / HOW IT PROVES / WHAT IT IS, and it does not fit: the five-up strip is 620px, the shipped labels measure 612 of it, and those four plus NO UNDO measure 920. Three hundred pixels over is not a layout to tune. The only form that fits is single verbs -- SIGNS / KEEPS / PROVES / IS, 500px -- and "IS" is not a word to put on a tab an owner is looking for something in. Verbs without subjects read worse than the nouns they would replace, for a reader who bought their first signing device last week. The miscategorisation the proposal was built on is also gone: it argued that storage sat on SECURITY while recovery words sat on BACKUP, so checking a backup crossed two tabs. STORAGE is on BACKUP beside SEED WORDS, which is one job on one tab.
 
-[`main/kiss_settings.c:2423`](../main/kiss_settings.c#L2423)
+[`main/kiss_settings.c:2440`](../main/kiss_settings.c#L2440)
 
 ### the theme moved off the action band into the chrome column above [ ? ]
 
 It spent a version as a wordless chip in the header, one as a row on the DEVICE tab, and one as a swatch on the band's centre. The band was the wrong shelf: BACK, NEED ATTENTION and LANGUAGE all take you somewhere, and this control repaints the page you are already standing on. That is chrome, the same job as the title and the [ ? ], so it goes in the same column. The band had three controls sharing its right half because of it, and the bench had already filed that once -- "too close to the language picker" -- which was answered by centring it, moving the crowding rather than the control. It is a KIT call and the geometry is not here, for the reason the first draft of it proved: built by hand on this page, the swatch followed the accent through its flag and the NAME beside it did not, so an in-place restyle drew a green swatch labelled MONO.
 
-[`main/kiss_settings.c:2463`](../main/kiss_settings.c#L2463)
+[`main/kiss_settings.c:2480`](../main/kiss_settings.c#L2480)
 
 ### LANGUAGE lives on the BAND, moved there out of the DEVICE tab
 
 It travelled with the theme and the theme has since gone up to the chrome column; this one stays, because picking a language OPENS a picker, which is what every other control on this band does. The language control needs no caption -- its label IS the active language's own name, stripped of the regional qualifier ("ESPANOL (ESPANA)" -> "ESPANOL") because the picker's flag carries the variant. A WORD ACTION with a GLOBE, not an arrow action. It was a forward arrow, which is the mark the SCREEN'S OWN action wears -- so the one control on the band that picks between 21 languages was signed exactly like a "go on", and came back from the bench as "should have some icon better than an arrow, no?". A globe says what the control is before its word is read, in every one of those 21 languages at once.
 
-[`main/kiss_settings.c:2502`](../main/kiss_settings.c#L2502)
+[`main/kiss_settings.c:2519`](../main/kiss_settings.c#L2519)
 
 ## `main/kiss_setup.c`
 
@@ -158,37 +158,37 @@ SIGNED was claimed three times on this screen -- the page title, that 48px check
 
 The exit screen is already built and DONE is already live underneath -- the motion is drawn OVER a finished screen rather than in front of one being prepared, so a skip is a delete and not a fast forward. Same rule the drift-home timer was deleted for: a filename an owner is reading back must never be mid scramble, and a screen that will not let go reads as a crash.
 
-[`main/kiss_sign.c:1668`](../main/kiss_sign.c#L1668)
+[`main/kiss_sign.c:1673`](../main/kiss_sign.c#L1673)
 
 ### the motion draws the REAL s_out base64 and the REAL s_sig_fp, never invented bytes
 
 A motion that scrambles plausible looking characters and resolves to something else is a lie told by the one screen whose whole job is to hand back something checkable, and an owner who photographed the frame and compared it would find it. The first row genuinely reads cHNidP8B.
 
-[`main/kiss_sign.c:1684`](../main/kiss_sign.c#L1684)
+[`main/kiss_sign.c:1689`](../main/kiss_sign.c#L1689)
 
 ### the two change rows are exclusive and the dust one wins, even though kiss_psbt.c raises them PER OUTPUT and can therefore set both -- one change output under the dust floor and a second between the floor and 5000
 
 Both bits set draws the dust row only, and caution_all_bits reads back through here, so the gate asks for the rows the owner can see and stays consistent. Splitting them was considered and dropped. It takes the stack to six on a page built for five (SG_ROW_MAX, and the ceiling argument above), and it buys a second row saying "tiny change" beside a row already saying "dust change" -- the same sentence about the same fault, for a two change output transaction almost no coordinator builds. What is lost is real and it is one line of a soft privacy caution, not a claim about where the money goes.
 
-[`main/kiss_sign.c:2715`](../main/kiss_sign.c#L2715)
+[`main/kiss_sign.c:2731`](../main/kiss_sign.c#L2731)
 
 ### the NETWORK badge yields its lane to the LOCKTIME badge, not the other way round
 
 Both are placed out of the same right to left fr chain and both used to end in a bare lv_obj_delete when the line ran out -- and on a long title the one that lost was always the locktime, because it is placed last. That is backwards, and each block's own comment says so. The network drops "because the network is on the DETAILS deck as well, so dropping it here costs the reader a tap, not the fact". The locktime badge EXISTS because its deck row is "where a fact goes to be unread" -- it was added to get that fact off the third tab and onto the glass. So dropping the locktime costs the fact, and dropping the network costs a tap. Measured, not theoretical: on the Dutch and Russian sign screens the title, the network chip and the fingerprint left the locktime badge under its 12px clearance even in the degraded form below, so it took the else branch and an owner signing a time locked payment was never told. The German case in the comment further down is the same bug caught one locale earlier and fixed only as far as German needed. The trade only arises on TESTNET, because that is the only time a network chip is drawn at all, and it fails in the safe direction. A missing network chip is what MAINNET looks like, so an owner who loses it reads the screen as more serious than it is and is more careful, not less. A missing locktime is the opposite: the payment reads as spendable now, and it is not.
 
-[`main/kiss_sign.c:2970`](../main/kiss_sign.c#L2970)
+[`main/kiss_sign.c:2991`](../main/kiss_sign.c#L2991)
 
 ### the sign review band does NOT name the transaction's file; that line was cut rather than fixed
 
 NO FILENAME HERE, and no "camera" either. Both were cut rather than fixed. The reader tapped that name on the file list one screen back, or watched the camera assemble the transaction, so the line restated what they had just done -- which is the copy rule's own example of a string to cut. And a filename is the COORDINATOR'S bookkeeping, not a fact about the payment: what says this is the right transaction is the amount and the destination, and both are on this screen at full size. A name in the corner never checked anything. What it cost to keep was the whole band. The line ran under the title beside the signed badge, the network chip and the fingerprint, and it was the only unlabelled string among them. It also carried two defects for as long as it existed: set in the smallest face on the device, and, once that was corrected, handing a translated phrase to a filename tail-fold so a scanned transaction read "scan...ansaction" on the screen where a payment is approved. fx survives because the badge and the chip above measure their lane against it: they may not run back under the title.
 
-[`main/kiss_sign.c:3152`](../main/kiss_sign.c#L3152)
+[`main/kiss_sign.c:3173`](../main/kiss_sign.c#L3173)
 
 ### this toggle's mark stays VISIBLE when it is off, dimmed rather than transparent
 
 The two-state word action hides its mark elsewhere and that is right where a PAIR of them sits side by side -- the dice screen -- because the pair is the affordance. This one stands alone in a left aligned column, and hidden-but-still-occupying-space gave it no affordance at all AND pushed its word 33px inside the column's edge, so it read as a centred heading rather than a control. An inert mark says both things at once: there is a switch here, and it is not on.
 
-[`main/kiss_sign.c:4859`](../main/kiss_sign.c#L4859)
+[`main/kiss_sign.c:4880`](../main/kiss_sign.c#L4880)
 
 ## `main/kiss_theme.c`
 
@@ -202,37 +202,37 @@ The rule wt_ink_for serves says it in its own words -- the caution GLYPH and the
 
 It shipped at 14 and came off the bench as too small to see and too small to aim at -- the same report the content tab LABELS got when they were 18, and this tab sits in the same 30px strip beside them. So the mark takes the tab rung, chrome23, and the brackets stay mono18 punctuation a rung below it exactly as they do on a content tab. Measured: the glyph goes 11x17 -> 17x25 in a strip 30 tall.
 
-[`main/kiss_theme.c:4112`](../main/kiss_theme.c#L4112)
+[`main/kiss_theme.c:4115`](../main/kiss_theme.c#L4115)
 
 ### the tab breathes whenever it has something UNREAD, not only until the first open ever
 
 It pulsed once, on the first [ ? ] an owner ever met, and was still forever after -- so [ ? 3 ] drew the count and then sat there, which is a badge you have to be looking at to notice. The attention dot on a content tab has answered the same question since it was filed from the bench as "not pulsing", and it answers a GLANCE. This is the same statement, so it is the same motion: 100..255 over 1200ms ease in out, the values wt_dot_breathe uses, rather than the 71..230 this one had of its own. The size and translate halves of a dot's breathe do not come with it -- growing a tab in a 30px strip moves the brackets, and the pixels are spent. It stops on its own. The count comes from kiss_terms_unread at build, the explainer swaps the screen, and coming back rebuilds the tab with whatever is left; at zero there is no animation to delete.
 
-[`main/kiss_theme.c:4178`](../main/kiss_theme.c#L4178)
+[`main/kiss_theme.c:4181`](../main/kiss_theme.c#L4181)
 
 ### a caution value is lifted into the accent only where the row has a LAMP to carry the amber
 
 The lift was unconditional, on the argument written here for its whole life -- "its lamp is the amber, and the lamp is what the eye lands on first anyway". That argument is the lamp's, not the value's, so a row with no lamp was borrowing a reason it did not have: SETTINGS > SIGNER lost its pulsing dot (a pulse means a tab needs attention, and being on signet does not), and the word SIGNET went on reading in the theme's own colour with nothing amber left anywhere on the row. Reported from the bench in those terms. So the condition is the lamp. No lamp, no lift, and the caution stays the caution's colour.
 
-[`main/kiss_theme.c:4694`](../main/kiss_theme.c#L4694)
+[`main/kiss_theme.c:4697`](../main/kiss_theme.c#L4697)
 
 ### a lone span is a break opportunity, so when the word before a stop ends near the edge the "
 
 " wraps by ITSELF and the next line opens with a full stop. It looks like a typo in the string and it is not -- SIGN's refusal screen shows it on "information" / ". pair it again". Folding the stop back into the body run fixes it and was rejected: the accent stop is the design, it is what makes a wrapped body scan as sentences rather than as a block, and LVGL gives no way to hold a span to the one before it. The copy moves instead, which is what happened here -- the word at the edge changes and the stop follows it up.
 
-[`main/kiss_theme.c:6766`](../main/kiss_theme.c#L6766)
+[`main/kiss_theme.c:6769`](../main/kiss_theme.c#L6769)
 
 ### the icon grid's ladder floors at 21 and no longer has a font14 rung
 
 THE FLOOR IS 21, NOT 14, which is the same floor wt_body_para has and for the same reason: font14 is for MARKS -- chip labels, unit suffixes, chevrons -- and every string in this grid is a SENTENCE an owner reads before signing. WHY FLAGGED is the case that proves it: five caution rows explaining why a payment was flagged, all of them at the size this device keeps for punctuation. mono21 only where the copy CAN be mono, which is what the body ladder asks too. Where it cannot, the rung stays 23 and the overflow is reported rather than shrunk away -- copy too long for its box is copy to cut, and a silent drop is what hid this for the grid's whole life.
 
-[`main/kiss_theme.c:7116`](../main/kiss_theme.c#L7116)
+[`main/kiss_theme.c:7119`](../main/kiss_theme.c#L7119)
 
 ### an output not on this page draws NO STRAND
 
 It used to draw a dimmed one, on the reasoning that the shape of the transaction should not leave while its detail is read -- and what that produced was a line running to blank glass, because the row it aims at is hidden. There is nothing at the end of it and nothing that says why, so it reads as a destination the screen will not name: the one thing this graph exists to never do. It was reported from the bench as a strand "going to nowhere", twice, once about its colour and once about the strand itself. What is lost is the fan on a paged spend, and the counter on the caption line carries that instead -- 1/2 is on the glass beside WHERE IT GOES, and the read-to-the-end gate holds the slide until every page has been turned, so no signature can happen from one page's worth of strands.
 
-[`main/kiss_theme.c:8156`](../main/kiss_theme.c#L8156)
+[`main/kiss_theme.c:8159`](../main/kiss_theme.c#L8159)
 
 ## `main/kiss_theme.h`
 
@@ -260,4 +260,4 @@ The word is the FIRST stored.strokes strokes of the buffer, so once that many ha
 
 pump(30), not 20. The outgoing pane leaves on a per row stagger -- (n-1) * MO_OUT_STEP + MO_OUT_MS, which is 330ms for a six row detail pane against 320ms of pump -- so the old count photographed the previous screen still fading through this one. Invisible until overlapcheck learned to read spangroups: the ghost is a folded address, and a spangroup was not text to any check on the list.
 
-[`sim/sim_main.c:4665`](../sim/sim_main.c#L4665)
+[`sim/sim_main.c:4695`](../sim/sim_main.c#L4695)
