@@ -1166,7 +1166,12 @@ static void done_screen(const char *outname)
     // The subtitle says what the signature COVERS, which is the one thing the
     // screen could not say before: S_DONE_SD_SUB's three instructions moved
     // into the steps strip at the foot, where they are three things again.
-    mk_screen(parent, tr(STR_S_SIGNED_T), tr(STR_S_DONE_SUB2));
+    // NO SUBTITLE. This carried "one signature, over the amounts you
+    // approved" -- "over" in the sense a signature is over a message, which
+    // is not a sense anybody outside cryptography reads. The screen already
+    // says SIGNED and the amounts are on the card below it, so the line was
+    // spending the most-read row on this screen to restate both, badly.
+    mk_screen(parent, tr(STR_S_SIGNED_T), NULL);
     signed_title_row(true);
 
     // ---- what was signed ------------------------------------------------
@@ -5015,7 +5020,10 @@ static void qr_out_screen(size_t sw, bool rebuild)
         // ticked with the fast loop it exists to slow down.
         s_qr_tmr = lv_timer_create(qr_tick, s_qr_ez ? 600 : 250, NULL);
     }
-    wt_standing(s_scr, tr(STR_S_NO_NETWORK), WT_OK, false);
+    // The standing line here said "never on the network". True of the whole
+    // device and of every screen on it, so on the one screen showing a QR it
+    // read as a claim about the QR and left owners asking what it meant. The
+    // airgap is the product, not a caption.
     s_ez_act = wt_word_action(s_scr, LV_SYMBOL_OK, tr(STR_S_EASY_SCAN), true,
                                INK_COL, false, qr_ez_cb, NULL);
     lv_obj_set_pos(s_ez_act, 430, 254);
