@@ -1820,9 +1820,8 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           seed home.
         </p>
         <p>
-          Both locks turn together, on that first boot. A device that got only
-          the first can never accept the second afterwards, so it is both or
-          neither.
+          Both turn together. A device that took only one can never accept
+          the other, so it is both or neither.
         </p>
 
         <div class="danger">
@@ -1924,9 +1923,8 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           <figcaption id="derive-cap">
             All three come from the master key, and the master key comes from
             both halves. Change the passphrase and you get a different master
-            key, so all three change together. That is why there is no wrong
-            passphrase: a different one is not an error, it is a different set
-            of keys, and the fingerprint is how you tell which set you are in.
+            key, so all three change together, and the fingerprint is how you
+            tell which set you are in.
           </figcaption>
         </figure>
         <p class="try">
@@ -2107,19 +2105,18 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           your coordinator. Any caution gates the sign button behind
           <strong>I UNDERSTAND</strong>.
         </p>
-        <h3>While you are learning</h3>
-        <p>
-          Tap the <strong>?</strong> beside any unfamiliar term &mdash; RBF,
-          fingerprint, coordinator, dust &mdash; for a short card. On the
-          signed-QR screen, <strong>EASY SCAN</strong> slows the loop and
-          enlarges the dots for stubborn cameras. Tapping the KISS logo on the
-          game menu locks straight back to the game.
-        </p>
-        <p>
-          Settings shows what is on the device, bottom-left:
-          <code>KISS &lt;version&gt; (&lt;commit&gt;)</code>, plus a note while
-          flash encryption is off.
-        </p>
+        <h3>Small things worth knowing</h3>
+        <ul>
+          <li><strong>?</strong> beside an unfamiliar term &mdash; RBF,
+            fingerprint, coordinator, dust &mdash; opens a short card.</li>
+          <li><strong>EASY SCAN</strong>, on the signed-QR screen, slows the
+            loop and enlarges the dots for stubborn cameras.</li>
+          <li>Tapping the KISS logo on the game menu locks straight back to
+            the game.</li>
+          <li>Settings, bottom-left, shows what is on the device:
+            <code>KISS &lt;version&gt; (&lt;commit&gt;)</code>, and says so
+            while flash encryption is off.</li>
+        </ul>
       </section>
 <section class="doc-card reveal" id="storage">
         <p class="eyebrow">12 / three storage modes</p>
