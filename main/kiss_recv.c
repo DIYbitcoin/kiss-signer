@@ -381,8 +381,16 @@ static void vfy_result(const char *txt, size_t len) {
     //
     // The sentence is not a second warning either. It says the address is
     // valid and the search was bounded -- the reassuring half of the verdict.
-    wt_wrap(s_scr, tr(STR_R_NOT_FOUND_B), 48, note_y, 700,
-            WT_CONTENT_BOTTOM - note_y);
+    //
+    // FORMATTED, like the headline above it. The depth was typed into the
+    // English as the digits 100 and copied into twenty more translations that
+    // way, one line under a headline that has always formatted the constant.
+    // Move VFY_SCAN_DEPTH and the headline would follow while twenty one
+    // sentences went on naming a number nothing searches -- a lie in every
+    // locale, from a change that looks like it touches one.
+    char nfb[256];
+    snprintf(nfb, sizeof nfb, tr(STR_R_NOT_FOUND_B), VFY_SCAN_DEPTH);
+    wt_wrap(s_scr, nfb, 48, note_y, 700, WT_CONTENT_BOTTOM - note_y);
   } else if (validity == WADDR_WRONG_NETWORK) {
     wt_lbl(s_scr, tr_sym(LV_SYMBOL_CLOSE, STR_R_WRONG_NET),
            48, 130, wt_font28(), WT_STOP);
