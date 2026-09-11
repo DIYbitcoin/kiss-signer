@@ -155,11 +155,20 @@ export SECURE_VERSION
 [ "$SECURE_VERSION" = 0 ] || \
   echo "anti rollback: secure version $SECURE_VERSION (permanent once booted)"
 
-if [ -z "$ALLOW_DIRTY" ] && [ -n "$(git status --porcelain)" ]; then
+if [ -z "$ALLOW_DIRTY" ]; then
+  DIRTY="$(git status --porcelain)"
+  if [ -n "$DIRTY" ]; then
     echo "You have uncommitted changes - an encrypted release must be built"
     echo "from a clean, committed tree. Commit first, then rerun."
     echo "(throwaway test? prefix with ALLOW_DIRTY=1)"
+    echo
+    # Which files, not merely that there were some. CI runs this recipe
+    # twice in one job, and the second run inherits whatever the first
+    # left in the tree. A bare refusal there names nothing, so the only
+    # record of the failure is a runner log saying the tree was dirty.
+    echo "$DIRTY" | sed 's/^/    /'
     exit 1
+  fi
 fi
 
 # sdkconfig.encrypted = the board's dev sdkconfig, transformed:
