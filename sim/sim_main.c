@@ -593,14 +593,86 @@ int kiss_session_address(int change, unsigned int index, char *out, unsigned lon
              s_sim_testnet ? "tb" : "bc", change ? 'c' : 'q', index % 100u);
   return 0;
 }
+// ---- the address validator, which is the one stub that had to stop guessing --
+//
+// THE FIXTURES ARE ONLY AS HONEST AS THIS FUNCTION. Every other seam in this
+// file fakes a thing the walk photographs; this one fakes a JUDGEMENT, and the
+// walk publishes the judgement as a caption. The device runs the string
+// through libwally. This read the first three characters and the length, so
+// "bc1qnotmineatall..." was a mainnet address here and a malformed string
+// there -- o and i are not in the bech32 alphabet -- and two captures spent
+// their lives under each other's names with nothing able to notice.
+//
+// So the bech32 families are checked FOR REAL now, checksum and all. The
+// silent payment half needs no stub at all: sp_address_network in kiss_sp.c is
+// already the device's own code and is already linked here.
+//
+// WHAT IS STILL A STUB, said plainly rather than left to be discovered: base58
+// stays on the leading character and the length, because a real one needs
+// sha256d over the payload and this file has no address encoder. A made-up
+// "1..." of the right length still passes as mainnet. Bech32 is what the
+// product shows and what every fixture uses, so that is where the honesty was
+// bought; a base58 fixture is still worth checking by hand.
+//
+// The addresses kiss_session_address hands out above are still synthetic and
+// would fail this. That is safe for exactly one reason, and it is worth
+// writing down because it is what makes the pair consistent: ownership is
+// answered by strcmp against those same synthetic strings BEFORE the verify
+// screen asks about validity, so a derived address never reaches this
+// function. A fixture that is not ours does, and that one has to be real.
+#include "kiss_sp.h"                    // sp_address_network: the device's own
+#define SIM_BECH32M_CONST 0x2bc830a3u
+static uint32_t sim_b32_step(uint32_t chk, uint8_t v) {
+  uint8_t top = (uint8_t)(chk >> 25);
+  chk = ((chk & 0x1ffffffu) << 5) ^ v;
+  if (top & 1)  chk ^= 0x3b6a57b2u;
+  if (top & 2)  chk ^= 0x26508e6du;
+  if (top & 4)  chk ^= 0x1ea119fau;
+  if (top & 8)  chk ^= 0x3d4233ddu;
+  if (top & 16) chk ^= 0x2a1462b3u;
+  return chk;
+}
+
+// BIP173 and BIP350: a segwit address under this hrp, with the checksum
+// constant its witness version calls for -- 1 for v0, bech32m for v1 and up.
+static int sim_segwit_ok(const char *addr, const char *hrp) {
+  static const char CS[] = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
+  size_t hl = strlen(hrp);
+  if (strncmp(addr, hrp, hl) != 0 || addr[hl] != '1') return 0;
+  const char *data = addr + hl + 1;
+  size_t n = strlen(data);
+  if (n < 7 || n > 71) return 0;                 // 6 checksum + at least one
+  uint32_t chk = 1;
+  for (size_t i = 0; i < hl; i++) chk = sim_b32_step(chk, (uint8_t)(hrp[i] >> 5));
+  chk = sim_b32_step(chk, 0);
+  for (size_t i = 0; i < hl; i++) chk = sim_b32_step(chk, (uint8_t)(hrp[i] & 0x1f));
+  int ver = -1;
+  for (size_t i = 0; i < n; i++) {
+    const char *p = strchr(CS, data[i]);
+    if (!p) return 0;                            // includes b, i, o and '1'
+    uint8_t v = (uint8_t)(p - CS);
+    if (i == 0) ver = v;
+    chk = sim_b32_step(chk, v);
+  }
+  if (ver < 0 || ver > 16) return 0;
+  return chk == (ver == 0 ? 1u : SIM_BECH32M_CONST);
+}
+
 int kiss_address_validate(const char *addr) {
   if (!addr || !*addr) return WADDR_INVALID;
+  // The real one, from the firmware, checksum and BIP352 padding included.
+  int spnet = sp_address_network(addr);
+  if (spnet)
+    return spnet == (s_sim_testnet ? 2 : 1) ? WADDR_CURRENT_NETWORK
+                                            : WADDR_WRONG_NETWORK;
+  if (sim_segwit_ok(addr, "tb"))
+    return s_sim_testnet ? WADDR_CURRENT_NETWORK : WADDR_WRONG_NETWORK;
+  if (sim_segwit_ok(addr, "bc"))
+    return s_sim_testnet ? WADDR_WRONG_NETWORK : WADDR_CURRENT_NETWORK;
   size_t alen = strlen(addr);
-  int base58_len = alen >= 26 && alen <= 35;
-  int test_addr = strncmp(addr, "tb1", 3) == 0 || strncmp(addr, "tsp1", 4) == 0
-               || (base58_len && (addr[0] == 'm' || addr[0] == 'n' || addr[0] == '2'));
-  int main_addr = strncmp(addr, "bc1", 3) == 0 || strncmp(addr, "sp1", 3) == 0
-               || (base58_len && (addr[0] == '1' || addr[0] == '3'));
+  int base58_len = alen >= 26 && alen <= 35;     // still a guess: see above
+  int test_addr = base58_len && (addr[0] == 'm' || addr[0] == 'n' || addr[0] == '2');
+  int main_addr = base58_len && (addr[0] == '1' || addr[0] == '3');
   if (!test_addr && !main_addr) return WADDR_INVALID;
   return (test_addr == !!s_sim_testnet) ? WADDR_CURRENT_NETWORK
                                         : WADDR_WRONG_NETWORK;
@@ -3279,13 +3351,24 @@ int main(void) {
     // The same switch the locked RECEIVE stops use, held over one scan. The
     // address is ours, which is the point: with keys it is THIS ADDRESS IS
     // YOURS, and without them the honest screen is neither that nor a miss.
+    //
+    // A REAL address, not ours. The fixture here was the stub's own derived
+    // string, which the hardened validator above correctly calls malformed --
+    // so this stop would have drawn INVALID ADDRESS and quietly stopped
+    // covering the branch it was written for. Ownership is not the subject:
+    // the search never runs, and what the screen must not do is answer.
     tap_str(STR_R_SCAN_ANOTHER, 3, 6);
     s_sim_session_locked = 1;
-    kiss_scan_inject(good, strlen(good)); pump(6);
+    kiss_scan_inject(not_ours, strlen(not_ours)); pump(6);
     save("/tmp/sim_vfy_nokeys.ppm");
     must_show("verify/the check could not run", tr(STR_R_CHECK_FAIL));
-    must_not_show("verify/no bounded miss without a search",
-                  tr(STR_R_NOT_FOUND_B));
+    {
+      // Formatted, or the needle carries a literal %u and can never match --
+      // which would make a must_not_show pass for the wrong reason forever.
+      char miss[256];
+      snprintf(miss, sizeof miss, tr(STR_R_NOT_FOUND_B), 100u);
+      must_not_show("verify/no bounded miss without a search", miss);
+    }
     s_sim_session_locked = 0;
 
     tap_str(STR_C_DONE, 3, 6);   // DONE -> Receive
