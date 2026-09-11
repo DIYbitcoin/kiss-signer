@@ -246,7 +246,7 @@
   "I_KEF_TERM": "ENCRYPTED SEED QR",
   "I_KEF_WARN_S": "你的助记词",
   "I_KEF_WARN_S_PP": "助记词，不是密码短语",
-  "I_NOTE_BW": "add wallet > import > scan\n'watch-only' 是对的：签名在这里。",
+  "I_NOTE_BW": "add wallet > import > scan",
   "I_NOTE_SPARROW": "File > New Wallet > Airgapped Hardware Wallet\n能读描述符的协调器都可以。",
   "I_PAIR_BTN_NOTE": "在旁边看着的协调器。它签不了名。",
   "I_PAIR_T": "配对协调器",

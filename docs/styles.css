@@ -90,7 +90,12 @@
 
   --max: 1180px;
   /* One typeface for the whole site, no sans anywhere. Ioskeley Mono is the
-     Berkeley Mono match; IBM Plex Mono covers the gap before the files land. */
+     Berkeley Mono match; IBM Plex Mono covers the gap before the files land.
+
+     A fixed pitch sets roughly a third wider than a proportional face at the
+     same size, so a line of it holds fewer words and a paragraph of it tires
+     the reader sooner. The answer is not a second face, it is a shorter line:
+     the docs cap their measure near 62 characters and lead at 1.75. */
   --mono: "Ioskeley Mono", "IBM Plex Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
 }
 
@@ -907,22 +912,39 @@ h2 {
   counter-reset: istep;
 }
 
+/* No box. These three sit inside .install-card, which is already a box, and a
+   card inside a card is two frames around one sentence. The number in a ring
+   does the same job of marking a step and costs no border. */
 .install-steps li {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 14px 16px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--key);
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 3px 12px;
+  border: 0;
+  background: none;
+  padding: 0;
   counter-increment: istep;
 }
 
+.install-steps li > * {
+  grid-column: 2;
+}
+
 .install-steps li::before {
-  content: counter(istep, decimal-leading-zero) ".";
+  content: counter(istep);
+  grid-column: 1;
+  grid-row: 1;
+  align-self: start;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--control);
+  border-radius: 50%;
+  background: var(--accent-bg);
   color: var(--accent);
-  font-size: 0.72rem;
-  letter-spacing: 0.18em;
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0;
 }
 
 .install-steps h3 {

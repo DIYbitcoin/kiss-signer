@@ -246,7 +246,7 @@
   "I_KEF_TERM": "ENCRYPTED SEED QR",
   "I_KEF_WARN_S": "seed-ordene",
   "I_KEF_WARN_S_PP": "seed-ord. ikke din adgangsfrase",
-  "I_NOTE_BW": "add wallet > import > scan\n'watch-only' er korrekt: der signeres HER.",
+  "I_NOTE_BW": "add wallet > import > scan",
   "I_NOTE_SPARROW": "File > New Wallet > Airgapped Hardware Wallet\nenhver koordinator med descriptor virker.",
   "I_PAIR_BTN_NOTE": "koordinatoren sender. den signerer ikke.",
   "I_PAIR_T": "PAR KOORDINATOR",

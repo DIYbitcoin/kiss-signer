@@ -246,7 +246,7 @@
   "I_KEF_TERM": "ENCRYPTED SEED QR",
   "I_KEF_WARN_S": "сид-фраза",
   "I_KEF_WARN_S_PP": "сид-фраза. не кодовая фраза",
-  "I_NOTE_BW": "add wallet > import > scan\n'watch-only' верно: подпись ЗДЕСЬ.",
+  "I_NOTE_BW": "add wallet > import > scan",
   "I_NOTE_SPARROW": "File > New Wallet > Airgapped Hardware Wallet\nподойдет любой координатор с дескриптором.",
   "I_PAIR_BTN_NOTE": "координатор, который смотрит. подписать он не может.",
   "I_PAIR_T": "СВЯЗАТЬ КООРДИНАТОР",

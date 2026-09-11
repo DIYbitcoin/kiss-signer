@@ -245,6 +245,14 @@ UNTRANSLATED_OK = {
     "T_CHANGE_CAP", "T_CHANGE_VAL", "T_CHANGE_PLAIN", "T_CHANGE_TERM",
     "I_APP_DESKTOP",   # Sparrow, a product name
     "I_APP_MOBILE",    # BlueWallet, a product name
+    # The BlueWallet import PATH, and it is the app's own menu in the app's own
+    # words: an owner reads it off this screen and looks for those words on
+    # their phone, so translating it would send them hunting for a menu that
+    # does not exist. Its second line was a sentence about "watch only" meaning
+    # the import worked, which the standing line on the same screen already
+    # says -- and no signer worth copying explains it on the device at all;
+    # Jade's whole QR export UI is short labels and nothing else.
+    "I_NOTE_BW",
     "S_TY_LEGACY",     # Legacy / Nested SegWit / Native SegWit: the address type
     "S_TY_NESTED",     # names as every coordinator and the BIPs spell them, and
     "S_TY_NATIVE",     # the string a user matches against another wallet's UI

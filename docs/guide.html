@@ -12,49 +12,387 @@
     <title>KISS Signer Docs</title>
     <link rel="stylesheet" href="styles.css">
     <style>
-      .doc-card {
-        border: 1px solid #1e2531;
-        border-radius: 12px;
-        background: #0b0e14;
-        padding: 22px;
-        margin-top: 16px;
+      /* ---------- the docs page reads as prose, not as panels ----------
+         Every section used to sit in a bordered card, and the step and feature
+         grids inside sat in bordered cards again. Two frames deep around a
+         paragraph is what made this page hard to read: the eye keeps landing
+         on edges instead of on lines, and nothing is ranked, because a border
+         says "this is a thing" equally loudly about all eleven sections.
+
+         Sections are separated by space and one rule now. The only element
+         still allowed a box is a callout, which earns one because it is an
+         interruption to the reading rather than part of it. */
+      /* Left rail, prose, and a list of what is in the topic you are on.
+         The second column was running to 904px with the prose capped at 70ch
+         inside it, so a third of the page was doing nothing. */
+      .docs-layout {
+        grid-template-columns: 196px minmax(0, 1fr) 178px;
+        gap: 34px;
       }
+      .docs-body {
+        gap: 0;
+        max-width: 42rem;
+        /* A fixed pitch needs a shorter line and more lead than the site
+           default, or a paragraph of it becomes work. */
+        font-size: 0.85rem;
+        line-height: 1.75;
+      }
+
+      /* The h1 is the same word on all eleven topics, so it reads as a
+         breadcrumb and is sized as one. The topic's own h2 is the title. */
+      .docs-head h1 {
+        margin: 0 0 26px;
+        font-family: var(--mono);
+        font-size: 0.68rem;
+        font-weight: 500;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--dim);
+      }
+      .doc-card {
+        border: 0;
+        border-radius: 0;
+        background: none;
+        padding: 0;
+        margin: 0;
+      }
+      .doc-card:not([hidden]) + .doc-card:not([hidden]) {
+        border-top: 1px solid var(--line-soft);
+        margin-top: 56px;
+        padding-top: 56px;
+      }
+
+      /* A measure, in the prose face, of about 70 characters. Left to itself
+         the column ran the full 904px, which at this size is ~110 characters a
+         line and costs the reader the start of the next one. */
+      .doc-card > p,
+      .doc-card > ul,
+      .doc-card > ol,
+      .doc-card > .eyebrow {
+        max-width: 62ch;
+      }
+
       .doc-card h2 {
-        margin: 0 0 6px;
-        font-size: 1.55rem;
-        line-height: 1.15;
+        margin: 7px 0 14px;
+        font-size: 1.4rem;
+        line-height: 1.2;
+        font-weight: 500;
+        letter-spacing: -0.01em;
       }
       .doc-card h3 {
-        margin: 22px 0 6px;
-        font-size: 1.05rem;
+        margin: 34px 0 8px;
+        scroll-margin-top: 96px;
+        font-size: 0.95rem;
+        font-weight: 500;
+        letter-spacing: 0;
+        color: var(--ink);
       }
       .doc-card p,
       .doc-card li {
         color: var(--muted);
       }
+      .doc-card > ul,
+      .doc-card > ol {
+        padding-left: 20px;
+      }
+      .doc-card > ul li,
+      .doc-card > ol li {
+        margin-bottom: 8px;
+      }
       .doc-card strong {
         color: var(--ink);
+        font-weight: 600;
       }
       .doc-card a {
         color: var(--ink);
       }
+      .doc-card .lede {
+        color: var(--ink);
+        font-size: 0.95rem;
+        line-height: 1.7;
+        max-width: 56ch;
+      }
+
+      /* ---------- the four signing steps, as one sequence ----------
+         They were a 2x2 of boxes, which says "four items" and hides the fact
+         that they happen in an order and that two of them happen on a
+         different machine. A single thread down the numbers says it instead. */
+      .docs-body .steps {
+        grid-template-columns: 1fr;
+        gap: 0;
+        margin: 22px 0 4px;
+        max-width: 62ch;
+      }
+      .docs-body .steps li {
+        position: relative;
+        display: grid;
+        grid-template-columns: 30px minmax(0, 1fr);
+        gap: 2px 16px;
+        border: 0;
+        border-radius: 0;
+        background: none;
+        padding: 0 0 26px;
+      }
+      /* The number owns the first column on its own; everything else stacks in
+         the second. Without this the third child falls back into the 30px
+         column and the paragraph sets one word to a line. */
+      .docs-body .steps li > * {
+        grid-column: 2;
+      }
+      .docs-body .steps li:last-child {
+        padding-bottom: 0;
+      }
+      .docs-body .steps li::before {
+        content: counter(step);
+        grid-column: 1;
+        grid-row: 1;
+        align-self: start;
+        display: grid;
+        place-items: center;
+        width: 30px;
+        height: 30px;
+        border: 1px solid var(--control);
+        border-radius: 50%;
+        background: var(--accent-bg);
+        color: var(--accent);
+        font-family: var(--mono);
+        font-size: 0.72rem;
+        font-weight: 500;
+        letter-spacing: 0;
+      }
+      /* the thread */
+      .docs-body .steps li::after {
+        content: "";
+        position: absolute;
+        left: 15px;
+        top: 36px;
+        bottom: 6px;
+        width: 1px;
+        background: var(--control);
+      }
+      .docs-body .steps li:last-child::after {
+        display: none;
+      }
+      .docs-body .steps h3 {
+        margin: 4px 0 0;
+        font-size: 0.9rem;
+        font-weight: 500;
+      }
+      .docs-body .steps p {
+        margin: 0;
+      }
+      /* Where the step happens. Two of the four are not on this device at all,
+         and that is the single most misread thing about an airgapped signer. */
+      .docs-body .steps li[data-where]::marker {
+        content: "";
+      }
+      .step-where {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        margin-top: 7px;
+        color: var(--muted);
+        font-family: var(--mono);
+        font-size: 0.6rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+      .step-where svg {
+        width: 12px;
+        height: 12px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.7;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .step-where.here {
+        color: var(--accent);
+      }
+
+      /* ---------- the airgap, drawn ----------
+         Four paragraphs kept saying "somewhere else" and "never online". One
+         picture says it: two machines, a gap, and a pip crossing it in each
+         direction carrying a name you can read. The seed is drawn inside the
+         left box and never moves, which is the claim the whole page rests on.
+
+         The pips hold at each end for a beat, because the hop is a scan you
+         perform, not a stream. They stop entirely for a reader who asked for
+         less motion. */
+      .airgap {
+        margin: 22px 0 6px;
+        max-width: 62ch;
+      }
+      .airgap svg {
+        display: block;
+        width: 100%;
+        height: auto;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--panel);
+        padding: 6px 0;
+      }
+      .airgap figcaption {
+        margin-top: 9px;
+        color: var(--dim);
+        font-size: 0.74rem;
+        line-height: 1.6;
+        max-width: 54ch;
+      }
+      .airgap .box {
+        fill: var(--key);
+        stroke: var(--control);
+        stroke-width: 1;
+      }
+      .airgap .vault {
+        fill: none;
+        stroke: var(--green);
+        stroke-width: 1;
+        stroke-dasharray: 3 3;
+      }
+      .airgap text {
+        font-family: var(--mono);
+        text-anchor: middle;
+        fill: var(--dim);
+      }
+      .airgap .box-title {
+        fill: var(--ink);
+        font-size: 12px;
+        letter-spacing: 0.12em;
+      }
+      .airgap .box-sub {
+        font-size: 9.5px;
+        letter-spacing: 0.06em;
+      }
+      .airgap .vault-label {
+        fill: var(--green);
+        font-size: 8.5px;
+        letter-spacing: 0.1em;
+      }
+      .airgap .gap {
+        stroke: var(--control);
+        stroke-width: 1;
+        stroke-dasharray: 4 5;
+      }
+      .airgap .gap-label {
+        font-size: 8.5px;
+        letter-spacing: 0.22em;
+      }
+      .airgap .wire {
+        fill: none;
+        stroke: var(--control);
+        stroke-width: 1;
+        stroke-dasharray: 5 4;
+      }
+      .airgap .head {
+        fill: none;
+        stroke: var(--control);
+        stroke-width: 1;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .airgap .wire-label {
+        font-size: 8.5px;
+        letter-spacing: 0.14em;
+      }
+      /* The diagram is still until the reader opens this topic. Something
+         looping on a page you landed on is decoration; the same loop starting
+         when you ask for the topic is the picture answering the click. */
+      .airgap .pip {
+        fill: var(--accent);
+        opacity: 0;
+      }
+      .airgap .pip.back {
+        fill: var(--green);
+      }
+      .airgap svg.is-running .pip {
+        opacity: 1;
+        transition: opacity 260ms ease;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .airgap .pip,
+        .airgap svg.is-running .pip {
+          display: none;
+        }
+      }
+
+      /* ---------- what it does: an icon carries the heading ----------
+         Six bordered tiles read as a form. An icon and a rule read as a list
+         you can skim, which is what this section is for. */
+      .docs-body .feats {
+        grid-template-columns: 1fr;
+        gap: 26px;
+        margin: 24px 0 0;
+        max-width: 62ch;
+      }
+      .docs-body .feats article {
+        border: 0;
+        border-radius: 0;
+        background: none;
+        padding: 0;
+        gap: 6px;
+      }
+      .feat-head {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+      }
+      .feat-ico {
+        flex: none;
+        width: 17px;
+        height: 17px;
+        fill: none;
+        stroke: var(--accent);
+        stroke-width: 1.6;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .docs-body .feats span {
+        font-size: 0.62rem;
+        letter-spacing: 0.16em;
+      }
+      .docs-body .feats h3 {
+        margin: 0;
+        font-size: 0.9rem;
+        font-weight: 500;
+      }
+      .docs-body .feats p {
+        margin: 0;
+      }
+
       code {
         font-family: var(--mono);
-        font-size: 0.88em;
+        font-size: 0.86em;
         background: #10141d;
         border-radius: 4px;
         padding: 1px 5px;
         overflow-wrap: anywhere;
       }
+
+      /* ---------- code blocks you can take away ----------
+         Every block here is something to run, so every block gets a copy
+         button. Retyping an esptool line by eye is how a wrong flash size gets
+         in. */
+      .codeblock {
+        position: relative;
+        margin: 16px 0;
+        max-width: 78ch;
+      }
+      .codeblock pre {
+        margin: 0;
+      }
       pre {
-        border: 1px solid #1e2531;
-        border-radius: 12px;
-        background: #070a10;
-        padding: 14px 16px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        /* the same surface the inline <code> sits on. It was --bg, which left
+           a 1px outline as the only thing separating a command you are meant
+           to run from the paragraph above it. */
+        background: var(--key);
+        padding: 16px 18px;
         overflow-x: auto;
         font-family: var(--mono);
-        font-size: 0.84rem;
-        line-height: 1.55;
+        font-size: 0.8rem;
+        line-height: 1.6;
         color: var(--ink);
       }
       pre code {
@@ -62,35 +400,137 @@
         padding: 0;
         font-size: inherit;
       }
-      .fp {
+      .copy-btn {
+        position: absolute;
+        top: 9px;
+        right: 9px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: var(--panel);
+        color: var(--dim);
+        padding: 5px 9px;
+        font-family: var(--mono);
+        font-size: 0.62rem;
+        letter-spacing: 0.12em;
+        cursor: pointer;
+        opacity: 0;
+        transition: opacity 150ms ease, color 150ms ease, border-color 150ms ease;
+      }
+      .codeblock:hover .copy-btn,
+      .copy-btn:focus-visible {
+        opacity: 1;
+      }
+      .copy-btn:hover {
+        color: var(--ink);
+        border-color: var(--control);
+      }
+      .copy-btn.done {
+        opacity: 1;
+        color: var(--green);
+        border-color: var(--green);
+      }
+      .copy-btn svg {
+        width: 12px;
+        height: 12px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      @media (hover: none) {
+        .copy-btn { opacity: 1; }
+      }
+
+      /* Written .doc-card p.fp, not .fp: this is a <p> inside .doc-card, and
+         the muted colour set on that selector is more specific than a bare
+         class, so the fingerprint has been reading as body text. It is the
+         one string on the page a reader is meant to compare character by
+         character against a second source. */
+      .doc-card p.fp {
         color: var(--green);
         font-family: var(--mono);
+        font-size: 0.85rem;
+        letter-spacing: 0.02em;
         overflow-wrap: anywhere;
       }
+
+      /* ---------- callouts: the one thing that keeps a box ----------
+         A bar down the side rather than a ring all the way around. The ring
+         competed with the section cards; the bar cannot, and it still stops
+         the eye, which is the entire job. */
+      /* The icon is positioned, not a grid cell. A grid here made every child
+         a grid item, and a callout whose text is broken up by an inline <code>
+         or <strong> has several children, so the sentence came apart into one
+         fragment per row. Indenting the padding and floating the icon into it
+         leaves the content to flow as ordinary prose, whatever it is made of. */
+      .note,
       .danger {
-        border: 1px solid rgba(255, 77, 94, 0.45);
-        border-radius: 12px;
-        background: rgba(255, 77, 94, 0.06);
-        padding: 14px 16px;
-        margin: 14px 0;
+        position: relative;
+        border: 0;
+        border-left: 2px solid var(--amber);
+        border-radius: 0 8px 8px 0;
+        background: rgba(242, 184, 75, 0.05);
+        padding: 14px 16px 14px 44px;
+        margin: 18px 0;
+        max-width: 72ch;
+        color: var(--muted);
+      }
+      .note::before,
+      .danger::before {
+        content: "";
+        position: absolute;
+        left: 16px;
+        top: 16px;
+        width: 17px;
+        height: 17px;
+        background: var(--amber);
+        -webkit-mask: var(--ico) center / contain no-repeat;
+        mask: var(--ico) center / contain no-repeat;
+      }
+      .note {
+        --ico: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.6h.01"/></svg>');
+      }
+      .note > *:first-of-type {
+        margin-top: 0;
+      }
+      .note > *:last-child {
+        margin-bottom: 0;
+      }
+      .danger {
+        --ico: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18.2A2 2 0 0 0 3.5 21h17a2 2 0 0 0 1.7-2.8L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>');
+        border-left-color: var(--red);
+        background: rgba(255, 77, 94, 0.05);
+      }
+      .danger::before {
+        background: var(--red);
       }
       .danger h3 {
         margin: 0 0 8px;
         color: var(--red);
+        font-size: 0.9rem;
+        font-weight: 500;
       }
-      .note {
-        border: 1px solid rgba(242, 184, 75, 0.4);
-        border-radius: 12px;
-        background: rgba(242, 184, 75, 0.06);
-        padding: 14px 16px;
-        margin: 14px 0;
-        color: var(--amber);
+      .danger ul {
+        margin: 0;
+        padding-left: 18px;
       }
+      .danger li {
+        margin-bottom: 8px;
+      }
+      .danger li:last-child {
+        margin-bottom: 0;
+      }
+
       .shots {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 12px;
-        margin: 14px 0;
+        margin: 18px 0;
+        max-width: 78ch;
       }
       .shots figure {
         margin: 0;
@@ -99,26 +539,34 @@
       .shot-wide img {
         width: 100%;
         display: block;
-        border: 1px solid #1e2531;
-        border-radius: 12px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+      }
+      .shot-wide {
+        max-width: 78ch;
       }
       .shots figcaption {
-        margin-top: 6px;
+        margin-top: 7px;
         color: var(--dim);
-        font-size: 0.85rem;
+        font-size: 0.78rem;
       }
+
+      /* The checklist figures lose their frames too; the screenshot already
+         has one of its own, and a frame around a frame was the same fault as
+         the section cards. */
       .first-run {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 12px;
-        margin: 14px 0 22px;
+        gap: 22px 18px;
+        margin: 18px 0 22px;
+        max-width: 78ch;
+        counter-reset: fr;
       }
       .first-run figure {
         margin: 0;
-        padding: 12px;
-        border: 1px solid #1e2531;
-        border-radius: 12px;
-        background: #0a0e15;
+        padding: 0;
+        border: 0;
+        background: none;
       }
       .first-run figure:last-child {
         grid-column: 1 / -1;
@@ -126,25 +574,84 @@
       .first-run img {
         width: 100%;
         display: block;
-        border-radius: 6px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
       }
       .first-run figcaption {
         margin-top: 10px;
         color: var(--muted);
-        font-size: 0.9rem;
+        font-size: 0.84rem;
       }
       .first-run b {
         color: var(--green);
         font-family: var(--mono);
         margin-right: 6px;
       }
+
+      /* ---------- on this page ----------
+         Built from the headings of whichever topic is showing. The long ones
+         (checking a download, first boot, encryption) run several screens, and
+         until now the only way to see what was in them was to scroll. */
+      .docs-toc {
+        position: sticky;
+        top: 74px;
+        align-self: start;
+        max-height: calc(100vh - 96px);
+        overflow-y: auto;
+        padding-top: 4px;
+      }
+      .docs-toc[hidden] {
+        display: none;
+      }
+      .docs-toc p {
+        margin: 0 0 10px;
+        font-family: var(--mono);
+        font-size: 0.62rem;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--dim);
+      }
+      .docs-toc a {
+        display: block;
+        border: 0;
+        border-left: 1px solid var(--line);
+        padding: 5px 0 5px 12px;
+        color: var(--dim);
+        font-size: 0.78rem;
+        line-height: 1.4;
+        text-wrap: pretty;
+        transition: color 150ms ease, border-color 150ms ease;
+      }
+      .docs-toc a:hover {
+        color: var(--ink);
+        border-left-color: var(--control);
+      }
+      .docs-toc a.is-here {
+        color: var(--accent);
+        border-left-color: var(--accent);
+      }
+
+      @media (max-width: 1080px) {
+        .docs-layout {
+          grid-template-columns: 196px minmax(0, 1fr);
+        }
+        .docs-toc {
+          display: none;
+        }
+      }
+
       @media (max-width: 720px) {
         .shots,
-        .first-run {
+        .first-run,
+        .docs-body .feats {
           grid-template-columns: 1fr;
         }
         .first-run figure:last-child {
           grid-column: auto;
+        }
+        .doc-card:not([hidden]) + .doc-card:not([hidden]) {
+          margin-top: 40px;
+          padding-top: 40px;
         }
       }
     </style>
@@ -218,31 +725,71 @@
 <section class="doc-card reveal" id="how" aria-label="How it works">
         <p class="eyebrow">01 / start here</p>
         <h2>How signing works</h2>
-        <p class="lede">Your keys stay on this device. Everything that needs the internet happens somewhere else. That other app is called a coordinator.</p>
+        <p class="lede">Your keys never leave this device. The online half is a separate app, called a coordinator.</p>
+        <figure class="airgap" aria-labelledby="airgap-cap">
+          <svg viewBox="0 0 560 190" role="img" aria-label="Two machines with a gap between them. Public keys and signed transactions cross the gap as QR codes or on an SD card. The seed never leaves the signer.">
+            <!-- the gap itself, and the fact that no wire crosses it -->
+            <line class="gap" x1="280" y1="24" x2="280" y2="166"/>
+            <text class="gap-label" x="280" y="16">AIRGAP</text>
+
+            <!-- left: this device -->
+            <rect class="box" x="24" y="40" width="176" height="110" rx="10"/>
+            <text class="box-title" x="112" y="68">KISS SIGNER</text>
+            <text class="box-sub" x="112" y="88">offline, always</text>
+            <rect class="vault" x="60" y="102" width="104" height="30" rx="7"/>
+            <text class="vault-label" x="112" y="121">SEED STAYS HERE</text>
+
+            <!-- right: the coordinator -->
+            <rect class="box" x="360" y="40" width="176" height="110" rx="10"/>
+            <text class="box-title" x="448" y="68">COORDINATOR</text>
+            <text class="box-sub" x="448" y="88">Sparrow, BlueWallet</text>
+            <text class="box-sub" x="448" y="122">talks to the network</text>
+
+            <!-- what crosses, and which way -->
+            <path class="wire out" id="wire-out" d="M200 78 H360"/>
+            <path class="head" d="M352 73 l8 5 -8 5"/>
+            <text class="wire-label" x="280" y="70">PUBLIC KEYS, PSBT</text>
+
+            <path class="wire back" id="wire-back" d="M360 128 H200"/>
+            <path class="head" d="M208 123 l-8 5 8 5"/>
+            <text class="wire-label" x="280" y="150">SIGNED TRANSACTION</text>
+
+            <circle class="pip out" r="4"><animateMotion begin="indefinite" dur="3.4s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.08;0.55;1" calcMode="linear"><mpath href="#wire-out"/></animateMotion></circle>
+            <circle class="pip back" r="4"><animateMotion begin="indefinite" dur="3.4s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.08;0.55;1" calcMode="linear"><mpath href="#wire-back"/></animateMotion></circle>
+          </svg>
+          <figcaption id="airgap-cap">
+            A QR code or an SD card carries each hop. No cable, no radio, and
+            nothing that can spend ever crosses.
+          </figcaption>
+        </figure>
+
         <ol class="steps">
           <li>
             <h3>Pair a watch-only wallet</h3>
-            <p>KISS shows a QR holding your public keys, called a descriptor or a zpub. Your online wallet can then see your balance and give out addresses, but it holds nothing that can spend.</p>
+            <span class="step-where here"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 18.5h3"/></svg>On this device</span>
+            <p>KISS shows a QR of your public keys, a descriptor or a zpub. Your coordinator can then see the balance and hand out addresses. It cannot spend.</p>
           </li>
           <li>
             <h3>Build the transaction there</h3>
-            <p>It picks the coins and the fee and makes a PSBT, a transaction with no signature on it yet. Nothing can move.</p>
+            <span class="step-where"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4.5" width="19" height="13" rx="2"/><path d="M8.5 21h7"/><path d="M12 17.5V21"/></svg>On your coordinator</span>
+            <p>It picks the coins and the fee and makes a PSBT: a transaction with no signature yet.</p>
           </li>
           <li>
             <h3>Verify and sign here</h3>
-            <p>Pass the PSBT over by QR or microSD. KISS works out every amount for itself, shows you, and signs only after a deliberate hold.</p>
+            <span class="step-where here"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 18.5h3"/></svg>On this device</span>
+            <p>Hand the PSBT over by QR or microSD. KISS recomputes every amount itself, shows you, and signs only on a deliberate hold.</p>
           </li>
           <li>
             <h3>Broadcast from the coordinator</h3>
-            <p>Take the signed transaction back the same way and your online wallet sends it. KISS never touched the network.</p>
+            <span class="step-where"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4.5" width="19" height="13" rx="2"/><path d="M8.5 21h7"/><path d="M12 17.5V21"/></svg>On your coordinator</span>
+            <p>Carry the signed transaction back the same way. The coordinator broadcasts it.</p>
           </li>
         </ol>
         <p class="power-note">
-          Pairing offers <strong>Sparrow</strong> on desktop and
-          <strong>BlueWallet</strong> on mobile. Others work if they do both
-          halves: import a descriptor or a zpub as watch-only, and pass PSBTs
-          back by QR or microSD. Ask in
-          <a href="https://t.me/KISS_signer">Telegram</a> about anything untried.
+          Pairing offers <strong>Sparrow</strong> and <strong>BlueWallet</strong>.
+          Any wallet works that imports a watch-only descriptor and passes PSBTs
+          by QR or microSD. Anything untried,
+          <a href="https://t.me/KISS_signer">ask in Telegram</a>.
         </p>
       </section>
 <section class="doc-card reveal" id="features" aria-label="Features">
@@ -250,34 +797,34 @@
         <h2>What it does</h2>
         <div class="feats">
           <article>
-            <span>DECOY SIGNER</span>
+            <div class="feat-head"><svg class="feat-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 8h11a4 4 0 0 1 3.9 3.1l.9 4a3 3 0 0 1-5.3 2.5L15.6 16H8.4l-1.4 1.6a3 3 0 0 1-5.3-2.5l.9-4A4 4 0 0 1 6.5 8Z"/><path d="M8.2 11.2v2.2"/><path d="M7.1 12.3h2.2"/><circle cx="16.2" cy="12.3" r=".6" fill="currentColor" stroke="none"/></svg><span>DECOY SIGNER</span></div>
             <h3>It boots into a game</h3>
-            <p>FRUIT ISLAND is a real, playable game. One secret gesture on its menu opens the signer, a different one opens a spare set of keys, so there is always something to show.</p>
+            <p>FRUIT ISLAND is a real, playable game. One secret gesture opens the signer; another opens a spare set of keys, so there is always something to show.</p>
           </article>
           <article>
-            <span>TOUCHSCREEN + QR</span>
+            <div class="feat-head"><svg class="feat-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 14h3v3"/><path d="M21 17v4h-4"/><path d="M14 21h.01"/></svg><span>TOUCHSCREEN + QR</span></div>
             <h3>Transactions in and out by QR, or microSD</h3>
-            <p>A whole transaction will not fit in one QR code. So KISS chops it into numbered pieces and plays them as a short loop for your coordinator&rsquo;s camera, a scheme called BC-UR. Or carry the file on a card instead. No cable ever carries your data.</p>
+            <p>A transaction does not fit in one QR. KISS splits it into numbered frames and loops them for your coordinator&rsquo;s camera, the BC-UR scheme. Or carry the file on a card. No cable ever carries your data.</p>
           </article>
           <article>
-            <span>SILENT PAYMENTS</span>
+            <div class="feat-head"><svg class="feat-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5h13.5a3.5 3.5 0 0 1 0 7H7"/><path d="M7.5 5 4 8.5 7.5 12"/><path d="M9.5 12.5 6 16l3.5 3.5"/></svg><span>SILENT PAYMENTS</span></div>
             <h3>One address you can reuse</h3>
-            <p>One <code>sp1</code> address you can hand out again and again, without the privacy cost of reusing a normal one. An optional scan key lets your coordinator find those payments but never spend them.</p>
+            <p>One <code>sp1</code> address you can hand out repeatedly, without the privacy cost of address reuse. An optional scan key lets your coordinator find those payments, never spend them.</p>
           </article>
           <article>
-            <span>VERIFIED ON DEVICE</span>
+            <div class="feat-head"><svg class="feat-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8 4.5 6v6.2c0 4.4 3.1 7.9 7.5 9 4.4-1.1 7.5-4.6 7.5-9V6Z"/><path d="m8.8 11.8 2.3 2.3 4.1-4.4"/></svg><span>VERIFIED ON DEVICE</span></div>
             <h3>Nothing is signed unseen</h3>
-            <p>Every amount, the fee and your change are worked out here rather than taken on trust, and anything risky turns amber before you can sign.</p>
+            <p>Every amount, the fee and the change are recomputed here, not taken on trust. Anything risky turns amber before you can sign.</p>
           </article>
           <article>
-            <span>21 LANGUAGES</span>
+            <div class="feat-head"><svg class="feat-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.2"/><path d="M2.8 12h18.4"/><path d="M12 2.8a15 15 0 0 1 0 18.4"/><path d="M12 2.8a15 15 0 0 0 0 18.4"/></svg><span>21 LANGUAGES</span></div>
             <h3>Including CJK and Cyrillic</h3>
             <p>Each with its own font. Buttons resize rather than truncate, and the build fails if a key action gets too small to read.</p>
           </article>
           <article>
-            <span>AUDIT IT YOURSELF</span>
+            <div class="feat-head"><svg class="feat-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 20.5h17"/><path d="M6.5 20.5v-6"/><path d="M11 20.5V8"/><path d="M15.5 20.5v-9"/><path d="M20 20.5V4.5"/></svg><span>AUDIT IT YOURSELF</span></div>
             <h3>The signer proves parts of itself</h3>
-            <p>Your keys are only as good as the randomness behind them. So the device audits its own: 5000 numbers from the chip into a live bar chart, scored for evenness. A lopsided chart means bad randomness. Nothing leaves the device.</p>
+            <p>Keys are only as good as the entropy behind them, so the device audits its own: 5000 samples from the chip into a live histogram, scored for evenness. A lopsided chart means bad randomness.</p>
           </article>
         </div>
       </section>
@@ -285,47 +832,37 @@
         <p class="eyebrow">03 / the device</p>
         <h2>The device, and the one mod it needs</h2>
         <p>
-          One board, no soldering: the Guition
-          <strong>JC4880P443C</strong>. It arrives with everything KISS needs
-          &mdash; a colour touchscreen, a camera for reading QR codes, and a
-          slot for a microSD card. The one thing you have to do yourself is
-          turn the camera around, and that is the rest of this page.
+          One board, no soldering: the Guition <strong>JC4880P443C</strong>. It
+          ships with a colour touchscreen, a camera and a microSD slot. The one
+          job left to you is turning the camera around.
         </p>
-        <h3>About the radio, said plainly</h3>
+        <h3>About the radio</h3>
         <p>
-          The chip that runs KISS has no WiFi and no Bluetooth. It cannot go
-          online even if it wanted to. The board does carry a <em>second</em>
-          chip that can, because the board is sold for other products too. The
-          very first thing KISS does on power-up is pin that chip down, before
-          anything else runs. There is no wireless code inside KISS at all.
+          The ESP32-P4 has no WiFi and no Bluetooth in silicon. The board carries
+          a <em>second</em> chip that does, because the board is sold for other
+          products too. KISS holds that chip in reset before anything else runs,
+          and ships no wireless code at all.
         </p>
         <p>
-          You do not have to take our word for it. The home screen and Settings
-          both show <code>radio: held in reset</code>, read from the chip each
-          time rather than printed from memory. With a multimeter you can
-          measure the radio chip&rsquo;s off switch (pin&nbsp;GPIO54) yourself
-          and watch it sit at zero volts.
+          Do not take our word for it. The home screen and Settings show
+          <code>radio: held in reset</code>, read from the chip each time rather
+          than printed from memory. With a multimeter, measure the radio&rsquo;s
+          off switch on pin&nbsp;GPIO54 and watch it sit at zero volts.
         </p>
-        <h3>Flip the camera (one-time mod, required for QR scanning)</h3>
+        <h3>Flip the camera (one-time, required for QR scanning)</h3>
         <p>
-          The device ships with the camera facing the user, selfie style. Reading
-          a QR code from your coordinator needs it facing the other way. The job
-          is simple but fiddly, so take it slowly:
+          The camera ships facing the user. Reading a QR from your coordinator
+          needs it facing out. Simple but fiddly:
         </p>
         <ol>
+          <li>Lift the screen off with a small suction cup tool.</li>
           <li>
-            Lift the screen off with a small suction cup tool to reach the camera
-            behind it.
+            Pry the tape off the camera module (fingernails work), flip it so the
+            lens faces out the back, and tape it to the pad behind.
           </li>
           <li>
-            The camera module is held down by a piece of tape. Pry the tape off
-            gently (fingernails work), flip the camera so the lens faces out the
-            back, and tape it onto the pad that sits behind it.
-          </li>
-          <li>
-            The three side buttons fall out of the case during this and are hard to
-            seat again. Hold them in place with a tiny dab of glue or tape before
-            closing up.
+            The three side buttons fall out and are hard to seat again. Tack them
+            down with a dab of glue or tape before closing up.
           </li>
         </ol>
         <div class="note">
@@ -336,9 +873,7 @@
 <section class="doc-card reveal" id="verify">
         <p class="eyebrow">04 / trust, then flash</p>
         <h2>Check the download before you trust it</h2>
-        <p>
-          Everything for a release sits on the GitHub Releases tab:
-        </p>
+        <p>Everything for a release sits on the GitHub Releases tab:</p>
         <ul>
           <li><code>kiss-signer-&lt;version&gt;.bin</code> &mdash; the firmware</li>
           <li><code>SHA256SUMS</code> &mdash; its hashes</li>
@@ -346,31 +881,26 @@
           <li><code>kiss_signer_pgp.asc</code> &mdash; the key that signed them</li>
         </ul>
         <p>
-          Beside them sits
-          <code>kiss-signer-&lt;version&gt;-offline.zip</code>, that same firmware
-          with an install page and this guide, for flashing with no network at
-          all. It is signed on its own by
-          <code>kiss-signer-&lt;version&gt;-offline.zip.asc</code>.
+          Beside them, <code>kiss-signer-&lt;version&gt;-offline.zip</code>
+          carries the same firmware with an install page and this guide, for
+          flashing with no network. It has its own signature.
         </p>
 <pre><code>gpg --import kiss_signer_pgp.asc
 gpg --verify SHA256SUMS.asc SHA256SUMS
 
 shasum -a 256 --ignore-missing -c SHA256SUMS     # macOS
 sha256sum --ignore-missing -c SHA256SUMS         # Linux</code></pre>
-        <p>
-          One line of that output matters. The fingerprint must read exactly:
-        </p>
+        <p>One line matters. The fingerprint must read exactly:</p>
         <p class="fp">166A CBF3 7786 FCEA A694&nbsp;&nbsp;96DE 886F 1BFE B84E F1C0</p>
         <p>
-          One line looks alarming and is not:
+          One line looks alarming and is not.
           <code>WARNING: This key is not certified</code> appears for every key
-          you have not personally signed. The name reads
-          <code>KISS Signer releases</code>, but a name on a key is free text
-          either way. The fingerprint above is the identity.
+          you have not personally signed. A name on a key is free text; the
+          fingerprint is the identity.
         </p>
         <p>
-          A fingerprint is only as good as where you read it. Cross-check this one
-          somewhere other than this page.
+          A fingerprint is only as good as where you read it. Cross-check this
+          one somewhere other than this page.
         </p>
         <h3>Windows</h3>
         <p>
@@ -380,32 +910,28 @@ sha256sum --ignore-missing -c SHA256SUMS         # Linux</code></pre>
         </p>
         <p>
           The install page hashes the firmware in your browser before it offers
-          you the button, and that check runs the same way inside the offline
-          zip. It still does not verify the GPG signature for you, in either
-          place. Do that yourself once per release.
+          the button, inside the offline zip too. Neither verifies the GPG
+          signature. Do that yourself, once per release.
         </p>
       </section>
 <section class="doc-card reveal" id="sdupdate" aria-label="Update from an SD card">
         <p class="eyebrow">05 / no cable, no computer</p>
         <h2>Update from an SD card</h2>
         <p class="lede">
-          If your device already runs beta8 or later, this is the easiest route
-          there is. The signer takes its next firmware straight off a card, so
-          there is no cable, no driver, and no computer involved at all.
+          On beta8 or later this is the easiest route there is. The signer takes
+          its next firmware off a card: no cable, no driver, no computer.
         </p>
 
         <h3>What to put on the card</h3>
         <p>
           From the <a href="https://github.com/DIYbitcoin/kiss-signer/releases/latest">latest
-          release</a>, take the file ending
-          <strong>-update.bin</strong> and drop it in the top level of an SD
-          card. That is the whole preparation.
+          release</a>, drop the file ending <strong>-update.bin</strong> in the
+          top level of an SD card. That is the whole preparation.
         </p>
         <div class="note">
-          Take the <code>-update.bin</code> file, not the plain
-          <code>.bin</code>. The plain one starts with the bootloader, and a
-          running device looks past that for the application, so it will simply
-          report that there is nothing to install.
+          Take <code>-update.bin</code>, not the plain <code>.bin</code>. The
+          plain one starts with the bootloader; a running device looks past that
+          for the application and reports nothing to install.
         </div>
 
         <h3>Install it from the device</h3>
@@ -414,30 +940,27 @@ sha256sum --ignore-missing -c SHA256SUMS         # Linux</code></pre>
           <strong>SETTINGS &rarr; FIRMWARE</strong> and hold to install.
         </p>
         <p>
-          It checks both signatures against keys built into the device before it
-          writes anything, so a file that is not ours is refused rather than
-          installed. And if the new firmware fails to start, the device puts the
-          old one back by itself.
+          It checks both signatures against keys built into the device before
+          writing anything, so a file that is not ours is refused. If the new
+          firmware fails to start, the device rolls back by itself.
         </p>
         <p class="power-note">
-          This route keeps your keys and settings. The browser install erases
-          the whole chip, so use that one for a new device or a very old one,
-          and this one for everything else.
+          This route keeps your keys and settings. The browser install erases the
+          whole chip &mdash; use that for a new device, this for everything else.
         </p>
       </section>
 <section class="doc-card reveal" id="esptool" aria-label="Flash from the command line">
         <p class="eyebrow">06 / the other way in</p>
         <h2>Flash it from the command line</h2>
         <p class="lede">
-          The install page needs Chrome, Brave or Edge, because Safari and
-          Firefox will not let a web page talk to a USB device. If you would
-          rather not install a second browser, this does exactly the same job
-          from a terminal.
+          Safari and Firefox will not let a web page reach USB, which is why the
+          install page needs Chrome, Brave or Edge. This does the same job from a
+          terminal.
         </p>
         <p>
-          One tool to install, one command to run. It works on macOS and Linux
-          as written. On Windows use WSL or Git Bash, or retype the last command
-          on one line without the <code>\</code> marks at the ends.
+          One tool, one command. macOS and Linux as written. On Windows use WSL
+          or Git Bash, or retype the last command on one line without the
+          <code>\</code> marks.
         </p>
 <pre><code>pip install esptool        # or: pipx install esptool
 
@@ -454,65 +977,63 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
   --flash-mode dio --flash-size 16MB --flash-freq 80m \
   0 kiss-signer-&lt;version&gt;.bin</code></pre>
         <p class="power-note">
-          Then unplug the device, wait three seconds, and plug it back in. It
-          only starts new firmware after a proper power cycle, so a black screen
-          almost always means this step got skipped.
+          Then unplug, wait three seconds, plug back in. New firmware only starts
+          after a power cycle, so a black screen almost always means this step
+          got skipped.
         </p>
         <p>
-          The file you just wrote covers the part of the chip that holds keys,
-          so every flash starts you from clean ground.
+          The file you just wrote covers the part of the chip that holds keys, so
+          every flash starts from clean ground.
         </p>
       </section>
 <section class="doc-card reveal" id="offline" aria-label="Flash with no internet">
         <p class="eyebrow">07 / nothing reaches the network</p>
         <h2>Flash on a machine with no internet</h2>
         <p class="lede">
-          The install page fetches the firmware while you flash, so pulling the
-          plug halfway breaks it. This is the same install, packed into one
-          download you carry to a machine that never goes online.
+          The install page fetches the firmware as it flashes, so pulling the
+          plug halfway breaks it. This is the same install in one download you
+          carry to a machine that never goes online.
         </p>
 
         <h3>Get the one file</h3>
         <p>
-          On the <a href="https://github.com/DIYbitcoin/kiss-signer/releases/latest">latest
+          From the <a href="https://github.com/DIYbitcoin/kiss-signer/releases/latest">latest
           release</a>, take <strong>kiss-signer-&lt;version&gt;-offline.zip</strong>,
-          about 6.5&nbsp;MB. Inside it are the firmware, the install page and this
-          whole guide. Nothing in it reaches out for anything.
+          about 6.5&nbsp;MB. It holds the firmware, the install page and this
+          guide. Nothing in it reaches out.
         </p>
         <p>
-          Check it before you trust it. The zip is signed on its own, and the
-          command is the same one from <a href="#verify">checking the
-          download</a> &mdash; the folder has a <code>00-START-HERE.txt</code>
-          with it written out.
+          Check it before you trust it. The zip has its own signature, and the
+          command is the one from <a href="#verify">checking the download</a>.
+          The folder carries a <code>00-START-HERE.txt</code> with it written
+          out.
         </p>
 
         <h3>Unzip it, then turn the network off</h3>
         <p>
-          From here nothing needs a connection, so this is the moment to
-          disconnect if you want to.
+          Nothing past this point needs a connection. Disconnect here if you want
+          to.
         </p>
 
         <h3>Start the page</h3>
         <p>
           The install page has to be served, not opened as a file. A small
-          program in the folder does that, and shows it to your computer only:
-          double click <code>serve.command</code> on macOS,
-          <code>serve.bat</code> on Windows, or run <code>./serve.sh</code> on
-          Linux. It prints an address beginning
+          program in the folder serves it to your own machine only:
+          <code>serve.command</code> on macOS, <code>serve.bat</code> on Windows,
+          <code>./serve.sh</code> on Linux. It prints an address beginning
           <code>http://localhost</code>. Open that in Chrome, Brave or Edge and
           flash as normal.
         </p>
         <div class="note">
-          Your computer may warn you about those files. It is right to: they
+          Your computer may warn you about those files, and it is right to: they
           carry no Apple or Microsoft signature, and this project does not buy
-          one. The way that raises no warning at all is to open a terminal in
-          the folder and run <code>python3 serve.py</code> instead.
+          one. To raise no warning at all, run <code>python3 serve.py</code> in
+          the folder instead.
         </div>
         <p class="power-note">
-          On Safari or Firefox none of this helps, because the browser itself
-          cannot reach a USB device. Use
-          <a href="#esptool">the command line</a> instead &mdash; the firmware
-          is in the same folder, under
+          None of this helps on Safari or Firefox: the browser itself cannot
+          reach USB. Use <a href="#esptool">the command line</a> &mdash; the
+          firmware is in the same folder, under
           <code>site/installer/firmware</code>.
         </p>
       </section>
@@ -520,20 +1041,18 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         <p class="eyebrow">08 / read twice, flash once</p>
         <h2>Flash encryption, the final signer build</h2>
         <p>
-          On the beta you are using today, someone who steals the device and
-          has the right equipment can read your seed words straight off the
-          chip. The hardened build closes that, by turning two locks on its
-          first boot.
+          On today&rsquo;s beta, someone who steals the device and has the right
+          equipment can read your seed words off the chip. The hardened build
+          closes that by turning two locks on its first boot.
         </p>
 
         <h3>Lock one: the chip scrambles everything it stores</h3>
         <p>
-          The device makes up an encryption key by itself and writes it where
+          The device generates a key by itself and writes it where
           <em>nothing</em> can read it back &mdash; not your computer, not us,
-          not you. Everything saved after that is scrambled with it, so someone
-          who pries the memory open reads noise. Your seed words are kept in
-          their own store on the chip, which the scrambling does not cover.
-          That store gets its own lock at the same time.
+          not you. Everything saved after that is encrypted with it, so prying
+          the memory open reads noise. Seed words live in their own store, which
+          that encryption does not cover; it gets its own lock at the same time.
         </p>
 
         <h3>Lock two: the device stops running strangers&rsquo; software</h3>
@@ -557,11 +1076,10 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
             </li>
             <li>
               You can <strong>never flash it over the cable again</strong>. No
-              USB, no install page. That is the whole point &mdash; nobody can
-              walk up to your device and quietly rewrite it. Updates still
-              work, but only from an SD card, and only if the update was signed
-              with your own keys. Nothing published for this beta will install
-              on it.
+              USB, no install page. That is the point: nobody can walk up and
+              quietly rewrite it. Updates still work, but only from an SD card,
+              and only if signed with your own keys. Nothing published for this
+              beta will install on it.
             </li>
             <li>
               That first boot scrambles about 6&nbsp;MB and can sit on a black
@@ -575,12 +1093,11 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
             </li>
           </ul>
         </div>
-<p>
-          The home screen and Settings both show an encryption line, and the
-          device reads it off the chip every time rather than remembering it.
-          Amber <strong>OFF</strong> means you are not protected yet. When it
-          goes calm, both locks are on &mdash; and that is the moment to create
-          keys you actually care about, not before.
+        <p>
+          The home screen and Settings show an encryption line, read off the chip
+          every time rather than remembered. Amber <strong>OFF</strong> means you
+          are not protected yet. When it goes calm, both locks are on, and that
+          is the moment to create keys you care about.
         </p>
       </section>
 <section class="doc-card reveal" id="firstboot">
@@ -597,8 +1114,6 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           <li><strong>This signer is never online.</strong> Your coordinator
           does all the talking to the network.</li>
         </ul>
-        <p>
-        </p>
         <ol>
           <li>
             First time: <strong>SET UP THIS SIGNER</strong> &rarr;
@@ -633,8 +1148,8 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         </ol>
         <h3>Your first TESTNET round trip</h3>
         <p>
-          This is a visual checklist, not an extra wizard. Complete it once with
-          valueless TESTNET coins before using keys you care about.
+          Walk this once with valueless TESTNET coins before using keys you care
+          about.
         </p>
         <div class="first-run">
           <figure>
@@ -674,69 +1189,51 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
             <img src="media/passphrase-warning.png" alt="Passphrase warning screen">
             <figcaption>The passphrase is part of your keys: lose it, lose the keys.</figcaption>
           </figure>
-          <figure>
-            <img src="media/export-descriptor.png" alt="Descriptor export QR screen">
-            <figcaption>EXPORT pairs your online coordinator app; keys never leave the device.</figcaption>
-          </figure>
-        </div>
-        <div class="shot-wide">
-          <figure style="margin:0">
-            <img src="media/sign-verify.png" alt="PSBT verification screen before signing">
-            <figcaption style="margin-top:6px;color:var(--dim);font-size:0.85rem">
-              Before signing, every output, the fee, and the change are shown and verified on-device.
-            </figcaption>
-          </figure>
         </div>
         <p>
-          KISS re-derives the whole transaction on its own screen and speaks up,
-          in plain words, before you sign, always a soft <strong>CAUTION</strong>
-          you acknowledge, never a silent surprise:
+          KISS re-derives the whole transaction on its own screen and speaks up
+          before you sign. Always a <strong>CAUTION</strong> you acknowledge,
+          never a silent surprise:
         </p>
         <ul>
           <li><strong>High fee.</strong> The fee turns amber if it is a big
             share of what you send (the rule Krux uses) or an outsized sat/vB rate.</li>
           <li><strong>Dust and privacy.</strong> Spending a tiny coin, or
-            leaving tiny change, is flagged. Both can be used to link and track
+            leaving tiny change, is flagged: both can be used to link and track
             your addresses. Change below the network dust limit is flagged
             louder.</li>
         </ul>
         <p>
-          Address reuse works differently, because it has to. KISS never sees
-          the chain, so it cannot know which of your addresses were actually
-          paid. Rather than guess, <strong>RECEIVE</strong> hands out a fresh
-          address each time and keeps a standing reminder to use a new one per
-          payment.
+          Address reuse works differently. KISS never sees the chain, so it
+          cannot know which of your addresses were paid. Rather than guess,
+          <strong>RECEIVE</strong> hands out a fresh address every time.
         </p>
         <p>
-          Several cautions stack into one summary; a <strong>?</strong> opens a
-          <em>WHY FLAGGED</em> card explaining each and the fix (freeze or label
-          the coin in your coordinator). When any caution is present, the sign
-          button is gated behind an <strong>I UNDERSTAND</strong> tap. To confirm
-          an incoming address is yours, use <strong>Receive &rarr; VERIFY</strong>
-          and scan what your coordinator shows.
+          Several cautions stack into one summary, and a <strong>?</strong> opens
+          a <em>WHY FLAGGED</em> card with the fix: freeze or label the coin in
+          your coordinator. Any caution gates the sign button behind
+          <strong>I UNDERSTAND</strong>.
         </p>
         <p>
-          Learn as you go: tap the <strong>?</strong> beside any unfamiliar term
-          (RBF, fingerprint, coordinator, dust) for a short card. Some carry
-          a small diagram, like <code>WORDS + PASSPHRASE &rarr; FINGERPRINT</code>.
-          Tapping the home fingerprint explains what that code is. On the signed-QR
-          screen, <strong>EASY SCAN</strong> slows the loop and enlarges the dots
-          for stubborn phone cameras. (Tapping the KISS logo on the game menu locks
-          straight back to the game.)
+          Tap the <strong>?</strong> beside any unfamiliar term &mdash; RBF,
+          fingerprint, coordinator, dust &mdash; for a short card. On the
+          signed-QR screen, <strong>EASY SCAN</strong> slows the loop and
+          enlarges the dots for stubborn cameras. Tapping the KISS logo on the
+          game menu locks straight back to the game.
         </p>
         <p>
-          Settings shows exactly what is on the device, bottom-left:
-          <code>KISS &lt;version&gt; (&lt;commit&gt;)</code>, plus an honest note
-          while flash encryption is off.
+          Settings shows what is on the device, bottom-left:
+          <code>KISS &lt;version&gt; (&lt;commit&gt;)</code>, plus a note while
+          flash encryption is off.
         </p>
       </section>
 <section class="doc-card reveal" id="storage">
         <p class="eyebrow">10 / three storage modes</p>
         <h2>Where your recovery words are kept</h2>
         <p>
-          Setup asks this once, and Settings can change it later. All three
-          modes are offered on every build. What differs between them is what an
-          attacker gets from the thing they physically took.
+          Setup asks once, and Settings can change it later. What differs
+          between the three is what an attacker gets from the thing they
+          physically took.
         </p>
         <p>
           In every mode your <strong>passphrase is never stored</strong>. It is
@@ -747,45 +1244,42 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
 
         <h3>FLASH</h3>
         <p>
-          Your seed words stay on the device and it unlocks on its own. On the normal
-          beta they are written <strong>in the clear</strong>, so someone with
-          the device and the right equipment can read them out of the chip. On a
-          flash-encrypted build the same mode stores them encrypted. The device
-          tells you which of the two you are on, and it works that out by asking
-          the chip directly rather than by trusting what the firmware thinks.
+          Seed words stay on the device and it unlocks on its own. On the normal
+          beta they are written <strong>in the clear</strong>, so someone with the
+          device and the right equipment can read them out of the chip. A
+          flash-encrypted build stores the same mode encrypted. The device tells
+          you which you are on, by asking the chip rather than trusting the
+          firmware.
         </p>
 
         <h3>SD CARD</h3>
         <p>
-          Your seed words are kept on the card as a sealed file that only this
-          device can open, so the card on its own is inert. Insert it before unlocking. The
-          split is the point: a lost card gives up nothing, and the device on
-          its own holds no copy of the card's contents.
+          Seed words live on the card as a sealed file only this device can
+          open, so the card alone is inert. Insert it before unlocking. A lost
+          card gives up nothing, and the device holds no copy.
         </p>
         <p>
-          The gap this leaves is someone holding <em>both</em> the device and
-          the card. Closing it is what flash encryption adds, by protecting the
-          device key at rest. Until then, SD is still the stronger of the two
-          persistent modes, because FLASH on an unencrypted build stores the
-          seed words in the clear.
+          The gap is someone holding <em>both</em> the device and the card.
+          Flash encryption closes it, by protecting the device key at rest. Until
+          then SD is the stronger persistent mode, because FLASH on an
+          unencrypted build stores seed words in the clear.
         </p>
 
         <h3>AMNESIC</h3>
         <p>
-          Nothing is written anywhere. The seed words are held in RAM for the
-          session and are gone on lock or power off. You load them again every time, by
-          typing them or by opening an encrypted backup. A device taken while
-          locked holds nothing to find. This is the mode to use for anything
-          that matters on beta firmware.
+          Nothing is written anywhere. Seed words sit in RAM for the session and
+          are gone on lock or power off. You load them each time, by typing them
+          or opening an encrypted backup. A device taken while locked holds
+          nothing to find. <strong>Use this for anything that matters on beta
+          firmware.</strong>
         </p>
 
         <div class="note">
-          Changing mode is deliberate and destructive at the old location. KISS
-          writes the new copy, verifies it, and only then removes the old one.
-          Moving a loaded amnesic session to a persistent mode works while it is
-          still unlocked; lock it first and there is nothing left in RAM to
-          migrate, so KISS asks you to load your keys again rather than claim
-          it moved seed words it no longer has.
+          Changing mode erases the old location. KISS writes the new copy,
+          verifies it, then removes the old one. Moving a loaded amnesic session
+          to a persistent mode works while it is still unlocked; lock it first
+          and there is nothing in RAM to migrate, so KISS asks you to load your
+          keys again.
         </div>
       </section>
 <section class="doc-card reveal" id="simulator">
@@ -793,18 +1287,18 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         <h2>Try it without hardware</h2>
         <p>
           <strong><a href="sim/index.html">Open the simulator</a></strong> — the signer's
-          own firmware compiled to WebAssembly. Every screen, the real word list, the real
-          derivation, a real signature. Nothing is installed and nothing leaves the tab.
-          One button opens a signer that already has keys, so every screen behind it
-          works immediately.
+          own firmware compiled to WebAssembly. Real word list, real derivation, real
+          signature. Nothing is installed and nothing leaves the tab. One button
+          opens a signer that already has keys.
         </p>
-        <p class="note">
-          One thing there is not real: there is no camera behind CAMERA AND TAPS, so that
-          entropy source is filled in for you. The dice and the taps are yours. A browser
+        <div class="note">
+          One thing is not real: there is no camera behind CAMERA AND TAPS, so
+          that entropy source is filled in for you. The dice and the taps are yours. A browser
           tab is not a signer — make the keys that matter on the device, offline.
-        </p>
+        </div>
       </section>
       </div>
+      <aside class="docs-toc" id="docs-toc" aria-label="On this page" hidden></aside>
       </div>
 </main>
 
@@ -826,6 +1320,36 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
       } else {
         revealEls.forEach((el) => el.classList.add("is-visible"));
       }
+
+      /* ---------- the airgap diagram's motion ----------
+         Held at indefinite in the markup, so it never starts on its own. The
+         topic switcher below turns it on when the reader opens this topic and
+         off when they leave, and a reader who asked for reduced motion gets
+         neither the pips nor the loop. */
+      (function () {
+        var svg = document.querySelector(".airgap svg");
+        if (!svg) return;
+        var anims = Array.prototype.slice.call(svg.querySelectorAll("animateMotion"));
+        var still = window.matchMedia("(prefers-reduced-motion: reduce)");
+        var running = false;
+
+        window.__airgapMotion = function (on) {
+          on = !!on && !still.matches;
+          if (on === running) return;
+          running = on;
+          svg.classList.toggle("is-running", on);
+          anims.forEach(function (a, i) {
+            try {
+              if (on) {
+                /* the return hop starts half a cycle behind the outward one */
+                a.beginElementAt(i * 1.7);
+              } else {
+                a.endElement();
+              }
+            } catch (e) {}
+          });
+        };
+      })();
 
       /* One topic in the pane at a time, driven by the sidebar and the URL,
          the way Sparrow and Supabase read. Nine sections stacked in one scroll
@@ -865,9 +1389,19 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           return a;
         }
 
-        function show(id) {
+        function show(id, opened) {
           const target = cards.find((c) => c.id === id) || cards[0];
           cards.forEach((c) => { c.hidden = c !== target; });
+
+          /* Motion runs only on a topic the reader opened, never on the one
+             they merely landed on, and it stops the moment they leave. */
+          if (window.__airgapMotion) {
+            window.__airgapMotion(opened && target.id === "how");
+          }
+
+          /* the on-this-page column lists the topic you are on, so it is
+             rebuilt here rather than once at load */
+          if (window.__docsToc) window.__docsToc(target);
 
           links.forEach((a) => a.removeAttribute("aria-current"));
           const link = byId.get(target.id);
@@ -885,15 +1419,139 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           if (cards[i + 1]) pager.appendChild(step(cards[i + 1], "Next"));
         }
 
-        function fromHash() {
-          show((location.hash || "").replace(/^#/, ""));
+        function fromHash(opened) {
+          show((location.hash || "").replace(/^#/, ""), opened);
         }
 
         addEventListener("hashchange", function () {
-          fromHash();
+          fromHash(true);
           scrollTo({ top: 0, behavior: "smooth" });
         });
-        fromHash();
+        /* first paint: whatever topic the URL names is shown, at rest */
+        fromHash(false);
+      })();
+
+      /* ---------- on this page ----------
+         Rebuilt whenever the topic changes, from that topic's own headings,
+         and the current one is marked as you scroll. A topic like checking a
+         download runs several screens, and there was no way to see what was in
+         it without scrolling the whole thing. */
+      (function () {
+        var toc = document.getElementById("docs-toc");
+        if (!toc) return;
+        var spy;
+
+        function build(card) {
+          toc.textContent = "";
+          if (spy) { spy.disconnect(); spy = null; }
+
+          /* Only real subsections. The step and feature headings are list
+             items; listing them here just repeats the list beside itself. */
+          var heads = card
+            ? Array.from(card.querySelectorAll("h3")).filter(function (h) {
+                return !h.closest(".steps, .feats, .danger, .note");
+              })
+            : [];
+          /* one or two headings do not earn a column of their own */
+          if (heads.length < 2) { toc.hidden = true; return; }
+
+          var title = document.createElement("p");
+          title.textContent = "On this page";
+          toc.appendChild(title);
+
+          var links = new Map();
+          heads.forEach(function (h, i) {
+            if (!h.id) h.id = card.id + "-h" + i;
+            var a = document.createElement("a");
+            a.href = "#" + h.id;
+            a.textContent = h.textContent.trim();
+            /* the hash drives which topic shows, so a heading link has to move
+               the page itself rather than change it */
+            a.addEventListener("click", function (e) {
+              e.preventDefault();
+              h.scrollIntoView({ behavior: "smooth", block: "start" });
+            });
+            toc.appendChild(a);
+            links.set(h, a);
+          });
+          toc.hidden = false;
+
+          if (!("IntersectionObserver" in window)) return;
+          spy = new IntersectionObserver(
+            function (entries) {
+              entries.forEach(function (en) {
+                if (!en.isIntersecting) return;
+                links.forEach(function (a) { a.classList.remove("is-here"); });
+                var a = links.get(en.target);
+                if (a) a.classList.add("is-here");
+              });
+            },
+            { rootMargin: "-88px 0px -70% 0px" }
+          );
+          heads.forEach(function (h) { spy.observe(h); });
+        }
+
+        window.__docsToc = build;
+        build(document.querySelector(".docs-body .doc-card:not([hidden])"));
+      })();
+
+      /* Every code block on this page is something to run, so every one gets
+         a copy button. Retyping an esptool line by eye is how a wrong flash
+         size gets in, and the verify commands are worse: a typo there reads
+         as a failed signature.
+
+         Built here rather than in the markup so the blocks stay plain <pre>
+         for anyone reading with no JavaScript, or reading the offline zip. */
+      (function () {
+        var COPY = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+        var DONE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 12.5 5 5 11-11"/></svg>';
+
+        document.querySelectorAll(".docs-body pre").forEach(function (pre) {
+          var wrap = document.createElement("div");
+          wrap.className = "codeblock";
+          pre.parentNode.insertBefore(wrap, pre);
+          wrap.appendChild(pre);
+
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "copy-btn";
+          btn.innerHTML = COPY + "<span>COPY</span>";
+          btn.setAttribute("aria-label", "Copy this block");
+          wrap.appendChild(btn);
+
+          var timer;
+          btn.addEventListener("click", function () {
+            var text = pre.innerText;
+            var settle = function (ok) {
+              btn.classList.toggle("done", ok);
+              btn.innerHTML = (ok ? DONE : COPY) + "<span>" + (ok ? "COPIED" : "COPY") + "</span>";
+              clearTimeout(timer);
+              if (ok) {
+                timer = setTimeout(function () {
+                  btn.classList.remove("done");
+                  btn.innerHTML = COPY + "<span>COPY</span>";
+                }, 1600);
+              }
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(text).then(function () { settle(true); },
+                                                        function () { settle(false); });
+            } else {
+              /* the offline zip is served over plain http, where the async
+                 clipboard is not available at all */
+              var ta = document.createElement("textarea");
+              ta.value = text;
+              ta.style.position = "fixed";
+              ta.style.opacity = "0";
+              document.body.appendChild(ta);
+              ta.select();
+              var ok = false;
+              try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+              document.body.removeChild(ta);
+              settle(ok);
+            }
+          });
+        });
       })();
 
       /* The sidebar icons answer a tap with a spring. Driven by a class rather
