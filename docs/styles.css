@@ -1593,6 +1593,12 @@ button {
   }
 }
 
+.motto.quiet {
+  margin-top: 4px;
+  color: var(--dim);
+  font-size: 0.76rem;
+}
+
 /* Shown only when the browser has no Web Serial. It sits outside the install
    gate on purpose: the gate cannot open for this reader, so anything inside it
    is invisible to exactly the person it is written for. */
