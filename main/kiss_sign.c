@@ -1183,26 +1183,35 @@ static void fail_body(const char *why)
 //                 take the file can be walked around with a QR, and a QR the
 //                 encoder will not build can be walked around with a card.
 //
-// S_FAIL_SAFE_B does NOT come to this screen, and that is deliberate. "no
-// signature left this signer" is exactly true on the failure screen -- and it
-// is the sentence a reader would hold against the two controls under it here,
-// which exist to make a signature leave. S_HELD_B carries the same guarantee
-// in the shape this screen needs: nothing has left YET, so the coins have not
-// moved, and the owner is the one who decides which route it takes.
+// S_FAIL_SAFE_B DOES come to this screen, and the paragraph that used to sit
+// here said the opposite for as long as the split existed. It is worth being
+// exact, because a screen offering a retry is where the temptation to soften a
+// guarantee lives: platform_sd_write_atomic removes its temp file and renames
+// the previous file back on every negative return it has, and its one partial
+// answer -- the target committed, a stale sidecar left behind -- is a positive
+// that both callers take as success. So a write that lands here really did put
+// nothing on the card, and the encoder failure lands here before a single
+// module has been drawn. "No signature left this signer" is true on every path
+// into this screen, and the code above it is the proof that one exists.
 //
-// The guarantee itself is unchanged and is worth stating once more, because
-// the temptation on a screen offering a retry is to soften it:
-// platform_sd_write_atomic removes its temp file and renames the previous file
-// back on every negative return it has, so a failed write really did put
-// nothing on the card.
-//
-// NEITHER BACK HANDLER MAY CARRY A RETRY, which is why the two controls above
-// are not BACK with a different label. files_back_cb and choose_back_cb both
-// call step_back, which calls the same widgets_drop that close_cb does, and
-// widgets_drop wipes s_in, s_out and now s_signed_len with them. Abandoning is
-// the only thing that gets to reach widgets_drop; recovery goes through
-// held_deliver, which touches none of it.
-static void held_screen(lv_obj_t *parent, const char *why);
+// THE EXIT SAYS DISCARD, and it is not BACK with a longer word. files_back_cb
+// and choose_back_cb both call step_back, which calls the same widgets_drop
+// that close_cb does, and widgets_drop wipes s_in, s_out and s_signed_len with
+// them. A signature the owner is one tap from sending is destroyed by that tap,
+// and the corner of the band it sits in is where every other screen puts a free
+// way out -- so the word is the whole of the warning. Recovery goes through
+// held_deliver, which touches none of it, and no back handler may carry a
+// retry.
+static void held_screen(lv_obj_t *parent, const char *why, bool was_qr);
+
+// WHICH CHANNEL THE LAST ATTEMPT USED, which is not the same fact as s_src and
+// was read off it for as long as this screen existed. s_src is where the
+// TRANSACTION came in by and it never changes; the delivery channel changes the
+// moment the owner takes the second route. Scanned in, QR encoder refuses, walk
+// around to the card, card refuses: keyed off the source, TRY AGAIN then went
+// back to the QR while the screen it is on was reporting a card that failed.
+// Set at every attempt, read by both controls.
+static bool s_held_qr;
 
 // The name a QR-sourced signature gets when the owner sends it out by card
 // instead. There is no source file to derive one from, so the signature names
@@ -1228,6 +1237,7 @@ static void mo_start(lv_obj_t *parent, size_t sw, bool sd);
 static void held_deliver(bool to_qr)
 {
     lv_obj_t *parent = lv_obj_get_parent(s_scr);
+    s_held_qr = to_qr;                  // the retry follows the ATTEMPT, not s_src
     if (to_qr) {
         s_qr_sw = s_signed_len;
         qr_out_screen(s_signed_len, false);
@@ -1239,7 +1249,7 @@ static void held_deliver(bool to_qr)
     // wanted and the slot may well be empty, which is its own answer and not a
     // write error.
     if (platform_sd_mount() != 0) {
-        held_screen(parent, tr(STR_S_NO_SD));
+        held_screen(parent, tr(STR_S_NO_SD), false);
         return;
     }
     // Keyed off s_src, never off s_cur being set: s_cur holds whatever file was
@@ -1247,7 +1257,7 @@ static void held_deliver(bool to_qr)
     // otherwise be written under the earlier transaction's name.
     const char *outname = s_src == SRC_SD ? signed_name(s_cur) : held_name();
     if (platform_sd_write_atomic(outname, s_out, s_signed_len) < 0) {
-        held_screen(parent, tr(STR_S_FAIL_SD_WRITE));
+        held_screen(parent, tr(STR_S_FAIL_SD_WRITE), false);
         return;
     }
     done_screen(outname);
@@ -1257,17 +1267,21 @@ static void held_deliver(bool to_qr)
 static void held_retry_cb(lv_event_t *e)
 {
     (void)e;
-    held_deliver(s_src == SRC_QR);          // the channel that just failed
+    held_deliver(s_held_qr);                // the channel that just failed
 }
 
 static void held_other_cb(lv_event_t *e)
 {
     (void)e;
-    held_deliver(s_src != SRC_QR);          // ...and the one that did not
+    held_deliver(!s_held_qr);               // ...and the one that did not
 }
 
-static void held_screen(lv_obj_t *parent, const char *why)
+static void held_screen(lv_obj_t *parent, const char *why, bool was_qr)
 {
+    // PASSED, not derived. Every caller knows which channel it just tried and
+    // there is no way to work it out from here: the two failures a fresh
+    // signature can hit arrive before any delivery has run.
+    s_held_qr = was_qr;
     // s_scr is already NULL when qr_out_screen calls this: it tears its own
     // outgoing screen down before it finds out the encoder will not start.
     // Every other caller arrives with a live screen, so the teardown is
@@ -1321,9 +1335,9 @@ static void held_screen(lv_obj_t *parent, const char *why)
     // that ALSO holds the screen's own actions, and it keeps its destination:
     // abandoning here is the same abandoning fail_screen does, one step back
     // to where the trail says the transaction came from.
-    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_EXIT_X, WT_ACTION_Y,
-                    140, true, s_src == SRC_SD ? files_back_cb : choose_back_cb,
-                    NULL);
+    wt_arrow_action(s_scr, tr(STR_L_DISCARD), true, false, WT_EXIT_X,
+                    WT_ACTION_Y, 140, true,
+                    s_src == SRC_SD ? files_back_cb : choose_back_cb, NULL);
     lv_obj_t *again = wt_arrow_action(s_scr, tr(STR_C_TRY_AGAIN), false, true,
                                       WT_ACT_X, WT_ACTION_Y, 0, false,
                                       held_retry_cb, NULL);
@@ -1341,7 +1355,7 @@ static void held_screen(lv_obj_t *parent, const char *why)
     lv_obj_update_layout(again);
     int ox = WT_ACT_X + lv_obj_get_width(again) + 32;
     if (ox < 330) ox = 330;              // ...and never tighter than that row
-    wt_arrow_action(s_scr, tr(s_src == SRC_SD ? STR_S_OUT_QR : STR_S_OUT_SD),
+    wt_arrow_action(s_scr, tr(s_held_qr ? STR_S_OUT_SD : STR_S_OUT_QR),
                     false, false, ox, WT_ACTION_Y, 0, false, held_other_cb,
                     NULL);
 }
@@ -2024,7 +2038,7 @@ static void finish_sign_cb(lv_timer_t *t)
     if (rc < 0) {
         // NOT fail_screen: the signature exists. held_screen keeps it and
         // offers the card again or a QR instead.
-        held_screen(lv_obj_get_parent(s_scr), tr(STR_S_FAIL_SD_WRITE));
+        held_screen(lv_obj_get_parent(s_scr), tr(STR_S_FAIL_SD_WRITE), false);
         return;
     }
     done_screen(outname);
@@ -4914,7 +4928,7 @@ static void qr_out_screen(size_t sw, bool rebuild)
         // held, not lost. It used to be a hand-built dead end whose BACK was
         // close_cb -- the one exit in the flow that unmounted the card and
         // dropped the owner home, throwing the signature away on the way.
-        held_screen(parent, tr(STR_S_QR_FAIL_ENC));
+        held_screen(parent, tr(STR_S_QR_FAIL_ENC), true);
         return;
     }
 
