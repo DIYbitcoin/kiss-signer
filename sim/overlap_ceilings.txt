@@ -49,23 +49,23 @@
 # on their existing numbers and keep them. Russian came in five under and
 # takes the lower one. All twenty are now the measurement rather than an
 # allowance, which is the first time that has been true.
-cs-CZ 9
+cs-CZ 7
 da-DK 15
-de 31
-es-ES 33
-es-MX 33
-fr 30
+de 30
+es-ES 27
+es-MX 27
+fr 28
 hr-HR 15
-it 17
+it 15
 ja 10
 ko 4
-nb-NO 15
-nl 39
-pl 26
+nb-NO 12
+nl 33
+pl 24
 pt-BR 15
-pt-PT 20
-ru 33
+pt-PT 18
+ru 31
 sv-SE 24
-tr 16
-vi 17
+tr 14
+vi 15
 zh-CN 12
