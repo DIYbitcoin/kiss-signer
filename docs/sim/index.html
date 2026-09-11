@@ -47,10 +47,9 @@
   .panel h2 { font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
               color: var(--accent); margin: 0 0 10px; font-weight: 500; }
   .panel p { font-size: 12px; color: var(--dim); margin: 8px 0 0; }
-  select, textarea, button, input[type=file] { width: 100%; font: inherit; font-size: 13px;
+  select, button, input[type=file] { width: 100%; font: inherit; font-size: 13px;
     background: var(--panel-2); color: var(--ink); border: 1px solid var(--line);
     border-radius: 8px; padding: 8px 10px; }
-  textarea { min-height: 76px; resize: vertical; }
   button { background: var(--control); cursor: pointer; margin-top: 8px; }
   button:hover { border-color: var(--dim); }
   .note { border-left: 2px solid var(--accent); padding-left: 12px; }
@@ -112,10 +111,8 @@
 
       <div class="panel">
         <h2>Show it a QR</h2>
-        <p style="margin:0 0 8px">Point a coordinator's QR at your webcam, or paste the payload.</p>
+        <p style="margin:0 0 8px">Point a coordinator's QR at your webcam.</p>
         <button id="cam">USE THE WEBCAM</button>
-        <textarea id="qr" placeholder="ur:crypto-psbt/… or cHNidP8B…"></textarea>
-        <button id="feed">FEED IT IN</button>
       </div>
 
       <div class="panel">
@@ -248,11 +245,6 @@
 
   // ---- the host panel -----------------------------------------------------
   function call(n, r, t, a) { return mod.ccall(n, r, t, a); }
-
-  document.getElementById('feed').addEventListener('click', function () {
-    var v = document.getElementById('qr').value.trim();
-    if (mod && v) call('kiss_sim_feed_qr', null, ['string'], [v]);
-  });
 
   var SD = '/tmp/simsd';
   function listCard() {
