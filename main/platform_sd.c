@@ -563,6 +563,32 @@ static int file_matches(const char *path, const uint8_t *buf, size_t len)
     return ok;
 }
 
+// Empty the temp file when it will not delete.
+//
+// THE SIGN SCREEN PRINTS A PROMISE ABOUT THIS FUNCTION. "No signature left this
+// signer" is what an owner reads when a card write fails, and every negative
+// return below is meant to make it true. The removes that back it out were
+// `(void)remove(tmp)` -- attempted, never checked -- and two of them run after
+// the temp has already been written, read back and byte-compared. A remove that
+// loses there leaves a VERIFIED signature on the card under a .tmp name, and
+// the screen says none is there.
+//
+// A remove can lose without the write having lost: the rename is the operation
+// that fails on a directory the card will no longer update, and the remove is
+// the same kind of operation.
+//
+// So: try the remove, and if the name survives, truncate it to nothing and try
+// again. A zero-byte sidecar is not a signature by any reading, which is the
+// property the promise needs. recover_atomic sweeps the name itself on the next
+// write to it, so this does not have to succeed at deleting -- only at emptying.
+static void scrub_tmp(const char *tmp)
+{
+    if (remove(tmp) == 0 || errno == ENOENT) return;
+    FILE *f = fopen(tmp, "wb");
+    if (f) fclose(f);
+    (void)remove(tmp);
+}
+
 int platform_sd_write_atomic(const char *name, const uint8_t *buf, size_t len)
 {
     if (!name_ok(name) || !buf || len == 0) return -3;
@@ -585,25 +611,25 @@ int platform_sd_write_atomic(const char *name, const uint8_t *buf, size_t len)
     if (rc == 0 && fsync(fileno(f)) != 0) rc = -2;
     if (fclose(f) != 0) rc = -2;
     if (rc != 0 || !file_matches(tmp, buf, len)) {
-        (void)remove(tmp);
+        scrub_tmp(tmp);
         return -2;
     }
 
 #ifndef ESP_PLATFORM
     if (test_fail(PLATFORM_SD_TEST_FAIL_RENAME)) {
-        (void)remove(tmp);
+        scrub_tmp(tmp);
         return -2;
     }
 #endif
     (void)remove(bak);
     int had_target = access(target, F_OK) == 0;
     if (had_target && rename(target, bak) != 0) {
-        (void)remove(tmp);
+        scrub_tmp(tmp);
         return -2;
     }
     if (rename(tmp, target) != 0) {
         if (had_target) (void)rename(bak, target);
-        (void)remove(tmp);
+        scrub_tmp(tmp);
         return -2;
     }
     if (had_target) {
