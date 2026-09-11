@@ -1525,7 +1525,7 @@
         </p>
       </section>
 <section class="doc-card reveal" id="features" aria-label="Features">
-        <p class="eyebrow">02 / what it does</p>
+        <p class="eyebrow">02 / features</p>
         <h2>What it does</h2>
         <div class="feats">
           <article>
@@ -1563,8 +1563,8 @@
 
           </article>
           <article>
-            <div class="feat-head"><svg class="feat-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5h13.5a3.5 3.5 0 0 1 0 7H7"/><path d="M7.5 5 4 8.5 7.5 12"/><path d="M9.5 12.5 6 16l3.5 3.5"/></svg><span>SILENT PAYMENTS</span></div>
-            <h3>One address you can reuse</h3>
+            <div class="feat-head"><svg class="feat-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5h13.5a3.5 3.5 0 0 1 0 7H7"/><path d="M7.5 5 4 8.5 7.5 12"/><path d="M9.5 12.5 6 16l3.5 3.5"/></svg><span>PRIVACY</span></div>
+            <h3>Silent payments</h3>
             <p>One <code>sp1</code> address you can hand out repeatedly, without the privacy cost of address reuse. An optional scan key lets your coordinator find those payments, never spend them.</p>
           </article>
           <article>
@@ -1579,7 +1579,7 @@
           </article>
           <article>
             <div class="feat-head"><svg class="feat-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 20.5h17"/><path d="M6.5 20.5v-6"/><path d="M11 20.5V8"/><path d="M15.5 20.5v-9"/><path d="M20 20.5V4.5"/></svg><span>AUDIT IT YOURSELF</span></div>
-            <h3>The signer proves parts of itself</h3>
+            <h3>It checks its own randomness</h3>
             <p>Keys are only as good as the entropy behind them, so the device audits its own: 5000 samples from the chip into a live histogram, scored for evenness. A lopsided chart means bad randomness.</p>
           </article>
         </div>
@@ -1706,7 +1706,7 @@ sha256sum --ignore-missing -c SHA256SUMS         # Linux</code></pre>
         </p>
       </section>
 <section class="doc-card reveal" id="esptool" aria-label="Flash from the command line">
-        <p class="eyebrow">06 / the other way in</p>
+        <p class="eyebrow">06 / esptool, over usb</p>
         <h2>Flash it from the command line</h2>
         <p class="lede">
           Safari and Firefox will not let a web page reach USB, which is why the
@@ -1802,20 +1802,22 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           closes that by turning two locks on its first boot.
         </p>
 
-        <h3>Lock one: the chip scrambles everything it stores</h3>
+        <h3>Lock one: flash encryption</h3>
         <p>
-          The device generates a key by itself and writes it where
-          <em>nothing</em> can read it back &mdash; not your computer, not us,
-          not you. Everything saved after that is encrypted with it, so prying
-          the memory open reads noise. Seed words live in their own store, which
-          that encryption does not cover; it gets its own lock at the same time.
+          The chip scrambles everything it stores. It generates a key by
+          itself and writes it where <em>nothing</em> can read it back
+          &mdash; not your computer, not us, not you. Everything saved after
+          that is encrypted with it, so prying the memory open reads noise.
+          Seed words live in their own store, which that encryption does not
+          cover; it gets its own lock at the same time.
         </p>
 
-        <h3>Lock two: the device stops running strangers&rsquo; software</h3>
+        <h3>Lock two: secure boot</h3>
         <p>
-          It will only start firmware signed with keys <em>you</em> made and
-          keep, so nobody can quietly swap the signer for a lookalike that
-          phones your seed home.
+          The device stops running strangers&rsquo; software. It will only
+          start firmware signed with keys <em>you</em> made and keep, so
+          nobody can quietly swap the signer for a lookalike that phones your
+          seed home.
         </p>
         <p>
           Both locks turn together, on that first boot. A device that got only
@@ -2043,7 +2045,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         </div>
       </section>
 <section class="doc-card reveal" id="cautions">
-        <p class="eyebrow">11 / nothing is signed unseen</p>
+        <p class="eyebrow">11 / it checks, you confirm</p>
         <h2>What KISS checks before you sign</h2>
         <p class="lede">
           KISS re-derives the whole transaction on its own screen and speaks up
