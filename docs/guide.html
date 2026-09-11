@@ -705,6 +705,8 @@
               <svg class="rail-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
             </summary>
             <a href="#firstboot">First boot</a>
+            <a href="#roundtrip">TESTNET round trip</a>
+            <a href="#cautions">Before you sign</a>
             <a href="#storage">Storage</a>
           </details>
           <details class="rail-group" open>
@@ -1143,13 +1145,17 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           <li>
             Switch to <strong>TESTNET</strong> while you learn
             (SETTINGS &rarr; SIGNER &rarr; NETWORK): free coins, the same
-            screens, nothing at stake. Then walk the checklist below.
+            screens, nothing at stake. Then walk
+            <a href="#roundtrip">the round trip</a>.
           </li>
         </ol>
-        <h3>Your first TESTNET round trip</h3>
-        <p>
+      </section>
+<section class="doc-card reveal" id="roundtrip">
+        <p class="eyebrow">10 / do it once with play money</p>
+        <h2>Your first TESTNET round trip</h2>
+        <p class="lede">
           Walk this once with valueless TESTNET coins before using keys you care
-          about.
+          about. Five steps, receive then spend.
         </p>
         <div class="first-run">
           <figure>
@@ -1190,11 +1196,16 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
             <figcaption>The passphrase is part of your keys: lose it, lose the keys.</figcaption>
           </figure>
         </div>
-        <p>
+      </section>
+<section class="doc-card reveal" id="cautions">
+        <p class="eyebrow">11 / nothing is signed unseen</p>
+        <h2>What KISS checks before you sign</h2>
+        <p class="lede">
           KISS re-derives the whole transaction on its own screen and speaks up
           before you sign. Always a <strong>CAUTION</strong> you acknowledge,
-          never a silent surprise:
+          never a silent surprise.
         </p>
+        <h3>What turns amber</h3>
         <ul>
           <li><strong>High fee.</strong> The fee turns amber if it is a big
             share of what you send (the rule Krux uses) or an outsized sat/vB rate.</li>
@@ -1214,6 +1225,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           your coordinator. Any caution gates the sign button behind
           <strong>I UNDERSTAND</strong>.
         </p>
+        <h3>While you are learning</h3>
         <p>
           Tap the <strong>?</strong> beside any unfamiliar term &mdash; RBF,
           fingerprint, coordinator, dust &mdash; for a short card. On the
@@ -1228,7 +1240,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         </p>
       </section>
 <section class="doc-card reveal" id="storage">
-        <p class="eyebrow">10 / three storage modes</p>
+        <p class="eyebrow">12 / three storage modes</p>
         <h2>Where your recovery words are kept</h2>
         <p>
           Setup asks once, and Settings can change it later. What differs
@@ -1283,7 +1295,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         </div>
       </section>
 <section class="doc-card reveal" id="simulator">
-        <p class="eyebrow">11 / no hardware required</p>
+        <p class="eyebrow">13 / no hardware required</p>
         <h2>Try it without hardware</h2>
         <p>
           <strong><a href="sim/index.html">Open the simulator</a></strong> — the signer's
