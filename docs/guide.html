@@ -525,6 +525,79 @@
         margin-bottom: 0;
       }
 
+      /* ---------- the storage matrix ----------
+         Three modes against one question, which was 326 words of prose saying
+         the same shape three times. A reader comparing modes is doing a table
+         in their head; this one is on the page. */
+      .matrix-wrap {
+        margin: 22px 0 6px;
+        max-width: 62ch;
+        overflow-x: auto;
+      }
+      .matrix {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.78rem;
+        text-align: left;
+      }
+      .matrix th,
+      .matrix td {
+        border: 1px solid var(--line);
+        padding: 10px 12px;
+        vertical-align: top;
+      }
+      .matrix thead th {
+        background: var(--key);
+        color: var(--dim);
+        font-weight: 500;
+        font-size: 0.66rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        line-height: 1.4;
+      }
+      .matrix tbody th {
+        background: var(--panel);
+        color: var(--ink);
+        font-weight: 500;
+        letter-spacing: 0.08em;
+        white-space: nowrap;
+      }
+      /* where that mode keeps the words, under its name */
+      .matrix tbody th span {
+        display: block;
+        margin-top: 3px;
+        color: var(--dim);
+        font-weight: 400;
+        font-size: 0.68rem;
+        letter-spacing: 0.02em;
+      }
+      /* the verdict, then the reason for it in the same cell */
+      .matrix td span {
+        display: block;
+        margin-top: 3px;
+        color: var(--dim);
+        font-size: 0.68rem;
+        letter-spacing: 0.02em;
+      }
+      .matrix td.ok {
+        color: var(--green);
+        background: rgba(53, 208, 127, 0.05);
+      }
+      .matrix td.stop {
+        color: var(--red);
+        background: rgba(255, 77, 94, 0.05);
+      }
+      .matrix td.na {
+        color: var(--dim);
+      }
+      .matrix-wrap figcaption {
+        margin-top: 9px;
+        color: var(--dim);
+        font-size: 0.74rem;
+        line-height: 1.6;
+        max-width: 54ch;
+      }
+
       .shots {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -588,6 +661,122 @@
         margin-right: 6px;
       }
 
+      /* ---------- search ---------- */
+      .docs-search {
+        position: relative;
+        display: flex;
+        align-items: center;
+        margin: 0 0 14px;
+      }
+      .docs-search .ds-ico {
+        position: absolute;
+        left: 9px;
+        width: 13px;
+        height: 13px;
+        fill: none;
+        stroke: var(--dim);
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        pointer-events: none;
+      }
+      #docs-q {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+        color: var(--ink);
+        padding: 7px 30px 7px 28px;
+        font-family: var(--mono);
+        font-size: 0.78rem;
+        -webkit-appearance: none;
+        appearance: none;
+      }
+      #docs-q::placeholder {
+        color: var(--dim);
+      }
+      #docs-q:focus {
+        outline: none;
+        border-color: var(--accent);
+      }
+      #docs-q::-webkit-search-cancel-button {
+        -webkit-appearance: none;
+      }
+      .docs-search kbd {
+        position: absolute;
+        right: 8px;
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 0 5px;
+        color: var(--dim);
+        font-family: var(--mono);
+        font-size: 0.6rem;
+        line-height: 1.6;
+        pointer-events: none;
+      }
+      .docs-search:focus-within kbd {
+        display: none;
+      }
+
+      /* styles.css gives this nav display:flex, and that beats the display:none
+         the hidden attribute carries, so the section list stayed on screen
+         under the search results. */
+      .docs-rail nav[hidden] {
+        display: none;
+      }
+
+      .docs-results {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        margin-bottom: 14px;
+      }
+      .docs-results a {
+        display: block;
+        border: 1px solid transparent;
+        border-radius: 8px;
+        padding: 7px 9px;
+        color: var(--muted);
+        font-size: 0.74rem;
+        line-height: 1.45;
+        text-wrap: pretty;
+      }
+      .docs-results a:hover,
+      .docs-results a.is-active {
+        border-color: var(--line);
+        background: var(--panel);
+        color: var(--ink);
+      }
+      .docs-results b {
+        display: block;
+        color: var(--ink);
+        font-weight: 500;
+      }
+      .docs-results .crumb {
+        display: block;
+        margin-bottom: 2px;
+        color: var(--dim);
+        font-size: 0.6rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+      .docs-results .snip {
+        display: block;
+        margin-top: 3px;
+        color: var(--dim);
+        font-size: 0.7rem;
+      }
+      .docs-results mark {
+        background: var(--accent-bg);
+        color: var(--accent);
+        border-radius: 2px;
+        padding: 0 1px;
+      }
+      .docs-results .empty {
+        padding: 7px 9px;
+        color: var(--dim);
+        font-size: 0.74rem;
+      }
+
       /* ---------- on this page ----------
          Built from the headings of whichever topic is showing. The long ones
          (checking a download, first boot, encryption) run several screens, and
@@ -631,12 +820,35 @@
         border-left-color: var(--accent);
       }
 
+      /* Three columns need about 1080px. Below that the on-this-page column
+         goes and the rail stays. Below 900 styles.css turns the rail into a
+         horizontal row of topics and drops it out of the grid, so the second
+         block hands the layout back to it; without that the row was being held
+         inside a 196px column it no longer fits. */
       @media (max-width: 1080px) {
         .docs-layout {
           grid-template-columns: 196px minmax(0, 1fr);
         }
         .docs-toc {
           display: none;
+        }
+      }
+
+      @media (max-width: 900px) {
+        /* minmax(0, 1fr), not 1fr: a grid item defaults to min-width auto, so
+           the column cannot shrink below its widest content. The storage table
+           is wider than a phone, and a plain 1fr let it push the whole page out
+           past the viewport instead of scrolling inside its own box. */
+        .docs-layout {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .docs-body {
+          max-width: none;
+          min-width: 0;
+        }
+        /* the box stays reachable while the rail scrolls away with the page */
+        .docs-search {
+          margin-bottom: 10px;
         }
       }
 
@@ -659,7 +871,7 @@
   </head>
   <body>
     <header class="topbar">
-      <a class="brand" href="index.html">
+      <a class="brand" href="index.html" aria-label="KISS Signer, home">
         <img src="assets/kiss-mark.svg" alt="" width="32" height="32">
         KISS-SIGNER
       </a>
@@ -675,6 +887,19 @@
 
       <div class="docs-layout">
       <aside class="docs-rail">
+        <!-- Thirteen topics behind a sidebar, and no way to find the one that
+             says "dust" except to guess. Everything here is client side, so it
+             works the same inside the offline zip. -->
+        <form class="docs-search" role="search" onsubmit="return false">
+          <svg class="ds-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.4 15.4 5.1 5.1"/></svg>
+          <input id="docs-q" type="search" placeholder="Search the docs"
+                 autocomplete="off" spellcheck="false"
+                 aria-label="Search the documentation"
+                 aria-controls="docs-results" aria-expanded="false">
+          <kbd>/</kbd>
+        </form>
+        <div class="docs-results" id="docs-results" role="listbox"
+             aria-label="Search results" hidden></div>
         <nav aria-label="Documentation sections">
           <details class="rail-group" open>
             <summary>
@@ -705,6 +930,8 @@
               <svg class="rail-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
             </summary>
             <a href="#firstboot">First boot</a>
+            <a href="#roundtrip">TESTNET round trip</a>
+            <a href="#cautions">Before you sign</a>
             <a href="#storage">Storage</a>
           </details>
           <details class="rail-group" open>
@@ -787,7 +1014,7 @@
         </ol>
         <p class="power-note">
           Pairing offers <strong>Sparrow</strong> and <strong>BlueWallet</strong>.
-          Any wallet works that imports a watch-only descriptor and passes PSBTs
+          Any coordinator works that imports a watch-only descriptor and passes PSBTs
           by QR or microSD. Anything untried,
           <a href="https://t.me/KISS_signer">ask in Telegram</a>.
         </p>
@@ -1143,13 +1370,17 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           <li>
             Switch to <strong>TESTNET</strong> while you learn
             (SETTINGS &rarr; SIGNER &rarr; NETWORK): free coins, the same
-            screens, nothing at stake. Then walk the checklist below.
+            screens, nothing at stake. Then walk
+            <a href="#roundtrip">the round trip</a>.
           </li>
         </ol>
-        <h3>Your first TESTNET round trip</h3>
-        <p>
+      </section>
+<section class="doc-card reveal" id="roundtrip">
+        <p class="eyebrow">10 / do it once with play money</p>
+        <h2>Your first TESTNET round trip</h2>
+        <p class="lede">
           Walk this once with valueless TESTNET coins before using keys you care
-          about.
+          about. Five steps, receive then spend.
         </p>
         <div class="first-run">
           <figure>
@@ -1190,11 +1421,16 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
             <figcaption>The passphrase is part of your keys: lose it, lose the keys.</figcaption>
           </figure>
         </div>
-        <p>
+      </section>
+<section class="doc-card reveal" id="cautions">
+        <p class="eyebrow">11 / nothing is signed unseen</p>
+        <h2>What KISS checks before you sign</h2>
+        <p class="lede">
           KISS re-derives the whole transaction on its own screen and speaks up
           before you sign. Always a <strong>CAUTION</strong> you acknowledge,
-          never a silent surprise:
+          never a silent surprise.
         </p>
+        <h3>What turns amber</h3>
         <ul>
           <li><strong>High fee.</strong> The fee turns amber if it is a big
             share of what you send (the rule Krux uses) or an outsized sat/vB rate.</li>
@@ -1214,6 +1450,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           your coordinator. Any caution gates the sign button behind
           <strong>I UNDERSTAND</strong>.
         </p>
+        <h3>While you are learning</h3>
         <p>
           Tap the <strong>?</strong> beside any unfamiliar term &mdash; RBF,
           fingerprint, coordinator, dust &mdash; for a short card. On the
@@ -1228,62 +1465,69 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         </p>
       </section>
 <section class="doc-card reveal" id="storage">
-        <p class="eyebrow">10 / three storage modes</p>
+        <p class="eyebrow">12 / three storage modes</p>
         <h2>Where your recovery words are kept</h2>
-        <p>
-          Setup asks once, and Settings can change it later. What differs
-          between the three is what an attacker gets from the thing they
-          physically took.
-        </p>
-        <p>
-          In every mode your <strong>passphrase is never stored</strong>. It is
-          typed fresh each unlock, and it is what guards the keys that hold your
-          coins. Recovery words on their own derive the base keys, not your
-          passphrase keys.
+        <p class="lede">
+          Setup asks once, and Settings can change it later. What differs is
+          what someone gets when they physically take the device, the card, or
+          both.
         </p>
 
-        <h3>FLASH</h3>
-        <p>
-          Seed words stay on the device and it unlocks on its own. On the normal
-          beta they are written <strong>in the clear</strong>, so someone with the
-          device and the right equipment can read them out of the chip. A
-          flash-encrypted build stores the same mode encrypted. The device tells
-          you which you are on, by asking the chip rather than trusting the
-          firmware.
-        </p>
+        <figure class="matrix-wrap">
+          <table class="matrix">
+            <thead>
+              <tr>
+                <th scope="col">Mode</th>
+                <th scope="col">Device only</th>
+                <th scope="col">Card only</th>
+                <th scope="col">Both</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">FLASH<span>on the chip</span></th>
+                <td class="stop">seed words<span>on this beta</span></td>
+                <td class="na">no card</td>
+                <td class="stop">seed words<span>on this beta</span></td>
+              </tr>
+              <tr>
+                <th scope="row">SD CARD<span>sealed, on the card</span></th>
+                <td class="ok">nothing<span>holds no copy</span></td>
+                <td class="ok">nothing<span>sealed to the device</span></td>
+                <td class="stop">seed words<span>the gap</span></td>
+              </tr>
+              <tr>
+                <th scope="row">AMNESIC<span>in RAM only</span></th>
+                <td class="ok">nothing<span>once locked</span></td>
+                <td class="na">no card</td>
+                <td class="ok">nothing<span>once locked</span></td>
+              </tr>
+            </tbody>
+          </table>
+          <figcaption>
+            Every cell assumes the right equipment. A flash-encrypted build
+            makes the FLASH row read nothing too.
+          </figcaption>
+        </figure>
 
-        <h3>SD CARD</h3>
-        <p>
-          Seed words live on the card as a sealed file only this device can
-          open, so the card alone is inert. Insert it before unlocking. A lost
-          card gives up nothing, and the device holds no copy.
-        </p>
-        <p>
-          The gap is someone holding <em>both</em> the device and the card.
-          Flash encryption closes it, by protecting the device key at rest. Until
-          then SD is the stronger persistent mode, because FLASH on an
-          unencrypted build stores seed words in the clear.
-        </p>
+        <div class="note">
+          No cell above holds your passphrase. It is never stored, in any mode,
+          and it is what guards the keys that hold your coins.
+        </div>
 
-        <h3>AMNESIC</h3>
         <p>
-          Nothing is written anywhere. Seed words sit in RAM for the session and
-          are gone on lock or power off. You load them each time, by typing them
-          or opening an encrypted backup. A device taken while locked holds
-          nothing to find. <strong>Use this for anything that matters on beta
-          firmware.</strong>
+          <strong>On beta firmware, pick AMNESIC for anything that matters.</strong>
+          You load your seed words each time, by typing them or opening an encrypted
+          backup. SD CARD is the better of the two that remember.
         </p>
 
         <div class="note">
           Changing mode erases the old location. KISS writes the new copy,
-          verifies it, then removes the old one. Moving a loaded amnesic session
-          to a persistent mode works while it is still unlocked; lock it first
-          and there is nothing in RAM to migrate, so KISS asks you to load your
-          keys again.
+          verifies it, then removes the old one.
         </div>
       </section>
 <section class="doc-card reveal" id="simulator">
-        <p class="eyebrow">11 / no hardware required</p>
+        <p class="eyebrow">13 / no hardware required</p>
         <h2>Try it without hardware</h2>
         <p>
           <strong><a href="sim/index.html">Open the simulator</a></strong> — the signer's
@@ -1320,6 +1564,200 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
       } else {
         revealEls.forEach((el) => el.classList.add("is-visible"));
       }
+
+      /* ---------- search ----------
+         Built from the page's own headings at load, so there is no index file
+         to keep in step with the prose and nothing to fetch. Each topic
+         contributes its title plus one entry per subheading, which is what
+         makes a hit land on the paragraph rather than the top of a topic that
+         runs several screens. */
+      (function () {
+        var input = document.getElementById("docs-q");
+        var out = document.getElementById("docs-results");
+        var nav = document.querySelector(".docs-rail nav");
+        if (!input || !out || !nav) return;
+
+        var entries = [];
+        document.querySelectorAll(".docs-body .doc-card").forEach(function (card) {
+          var topic = card.querySelector("h2");
+          if (!topic) return;
+          var topicName = topic.textContent.trim();
+
+          /* text that belongs to the topic itself, up to its first subheading */
+          var lead = [], node = topic.nextElementSibling;
+          while (node && node.tagName !== "H3") {
+            lead.push(node.textContent);
+            node = node.nextElementSibling;
+          }
+          entries.push({
+            id: card.id, anchor: null, crumb: topicName,
+            title: topicName, body: lead.join(" ")
+          });
+
+          card.querySelectorAll("h3").forEach(function (h, i) {
+            if (!h.id) h.id = card.id + "-h" + i;
+            var text = [], n = h.nextElementSibling;
+            while (n && n.tagName !== "H3") { text.push(n.textContent); n = n.nextElementSibling; }
+            entries.push({
+              id: card.id, anchor: h.id, crumb: topicName,
+              title: h.textContent.trim(), body: text.join(" ")
+            });
+          });
+        });
+        entries.forEach(function (e) {
+          e.hayTitle = e.title.toLowerCase();
+          e.hayBody = e.body.replace(/\s+/g, " ").trim();
+          e.hayBodyLower = e.hayBody.toLowerCase();
+        });
+
+        function esc(t) {
+          return t.replace(/[&<>"]/g, function (c) {
+            return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+          });
+        }
+
+        /* the query's words, all of which have to appear somewhere */
+        function score(e, terms) {
+          var total = 0;
+          for (var i = 0; i < terms.length; i++) {
+            var t = terms[i];
+            var inTitle = e.hayTitle.indexOf(t);
+            var inBody = e.hayBodyLower.indexOf(t);
+            if (inTitle < 0 && inBody < 0) return 0;
+            /* a word in a heading outranks the same word buried in a paragraph,
+               and a heading that starts with it outranks one that contains it */
+            if (inTitle === 0) total += 12;
+            else if (inTitle > 0) total += 8;
+            if (inBody >= 0) total += 2;
+          }
+          if (!e.anchor) total += 1;   /* break ties toward the topic itself */
+          return total;
+        }
+
+        function snippet(e, terms) {
+          var at = -1;
+          for (var i = 0; i < terms.length && at < 0; i++) {
+            at = e.hayBodyLower.indexOf(terms[i]);
+          }
+          if (at < 0) return "";
+          var from = Math.max(0, at - 20);
+          var text = e.hayBody.slice(from, from + 76);
+          return (from ? "\u2026" : "") + text + (from + 76 < e.hayBody.length ? "\u2026" : "");
+        }
+
+        function mark(text, terms) {
+          var html = esc(text);
+          terms.forEach(function (t) {
+            /* the terms come from the box, so they are escaped the same way
+               before being used to find what to wrap */
+            var needle = esc(t).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            html = html.replace(new RegExp("(" + needle + ")", "ig"), "<mark>$1</mark>");
+          });
+          return html;
+        }
+
+        var active = -1;
+
+        function render(q) {
+          var terms = q.toLowerCase().split(/\s+/).filter(Boolean);
+          active = -1;
+          if (!terms.length) {
+            out.hidden = true;
+            out.textContent = "";
+            nav.hidden = false;
+            input.setAttribute("aria-expanded", "false");
+            return;
+          }
+          nav.hidden = true;
+          out.hidden = false;
+          input.setAttribute("aria-expanded", "true");
+          out.textContent = "";
+
+          var hits = entries
+            .map(function (e) { return { e: e, s: score(e, terms) }; })
+            .filter(function (h) { return h.s > 0; })
+            .sort(function (a, b) { return b.s - a.s; })
+            .slice(0, 8);
+
+          if (!hits.length) {
+            var none = document.createElement("p");
+            none.className = "empty";
+            none.textContent = "Nothing for \u201c" + q + "\u201d";
+            out.appendChild(none);
+            return;
+          }
+
+          hits.forEach(function (h) {
+            var a = document.createElement("a");
+            a.href = "#" + h.e.id;
+            a.setAttribute("role", "option");
+            var snip = snippet(h.e, terms);
+            a.innerHTML =
+              (h.e.anchor ? '<span class="crumb">' + esc(h.e.crumb) + "</span>" : "") +
+              "<b>" + mark(h.e.title, terms) + "</b>" +
+              (snip ? '<span class="snip">' + mark(snip, terms) + "</span>" : "");
+            a.addEventListener("click", function (ev) {
+              ev.preventDefault();
+              go(h.e);
+            });
+            out.appendChild(a);
+          });
+        }
+
+        function go(e) {
+          if (location.hash === "#" + e.id) {
+            /* already on this topic, so the hash will not fire a change */
+            if (window.__docsShow) window.__docsShow(e.id, true);
+          } else {
+            location.hash = "#" + e.id;
+          }
+          input.value = "";
+          render("");
+          input.blur();
+          if (e.anchor) {
+            var target = document.getElementById(e.anchor);
+            if (target) setTimeout(function () {
+              target.scrollIntoView({ behavior: "smooth", block: "start" });
+            }, 60);
+          }
+        }
+
+        function move(step) {
+          var links = out.querySelectorAll("a");
+          if (!links.length) return;
+          if (active >= 0) links[active].classList.remove("is-active");
+          active = (active + step + links.length) % links.length;
+          links[active].classList.add("is-active");
+          links[active].scrollIntoView({ block: "nearest" });
+        }
+
+        input.addEventListener("input", function () { render(input.value.trim()); });
+
+        input.addEventListener("keydown", function (ev) {
+          if (ev.key === "ArrowDown") { ev.preventDefault(); move(1); }
+          else if (ev.key === "ArrowUp") { ev.preventDefault(); move(-1); }
+          else if (ev.key === "Enter") {
+            var links = out.querySelectorAll("a");
+            var pick = links[active >= 0 ? active : 0];
+            if (pick) { ev.preventDefault(); pick.click(); }
+          } else if (ev.key === "Escape") {
+            input.value = "";
+            render("");
+            input.blur();
+          }
+        });
+
+        /* slash focuses the box, the way every docs site this is modelled on
+           does, but never while the reader is typing somewhere else */
+        addEventListener("keydown", function (ev) {
+          if (ev.key !== "/" || ev.metaKey || ev.ctrlKey || ev.altKey) return;
+          var el = document.activeElement;
+          if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+          ev.preventDefault();
+          input.focus();
+          input.select();
+        });
+      })();
 
       /* ---------- the airgap diagram's motion ----------
          Held at indefinite in the markup, so it never starts on its own. The
@@ -1422,6 +1860,10 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         function fromHash(opened) {
           show((location.hash || "").replace(/^#/, ""), opened);
         }
+
+        /* search lands on topics, and a result for the topic already showing
+           changes no hash, so it needs a way in other than the hash */
+        window.__docsShow = show;
 
         addEventListener("hashchange", function () {
           fromHash(true);

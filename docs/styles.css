@@ -835,8 +835,10 @@ h2 {
 }
 
 @media (max-width: 900px) {
+  /* minmax(0, 1fr) so a wide child scrolls in its own box rather than pushing
+     the column, and the page, past the viewport. */
   .docs-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 18px;
   }
 
@@ -1354,9 +1356,22 @@ button {
 }
 
 @media (max-width: 900px) {
-  .hero {
+  /* .install-shell .hero carries two classes and so outranked the bare .hero
+     collapse below, whatever the order. The install page kept its two column
+     hero all the way down to a phone, where it left the title in a column
+     about ninety pixels wide, one word to a line, under the device shot. */
+  .hero,
+  .install-shell .hero {
     grid-template-columns: minmax(0, 1fr);
     gap: 30px;
+  }
+
+  /* Collapsed, the device shot inherits the whole column and fills a tablet
+     edge to edge. It keeps the width it has beside the title instead. */
+  .hero-device {
+    width: 100%;
+    max-width: 420px;
+    margin-inline: auto;
   }
 
   .feats,
@@ -1550,6 +1565,31 @@ button {
   .icon-link {
     width: 26px;
     height: 26px;
+  }
+}
+
+/* Below this the wordmark goes and the mark stands alone, because the three
+   tabs plus the repo mark plus four swatches cannot share a row with it at
+   phone width, and the bar was landing on three rows. The mark is the logo and
+   still the link home; the anchor carries an aria-label so dropping the text
+   costs the link no name. */
+@media (max-width: 430px) {
+  .topbar {
+    gap: 8px;
+    padding: 9px 14px;
+  }
+
+  .brand {
+    font-size: 0;
+  }
+
+  .topnav a {
+    padding: 6px 8px;
+    font-size: 0.74rem;
+  }
+
+  .theme-pick {
+    padding-left: 4px;
   }
 }
 

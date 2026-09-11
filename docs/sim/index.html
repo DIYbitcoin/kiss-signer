@@ -45,8 +45,13 @@
      kiss_scan_view_rect -- it used to be four percentages maintained here by
      hand, which is two rects that agree until one of them moves. */
   #lens { position: absolute; object-fit: cover; display: none; background: #000; }
-  .boot { position: absolute; inset: 0; display: grid; place-content: center;
-          gap: 14px; text-align: center; background: rgba(5,7,11,.94); padding: 24px; }
+  /* safe center, not center: on a phone the frame is under 200px tall and
+     this content needs about 270, and a plainly centred grid puts the overflow
+     ABOVE its own box where nothing can scroll to it. The language picker was
+     rendering off the top of the frame, so there was no way to choose one. */
+  .boot { position: absolute; inset: 0; display: grid; place-content: safe center;
+          gap: 14px; text-align: center; background: rgba(5,7,11,.94);
+          padding: 20px; overflow-y: auto; }
   .boot p { color: var(--muted); margin: 0; max-width: 46ch; font-size: 0.85rem; }
 
   .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
@@ -70,7 +75,7 @@
 </style>
 
     <header class="topbar">
-      <a class="brand" href="../index.html">
+      <a class="brand" href="../index.html" aria-label="KISS Signer, home">
         <img src="../assets/kiss-mark.svg" alt="" width="32" height="32">
         KISS-SIGNER
       </a>
