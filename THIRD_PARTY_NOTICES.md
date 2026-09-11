@@ -56,4 +56,3 @@ Pulled by the ESP-IDF component manager into `managed_components/` from
 | Ioskeley Mono (`docs/fonts/IoskeleyMono-*.woff2`) | the docs site typeface, self-hosted | SIL OFL 1.1, an Iosevka configuration by ahatem. License text at [`docs/fonts/LICENSE-IoskeleyMono.txt`](docs/fonts/LICENSE-IoskeleyMono.txt) |
 | Iosevka | upstream of Ioskeley Mono | SIL OFL 1.1, Belleve Invis |
 | IBM Plex Mono (`docs/fonts/IBMPlexMono-*.woff2`) | docs site fallback face, self-hosted | SIL OFL 1.1, IBM. License text at [`docs/fonts/LICENSE-IBMPlexMono.txt`](docs/fonts/LICENSE-IBMPlexMono.txt) |
-| IBM Plex Sans (`docs/fonts/IBMPlexSans-*.woff2`) | docs site prose face, self-hosted | SIL OFL 1.1, IBM. Same license text as Plex Mono, at [`docs/fonts/LICENSE-IBMPlexMono.txt`](docs/fonts/LICENSE-IBMPlexMono.txt) |

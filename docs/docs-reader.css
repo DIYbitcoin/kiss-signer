@@ -1,308 +1,229 @@
-/* ---------- the guide, read as prose ----------
-   Option 2a. The guide was set entirely in a fixed pitch at a 62-72ch measure
-   with the figures allowed to run to 1280px, so a drawing was twice the width
-   of the sentence that introduced it and the eye had to travel back across
-   empty page to find the next line. Three things change and nothing else:
-   the prose takes a proportional face, the scale gets a floor, and the text
-   and the pictures share one column.
+/* docs-reader.css — the "Reader" layout over docs/guide.html, set in the firmware face.
+   Load AFTER styles.css and the page's own <style>, on guide.html only:
+     <link rel="stylesheet" href="styles.css">
+     <link rel="stylesheet" href="docs-reader.css">
 
-   This sheet loads after styles.css AND after guide.html's own <style> block,
-   so every rule here ties on specificity with the one it replaces and wins on
-   order. That is deliberate: the selectors are copied from the markup they
-   override rather than strengthened, so nothing here is harder to override in
-   turn than what it replaced.
+   What it changes, and nothing else:
+   1. Everything stays in Ioskeley Mono, the firmware face. The line-height
+      and measure do the work a proportional face would have done.
+   2. One type scale, root 20px as before. Nothing on the page renders under
+      14px except the search key cap and the drawing's dashed vault tag.
+      Body 16, lede 20, h3 20, h2 32, labels 14, code 15.
+   3. One column. Text, figures, code blocks, tables and callouts all share the
+      same 720px measure. --figure is no longer wider than the prose.
+   4. Rhythm. 72px between sections, 20px between blocks, 40px above an h3.
 
-   IBM Plex Sans is SIL OFL 1.1, the same licence as the Plex Mono already in
-   docs/fonts/, and it is self-hosted like everything else. The site still
-   makes no third-party request. Listed in THIRD_PARTY_NOTICES.md. */
+   No new font files. */
 
-/* The Plex Sans faces and the --sans stack are declared in styles.css, beside
-   the Plex Mono ones, because site-reader.css wants them too. */
-
-/* ---------- the shell and the three columns ----------
-   1440, not the 1780 the guide asked for. 1780 existed to give the figures
-   room they no longer want; at 1440 the three tracks and their gaps fill the
-   page with no dead margin on a laptop. */
-.shell {
-  max-width: 1440px;
+:root {
+  /* the scale, in px at a 20px root */
+  --t-label: 0.7rem;   /* 14 */
+  --t-code:  0.75rem;  /* 15 */
+  --t-small: 0.75rem;  /* 15  captions, notes' fine print */
+  --t-body:  0.8rem;   /* 16 */
+  --t-h3:    1rem;     /* 20 */
+  --t-lede:  1rem;     /* 20 */
+  --t-h2:    1.6rem;   /* 32 */
+  --measure: 720px;
 }
 
+/* ---------- frame ---------- */
+.shell { max-width: 1440px; padding-top: 48px; }
 .docs-layout {
   grid-template-columns: 240px minmax(0, 1fr) 220px;
   gap: 48px;
 }
-
-.docs-toc {
-  width: 220px;
-}
-
-/* ---------- one column ----------
-   The measure and the figure width are now the same number, so a drawing
-   begins where the sentence above it begins and ends where it ends. This is
-   the whole of option 2a; the type scale below only makes it readable. */
-/* width:100% is load bearing, not belt and braces. An auto inline margin on a
-   grid item stops it stretching to its track and sizes it to fit-content
-   instead, and the derive drawing carries min-width:520px, so on a 375px
-   phone the column asked for 520, the layout viewport grew to 540 and the
-   whole page scrolled sideways -- with the drawing's own scroll box, the one
-   thing meant to absorb that width, left with nothing to do. A definite width
-   gives the item the track back, max-width caps it at the measure, and the
-   auto margins then only centre what is left. */
 .docs-body {
   width: 100%;
-  max-width: 720px;
-  margin-inline: auto;
-  font-family: var(--sans);
-  font-size: 0.85rem;   /* 17px */
-  line-height: 1.7;
-}
-
-.doc-card {
-  --figure: 100%;
-}
-
-/* The ch caps were how a 904px column was kept to a readable line. The column
-   is 720px now, so the cap is the column, and a second cap inside it only
-   makes the right edge ragged from block to block. Captions keep theirs:
-   those are deliberately narrower than the figure they sit under. */
-.doc-card > p,
-.doc-card > ul,
-.doc-card > ol,
-.doc-card > .eyebrow,
-.doc-card .lede,
-.docs-body .steps,
-.docs-body .feats,
-.note,
-.danger,
-.try,
-.codeblock {
-  max-width: none;
-}
-
-/* ---------- the scale ----------
-   14 labels, 15 code and captions and table body, 17 body, 21 lede, 22 h3,
-   34 h2. The root is 125% of the browser default, so 1rem is 20px and every
-   value below is that number over 20. Nothing lands under 14px; the one
-   exception is the / key cap in the search box, which is a glyph rather than
-   text to read and is left at 12px. */
-.doc-card h2 {
+  max-width: var(--measure);
+  justify-self: center;
   font-family: var(--mono);
-  font-size: 1.7rem;    /* 34px */
-  line-height: 1.25;
-  margin: 7px 0 18px;
+  font-size: var(--t-body);
+  line-height: 1.75;
 }
-
-.doc-card h3 {
-  font-size: 1.1rem;    /* 22px */
-  margin: 40px 0 10px;
-}
-
-.doc-card .lede {
-  font-size: 1.05rem;   /* 21px */
-  line-height: 1.55;
-}
-
-/* ---------- what stays in the fixed pitch ----------
-   A title, a label and a column head are things the device would set in mono,
-   and setting them in mono here is what keeps the guide looking like the
-   signer. The rest of this list already carries font-family: var(--mono) from
-   the block this sheet loads after -- the fingerprint, the step labels, the
-   copy buttons, the code, the search input -- so it needs no help; these are
-   the ones that would otherwise inherit the new prose face from .docs-body. */
-.doc-card .eyebrow,
-.docs-results,
-.docs-toc a,
-.matrix thead th,
-.matrix tbody th {
-  font-family: var(--mono);
-}
-
-/* The results panel was capped at 460px and a three-letter query already
-   overran it: "fee" returns seven hits and wants 518px. The crumb going from
-   12 to 14px is part of that and the rest was there before. 540 lets a common
-   query show whole; the vh term keeps it off the bottom of a short window,
-   where scrolling is the right answer. */
-.docs-results {
-  max-height: min(66vh, 540px);
-}
-
-/* ---------- rhythm ----------
-   72 between topics, 20 between blocks, 40 above a subheading, 24 around a
-   figure or a callout. One number per relationship, so the page has a pulse
-   instead of eleven slightly different gaps. */
+.doc-card { --figure: 100%; }
 .doc-card:not([hidden]) + .doc-card:not([hidden]) {
   margin-top: 72px;
   padding-top: 72px;
 }
+/* every block shares the measure; the column is the cap, not a ch count */
+.doc-card > p, .doc-card > ul, .doc-card > ol, .doc-card > .eyebrow,
+.doc-card .lede, .codeblock, .note, .danger, .try,
+.docs-body .steps, .docs-body .feats,
+.airgap figcaption, .derive figcaption, .gesture figcaption,
+.pins figcaption, .matrix-wrap figcaption {
+  max-width: none;
+}
 
-.doc-card > p,
-.doc-card > ul,
-.doc-card > ol {
+/* ---------- headings and labels (mono) ---------- */
+.docs-head h1 {
+  font-size: var(--t-label);
+  margin-bottom: 32px;
+}
+.doc-card .eyebrow {
+  font-family: var(--mono);
+  font-size: var(--t-label);
+  letter-spacing: 0.18em;
+  margin-bottom: 14px;
+}
+.doc-card h2 {
+  font-family: var(--mono);
+  font-size: var(--t-h2);
+  font-weight: 500;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
   margin: 0 0 20px;
 }
-
-.airgap,
-.derive,
-.gesture,
-.pins,
-.matrix-wrap,
-.shots,
-.shot-wide,
-.first-run,
-.note,
-.danger,
-.try,
-.codeblock {
-  margin-block: 24px;
+.doc-card h3 {
+  font-family: var(--mono);
+  font-size: var(--t-h3);
+  font-weight: 500;
+  line-height: 1.3;
+  margin: 40px 0 12px;
+}
+.doc-card .lede {
+  font-size: var(--t-lede);
+  line-height: 1.6;
+  font-weight: 500;
+  color: var(--ink);
+  margin: 0 0 24px;
 }
 
-/* ---------- everything else up to the floor ----------
-   These are the values that sat between 12 and 13.6px. Each is a label, a
-   caption or a table cell, and none of them was small because it was
-   unimportant -- the fee row of the storage matrix is one of them. */
-.docs-head h1 {
-  font-size: 0.7rem;    /* 14px, and still the breadcrumb it was */
-}
+/* ---------- body copy ---------- */
+.doc-card p, .doc-card li { color: var(--muted); }
+.doc-card > p { margin: 0 0 20px; }
+.doc-card > ul, .doc-card > ol { margin: 0 0 20px; padding-left: 24px; }
+.doc-card > ul li, .doc-card > ol li { margin-bottom: 8px; }
+.doc-card strong { color: var(--ink); font-weight: 500; }
+.doc-card a { border-bottom-color: var(--control); }
+.power-note { color: var(--muted); }
 
-.step-where,
-.docs-body .feats span,
-.copy-btn,
-.urqr-count,
-.matrix thead th,
-.matrix tbody th span,
-.matrix td span,
-.docs-results .crumb,
-.docs-results .snip,
-.docs-toc p,
-.pins-key li::before,
-.rail-group > summary {
-  font-size: 0.7rem;    /* 14px */
+code {
+  font-size: var(--t-code);
+  padding: 2px 6px;
 }
-
-pre,
-.matrix,
-.pins-key li,
-.shots figcaption,
-.first-run figcaption,
-.docs-toc a,
-.docs-results a,
-.docs-results .empty,
-#docs-q,
-.airgap figcaption,
-.derive figcaption,
-.gesture figcaption,
-.pins figcaption,
-.matrix-wrap figcaption,
-.urqr figcaption,
-.try {
-  font-size: 0.75rem;   /* 15px */
+pre {
+  font-size: var(--t-code);
+  line-height: 1.7;
+  padding: 20px 22px;
 }
+.codeblock { margin: 20px 0; }
+.copy-btn { font-size: var(--t-label); letter-spacing: 0.1em; padding: 6px 10px; }
 
-/* The ring around a step number grew with the numeral inside it. */
-.docs-body .steps li::before {
-  font-size: 0.75rem;
-}
-
-/* Step and feature titles are the rung below an h3, not an h3 themselves, so
-   they sit between the body and the subheading rather than on 22. */
-.docs-body .steps h3,
-.docs-body .feats h3 {
-  font-size: 0.95rem;   /* 19px */
-}
-
-/* The one string on the page a reader compares character by character
-   against a second source. It reads at the body size, in mono, in green. */
 .doc-card p.fp {
-  font-size: 0.9rem;    /* 18px */
+  font-size: 0.9rem;             /* 18 */
+  letter-spacing: 0.04em;
+  border-left: 2px solid var(--green);
+  background: rgba(53, 208, 127, 0.05);
+  padding: 10px 18px;
 }
 
-/* ---------- the drawings ----------
-   The airgap is drawn at 560 units wide and the derive at 560 as well. Both
-   used to render into a figure up to 1280px, where a 8.5 unit label came out
-   near 19px. At 720px the scale is 1.29, so the same label would land at 11px
-   and be the smallest text on the page. Each size below is chosen so the
-   rendered result clears 14px: 11 units renders 14.1, 12 renders 15.4,
-   12.5 renders 16.1, 13 renders 16.7. */
-.airgap .box-title {
-  font-size: 13px;
+/* ---------- the four steps ---------- */
+.docs-body .steps { margin: 24px 0 8px; }
+.docs-body .steps li {
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 4px 18px;
+  padding-bottom: 28px;
 }
-
-.airgap .box-sub,
-.airgap .vault-label,
-.airgap .gap-label,
-.airgap .wire-label,
-.derive .vault-label,
-.derive .sub {
-  font-size: 11px;
+.docs-body .steps li::before {
+  width: 32px; height: 32px;
+  font-size: 0.65rem;            /* 13, digits in a ring */
 }
+.docs-body .steps li::after { left: 16px; top: 40px; }
+.docs-body .steps h3 { font-size: 0.9rem; margin: 5px 0 0; }   /* 18 */
+.docs-body .steps p { font-size: var(--t-body); line-height: 1.7; }
+.step-where { font-size: var(--t-label); letter-spacing: 0.14em; margin-top: 6px; }
+.step-where svg { width: 14px; height: 14px; }
 
-.derive .ttl {
-  font-size: 12.5px;
+/* ---------- features ---------- */
+.docs-body .feats { gap: 32px; margin-top: 28px; }
+.docs-body .feats span { font-size: var(--t-label); letter-spacing: 0.16em; }
+.docs-body .feats h3 { font-size: 0.9rem; margin: 0; }
+.feat-ico { width: 18px; height: 18px; }
+
+/* ---------- figures: same width as the text, captions readable ---------- */
+.airgap, .derive, .gesture, .pins, .matrix-wrap, .shots, .shot-wide, .first-run {
+  max-width: 100%;
+  margin: 24px 0 8px;
 }
-
-.derive .val {
-  font-size: 12px;
+.airgap figcaption, .derive figcaption, .gesture figcaption, .pins figcaption,
+.matrix-wrap figcaption, .shots figcaption, .urqr figcaption, .first-run figcaption {
+  font-size: var(--t-small);
+  line-height: 1.55;
+  margin-top: 12px;
 }
+.urqr { gap: 20px; margin-top: 16px; }
+.urqr-stage { width: 128px; }
+.urqr-count { font-size: var(--t-label); }
+.pins-key li { font-size: var(--t-body); padding-left: 36px; }
+.pins-key li::before { width: 24px; height: 24px; font-size: 0.65rem; }
 
-/* "shown on the home screen" is the longest label in the drawing and at 11
-   units it stood 2.5 units proud of its box on each side. The tracking goes
-   rather than the size: 0.04em of letter-spacing on a lowercase caption is
-   decoration, and the uppercase titles above it are where tracking is doing
-   real work. That buys 5.3 units, which puts the label back inside the box
-   with room to spare and leaves every sub label at its 14.1px rendered size.
+/* the SVG diagrams are drawn at 560 units; at 720px that is 1.29x, so their
+   8.5–12px labels land at 11–15px. Lift the small ones so nothing is under 14. */
+.airgap .box-sub, .airgap .gap-label, .airgap .wire-label,
+.derive .sub, .derive .vault-label { font-size: 11px; }   /* ×1.29 = 14 */
+/* Two tracking values are a notch tighter than the handoff asked for, because
+   measured at 720px its own sizes put two labels hard against their boxes.
+   "SEED STAYS HERE" at 0.06em clears the 104-unit vault by 0.03 units, which
+   reads as touching; 0.04em clears it by 1.6 and keeps 13.5px exactly.
+   "shown on the home screen" at the original 0.04em stands 2.5 units PROUD of
+   its box on each side; 0.01em puts it back inside by 1.5. Both keep their
+   rendered size and both still read as tracked. */
+.derive .sub { letter-spacing: 0.01em; }
+.airgap .vault-label { font-size: 10.5px; letter-spacing: 0.04em; } /* the dashed tag; tracking is part of the drawing */
+.airgap .box-title, .derive .ttl { font-size: 12.5px; }   /* 16 */
+.derive .val { font-size: 12px; }                          /* 15 */
 
-   "SEED STAYS HERE" in the airgap drawing is the same fault with a tighter
-   box: 15 characters of tracked mono in a 104 unit vault, 5.7 units proud at
-   each end. Mono is evenly spaced already, so the tracking costs the label
-   more than it buys it. Both of these are the only two labels in either
-   drawing that outgrew their box at the new size; everything else cleared it
-   with 8 units or more. */
-.derive .sub,
-.airgap .vault-label {
-  letter-spacing: 0;
+/* ---------- storage matrix ---------- */
+.matrix { font-size: var(--t-small); }
+.matrix th, .matrix td { padding: 12px 14px; }
+.matrix thead th { font-size: var(--t-label); letter-spacing: 0.1em; }
+.matrix tbody th span, .matrix td span { font-size: var(--t-label); letter-spacing: 0; }
+
+/* ---------- callouts ---------- */
+.note, .danger {
+  font-family: var(--mono);
+  font-size: var(--t-small);     /* 15 */
+  line-height: 1.7;
+  padding: 16px 18px 16px 48px;
+  margin: 24px 0;
 }
-
-/* ---------- narrower ----------
-   The right-hand column goes at 1240 rather than 1080: three tracks plus two
-   48px gaps need more room than three tracks plus two 34px gaps did. The rail
-   still goes at 900, where styles.css turns it into a horizontal row, and
-   that rule has to be restated here because the 1240 block above it also
-   matches a 700px phone and would otherwise put the two-column grid back. */
-@media (max-width: 1240px) {
-  .docs-layout {
-    grid-template-columns: 240px minmax(0, 1fr);
-  }
-
-  .docs-toc {
-    display: none;
-  }
+.note::before, .danger::before { width: 18px; height: 18px; left: 18px; top: 18px; }
+.danger h3 { font-size: 0.9rem; margin: 0 0 10px; }
+.danger li { margin-bottom: 8px; }
+.try {
+  font-size: var(--t-small);
+  padding: 12px 16px;
+  margin: 24px 0;
 }
+.try a { font-size: var(--t-label); }
 
+/* ---------- rail and on-this-page (mono, 14px floor) ---------- */
+.docs-rail { top: 80px; }
+.rail-group { margin-top: 26px; }
+.rail-group > summary { font-size: var(--t-label); letter-spacing: 0.16em; padding: 4px 0 8px; }
+/* .rail-ico, its railPop animation, the brackets and the chevron are untouched */
+.rail-ico { width: 16px; height: 16px; }
+.docs-rail a { font-size: var(--t-label); padding: 7px 10px; margin-left: 0; line-height: 1.35; }
+.docs-toc { width: 220px; top: 80px; }
+.docs-toc p { font-size: var(--t-label); letter-spacing: 0.16em; margin-bottom: 12px; }
+.docs-toc a { font-size: var(--t-label); padding: 6px 0 6px 12px; line-height: 1.4; }
+
+/* ---------- header: leave it, except the floors ---------- */
+#docs-q { font-size: var(--t-label); }
+.docs-search kbd { font-size: 0.6rem; }   /* the one exception: a key cap, not text to read */
+.topnav a { font-size: var(--t-label); }
+.docs-results a { font-size: var(--t-small); }
+.docs-results .crumb, .docs-results .snip, .docs-results .empty { font-size: var(--t-label); }
+
+/* ---------- breakpoints ---------- */
+@media (max-width: 1080px) {
+  .docs-layout { grid-template-columns: 220px minmax(0, 1fr); gap: 40px; }
+  .docs-toc { display: none; }
+}
 @media (max-width: 900px) {
-  .docs-layout {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 18px;
-  }
-
-  .docs-body {
-    max-width: 720px;
-  }
-}
-
-/* A phone gets the same floor and a title that fits it. 28px, not 34: at
-   360px a 34px h2 sets "Checking what you downloaded" to three lines before
-   the topic has started. */
-@media (max-width: 720px) {
-  .doc-card h2 {
-    font-size: 1.4rem;  /* 28px */
-  }
-
-  .doc-card .lede {
-    font-size: 0.95rem; /* 19px */
-  }
-
-  .doc-card:not([hidden]) + .doc-card:not([hidden]) {
-    margin-top: 48px;
-    padding-top: 48px;
-  }
+  .docs-layout { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .docs-body { max-width: none; }
+  .doc-card h2 { font-size: 1.4rem; }
+  .doc-card:not([hidden]) + .doc-card:not([hidden]) { margin-top: 48px; padding-top: 48px; }
 }
