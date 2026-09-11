@@ -246,7 +246,7 @@
   "I_KEF_TERM": "ENCRYPTED SEED QR",
   "I_KEF_WARN_S": "seed kelimeleri",
   "I_KEF_WARN_S_PP": "kurtarma kelimeleri. passphrase değil",
-  "I_NOTE_BW": "add wallet > import > scan",
+  "I_NOTE_BW": "Add wallet > Import wallet > Scan\n'watch only' yazar: coinlerini görür, harcayamaz.",
   "I_NOTE_SPARROW": "File > New Wallet > Airgapped Hardware Wallet\ndescriptor okuyan her koordinatör olur.",
   "I_PAIR_BTN_NOTE": "izleyen koordinatör. imzalayamaz.",
   "I_PAIR_T": "KOORDİNATÖR EŞLEŞTİR",

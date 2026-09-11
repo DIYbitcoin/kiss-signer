@@ -246,7 +246,7 @@
   "I_KEF_TERM": "ENCRYPTED SEED QR",
   "I_KEF_WARN_S": "parole seed",
   "I_KEF_WARN_S_PP": "parole seed. non la passphrase",
-  "I_NOTE_BW": "add wallet > import > scan",
+  "I_NOTE_BW": "Add wallet > Import wallet > Scan\ndirà 'watch only': vede le tue monete, non può spendere.",
   "I_NOTE_SPARROW": "File > New Wallet > Airgapped Hardware Wallet\nva bene ogni coordinatore con descriptor.",
   "I_PAIR_BTN_NOTE": "il coordinatore che guarda. non può firmare.",
   "I_PAIR_T": "ABBINA COORDINATORE",
