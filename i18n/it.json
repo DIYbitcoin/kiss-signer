@@ -95,6 +95,7 @@
   "G_FW_DOWN_H": "TORNARE INDIETRO",
   "G_FW_DOWN_SHORT": "tornare indietro rinuncia alla correzione.",
   "G_FW_FAIL_CARD_B": "la scheda ha smesso di rispondere a metà.\n\nniente è stato reso avviabile e il dispositivo mantiene il suo firmware.",
+  "G_FW_FAIL_SIG_FIX": "il file stesso è sbagliato. riscarica la versione dalla pagina del progetto.",
   "G_FW_FAIL_PQ_B": "la firma post quantistica non è passata.\n\nnulla è avviabile, il dispositivo resta com era.",
   "G_FW_FAIL_SIG_B": "la firma non era valida.\n\nniente è stato reso avviabile e il dispositivo mantiene il suo firmware.",
   "G_FW_FAIL_T": "NON INSTALLATO",

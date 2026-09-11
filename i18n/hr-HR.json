@@ -95,6 +95,7 @@
   "G_FW_DOWN_H": "POVRATAK NATRAG",
   "G_FW_DOWN_SHORT": "povratak odbacuje ono što je popravljeno.",
   "G_FW_FAIL_CARD_B": "kartica je usred posla prestala odgovarati.\n\nništa nije postalo pokretljivo i uređaj i dalje radi na svom firmwareu.",
+  "G_FW_FAIL_SIG_FIX": "sama datoteka nije u redu. preuzmi izdanje ponovno sa stranice projekta.",
   "G_FW_FAIL_PQ_B": "post kvantni potpis je pao.\n\nništa nije pokretljivo, uređaj ostaje na svom firmveru.",
   "G_FW_FAIL_SIG_B": "potpis se nije podudarao.\n\nništa nije postalo pokretljivo i uređaj i dalje radi na svom firmwareu.",
   "G_FW_FAIL_T": "NIJE INSTALIRANO",

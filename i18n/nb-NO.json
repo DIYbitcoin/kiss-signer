@@ -95,6 +95,7 @@
   "G_FW_DOWN_H": "GÅ TILBAKE",
   "G_FW_DOWN_SHORT": "å gå tilbake gir opp det den nyere fikset.",
   "G_FW_FAIL_CARD_B": "kortet sluttet å svare underveis.\n\ningenting ble gjort oppstartbart, og enheten kjører videre på sin fastvare.",
+  "G_FW_FAIL_SIG_FIX": "selve filen er feil. hent utgivelsen på nytt fra prosjektets egen side.",
   "G_FW_FAIL_PQ_B": "den post kvante signaturen falt.\n\ningenting ble oppstartbart, enheten beholder fastvaren.",
   "G_FW_FAIL_SIG_B": "signaturen stemte ikke.\n\ningenting ble gjort oppstartbart, og enheten kjører videre på sin fastvare.",
   "G_FW_FAIL_T": "IKKE INSTALLERT",

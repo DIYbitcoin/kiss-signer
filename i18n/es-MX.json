@@ -95,6 +95,7 @@
   "G_FW_DOWN_H": "VOLVER ATRÁS",
   "G_FW_DOWN_SHORT": "volver atrás renuncia a la corrección.",
   "G_FW_FAIL_CARD_B": "la tarjeta dejó de responder a mitad.\n\nnada quedó arrancable y el dispositivo sigue con su firmware.",
+  "G_FW_FAIL_SIG_FIX": "el archivo en sí está mal. descarga la versión otra vez desde la página del proyecto.",
   "G_FW_FAIL_PQ_B": "la firma post cuántica cayó.\n\nnada quedó arrancable, el equipo conserva su firmware.",
   "G_FW_FAIL_SIG_B": "la firma no era válida.\n\nnada quedó arrancable y el dispositivo sigue con su firmware.",
   "G_FW_FAIL_T": "NO INSTALADO",

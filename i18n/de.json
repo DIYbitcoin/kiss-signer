@@ -95,6 +95,7 @@
   "G_FW_DOWN_H": "ZURÜCK GEHEN",
   "G_FW_DOWN_SHORT": "ein Rückschritt gibt die Korrektur auf.",
   "G_FW_FAIL_CARD_B": "die Karte antwortete mittendrin nicht mehr.\n\nnichts wurde startfähig gemacht und das Gerät läuft weiter wie bisher.",
+  "G_FW_FAIL_SIG_FIX": "die Datei selbst ist falsch. hol die Version noch einmal von der Seite des Projekts.",
   "G_FW_FAIL_PQ_B": "die Post Quanten Signatur fiel durch.\n\nnichts wurde startfähig, das Gerät behält seine Firmware.",
   "G_FW_FAIL_SIG_B": "die Signatur stimmte nicht.\n\nnichts wurde startfähig gemacht und das Gerät läuft weiter wie bisher.",
   "G_FW_FAIL_T": "NICHT INSTALLIERT",

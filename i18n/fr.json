@@ -95,6 +95,7 @@
   "G_FW_DOWN_H": "REVENIR EN ARRIÈRE",
   "G_FW_DOWN_SHORT": "revenir en arrière perd la correction.",
   "G_FW_FAIL_CARD_B": "la carte a cessé de répondre en cours de route.\n\nrien n'a été rendu amorçable et l'appareil garde son micrologiciel.",
+  "G_FW_FAIL_SIG_FIX": "le fichier lui-même est mauvais. reprenez la version sur la page du projet.",
   "G_FW_FAIL_PQ_B": "la signature post quantique a échoué.\n\nrien n est amorçable, l appareil garde son firmware.",
   "G_FW_FAIL_SIG_B": "la signature n'était pas valide.\n\nrien n'a été rendu amorçable et l'appareil garde son micrologiciel.",
   "G_FW_FAIL_T": "NON INSTALLÉ",

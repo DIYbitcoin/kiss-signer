@@ -40,13 +40,13 @@ The buffer was a fifth of the main task's 20KB stack, claimed in the frame that 
 
 There was a popover here: five rows, its own pager, its own remembered page, opened by a chevron that bounced forever under the caption. It was a second address picker standing beside ALL ADDRESSES, which is a list of the same hundred indices with a different pagination (3, not 5) and a different remembered position -- and the two drifted apart by construction. A swipe through the list moves s_list_base and never touches s_idx, so an owner who paged the list back to #0 and returned found the popover built around #5. That is the bench's report, and no amount of fixing the popover's memory makes two pickers on one screen agree about which one the reader meant. So the caption IS the way in, and the list is the picker. Tapping it lands on ALL ADDRESSES with the page holding s_idx already under the finger and that row already ticked; row_tap_cb picks and comes straight back. One list, one pagination, and the position is computed from the selection every time, so there is nothing left to drift.
 
-[`main/kiss_recv.c:1047`](../main/kiss_recv.c#L1047)
+[`main/kiss_recv.c:1055`](../main/kiss_recv.c#L1055)
 
 ### VERIFY belongs to THIS ADDRESS, not to the whole page
 
 It was on the band from every pane, including the [ ? ] explainer, on the argument that the explainer's own second sentence -- "check one here before you trust it" -- is what VERIFY does, so the screen was offering the thing it had just taught. The owner disagrees, twice: a control that has nothing to do with the pane under it reads as belonging to that pane. It follows the same rule NEXT ADDRESS already did. The band on the other panes is then BACK alone, which is correct here and not an EXIT finding: this screen has a tab strip, and the strip is the way between panes.
 
-[`main/kiss_recv.c:1159`](../main/kiss_recv.c#L1159)
+[`main/kiss_recv.c:1167`](../main/kiss_recv.c#L1167)
 
 ## `main/kiss_rngaudit.c`
 
@@ -258,4 +258,4 @@ The word is the FIRST stored.strokes strokes of the buffer, so once that many ha
 
 pump(30), not 20. The outgoing pane leaves on a per row stagger -- (n-1) * MO_OUT_STEP + MO_OUT_MS, which is 330ms for a six row detail pane against 320ms of pump -- so the old count photographed the previous screen still fading through this one. Invisible until overlapcheck learned to read spangroups: the ghost is a folded address, and a spangroup was not text to any check on the list.
 
-[`sim/sim_main.c:4778`](../sim/sim_main.c#L4778)
+[`sim/sim_main.c:4861`](../sim/sim_main.c#L4861)

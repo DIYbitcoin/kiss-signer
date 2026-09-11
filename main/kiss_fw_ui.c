@@ -493,14 +493,38 @@ static void result_screen(int rc)
         head[n] = 0;
         tail += 2;
     }
+    // THE ONE FAILURE WITH A REMEDY, and it is not the card.
+    //
+    // The other three are about this device or this moment: the write stopped,
+    // the card left, this build has no key. A signature that does not check out
+    // is about the FILE, and it will not check out the tenth time either -- so
+    // a screen saying only what happened invites the owner to reseat the card
+    // and hold the slide again over the same bytes.
+    //
+    // ITS OWN LABEL, under the refusal and never inside it. Appended to the
+    // paragraph above it made one 620x125 block, and a wrapping label that wide
+    // and that tall on a screen with nothing framed is what the BARE gate is
+    // for -- it caught this in English on the first run. Two claims in two
+    // boxes is also the right shape regardless: what happened is not what to
+    // do, and the second is the only line here the owner can act on.
+    const bool remedy = rc == WFW_ERR_REJECTED || rc == WFW_ERR_PQ_REJECTED;
+    const int tail_h = remedy ? 84 : WT_CONTENT_BOTTOM - 268;
     lv_obj_t *b = wt_note(s_scr, tail ? head : body, FW_TXT_X, 216, 620,
                           268 - 216 - 8);
     fw_enter(b, 240, 190);
     if (tail) {
-        lv_obj_t *tl = wt_note(s_scr, tail, FW_TXT_X, 268, 620,
-                               WT_CONTENT_BOTTOM - 268);
+        lv_obj_t *tl = wt_note(s_scr, tail, FW_TXT_X, 268, 620, tail_h);
         lv_obj_set_style_text_color(tl, WT_DIM, 0);
         fw_enter(tl, 240, 232);
+    }
+    if (remedy) {
+        // MUT, not DIM. The sentence above it is a footnote about what did not
+        // happen; this one is the step, and the two cannot read alike.
+        lv_obj_t *fx = wt_note(s_scr, tr(STR_G_FW_FAIL_SIG_FIX), FW_TXT_X,
+                               268 + tail_h + 8, 620,
+                               WT_CONTENT_BOTTOM - (268 + tail_h + 8));
+        lv_obj_set_style_text_color(fx, WT_MUT, 0);
+        fw_enter(fx, 240, 262);
     }
 
     if (ok) {
@@ -508,9 +532,15 @@ static void result_screen(int rc)
         wt_icon_text(act, sizeof act, LV_SYMBOL_REFRESH, tr(STR_G_FW_RESTART));
         wt_arrow_action(s_scr, act, false, true, WT_ACT_X, WT_ACTION_Y, 0,
                         false, restart_cb, NULL);
+    } else {
+        // The rescan the six refusals now carry, on the screen that has been
+        // doing it all along under the word BACK. Naming it leaves the corner
+        // free to be an exit, which is what the corner is everywhere else.
+        wt_arrow_action(s_scr, tr(STR_C_TRY_AGAIN), false, true, WT_ACT_X,
+                        WT_ACTION_Y, 0, false, result_back_cb, NULL);
     }
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160,
-                    true, ok ? close_cb : result_back_cb, NULL);
+                    true, close_cb, NULL);
 }
 
 // ---- 4. writing ------------------------------------------------------------

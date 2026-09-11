@@ -95,6 +95,7 @@
   "G_FW_DOWN_H": "NÁVRAT ZPĚT",
   "G_FW_DOWN_SHORT": "návrat zahodí, co novější verze opravila.",
   "G_FW_FAIL_CARD_B": "karta v půlce přestala odpovídat.\n\nnic se nestalo spustitelným a zařízení běží dál na svém firmwaru.",
+  "G_FW_FAIL_SIG_FIX": "chyba je v samotném souboru. stáhni vydání znovu ze stránky projektu.",
   "G_FW_FAIL_PQ_B": "post kvantový podpis neprošel kontrolou.\n\nnic nebylo označeno jako spustitelné a zařízení stále běží na firmwaru, který mělo.",
   "G_FW_FAIL_SIG_B": "podpis nesouhlasil.\n\nnic se nestalo spustitelným a zařízení běží dál na svém firmwaru.",
   "G_FW_FAIL_T": "NENAINSTALOVÁNO",

@@ -95,6 +95,7 @@
   "G_FW_DOWN_H": "VOLTAR ATRÁS",
   "G_FW_DOWN_SHORT": "voltar abre mão do que a nova corrigiu.",
   "G_FW_FAIL_CARD_B": "o cartão deixou de responder a meio.\n\nnada ficou arrancável e o dispositivo mantém o seu firmware.",
+  "G_FW_FAIL_SIG_FIX": "o próprio ficheiro está errado. descarregue a versão de novo na página do projeto.",
   "G_FW_FAIL_PQ_B": "a assinatura pós quântica caiu.\n\nnada ficou inicializável, o aparelho mantém o firmware.",
   "G_FW_FAIL_SIG_B": "a assinatura não era válida.\n\nnada ficou arrancável e o dispositivo mantém o seu firmware.",
   "G_FW_FAIL_T": "NÃO INSTALADO",

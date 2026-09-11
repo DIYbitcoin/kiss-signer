@@ -95,6 +95,7 @@
   "G_FW_DOWN_H": "HẠ CẤP",
   "G_FW_DOWN_SHORT": "quay lại là bỏ đi những gì bản mới đã sửa.",
   "G_FW_FAIL_CARD_B": "thẻ ngừng phản hồi giữa chừng.\n\nkhông có gì được đặt để khởi động và thiết bị vẫn chạy phần mềm cũ.",
+  "G_FW_FAIL_SIG_FIX": "chính tệp đó bị sai. tải lại bản phát hành từ trang của dự án.",
   "G_FW_FAIL_PQ_B": "chữ ký hậu lượng tử không qua.\n\nkhông có gì khởi động được, thiết bị giữ firmware cũ.",
   "G_FW_FAIL_SIG_B": "chữ ký không hợp lệ.\n\nkhông có gì được đặt để khởi động và thiết bị vẫn chạy phần mềm cũ.",
   "G_FW_FAIL_T": "CHƯA CÀI ĐẶT",

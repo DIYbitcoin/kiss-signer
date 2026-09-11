@@ -95,6 +95,7 @@
   "G_FW_DOWN_H": "POWRÓT WSTECZ",
   "G_FW_DOWN_SHORT": "cofnięcie oddaje to, co naprawiła nowsza.",
   "G_FW_FAIL_CARD_B": "karta przestała odpowiadać w trakcie.\n\nnic nie stało się startowe, a urządzenie nadal działa na swoim firmware.",
+  "G_FW_FAIL_SIG_FIX": "sam plik jest zły. pobierz wydanie jeszcze raz ze strony projektu.",
   "G_FW_FAIL_PQ_B": "podpis postkwantowy przepadł.\n\nnic nie stało się startowalne, urządzenie zostaje przy swoim.",
   "G_FW_FAIL_SIG_B": "podpis się nie zgadzał.\n\nnic nie stało się startowe, a urządzenie nadal działa na swoim firmware.",
   "G_FW_FAIL_T": "NIE ZAINSTALOWANO",
