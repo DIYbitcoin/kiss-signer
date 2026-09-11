@@ -2440,6 +2440,12 @@ int main(void) {
   // Before anything touches the fake card. Two walks on one scratch invent
   // failures rather than colliding loudly; see kiss_simpath.h.
   kiss_sim_lock(WALK_NAME);
+  // Under the lock, so this only ever clears frames this run is about to
+  // replace. State and fixtures are left alone; see kiss_simpath.h.
+  {
+    int swept = kiss_sim_sweep_frames();
+    if (swept) printf("swept %d frame(s) from the last run\n", swept);
+  }
   const char *sl = getenv("SIM_LANG");
   if (sl && *sl && strcmp(sl, "en") != 0) {
     for (int i = 0; i < I18N_LANG_N; i++)
@@ -3306,10 +3312,11 @@ int main(void) {
   must_show("keys/swipe closes help", tr(STR_K_CAP_PAIRING));
   touch(400, 150); pump(3); release(); pump(6);     // PAIRING -> PAIR COORDINATOR
   save("/tmp/sim_pair.ppm");                        // descriptor (Sparrow) active
-  // The QR moved into the right bay of the page's one card, so its centre
-  // moved with it. A stale coordinate here landed on nothing, the zoom never
-  // opened, and the next four taps walked a page the walk thought it had left.
-  touch(570, 246); pump(3); release(); pump(6);     // descriptor QR -> zoom
+  // The code's own centre. It moved into a split card and back out again
+  // while this screen was being reworked, and a stale coordinate here lands on
+  // nothing: the zoom never opens, the frame below photographs the page it was
+  // already on, and the taps after it walk a screen the walk thinks it left.
+  touch(198, 246); pump(3); release(); pump(6);     // descriptor QR -> zoom
   save("/tmp/sim_pair_zoom.ppm");
   touch(763, 35); pump(3); release(); pump(6);      // close zoom
   // BY THE TAB'S OWN WORD. The two 175x60 panes are the chrome strip's tab

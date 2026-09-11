@@ -262,8 +262,18 @@ run "screens no gate sees" "python3 tools/check_screen_coverage.py"
 # frames the walk saves, and preflight gives every run a fresh KISS_SIM_TMP, so
 # ahead of the walk the scratch is empty and it exits 1 every time. CI puts it
 # here for the same reason, in the comment on its own smoke walk step.
+#
+# ...and it RENDERS them first, which this did not. The overlap build writes no
+# images by design and check_screen_coverage drives the sim in list mode, so
+# nothing in this script had ever put a frame in the scratch: the gate read an
+# empty directory and every run of it here proved nothing. CI does not have the
+# hole because it has a "sim smoke walk" step whose whole job is this, and the
+# comment on that step says so. Same shape as check_links.py, which this script
+# listed and never ran -- a gate that cannot fail is not a gate.
 run "a walk tap that hits nothing" \
-    "python3 tools/check_sim_taps.py --selftest && python3 tools/check_sim_taps.py"
+    "SIM_LANG=en \"\$KISS_SIM_TMP/fruitsim\" > \"\$KISS_SIM_TMP/sim_en.log\" \
+     && python3 tools/check_sim_taps.py --selftest \
+     && python3 tools/check_sim_taps.py"
 
 # --- the table ------------------------------------------------------------
 echo
