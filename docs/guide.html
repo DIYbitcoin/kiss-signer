@@ -1074,6 +1074,29 @@
         font-size: 0.74rem;
       }
 
+      /* ---------- where you have been ----------
+         Thirteen topics and no sense of how much of them you have seen. A
+         topic you have opened gets a filled mark; the one you are on keeps
+         the accent it already had. Per reader, in their own browser, and the
+         page is correct with the mark absent. */
+      .docs-rail a {
+        position: relative;
+      }
+      .docs-rail a.seen::after {
+        content: "";
+        position: absolute;
+        right: 9px;
+        top: 50%;
+        width: 4px;
+        height: 4px;
+        margin-top: -2px;
+        border-radius: 50%;
+        background: var(--dim);
+      }
+      .docs-rail a[aria-current]::after {
+        display: none;
+      }
+
       /* ---------- on this page ----------
          Built from the headings of whichever topic is showing. The long ones
          (checking a download, first boot, encryption) run several screens, and
@@ -1959,6 +1982,36 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         revealEls.forEach((el) => el.classList.add("is-visible"));
       }
 
+      /* ---------- where you have been ----------
+         localStorage, so it is this reader's browser and nothing else. Every
+         access is guarded: a private window, cleared site data or a browser
+         set to refuse storage all throw here, and a guide that will not render
+         because it could not remember which topics you read is a worse guide
+         than one with no marks. */
+      (function () {
+        var KEY = "kiss.docs.seen";
+        var seen = {};
+        try {
+          seen = JSON.parse(localStorage.getItem(KEY) || "{}") || {};
+        } catch (e) {
+          seen = {};
+        }
+
+        function paint() {
+          document.querySelectorAll('.docs-rail a[href^="#"]').forEach(function (a) {
+            a.classList.toggle("seen", !!seen[a.getAttribute("href").slice(1)]);
+          });
+        }
+
+        window.__docsSeen = function (id) {
+          if (!id || seen[id]) { paint(); return; }
+          seen[id] = 1;
+          try { localStorage.setItem(KEY, JSON.stringify(seen)); } catch (e) {}
+          paint();
+        };
+        paint();
+      })();
+
       /* ---------- search ----------
          Built from the page's own headings at load, so there is no index file
          to keep in step with the prose and nothing to fetch. Each topic
@@ -2343,6 +2396,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
             else window.__gesture.reset();
           }
           if (window.__urqr) window.__urqr(opened && target.id === "features");
+          if (window.__docsSeen) window.__docsSeen(target.id);
 
           /* the on-this-page column lists the topic you are on, so it is
              rebuilt here rather than once at load */
