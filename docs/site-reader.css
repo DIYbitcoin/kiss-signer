@@ -1,0 +1,63 @@
+/* ---------- the install page, same floor ----------
+   The guide gets a new voice; this page keeps the one it has. The install
+   screen is a control panel -- a button, a checkbox, three numbered moves and
+   a receipt -- and a fixed pitch is right for all of it. What is not a
+   control is a sentence, and those five run in the prose face so the page
+   reads at a glance instead of asking to be parsed.
+
+   Loads after styles.css. index.html has no inline <style> block, so there is
+   nothing else to sit behind.
+
+   The Plex Sans faces and --sans live in styles.css, next to Plex Mono. */
+
+/* ---------- the sentences ----------
+   Step copy, the acknowledgement, the SD route, the receipt labels and the
+   browser note. Everything else on the page -- the headings, the button, the
+   pills, the receipt's own answers, the footer -- stays in mono, because
+   every one of those is a label or a value rather than something to read. */
+.install-steps p,
+.ack-row span,
+.sd-route,
+.receipt-row span,
+.browser-note {
+  font-family: var(--sans);
+}
+
+/* The answers stay in the fixed pitch even though the label beside them no
+   longer is: they are a digest, a key id and a verdict, and they are meant to
+   be compared character by character with a second source. */
+.receipt-row strong,
+.sd-route strong {
+  font-family: var(--mono);
+}
+
+/* ---------- the floor ----------
+   The root is 125% of the browser default, so 1rem is 20px and most of this
+   page already clears 14px: the pills sit at exactly 14, the receipt summary
+   and the reveal caption at 14.4, the footer links at 16.4. One value was
+   under it, and it is the numeral in the ring that marks each install step. */
+.install-steps li::before {
+  font-size: 0.7rem;    /* 14px, was 13.6 */
+}
+
+/* The sentences gain a little lead now that they are set proportionally; a
+   sans face at the same size carries a shorter line and reads tight at the
+   mono leading. */
+.install-steps p {
+  line-height: 1.5;
+}
+
+.ack-row span,
+.sd-route,
+.browser-note {
+  line-height: 1.5;
+}
+
+/* NOTE ON THE TWO PHONE BREAKPOINTS
+   The handoff asks this sheet to override the 640px and 430px blocks in
+   styles.css "that drop the brand and tabs to 0.74-0.78rem". At a 20px root
+   those are 15.6px and 14.8px, both already over the floor, so there is
+   nothing here to lift and no override is written. The one value those blocks
+   take to zero is the brand wordmark at 430px, and that is deliberate: the
+   mark stands alone, the anchor keeps its aria-label, and restoring the text
+   puts the header back on three rows at phone width. Left as it is. */

@@ -484,7 +484,7 @@ echo "STALE backlog: $stale_n entry(s), $(printf '%s\n' "$stale_dead" | grep -c 
 # are surface colours used as ink, which main/kiss_theme.h forbids in its own
 # words -- "Never use one as a text colour except WT_DIM" -- and they measure
 # 1.23:1 and 1.57:1. Those are the ones to take first.
-FAINT_MAX="${FAINT_MAX:-12}"
+FAINT_MAX="${FAINT_MAX:-10}"
 faint_ok=1
 if [ "$faint_objs" -gt 0 ]; then
     echo

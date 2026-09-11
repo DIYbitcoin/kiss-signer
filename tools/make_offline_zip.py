@@ -62,12 +62,26 @@ SITE_REQUIRED = [
     "verify-release.html",
     "app.js",
     "styles.css",
+    # The guide's reader layer: the prose face, the type floor and the single
+    # column. It only overrides styles.css, so the page is readable without it
+    # -- but it would be readable in the old cramped way, which is not what the
+    # zip should hand someone with no network to go and compare against.
+    "docs-reader.css",
+    # The install page's half of the same layer. This page is built from the
+    # OFFLINE_INDEX string below rather than from index.html, and it carries
+    # the same classes, so leaving the sheet behind would be the one place in
+    # the project where the install copy still set itself in the old way.
+    "site-reader.css",
     # the accent picker; sets the theme attributes before first paint
     "theme.js",
     "assets/kiss-mark.svg",
     "fonts/IBMPlexMono-Regular.woff2",
     "fonts/IBMPlexMono-Medium.woff2",
     "fonts/IBMPlexMono-SemiBold.woff2",
+    # the prose face; styles.css declares it for both reader sheets
+    "fonts/IBMPlexSans-Regular.woff2",
+    "fonts/IBMPlexSans-Medium.woff2",
+    "fonts/IBMPlexSans-SemiBold.woff2",
     "fonts/IoskeleyMono-Regular.woff2",
     "fonts/IoskeleyMono-Medium.woff2",
     "fonts/IoskeleyMono-Bold.woff2",
@@ -136,9 +150,10 @@ def app_ids() -> list[str]:
 # that sells the product is gone, and everything that explains it is one link
 # away in guide.html, which travels in the same zip.
 #
-# It reuses styles.css and app.js unchanged rather than carrying its own, so
-# there is one stylesheet and one verifier in this project, not two. The ids
-# below are what app.js binds to; --check asserts they are all still here.
+# It reuses styles.css, site-reader.css and app.js unchanged rather than
+# carrying its own, so there is one stylesheet and one verifier in this
+# project, not two. The ids below are what app.js binds to; --check asserts
+# they are all still here.
 OFFLINE_INDEX = """<!doctype html>
 <html lang="en">
   <head>
@@ -149,6 +164,7 @@ OFFLINE_INDEX = """<!doctype html>
     <!-- Both faces are self-hosted under fonts/, so this page makes no request
          to any third party. See the @font-face block at the top of styles.css. -->
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="site-reader.css">
     <script src="theme.js"></script>
     <script type="module" src="installer/vendor/esp-web-tools/install-button.js"></script>
   </head>
