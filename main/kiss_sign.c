@@ -1335,8 +1335,8 @@ static void held_screen(lv_obj_t *parent, const char *why, bool was_qr)
     // that ALSO holds the screen's own actions, and it keeps its destination:
     // abandoning here is the same abandoning fail_screen does, one step back
     // to where the trail says the transaction came from.
-    wt_arrow_action(s_scr, tr(STR_L_DISCARD), true, false, WT_EXIT_X,
-                    WT_ACTION_Y, 140, true,
+    lv_obj_t *quit = wt_arrow_action(s_scr, tr(STR_L_DISCARD), true, false,
+                    WT_EXIT_X, WT_ACTION_Y, 140, true,
                     s_src == SRC_SD ? files_back_cb : choose_back_cb, NULL);
     lv_obj_t *again = wt_arrow_action(s_scr, tr(STR_C_TRY_AGAIN), false, true,
                                       WT_ACT_X, WT_ACTION_Y, 0, false,
@@ -1355,9 +1355,32 @@ static void held_screen(lv_obj_t *parent, const char *why, bool was_qr)
     lv_obj_update_layout(again);
     int ox = WT_ACT_X + lv_obj_get_width(again) + 32;
     if (ox < 330) ox = 330;              // ...and never tighter than that row
-    wt_arrow_action(s_scr, tr(s_held_qr ? STR_S_OUT_SD : STR_S_OUT_QR),
+    lv_obj_t *other = wt_arrow_action(s_scr,
+                    tr(s_held_qr ? STR_S_OUT_SD : STR_S_OUT_QR),
                     false, false, ox, WT_ACTION_Y, 0, false, held_other_cb,
                     NULL);
+    // AND MEASURED AGAINST THE EXIT AT THE OTHER END, not only against the
+    // action it sits beside. Three controls on one band close from both sides:
+    // the exit is right-aligned and grows leftwards, this one is left-aligned
+    // and grows rightwards, and the word in the corner changed from BACK to
+    // DISCARD. ABANDONNER and UTILISER CARTE met in French, DESCARTAR and USAR
+    // CARTÃO in European Portuguese, and the overlap gate found both -- two
+    // locales out of twenty one, which is what a constant is worth here.
+    //
+    // The 330 above is an alignment convention and this is a collision, so
+    // this wins: the control slides left until it is 24px clear, and no
+    // further than 24px off TRY AGAIN. If it cannot fit even there the band is
+    // genuinely full and the gate should say so rather than have it hidden.
+    lv_obj_update_layout(other);
+    lv_area_t qa, oa;
+    lv_obj_get_coords(quit, &qa);
+    lv_obj_get_coords(other, &oa);
+    if (oa.x2 + 24 > qa.x1) {
+        int nx = qa.x1 - 24 - lv_obj_get_width(other);
+        int floor_x = WT_ACT_X + lv_obj_get_width(again) + 24;
+        if (nx < floor_x) nx = floor_x;
+        lv_obj_set_x(other, nx);
+    }
 }
 
 // The dead end: a hold that produced no signature at all. Everything about

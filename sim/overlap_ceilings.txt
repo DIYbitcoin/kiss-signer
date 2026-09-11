@@ -63,7 +63,7 @@ nb-NO 12
 nl 33
 pl 24
 pt-BR 15
-pt-PT 18
+pt-PT 17
 ru 31
 sv-SE 24
 tr 14
