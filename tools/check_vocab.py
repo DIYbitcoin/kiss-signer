@@ -546,7 +546,6 @@ DOCS_RULES = ["WALLET", "BARE-WORDS", "COINED-WORDS"]
 # Shrink-only, like a rule's BACKLOG: a phrase that stops appearing is
 # reported so the list cannot outlive the sentences it was written for.
 DOCS_ALLOW = {
-    "online wallet": "the coordinator's object, watching the chain",
     "watch-only wallet": "what a coordinator calls the import it gets",
     # The other legitimate sense, and the one W_WHATSEED_B is already allowed
     # for on the glass: every BIP39 wallet that exists, said about the shared
