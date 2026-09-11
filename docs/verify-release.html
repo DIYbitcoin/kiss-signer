@@ -58,7 +58,15 @@
       h2::after { content: " ]"; color: #2a3346; }
       p { margin: 8px 0; }
       .mut { color: #7a869c; }
-      .mono { font-family: ui-monospace, Menlo, Consolas, monospace; }
+      /* A 64 character digest has nowhere to break, so on a 375px phone one
+         of these spans held the layout open at 711px and the whole page
+         scrolled sideways. #hash already broke anywhere; every other place a
+         hash or a fingerprint is printed needs the same, and they are the
+         strings this page exists to show. */
+      .mono {
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+        overflow-wrap: anywhere;
+      }
       .card {
         border: 1px solid #1e2531;
         border-radius: 12px;
