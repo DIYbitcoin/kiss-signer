@@ -228,12 +228,6 @@ OFFLINE_INDEX = """<!doctype html>
             <button slot="activate" class="flash-button" type="button">
               Connect and install
             </button>
-            <span slot="unsupported">
-              This browser can&rsquo;t talk to the device. Open the address in
-              Chrome, Brave or Edge &mdash; they all work on macOS too &mdash;
-              or <a href="guide.html#esptool">flash it from the command
-              line</a> instead, which needs no new browser.
-            </span>
             <span slot="not-allowed">
               Open the localhost address the serve file printed, not the file
               itself.

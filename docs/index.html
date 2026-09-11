@@ -121,12 +121,11 @@
             <button slot="activate" class="flash-button" type="button">
               Connect and install
             </button>
-            <span slot="unsupported">
-              This browser can&rsquo;t talk to the device. Open the page in Chrome,
-              Brave or Edge &mdash; they all work on macOS too &mdash; or
-              <a href="guide.html#esptool">flash it from the command line</a>
-              instead, which needs no new browser.
-            </span>
+            <!-- No "unsupported" slot. It can never render: this element is
+                 given is-hidden whenever the gate is shut, and a browser with
+                 no Web Serial can never open the gate, so the slot describing
+                 exactly that reader was the one they could not reach. The
+                 note below the card does that job, outside the gate. -->
             <span slot="not-allowed">
               This needs to be served over HTTPS, or from localhost.
             </span>
