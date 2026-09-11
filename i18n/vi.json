@@ -246,7 +246,7 @@
   "I_KEF_TERM": "ENCRYPTED SEED QR",
   "I_KEF_WARN_S": "từ khôi phục",
   "I_KEF_WARN_S_PP": "từ seed. không phải cụm mật khẩu",
-  "I_NOTE_BW": "add wallet > import > scan\n'watch-only' là đúng: ký ở ĐÂY.",
+  "I_NOTE_BW": "add wallet > import > scan",
   "I_NOTE_SPARROW": "File > New Wallet > Airgapped Hardware Wallet\nứng dụng điều phối đọc descriptor là được.",
   "I_PAIR_BTN_NOTE": "bộ điều phối theo dõi. nó không ký được.",
   "I_PAIR_T": "GHÉP APP ĐIỀU PHỐI",

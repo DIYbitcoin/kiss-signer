@@ -246,7 +246,7 @@
   "I_KEF_TERM": "ENCRYPTED SEED QR",
   "I_KEF_WARN_S": "復元用の単語",
   "I_KEF_WARN_S_PP": "シードフレーズ。パスフレーズではない",
-  "I_NOTE_BW": "add wallet > import > scan\n'watch-only' で正解。署名はここです。",
+  "I_NOTE_BW": "add wallet > import > scan",
   "I_NOTE_SPARROW": "File > New Wallet > Airgapped Hardware Wallet\nディスクリプタを読むコーディネーターなら可。",
   "I_PAIR_BTN_NOTE": "見るためのコーディネーター。署名はできません。",
   "I_PAIR_T": "コーディネーター連携",
