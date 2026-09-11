@@ -35,6 +35,12 @@ LAT="0x20-0x7E,0xA0-0xFF,0x100-0x17F,0x1A0-0x1B0,0x1EA0-0x1EF9,0x400-0x45F,0x490
 #   61481 F029 qrcode    61572 F084 key    61979 F21B user-secret
 #   61633 F0C1 link      61498 F03A list   61541 F065 expand
 #   61536 F060 arrow-left           61537 F061 arrow-right
+#   61704 F108 desktop   62413 F3CD mobile-alt
+# The last two name WHERE a coordinator runs, on the pairing tabs. They
+# replaced F095, the telephone HANDSET, which is FontAwesome's "place a call"
+# glyph and was standing in for "a wallet on a phone" on a signer that has no
+# radio and never makes one. F095 is dropped from the set with them, so the
+# handset is not in this firmware at any size.
 # The last five are the KEYS/RECEIVE redesign's own marks. The long arrows are
 # not the chevrons LV_SYMBOL_LEFT/RIGHT give: the drawing uses a full arrow to
 # say "this takes you somewhere" and a chevron reads as a list disclosure.
@@ -57,7 +63,7 @@ LAT="0x20-0x7E,0xA0-0xFF,0x100-0x17F,0x1A0-0x1B0,0x1EA0-0x1EF9,0x400-0x45F,0x490
 #   61612 F0AC globe  (WT_ICON_LANG)
 # Only the Latin faces need these: every locale's font is a Latin base with the
 # CJK face as its FALLBACK, so an icon resolves in the base whatever the language.
-SYMS="61441,61448,61451,61452,61453,61457,61459,61461,61465,61468,61473,61475,61478,61479,61480,61481,61488,61498,61502,61507,61512,61515,61516,61517,61521,61522,61523,61524,61536,61537,61541,61543,61544,61550,61552,61553,61556,61559,61560,61561,61563,61572,61587,61589,61612,61633,61636,61637,61639,61641,61664,61671,61674,61683,61724,61732,61736,61787,61931,61979,62016,62017,62018,62019,62020,62087,62099,62189,62212,62445,62810,62835,63426,63650"
+SYMS="61441,61448,61451,61452,61453,61457,61459,61461,61465,61468,61473,61475,61478,61479,61480,61481,61488,61498,61502,61507,61512,61515,61516,61517,61521,61522,61523,61524,61536,61537,61541,61543,61544,61550,61552,61553,61556,61559,61560,61561,61563,61572,61587,61612,61633,61636,61637,61639,61641,61664,61671,61674,61683,61704,61724,61732,61736,61787,61931,61979,62016,62017,62018,62019,62020,62087,62099,62189,62212,62413,62445,62810,62835,63426,63650"
 
 conv() { npx lv_font_conv --no-compress --no-prefilter --bpp 4 --format lvgl \
                           --force-fast-kern-format "$@"; }

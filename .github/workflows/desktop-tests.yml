@@ -73,6 +73,17 @@ jobs:
         if: always()
         run: python3 tools/check_vocab.py
 
+      # docs/ is what Pages serves, so a link in one of those files is a
+      # link a reader clicks on the site. Six were broken, four of them the
+      # roadmap pointing at the security plan by its path from the repository
+      # root -- a 404 on the two documents somebody deciding whether to trust
+      # this firmware reads first.
+      - name: every link in the docs points at something
+        if: always()
+        run: |
+          python3 tools/check_links.py --selftest
+          python3 tools/check_links.py
+
       # tr_reason ends `return r;`, so a refusal it has no entry for shows
       # the C string itself -- developer English, in all 21 locales, on the
       # screen that exists to say why an owner's money is not moving. Three
@@ -604,9 +615,25 @@ jobs:
       # that needs it, so the log's last word is "sdl2-config: command not
       # found" -- a missing dependency, reported instead of the real failure
       # twenty lines up. It cost the first read of exactly that log.
+      # `apt-get update && apt-get install` took this lane down on a green
+      # tree. The runner image ships third-party apt sources this project
+      # never asked for, one of them Google Chrome's, and its index came back
+      # with a hash mismatch. update exited 100, the && stopped there, SDL2
+      # was never installed, and the NEXT step is where it surfaced -- as
+      # 'SDL.h' file not found, which reads like a missing include. main
+      # carried a red cross on its front page for a day for that.
+      #
+      # So an index this build does not use cannot fail it: update reports
+      # what it likes, the install is the thing that has to succeed, and
+      # sdl2-config is asked to speak so the failure lands on THIS step with
+      # the name of the thing that is missing rather than on a compile.
       - name: SDL2 for the interactive simulator
         if: always()
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq libsdl2-dev
+        run: |
+          sudo apt-get update -qq \
+            || echo "apt-get update reported errors; the install below is the gate"
+          sudo apt-get install -y -qq libsdl2-dev
+          sdl2-config --version
 
       - name: interactive simulator builds and boots
         if: always()

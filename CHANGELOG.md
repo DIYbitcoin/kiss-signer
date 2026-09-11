@@ -196,4 +196,4 @@ glass; this one makes sure you can read them standing up.
 - **Eighteen checkers prove they still fire.** Six had no self test at all, and
   one of those was the check that had just caught a real failure.
 
-Earlier releases are in [CHANGELOG-ARCHIVE.md](CHANGELOG-ARCHIVE.md).
+Earlier releases are in [CHANGELOG-ARCHIVE.md](docs/CHANGELOG-ARCHIVE.md).

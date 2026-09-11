@@ -2073,8 +2073,16 @@ void wt_qr_refusal(lv_obj_t *qr, bool locked)
     else        lv_obj_remove_flag(card, LV_OBJ_FLAG_HIDDEN);
 }
 
-lv_obj_t *wt_qr_card(lv_obj_t *scr, lv_obj_t **qr,
-                     int x, int y, int card_px, int qr_px)
+// The cue is OPTIONAL, and that is the whole difference between the two
+// entry points below. It is drawn at x - 36, which only lands anywhere sane
+// when the card is at the page's left margin -- on a card set into a column it
+// falls INSIDE the layout, over whatever shares the lane. Two screens wanted
+// the card somewhere else at once (PAIR COORDINATOR puts it in the right half
+// of a split card with its own enlarge ring beside it, and the SIGNED QR page
+// wants no edge cue at all), and both of them would otherwise have had to
+// delete a child the kit had just built.
+static lv_obj_t *qr_card_make(lv_obj_t *scr, lv_obj_t **qr,
+                              int x, int y, int card_px, int qr_px, bool cue)
 {
     lv_obj_t *q = NULL;
     lv_obj_t *card = qr_card_raw(scr, &q, x, y, card_px, qr_px);
@@ -2097,11 +2105,24 @@ lv_obj_t *wt_qr_card(lv_obj_t *scr, lv_obj_t **qr,
     lv_obj_add_event_cb(card, qr_zoom_open_cb, LV_EVENT_CLICKED, s);
     lv_obj_add_event_cb(card, qr_state_delete_cb, LV_EVENT_DELETE, s);
     // Outside the white card, so the cue never damages the QR quiet zone.
-    round_chip(scr, LV_SYMBOL_PLUS, x - 36, y + 8, WT_MUT,
-               qr_zoom_open_cb, s);
+    if (cue)
+        round_chip(scr, LV_SYMBOL_PLUS, x - 36, y + 8, WT_MUT,
+                   qr_zoom_open_cb, s);
 
     if (qr) *qr = q;
     return card;
+}
+
+lv_obj_t *wt_qr_card(lv_obj_t *scr, lv_obj_t **qr,
+                     int x, int y, int card_px, int qr_px)
+{
+    return qr_card_make(scr, qr, x, y, card_px, qr_px, true);
+}
+
+lv_obj_t *wt_qr_card_bare(lv_obj_t *scr, lv_obj_t **qr,
+                          int x, int y, int card_px, int qr_px)
+{
+    return qr_card_make(scr, qr, x, y, card_px, qr_px, false);
 }
 
 static void qr_zoom_open_cb(lv_event_t *e)
@@ -2210,12 +2231,13 @@ void wt_addr_fold(const char *addr, char *out, size_t len)
     size_t n = addr ? strlen(addr) : 0;
     if (!out || !len) return;
     if (n < 20) { snprintf(out, len, "%s", addr ? addr : ""); return; }
-    int pre = !strncmp(addr, "tsp1", 4) ? 5
-            : (!strncmp(addr, "bc1", 3) || !strncmp(addr, "tb1", 3) ||
-               !strncmp(addr, "sp1", 3)) ? 4 : 0;
-    const char *t = addr + n - 12;
+    // wt_group4's blocks, same as wt_addr_short and the card -- see the note
+    // there. A row's sub-line and the screen it opens have to break one
+    // address in one place.
+    const size_t first = n % 4 == 0 ? 4 : n % 4 + 4;
     snprintf(out, len, "%.*s %.4s \xE2\x80\xA6 %.4s %.4s %.4s",
-             pre, addr, addr + pre, t, t + 4, t + 8);
+             (int)first, addr, addr + first,
+             addr + n - 12, addr + n - 8, addr + n - 4);
 }
 
 const char *wt_name_fold(const char *name, const lv_font_t *f, int lane,
@@ -2280,30 +2302,32 @@ lv_obj_t *wt_addr_short(lv_obj_t *par, const char *addr, const lv_font_t *f)
     //
     // The rendered string is unchanged, character for character. Only which
     // span carries the accent moved.
-    int pre = !strncmp(addr, "tsp1", 4) ? 5
-            : (!strncmp(addr, "bc1", 3) || !strncmp(addr, "tb1", 3) ||
-               !strncmp(addr, "sp1", 3)) ? 4 : 0;
-    char head[8] = {0}, key[8] = {0}, mid[32] = {0}, tail[16] = {0};
-    lv_memcpy(head, addr, (size_t)pre);
-    lv_memcpy(key, addr + pre, 4);
-    // Twelve from the end, in three blocks of four. Chunking from the RIGHT is
-    // the point: 42 characters do not divide by four, so grouping from the left
-    // would leave the final block short and the lit run would straddle a gap.
-    // The first of the three stays grey; the last two ARE the eight.
-    const char *t = addr + n - 12;
-    snprintf(mid, sizeof mid, "  \xE2\x80\xA6  %.4s ", t);
-    snprintf(tail, sizeof tail, "%.4s %.4s", t + 4, t + 8);
+    // THE SAME BLOCKS THE FULL ADDRESS IS DRAWN IN, sliced out of the same
+    // rule. This used to cut its own: a prefix span through the first data
+    // character, then the four after it. wt_group4 puts the address's one
+    // short token at the head instead, so "bc1qcr 8te4" there was "bc1q cr8t"
+    // here -- the same eight characters in different blocks, which reads as a
+    // block repeating when the card opens over the fold. The tail had the
+    // matching split at the other end.
+    //
+    // Boundaries are computed, not parsed: wt_group4's first token is the
+    // remainder joined to a full block and every token after it is four, so
+    // n-12, n-8 and n-4 are all token starts. The three tail blocks are
+    // therefore the grouped string's final three, character for character,
+    // and the lit two are its final two -- the same run addr_spans lights on
+    // the card. The two forms cannot show different blocks again unless
+    // wt_group4 changes, and then they both change together.
+    const size_t first = n % 4 == 0 ? 4 : n % 4 + 4;
+    char head[16] = {0}, mid[32] = {0}, tail[16] = {0};
+    snprintf(head, sizeof head, "%.*s %.4s", (int)first, addr, addr + first);
+    snprintf(mid, sizeof mid, "  \xE2\x80\xA6  %.4s ", addr + n - 12);
+    snprintf(tail, sizeof tail, "%.4s %.4s", addr + n - 8, addr + n - 4);
 
     lv_obj_t *sg = lv_spangroup_create(par);
     addr_spans_no_click(sg);
     lv_spangroup_set_mode(sg, LV_SPAN_MODE_EXPAND);   // one line, sized to fit
     lv_obj_set_style_text_font(sg, f, 0);
-    if (pre) {
-        char pfx[8];
-        snprintf(pfx, sizeof pfx, "%s ", head);
-        addr_span(sg, pfx, false);
-    }
-    addr_span(sg, key, false);
+    addr_span(sg, head, false);
     addr_span(sg, mid, false);
     addr_span(sg, tail, true);
     // The same flag addr_spans sets, and for the same reason: a span carries
@@ -6718,6 +6742,156 @@ static void span_run(lv_obj_t *sg, const char *txt, const char *hi)
 // _fit twin that re-texts them after the fact -- the settings chooser caption
 // swaps on every tap -- so the rebuild has to be a first class operation, not
 // something only the constructor can do.
+// Does this text end a sentence anywhere? The one rule, shared by prebreak
+// (which protects the stops) and the span loop below (which colours them), so
+// the two can never disagree about what a stop is.
+static bool is_stop_at(const char *txt, size_t i)
+{
+    const bool cjk = (unsigned char)txt[i] == 0xE3 &&
+                     (unsigned char)txt[i + 1] == 0x80 &&
+                     (unsigned char)txt[i + 2] == 0x82 && i > 0;
+    return cjk || (txt[i] == '.' && i > 0 &&
+                   ((txt[i - 1] >= 'a' && txt[i - 1] <= 'z') ||
+                    (txt[i - 1] >= 'A' && txt[i - 1] <= 'Z') ||
+                    (txt[i - 1] >= '0' && txt[i - 1] <= '9')) &&
+                   (txt[i + 1] == '\0' || txt[i + 1] == ' ' ||
+                    txt[i + 1] == '\n'));
+}
+
+// Any CJK, kana or Hangul codepoint. 0x2E80 up starts above every script that
+// separates words with spaces -- Cyrillic, Greek, Arabic and Devanagari are
+// all below it.
+static bool has_cjk(const char *txt)
+{
+    for (const char *p = txt; *p; ) {
+        const unsigned char c = (unsigned char)*p;
+        const int cl = c < 0xC0 ? 1 : c < 0xE0 ? 2 : c < 0xF0 ? 3 : 4;
+        if (cl >= 4) return true;
+        if (cl == 3) {
+            const unsigned cp = ((unsigned)(c & 0x0F) << 12) |
+                                ((unsigned)(p[1] & 0x3F) << 6) |
+                                (unsigned)(p[2] & 0x3F);
+            if (cp >= 0x2E80) return true;
+        }
+        p += cl;
+    }
+    return false;
+}
+
+static bool has_stop(const char *txt)
+{
+    for (size_t i = 0; txt[i]; i++)
+        if (is_stop_at(txt, i)) return true;
+    return false;
+}
+
+// Append a byte range, bounded. Leaves what is there when it will not fit.
+static bool out_put(char *out, size_t out_len, size_t *o, const char *s, size_t n)
+{
+    if (*o + n + 1 > out_len) return false;
+    lv_memcpy(out + *o, s, n);
+    *o += n;
+    out[*o] = 0;
+    return true;
+}
+
+// Choose the lines a body wraps onto, and write them back as hard breaks.
+//
+// The accent stop is its own span and a lone span is a break opportunity, so
+// LVGL could put ". " at the head of a line -- "it sees every transaction" /
+// ". it can never spend one." reached the bench twice. spans_fill recorded it
+// as unfixable because LVGL cannot bond one span to the span before it, and
+// the answer was to move the copy. That answer depends on the lane width, the
+// font the fit picked and the word that happens to land at the edge, in each
+// of 21 locales, which is not an answer.
+//
+// So the line breaks stop being LVGL's to choose. Greedy, on WHOLE WORDS,
+// measured with the public lv_text_get_size. "transaction." is one word to
+// this loop, so a stop cannot be the first thing on a line -- an invariant of
+// the layout instead of a property of the string. With every line already
+// fitted, no span boundary is left for LVGL to break at.
+//
+// lv_text_get_next_line does this job and is what LVGL breaks with itself, but
+// it lives in lv_text_private.h. App code reaching into a vendored private
+// header is a build break at the next LVGL bump, and wt_name_fold in this file
+// already measures the same way.
+//
+// Original bytes are copied through verbatim, never re-joined: a mark glued on
+// by tr_sym carries two spaces after it, and normalising runs of spaces would
+// tear that apart.
+static void prebreak(const char *txt, lv_obj_t *sg, char *out, size_t out_len)
+{
+    size_t o = 0;
+    if (!out || !out_len) return;
+    out[0] = 0;
+    if (!txt) return;
+
+    const lv_font_t *f = lv_obj_get_style_text_font(sg, 0);
+    const int32_t ls = lv_obj_get_style_text_letter_space(sg, 0);
+    int lane = lv_obj_get_content_width(sg);
+    // ZERO HERE, always, on the first fill. spans_fill runs while a screen is
+    // being BUILT and no layout pass has happened, so the computed width is
+    // not yet a number. The SET width is: every caller arrives through
+    // spans_new, which sets it explicitly and strips every style, so there is
+    // no padding standing between the two.
+    if (lane <= 0) {
+        const int32_t w = lv_obj_get_style_width(sg, 0);
+        if (w > 0) lane = (int)w;
+    }
+    // No font or no width yet: hand the text back untouched and let LVGL wrap
+    // it as before. Worse than the fix, never worse than not having it.
+    if (!f || lane <= 0) { snprintf(out, out_len, "%s", txt); return; }
+
+    char cand[640];
+    lv_point_t sz;
+
+    const char *line = txt;      // first byte of the line being measured
+    const char *brk  = NULL;     // last space on it: the break candidate
+    const char *p    = txt;
+
+    for (;;) {
+        // One token: a run of non-space bytes. Whole words only, which is
+        // what makes the guarantee -- "transaction." is one token, so a stop
+        // cannot be the first thing on a line.
+        while (*p && *p != ' ' && *p != '\n') p++;
+
+        const size_t n = (size_t)(p - line);
+        if (n && n < sizeof cand) {
+            lv_memcpy(cand, line, n);
+            cand[n] = 0;
+            lv_text_get_size(&sz, cand, f, ls, 0, LV_COORD_MAX,
+                             LV_TEXT_FLAG_NONE);
+            // Past the lane, and there is somewhere to give back: the line
+            // ends there and this token opens the next one. A single token
+            // longer than the whole lane has nowhere to give and stays put,
+            // which leaves LVGL to break it mid-token exactly as it does now.
+            if (sz.x > lane && brk && brk > line) {
+                if (!out_put(out, out_len, &o, line, (size_t)(brk - line)) ||
+                    !out_put(out, out_len, &o, "\n", 1))
+                    return;
+                // The space is consumed by the break it caused.
+                line = brk + 1;
+                while (*line == ' ') line++;
+                p   = line;
+                brk = NULL;
+                continue;                        // re-measure on the new line
+            }
+        }
+        if (*p == '\n') {                        // a break the copy asked for
+            if (!out_put(out, out_len, &o, line, (size_t)(p - line) + 1))
+                return;
+            p++;
+            line = p;
+            brk  = NULL;
+            continue;
+        }
+        if (!*p) break;
+        brk = p;                                 // a space, and a candidate
+        p++;
+    }
+    if (*line) out_put(out, out_len, &o, line, strlen(line));
+}
+
 static void spans_fill(lv_obj_t *sg, const char *txt, const char *hi)
 {
     // The _fit helpers are public and are called on labels this file did not
@@ -6731,6 +6905,26 @@ static void spans_fill(lv_obj_t *sg, const char *txt, const char *hi)
     while (lv_spangroup_get_span_count(sg))
         lv_spangroup_delete_span(sg, lv_spangroup_get_child(sg, 0));
     if (!txt) txt = "";
+    // The lines are chosen before the spans are cut, so that no span boundary
+    // is a break opportunity LVGL can put a full stop after. See prebreak.
+    //
+    // ONLY for text that actually carries a stop. Everything reaching here
+    // with none -- a row label, a caption, a value -- is a single span, has no
+    // boundary to orphan anything at, and must keep the wrapping it has: the
+    // first cut of this re-wrapped all of them and moved Japanese row labels
+    // like the transaction id into the value beneath, two findings over ja's
+    // overlap ceiling on screens that never had a full stop to protect.
+    // NOT CJK. Those scripts put no space between words, so every character
+    // is a break opportunity and choosing lines well needs the kinsoku rules
+    // and per-character metrics that LVGL already applies -- a greedy pass on
+    // whole tokens does it WORSE, measurably: it cost ja an extra wrapped line
+    // and put that locale over its overlap ceiling, which the runner refuses
+    // to raise and should. LVGL keeps those locales, unchanged.
+    char pre[1280];
+    if (has_stop(txt) && !has_cjk(txt)) {
+        prebreak(txt, sg, pre, sizeof pre);
+        txt = pre;
+    }
     size_t i = 0, run = 0;
     char buf[640];
     while (txt[i]) {
@@ -6744,13 +6938,7 @@ static void spans_fill(lv_obj_t *sg, const char *txt, const char *hi)
         const bool cjk_stop = (unsigned char)txt[i] == 0xE3 &&
                               (unsigned char)txt[i + 1] == 0x80 &&
                               (unsigned char)txt[i + 2] == 0x82 && i > 0;
-        const bool stop = cjk_stop ||
-                          (txt[i] == '.' && i > 0 &&
-                           ((txt[i - 1] >= 'a' && txt[i - 1] <= 'z') ||
-                            (txt[i - 1] >= 'A' && txt[i - 1] <= 'Z') ||
-                            (txt[i - 1] >= '0' && txt[i - 1] <= '9')) &&
-                           (txt[i + 1] == '\0' || txt[i + 1] == ' ' ||
-                            txt[i + 1] == '\n'));
+        const bool stop = is_stop_at(txt, i);
         if (!stop) {
             if (run + 1 < sizeof buf) buf[run++] = txt[i];
             i++;
@@ -9030,18 +9218,36 @@ void wt_group4(const char *in, char *out, size_t out_len)
 {
     size_t o = 0;
     if (!out || !out_len) return;
-    // A trailing group of one or two characters JOINS the group before it. An
-    // address is rarely a multiple of four -- a 42 character bech32 leaves two
-    // -- and that stub is a separate token, so a line that is one group too
-    // long wraps it alone: the verify screen showed forty characters on one
-    // line and "kz" on the next, which reads as the address being cut off.
-    // Merged, the last token is five or six characters and there is no orphan
-    // to strand. Nothing is dropped and no other group changes.
+    // GROUPED FROM THE RIGHT, and the direction is the whole point.
+    //
+    // An address is rarely a multiple of four -- a 42 character bech32 leaves
+    // two -- so exactly one token is short, and which END carries it decides
+    // whether this string and the FOLDED form of the same address can agree.
+    //
+    // They could not. This grouped from the left and merged the trailing stub,
+    // so a 42 character address ended  ...[3233 3435][36-41], while
+    // wt_addr_short takes its last twelve characters as three fours and ended
+    // ...[3033][3437][3841]. Two renderings of one destination, cut into
+    // different blocks, on the screen whose only job is comparing characters
+    // against a coordinator. The lit run diverged with them: addr_spans snaps
+    // the tail out to a group boundary, which widened it to TEN characters
+    // here while the folded line lit eight. The bench read that as the device
+    // expanding a DIFFERENT address, and it was right to.
+    //
+    // Right-aligned, the last eight characters are exactly the final two
+    // tokens in both forms, the fold's twelve are exactly the final three, and
+    // the snap becomes a no-op instead of a widening. The two cannot disagree
+    // again without this line changing.
     size_t n = strlen(in);
     size_t rem = n % 4;
-    size_t last = (rem == 1 || rem == 2) && n > 4 ? n - rem - 4 : n;
+    // The one short token sits at the HEAD, joined to the block after it so it
+    // is five or six characters and not one or two. That is the same orphan
+    // this used to avoid by merging at the other end -- a lone "kz" wrapping
+    // onto its own line, which reads as the address being cut off -- moved to
+    // the end that no comparison is ever made against.
+    size_t first = rem == 0 ? 4 : (n > 4 ? rem + 4 : n);
     for (size_t i = 0; in[i]; i++) {
-        size_t need = (i && i % 4 == 0 && i <= last) ? 2u : 1u;
+        size_t need = (i >= first && (i - first) % 4 == 0) ? 2u : 1u;
         if (o + need + 1 > out_len) break;          // +1 keeps room for the NUL
         if (need == 2) out[o++] = ' ';
         out[o++] = in[i];

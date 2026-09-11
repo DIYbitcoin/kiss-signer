@@ -8,7 +8,7 @@ Legend: **done** shipped and tested · **partial** works with caveats ·
 
 "Tested" here means the desktop suite in `sim/` passes against reference
 vectors. Nobody outside the project has reviewed any of it. See
-[`docs/security-plan.md`](docs/security-plan.md).
+[`docs/security-plan.md`](security-plan.md).
 
 ## Signing
 
@@ -71,13 +71,13 @@ that opens a modest set of keys. See `main/kiss_duress.h`.
 | Installer artifacts gated on VERSION | done | `tools/check_installer_version.py` in CI |
 | Firmware update from the SD card | done | `main/kiss_fw.c`. The running app verifies the image's signature with its own key before the slot is made bootable, and newest wins so a correctly signed older build cannot be offered as the update |
 | Post quantum firmware signature | done | A second signature over the same image, SLH-DSA-SHA2-128s (FIPS 205), checked alongside the secp256r1 one and never instead of it. `main/kiss_pqsig.c`, `components/slhdsa`. Verifying costs about 2100 SHA-256 compressions on the P4's held accelerator. It does not make a post quantum bitcoin signature and nothing can: BIP-360 merged without them |
-| Flash encryption, RELEASE mode | in progress | Build profile complete, hardware testing underway. First boot burns eFuses and cannot be undone. Staged plan: [`docs/specs/flash-encryption-rollout.md`](docs/specs/flash-encryption-rollout.md) |
+| Flash encryption, RELEASE mode | in progress | Build profile complete, hardware testing underway. First boot burns eFuses and cannot be undone. Staged plan: [`docs/specs/flash-encryption-rollout.md`](specs/flash-encryption-rollout.md) |
 | NVS encryption | in progress | Ships with the same encrypted profile, since the words live in NVS |
 | OTA rollback | done | A slot installed from the card stays on trial until this boot proves it can sign, draw, take touch and open storage; anything that reboots first hands the device back to the firmware that worked |
 | Anti-downgrade | follows flash encryption | Not a separate feature. RELEASE mode disables serial reflashing, and a device that cannot be reflashed cannot be downgraded |
 | Downgrade warning on screen | planned | Record the highest version ever run in NVS, say so on the home screen if an older one boots |
 | Secure boot v2 | planned | Burned in the SAME pass as flash encryption, not after it: the release lane has no OTA partition and refuses serial reflash after first boot, so a board that took flash encryption alone can never be given a signed bootloader |
-| Release hashes signed by the device itself | planned, post v1 | A bitcoin message signature from a KISS device, so the signer vouches for its own firmware. See [`docs/installer/SIGNING.md`](docs/installer/SIGNING.md) |
+| Release hashes signed by the device itself | planned, post v1 | A bitcoin message signature from a KISS device, so the signer vouches for its own firmware. See [`docs/installer/SIGNING.md`](installer/SIGNING.md) |
 | External security audit | planned | Not scheduled |
 
 ## Interface
@@ -103,10 +103,14 @@ that opens a modest set of keys. See `main/kiss_duress.h`.
 - **The normal beta does not encrypt flash.** Keys in FLASH are extractable by
   someone with the device and the right equipment. Use AMNESIC, or SD, or wait
   for the encrypted build, for anything that matters.
+- **20 of the 21 locales have not been read by a native speaker.** The English
+  copy is reviewed; the rest is machine-written against a term glossary. One
+  screen carries a security caveat that a translation can quietly turn into a
+  reassurance. See [`i18n/GLOSSARY.md`](../i18n/GLOSSARY.md).
 - **No audit.** Nobody outside the project has reviewed the signing path, the
   PSBT parser, or the BIP39 and BIP352 implementations.
 - **No secure boot**, so an attacker with prolonged physical access to an
   unencrypted device can flash modified firmware and the interface will look
-  identical. See [`docs/security-plan.md`](docs/security-plan.md).
+  identical. See [`docs/security-plan.md`](security-plan.md).
 - **Silent Payments has no outside users yet.** The vectors pass and Sparrow
   fixtures parse, but coordinator support for BIP375 and BIP376 is early.

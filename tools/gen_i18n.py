@@ -200,14 +200,23 @@ UNTRANSLATED_OK = {
     # page taught the method and the caveat and never the good outcome. Born
     # under the English-only rule; English in the other twenty until the sweep.
     "W_RNG_FAIR_H", "W_RNG_FAIR_B",
-    # The SIGNED screen's own row: the lock's label, the subtitle, the file
-    # caption and the three steps that replaced the two-line note. Born under
+    # The SIGNED screen's own row: the subtitle and the file caption. Born
+    # under the English-only rule; English in the other twenty until the sweep.
+    # S_OUTS_FIXED and the three S_STEP_* went with the chip and the numbered
+    # strip they labelled -- deleted rather than left translated, because a key
+    # nothing draws is paid for in twenty one locales for ever.
+    "S_DONE_SUB2", "S_FILE_CAP",
+    # What the SD screen says to do next, in place of that strip. Born under
     # the English-only rule; English in the other twenty until the sweep.
-    "S_OUTS_FIXED", "S_DONE_SUB2", "S_FILE_CAP",
-    "S_STEP_TAKE", "S_STEP_OPEN", "S_STEP_CAST",
-    # ...and the caption under the arrival motion. Born under the
-    # English-only rule; English in the other twenty until the sweep.
-    "S_MOTION_CAP",
+    "S_SD_NEXT",
+    # ...and the arrival motion's own two lines: what the device did with the
+    # bytes, on each of the two channels, and the sentence naming the code.
+    # S_MOTION_CAP was here and is gone -- the ribbon has no caption row, and
+    # a key nothing references is paid for in twenty one locales for ever
+    # (tools/check_i18n_orphans.py). Born under the English-only rule; English
+    # in the other twenty until the sweep.
+    "S_MO_WRITING_SD", "S_MO_WRITING_QR", "S_MO_WRITTEN_SD",
+    "S_MO_WRITTEN_QR", "S_MO_SENT",
     # The block a locked transaction has to wait for -- the badge on the sign
     # title line, and the caption on the card it opens. Born under the
     # English-only rule; English in the other twenty until the sweep.

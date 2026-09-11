@@ -1,5 +1,6 @@
 <!doctype html>
 <meta charset="utf-8">
+<link rel="icon" href="../assets/kiss-mark.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>KISS Signer — simulator</title>
 <link rel="stylesheet" href="../styles.css">
@@ -97,9 +98,8 @@
         <button id="full">FULLSCREEN &#8599;</button>
       </div>
       <p class="note" style="margin-top:14px;font-size:13px;color:var(--muted)">
-        Drag to draw. The cover screen is a game until you draw <strong>KISS</strong> across it.
-        There is no camera behind CAMERA AND TAPS, so that one entropy source is filled in for
-        you; the dice and the taps are yours.</p>
+        No camera behind CAMERA AND TAPS, so that entropy source is filled in for you. The
+        dice and the taps are yours.</p>
     </div>
 
     <div>
@@ -125,11 +125,6 @@
         <button id="refresh">REFRESH</button>
       </div>
 
-      <div class="panel">
-        <h2>Start over</h2>
-        <button class="warn" id="reset">FACTORY RESET</button>
-        <p>Nothing is stored between visits. Reloading is a factory reset.</p>
-      </div>
     </div>
   </div>
 
@@ -257,7 +252,6 @@
     var v = document.getElementById('qr').value.trim();
     if (mod && v) call('kiss_sim_feed_qr', null, ['string'], [v]);
   });
-  document.getElementById('reset').addEventListener('click', function () { location.reload(); });
 
   var SD = '/tmp/simsd';
   function listCard() {

@@ -25,15 +25,47 @@
 KISS_SIM_TMP="${KISS_SIM_TMP:-/tmp}"
 mkdir -p "$KISS_SIM_TMP"
 
-# Only roots untouched for this many days go. A root in use is a root being
-# written to, so mtime is the whole test; the current one is skipped by name as
-# well, because a build that reaped its own output would be a very confusing
-# bug. KISS_SIM_KEEP=1 turns it off.
+# Is a scratch root still owned by a running walk? kiss_simpath.h writes
+# "<pid> <who>" into walk.lock and unlinks it at exit, so a file naming a live
+# pid is the only evidence of use that does not depend on mtime -- and mtime is
+# exactly what a long quiet walk does not update. No file, an unreadable one or
+# a dead pid all mean finished.
+_kiss_root_is_live() {
+    local lock pid
+    lock="$1/walk.lock"
+    [ -f "$lock" ] || return 1
+    pid=$(awk '{print $1; exit}' "$lock" 2>/dev/null) || return 1
+    case "$pid" in ''|*[!0-9]*) return 1 ;; esac
+    kill -0 "$pid" 2>/dev/null
+}
+
+# Finished roots go; roots with a walk still in them never do, at any age.
+#
+# mtime used to be the whole test, at 3 days. It is the wrong test twice over.
+# A walk that is running but quiet does not touch its root, so age alone can
+# condemn a root in use -- and the current one is skipped by name, which covers
+# this build and nothing running beside it. In the other direction 3 days is
+# far too patient for a root nobody holds: nine finished roots and 5.9G piled
+# up inside one afternoon, none of them close to 3 days old, all of them dead
+# within minutes of being written.
+#
+# So liveness decides whether to look at age at all, and walk.lock is what
+# liveness reads. KISS_SIM_TMP_MINS is the age for a finished root, default 4
+# hours: long enough to come back to this morning's frames, short enough that
+# repeating a walk after each fix stops paying for every earlier try.
+# KISS_SIM_TMP_DAYS still works and still means days. KISS_SIM_KEEP=1 turns
+# the whole thing off.
 _kiss_reap_sim_tmp() {
     [ -z "${KISS_SIM_KEEP:-}" ] || return 0
 
-    local days scan self n
-    days="${KISS_SIM_TMP_DAYS:-3}"
+    local mins scan self n
+    # One age, expressed in minutes. The days knob predates it and is kept
+    # working rather than deprecated in a file nobody rereads.
+    if [ -n "${KISS_SIM_TMP_DAYS:-}" ]; then
+        mins=$(( KISS_SIM_TMP_DAYS * 1440 ))
+    else
+        mins="${KISS_SIM_TMP_MINS:-240}"
+    fi
 
     # A root under a shared parent has its siblings beside it; the bare
     # default (/tmp) holds them itself.
@@ -61,12 +93,15 @@ _kiss_reap_sim_tmp() {
         done
         [ -n "$mine" ] || continue
 
-        [ -z "$(find "$d" -maxdepth 0 -mtime "+$days" 2>/dev/null)" ] && continue
+        # Somebody is walking in there. Age is not the question.
+        ! _kiss_root_is_live "$d" || continue
+
+        [ -n "$(find "$d" -maxdepth 0 -mmin "+$mins" 2>/dev/null)" ] || continue
 
         rm -rf "$d" && n=$((n + 1))
     done
 
-    [ "$n" -gt 0 ] && echo "sim: reaped $n scratch root(s) idle over ${days}d under $scan"
+    [ "$n" -gt 0 ] && echo "sim: reaped $n finished scratch root(s) idle over ${mins}m under $scan"
     return 0
 }
 _kiss_reap_sim_tmp || true

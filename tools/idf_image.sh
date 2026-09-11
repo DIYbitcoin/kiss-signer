@@ -30,7 +30,11 @@ KISS_IDF_IMAGE=espressif/idf@sha256:81893c71bb5e570088901f21def8684c25cd2a902028
 # the encrypted lane was fixed on its own first and the plain lane failed the
 # next run with the identical line.
 kiss_mark_unsigned() {
-    : > "$1/UNSIGNED" 2>/dev/null && return 0
+    # The 2>/dev/null has to wrap the whole group: redirections are set up
+    # left to right, so on the bare form the failing > runs first and its
+    # "Permission denied" still reaches the log, reading like the error
+    # that killed the build when the fallback below went on to succeed.
+    { : > "$1/UNSIGNED"; } 2>/dev/null && return 0
     docker run --rm -v "$PWD":/project -w /project "$KISS_IDF_IMAGE" \
         touch "/project/$1/UNSIGNED"
 }

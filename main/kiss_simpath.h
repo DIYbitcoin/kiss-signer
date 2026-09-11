@@ -23,6 +23,7 @@
 
 #ifndef ESP_PLATFORM
 
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
@@ -106,6 +107,52 @@ static inline void kiss_sim_lock(const char *who)
         }
         unlink(p);                        /* stale: the holder is gone */
     }
+}
+
+// ---- a run does not inherit the last run's pictures ----------------------
+// The lock above hands concurrent runs separate scratches, and its own advice
+// is "export KISS_SIM_TMP=/tmp/kiss-$$" -- a fresh directory every time. That
+// is right for two runs at once and wrong for the far commoner case, one run
+// repeated after a fix, because nothing ever emptied the directory it left.
+//
+// A walk writes ~600 frames at 800x480 in binary P6, which is 1.15MB each and
+// no compression: 660MB per walk. Nine walks in one afternoon is 5.9GB, and
+// the measured cost of not having this was 41GB of near identical pictures
+// across a fortnight of sessions.
+//
+// So a scratch is reusable instead of disposable: the frames from last time
+// go, and nothing else does. Fixtures, the fake card, the seed files and the
+// logs all survive -- sweeping those is the reset that drops the device to
+// first boot and derails the walk on a random locale, which is a separate
+// scar and not one to reopen. Prefix and extension both have to match, so a
+// hand saved picture keeps its place as long as it is not called sim_*.ppm.
+//
+// KISS_SIM_KEEP=1 turns it off for the rare comparison against the previous
+// run's frames. Nothing in the gates sets it.
+static inline int kiss_sim_sweep_frames(void)
+{
+    const char *keep = getenv("KISS_SIM_KEEP");
+    if (keep && *keep && strcmp(keep, "0") != 0) return 0;
+
+    const char *root = kiss_sim_root();
+    DIR *d = opendir(root);
+    if (!d) return 0;                     /* no scratch yet: nothing to sweep */
+
+    int swept = 0;
+    struct dirent *e;
+    while ((e = readdir(d)) != NULL) {
+        size_t n = strlen(e->d_name);
+        if (n < 9) continue;                                  /* sim_x.ppm */
+        if (strncmp(e->d_name, "sim_", 4) != 0) continue;
+        if (strcmp(e->d_name + n - 4, ".ppm") != 0) continue;
+
+        char p[224];
+        if (snprintf(p, sizeof p, "%s/%s", root, e->d_name) >= (int)sizeof p)
+            continue;
+        if (remove(p) == 0) swept++;
+    }
+    closedir(d);
+    return swept;
 }
 
 // A small ring of buffers behind the accessors below, so a call site that was

@@ -124,9 +124,13 @@ static const slot_t SLOTS[] = {
     // 23, and a definition that wraps mid-clause is the one place a glossary
     // must not be hard to read.
     { "sign/glossary",    STR_S_GLOSSARY_B,     704, 232 },
-    { "sign/no-network",  STR_S_NO_NETWORK,     322,  29 },
-    { "sign/ez-note",     STR_S_EZ_NOTE,        322,  87 },
     { "sign/saved-note",  STR_S_SAVED_NOTE,     704,  90 },
+    // kiss_sign.c mo_start() -- the one sentence under the code in the
+    // arrival motion. Its box is ONE line at the 23 rung, deliberately: the
+    // code above it is mono34 and a font28 line under that competes with it
+    // instead of captioning it. 29 is that line in the Latin faces; the call
+    // site measures the ACTIVE locale's, which is taller in ja, ko and zh.
+    { "sign/mo-sent",     STR_S_MO_SENT,        704,  29 },
     { "login/qr-warn",    STR_L_SCAN_WARN_B,704, 274 },
     // kiss_settings.c — the network row's sub-line on the SIGNER tab. It is a
     // ROW SUB now rather than a note floating in a gap between controls: one
@@ -693,16 +697,32 @@ static int check_addr_marks(void)
         "tsp1qqfaysl7pn7mknpmmsapdd6sczx8ncnnjk84gcm0xq2n66jjpm0sxsq"
         "mpuxc7nhj7gt9jqplhef2tncx40mgnjw8664kn7x09w5f63l8q8ymd0lna";
     static const char *ADDRS[] = {
-        "bc1qzyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3h8ffkz",   // mainnet segwit
-        "tb1qzyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3h8ffkz",   // testnet segwit
+        // DISTINCT IN EVERY BLOCK, and that is the point of these two. They
+        // were bc1q/tb1q + "zyg3" eight times: every interior block the same
+        // four characters, so the two forms could mark runs at DIFFERENT
+        // offsets and still compare equal as strings. This check is the one
+        // that exists to catch exactly that, and the fixture blinded it while
+        // the fold and the card really were cutting one address in two
+        // different places on the glass.
+        //
+        // The published BIP84 vectors, so they are real addresses too.
+        "bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu",   // mainnet segwit
+        "tb1q6rz28mcfaxtmd6v789l9rrlrusdprr9pqcpvkl",   // testnet segwit
         "1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2",           // base58: no prefix skip
         SP_ADDR,
     };
     lv_obj_t *scr = lv_obj_create(NULL);
     int bad = 0;
     for (size_t i = 0; i < sizeof ADDRS / sizeof ADDRS[0]; i++) {
-        char body[80], elided[80];
-        lit_chars(wt_addr_spans(scr, ADDRS[i], 700, wt_font_mono14()),
+        char body[80], elided[80], grouped[200];
+        // GROUPED, because that is what the screens pass. This handed
+        // wt_addr_spans the RAW address, and a raw string has no spaces to
+        // snap a lit run to -- so the snap, which is where the two forms
+        // diverged, was the one line this check could never reach. The verify
+        // screen's single raw caller is the exception, not the rule: the
+        // receipt, the details rows and the receive screen all group first.
+        wt_group4(ADDRS[i], grouped, sizeof grouped);
+        lit_chars(wt_addr_spans(scr, grouped, 700, wt_font_mono14()),
                   body, sizeof body);
         lit_chars(wt_addr_short(scr, ADDRS[i], wt_font_mono23()),
                   elided, sizeof elided);

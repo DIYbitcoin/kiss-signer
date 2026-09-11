@@ -1,7 +1,7 @@
 # Changelog archive
 
 Releases before the two most recent, oldest last. The current ones are in
-[CHANGELOG.md](CHANGELOG.md). Nothing here was edited except two dates
+[CHANGELOG.md](../CHANGELOG.md). Nothing here was edited except two dates
 that disagreed with their tags.
 
 ## [0.1.0-beta8], 2026-09-03

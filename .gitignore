@@ -5,6 +5,11 @@ main/build-disp/
 # the offline installer zip: derived from docs/ and the release build, attached
 # to the GitHub Release rather than carried in git history
 /dist/
+# the hash lists CI writes beside a build, uploaded as run artifacts.
+# They land in the working tree, and the encrypted recipe refuses to
+# build from a dirty tree, so an unignored one fails the second lane.
+/SHA256SUMS-*-ci.txt
+/SHA256SUMS-ci.txt
 sdkconfig.release
 sdkconfig.encrypted
 sdkconfig.encrypted-rehearsal
@@ -28,6 +33,11 @@ __pycache__/
 # shipped in b690465, and the folder that described them adds nothing the code
 # does not already say.
 design_handoff_*/
+# ...and the same material under whatever else it has been unzipped as. The
+# pattern above only caught a folder whose name STARTS the way the first one
+# did, and two later ones did not: kiss-handoff/ and handoff-decoy-game/ both
+# sat outside it, one broad add away from the tree.
+*handoff*/
 
 # third party audit working notes (crypto-wallet-security-audit skill): working
 # state, not a deliverable. Only a reviewed summary belongs in the repo.
@@ -56,6 +66,12 @@ sdkconfig.sdtest
 # offline fixture tooling (tools/sign_fixtures/README names the pip install)
 venv/
 
-# The working rules for whoever is at the keyboard. Not a user document, and
-# the one tracked file that named a tool; it stays on disk and out of the tree.
+# The working rules for whoever is at the keyboard, and the local search
+# index that sits beside them. Not user documents; they stay on disk and out
+# of the tree. The last three were listed only in .git/info/exclude, which is
+# never cloned -- so a fresh checkout carried no rule against them at all,
+# and the protection only existed on the one machine that wrote it.
 CLAUDE.md
+AGENTS.md
+/.agents/
+/.qmd/

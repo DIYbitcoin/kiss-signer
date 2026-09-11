@@ -381,8 +381,16 @@ static void b64_release(qrt_encoder_t *e) {
     e->b64_len = 0;
 }
 
+#ifndef ESP_PLATFORM
+static int s_test_fail_enc;
+void qrt_test_fail_next_encoder(void) { s_test_fail_enc = 1; }
+#endif
+
 qrt_encoder_t *qrt_encoder_new_frag(int fmt, const uint8_t *psbt, size_t len, int frag) {
     if (!psbt || len == 0 || len > QRT_MAX_SIGNED_PSBT) return NULL;
+#ifndef ESP_PLATFORM
+    if (s_test_fail_enc) { s_test_fail_enc = 0; return NULL; }
+#endif
     qrt_encoder_t *e = calloc(1, sizeof *e);
     if (!e) return NULL;
     e->fmt = fmt;

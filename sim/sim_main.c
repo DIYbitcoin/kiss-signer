@@ -647,7 +647,7 @@ int kiss_session_descriptor(char *out, unsigned long len) {
 #include <string.h>
 static bool s_sim_payee_known;
 bool kiss_payee_seen(const char *dest) {
-  return s_sim_payee_known && dest && strstr(dest, "bc1qzyg3") != NULL;
+  return s_sim_payee_known && dest && strstr(dest, "bc1qcr8") != NULL;
 }
 void kiss_payee_mark(const char *dest) { (void)dest; }
 void kiss_payee_wipe(void) { s_sim_payee_known = false; }
@@ -668,7 +668,7 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
   s->in_sats = 100000; s->send_sats = 60000; s->change_sats = 39000; s->fee_sats = 1000;
   s->est_vsize = 141; s->fee_rate_x10 = 70; s->rbf = true;
   snprintf(s->outs[0].addr, sizeof s->outs[0].addr,
-           "bc1qzyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3h8ffkz");
+           "bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu");
   s->outs[0].sats = 60000;
   snprintf(s->outs[1].addr, sizeof s->outs[1].addr,
            "bc1q8c6fshw2dlwun7ekn9qwf37cu2rn755upcp6el");
@@ -726,7 +726,7 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
     s->in_sats = 100000; s->send_sats = 60000; s->change_sats = 39000;
     for (int i = 0; i < 5; i++) {
       snprintf(s->outs[i].addr, sizeof s->outs[i].addr,
-               "bc1q%02dg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3h8ffkz", i);
+               "bc1q%02d8te4kr609gcawutmrza0j4xv80jy8z306fyu", i);
       s->outs[i].sats = 12000;
       s->outs[i].is_change = false;
     }
@@ -1139,7 +1139,7 @@ static int find_label_exact(lv_obj_t *o, const char *needle) {
 // taller pushes the list down and a hard coded tap lands on background. That is
 // the derail det_chip already exists for, and it bit again here: the tap at
 // (200, 300) opened nothing in fourteen locales, while the needle checking it
-// had worked -- "bc1q zyg3" -- matched the FOLD still showing on the page
+// had worked -- "bc1qcr 8te4" -- matched the FOLD still showing on the page
 // underneath. A spurious pass, from a prefix the two renderings share.
 //
 // Found by what it is instead: the address spangroups are the only clickable
@@ -1816,6 +1816,29 @@ static int tap_row_prefix(const char *pre) {
 // time -- the input total sits past a caption of translated width and the "?"
 // after it -- pressing where it actually landed is the only tap that proves
 // anything, and a fixed coordinate would only ever prove the English screen.
+// A CLICKABLE SPANGROUP, which every text helper above is blind to.
+//
+// find_label_prefix and must_show walk for lv_label_class, and a folded address
+// is an lv_spangroup: three styled runs in one object with no label anywhere in
+// it. So the receipt's destination line was invisible to the whole toolbox, the
+// walk could not tap what it could not find, and the control shipped with every
+// gate green and no test having touched it. It then failed on the bench, on a
+// target a simulated tap hits dead centre and a finger does not.
+//
+// Clickable is the filter because screens carry decorative spangroups too, and
+// only the control answers a press.
+static lv_obj_t *find_span_click(lv_obj_t *o) {
+  if (!o || lv_obj_has_flag(o, LV_OBJ_FLAG_HIDDEN)) return NULL;
+  if (lv_obj_check_type(o, &lv_spangroup_class) &&
+      lv_obj_has_flag(o, LV_OBJ_FLAG_CLICKABLE))
+    return o;
+  for (uint32_t i = 0; i < lv_obj_get_child_count(o); i++) {
+    lv_obj_t *r = find_span_click(lv_obj_get_child(o, i));
+    if (r) return r;
+  }
+  return NULL;
+}
+
 static lv_obj_t *find_label_obj_exact(lv_obj_t *o, const char *needle) {
   if (!o || lv_obj_has_flag(o, LV_OBJ_FLAG_HIDDEN)) return NULL;
   if (lv_obj_check_type(o, &lv_label_class)) {
@@ -2417,6 +2440,12 @@ int main(void) {
   // Before anything touches the fake card. Two walks on one scratch invent
   // failures rather than colliding loudly; see kiss_simpath.h.
   kiss_sim_lock(WALK_NAME);
+  // Under the lock, so this only ever clears frames this run is about to
+  // replace. State and fixtures are left alone; see kiss_simpath.h.
+  {
+    int swept = kiss_sim_sweep_frames();
+    if (swept) printf("swept %d frame(s) from the last run\n", swept);
+  }
   const char *sl = getenv("SIM_LANG");
   if (sl && *sl && strcmp(sl, "en") != 0) {
     for (int i = 0; i < I18N_LANG_N; i++)
@@ -2995,8 +3024,38 @@ int main(void) {
   touch(720, 85); pump(3); release(); pump(45);   // 45: the fact rows land on the stagger
   save("/tmp/sim_recv_what.ppm");
   must_show("recv/help head", tr(STR_R_HELP_HEAD));
+  // BACK WHILE THE [ ? ] IS OPEN SHUTS THE EXPLAINER AND KEEPS THE PAGE.
+  // It used to run the page's own back and land on the home screen -- two
+  // steps for one press, and the address being read was gone with it. The
+  // same control behaves the same way on SETTINGS and on the SIGN chooser,
+  // which is where the bench found it; all three guard their own back now.
+  // Asserted by what is on the glass after the press: this page's action row,
+  // which the home screen does not carry.
+  tap_str(STR_C_BACK, 3, 45);
+  must_show("recv/BACK shuts the ? and stays", tr(STR_R_NEXT_ADDR));
+  touch(720, 85); pump(3); release(); pump(45);   // reopen, to leave as found
+  must_show("recv/help head after BACK", tr(STR_R_HELP_HEAD));
   touch(720, 85); pump(3); release(); pump(45);   // 45 outlasts the exit stagger
   must_show("recv/help closed", tr(STR_R_NEXT_ADDR));
+  // VIEWING AN ADDRESS IS NOT USING IT, so walking forward and coming back
+  // lands where it landed before. A session high-water mark that any viewed
+  // index raised used to seed the next open, so reading #5 moved the landing
+  // to #6 for good -- reported from the bench as selecting an UNUSED #1,
+  // leaving to the main menu and returning to #6. Skipped indices are holes a
+  // coordinator has to scan across and it stops after twenty, so a page that
+  // walks itself forward on every read can push funds past that window.
+  {
+    char landed[48], again[48];
+    snprintf(landed, sizeof landed, tr(STR_R_ADDR_N_FMT), 0u);
+    must_show("recv/lands on the first unused", landed);
+    tap_str(STR_R_NEXT_ADDR, 3, 20);
+    tap_str(STR_R_NEXT_ADDR, 3, 20);
+    snprintf(again, sizeof again, tr(STR_R_ADDR_N_FMT), 2u);
+    must_show("recv/walks forward", again);
+    tap_str(STR_C_BACK, 3, 20);                    // out to the home screen
+    touch(310, 240); pump(3); release(); pump(30); // and back into RECEIVE
+    must_show("recv/returns to the first unused", landed);
+  }
   wt_help_seen_set(false);
   // The flex strip sizes its brackets to the words, so the tabs are tapped
   // by their labels rather than by a pitch that no longer exists.
@@ -3216,7 +3275,9 @@ int main(void) {
   // nothing else on the walk exercises it.
   touch(490, 240); pump(3); release(); pump(45);    // KEYS tile -> the QR direct
   save("/tmp/sim_winfo_unpaired.ppm");
-  must_show("keys/unpaired goes to pairing", tr(STR_I_SHOW_TO));
+  // By the TAB, not by the SHOW IT TO head: the head is gone and the strip
+  // is the answer to "show it to whom". "Sparrow" is on no other screen.
+  must_show("keys/unpaired goes to pairing", tr(STR_I_APP_DESKTOP));
   // And BACK from it leaves for HOME rather than landing on the page that
   // just forwarded here. If this ever regresses the walk hangs on a bounce
   // rather than failing, so the needle is a HOME string.
@@ -3251,10 +3312,19 @@ int main(void) {
   must_show("keys/swipe closes help", tr(STR_K_CAP_PAIRING));
   touch(400, 150); pump(3); release(); pump(6);     // PAIRING -> PAIR COORDINATOR
   save("/tmp/sim_pair.ppm");                        // descriptor (Sparrow) active
-  touch(198, 228); pump(3); release(); pump(6);     // descriptor QR -> zoom
+  // The code's own centre. It moved into a split card and back out again
+  // while this screen was being reworked, and a stale coordinate here lands on
+  // nothing: the zoom never opens, the frame below photographs the page it was
+  // already on, and the taps after it walk a screen the walk thinks it left.
+  touch(198, 246); pump(3); release(); pump(6);     // descriptor QR -> zoom
   save("/tmp/sim_pair_zoom.ppm");
   touch(763, 35); pump(3); release(); pump(6);      // close zoom
-  touch(672, 150); pump(3); release(); pump(4);     // MOBILE / BlueWallet segment
+  // BY THE TAB'S OWN WORD. The two 175x60 panes are the chrome strip's tab
+  // deck now, and a coordinate aimed where the MOBILE pane used to be lands
+  // on the QR card instead -- which opens the zoom and derails everything
+  // after it, silently, because a tap that opens the wrong thing still hits
+  // something.
+  tap_str(STR_I_APP_MOBILE, 3, 6);                  // BlueWallet tab
   save("/tmp/sim_pair_bw.ppm");
   // The page's own [ ? 2 ], where the section chip beside SHOW TO used to be:
   // DESCRIPTOR and FINGERPRINT, the two words this page is about, as rows
@@ -3431,7 +3501,7 @@ int main(void) {
   // away on the card below, and that card is where the full grouped form is
   // asserted -- so the two needles together pin both renderings and which
   // screen each belongs to.
-  must_show("verify/address", "bc1q zyg3  \xE2\x80\xA6  g3zy g3h8 ffkz");
+  must_show("verify/address", "bc1qcr 8te4  \xE2\x80\xA6  80jy 8z30 6fyu");
   // The output ROW is the control now, at every recipient count -- the card
   // below the graph is gone and every destination rides its own strand. The
   // first output row sits at the top of the graph's output lane, which starts
@@ -3444,7 +3514,7 @@ int main(void) {
   // BY NAME, not by coordinate. The address line moves whenever the graph band
   // does, and a tap that lands on empty glass does not fail here -- it fails
   // two screens later, as a segfault in whatever the miss eventually reaches.
-  if (!tap_lit("g3h8 ffkz", 3, 8)) {
+  if (!tap_lit("8z30 6fyu", 3, 8)) {
     printf("FAIL: the recipient's address line was not tappable\n");
     return 1;
   }
@@ -3452,7 +3522,7 @@ int main(void) {
   pump(30);                                          // let the stagger settle
   save("/tmp/sim_sign_addr.ppm");
   must_show("address card/title", tr(STR_R_VT));
-  must_show("address card/addr", "bc1q zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 h8ffkz");   // every character, on the card
+  must_show("address card/addr", "bc1qcr 8te4 kr60 9gca wutm rza0 j4xv 80jy 8z30 6fyu");   // every character, on the card
   must_show("address card/cmp", tr(STR_S_CMP_8));
   tap_str(STR_C_OK, 3, 8);     // OK closes the card
 
@@ -3523,11 +3593,11 @@ int main(void) {
     }
   }
   save("/tmp/sim_sign_details_addr.ppm");
-  // The WHOLE grouped address, not the "bc1q zyg3" prefix the fold shares with
+  // The WHOLE grouped address, not the "bc1qcr 8te4" prefix the fold shares with
   // it: that prefix is on the OUTPUTS tab too, so it would pass with the card
   // never opened at all.
   must_show("details row/full addr",
-            "bc1q zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 zyg3 h8ffkz");
+            "bc1qcr 8te4 kr60 9gca wutm rza0 j4xv 80jy 8z30 6fyu");
   must_show("details row/cmp", tr(STR_S_CMP_8));
   tap_str(STR_C_OK, 3, 8);            // OK closes the card, OUTPUTS stays up
   // TRANSACTION: the facts strip, each with its own "?". The chips are found
@@ -3716,18 +3786,49 @@ int main(void) {
   // enough to read. 1600ms is 100 frames. Landing short here does not fail
   // here -- it fails four screens later on a DONE action that is not up yet, and
   // then cascades through every BACK after it.
-  pump(110);                                        // past REVEAL_MS: writes SD
-  // The arrival motion, drawn OVER the finished exit screen. This lands about
-  // 570ms in -- the pump above clears REVEAL_MS with 10 frames to spare and
-  // the motion has been running since the timer fired -- which is the lock
-  // front a third of the way down the block, with the first characters of the
-  // code already out of it.
+  // 152, not 110. The first 36 clear REVEAL_MS (1600ms, 100 frames) and write
+  // the card; the rest are the motion's own, and they are counted so that this
+  // stop lands 1856ms into it. That is the one moment the whole overlay is on
+  // the glass at once: the block settled at 600, the status line flipped green
+  // at 850, the last character of the code locked at 1660 and the sentence all
+  // the way up at 1800, with the handover at 2200 still ahead. 110 landed at
+  // 1184 -- mid code, before the sentence exists -- so the two lines this
+  // motion was rebuilt around were in no frame any gate ever looked at.
+  pump(152);                                        // past REVEAL_MS: writes SD
+  // The arrival motion, drawn OVER the finished exit screen.
   save("/tmp/sim_sign_arrival.ppm");
   // Any press ends it. Photographed straight after, because the whole point
   // of the rule is that a filename an owner is reading back must never be mid
   // scramble -- if the skip did not land, this frame says so.
   touch(400, 240); pump(3); release(); pump(20);
   save("/tmp/sim_sign_done.ppm");
+  // The destination line, which is a CONTROL and had never been pressed.
+  // Tapped by its own object rather than by coordinate: the address is placed
+  // on a width the locale's font decides, so a fixed x would prove only the
+  // English screen. The press lands 12px BELOW the object's own bottom edge --
+  // inside the widened click area and outside the glyphs -- because a target
+  // only a dead-centre tap can hit is what shipped, and what a finger missed.
+  {
+    lv_obj_t *ad = find_span_click(lv_screen_active());
+    if (!ad) {
+      printf("FAIL: the signed receipt has no tappable destination\n");
+      g_walk_fails++;
+    } else {
+      lv_area_t a; lv_obj_get_coords(ad, &a);
+      const int before = g_walk_fails;
+      touch((a.x1 + a.x2) / 2, a.y2 + 12); pump(3); release(); pump(12);
+      // STR_R_VT, the card's title, and not the lesson body: ADDR_HELP_B is
+      // two sentences with a newline between them and must_show matches a
+      // needle against one label's whole text, so the body can never match.
+      must_show("receipt address opens", tr(STR_R_VT));
+      tap_str(STR_C_OK, 3, 8);                      // close -> the same receipt
+      // Guarded, because an unconditional ok: printed itself beside its own
+      // FAIL the first time this ran against the narrow target, which is a
+      // walk telling a reader two opposite things about one stop.
+      if (g_walk_fails == before)
+        printf("ok: the receipt's address opens under a press off the glyphs\n");
+    }
+  }
   // By the glyph, not by pixel. The chip is right aligned against the artifact
   // card's edge now, so its x is whatever the code's width leaves -- a number
   // that changes with the font the locale picked. The failure mode of getting
@@ -3779,11 +3880,11 @@ int main(void) {
     // ...and the address is still whole and unmoved. The mark is an addition
     // to the row, never a claim that takes the destination's place.
     must_show("paid before (address)",
-              "bc1q zyg3  \xE2\x80\xA6  g3zy g3h8 ffkz");
+              "bc1qcr 8te4  \xE2\x80\xA6  80jy 8z30 6fyu");
     // The recipient ROW, which is the control an owner presses now: one
     // layout at every count, and the card that used to be here is gone.
     // By name, for the reason the first address tap gives above.
-    if (!tap_lit("g3h8 ffkz", 3, 30)) {
+    if (!tap_lit("8z30 6fyu", 3, 30)) {
       printf("FAIL: the paid-before address line was not tappable\n");
       return 1;
     }
@@ -3937,7 +4038,7 @@ int main(void) {
   // screenful". The end of the list is walked below.
   must_show("verify (5 cautions)", "800");            // the fee
   must_show("verify (5 cautions, address)",
-            "bc1q zyg3  \xE2\x80\xA6  g3zy g3h8 ffkz");
+            "bc1qcr 8te4  \xE2\x80\xA6  80jy 8z30 6fyu");
   // The input TOTAL, and it is a control. Above one coin the graph draws a
   // breakdown, so the sum goes on the caption line: 4 000 in, against 3 000 and
   // 800 and 200 out, is the only arithmetic that says whether the fee is the
@@ -4027,7 +4128,7 @@ int main(void) {
   // destinations without naming them.
   touch(328, 282); pump(3); release(); pump(8);     // zzzz-MANY (row 2) -> verify
   save("/tmp/sim_sign_many.ppm");                   // 5 recipients, HOLD inert
-  must_show("many recipients", "bc1q 00g3  \xE2\x80\xA6  g3zy g3h8 ffkz");
+  must_show("many recipients", "bc1q00 8te4  \xE2\x80\xA6  80jy 8z30 6fyu");
   // The locktime badge and the mark beside it. A badge nothing taps is a badge
   // no gate has an opinion about, and this one is the whole point of promoting
   // the fact off the DETAILS deck: the block is on the glass and what a block
@@ -4058,7 +4159,7 @@ int main(void) {
     release(); pump(40);
   }
   save("/tmp/sim_sign_many_end.ppm");               // last recipient, HOLD live
-  must_show("many recipients (end)", "bc1q 04g3  \xE2\x80\xA6  g3zy g3h8 ffkz");
+  must_show("many recipients (end)", "bc1q04 8te4  \xE2\x80\xA6  80jy 8z30 6fyu");
   if (!kiss_sign_test_armed()) {
     printf("FAIL: HOLD TO SIGN still inert after the list was read to its end\n");
     return 1;
@@ -4224,8 +4325,25 @@ int main(void) {
       for (int i = 0; i <= 8; i++) { touch(600 - i * 14, 250); pump(3); }
       release(); pump(40);
     }
+    // A CARD WRITE THAT FAILS AFTER A GOOD SIGNATURE, on the one transaction
+    // this walk signs successfully -- so the whole recovery costs no second
+    // fixture and no second hold. The fault is one shot (test_fail clears the
+    // flag as it fires), which is what makes TRY AGAIN below write for real
+    // and land on the receipt every assertion under it already reads.
+    //
+    // Nothing else in the walk opens this screen, and until it existed the
+    // failure it stands for threw the signature away: SIGN FAILED, one BACK,
+    // and the owner paying for a second reading of every recipient to get
+    // identical bytes back.
+    platform_sd_test_fail_next(PLATFORM_SD_TEST_FAIL_WRITE);
     slide_grip(STR_S_HOLD_TO_SIGN); slide_go(320);
-    release(); pump(150);                           // past the reveal, writes SD
+    release(); pump(150);                           // past the reveal, no SD
+    save("/tmp/sim_sign_held.ppm");
+    must_show("held signature", tr(STR_S_HELD_T));
+    // The SECOND way off, which is the half a retry alone does not give: a
+    // card that will not take the file is walked around with a QR.
+    must_show("held signature/the other way out", tr(STR_S_OUT_QR));
+    tap_str(STR_C_TRY_AGAIN, 3, 150);               // ...and now it writes
     touch(400, 240); pump(3); release(); pump(20);  // past the arrival motion
     save("/tmp/sim_sign_done_many.ppm");
     // What the card must say, and what it must not. The count comes from the
@@ -4444,8 +4562,13 @@ int main(void) {
   pump(45); release(); pump(120);
   // ...and the same arrival motion on this path, over the QR screen. The code
   // flies to the right column here rather than to a card row, so it is a
-  // different handover and gets its own frame.
-  pump(40);
+  // different handover and gets its own frame -- and the status line says
+  // BUILDING THE QR here where the card path says WRITING TO THE CARD, which
+  // is the only thing that differs between them.
+  //
+  // 100, not 40, for the reason the SD stop above carries: 40 landed at 900ms,
+  // with two characters of the code out and no sentence. 100 lands at 1860.
+  pump(100);
   save("/tmp/sim_qr_arrival.ppm");
   touch(400, 240); pump(3); release(); pump(20);    // any press ends it
   save("/tmp/sim_qr_out1.ppm");                     // animated UR out, first part
@@ -4481,7 +4604,71 @@ int main(void) {
     }
   }
   save("/tmp/sim_qr_out_back.ppm");
+
+  // THE RECOVERY FROM THE QR SIDE. The encoder is the last step of this route,
+  // so a failure there leaves exactly what a failed card write leaves: a
+  // signature that is made and cannot get out. Until the recovery screen
+  // existed this was a hand-built dead end whose BACK was close_cb -- the one
+  // exit in the flow that unmounted the card, went home, and threw the
+  // signature away on the way.
+  //
+  // The panel's BACK rebuilds this screen through qr_out_screen, which is the
+  // only re-entry the walk has, so the fault is armed across it. It is armed
+  // AFTER the EASY SCAN check above, because that check needs the rebuild to
+  // succeed.
+  tap_label_exact("?");                             // ? -> the panel again
+  qrt_test_fail_next_encoder();
+  tap_str(STR_C_BACK, 3, 8);                        // BACK -> a rebuild that fails
+  save("/tmp/sim_qr_held.ppm");
+  must_show("held signature, QR side", tr(STR_S_HELD_T));
+  // The card is the other way out of a QR that will not build, and it is the
+  // half a retry alone does not give.
+  must_show("held signature/the card instead", tr(STR_S_OUT_SD));
+  // TRY AGAIN first. The fault is one shot, so the second attempt at the same
+  // channel is the one that works -- and the QR screen coming back is the
+  // proof the signature was still here to encode. Nothing is re-signed: no
+  // hold happens between the failure and this frame.
+  tap_str(STR_C_TRY_AGAIN, 3, 40);
+  touch(400, 240); pump(3); release(); pump(20);    // past the arrival motion
+  // NO save() HERE, and it is the same reasoning the receipt's page-two stop
+  // records. A new frame is a new stop, and a stop photographs screens no
+  // frame had caught before -- which can put a locale over a shrink-only
+  // ceiling on a defect older than the change. This one would photograph the
+  // QR screen that sim_qr_out1 already holds, from the same builder. The
+  // assertion below is what proves the retry, and it reads the screen
+  // directly.
+  must_show("QR came back from a retry", tr(STR_S_EASY_SCAN));
+  // ...and now the OTHER way off the same screen, which needs the failure a
+  // second time to get back to it.
+  tap_label_exact("?");
+  qrt_test_fail_next_encoder();
+  tap_str(STR_C_BACK, 3, 8);
+  must_show("held signature, second time", tr(STR_S_HELD_T));
+  tap_str(STR_S_OUT_SD, 3, 150);                    // ...take the card instead
+  touch(400, 240); pump(3); release(); pump(20);    // past the arrival motion
+  // Nor here: this is the SD receipt, which sim_sign_done_many already holds
+  // from the same builder. What is new is the NAME on it, and a name is what
+  // an assertion reads better than a frame does.
+  // A scanned transaction has no source file to take a name from, so the
+  // signature names itself with its own eight hex. The receipt is the SD one,
+  // filename card and all, which is the proof the bytes really went to a file.
+  must_show("QR signature saved to the card", tr(STR_S_FILE_CAP));
   tap_str(STR_C_DONE, 3, 6);     // DONE -> home
+  // /tmp/simsd outlives the process, and every tap in the sign walk's list
+  // goes by COORDINATE -- so a row left here lands the next run's taps one
+  // row off, silently. The name is the signature's own hex, which this walk
+  // cannot know in advance, so the sweep goes by shape: eight characters and
+  // the suffix every signed output carries.
+  {
+    DIR *d = opendir(SIMSD);
+    struct dirent *de;
+    while (d && (de = readdir(d)) != NULL) {
+      size_t n = strlen(de->d_name);
+      if (n == 8 + 12 && strcmp(de->d_name + 8, "-signed.psbt") == 0)
+        sd_unlink(de->d_name);
+    }
+    if (d) closedir(d);
+  }
   save("/tmp/sim_qr_end.ppm");
 
   // The ownership refusal, both of its shapes. Delivered by QR and not by a

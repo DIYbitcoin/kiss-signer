@@ -125,10 +125,6 @@ static lv_obj_t *s_sp_card;
 static lv_obj_t *s_sp_addr_hit;
 static uint32_t s_idx;
 static uint32_t s_list_base;               // first index the list shows
-// The highest address used or shown seeds the next fresh landing.
-// s_seen_key detects a wallet/network/type switch.
-static int s_seen_high = -1;
-static char s_seen_key[16];
 static bool s_sp_full;                     // silent-payment text is folded by default
 static char s_sp_addr[128];
 static lv_obj_t *s_lock_note;              // the locked reassurance in the QR's space
@@ -147,8 +143,24 @@ static lv_obj_t *s_addr_hit;          // the tap target over the address
 
 bool kiss_recv_active(void) { return s_scr != NULL; }
 
+// Whether the content lane is showing the page's [ ? ] explainer instead of
+// the selected tab. Reset on every open of the page: it is a view, not a
+// remembered state. Declared up here because BACK reads it.
+static bool s_help_open;
+
+// The page's [ ? ] toggle, declared here because BACK has to be able to shut
+// it and the toggle is defined with the pane code far below.
+static void recv_help_cb(lv_event_t *e);
+
 static void close_cb(lv_event_t *e) {
   (void)e;
+  // BACK SHUTS THE [ ? ] FIRST, and only leaves the page when it is already
+  // shut. Opening the explainer swaps the content lane, so it reads as having
+  // gone somewhere -- and then BACK reads as coming back from it. It is a pane
+  // swap and not a navigation level, so this stayed the page's own back and
+  // dropped the owner on the home screen, losing the address they were on.
+  // One step per BACK, which is what the control has always claimed.
+  if (s_help_open) { recv_help_cb(NULL); return; }
   // The detail-only five, which recv_list_open() already nulls and this did
   // not. Two of them are read UNGUARDED -- wt_qr_refusal(s_qr, ...) and
   // lv_label_set_text_fmt(s_idx_lbl, ...) in recv_refresh() -- so a stale
@@ -737,11 +749,6 @@ static void recv_detail_open(void);
 #define RECV_COL_X 296
 #define RECV_COL_W 456
 
-// Whether the content lane is showing the page's [ ? ] explainer instead of
-// the selected tab. Reset on every open of the page: it is a view, not a
-// remembered state.
-static bool s_help_open;
-
 static void recv_help_cb(lv_event_t *e) {
   (void)e;
   s_help_open = !s_help_open;
@@ -948,7 +955,6 @@ static void recv_refresh(void) {
                    (38 - lv_font_get_line_height(wt_font_mono23())) / 2);
   }
 
-  if ((int)s_idx > s_seen_high) s_seen_high = (int)s_idx;   // seeds next open's landing
 
   // Used and unused is a claim of the same shape as what kiss_usage_high
   // actually holds: an address this device signed a spend from is on chain, so
@@ -1470,22 +1476,30 @@ static void recv_open_at(lv_obj_t *parent, int tab) {
   s_rctx.tab = tab;
   s_addr_full = false;
 
-  // Figure out the freshest address to land on. Key by wallet + network + type;
-  // a switch resets the session view-history to the persisted used-high,
-  // otherwise keep growing it (a sign this session may have bumped it).
+  // The freshest address to land on is the first one past what has been
+  // USED. Viewing is not using.
+  //
+  // This used to carry a session high-water mark that any VIEWED index also
+  // raised, so the page landed on "the highest number you have ever looked at,
+  // plus one". Opening #5 to read it pushed the landing to #6 permanently, and
+  // the bench found it the obvious way: select #1, which is UNUSED, leave to
+  // the main menu, come back, and the page is on #6.
+  //
+  // It is not only confusing, it manufactures gaps. Every skipped index is a
+  // hole in the branch a coordinator has to scan across, and coordinators stop
+  // after a fixed run of empties -- twenty in Sparrow and BlueWallet both. A
+  // page that walks the landing forward every time somebody reads an address
+  // can push real funds past the end of that window, which is the one failure
+  // an address screen must not be able to cause.
+  //
+  // kiss_usage_high is persisted and is a claim of the right shape: an address
+  // this device signed a spend from is on chain. So it is the only input, and
+  // the wallet/network/type key that guarded the session copy goes with it --
+  // the persisted answer is already per wallet, network and script.
   uint8_t fp[4];
   kiss_ui_last_fp(fp);
-  char key[16];
-  snprintf(key, sizeof key, "%02x%02x%02x%02x%d%d", fp[0], fp[1], fp[2], fp[3],
-           kiss_testnet() ? 1 : 0, kiss_script());
-  int used = kiss_usage_high(fp, kiss_testnet() ? 1 : 0, kiss_script());
-  if (strcmp(key, s_seen_key) != 0) {          // different wallet/net/type
-    snprintf(s_seen_key, sizeof s_seen_key, "%s", key);
-    s_seen_high = used;
-  } else if (used > s_seen_high) {
-    s_seen_high = used;
-  }
-  s_idx = s_seen_high < 0 ? 0 : (uint32_t)(s_seen_high + 1);
+  const int used = kiss_usage_high(fp, kiss_testnet() ? 1 : 0, kiss_script());
+  s_idx = used < 0 ? 0 : (uint32_t)(used + 1);
 
   // Open on the page that holds the fresh address, aligned to a page boundary
   // so the ALL ADDRESSES list still lands on the right page if the user asks

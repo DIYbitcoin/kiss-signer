@@ -292,11 +292,15 @@ void wt_sub_fit(lv_obj_t *scr, int w);
 // explainers make in words. Already in SYMS.
 #define WT_ICON_HIDDEN  "\xEF\x81\xB0"   // U+F070 eye-slash
 // A coordinator running on a phone, for the pairing steps. Already in SYMS.
-#define WT_ICON_PHONE   "\xEF\x82\x95"   // U+F095 phone
 // The SETTINGS SECURITY tab. Deliberately NOT WT_ICON_SECRET: that glyph means
 // silent payments everywhere else in the app, and a mark cannot say two
 // things. Added to SYMS in the same edit that named it here -- an icon missing
 // from the font hard-hangs the renderer rather than drawing a tofu box.
+// WHERE the coordinator runs, on the pairing tabs. Not a telephone: U+F095 is
+// a handset, which is the glyph for placing a call, and it was standing for "a
+// wallet on a phone" on a signer that has no radio and never makes one.
+#define WT_ICON_DESKTOP "\xEF\x84\x88"   // U+F108 desktop
+#define WT_ICON_MOBILE  "\xEF\x8F\x8D"   // U+F3CD mobile-alt
 #define WT_ICON_SHIELD  "\xEF\x8F\xAD"   // U+F3ED shield-halved
 // The settings band's language control. It wore a bare forward arrow, which
 // is the glyph the SCREEN'S OWN action wears -- so the one control on the
@@ -467,6 +471,12 @@ lv_obj_t *wt_section(lv_obj_t *scr, const char *txt, int x, int y);  // column c
 // card is tappable and has an external "+" cue; tapping opens a crisp,
 // re-encoded full-screen view rather than scaling the original bitmap.
 lv_obj_t *wt_qr_card(lv_obj_t *scr, lv_obj_t **qr, int x, int y, int card_px, int qr_px);
+// The same card with NO off-card "+" cue. That cue is pinned at x - 36, which
+// is only outside the layout when the card sits at the page's left margin; a
+// card set into a column drops it on top of whatever shares the lane. Use this
+// wherever the page draws its own way into the zoom (wt_qr_zoom opens the same
+// overlay from any control) or wants the tappable card alone.
+lv_obj_t *wt_qr_card_bare(lv_obj_t *scr, lv_obj_t **qr, int x, int y, int card_px, int qr_px);
 // Open the zoom overlay from somewhere that is not the card: RECEIVE's
 // "TAP TO ENLARGE" line is a second way into the same overlay, and the state
 // the opener needs already hangs off the QR.

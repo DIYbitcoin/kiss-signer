@@ -59,8 +59,8 @@ Upstream never sets the field, so it is zero. Zero is not a cosmetic default
 here: it is what stops the ISP pipeline from starting at all. The controller
 converts the sensor's exposure limits from register units into microseconds by
 multiplying through `tline_ns`
-([esp_video_isp_pipeline.c](../../managed_components/espressif__esp_video/src/esp_video_isp_pipeline.c),
-`REG_TO_US`), so min, max and current exposure all collapse to 0 and the AGC
+(`esp_video_isp_pipeline.c`, `REG_TO_US`, in the esp_video component the
+build fetches), so min, max and current exposure all collapse to 0 and the AGC
 refuses to initialise. `esp_video_init` then fails with a flat
 `ESP_ERR_NOT_SUPPORTED`, taking the whole camera down, scanning included.
 

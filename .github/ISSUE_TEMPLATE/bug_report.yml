@@ -1,0 +1,53 @@
+name: Bug report
+description: Something the device or the simulator does wrong
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If the bug could put funds at risk, stop here and read
+        [SECURITY.md](https://github.com/diybitcoin/kiss-signer/blob/main/SECURITY.md).
+        Report that privately instead.
+
+  - type: input
+    id: version
+    attributes:
+      label: Firmware version
+      description: Settings shows it, or give the tag you built.
+      placeholder: v0.1.0-beta10
+    validations:
+      required: true
+
+  - type: input
+    id: board
+    attributes:
+      label: Board
+      description: Which ESP32-P4 board, and the display if it is not the stock one.
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. From the home screen, ...
+        2. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: A photo of the screen, serial output, or the PSBT that triggered it. Never attach a seed or a real signing key.
+    validations:
+      required: false

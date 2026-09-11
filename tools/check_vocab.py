@@ -513,9 +513,10 @@ DOCS = [
 # it would make the history claim this device always said keys, which is the
 # one thing the changelog exists to be honest about.
 #
-# ROADMAP.md is out for a weaker reason worth stating too: it is a table of
-# what is planned, and its uses are wallet TYPES ("taproot key path wallet"),
-# which is the coordinator's sense. If it grows prose an owner reads, add it.
+# docs/ROADMAP.md is out for a weaker reason worth stating too: it is a
+# table of what is planned, and its uses are wallet TYPES ("taproot key
+# path wallet"), which is the coordinator's sense. If it grows prose an
+# owner reads, add it.
 
 # Three of the eight rules, and the five left out are left out on purpose.
 #
