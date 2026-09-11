@@ -78,10 +78,6 @@ SITE_REQUIRED = [
     "fonts/IBMPlexMono-Regular.woff2",
     "fonts/IBMPlexMono-Medium.woff2",
     "fonts/IBMPlexMono-SemiBold.woff2",
-    # the prose face; styles.css declares it for both reader sheets
-    "fonts/IBMPlexSans-Regular.woff2",
-    "fonts/IBMPlexSans-Medium.woff2",
-    "fonts/IBMPlexSans-SemiBold.woff2",
     "fonts/IoskeleyMono-Regular.woff2",
     "fonts/IoskeleyMono-Medium.woff2",
     "fonts/IoskeleyMono-Bold.woff2",

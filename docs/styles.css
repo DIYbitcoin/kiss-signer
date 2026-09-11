@@ -60,39 +60,6 @@
   font-display: swap;
 }
 
-/* The prose face, for the documentation's running text only. A fixed pitch is
-   right for an amount, an address or a command, and wrong for four screens of
-   explanation: it sets about a third wider than a proportional face, so the
-   same paragraph costs more line and more effort. Plex Sans is the sibling of
-   the Plex Mono above, SIL OFL 1.1 like everything else here, and served from
-   this origin, so the no-third-party-request claim still holds.
-
-   The faces live here rather than in docs-reader.css because both reader
-   sheets want them and a @font-face block copied into two files is one that
-   goes stale in one of them. */
-@font-face {
-  font-family: "IBM Plex Sans";
-  src: url("fonts/IBMPlexSans-Regular.woff2") format("woff2");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "IBM Plex Sans";
-  src: url("fonts/IBMPlexSans-Medium.woff2") format("woff2");
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "IBM Plex Sans";
-  src: url("fonts/IBMPlexSans-SemiBold.woff2") format("woff2");
-  font-weight: 600;
-  font-style: normal;
-  font-display: swap;
-}
 
 :root {
   color-scheme: dark;
@@ -131,10 +98,6 @@
      the reader sooner. The answer is not a second face, it is a shorter line:
      the docs cap their measure near 62 characters and lead at 1.75. */
   --mono: "Ioskeley Mono", "IBM Plex Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
-  /* Applied only where a reader sheet asks for it. Nothing in this file uses
-     it, so the site's voice is unchanged until docs-reader.css or
-     site-reader.css is loaded. */
-  --sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
 :root[data-accent="green"] {
