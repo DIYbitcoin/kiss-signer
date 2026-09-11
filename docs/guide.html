@@ -525,6 +525,79 @@
         margin-bottom: 0;
       }
 
+      /* ---------- the storage matrix ----------
+         Three modes against one question, which was 326 words of prose saying
+         the same shape three times. A reader comparing modes is doing a table
+         in their head; this one is on the page. */
+      .matrix-wrap {
+        margin: 22px 0 6px;
+        max-width: 62ch;
+        overflow-x: auto;
+      }
+      .matrix {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.78rem;
+        text-align: left;
+      }
+      .matrix th,
+      .matrix td {
+        border: 1px solid var(--line);
+        padding: 10px 12px;
+        vertical-align: top;
+      }
+      .matrix thead th {
+        background: var(--key);
+        color: var(--dim);
+        font-weight: 500;
+        font-size: 0.66rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        line-height: 1.4;
+      }
+      .matrix tbody th {
+        background: var(--panel);
+        color: var(--ink);
+        font-weight: 500;
+        letter-spacing: 0.08em;
+        white-space: nowrap;
+      }
+      /* where that mode keeps the words, under its name */
+      .matrix tbody th span {
+        display: block;
+        margin-top: 3px;
+        color: var(--dim);
+        font-weight: 400;
+        font-size: 0.68rem;
+        letter-spacing: 0.02em;
+      }
+      /* the verdict, then the reason for it in the same cell */
+      .matrix td span {
+        display: block;
+        margin-top: 3px;
+        color: var(--dim);
+        font-size: 0.68rem;
+        letter-spacing: 0.02em;
+      }
+      .matrix td.ok {
+        color: var(--green);
+        background: rgba(53, 208, 127, 0.05);
+      }
+      .matrix td.stop {
+        color: var(--red);
+        background: rgba(255, 77, 94, 0.05);
+      }
+      .matrix td.na {
+        color: var(--dim);
+      }
+      .matrix-wrap figcaption {
+        margin-top: 9px;
+        color: var(--dim);
+        font-size: 0.74rem;
+        line-height: 1.6;
+        max-width: 54ch;
+      }
+
       .shots {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1242,56 +1315,63 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
 <section class="doc-card reveal" id="storage">
         <p class="eyebrow">12 / three storage modes</p>
         <h2>Where your recovery words are kept</h2>
-        <p>
+        <p class="lede">
           Setup asks once, and Settings can change it later. What differs
-          between the three is what an attacker gets from the thing they
-          physically took.
-        </p>
-        <p>
-          In every mode your <strong>passphrase is never stored</strong>. It is
-          typed fresh each unlock, and it is what guards the keys that hold your
-          coins. Recovery words on their own derive the base keys, not your
-          passphrase keys.
+          between the three is what someone gets from the thing they physically
+          took.
         </p>
 
-        <h3>FLASH</h3>
-        <p>
-          Seed words stay on the device and it unlocks on its own. On the normal
-          beta they are written <strong>in the clear</strong>, so someone with the
-          device and the right equipment can read them out of the chip. A
-          flash-encrypted build stores the same mode encrypted. The device tells
-          you which you are on, by asking the chip rather than trusting the
-          firmware.
-        </p>
+        <figure class="matrix-wrap">
+          <table class="matrix">
+            <thead>
+              <tr>
+                <th scope="col">Mode</th>
+                <th scope="col">They take the device</th>
+                <th scope="col">They take the card</th>
+                <th scope="col">They take both</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">FLASH<span>on the chip</span></th>
+                <td class="stop">seed words<span>on this beta</span></td>
+                <td class="na">no card</td>
+                <td class="stop">seed words<span>on this beta</span></td>
+              </tr>
+              <tr>
+                <th scope="row">SD CARD<span>sealed, on the card</span></th>
+                <td class="ok">nothing<span>holds no copy</span></td>
+                <td class="ok">nothing<span>sealed to the device</span></td>
+                <td class="stop">seed words<span>the gap</span></td>
+              </tr>
+              <tr>
+                <th scope="row">AMNESIC<span>in RAM only</span></th>
+                <td class="ok">nothing<span>once locked</span></td>
+                <td class="na">no card</td>
+                <td class="ok">nothing<span>once locked</span></td>
+              </tr>
+            </tbody>
+          </table>
+          <figcaption>
+            Every cell assumes the right equipment. A flash-encrypted build
+            makes the FLASH row read nothing too.
+          </figcaption>
+        </figure>
 
-        <h3>SD CARD</h3>
-        <p>
-          Seed words live on the card as a sealed file only this device can
-          open, so the card alone is inert. Insert it before unlocking. A lost
-          card gives up nothing, and the device holds no copy.
-        </p>
-        <p>
-          The gap is someone holding <em>both</em> the device and the card.
-          Flash encryption closes it, by protecting the device key at rest. Until
-          then SD is the stronger persistent mode, because FLASH on an
-          unencrypted build stores seed words in the clear.
-        </p>
+        <div class="note">
+          No cell above holds your passphrase. It is never stored, in any mode,
+          and it is what guards the keys that hold your coins.
+        </div>
 
-        <h3>AMNESIC</h3>
         <p>
-          Nothing is written anywhere. Seed words sit in RAM for the session and
-          are gone on lock or power off. You load them each time, by typing them
-          or opening an encrypted backup. A device taken while locked holds
-          nothing to find. <strong>Use this for anything that matters on beta
-          firmware.</strong>
+          <strong>On beta firmware, pick AMNESIC for anything that matters.</strong>
+          You load your seed words each time, by typing them or opening an encrypted
+          backup. SD CARD is the better of the two that remember.
         </p>
 
         <div class="note">
           Changing mode erases the old location. KISS writes the new copy,
-          verifies it, then removes the old one. Moving a loaded amnesic session
-          to a persistent mode works while it is still unlocked; lock it first
-          and there is nothing in RAM to migrate, so KISS asks you to load your
-          keys again.
+          verifies it, then removes the old one.
         </div>
       </section>
 <section class="doc-card reveal" id="simulator">
