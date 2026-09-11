@@ -820,12 +820,30 @@
         border-left-color: var(--accent);
       }
 
+      /* Three columns need about 1080px. Below that the on-this-page column
+         goes and the rail stays. Below 900 styles.css turns the rail into a
+         horizontal row of topics and drops it out of the grid, so the second
+         block hands the layout back to it; without that the row was being held
+         inside a 196px column it no longer fits. */
       @media (max-width: 1080px) {
         .docs-layout {
           grid-template-columns: 196px minmax(0, 1fr);
         }
         .docs-toc {
           display: none;
+        }
+      }
+
+      @media (max-width: 900px) {
+        .docs-layout {
+          grid-template-columns: 1fr;
+        }
+        .docs-body {
+          max-width: none;
+        }
+        /* the box stays reachable while the rail scrolls away with the page */
+        .docs-search {
+          margin-bottom: 10px;
         }
       }
 
