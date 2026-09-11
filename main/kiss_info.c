@@ -402,10 +402,23 @@ static void pair_refresh(void)
         // an L shaped rule in the gutter instead -- the handoff asked for a
         // down-and-right arrow, U+21B3, which is in none of these fonts -- and
         // a bracket nobody wrote is a symbol the reader has to learn.
-        char line[100];
-        if (i + 1 < n) snprintf(line, sizeof line, "%s >", rung[i]);
-        else           snprintf(line, sizeof line, "%s", rung[i]);
-        lv_label_set_text(s_pair_rung[i], line);
+        //
+        // The PRECISION is not decoration. pair_ladder terminates every row
+        // inside its own 96 bytes, and the device compiler cannot see that:
+        // to GCC, rung[i] is a pointer into one flat 288 byte array and the
+        // copy could run to the end of it, which is -Werror=format-truncation
+        // and a failed build. Only the device toolchain says so -- clang built
+        // the simulator clean -- so this is a lane no local test predicts.
+        // Bounding the read to one row makes the claim checkable instead of
+        // true by accident.
+        if (i + 1 < n) {
+            char line[sizeof rung[0] + 3];
+            snprintf(line, sizeof line, "%.*s >", (int)(sizeof rung[0] - 1),
+                     rung[i]);
+            lv_label_set_text(s_pair_rung[i], line);
+        } else {
+            lv_label_set_text(s_pair_rung[i], rung[i]);   // no copy wanted
+        }
         lv_obj_remove_flag(s_pair_rung[i], LV_OBJ_FLAG_HIDDEN);
     }
     if (s_pair_tail) {
