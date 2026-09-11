@@ -53,6 +53,15 @@
   line-height: 1.5;
 }
 
+/* The eyebrow is capped at 42 characters, which suits the guide, where it is
+   a number and a short phrase. Here it is now a row of five: what the device
+   is, then the chip and three things it does. At 42ch that row set itself
+   five lines deep above the title. The hero column is about 830px wide on a
+   laptop, so the cap simply goes and the row takes the width it has. */
+.install-shell .eyebrow {
+  max-width: none;
+}
+
 /* NOTE ON THE TWO PHONE BREAKPOINTS
    The handoff asks this sheet to override the 640px and 430px blocks in
    styles.css "that drop the brand and tabs to 0.74-0.78rem". At a 20px root
