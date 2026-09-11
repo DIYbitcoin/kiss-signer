@@ -227,3 +227,59 @@ pre {
   .doc-card h2 { font-size: 1.4rem; }
   .doc-card:not([hidden]) + .doc-card:not([hidden]) { margin-top: 48px; padding-top: 48px; }
 }
+
+/* ---------- paper ----------
+   One topic at a time is right on the screen and wrong on paper: printing
+   gave you whichever topic happened to be open, and the browser's own find
+   searched only that one. Here the whole guide unfolds, the furniture goes,
+   and the device's dark theme is swapped for ink on white. */
+@media print {
+  :root {
+    color-scheme: light;
+    --bg: #fff;
+    --ink: #111;
+    --muted: #333;
+    --dim: #555;
+    --panel: #fff;
+    --panel-2: #fff;
+    --key: #fff;
+    --line: #bbb;
+    --line-soft: #ccc;
+    --control: #999;
+    --accent: #000;
+    --accent-bg: #fff;
+  }
+
+  body { background: #fff; }
+
+  /* every topic prints, not only the one on screen */
+  .docs-body .doc-card[hidden] { display: block !important; }
+  .reveal { opacity: 1 !important; transform: none !important; }
+
+  /* the furniture is for the screen */
+  .topbar,
+  .docs-rail,
+  .docs-toc,
+  .docs-pager,
+  .docs-search,
+  .try,
+  .gesture-play,
+  .copy-btn { display: none !important; }
+
+  .docs-layout { display: block; }
+  .docs-body { max-width: none; }
+
+  .doc-card { break-before: page; }
+  .doc-card:first-child { break-before: auto; }
+  .doc-card h2 { break-after: avoid; }
+  figure, .danger, .note, .codeblock, .feats article { break-inside: avoid; }
+
+  /* paper has no hover and no address bar, so a link says where it goes */
+  a { color: inherit; }
+  .doc-card a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: 0.85em;
+    color: #555;
+    word-break: break-all;
+  }
+}
