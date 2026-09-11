@@ -18,6 +18,15 @@
          WT_* colours rather than linked. Do NOT swap this for a stylesheet
          link: it would break opening the file straight off a card. */
       * { box-sizing: border-box; }
+      /* The same root the rest of the site sets, restated because this page
+         cannot link the stylesheet that carries it. Every size below is in
+         rem, so against the browser default of 16px they all landed a
+         quarter smaller than the same rem value does on the guide: the
+         header at 12.16px, the two hash readouts at 13.6, the digest line
+         at 13.12. That is the one page where somebody is comparing a string
+         character by character to decide whether to trust a firmware, and it
+         was the smallest type on the site. */
+      html { font-size: 125%; }
       body {
         margin: 0;
         background: #070a10;
