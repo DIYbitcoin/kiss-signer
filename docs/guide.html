@@ -25,8 +25,12 @@
       /* Left rail, prose, and a list of what is in the topic you are on.
          The second column was running to 904px with the prose capped at 70ch
          inside it, so a third of the page was doing nothing. */
+      /* auto on the last track, not a fixed 178px. The on-this-page column is
+         display:none on a topic with fewer than two subheadings, and a fixed
+         track went on reserving its width for an element that was not there --
+         178 pixels of nothing on the topic most people land on. */
       .docs-layout {
-        grid-template-columns: 196px minmax(0, 1fr) 178px;
+        grid-template-columns: 196px minmax(0, 1fr) auto;
         gap: 34px;
       }
       /* A figure is not a line of text and does not want a line's width. The
@@ -34,7 +38,7 @@
          made their labels small enough to complain about. Wide enough to read,
          still short of a billboard. */
       .doc-card {
-        --figure: 960px;
+        --figure: min(100%, 1280px);
       }
 
       .docs-body {
@@ -50,7 +54,7 @@
          every diagram into a column sized for a line of prose. The prose
          measure stays where it is; the room goes to the pictures. */
       .shell {
-        max-width: 1560px;
+        max-width: 1780px;
       }
 
       /* The h1 is the same word on all eleven topics, so it reads as a
@@ -84,7 +88,7 @@
       .doc-card > ul,
       .doc-card > ol,
       .doc-card > .eyebrow {
-        max-width: 62ch;
+        max-width: 72ch;
       }
 
       .doc-card h2 {
@@ -1224,6 +1228,7 @@
          (checking a download, first boot, encryption) run several screens, and
          until now the only way to see what was in them was to scroll. */
       .docs-toc {
+        width: 190px;
         position: sticky;
         top: 74px;
         align-self: start;
