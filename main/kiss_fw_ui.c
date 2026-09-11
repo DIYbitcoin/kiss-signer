@@ -407,6 +407,28 @@ static void result_back_cb(lv_event_t *e)
     fw_screen();
 }
 
+// READ THE CARD AGAIN, from a screen that is only there because reading it
+// answered badly.
+//
+// Four of the six refusals below are about the card and not about the image on
+// it: no card, no image, an image too big for the slot kept for it, a file that
+// is not one of ours. Every one of them is fixed at the slot -- reseat it, put
+// the release on it, swap it -- and the screen offered BACK to the section home
+// and nothing else, with "open this screen again" written in the body as the
+// route. A rescan IS reopening the screen: fw_screen re-runs kiss_fw_scan and
+// rebuilds from the answer, which is exactly what the post-install failure
+// screen has always done under the word BACK.
+//
+// Not on the other two. ALREADY RUNNING is not a fault and has nothing to try;
+// a build with no key to check a signature with cannot be talked into having
+// one by looking at the card a second time. A control that cannot change the
+// answer is a control that teaches the owner their taps do nothing.
+static void fw_rescan_cb(lv_event_t *e)
+{
+    (void)e;
+    fw_screen();
+}
+
 static void result_screen(int rc)
 {
     const bool ok = rc == WFW_OK;
@@ -807,6 +829,9 @@ static void fw_screen(void)
     const bool installable = (rc == WFW_OK || rc == WFW_ERR_OLDER);
     if (!installable) {
         nothing_to_install(rc);
+        if (rc != WFW_ERR_SAME && rc != WFW_ERR_UNSIGNED)
+            wt_arrow_action(s_scr, tr(STR_C_TRY_AGAIN), false, true, WT_ACT_X,
+                            WT_ACTION_Y, 0, false, fw_rescan_cb, NULL);
         wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y,
                         160, true, close_cb, NULL);
         return;
