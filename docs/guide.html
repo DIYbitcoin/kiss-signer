@@ -525,6 +525,109 @@
         margin-bottom: 0;
       }
 
+      /* ---------- the signing screen, pinned ----------
+         The topic names four numbers to compare and the screenshot shows all
+         of them, but nothing connected the two, so a reader had to hunt for
+         "network fee" in a picture to find out where it lives. Pointing at
+         them is the whole job.
+
+         Hovering or focusing either half lights the other, which is what makes
+         this a key rather than a decoration. */
+      .pins {
+        margin: 20px 0 6px;
+        max-width: 62ch;
+      }
+      .pins-stage {
+        position: relative;
+        line-height: 0;
+      }
+      .pins-stage img {
+        width: 100%;
+        display: block;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+      }
+      .pins-stage svg {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+      .pins-stage circle {
+        fill: var(--accent-bg);
+        stroke: var(--accent);
+        stroke-width: 2;
+        transition: fill 150ms ease, stroke-width 150ms ease;
+      }
+      .pins-stage text {
+        fill: var(--accent);
+        font-family: var(--mono);
+        font-size: 17px;
+        font-weight: 500;
+        text-anchor: middle;
+      }
+      .pins-stage [data-pin].lit {
+        fill: var(--accent);
+        stroke-width: 3;
+      }
+      .pins-stage text[data-pin].lit {
+        fill: var(--bg);
+      }
+      .pins-key {
+        counter-reset: pin;
+        list-style: none;
+        margin: 14px 0 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      /* The number is positioned inside the indent, NOT a grid cell. Laying a
+         list item out as a grid makes every child a grid item, and these items
+         are a <strong> followed by a text node, so the sentence came apart at
+         the bold and set one word to a line. Same fault the callouts had. */
+      .pins-key li {
+        position: relative;
+        margin: 0;
+        padding-left: 32px;
+        color: var(--muted);
+        font-size: 0.8rem;
+        line-height: 1.6;
+        cursor: default;
+      }
+      .pins-key li::before {
+        counter-increment: pin;
+        content: counter(pin);
+        position: absolute;
+        left: 0;
+        top: 2px;
+        display: grid;
+        place-items: center;
+        width: 22px;
+        height: 22px;
+        border: 1px solid var(--control);
+        border-radius: 50%;
+        background: var(--accent-bg);
+        color: var(--accent);
+        font-family: var(--mono);
+        font-size: 0.64rem;
+      }
+      .pins-key li.lit::before {
+        background: var(--accent);
+        color: var(--bg);
+        border-color: var(--accent);
+      }
+      .pins-key strong {
+        color: var(--ink);
+        font-weight: 500;
+      }
+      .pins figcaption {
+        margin-top: 11px;
+        color: var(--dim);
+        font-size: 0.74rem;
+        line-height: 1.6;
+      }
+
       /* ---------- the animated QR ----------
          The page says a transaction is split into numbered frames and played
          as a loop. That is an animation described in a paragraph, and a reader
@@ -1640,6 +1743,37 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           before you sign. Always a <strong>CAUTION</strong> you acknowledge,
           never a silent surprise.
         </p>
+        <figure class="pins" aria-labelledby="pins-cap">
+          <div class="pins-stage">
+            <img src="media/sign-verify.png" alt="The KISS signing screen, showing what the recipient gets, the inputs, the network fee and the change">
+            <svg viewBox="0 0 800 480" aria-hidden="true">
+              <circle data-pin="1" cx="745" cy="31" r="15"/>
+              <text data-pin="1" x="745" y="37">1</text>
+              <circle data-pin="2" cx="300" cy="122" r="15"/>
+              <text data-pin="2" x="300" y="128">2</text>
+              <circle data-pin="3" cx="404" cy="245" r="15"/>
+              <text data-pin="3" x="404" y="251">3</text>
+              <circle data-pin="4" cx="404" cy="281" r="15"/>
+              <text data-pin="4" x="404" y="287">4</text>
+            </svg>
+          </div>
+          <ol class="pins-key">
+            <li data-pin="1"><strong>Which keys are signing.</strong> It should be
+              the fingerprint your home screen shows.</li>
+            <li data-pin="2"><strong>What the recipient gets.</strong> KISS worked
+              this out from the transaction itself, not from what the coordinator
+              claimed.</li>
+            <li data-pin="3"><strong>The fee.</strong> It turns amber when it is a
+              large share of what you are sending.</li>
+            <li data-pin="4"><strong>Your change, coming back to you.</strong> Tiny
+              change is flagged, because it links your addresses together.</li>
+          </ol>
+          <figcaption id="pins-cap">
+            These four are the whole check. Everything else on the screen follows
+            from them.
+          </figcaption>
+        </figure>
+
         <h3>What turns amber</h3>
         <ul>
           <li><strong>High fee.</strong> The fee turns amber if it is a big
@@ -1966,6 +2100,36 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           ev.preventDefault();
           input.focus();
           input.select();
+        });
+      })();
+
+      /* ---------- the signing screen, pinned ----------
+         Either half lights the other. Pointer and keyboard both, because the
+         key is a list and a list is something people tab through. */
+      (function () {
+        var fig = document.querySelector(".pins");
+        if (!fig) return;
+        var items = Array.prototype.slice.call(fig.querySelectorAll(".pins-key li"));
+        var marks = Array.prototype.slice.call(fig.querySelectorAll("[data-pin]"));
+
+        function lit(n, on) {
+          marks.forEach(function (m) {
+            if (m.getAttribute("data-pin") === String(n)) m.classList.toggle("lit", on);
+          });
+          items.forEach(function (li) {
+            if (li.getAttribute("data-pin") === String(n)) li.classList.toggle("lit", on);
+          });
+        }
+
+        items.forEach(function (li) {
+          var n = li.getAttribute("data-pin");
+          li.tabIndex = 0;
+          ["mouseenter", "focus"].forEach(function (e) {
+            li.addEventListener(e, function () { lit(n, true); });
+          });
+          ["mouseleave", "blur"].forEach(function (e) {
+            li.addEventListener(e, function () { lit(n, false); });
+          });
         });
       })();
 
