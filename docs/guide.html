@@ -1368,6 +1368,9 @@
         }
       }
     </style>
+    <!-- After styles.css and after the block above, because it overrides both
+         and every rule in it ties on specificity rather than outranking. -->
+    <link rel="stylesheet" href="docs-reader.css">
       <script src="theme.js"></script>
   </head>
   <body>
