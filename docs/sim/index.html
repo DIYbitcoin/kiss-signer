@@ -10,7 +10,10 @@
      notices paragraph that is no longer here, and it was most of what pushed
      this page past a full window. */
   .wrap { max-width: 1180px; margin: 0 auto; padding: 24px 16px 24px; }
-  .lead { color: var(--muted); margin: 0 0 14px; max-width: 66ch; }
+  .lead { color: var(--muted); margin: 0; flex: 1; min-width: 20ch; font-size: 14px; }
+  .pagehead { display: flex; align-items: baseline; gap: 20px; flex-wrap: wrap;
+              margin: 0 0 16px; }
+  .pagehead h1 { font-size: 30px; margin: 0; white-space: nowrap; }
   .stage { display: grid; grid-template-columns: minmax(0,1fr) 300px; gap: 20px; align-items: start; }
   @media (max-width: 900px) { .stage { grid-template-columns: minmax(0,1fr); } }
 
@@ -77,9 +80,15 @@
     </header>
 
 <div class="wrap">
-  <h1>Simulator</h1>
-  <p class="lead">The signer's own firmware, compiled to WebAssembly. Real words, real
-  derivation, a real signature. Nothing installed, nothing leaves this tab.</p>
+  <!-- ONE ROW. The title stood at full page size with the lead stacked under
+       it, and between them they spent 168px before the signer appeared -- most
+       of the reason this page could not fit a window. Beside each other they
+       take the height of the taller one and nothing else. -->
+  <div class="pagehead">
+    <h1>Simulator</h1>
+    <p class="lead">The signer's own firmware, compiled to WebAssembly. Real words, real
+    derivation, a real signature. Nothing installed, nothing leaves this tab.</p>
+  </div>
 
   <div class="stage">
     <div>
