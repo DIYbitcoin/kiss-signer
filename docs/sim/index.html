@@ -86,8 +86,8 @@
        take the height of the taller one and nothing else. -->
   <div class="pagehead">
     <h1>Simulator</h1>
-    <p class="lead">The signer's own firmware in WebAssembly. Real words, real
-    derivation, a real signature. Nothing leaves this tab.</p>
+    <p class="lead">The real firmware in WebAssembly. Real seed words, real derivation,
+    a real signature. Nothing leaves this tab.</p>
   </div>
 
   <div class="stage">
@@ -116,20 +116,19 @@
     <div>
       <div class="panel">
         <h2>Language</h2>
-        <p style="margin:0">Chosen before the signer starts. After that it lives where it
-        lives on the device: SETTINGS, inside the signer.</p>
+        <p style="margin:0">Pick it before the signer boots. Change it later in SETTINGS.</p>
       </div>
 
       <div class="panel">
         <h2>Show it a QR</h2>
-        <p style="margin:0 0 8px">Point a coordinator's QR at your webcam.</p>
+        <p style="margin:0 0 8px">Point your coordinator's QR at the webcam.</p>
         <button id="cam">USE THE WEBCAM</button>
       </div>
 
       <div class="panel">
         <h2>The card</h2>
         <input type="file" id="sd" multiple>
-        <p>Drops files onto the simulated SD card. Signed output appears here.</p>
+        <p>Drop a PSBT here. The signed one comes back.</p>
         <ul class="files" id="sdlist"></ul>
         <button id="refresh">REFRESH</button>
       </div>
