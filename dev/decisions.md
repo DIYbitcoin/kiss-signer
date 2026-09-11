@@ -236,7 +236,7 @@ It used to draw a dimmed one, on the reasoning that the shape of the transaction
 
 ### the destructive group is a TAB with its own tint and cross-fade, not a row buried on another page
 
-[`main/kiss_theme.h:959`](../main/kiss_theme.h#L959)
+[`main/kiss_theme.h:964`](../main/kiss_theme.h#L964)
 
 ## `main/main.c`
 
@@ -258,4 +258,4 @@ The word is the FIRST stored.strokes strokes of the buffer, so once that many ha
 
 pump(30), not 20. The outgoing pane leaves on a per row stagger -- (n-1) * MO_OUT_STEP + MO_OUT_MS, which is 330ms for a six row detail pane against 320ms of pump -- so the old count photographed the previous screen still fading through this one. Invisible until overlapcheck learned to read spangroups: the ghost is a folded address, and a spangroup was not text to any check on the list.
 
-[`sim/sim_main.c:4714`](../sim/sim_main.c#L4714)
+[`sim/sim_main.c:4721`](../sim/sim_main.c#L4721)

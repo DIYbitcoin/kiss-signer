@@ -296,6 +296,11 @@ void wt_sub_fit(lv_obj_t *scr, int w);
 // silent payments everywhere else in the app, and a mark cannot say two
 // things. Added to SYMS in the same edit that named it here -- an icon missing
 // from the font hard-hangs the renderer rather than drawing a tofu box.
+// WHERE the coordinator runs, on the pairing tabs. Not a telephone: U+F095 is
+// a handset, which is the glyph for placing a call, and it was standing for "a
+// wallet on a phone" on a signer that has no radio and never makes one.
+#define WT_ICON_DESKTOP "\xEF\x84\x88"   // U+F108 desktop
+#define WT_ICON_MOBILE  "\xEF\x8F\x8D"   // U+F3CD mobile-alt
 #define WT_ICON_SHIELD  "\xEF\x8F\xAD"   // U+F3ED shield-halved
 // The settings band's language control. It wore a bare forward arrow, which
 // is the glyph the SCREEN'S OWN action wears -- so the one control on the
