@@ -45,6 +45,7 @@
         <a href="sim/index.html">Simulator</a>
       </nav>
       <a class="icon-link" href="https://github.com/DIYbitcoin/kiss-signer" aria-label="Source on GitHub" title="Source on GitHub"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a>
+      <a class="icon-link" href="https://t.me/KISS_signer" aria-label="Chat on Telegram" title="Chat on Telegram"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M15.7 1.6a.6.6 0 0 0-.85-.55L.85 6.66c-.6.24-.58.82.03 1.01l3.6 1.12 1.35 4.24c.16.5.8.62 1.12.2l1.9-2.4 3.7 2.72c.42.3 1 .1 1.1-.42zM5.9 9.3l6.9-4.5-5.7 5.6-.2 2.6z"/></svg></a>
     </header>
 
     <main class="shell install-shell">
@@ -176,21 +177,16 @@
       </section>
     </main>
 
+    <!-- Only what is not already in the header. The repo and the chat are
+         both marks up there now, and Docs is a tab, so repeating all three
+         down here was a second navigation that agreed with the first. What
+         is left is the three destinations the header has no room for. -->
     <footer class="foot">
       <div class="foot-links">
-        <a href="https://github.com/DIYbitcoin/kiss-signer">GitHub</a>
         <a href="https://github.com/DIYbitcoin/kiss-signer/releases">Releases</a>
-        <a href="https://t.me/KISS_signer">Telegram</a>
-        <a href="guide.html">Docs</a>
         <a href="https://github.com/DIYbitcoin/kiss-signer/blob/main/CHANGELOG.md">Changelog</a>
         <a href="https://github.com/DIYbitcoin/kiss-signer/blob/main/LICENSE">MIT</a>
       </div>
-      <!-- The @font-face block in styles.css exists to make this true, and
-           said so in a comment no reader ever sees. Both faces are served
-           from this origin, there is no CDN and no analytics, so the page
-           contacts nobody. A site advertising an airgapped signer should be
-           willing to say that out loud. -->
-      <p class="motto quiet">No third party request. No analytics. No cookies.</p>
     </footer>
 
     <script src="app.js"></script>

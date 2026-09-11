@@ -508,13 +508,6 @@ a:hover {
   color: var(--ink);
 }
 
-.motto {
-  margin: 0;
-  color: var(--disabled);
-  font-size: 0.8rem;
-  letter-spacing: 0.06em;
-}
-
 .shell {
   max-width: var(--max);
   margin: 0 auto;
@@ -1629,12 +1622,6 @@ button {
   .theme-pick {
     padding-left: 4px;
   }
-}
-
-.motto.quiet {
-  margin-top: 4px;
-  color: var(--dim);
-  font-size: 0.76rem;
 }
 
 /* Shown only when the browser has no Web Serial. It sits outside the install
