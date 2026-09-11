@@ -238,15 +238,13 @@ OFFLINE_INDEX = """<!doctype html>
         </div>
 
         <p class="browser-note" id="browser-note" hidden>
-          This browser has no Web Serial, so it cannot reach the device over the
-          cable. Chrome, Brave and Edge all can, on macOS too &mdash; or
-          <a href="guide.html#esptool">flash it from the command line</a>, which
-          needs no new browser at all.
+          Use Chrome, Brave or Edge to install over USB, or
+          <a href="guide.html#esptool">flash from the command line</a>.
         </p>
 
         <p class="fineprint">
           <a class="motion-link" href="guide.html#firstboot">What happens next &rarr;</a>
-          <a class="motion-link" href="guide.html#storage">Where your recovery words are kept &rarr;</a>
+          <a class="motion-link" href="guide.html#storage">Where your seed words are kept &rarr;</a>
           <a class="motion-link" href="verify-release.html">Check the file yourself &rarr;</a>
         </p>
       </section>
