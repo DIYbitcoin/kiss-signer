@@ -2732,15 +2732,22 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           toc.textContent = "";
           if (spy) { spy.disconnect(); spy = null; }
 
-          /* Only real subsections. The step and feature headings are list
-             items; listing them here just repeats the list beside itself. */
+          /* Step and feature headings count. They were excluded because
+             listing them repeats the list beside itself, which is true, and
+             the price of being right about it was no column at all on the
+             topic most people land on. A reader arriving at a long topic
+             wants to see its shape more than they want the column to avoid
+             saying a thing twice. Callout headings stay out: a warning is an
+             interruption to the reading, not a section of it. */
           var heads = card
             ? Array.from(card.querySelectorAll("h3")).filter(function (h) {
-                return !h.closest(".steps, .feats, .danger, .note");
+                return !h.closest(".danger, .note");
               })
             : [];
-          /* one or two headings do not earn a column of their own */
-          if (heads.length < 2) { toc.hidden = true; return; }
+          /* One is enough to be worth listing. Five topics have no subheading
+             at all and still show nothing, because a column headed "On this
+             page" with nothing under it is worse than the space it takes. */
+          if (heads.length < 1) { toc.hidden = true; return; }
 
           var title = document.createElement("p");
           title.textContent = "On this page";
