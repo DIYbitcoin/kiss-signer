@@ -525,6 +525,103 @@
         margin-bottom: 0;
       }
 
+      /* ---------- the unlock gesture, traced ----------
+         Getting into the signer is a stroke you draw, and a stroke cannot be
+         written down. The prose said "draw a clear K, then I-S-S", which tells
+         a reader the letters and none of the two things they actually get
+         wrong: that each letter is a separate touch, and that the word has to
+         be wider than it is tall. Both are in kiss_coverword.c; neither was on
+         this page.
+
+         It draws on demand, not on arrival. Nobody needs a hand writing at
+         them while they are reading the step above it. */
+      .gesture {
+        margin: 22px 0 6px;
+        max-width: 62ch;
+      }
+      .gesture-stage {
+        position: relative;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        overflow: hidden;
+        line-height: 0;
+      }
+      .gesture-stage img {
+        width: 100%;
+        display: block;
+      }
+      .gesture-stage svg {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+      .gs {
+        fill: none;
+        stroke: #fff;
+        stroke-width: 9;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        filter: drop-shadow(0 0 6px rgba(0, 0, 0, 0.85));
+        opacity: 0;
+      }
+      .gesture-stage.is-drawing .gs {
+        opacity: 1;
+      }
+      .gesture-play {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border: 1px solid var(--control);
+        border-radius: 999px;
+        background: rgba(7, 10, 16, 0.82);
+        backdrop-filter: blur(6px);
+        color: var(--ink);
+        padding: 9px 16px 9px 13px;
+        font-family: var(--mono);
+        font-size: 0.72rem;
+        letter-spacing: 0.1em;
+        line-height: 1.4;
+        cursor: pointer;
+        transition: opacity 200ms ease, border-color 150ms ease;
+      }
+      .gesture-play:hover {
+        border-color: var(--accent);
+      }
+      .gesture-play svg {
+        width: 13px;
+        height: 13px;
+        fill: currentColor;
+      }
+      .gesture-stage.is-drawing .gesture-play {
+        opacity: 0;
+        pointer-events: none;
+      }
+      .gesture figcaption {
+        margin-top: 9px;
+        color: var(--dim);
+        font-size: 0.74rem;
+        line-height: 1.65;
+        max-width: 58ch;
+      }
+      .gesture figcaption strong {
+        color: var(--muted);
+      }
+      /* With motion turned down the ink is simply there, all four letters at
+         once, which is the same information without the hand. */
+      @media (prefers-reduced-motion: reduce) {
+        .gs {
+          opacity: 1;
+        }
+        .gesture-play {
+          display: none;
+        }
+      }
+
       /* ---------- the storage matrix ----------
          Three modes against one question, which was 326 words of prose saying
          the same shape three times. A reader comparing modes is doing a table
@@ -1382,12 +1479,38 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           Walk this once with valueless TESTNET coins before using keys you care
           about. Five steps, receive then spend.
         </p>
+        <figure class="gesture" aria-labelledby="gesture-cap">
+          <div class="gesture-stage">
+            <img src="media/game-menu.png" alt="The FRUIT ISLAND game menu">
+            <svg viewBox="0 0 800 480" aria-hidden="true">
+              <!-- Four letters, left to right, across the artwork. The spine of
+                   the K and its arms are separate strokes because the recogniser
+                   counts pen lifts, not ink. -->
+              <path class="gs" d="M160 175 L160 300"/>
+              <path class="gs" d="M250 180 L163 240 L250 298"/>
+              <path class="gs" d="M300 175 L300 300"/>
+              <path class="gs" d="M462 200 C462 168 368 168 368 206 C368 238 455 238 455 270 C455 302 363 302 360 270"/>
+              <path class="gs" d="M607 200 C607 168 513 168 513 206 C513 238 600 238 600 270 C600 302 508 302 505 270"/>
+            </svg>
+            <button class="gesture-play" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5 19 12 8 18.5Z"/></svg>
+              <span>Show the gesture</span>
+            </button>
+          </div>
+          <figcaption id="gesture-cap">
+            Write <strong>K I S S</strong> across the menu with your finger.
+            <strong>Lift between letters</strong> &mdash; the device counts pen
+            lifts, not ink, and one continuous scribble never matches. Write it
+            <strong>wider than it is tall</strong>. The shape is forgiving; the
+            four separate letters are not.
+          </figcaption>
+        </figure>
+
         <div class="first-run">
           <figure>
             <img src="media/game-menu.png" alt="Fruit Island game menu">
-            <figcaption><b>01</b>Return to KISS: draw a clear
-              <strong>K</strong>, then <strong>I-S-S</strong> across the Fruit
-              Island menu.</figcaption>
+            <figcaption><b>01</b>Return to KISS: write K I S S across the
+              menu, as above.</figcaption>
           </figure>
           <figure>
             <img src="media/export-descriptor.png" alt="KISS descriptor QR for Sparrow">
@@ -1759,6 +1882,57 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         });
       })();
 
+      /* ---------- the unlock gesture, traced ----------
+         Each letter is its own path and they run in sequence with a pause
+         between, because the pause IS the lesson: the recogniser counts pen
+         lifts. Lengths come from the browser rather than being written down,
+         so editing a path cannot leave a stale number behind.
+
+         Plays on the button, and on opening this topic, never on arrival. */
+      (function () {
+        var stage = document.querySelector(".gesture-stage");
+        if (!stage) return;
+        var paths = Array.prototype.slice.call(stage.querySelectorAll(".gs"));
+        var btn = stage.querySelector(".gesture-play");
+        var still = window.matchMedia("(prefers-reduced-motion: reduce)");
+        var running = [];
+
+        paths.forEach(function (p) {
+          var len = p.getTotalLength();
+          p.style.strokeDasharray = len;
+          p.style.strokeDashoffset = len;
+        });
+
+        function reset() {
+          running.forEach(function (a) { a.cancel(); });
+          running = [];
+          stage.classList.remove("is-drawing");
+          paths.forEach(function (p) {
+            p.style.strokeDashoffset = p.getTotalLength();
+          });
+        }
+
+        function play() {
+          if (still.matches) return;
+          reset();
+          stage.classList.add("is-drawing");
+          var at = 0;
+          paths.forEach(function (p) {
+            var len = p.getTotalLength();
+            /* time by ink, so a short I does not take as long as a long S */
+            var dur = Math.max(230, len * 2.6);
+            running.push(p.animate(
+              [{ strokeDashoffset: len }, { strokeDashoffset: 0 }],
+              { duration: dur, delay: at, fill: "forwards", easing: "ease-in-out" }
+            ));
+            at += dur + 190;   /* the pen lift between letters */
+          });
+        }
+
+        window.__gesture = { play: play, reset: reset };
+        if (btn) btn.addEventListener("click", play);
+      })();
+
       /* ---------- the airgap diagram's motion ----------
          Held at indefinite in the markup, so it never starts on its own. The
          topic switcher below turns it on when the reader opens this topic and
@@ -1835,6 +2009,10 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
              they merely landed on, and it stops the moment they leave. */
           if (window.__airgapMotion) {
             window.__airgapMotion(opened && target.id === "how");
+          }
+          if (window.__gesture) {
+            if (opened && target.id === "roundtrip") window.__gesture.play();
+            else window.__gesture.reset();
           }
 
           /* the on-this-page column lists the topic you are on, so it is
