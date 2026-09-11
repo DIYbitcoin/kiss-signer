@@ -331,6 +331,21 @@ def selftest():
             print("::error::an id inside a hidden section was not seen")
             fails += 1
 
+        # The property the Markdown half was rewritten for, asserted again on
+        # this side so a refactor cannot quietly drop it: resolution answers
+        # git, not the disk. A target that is present locally and tracked by
+        # nobody is broken for the reader, and a check that asked the
+        # filesystem passed it on every laptop and failed in CI for six
+        # weeks. Planted after the add, so it is on disk and out of the index.
+        os.makedirs(os.path.join(d, "ondisk"), exist_ok=True)
+        open(os.path.join(d, "ondisk", "x.c"), "w").close()
+        io.open(os.path.join(d, "docs", "guide.html"), "w").write(
+            '<a href="../ondisk/x.c">present, untracked</a>')
+        if len(scan_html(d, ["docs/guide.html"], known_paths(d))) != 1:
+            print("::error::an untracked-but-present HTML target was not "
+                  "caught -- resolution has gone back to the filesystem")
+            fails += 1
+
     print(f"selftest: {fails} failure(s)")
     return 1 if fails else 0
 
