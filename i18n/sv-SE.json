@@ -95,7 +95,7 @@
   "G_FW_DOWN_H": "ATT GÅ TILLBAKA",
   "G_FW_DOWN_SHORT": "att gå tillbaka ger upp det den nyare fixade.",
   "G_FW_FAIL_CARD_B": "kortet slutade svara halvvägs.\n\ningenting gjordes startbart och enheten kör vidare på sin firmware.",
-  "G_FW_FAIL_SIG_FIX": "filen i sig är fel. hämta utgåvan igen från projektets egen sida.",
+  "G_FW_FAIL_SIG_FIX": "hämta utgåvan igen från projektets egen sida.",
   "G_FW_FAIL_PQ_B": "den post kvantsignaturen föll.\n\ningenting blev startbart, enheten behåller sin programvara.",
   "G_FW_FAIL_SIG_B": "signaturen stämde inte.\n\ningenting gjordes startbart och enheten kör vidare på sin firmware.",
   "G_FW_FAIL_T": "INTE INSTALLERAD",

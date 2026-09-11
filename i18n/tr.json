@@ -95,7 +95,7 @@
   "G_FW_DOWN_H": "GERİ DÖNMEK",
   "G_FW_DOWN_SHORT": "geri dönmek düzeltmeden vazgeçmektir.",
   "G_FW_FAIL_CARD_B": "kart yarıda yanıt vermeyi bıraktı.\n\nhiçbir şey açılabilir yapılmadı, cihaz kendi yazılımıyla çalışıyor.",
-  "G_FW_FAIL_SIG_FIX": "dosyanın kendisi hatalı. sürümü projenin kendi sayfasından yeniden indirin.",
+  "G_FW_FAIL_SIG_FIX": "sürümü projenin kendi sayfasından yeniden indirin.",
   "G_FW_FAIL_PQ_B": "post kuantum imza düştü.\n\nhiçbir şey açılabilir olmadı, cihaz yazılımını korur.",
   "G_FW_FAIL_SIG_B": "imza doğrulanmadı.\n\nhiçbir şey açılabilir yapılmadı, cihaz kendi yazılımıyla çalışıyor.",
   "G_FW_FAIL_T": "KURULMADI",

@@ -95,7 +95,7 @@
   "G_FW_DOWN_H": "GOING BACK",
   "G_FW_DOWN_SHORT": "going back gives up what the newer one fixed.",
   "G_FW_FAIL_CARD_B": "the card stopped responding partway through.\n\nnothing was made bootable and the device still runs the firmware it had.",
-  "G_FW_FAIL_SIG_FIX": "the file itself is wrong. get the release again from the project's own page.",
+  "G_FW_FAIL_SIG_FIX": "get the release again from the project's own page.",
   "G_FW_FAIL_PQ_B": "the post quantum signature failed the check.\n\nnothing was made bootable and the device still runs the firmware it had.",
   "G_FW_FAIL_SIG_B": "the signature did not check out.\n\nnothing was made bootable and the device still runs the firmware it had.",
   "G_FW_FAIL_T": "NOT INSTALLED",

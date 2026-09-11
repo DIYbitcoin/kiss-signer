@@ -508,7 +508,10 @@ static void result_screen(int rc)
     // boxes is also the right shape regardless: what happened is not what to
     // do, and the second is the only line here the owner can act on.
     const bool remedy = rc == WFW_ERR_REJECTED || rc == WFW_ERR_PQ_REJECTED;
-    const int tail_h = remedy ? 84 : WT_CONTENT_BOTTOM - 268;
+    // 68 leaves the step a readable rung. At 84 the remedy had 38px, which is
+    // one line at font14, and the fit gate is right that the answer to a
+    // sentence that will not fit is the copy and not the size.
+    const int tail_h = remedy ? 68 : WT_CONTENT_BOTTOM - 268;
     lv_obj_t *b = wt_note(s_scr, tail ? head : body, FW_TXT_X, 216, 620,
                           268 - 216 - 8);
     fw_enter(b, 240, 190);

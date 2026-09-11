@@ -95,7 +95,7 @@
   "G_FW_DOWN_H": "TERUGGAAN",
   "G_FW_DOWN_SHORT": "teruggaan geeft op wat de nieuwe fixte.",
   "G_FW_FAIL_CARD_B": "de kaart reageerde halverwege niet meer.\n\nniets is opstartbaar gemaakt en het apparaat houdt zijn firmware.",
-  "G_FW_FAIL_SIG_FIX": "het bestand zelf klopt niet. haal de release opnieuw van de pagina van het project.",
+  "G_FW_FAIL_SIG_FIX": "haal de release opnieuw van de pagina van het project.",
   "G_FW_FAIL_PQ_B": "de post quantum handtekening viel.\n\nniets werd opstartbaar, het toestel houdt zijn firmware.",
   "G_FW_FAIL_SIG_B": "de handtekening klopte niet.\n\nniets is opstartbaar gemaakt en het apparaat houdt zijn firmware.",
   "G_FW_FAIL_T": "NIET GEÏNSTALLEERD",

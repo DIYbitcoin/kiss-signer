@@ -95,7 +95,7 @@
   "G_FW_DOWN_H": "GÅ TILBAGE",
   "G_FW_DOWN_SHORT": "at gå tilbage giver afkald på rettelsen.",
   "G_FW_FAIL_CARD_B": "kortet holdt op med at svare undervejs.\n\nintet blev gjort startbart, og enheden kører videre på sin firmware.",
-  "G_FW_FAIL_SIG_FIX": "selve filen er forkert. hent udgivelsen igen fra projektets egen side.",
+  "G_FW_FAIL_SIG_FIX": "hent udgivelsen igen fra projektets egen side.",
   "G_FW_FAIL_PQ_B": "den post kvante signatur faldt.\n\nintet blev startbart, enheden beholder sin firmware.",
   "G_FW_FAIL_SIG_B": "signaturen passede ikke.\n\nintet blev gjort startbart, og enheden kører videre på sin firmware.",
   "G_FW_FAIL_T": "IKKE INSTALLERET",
