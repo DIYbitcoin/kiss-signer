@@ -481,33 +481,6 @@ a:hover {
   line-height: 1.45;
 }
 
-.foot {
-  max-width: var(--max);
-  margin: 0 auto;
-  padding: 26px 24px 60px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  border-top: 1px solid var(--line);
-}
-
-.foot-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 20px;
-}
-
-.foot-links a {
-  border-bottom: 0;
-  padding-bottom: 0;
-  color: var(--dim);
-  font-size: 0.82rem;
-}
-
-.foot-links a:hover {
-  color: var(--ink);
-}
-
 .shell {
   max-width: var(--max);
   margin: 0 auto;
@@ -914,13 +887,6 @@ h2 {
 .install-shell .install-card {
   gap: 11px;
   padding: 18px;
-}
-
-/* The install page's footer earns less room than a docs page's: it is the only
-   thing left below the fold and there is no reason for it to push the button
-   toward it. */
-.install-shell ~ .foot {
-  padding: 14px 24px 20px;
 }
 
 /* The depth that used to sit in three paragraphs under the button, as one row
