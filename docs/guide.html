@@ -25,8 +25,12 @@
       /* Left rail, prose, and a list of what is in the topic you are on.
          The second column was running to 904px with the prose capped at 70ch
          inside it, so a third of the page was doing nothing. */
+      /* auto on the last track, not a fixed 178px. The on-this-page column is
+         display:none on a topic with fewer than two subheadings, and a fixed
+         track went on reserving its width for an element that was not there --
+         178 pixels of nothing on the topic most people land on. */
       .docs-layout {
-        grid-template-columns: 196px minmax(0, 1fr) 178px;
+        grid-template-columns: 196px minmax(0, 1fr) auto;
         gap: 34px;
       }
       /* A figure is not a line of text and does not want a line's width. The
@@ -34,7 +38,7 @@
          made their labels small enough to complain about. Wide enough to read,
          still short of a billboard. */
       .doc-card {
-        --figure: 960px;
+        --figure: min(100%, 1280px);
       }
 
       .docs-body {
@@ -50,7 +54,7 @@
          every diagram into a column sized for a line of prose. The prose
          measure stays where it is; the room goes to the pictures. */
       .shell {
-        max-width: 1560px;
+        max-width: 1780px;
       }
 
       /* The h1 is the same word on all eleven topics, so it reads as a
@@ -84,7 +88,7 @@
       .doc-card > ul,
       .doc-card > ol,
       .doc-card > .eyebrow {
-        max-width: 62ch;
+        max-width: 72ch;
       }
 
       .doc-card h2 {
@@ -1081,11 +1085,33 @@
       }
 
       /* ---------- search ---------- */
+      /* In the header, centred, and therefore always at the top of the page:
+         .topbar is already sticky at top 0, so the box cannot scroll away.
+         It sat in the sidebar before, which meant scrolling back up to reach
+         the one control that answers "where is the bit about dust". */
       .docs-search {
         position: relative;
         display: flex;
         align-items: center;
-        margin: 0 0 14px;
+        flex: 1 1 260px;
+        max-width: 520px;
+        margin-inline: auto;
+      }
+
+      /* margin auto centres it in the gap between the brand and the tabs,
+         which is not the middle of the page -- it sat 348px left of centre on
+         a wide display. Taking it out of the flow centres it on the page
+         itself. Only where there is room: below this the brand and the tabs
+         would be underneath it, so it goes back into the row. */
+      @media (min-width: 1460px) {
+        .docs-search {
+          position: absolute;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 460px;
+          max-width: none;
+          margin-inline: 0;
+        }
       }
       .docs-search .ds-ico {
         position: absolute;
@@ -1136,18 +1162,33 @@
         display: none;
       }
 
-      /* styles.css gives this nav display:flex, and that beats the display:none
-         the hidden attribute carries, so the section list stayed on screen
-         under the search results. */
-      .docs-rail nav[hidden] {
+      /* A panel under the box rather than a block in the flow. In the header
+         it has no column to push down, and overlaying is what a reader expects
+         of a search box anyway. */
+      /* display:flex beats the display:none the hidden attribute carries, so
+         without this the empty panel is laid out on every page, adding a row
+         to a header that is sticky. Third time this pair has caught me: any
+         element given a display AND toggled by [hidden] needs both rules. */
+      .docs-results[hidden] {
         display: none;
       }
 
       .docs-results {
+        position: absolute;
+        top: calc(100% + 8px);
+        left: 0;
+        right: 0;
+        z-index: 30;
         display: flex;
         flex-direction: column;
         gap: 2px;
-        margin-bottom: 14px;
+        max-height: min(60vh, 460px);
+        overflow-y: auto;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--panel);
+        padding: 6px;
+        box-shadow: 0 18px 44px rgba(0, 0, 0, 0.55);
       }
       .docs-results a {
         display: block;
@@ -1224,6 +1265,7 @@
          (checking a download, first boot, encryption) run several screens, and
          until now the only way to see what was in them was to scroll. */
       .docs-toc {
+        width: 190px;
         position: sticky;
         top: 74px;
         align-self: start;
@@ -1276,6 +1318,23 @@
         }
       }
 
+      /* On a phone the box takes a row of its own rather than fighting three
+         tabs for one. The header is sticky, so every row it gains is screen
+         the reader never gets back -- four rows was 185px of an 812px phone.
+         The accent swatches give up their row for it; they are a nicety and
+         the search is not. */
+      @media (max-width: 720px) {
+        .docs-search {
+          order: 9;
+          flex-basis: 100%;
+          max-width: none;
+          margin-inline: 0;
+        }
+        .theme-pick {
+          display: none;
+        }
+      }
+
       @media (max-width: 900px) {
         /* minmax(0, 1fr), not 1fr: a grid item defaults to min-width auto, so
            the column cannot shrink below its widest content. The storage table
@@ -1317,6 +1376,19 @@
         <img src="assets/kiss-mark.svg" alt="" width="32" height="32">
         KISS-SIGNER
       </a>
+      <!-- Thirteen topics behind a sidebar, and no way to find the one that
+           says "dust" except to guess. Everything here is client side, so it
+           works the same inside the offline zip. -->
+      <form class="docs-search" role="search" onsubmit="return false">
+        <svg class="ds-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.4 15.4 5.1 5.1"/></svg>
+        <input id="docs-q" type="search" placeholder="Search the docs"
+               autocomplete="off" spellcheck="false"
+               aria-label="Search the documentation"
+               aria-controls="docs-results" aria-expanded="false">
+        <kbd>/</kbd>
+      </form>
+      <div class="docs-results" id="docs-results" role="listbox"
+           aria-label="Search results" hidden></div>
       <nav class="topnav" aria-label="Site">
         <a href="index.html">Install</a>
         <a href="guide.html" aria-current="page">Docs</a>
@@ -1329,19 +1401,6 @@
 
       <div class="docs-layout">
       <aside class="docs-rail">
-        <!-- Thirteen topics behind a sidebar, and no way to find the one that
-             says "dust" except to guess. Everything here is client side, so it
-             works the same inside the offline zip. -->
-        <form class="docs-search" role="search" onsubmit="return false">
-          <svg class="ds-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.4 15.4 5.1 5.1"/></svg>
-          <input id="docs-q" type="search" placeholder="Search the docs"
-                 autocomplete="off" spellcheck="false"
-                 aria-label="Search the documentation"
-                 aria-controls="docs-results" aria-expanded="false">
-          <kbd>/</kbd>
-        </form>
-        <div class="docs-results" id="docs-results" role="listbox"
-             aria-label="Search results" hidden></div>
         <nav aria-label="Documentation sections">
           <details class="rail-group" open>
             <summary>
@@ -2200,8 +2259,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
       (function () {
         var input = document.getElementById("docs-q");
         var out = document.getElementById("docs-results");
-        var nav = document.querySelector(".docs-rail nav");
-        if (!input || !out || !nav) return;
+        if (!input || !out) return;
 
         var entries = [];
         document.querySelectorAll(".docs-body .doc-card").forEach(function (card) {
@@ -2290,11 +2348,9 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           if (!terms.length) {
             out.hidden = true;
             out.textContent = "";
-            nav.hidden = false;
             input.setAttribute("aria-expanded", "false");
             return;
           }
-          nav.hidden = true;
           out.hidden = false;
           input.setAttribute("aria-expanded", "true");
           out.textContent = "";
@@ -2370,6 +2426,14 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
             input.value = "";
             render("");
             input.blur();
+          }
+        });
+
+        /* an overlay closes when the reader looks elsewhere */
+        document.addEventListener("click", function (ev) {
+          if (!out.hidden && !ev.target.closest(".docs-search")) {
+            input.value = "";
+            render("");
           }
         });
 
