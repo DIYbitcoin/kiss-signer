@@ -217,12 +217,20 @@ static void vfy_norm(const char *in, char *out, size_t cap) {
       if (out[i] >= 'A' && out[i] <= 'Z') out[i] += 32;
 }
 
+// 1 ours, 0 searched and not found, -1 THE SEARCH DID NOT RUN.
+//
+// The third answer used to be the second one. A derivation that failed returned
+// the same 0 as an exhausted range, and the screen then printed "NOT FOUND IN
+// FIRST 100 ADDRESSES" -- a statement that a hundred addresses were checked,
+// made by a function that had checked as few as none. The likeliest cause is
+// the session going away underneath, which is the case where the sentence is
+// most wrong and the owner most needs to know to look again.
 static int vfy_find(const char *addr, int *change, uint32_t *idx) {
   char mine[91];
   for (int c = 0; c < 2; c++)
     for (uint32_t i = 0; i < VFY_SCAN_DEPTH; i++) {
       if (kiss_session_address(c, i, mine, sizeof mine) != 0)
-        return 0;
+        return -1;
       if (strcmp(mine, addr) == 0) { *change = c; *idx = i; return 1; }
     }
   return 0;
@@ -238,10 +246,13 @@ static void vfy_done_cb(lv_event_t *e) {
 
 // Is this our own silent-payment address? It is not on any bc1/tb1 chain, so
 // vfy_find can never match it: compare against the one we derive ourselves.
+// Same three answers as vfy_find, for the same reason. This one has no benign
+// failure to confuse it with: kiss_session_sp_address returns non-zero only
+// when there is no session or the derivation itself broke.
 static int vfy_is_sp_mine(const char *addr) {
   char mine[128];
   if (kiss_session_sp_address(mine, sizeof mine) != 0)
-    return 0;
+    return -1;
   return strcmp(mine, addr) == 0;
 }
 
@@ -283,9 +294,15 @@ static void vfy_result(const char *txt, size_t len) {
   int change = 0;
   uint32_t idx = 0;
   int mine = vfy_find(addr, &change, &idx);
-  int sp_mine = !mine && vfy_is_sp_mine(addr);
-  int validity = (mine || sp_mine) ? WADDR_CURRENT_NETWORK
-                                   : kiss_address_validate(addr);
+  // Only asked when the bech32 chains came back with a clean miss: a search
+  // that did not run has already answered for the whole screen.
+  int sp_mine = mine == 0 ? vfy_is_sp_mine(addr) : 0;
+  // > 0, never truthiness. Both helpers report their own failure as -1 now, and
+  // -1 is as true as 1 to an `if`, which would have turned the one state this
+  // pair was split to expose into THIS ADDRESS IS YOURS.
+  const bool found = mine > 0 || sp_mine > 0;
+  const bool unchecked = mine < 0 || sp_mine < 0;
+  int validity = found ? WADDR_CURRENT_NETWORK : kiss_address_validate(addr);
 
   s_scr = wt_screen(s_parent, tr(STR_R_VT), tr(STR_R_VS));
   wt_chrome_head(s_scr);
@@ -324,9 +341,9 @@ static void vfy_result(const char *txt, size_t len) {
   int note_y = 186 + lv_obj_get_height(shown) + 16;
   if (note_y < 280) note_y = 280;
 
-  if (mine || sp_mine) {
+  if (found) {
     wt_lbl(s_scr, tr_sym(LV_SYMBOL_OK, STR_R_YOURS), 48, 130, wt_font28(), WT_OK);
-    if (sp_mine)
+    if (sp_mine > 0)
       snprintf(buf, sizeof buf, "%s", tr(STR_S_SP_BADGE));
     else if (change)
       snprintf(buf, sizeof buf, tr(STR_R_CHANGE_FMT), (unsigned)idx);
@@ -335,6 +352,20 @@ static void vfy_result(const char *txt, size_t len) {
     // which address this is (receive #N / change #N / silent payment): the
     // fact the owner checks against their coordinator, not a unit tag
     wt_lbl(s_scr, buf, 48, note_y, wt_body_font(buf, 700, 29), WT_MUT);
+  } else if (validity == WADDR_CURRENT_NETWORK && unchecked) {
+    // NOT A VERDICT ABOUT THE ADDRESS, and it wears the same amber shape as the
+    // bounded miss below rather than the red of a refusal, because nothing here
+    // is wrong with what was scanned. Placed inside the current-network branch
+    // on purpose: wrong network and a bad checksum are read off the string
+    // itself and need no keys, so those two answers survive a dead session and
+    // are still worth giving.
+    lv_obj_t *headline = wt_lbl(s_scr, "", 48, 130,
+                                wt_body_font(tr(STR_R_CHECK_FAIL), 700, 44),
+                                wt_ink_for(WT_WARN));
+    lv_label_set_text_fmt(headline, LV_SYMBOL_WARNING " %s",
+                          tr(STR_R_CHECK_FAIL));
+    wt_wrap(s_scr, tr(STR_R_CHECK_FAIL_B), 48, note_y, 700,
+            WT_CONTENT_BOTTOM - note_y);
   } else if (validity == WADDR_CURRENT_NETWORK) {
     snprintf(buf, sizeof buf, tr(STR_R_NOT_FOUND_FMT), VFY_SCAN_DEPTH);
     lv_obj_t *headline = wt_lbl(s_scr, "", 48, 130,

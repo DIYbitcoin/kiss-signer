@@ -423,6 +423,8 @@
   "R_CHAIN_CLEAN": "코디네이터: 아직 사용 없음",
   "R_CHAIN_UPTO_FMT": "코디네이터: #%u 까지 사용",
   "R_CHANGE_FMT": "거스름돈 주소 #%u · 코디네이터가 안에서 씁니다",
+  "R_CHECK_FAIL": "확인하지 못했습니다",
+  "R_CHECK_FAIL_B": "이 기기가 자기 주소를 계산하지 못했습니다. 어느 쪽 답도 아닙니다. 다시 스캔하세요.",
   "R_ENLARGE": "탭하면 확대",
   "R_EXPL_SP": "계속 나눠줄 수 있는 주소 하나",
   "R_HANDED_ALREADY": "준 적 있음",

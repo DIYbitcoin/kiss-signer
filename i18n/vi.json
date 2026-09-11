@@ -423,6 +423,8 @@
   "R_CHAIN_CLEAN": "coordinator: chưa dùng cái nào",
   "R_CHAIN_UPTO_FMT": "coordinator: dùng tới #%u",
   "R_CHANGE_FMT": "địa chỉ tiền thừa #%u · bộ điều phối dùng nội bộ",
+  "R_CHECK_FAIL": "CHƯA KIỂM TRA XONG",
+  "R_CHECK_FAIL_B": "máy ký này không tính được địa chỉ của chính nó. đây không phải câu trả lời theo hướng nào cả. quét lại đi.",
   "R_ENLARGE": "PHÓNG TO",
   "R_EXPL_SP": "một địa chỉ bạn có thể đưa mãi",
   "R_HANDED_ALREADY": "ĐÃ DÙNG",

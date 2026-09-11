@@ -423,6 +423,8 @@
   "R_CHAIN_CLEAN": "koordinator: nijedna još nije korištena",
   "R_CHAIN_UPTO_FMT": "koordinator: korišteno do #%u",
   "R_CHANGE_FMT": "adresa ostatka #%u · koordinator ih koristi iznutra",
+  "R_CHECK_FAIL": "PROVJERA NIJE DOVRŠENA",
+  "R_CHECK_FAIL_B": "ovaj signer nije uspio izvesti vlastite adrese. ovo nije odgovor ni u jednom smjeru. skenirajte je ponovno.",
   "R_ENLARGE": "POVEĆAJ",
   "R_EXPL_SP": "jedna adresa, dijelite je zauvijek",
   "R_HANDED_ALREADY": "IZDANA",

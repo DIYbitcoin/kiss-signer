@@ -423,6 +423,8 @@
   "R_CHAIN_CLEAN": "协调器：还没用过",
   "R_CHAIN_UPTO_FMT": "协调器：用到第 #%u 个",
   "R_CHANGE_FMT": "找零地址 #%u · 协调器在内部用它们",
+  "R_CHECK_FAIL": "没能完成检查",
+  "R_CHECK_FAIL_B": "这台设备算不出自己的地址，所以这不能证明它是你的，也不能证明不是。请再扫一次。",
   "R_ENLARGE": "点按放大",
   "R_EXPL_SP": "一个可以一直给出去的地址",
   "R_HANDED_ALREADY": "给过了",

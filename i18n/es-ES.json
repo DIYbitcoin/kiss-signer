@@ -423,6 +423,8 @@
   "R_CHAIN_CLEAN": "coordinador: ninguna usada aún",
   "R_CHAIN_UPTO_FMT": "coordinador: usadas hasta #%u",
   "R_CHANGE_FMT": "dirección de cambio #%u · tu coordinador las usa internamente",
+  "R_CHECK_FAIL": "LA COMPROBACIÓN NO TERMINÓ",
+  "R_CHECK_FAIL_B": "este firmante no pudo calcular sus propias direcciones. esto no es una respuesta ni en un sentido ni en otro. escanéala otra vez.",
   "R_ENLARGE": "AMPLIAR",
   "R_EXPL_SP": "una dirección que puedes dar siempre",
   "R_HANDED_ALREADY": "USADA",

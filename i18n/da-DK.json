@@ -423,6 +423,8 @@
   "R_CHAIN_CLEAN": "koordinator: ingen brugt endnu",
   "R_CHAIN_UPTO_FMT": "koordinator: brugt op til #%u",
   "R_CHANGE_FMT": "byttepengeadresse #%u · din koordinator bruger dem internt",
+  "R_CHECK_FAIL": "TJEKKET BLEV IKKE FÆRDIGT",
+  "R_CHECK_FAIL_B": "denne signer kunne ikke regne sine egne adresser ud. det er ikke et svar nogen af vejene. scan den igen.",
   "R_ENLARGE": "FORSTØR",
   "R_EXPL_SP": "en adresse du kan give ud for altid",
   "R_HANDED_ALREADY": "BRUGT",

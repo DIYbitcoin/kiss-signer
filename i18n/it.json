@@ -423,6 +423,8 @@
   "R_CHAIN_CLEAN": "coordinatore: nessuno ancora usato",
   "R_CHAIN_UPTO_FMT": "coordinatore: usati fino a #%u",
   "R_CHANGE_FMT": "indirizzo di resto #%u · il coordinatore li usa internamente",
+  "R_CHECK_FAIL": "CONTROLLO NON COMPLETATO",
+  "R_CHECK_FAIL_B": "questo signer non è riuscito a calcolare i propri indirizzi. non è una risposta né in un senso né nell'altro. scansionalo di nuovo.",
   "R_ENLARGE": "INGRANDISCI",
   "R_EXPL_SP": "un indirizzo che puoi dare per sempre",
   "R_HANDED_ALREADY": "USATO",

@@ -423,6 +423,8 @@
   "R_CHAIN_CLEAN": "koordynator: żaden jeszcze nieużyty",
   "R_CHAIN_UPTO_FMT": "koordynator: użyte do #%u",
   "R_CHANGE_FMT": "adres reszty #%u · koordynator używa ich wewnętrznie",
+  "R_CHECK_FAIL": "SPRAWDZANIE NIEUKOŃCZONE",
+  "R_CHECK_FAIL_B": "ten signer nie zdołał wyliczyć własnych adresów. to nie jest odpowiedź w żadną stronę. zeskanuj go ponownie.",
   "R_ENLARGE": "POWIĘKSZ",
   "R_EXPL_SP": "jeden adres, dawaj go zawsze",
   "R_HANDED_ALREADY": "UŻYTY",

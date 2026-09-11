@@ -3179,24 +3179,60 @@ int main(void) {
     const char *good = "BITCOIN:TB1QCR8TE4KR609GCAWUTMRZA0J4XV80JY8Z3Q00?amount=0.001";
     kiss_scan_inject(good, strlen(good)); pump(6);
     save("/tmp/sim_vfy_yes.ppm");
+    must_show("verify/yours", tr(STR_R_YOURS));
     tap_str(STR_R_SCAN_ANOTHER, 3, 6);   // SCAN ANOTHER
-    const char *bad = "bc1qnotmineatallnotmineatallnotmine00";
-    kiss_scan_inject(bad, strlen(bad)); pump(6);
+    // EVERY PAYLOAD BELOW IS A REAL ADDRESS, and until they were, two of these
+    // three frames were photographing each other's verdict.
+    //
+    // kiss_address_validate is REAL on the device and a stub in this file:
+    // libwally parses the string, the stub reads the prefix and the length.
+    // Hand both a made-up "bc1qnotmineatall..." and they disagree completely --
+    // the stub calls it a mainnet address and draws WRONG NETWORK, libwally
+    // sees o and i, which bech32 does not have, and draws INVALID ADDRESS. So
+    // the frame named "no" was the wrong-network screen, the frame named
+    // "wrong_net" was the not-found screen, both had been published under
+    // captions promising the other, and nothing here asserted a verdict to
+    // notice. The save() was the whole test.
+    //
+    // The fix is not a cleverer stub. It is fixtures that are VALID, so both
+    // validators reach the same answer and the picture is the device's: the
+    // BIP173 test vectors, one per chain, neither of them ours. Every stop
+    // states the verdict it is standing on.
+    const char *not_ours = "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx";
+    kiss_scan_inject(not_ours, strlen(not_ours)); pump(6);
     save("/tmp/sim_vfy_no.ppm");
+    {
+      // The depth is kiss_recv.c's VFY_SCAN_DEPTH, mirrored. If it moves, this
+      // needle stops matching, which is the right way round for a number the
+      // screen makes a claim about.
+      char want[80];
+      snprintf(want, sizeof want, tr(STR_R_NOT_FOUND_FMT), 100u);
+      must_show("verify/searched and missed", want);
+    }
     tap_str(STR_R_SCAN_ANOTHER, 3, 6);   // SCAN ANOTHER
-    const char *wrong_net = "tb1qwrongnetworkwrongnetworkwrongnetwork00";
+    const char *wrong_net = "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4";
     kiss_scan_inject(wrong_net, strlen(wrong_net)); pump(6);
     save("/tmp/sim_vfy_wrong_net.ppm");
+    must_show("verify/wrong network", tr(STR_R_WRONG_NET));
     tap_str(STR_R_SCAN_ANOTHER, 3, 6);   // SCAN ANOTHER
     const char *invalid = "not-an-address";
     kiss_scan_inject(invalid, strlen(invalid)); pump(6);
     save("/tmp/sim_vfy_invalid.ppm");
+    must_show("verify/invalid", tr(STR_R_INVALID));
     tap_str(STR_R_SCAN_ANOTHER, 3, 6);   // SCAN ANOTHER
-    // our OWN silent-payment address: 117 chars, longer than any bc1/tb1
-    const char *sp = "sp1qqfqnnv8czppwysafq3uwgwvsc638hc8rx3hscuddh0xa2yd746s7xq"
-                     "h6yy9ncjnqhqxazct0fzh98w7lpkm5fvlepqec2yy0sxlq4j6ccc3h6t0g";
+    // our OWN silent-payment address: 117 chars, longer than any bc1/tb1.
+    //
+    // The TESTNET one, for the same reason the address above it is testnet.
+    // This was the mainnet form, which on this leg is not ours and not even
+    // this network -- so the frame captioned "our own silent payment address"
+    // was a third copy of the wrong-network screen, and the branch it exists
+    // to cover, an sp address matched against the one we derive, had never
+    // been drawn. The assertion under it is what stops that coming back.
+    const char *sp = "tsp1qqdpels3srq45dlezqvk20t3dlueftry6p5thc7msjm0s6jm3g84jz"
+                     "q5rxzzunfck6d45va2jcqxk429agt3e4klf3vzmcgp3zqthryhhqgnz4k3n";
     kiss_scan_inject(sp, strlen(sp)); pump(6);
     save("/tmp/sim_vfy_sp.ppm");
+    must_show("verify/silent payment is ours", tr(STR_R_YOURS));
 
     // A coordinator's usage payload, which rides in the SAME square as the
     // address. The fingerprint is read rather than written down: a literal
@@ -3230,6 +3266,27 @@ int main(void) {
     tap_str(STR_R_SCAN_ANOTHER, 3, 6);
     kiss_scan_inject(umx, strlen(umx)); pump(6);
     save("/tmp/sim_vfy_usage_other.ppm");
+
+    // THE FIFTH VERDICT: a check that could not run.
+    //
+    // vfy_find used to answer a failed derivation with the same 0 it answers an
+    // exhausted range with, and the screen then printed NOT FOUND IN FIRST 100
+    // ADDRESSES -- a count, from a search that had made as few as none. The
+    // session going away underneath is the way that happens, and it is the case
+    // where being told "not found" is worst: it reads as an answer about the
+    // address.
+    //
+    // The same switch the locked RECEIVE stops use, held over one scan. The
+    // address is ours, which is the point: with keys it is THIS ADDRESS IS
+    // YOURS, and without them the honest screen is neither that nor a miss.
+    tap_str(STR_R_SCAN_ANOTHER, 3, 6);
+    s_sim_session_locked = 1;
+    kiss_scan_inject(good, strlen(good)); pump(6);
+    save("/tmp/sim_vfy_nokeys.ppm");
+    must_show("verify/the check could not run", tr(STR_R_CHECK_FAIL));
+    must_not_show("verify/no bounded miss without a search",
+                  tr(STR_R_NOT_FOUND_B));
+    s_sim_session_locked = 0;
 
     tap_str(STR_C_DONE, 3, 6);   // DONE -> Receive
   }

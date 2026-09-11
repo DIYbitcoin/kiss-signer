@@ -423,6 +423,8 @@
   "R_CHAIN_CLEAN": "koordinatör: henüz kullanılmadı",
   "R_CHAIN_UPTO_FMT": "koordinatör: #%u kadarı kullanıldı",
   "R_CHANGE_FMT": "para üstü adresi #%u · koordinatörünüz bunları içeride kullanır",
+  "R_CHECK_FAIL": "KONTROL TAMAMLANMADI",
+  "R_CHECK_FAIL_B": "bu signer kendi adreslerini hesaplayamadı. bu iki yönde de bir cevap değil. tekrar tarayın.",
   "R_ENLARGE": "BÜYÜT",
   "R_EXPL_SP": "sonsuza dek verebileceğiniz adres",
   "R_HANDED_ALREADY": "KULLANILDI",

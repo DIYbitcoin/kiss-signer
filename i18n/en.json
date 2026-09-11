@@ -423,6 +423,8 @@
   "R_CHAIN_CLEAN": "coordinator: none used yet",
   "R_CHAIN_UPTO_FMT": "coordinator: used up to #%u",
   "R_CHANGE_FMT": "change address #%u · your coordinator uses these internally",
+  "R_CHECK_FAIL": "CHECK DID NOT FINISH",
+  "R_CHECK_FAIL_B": "this signer could not work out its own addresses. that is not an answer either way. scan it again.",
   "R_ENLARGE": "TAP TO ENLARGE",
   "R_EXPL_SP": "one address you can hand out forever",
   "R_HANDED_ALREADY": "USED",

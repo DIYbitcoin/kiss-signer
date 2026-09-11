@@ -423,6 +423,8 @@
   "R_CHAIN_CLEAN": "koordinátor: zatím žádná",
   "R_CHAIN_UPTO_FMT": "koordinátor: použito až po #%u",
   "R_CHANGE_FMT": "adresa drobných #%u · koordinátor je používá uvnitř",
+  "R_CHECK_FAIL": "KONTROLA NEDOBĚHLA",
+  "R_CHECK_FAIL_B": "tento signer nedokázal odvodit vlastní adresy. není to odpověď ani tak, ani tak. naskenujte ji znovu.",
   "R_ENLARGE": "ZVĚTŠIT",
   "R_EXPL_SP": "jedna adresa, dávejte ji napořád",
   "R_HANDED_ALREADY": "VYDÁNA",

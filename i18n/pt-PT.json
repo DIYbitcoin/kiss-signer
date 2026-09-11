@@ -423,6 +423,8 @@
   "R_CHAIN_CLEAN": "coordenador: nenhum usado ainda",
   "R_CHAIN_UPTO_FMT": "coordenador: usados até #%u",
   "R_CHANGE_FMT": "endereço de troco #%u · seu coordenador usa estes internamente",
+  "R_CHECK_FAIL": "A VERIFICAÇÃO NÃO TERMINOU",
+  "R_CHECK_FAIL_B": "este signer não conseguiu calcular os próprios endereços. isto não é uma resposta nem para um lado nem para o outro. digitalize outra vez.",
   "R_ENLARGE": "AMPLIAR",
   "R_EXPL_SP": "um endereço para dar para sempre",
   "R_HANDED_ALREADY": "USADA",

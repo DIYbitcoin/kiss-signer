@@ -423,6 +423,8 @@
   "R_CHAIN_CLEAN": "koordinator: noch keine benutzt",
   "R_CHAIN_UPTO_FMT": "koordinator: benutzt bis #%u",
   "R_CHANGE_FMT": "Wechselgeld-Adresse #%u · Ihr Koordinator nutzt diese intern",
+  "R_CHECK_FAIL": "PRÜFUNG NICHT ABGESCHLOSSEN",
+  "R_CHECK_FAIL_B": "dieser Signer konnte seine eigenen Adressen nicht berechnen. das ist keine Antwort in die eine oder andere Richtung. scannen Sie erneut.",
   "R_ENLARGE": "VERGRÖSSERN",
   "R_EXPL_SP": "eine Adresse, für immer weitergeben",
   "R_HANDED_ALREADY": "GENUTZT",

@@ -423,6 +423,8 @@
   "R_CHAIN_CLEAN": "coordinateur : aucune utilisée pour l'instant",
   "R_CHAIN_UPTO_FMT": "coordinateur : utilisées jusqu'à #%u",
   "R_CHANGE_FMT": "adresse de monnaie #%u · votre coordinateur les utilise en interne",
+  "R_CHECK_FAIL": "VÉRIFICATION INACHEVÉE",
+  "R_CHECK_FAIL_B": "ce signataire n'a pas pu calculer ses propres adresses. ce n'est une réponse ni dans un sens ni dans l'autre. scannez-la à nouveau.",
   "R_ENLARGE": "AGRANDIR",
   "R_EXPL_SP": "une adresse à donner pour toujours",
   "R_HANDED_ALREADY": "DONNÉE",
