@@ -525,6 +525,40 @@
         margin-bottom: 0;
       }
 
+      /* ---------- try it ----------
+         The simulator runs the real firmware and the guide never once sent
+         anyone to it. It takes no URL parameters, so these cannot land on a
+         particular screen and do not pretend to: the link opens the signer and
+         the sentence says what to do when it does. */
+      .try {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 4px 10px;
+        margin: 18px 0;
+        max-width: 62ch;
+        border-left: 2px solid var(--accent);
+        border-radius: 0 8px 8px 0;
+        background: var(--panel);
+        padding: 11px 14px;
+        color: var(--dim);
+        font-size: 0.76rem;
+        line-height: 1.6;
+      }
+      .try a {
+        border-bottom: 0;
+        padding-bottom: 0;
+        color: var(--accent);
+        font-family: var(--mono);
+        font-size: 0.7rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+      .try a:hover {
+        color: var(--ink);
+      }
+
       /* ---------- the signing screen, pinned ----------
          The topic names four numbers to compare and the screenshot shows all
          of them, but nothing connected the two, so a reader had to hunt for
@@ -1620,6 +1654,10 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         <p>
           Three rules first. The device will not stop to say them.
         </p>
+        <p class="try">
+          <a href="sim/index.html">Try it in the simulator</a>
+          Walk the setup once here first. The word list and the derivation are the real ones.
+        </p>
         <ul>
           <li><strong>Every passphrase opens keys.</strong> There is no "wrong
           passphrase" error, and there never will be.</li>
@@ -1696,6 +1734,10 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           </figcaption>
         </figure>
 
+        <p class="try">
+          <a href="sim/index.html">Try it in the simulator</a>
+          Open the signer, then walk the same five steps against Sparrow. Nothing there is on a chain.
+        </p>
         <div class="first-run">
           <figure>
             <img src="media/game-menu.png" alt="Fruit Island game menu">
@@ -1774,6 +1816,10 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           </figcaption>
         </figure>
 
+        <p class="try">
+          <a href="sim/index.html">Try it in the simulator</a>
+          The signing screen is the one the pins point at, and the simulator signs for real.
+        </p>
         <h3>What turns amber</h3>
         <ul>
           <li><strong>High fee.</strong> The fee turns amber if it is a big
@@ -1865,6 +1911,10 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           backup. SD CARD is the better of the two that remember.
         </p>
 
+        <p class="try">
+          <a href="sim/index.html">Try it in the simulator</a>
+          The mode chooser is under SETTINGS, and switching costs nothing there.
+        </p>
         <div class="note">
           Changing mode erases the old location. KISS writes the new copy,
           verifies it, then removes the old one.
