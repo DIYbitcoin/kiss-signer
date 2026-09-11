@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#070a10">
     <meta
       name="description"
-      content="KISS Signer documentation: how signing works, checking your download, first boot, where your recovery words are kept, and best practices."
+      content="KISS Signer documentation: how signing works, checking your download, creating your keys, where your seed words are kept, and best practices."
     >
     <title>KISS Signer Docs</title>
     <link rel="stylesheet" href="styles.css">
@@ -1434,7 +1434,7 @@
               <span>First run</span>
               <svg class="rail-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
             </summary>
-            <a href="#firstboot">First boot</a>
+            <a href="#firstboot">Create your keys</a>
             <a href="#roundtrip">TESTNET round trip</a>
             <a href="#cautions">Before you sign</a>
             <a href="#storage">Storage</a>
@@ -1857,8 +1857,8 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         </p>
       </section>
 <section class="doc-card reveal" id="firstboot">
-        <p class="eyebrow">09 / hand it to anyone</p>
-        <h2>Getting in the first time</h2>
+        <p class="eyebrow">09 / seed words and passphrase</p>
+        <h2>Create your keys</h2>
         <p>
           Three rules first. The device will not stop to say them.
         </p>
@@ -2121,7 +2121,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
       </section>
 <section class="doc-card reveal" id="storage">
         <p class="eyebrow">12 / three storage modes</p>
-        <h2>Where your recovery words are kept</h2>
+        <h2>Where your seed words are kept</h2>
         <p class="lede">
           Setup asks once, and Settings can change it later. What differs is
           what someone gets when they physically take the device, the card, or
