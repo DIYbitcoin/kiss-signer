@@ -6,8 +6,11 @@
 <link rel="stylesheet" href="../styles.css">
 <script src="../theme.js"></script>
 <style>
-  .wrap { max-width: 1180px; margin: 0 auto; padding: 24px 16px 64px; }
-  .lead { color: var(--muted); margin: 0 0 20px; max-width: 66ch; }
+  /* 24 at the foot, not 64. The extra 40 was separating the content from a
+     notices paragraph that is no longer here, and it was most of what pushed
+     this page past a full window. */
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 24px 16px 24px; }
+  .lead { color: var(--muted); margin: 0 0 14px; max-width: 66ch; }
   .stage { display: grid; grid-template-columns: minmax(0,1fr) 300px; gap: 20px; align-items: start; }
   @media (max-width: 900px) { .stage { grid-template-columns: minmax(0,1fr); } }
 
