@@ -89,6 +89,8 @@ SITE_REQUIRED = [
     "media/passphrase-warning.png",
     "media/qr-scan.png",
     "media/sign-verify.png",
+    "media/audit-randomness.png",
+    "media/setup-storage.png",
     # the 329 byte stub, so /installer/ does not render a directory listing
     "installer/index.html",
     "installer/release.json",

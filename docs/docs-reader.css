@@ -147,7 +147,8 @@ pre {
   margin: 24px 0 8px;
 }
 .airgap figcaption, .derive figcaption, .gesture figcaption, .pins figcaption,
-.matrix-wrap figcaption, .shots figcaption, .urqr figcaption, .first-run figcaption {
+.matrix-wrap figcaption, .shots figcaption, .urqr figcaption, .first-run figcaption,
+.shot-wide figcaption {
   font-size: var(--t-small);
   line-height: 1.55;
   margin-top: 12px;

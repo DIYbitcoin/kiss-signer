@@ -1581,6 +1581,10 @@
             <div class="feat-head"><svg class="feat-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 20.5h17"/><path d="M6.5 20.5v-6"/><path d="M11 20.5V8"/><path d="M15.5 20.5v-9"/><path d="M20 20.5V4.5"/></svg><span>AUDIT IT YOURSELF</span></div>
             <h3>It checks its own randomness</h3>
             <p>Keys are only as good as the entropy behind them, so the device audits its own: 5000 samples from the chip into a live histogram, scored for evenness. A lopsided chart means bad randomness.</p>
+            <figure class="shot-wide">
+              <img src="media/audit-randomness.png" alt="The RANDOMNESS AUDIT screen: a histogram of 5000 samples counted into 100 groups, a spread score of 105.920 inside a fair range of 61.137 to 148.230, marked EVEN and ON CHIP">
+              <figcaption>A fair chip fails this about one run in 500, so one lopsided chart means run it again, not throw the board away.</figcaption>
+            </figure>
           </article>
         </div>
       </section>
@@ -2126,6 +2130,11 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           what someone gets when they physically take the device, the card, or
           both.
         </p>
+
+        <figure class="shot-wide">
+          <img src="media/setup-storage.png" alt="The setup screen headed WHERE TO KEEP YOUR SEED WORDS, offering FLASH, SD CARD and AMNESIC, under the line choose what remains after you power off">
+          <figcaption>What each answer costs is the table below.</figcaption>
+        </figure>
 
         <figure class="matrix-wrap">
           <table class="matrix">

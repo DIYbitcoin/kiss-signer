@@ -344,6 +344,8 @@ LEGACY = [
     ("docs/media/export-descriptor.png",  "sim_pair"),
     ("docs/media/sign-verify.png",        "sim_sign_verify"),
     ("docs/media/qr-scan.png",            "sim_qr_scan"),
+    ("docs/media/audit-randomness.png",   "sim_rng_result"),
+    ("docs/media/setup-storage.png",      "sim_setup_storage"),
 ]
 
 
