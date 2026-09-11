@@ -2730,7 +2730,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
 
         function build(card) {
           toc.textContent = "";
-          if (spy) { spy.disconnect(); spy = null; }
+          if (spy) { window.removeEventListener("scroll", spy); spy = null; }
 
           /* Step and feature headings count. They were excluded because
              listing them repeats the list beside itself, which is true, and
@@ -2770,19 +2770,32 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           });
           toc.hidden = false;
 
-          if (!("IntersectionObserver" in window)) return;
-          spy = new IntersectionObserver(
-            function (entries) {
-              entries.forEach(function (en) {
-                if (!en.isIntersecting) return;
-                links.forEach(function (a) { a.classList.remove("is-here"); });
-                var a = links.get(en.target);
-                if (a) a.classList.add("is-here");
-              });
-            },
-            { rootMargin: "-88px 0px -70% 0px" }
-          );
-          heads.forEach(function (h) { spy.observe(h); });
+          /* Which heading you are in is a scroll position question, not a
+             visibility one, and an observer cannot answer it at the foot of
+             the page: the last heading never reaches the band under the
+             topbar, so the mark sat one heading behind for the whole final
+             screen of every topic. Read the positions instead, and treat the
+             end of the document as the last heading outright. */
+          spy = function () {
+            var line = 140;
+            var cur = heads[0];
+            heads.forEach(function (h) {
+              if (h.getBoundingClientRect().top <= line) cur = h;
+            });
+            /* Headings in the last screenful never reach the line, because
+               there is no scroll left to carry them there. Once the page has
+               run out, the last heading is the one you are in. The few pixels
+               of slack cover a page that grows slightly as it settles. */
+            var doc = document.documentElement;
+            if (window.scrollY >= doc.scrollHeight - window.innerHeight - 4) {
+              cur = heads[heads.length - 1];
+            }
+            links.forEach(function (a, h) {
+              a.classList.toggle("is-here", h === cur);
+            });
+          };
+          window.addEventListener("scroll", spy, { passive: true });
+          spy();
         }
 
         window.__docsToc = build;
