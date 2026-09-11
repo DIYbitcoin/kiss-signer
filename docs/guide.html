@@ -661,6 +661,122 @@
         margin-right: 6px;
       }
 
+      /* ---------- search ---------- */
+      .docs-search {
+        position: relative;
+        display: flex;
+        align-items: center;
+        margin: 0 0 14px;
+      }
+      .docs-search .ds-ico {
+        position: absolute;
+        left: 9px;
+        width: 13px;
+        height: 13px;
+        fill: none;
+        stroke: var(--dim);
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        pointer-events: none;
+      }
+      #docs-q {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+        color: var(--ink);
+        padding: 7px 30px 7px 28px;
+        font-family: var(--mono);
+        font-size: 0.78rem;
+        -webkit-appearance: none;
+        appearance: none;
+      }
+      #docs-q::placeholder {
+        color: var(--dim);
+      }
+      #docs-q:focus {
+        outline: none;
+        border-color: var(--accent);
+      }
+      #docs-q::-webkit-search-cancel-button {
+        -webkit-appearance: none;
+      }
+      .docs-search kbd {
+        position: absolute;
+        right: 8px;
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 0 5px;
+        color: var(--dim);
+        font-family: var(--mono);
+        font-size: 0.6rem;
+        line-height: 1.6;
+        pointer-events: none;
+      }
+      .docs-search:focus-within kbd {
+        display: none;
+      }
+
+      /* styles.css gives this nav display:flex, and that beats the display:none
+         the hidden attribute carries, so the section list stayed on screen
+         under the search results. */
+      .docs-rail nav[hidden] {
+        display: none;
+      }
+
+      .docs-results {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        margin-bottom: 14px;
+      }
+      .docs-results a {
+        display: block;
+        border: 1px solid transparent;
+        border-radius: 8px;
+        padding: 7px 9px;
+        color: var(--muted);
+        font-size: 0.74rem;
+        line-height: 1.45;
+        text-wrap: pretty;
+      }
+      .docs-results a:hover,
+      .docs-results a.is-active {
+        border-color: var(--line);
+        background: var(--panel);
+        color: var(--ink);
+      }
+      .docs-results b {
+        display: block;
+        color: var(--ink);
+        font-weight: 500;
+      }
+      .docs-results .crumb {
+        display: block;
+        margin-bottom: 2px;
+        color: var(--dim);
+        font-size: 0.6rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+      .docs-results .snip {
+        display: block;
+        margin-top: 3px;
+        color: var(--dim);
+        font-size: 0.7rem;
+      }
+      .docs-results mark {
+        background: var(--accent-bg);
+        color: var(--accent);
+        border-radius: 2px;
+        padding: 0 1px;
+      }
+      .docs-results .empty {
+        padding: 7px 9px;
+        color: var(--dim);
+        font-size: 0.74rem;
+      }
+
       /* ---------- on this page ----------
          Built from the headings of whichever topic is showing. The long ones
          (checking a download, first boot, encryption) run several screens, and
@@ -748,6 +864,19 @@
 
       <div class="docs-layout">
       <aside class="docs-rail">
+        <!-- Thirteen topics behind a sidebar, and no way to find the one that
+             says "dust" except to guess. Everything here is client side, so it
+             works the same inside the offline zip. -->
+        <form class="docs-search" role="search" onsubmit="return false">
+          <svg class="ds-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.4 15.4 5.1 5.1"/></svg>
+          <input id="docs-q" type="search" placeholder="Search the docs"
+                 autocomplete="off" spellcheck="false"
+                 aria-label="Search the documentation"
+                 aria-controls="docs-results" aria-expanded="false">
+          <kbd>/</kbd>
+        </form>
+        <div class="docs-results" id="docs-results" role="listbox"
+             aria-label="Search results" hidden></div>
         <nav aria-label="Documentation sections">
           <details class="rail-group" open>
             <summary>
@@ -1413,6 +1542,200 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         revealEls.forEach((el) => el.classList.add("is-visible"));
       }
 
+      /* ---------- search ----------
+         Built from the page's own headings at load, so there is no index file
+         to keep in step with the prose and nothing to fetch. Each topic
+         contributes its title plus one entry per subheading, which is what
+         makes a hit land on the paragraph rather than the top of a topic that
+         runs several screens. */
+      (function () {
+        var input = document.getElementById("docs-q");
+        var out = document.getElementById("docs-results");
+        var nav = document.querySelector(".docs-rail nav");
+        if (!input || !out || !nav) return;
+
+        var entries = [];
+        document.querySelectorAll(".docs-body .doc-card").forEach(function (card) {
+          var topic = card.querySelector("h2");
+          if (!topic) return;
+          var topicName = topic.textContent.trim();
+
+          /* text that belongs to the topic itself, up to its first subheading */
+          var lead = [], node = topic.nextElementSibling;
+          while (node && node.tagName !== "H3") {
+            lead.push(node.textContent);
+            node = node.nextElementSibling;
+          }
+          entries.push({
+            id: card.id, anchor: null, crumb: topicName,
+            title: topicName, body: lead.join(" ")
+          });
+
+          card.querySelectorAll("h3").forEach(function (h, i) {
+            if (!h.id) h.id = card.id + "-h" + i;
+            var text = [], n = h.nextElementSibling;
+            while (n && n.tagName !== "H3") { text.push(n.textContent); n = n.nextElementSibling; }
+            entries.push({
+              id: card.id, anchor: h.id, crumb: topicName,
+              title: h.textContent.trim(), body: text.join(" ")
+            });
+          });
+        });
+        entries.forEach(function (e) {
+          e.hayTitle = e.title.toLowerCase();
+          e.hayBody = e.body.replace(/\s+/g, " ").trim();
+          e.hayBodyLower = e.hayBody.toLowerCase();
+        });
+
+        function esc(t) {
+          return t.replace(/[&<>"]/g, function (c) {
+            return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+          });
+        }
+
+        /* the query's words, all of which have to appear somewhere */
+        function score(e, terms) {
+          var total = 0;
+          for (var i = 0; i < terms.length; i++) {
+            var t = terms[i];
+            var inTitle = e.hayTitle.indexOf(t);
+            var inBody = e.hayBodyLower.indexOf(t);
+            if (inTitle < 0 && inBody < 0) return 0;
+            /* a word in a heading outranks the same word buried in a paragraph,
+               and a heading that starts with it outranks one that contains it */
+            if (inTitle === 0) total += 12;
+            else if (inTitle > 0) total += 8;
+            if (inBody >= 0) total += 2;
+          }
+          if (!e.anchor) total += 1;   /* break ties toward the topic itself */
+          return total;
+        }
+
+        function snippet(e, terms) {
+          var at = -1;
+          for (var i = 0; i < terms.length && at < 0; i++) {
+            at = e.hayBodyLower.indexOf(terms[i]);
+          }
+          if (at < 0) return "";
+          var from = Math.max(0, at - 20);
+          var text = e.hayBody.slice(from, from + 76);
+          return (from ? "\u2026" : "") + text + (from + 76 < e.hayBody.length ? "\u2026" : "");
+        }
+
+        function mark(text, terms) {
+          var html = esc(text);
+          terms.forEach(function (t) {
+            /* the terms come from the box, so they are escaped the same way
+               before being used to find what to wrap */
+            var needle = esc(t).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            html = html.replace(new RegExp("(" + needle + ")", "ig"), "<mark>$1</mark>");
+          });
+          return html;
+        }
+
+        var active = -1;
+
+        function render(q) {
+          var terms = q.toLowerCase().split(/\s+/).filter(Boolean);
+          active = -1;
+          if (!terms.length) {
+            out.hidden = true;
+            out.textContent = "";
+            nav.hidden = false;
+            input.setAttribute("aria-expanded", "false");
+            return;
+          }
+          nav.hidden = true;
+          out.hidden = false;
+          input.setAttribute("aria-expanded", "true");
+          out.textContent = "";
+
+          var hits = entries
+            .map(function (e) { return { e: e, s: score(e, terms) }; })
+            .filter(function (h) { return h.s > 0; })
+            .sort(function (a, b) { return b.s - a.s; })
+            .slice(0, 8);
+
+          if (!hits.length) {
+            var none = document.createElement("p");
+            none.className = "empty";
+            none.textContent = "Nothing for \u201c" + q + "\u201d";
+            out.appendChild(none);
+            return;
+          }
+
+          hits.forEach(function (h) {
+            var a = document.createElement("a");
+            a.href = "#" + h.e.id;
+            a.setAttribute("role", "option");
+            var snip = snippet(h.e, terms);
+            a.innerHTML =
+              (h.e.anchor ? '<span class="crumb">' + esc(h.e.crumb) + "</span>" : "") +
+              "<b>" + mark(h.e.title, terms) + "</b>" +
+              (snip ? '<span class="snip">' + mark(snip, terms) + "</span>" : "");
+            a.addEventListener("click", function (ev) {
+              ev.preventDefault();
+              go(h.e);
+            });
+            out.appendChild(a);
+          });
+        }
+
+        function go(e) {
+          if (location.hash === "#" + e.id) {
+            /* already on this topic, so the hash will not fire a change */
+            if (window.__docsShow) window.__docsShow(e.id, true);
+          } else {
+            location.hash = "#" + e.id;
+          }
+          input.value = "";
+          render("");
+          input.blur();
+          if (e.anchor) {
+            var target = document.getElementById(e.anchor);
+            if (target) setTimeout(function () {
+              target.scrollIntoView({ behavior: "smooth", block: "start" });
+            }, 60);
+          }
+        }
+
+        function move(step) {
+          var links = out.querySelectorAll("a");
+          if (!links.length) return;
+          if (active >= 0) links[active].classList.remove("is-active");
+          active = (active + step + links.length) % links.length;
+          links[active].classList.add("is-active");
+          links[active].scrollIntoView({ block: "nearest" });
+        }
+
+        input.addEventListener("input", function () { render(input.value.trim()); });
+
+        input.addEventListener("keydown", function (ev) {
+          if (ev.key === "ArrowDown") { ev.preventDefault(); move(1); }
+          else if (ev.key === "ArrowUp") { ev.preventDefault(); move(-1); }
+          else if (ev.key === "Enter") {
+            var links = out.querySelectorAll("a");
+            var pick = links[active >= 0 ? active : 0];
+            if (pick) { ev.preventDefault(); pick.click(); }
+          } else if (ev.key === "Escape") {
+            input.value = "";
+            render("");
+            input.blur();
+          }
+        });
+
+        /* slash focuses the box, the way every docs site this is modelled on
+           does, but never while the reader is typing somewhere else */
+        addEventListener("keydown", function (ev) {
+          if (ev.key !== "/" || ev.metaKey || ev.ctrlKey || ev.altKey) return;
+          var el = document.activeElement;
+          if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+          ev.preventDefault();
+          input.focus();
+          input.select();
+        });
+      })();
+
       /* ---------- the airgap diagram's motion ----------
          Held at indefinite in the markup, so it never starts on its own. The
          topic switcher below turns it on when the reader opens this topic and
@@ -1514,6 +1837,10 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         function fromHash(opened) {
           show((location.hash || "").replace(/^#/, ""), opened);
         }
+
+        /* search lands on topics, and a result for the topic already showing
+           changes no hash, so it needs a way in other than the hash */
+        window.__docsShow = show;
 
         addEventListener("hashchange", function () {
           fromHash(true);
