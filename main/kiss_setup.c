@@ -3794,14 +3794,15 @@ static void restore_scan_cb(lv_event_t *e)
 {
     (void)e;
     s_qr_from_restore = true;
-    kiss_scan_open_raw(s_parent, qr_text_cb, restore_qr_cancel_cb);
+    kiss_scan_open_raw(s_parent, KISS_SCAN_TASK_BACKUP, qr_text_cb,
+                       restore_qr_cancel_cb);
 }
 
 static void load_scan_cb(lv_event_t *e)
 {
     (void)e;
     s_qr_from_restore = false;   // amnesic load: a bad scan goes back to ITS screen
-    kiss_scan_open_raw(s_parent, qr_text_cb, qr_cancel_cb);
+    kiss_scan_open_raw(s_parent, KISS_SCAN_TASK_BACKUP, qr_text_cb, qr_cancel_cb);
 }
 
 static void load_screen(void)

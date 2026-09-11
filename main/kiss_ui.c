@@ -2041,7 +2041,8 @@ static void pp_scan_cancel_cb(void) { }     // the keyboard was never torn down
 
 static void pp_scan_go_cb(lv_event_t *e) {
   lv_obj_delete_async((lv_obj_t *)lv_event_get_user_data(e));
-  kiss_scan_open_raw(lv_screen_active(), pp_scan_text_cb, pp_scan_cancel_cb);
+  kiss_scan_open_raw(lv_screen_active(), KISS_SCAN_TASK_PASS,
+                     pp_scan_text_cb, pp_scan_cancel_cb);
 }
 
 static void pp_scan_back_cb(lv_event_t *e) {

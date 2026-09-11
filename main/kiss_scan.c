@@ -39,6 +39,13 @@
 
 static lv_obj_t *s_scr;
 static lv_obj_t *s_prog, *s_hint;
+// Said once per transfer, not ten times a second. An unrecognised code sits in
+// frame at the decoder's full rate, and the state line is the one thing on this
+// screen that moves -- rewriting it on every frame is a flicker where the point
+// is a fact. Cleared when a part of a real transfer lands, so a code shown
+// after a refusal still reports.
+static bool s_said_wrong;
+
 static lv_timer_t *s_tmr;
 static qrt_parser_t *s_parser;
 static void (*s_on_psbt)(const uint8_t *, size_t, int);
@@ -205,7 +212,20 @@ static void feed(const char *data, size_t len)
         if (s_prog) scan_status(tr(STR_N_RETRY), "");
         return;
     }
-    if (rc != 0) {                             // some other QR in view: ignore
+    if (rc != 0) {                             // not a format this screen takes
+        // THE ONE OUTCOME THE SCREEN NEVER REPORTED. A readable code that is
+        // not a transaction was dropped in silence: an owner holding their
+        // coordinator's RECEIVING address up to the sign scanner got "waiting
+        // for QR" for as long as they cared to hold it, which is the same
+        // screen as no code at all and the same screen as a dead camera. Three
+        // states, one sentence.
+        //
+        // Only before a transfer has started. Mid-set the counter is the news,
+        // and a stray code in frame may not displace it.
+        if (s_prog && seen == 0 && !s_said_wrong) {
+            scan_status(tr(STR_N_NOT_TX), "");
+            s_said_wrong = true;
+        }
 #ifdef ESP_PLATFORM
         // Rate-limited: an unrecognised code sits in frame at ~10 decodes a
         // second and would otherwise bury every other line in the log.
@@ -224,6 +244,7 @@ static void feed(const char *data, size_t len)
         return;
     }
     SCAN_LOG("part accepted: %u bytes, %d of %d", (unsigned)len, seen, total);
+    s_said_wrong = false;                  // a real transfer outranks the refusal
     if (s_prog) {
         char b[48];
         if (total > 1) snprintf(b, sizeof b, tr(STR_N_PARTS_FMT), seen, total);
@@ -285,7 +306,8 @@ static void poll_cb(lv_timer_t *t)
 #endif
 }
 
-static void scan_open_common(lv_obj_t *parent);
+static void scan_open_common(lv_obj_t *parent, kiss_scan_task_t task);
+
 
 void kiss_scan_open(lv_obj_t *parent,
                       void (*on_psbt)(const uint8_t *, size_t, int),
@@ -296,10 +318,10 @@ void kiss_scan_open(lv_obj_t *parent,
     s_on_text = NULL;
     s_on_cancel = on_cancel;
     s_parser = qrt_parser_new();
-    scan_open_common(parent);
+    scan_open_common(parent, KISS_SCAN_TASK_PSBT);
 }
 
-void kiss_scan_open_raw(lv_obj_t *parent,
+void kiss_scan_open_raw(lv_obj_t *parent, kiss_scan_task_t task,
                           void (*on_text)(const char *, size_t),
                           void (*on_cancel)(void))
 {
@@ -308,7 +330,7 @@ void kiss_scan_open_raw(lv_obj_t *parent,
     s_on_text = on_text;
     s_on_cancel = on_cancel;
     s_parser = NULL;                    // raw: no PSBT assembly
-    scan_open_common(parent);
+    scan_open_common(parent, task);
 }
 
 // ---- geometry ----
@@ -342,8 +364,9 @@ static void scan_status(const char *state, const char *hint)
     if (hint)  lv_label_set_text(s_hint, hint);
 }
 
-static void scan_open_common(lv_obj_t *parent)
+static void scan_open_common(lv_obj_t *parent, kiss_scan_task_t task)
 {
+    s_said_wrong = false;
     kiss_wipe(s_pend, sizeof s_pend);
     kiss_wipe(s_psbt, sizeof s_psbt);
     __atomic_store_n(&s_pend_len, 0, __ATOMIC_RELEASE);   // camera not started yet
@@ -389,10 +412,20 @@ static void scan_open_common(lv_obj_t *parent)
     lv_obj_set_height(s_hint, 2 * lv_font_get_line_height(wt_chrome18(tr(STR_N_RETRY))));
     lv_label_set_long_mode(s_hint, LV_LABEL_LONG_DOT);
 
+    // The sentence that answers "can this rob me", in the words of the door it
+    // was opened by. The backup one is the note its own load screen already
+    // carries beside SCAN, so the two say the same thing rather than two things.
+    const int NOTE[] = {
+        [KISS_SCAN_TASK_PSBT]   = STR_N_NOTHING_SIGNED,
+        [KISS_SCAN_TASK_ADDR]   = STR_N_FOR_ADDR,
+        [KISS_SCAN_TASK_BACKUP] = STR_W_LOAD_SCAN_NOTE,
+        [KISS_SCAN_TASK_PASS]   = STR_N_FOR_PASS,
+    };
+    const char *ntxt = tr(NOTE[task]);
     lv_obj_t *note = lv_label_create(s_scr);
-    lv_label_set_text(note, tr(STR_N_NOTHING_SIGNED));
+    lv_label_set_text(note, ntxt);
     lv_obj_set_style_text_color(note, MUT_COL, 0);
-    lv_obj_set_style_text_font(note, wt_chrome18(tr(STR_N_NOTHING_SIGNED)), 0);
+    lv_obj_set_style_text_font(note, wt_chrome18(ntxt), 0);
     lv_obj_set_pos(note, SCN_COL_X, 232);
     lv_obj_set_width(note, SCN_COL_W);
     lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
@@ -405,7 +438,10 @@ static void scan_open_common(lv_obj_t *parent)
     // it is not reachable from here without cancelling first.
     wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, 552, WT_ACTION_Y,
                     200, true, cancel_btn_cb, NULL);
-    {
+    // ...and only on the two doors a card can actually be used at. The address
+    // checker has no card route and the passphrase has no file: naming one
+    // there is an instruction that dead ends, printed under a live camera.
+    if (task == KISS_SCAN_TASK_PSBT || task == KISS_SCAN_TASK_BACKUP) {
         const lv_font_t *of = wt_chrome18(tr(STR_N_OR_SD));
         lv_obj_t *or = lv_label_create(s_scr);
         lv_label_set_text(or, tr(STR_N_OR_SD));

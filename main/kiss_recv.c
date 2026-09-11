@@ -414,7 +414,7 @@ static void vfy_scan(lv_event_t *e) {
   // must be nulled before the glass changes hands, or the reopen touches a
   // freed control -- s_next_act was exactly that crash.
   close_cb(NULL);
-  kiss_scan_open_raw(s_parent, vfy_result, vfy_cancel);
+  kiss_scan_open_raw(s_parent, KISS_SCAN_TASK_ADDR, vfy_result, vfy_cancel);
 }
 
 // ---- silent payment (BIP352) static receive address ----

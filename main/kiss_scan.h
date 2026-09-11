@@ -14,9 +14,23 @@ void kiss_scan_open(lv_obj_t *parent,
                       void (*on_psbt)(const uint8_t *psbt, size_t len, int fmt),
                       void (*on_cancel)(void));
 
-// Raw single-QR mode (verify-address): the FIRST decoded payload is handed to
-// on_text as-is (NUL-terminated) — no PSBT assembly. Same camera/cancel UX.
-void kiss_scan_open_raw(lv_obj_t *parent,
+// WHAT THIS SCAN IS FOR. One screen, four doors into it, and for the life of
+// the component all four said the same thing: "an unsigned transaction cannot
+// move coins. you check every amount next.", over an action row offering the SD
+// card as the way round. On the address checker that sentence is about a
+// different screen entirely and the card is not a route at all; on the
+// passphrase door it is both. The wording is the one thing that has to differ
+// per door, so it is the one thing the caller passes.
+typedef enum {
+    KISS_SCAN_TASK_PSBT = 0,   // the coordinator's unsigned transaction
+    KISS_SCAN_TASK_ADDR,       // an address to check against these keys
+    KISS_SCAN_TASK_BACKUP,     // an encrypted backup
+    KISS_SCAN_TASK_PASS,       // a passphrase
+} kiss_scan_task_t;
+
+// Raw single-QR mode: the FIRST decoded payload is handed to on_text as-is
+// (NUL-terminated) — no PSBT assembly. Same camera/cancel UX.
+void kiss_scan_open_raw(lv_obj_t *parent, kiss_scan_task_t task,
                           void (*on_text)(const char *txt, size_t len),
                           void (*on_cancel)(void));
 

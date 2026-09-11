@@ -272,6 +272,12 @@ static const slot_t SLOTS[] = {
     // may_be_small for the same reason as sign/point-cam: it renders at a
     // FIXED mono18, not on the ladder, and the sweep owns the long locales.
     { "scan/no-sign",     STR_N_NOTHING_SIGNED, 356, 166, 1 },
+    // ...and the three the other doors into that one screen carry, in the
+    // identical box. The backup door reuses its load screen's note, which is
+    // measured for a row there and gets its second home here.
+    { "scan/for-addr",    STR_N_FOR_ADDR,       356, 166, 1 },
+    { "scan/for-pass",    STR_N_FOR_PASS,       356, 166, 1 },
+    { "scan/for-backup",  STR_W_LOAD_SCAN_NOTE, 356, 166, 1 },
     // kiss_recv.c sp_help_cb(): the sp1-vs-bc1p explainer overlay. Measured
     // with the raw "%s" in place, which is ~2px narrower per prefix than the
     // 3 to 4 characters that get substituted, so this reads slightly optimistic.
