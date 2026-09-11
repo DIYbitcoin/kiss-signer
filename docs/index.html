@@ -165,8 +165,12 @@
           </div>
         </details>
 
+        <!-- The blocker is already on the button, which reads "This browser
+             can't talk to the device" the moment app.js finds no Web Serial.
+             This note is the way out, and only that: saying the problem twice
+             on one screen is how a reader learns to skip the second line. -->
         <p class="browser-note" id="browser-note" hidden>
-          This browser cannot reach a USB device. Use Chrome, Brave or Edge, or
+          Use Chrome, Brave or Edge, or
           <a href="guide.html#esptool">flash from the command line</a>.
         </p>
 
