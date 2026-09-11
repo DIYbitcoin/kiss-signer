@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Read every relative link in the tracked Markdown and refuse one that
-points at a file that is not there.
+"""Read every relative link in the tracked Markdown and HTML, and refuse one
+that points at a file, or an anchor, that is not there.
 
     check_links.py            # check the tree
     check_links.py --selftest
@@ -20,12 +20,26 @@ looks right in the editor, it looks right in a review diff, and it even
 resolves on github.com when the file is browsed from the repository root
 instead of from Pages.
 
-WHAT IT CHECKS. Every inline `[text](target)` and every reference
-definition `[label]: target` in tracked `.md` files. A target is resolved
-against the directory of the file that holds it. http, https, mailto and
-tel are left alone, and so is a bare `#anchor`. Vendored upstream trees are
-skipped: their links are their project's business and several are broken in
-the copies we carry.
+WHAT IT CHECKS. In Markdown: every inline `[text](target)` and every
+reference definition `[label]: target`. In HTML: every `href` and `src`. A
+target is resolved against the directory of the file that holds it. http,
+https, mailto and tel are left alone. Vendored upstream trees are skipped:
+their links are their project's business and several are broken in the
+copies we carry.
+
+AND ANCHORS, which is the half this gate was blind to for its whole life.
+It read `git ls-files "*.md"` and nothing else, so the five HTML pages that
+ARE the published site went unchecked -- 63 links and 49 ids between them.
+A bare `#anchor` was skipped outright and a `page.html#anchor` was checked
+as far as `page.html`. The guide is thirteen topics reached only by their
+anchors, so a renamed id is a link that silently goes nowhere.
+
+An id is read out of the markup, so it does not matter that the guide keeps
+twelve of its thirteen topics hidden at any moment: hidden is a property of
+the rendered page and the id is in the file either way. Ids that JavaScript
+assigns at runtime are invisible here by the same token, and that is
+correct rather than a gap -- nothing written in the file can link to one,
+because it does not exist until the page runs.
 
 It reports how many files it read as well as how many links it rejected,
 because a scan that finds nothing and a scan that reads nothing print the
@@ -33,6 +47,7 @@ same word.
 """
 
 import argparse
+import io
 import os
 import re
 import subprocess
@@ -41,9 +56,15 @@ import tempfile
 
 INLINE = re.compile(r"\[[^\]]*\]\(\s*<?([^)>\s]+)")
 REFDEF = re.compile(r"^\s{0,3}\[[^\]]+\]:\s*<?(\S+)>?\s*$", re.M)
-SKIP_SCHEME = ("http://", "https://", "mailto:", "tel:", "ftp://", "data:")
+SKIP_SCHEME = ("http://", "https://", "mailto:", "tel:", "ftp://", "data:",
+               "javascript:")
+# href and src both: a missing stylesheet or image is as broken as a missing
+# page, and both are fetched by the reader's browser from the same directory.
+HTML_ATTR = re.compile(r"""\b(?:href|src)\s*=\s*["']([^"']*)["']""")
+HTML_ID = re.compile(r"""\bid\s*=\s*["']([^"']+)["']""")
 # Vendored trees. Their broken links are upstream's, not ours.
-VENDORED = ("components/libwally-core/upstream/", "managed_components/")
+VENDORED = ("components/libwally-core/upstream/", "managed_components/",
+            "docs/installer/vendor/")
 
 
 def targets(text):
@@ -114,26 +135,111 @@ def tracked_markdown(root):
     return [f for f in out if not f.startswith(VENDORED)]
 
 
+def tracked_html(root):
+    out = subprocess.run(
+        ["git", "-C", root, "ls-files", "*.html"],
+        capture_output=True, text=True, check=True).stdout.split()
+    return [f for f in out if not f.startswith(VENDORED)]
+
+
+def ids_in(root, files):
+    """{file: {id, ...}} for every HTML file, so a fragment can be resolved.
+
+    Read from the markup rather than from a rendered page on purpose. The
+    guide hides twelve of its thirteen topics at a time, and an id in a
+    hidden section is still an id.
+    """
+    found = {}
+    for rel in files:
+        try:
+            text = open(os.path.join(root, rel),
+                        encoding="utf-8", errors="replace").read()
+        except OSError:
+            continue
+        found[rel] = set(HTML_ID.findall(text))
+    return found
+
+
+def scan_html(root, files, known=None):
+    """Return a list of (file, target, why) for links that do not resolve.
+
+    Three ways to be wrong, and the gate was blind to all three: a path that
+    the repository does not carry, a `#anchor` naming an id its own file does
+    not have, and a `page.html#anchor` whose page exists and whose anchor
+    does not.
+    """
+    bad = []
+    ids = ids_in(root, files)
+    for rel in files:
+        try:
+            text = open(os.path.join(root, rel),
+                        encoding="utf-8", errors="replace").read()
+        except OSError as e:
+            bad.append((rel, f"<unreadable: {e}>", "could not be read"))
+            continue
+        here = os.path.dirname(rel)
+        for raw in HTML_ATTR.findall(text):
+            target = raw.strip()
+            # "#" alone is the "top of page" idiom and names nothing
+            if not target or target == "#" or target.startswith(SKIP_SCHEME):
+                continue
+            path, _, frag = target.partition("#")
+            if path:
+                resolved = os.path.normpath(os.path.join(here, path))
+                ok = (not resolved.startswith("..")
+                      and (resolved in known if known is not None
+                           else os.path.exists(os.path.join(root, resolved))))
+                if not ok:
+                    bad.append((rel, raw, "no such path in the repository"))
+                    continue
+            else:
+                resolved = rel          # a bare fragment is same-page
+            # Only a file this scan read can be asked about its ids. A
+            # fragment into a page outside the set is left alone rather than
+            # guessed at.
+            if frag and resolved in ids and frag not in ids[resolved]:
+                bad.append((rel, raw, f"no id {frag!r} in {resolved}"))
+    return bad
+
+
 def check(root):
-    files = tracked_markdown(root)
+    md = tracked_markdown(root)
+    html = tracked_html(root)
     # The trap this repository has been caught by before: a gate that looked
-    # at nothing reported clean for its whole life. No files is a failure.
-    if not files:
+    # at nothing reported clean for its whole life. No files is a failure,
+    # and it is asked of each kind separately, because reading every
+    # Markdown file and no HTML is exactly the state this gate shipped in.
+    if not md:
         print("::error::no tracked Markdown found -- this gate read nothing")
         return 1
-    bad = scan(root, files, known_paths(root))
-    print(f"read {len(files)} tracked Markdown file(s)")
-    print(f"broken relative links: {len(bad)}")
-    for f, t in bad:
+    if not html:
+        print("::error::no tracked HTML found -- this gate read nothing")
+        return 1
+
+    known = known_paths(root)
+    bad_md = scan(root, md, known)
+    bad_html = scan_html(root, html, known)
+
+    print(f"read {len(md)} tracked Markdown file(s), "
+          f"{len(html)} tracked HTML file(s)")
+    print(f"broken relative links: {len(bad_md) + len(bad_html)}")
+    for f, t in bad_md:
         print(f"  {f} -> {t}")
-    if bad:
+    for f, t, why in bad_html:
+        print(f"  {f} -> {t}   ({why})")
+
+    if bad_md:
         print("::error::a tracked Markdown file links to a path this "
               "repository does not carry. A link resolves from the file "
               "holding it, not from the repository root -- and a path that is "
               "only on your disk (managed_components/, build output) is not "
               "one the reader gets.")
-        return 1
-    return 0
+    if bad_html:
+        print("::error::a tracked HTML page links to a path or an anchor that "
+              "is not there. These five pages are the published site, so this "
+              "is a dead link a reader clicks, and an anchor is how every "
+              "topic in the guide is reached.")
+    return 1 if (bad_md or bad_html) else 0
 
 
 def selftest():
@@ -185,6 +291,44 @@ def selftest():
         got = scan(d, ["docs/ROADMAP.md"], known_paths(d))
         if len(got) != 1 or "upstream.c" not in got[0][1]:
             print(f"::error::an untracked link target was not caught: {got}")
+            fails += 1
+
+    # ---- the HTML half, and the three ways it can be wrong ----
+    with tempfile.TemporaryDirectory() as d:
+        os.makedirs(os.path.join(d, "docs", "sim"))
+        io.open(os.path.join(d, "docs", "guide.html"), "w").write(
+            '<section id="how"></section>'
+            '<a href="#how">fine</a>'
+            '<a href="#nope">dead anchor, same page</a>'
+            '<a href="sim/index.html">fine</a>')
+        io.open(os.path.join(d, "docs", "index.html"), "w").write(
+            '<a href="guide.html#how">fine</a>'
+            '<a href="guide.html#gone">dead anchor, other page</a>'
+            '<a href="missing.html">dead path</a>'
+            '<a href="https://example.com/x#y">left alone</a>'
+            '<a href="#">top of page, names nothing</a>')
+        io.open(os.path.join(d, "docs", "sim", "index.html"), "w").write(
+            '<a href="../index.html">fine</a>'
+            '<img src="../media/x.png">')
+        os.makedirs(os.path.join(d, "docs", "media"))
+        open(os.path.join(d, "docs", "media", "x.png"), "w").close()
+        subprocess.run(["git", "-C", d, "init", "-q"], check=True)
+        subprocess.run(["git", "-C", d, "add", "docs"], check=True)
+
+        pages = ["docs/guide.html", "docs/index.html", "docs/sim/index.html"]
+        got = scan_html(d, pages, known_paths(d))
+        want = {"#nope", "guide.html#gone", "missing.html"}
+        if {t for _, t, _ in got} != want:
+            print(f"::error::planted {sorted(want)}, scan found {got}")
+            fails += 1
+
+        # An id in a section the page hides is still an id. The guide keeps
+        # twelve of thirteen topics hidden, so getting this wrong would
+        # report the whole sidebar as broken.
+        io.open(os.path.join(d, "docs", "guide.html"), "w").write(
+            '<section id="how" hidden></section><a href="#how">x</a>')
+        if scan_html(d, ["docs/guide.html"], known_paths(d)):
+            print("::error::an id inside a hidden section was not seen")
             fails += 1
 
     print(f"selftest: {fails} failure(s)")
