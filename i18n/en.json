@@ -246,7 +246,7 @@
   "I_KEF_TERM": "ENCRYPTED SEED QR",
   "I_KEF_WARN_S": "your seed words",
   "I_KEF_WARN_S_PP": "seed words. not your passphrase",
-  "I_NOTE_BW": "add wallet > import > scan\n'watch only' is correct: every send signs HERE.",
+  "I_NOTE_BW": "add wallet > import > scan\n'watch only' is right. any wallet that reads a zpub works.",
   "I_NOTE_SPARROW": "File > New Wallet > Airgapped Hardware Wallet\nany coordinator that reads a descriptor works.",
   "I_PAIR_BTN_NOTE": "the coordinator that watches. it cannot sign.",
   "I_PAIR_T": "PAIR COORDINATOR",
