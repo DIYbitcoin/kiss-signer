@@ -835,11 +835,16 @@
       }
 
       @media (max-width: 900px) {
+        /* minmax(0, 1fr), not 1fr: a grid item defaults to min-width auto, so
+           the column cannot shrink below its widest content. The storage table
+           is wider than a phone, and a plain 1fr let it push the whole page out
+           past the viewport instead of scrolling inside its own box. */
         .docs-layout {
-          grid-template-columns: 1fr;
+          grid-template-columns: minmax(0, 1fr);
         }
         .docs-body {
           max-width: none;
+          min-width: 0;
         }
         /* the box stays reachable while the rail scrolls away with the page */
         .docs-search {
