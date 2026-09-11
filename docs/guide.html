@@ -29,13 +29,28 @@
         grid-template-columns: 196px minmax(0, 1fr) 178px;
         gap: 34px;
       }
+      /* A figure is not a line of text and does not want a line's width. The
+         62ch measure belongs to prose; capping the drawings with it is what
+         made their labels small enough to complain about. Wide enough to read,
+         still short of a billboard. */
+      .doc-card {
+        --figure: 960px;
+      }
+
       .docs-body {
         gap: 0;
-        max-width: 42rem;
         /* A fixed pitch needs a shorter line and more lead than the site
            default, or a paragraph of it becomes work. */
         font-size: 0.85rem;
         line-height: 1.75;
+      }
+
+      /* The site-wide shell stops at 1180px, which suits the install page.
+         On a wide display that left 820px of empty margin here and squeezed
+         every diagram into a column sized for a line of prose. The prose
+         measure stays where it is; the room goes to the pictures. */
+      .shell {
+        max-width: 1560px;
       }
 
       /* The h1 is the same word on all eleven topics, so it reads as a
@@ -221,7 +236,7 @@
          less motion. */
       .airgap {
         margin: 22px 0 6px;
-        max-width: 62ch;
+        max-width: var(--figure);
       }
       .airgap svg {
         display: block;
@@ -569,7 +584,7 @@
          this a key rather than a decoration. */
       .pins {
         margin: 20px 0 6px;
-        max-width: 62ch;
+        max-width: var(--figure);
       }
       .pins-stage {
         position: relative;
@@ -744,7 +759,7 @@
          The account under it is m/84h/0h/0h. */
       .derive {
         margin: 20px 0 6px;
-        max-width: 62ch;
+        max-width: var(--figure);
       }
       /* Squeezed into a phone the whole drawing scales with its box, and the
          labels land near five pixels. It keeps its drawn size and scrolls
@@ -844,7 +859,7 @@
          them while they are reading the step above it. */
       .gesture {
         margin: 22px 0 6px;
-        max-width: 62ch;
+        max-width: var(--figure);
       }
       .gesture-stage {
         position: relative;
@@ -935,7 +950,7 @@
          in their head; this one is on the page. */
       .matrix-wrap {
         margin: 22px 0 6px;
-        max-width: 62ch;
+        max-width: var(--figure);
         overflow-x: auto;
       }
       .matrix {
@@ -1007,7 +1022,7 @@
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 12px;
         margin: 18px 0;
-        max-width: 78ch;
+        max-width: var(--figure);
       }
       .shots figure {
         margin: 0;
@@ -1020,7 +1035,7 @@
         border-radius: 10px;
       }
       .shot-wide {
-        max-width: 78ch;
+        max-width: var(--figure);
       }
       .shots figcaption {
         margin-top: 7px;
@@ -1036,7 +1051,7 @@
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 22px 18px;
         margin: 18px 0 22px;
-        max-width: 78ch;
+        max-width: var(--figure);
         counter-reset: fr;
       }
       .first-run figure {
