@@ -27,7 +27,10 @@ function updateFlashGate() {
   const ready = verified && ack.checked && supported;
 
   installButton.classList.toggle("is-hidden", !ready);
-  lockedButton.classList.toggle("is-hidden", ready);
+  /* On a browser with no Web Serial there is nothing to press, so the dead
+     button goes rather than repeating what the note underneath already
+     says. */
+  lockedButton.classList.toggle("is-hidden", ready || !supported);
 
   /* The unsupported slot lives inside installButton, which is hidden whenever
      the gate is shut -- and a browser with no Web Serial can never open it. So
@@ -35,9 +38,7 @@ function updateFlashGate() {
      This note is outside the gate. */
   if (browserNote) browserNote.hidden = supported;
 
-  if (!supported) {
-    lockedButton.textContent = "This browser can't talk to the device";
-  } else if (!verified) {
+  if (!verified) {
     lockedButton.textContent = "Connect and install (verifying...)";
   } else if (!ack.checked) {
     lockedButton.textContent = "Connect and install (tick the box first)";
