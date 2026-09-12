@@ -62,8 +62,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        lang: [en, cs-CZ, da-DK, de, es-ES, es-MX, fr, hr-HR, it, ja, ko,
-               nb-NO, nl, pl, pt-BR, pt-PT, ru, sv-SE, tr, vi, zh-CN]
+        lang: [en, cs-CZ, da-DK, de, es-ES, es-MX, fr, hr-HR, hu-HU, it, ja,
+               ko, nb-NO, nl, pl, pt-BR, pt-PT, ru, sv-SE, tr, vi, zh-CN]
     steps:
       - uses: actions/checkout@v4
 

@@ -49,6 +49,22 @@
 # on their existing numbers and keep them. Russian came in five under and
 # takes the lower one. All twenty are now the measurement rather than an
 # allowance, which is the first time that has been true.
+#
+# hu-HU is the first locale added since these numbers became measurements
+# rather than allowances, and its 23 is a first honest reading on a walk that
+# finished, not a budget granted in advance. It is not the number Hungarian
+# started at: the first sweep said 57, which was more than any other locale
+# here, and 34 of those were copy that had to be cut rather than a ceiling that
+# had to be raised. What made Hungarian overflow where the same sentence fits
+# in English is worth writing down, because the next language with accents
+# will meet it too: the chrome picks its FACE from the string, so an ASCII
+# label is drawn in the narrow mono face and any accented label falls back to
+# the wider Latin one. Hungarian text is therefore wider than English at the
+# SAME character count, and a translation has to come in under the English
+# rather than level with it. The settings tab strip is where that first bit,
+# at 483px of a 470px budget.
+#
+# Same rule as every line above: from here it only goes down.
 cs-CZ 7
 da-DK 15
 de 30
@@ -56,6 +72,7 @@ es-ES 27
 es-MX 27
 fr 28
 hr-HR 15
+hu-HU 23
 it 15
 ja 10
 ko 4

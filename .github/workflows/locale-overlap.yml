@@ -45,10 +45,10 @@ jobs:
 
       # STRICT is still set: it is what fails a locale with no ceiling, which
       # is English and only English.
-      - name: overlap gate, twenty one locales
+      - name: overlap gate, twenty two locales
         env:
           OVERLAPCHECK_STRICT: '1'
           OVERLAPCHECK_LANGS: >-
-            en cs-CZ da-DK de es-ES es-MX fr hr-HR it ja ko nb-NO nl pl
-            pt-BR pt-PT ru sv-SE tr vi zh-CN
+            en cs-CZ da-DK de es-ES es-MX fr hr-HR hu-HU it ja ko nb-NO nl
+            pl pt-BR pt-PT ru sv-SE tr vi zh-CN
         run: bash sim/run_overlapcheck.sh
