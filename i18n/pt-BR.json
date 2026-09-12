@@ -485,6 +485,7 @@
   "S_BUNDLE_IN_FMT": "ENTRADAS (%u)",
   "S_BUNDLE_MORE_FMT": "mais %u entradas",
   "S_BUNDLE_NOCHANGE_FMT": "sem troco, isto esvazia todas as %u",
+  "S_BUNDLE_MINE": "MEU",
   "S_CMP_8": "compare os acesos",
   "S_COINS_HELP_B": "NÃO ESTÁ AQUI: está na rede bitcoin. nenhum aparelho guarda, este também não.\nSÓ CHAVES: o que é seu é a chave que abre, e é ela que este signer guarda.\nGASTA TUDO: abrir uma gasta ela inteira. o que você não manda volta como nova.",
   "S_C_DUSTCH": "troco poeira",

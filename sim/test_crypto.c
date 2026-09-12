@@ -1096,6 +1096,7 @@ int main(int argc, char **argv) {
     chkb("psbt out0 external", !sum.outs[0].is_change);
     chk("psbt out0 addr", sum.outs[0].addr, t_ext_addr);
     chkb("psbt out1 change re-derived", sum.outs[1].is_change);
+    chki("psbt out1 on the change branch", (int)sum.outs[1].branch, 1);
     chk("psbt out1 addr", sum.outs[1].addr, "bc1q8c6fshw2dlwun7ekn9qwf37cu2rn755upcp6el");
     chkb("psbt est_vsize sane", sum.est_vsize >= 130 && sum.est_vsize <= 150);
     chki("psbt fee rate x10", sum.fee_rate_x10, sum.est_vsize ? 10000 / sum.est_vsize : -1);
@@ -1762,6 +1763,15 @@ int main(int argc, char **argv) {
     chki("consolidation high fee CAUTION", sum.status, WPSBT_CAUTION);
     chkb("consolidation flags the fee",
          (sum.caution_flags & WPSBT_C_HIGHFEE) != 0);
+    // The two halves of the wallet, told apart. out0 pays one of our own
+    // RECEIVE addresses and out1 is real change, and both are ours -- which is
+    // why the sign screen called both of them CHANGE until the branch was
+    // carried. The labels differ now, so the fixture that produces them is
+    // worth asserting in both directions.
+    chkb("consolidation out0 is ours on the receive branch",
+         sum.outs[0].is_change && sum.outs[0].branch == 0);
+    chkb("consolidation out1 is ours on the change branch",
+         sum.outs[1].is_change && sum.outs[1].branch == 1);
     kiss_psbt_free();
 
     chkb("garbage refuses to load", kiss_psbt_load((const uint8_t *)"nope", 4, &sum) != 0);

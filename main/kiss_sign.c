@@ -3736,12 +3736,11 @@ static void verify_screen(lv_obj_t *parent)
         // word wherever the mark is unambiguous. The word is still on the
         // screen once, in the caption over the hero, which is where a single
         // recipient's amount is named anyway.
-        // cbuf is the long one: a mark, the glossary's own CHANGE term (up to
-        // 63 bytes of translated text), and an address index of up to ten
-        // digits. 80 could not hold the worst case and -Wformat-truncation
-        // said so -- on the device compiler, which is the only lane that
-        // implements it.
-        char fbuf[80], cbuf[104];
+        // cbuf and rbuf are the long ones: a mark, a term of up to 63 bytes of
+        // translated text, and the owner tag in brackets after it. 80 could
+        // not hold the worst case and -Wformat-truncation said so -- on the
+        // device compiler, which is the only lane that implements it.
+        char fbuf[80], cbuf[104], rbuf[104];
         snprintf(fbuf, sizeof fbuf, "%s", tr(STR_S_FEE));
         // The change strand does NOT name its address index. It did, on every
         // transaction, so an ordinary spend carried "#0" beside the word
@@ -3757,7 +3756,37 @@ static void verify_screen(lv_obj_t *parent)
         // the mark can take the accent while the words stay muted, and '#'
         // opens a colour run -- an index inside it ends the run early and
         // paints the digits the mark's colour by accident.
-        snprintf(cbuf, sizeof cbuf, "%s", gloss_term(2));
+        //
+        // BOTH words carry the OWNER TAG, and that is the whole point of the
+        // pair. CHANGE is the real term and it stays -- an owner meets it in
+        // every coordinator, and the paraphrase that used to head this column
+        // taught nobody anything -- but the term only says "this is mine" to a
+        // reader who already knew. The owner read this screen and said so in
+        // those words: it lists the outputs and does not say which of them are
+        // theirs.
+        //
+        // FIRST PERSON, and it is the one string on the glass that is. Every
+        // other line here speaks TO the owner -- "THIS ADDRESS IS YOURS" on
+        // RECEIVE, "%u TO YOU" on the DETAILS header -- and the second-person
+        // form of this tag was drawn on the screen, read, and rejected. It is
+        // what Electrum Mobile writes beside the same outputs, which is where
+        // the owner met it, and a tag is not a sentence: the row is a list of
+        // destinations and this one is labelled the way a reader would label
+        // their own. Do not "fix" it back into the house voice.
+        //
+        // Its own key rather than a word lifted out of one of those sentences,
+        // because a row with ~150px beside a mono23 amount takes a word and
+        // every candidate on the device is a clause.
+        snprintf(cbuf, sizeof cbuf, "%s (%s)", gloss_term(2),
+                 tr(STR_S_BUNDLE_MINE));
+        // The OTHER half of the wallet. An output on a receive address is
+        // ours and re-derives, so the verifier passes it and the row used to
+        // read CHANGE -- about a destination that is not change. It gets the
+        // word RECEIVE, which is the title of the screen that hands those
+        // addresses out, and the same tag: what the reader needs from this
+        // row is that the money is theirs either way.
+        snprintf(rbuf, sizeof rbuf, "%s (%s)", tr(STR_R_T),
+                 tr(STR_S_BUNDLE_MINE));
         for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS
                         && n_out < WT_BUNDLE_MAX; i++) {
             if (s_sum.outs[i].is_change) continue;
@@ -3810,7 +3839,15 @@ static void verify_screen(lv_obj_t *parent)
                  && cv > 0 && cv < WPSBT_PRIVACY_SATS);
             out[n_out++] = (wt_strand_t){ .sats  = cv,
                                           .mark  = GLOSS_ICONS[2],
-                                          .label = cbuf,   // CHANGE
+                                          // CHANGE (YOURS), or RECEIVE
+                                          // (YOURS) when the output landed on
+                                          // the other branch. The MARK and the
+                                          // accent are the same for both: the
+                                          // subject of the row is money coming
+                                          // back to the owner, and the word is
+                                          // what separates the two ways it can.
+                                          .label = s_sum.outs[i].branch ? cbuf
+                                                                        : rbuf,
                                           .role  = WT_STRAND_CHANGE,
                                           .flagged = ch_bad };
         }

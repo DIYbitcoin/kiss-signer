@@ -77,6 +77,18 @@ typedef struct {
     char     addr[120];  // longest form: a ~117-char sp1/tsp1 silent payment address
     uint64_t sats;
     bool     is_change;  // carries OUR keypath AND the re-derived script matches
+    // Which half of the wallet an OURS output landed on: 1 = the change
+    // branch, 0 = a receive address. Only meaningful when is_change.
+    //
+    // It is carried because the screen used to say CHANGE about both. The
+    // verifier accepts m/../0/i and m/../1/i alike -- correctly, a coin on
+    // either is ours and re-derives -- so a spend that pays one of the
+    // owner's own RECEIVE addresses, which every coordinator can build and
+    // some do when sweeping, was labelled change on the one screen that
+    // decides whether to sign. Change is a specific thing with its own
+    // cautions in this file, and an output that is not change must not wear
+    // the word.
+    uint32_t branch;
     bool     is_sp;      // BIP375 silent payment output: addr shows the sp1/tsp1
                          // re-encoding of its scan+spend keys, script derived here
     // Address index of a change output, m/../<change>/<index>. Only meaningful

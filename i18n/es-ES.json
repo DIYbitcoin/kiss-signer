@@ -485,6 +485,7 @@
   "S_BUNDLE_IN_FMT": "ENTRADAS (%u)",
   "S_BUNDLE_MORE_FMT": "%u entradas más",
   "S_BUNDLE_NOCHANGE_FMT": "sin cambio, esto vacía las %u",
+  "S_BUNDLE_MINE": "MÍO",
   "S_CMP_8": "compara los iluminados",
   "S_COINS_HELP_B": "AQUÍ NO: está en la red bitcoin. ningún aparato lo guarda, este tampoco.\nSOLO CLAVES: lo tuyo es la clave que lo abre, y esa clave la guarda este firmante.\nSE GASTA ENTERO: abrir una la gasta toda. lo que no envías vuelve como nueva.",
   "S_C_DUSTCH": "cambio polvo",

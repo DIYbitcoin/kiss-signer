@@ -485,6 +485,7 @@
   "S_BUNDLE_IN_FMT": "ENTRÉES (%u)",
   "S_BUNDLE_MORE_FMT": "%u de plus",
   "S_BUNDLE_NOCHANGE_FMT": "pas de monnaie, cela vide les %u",
+  "S_BUNDLE_MINE": "À MOI",
   "S_CMP_8": "comparez les signes",
   "S_COINS_HELP_B": "PAS ICI : c'est sur le réseau bitcoin. aucun appareil ne le détient, celui-ci compris.\nCLÉS SEULES : ce que vous possédez est la clé qui l'ouvre, et c'est elle que ce signataire garde.\nÉPUISÉ : ouvrir en dépense tout. ce que vous n'envoyez pas revient à neuf.",
   "S_C_DUSTCH": "monnaie poussière",

@@ -485,6 +485,7 @@
   "S_BUNDLE_IN_FMT": "INVOER (%u)",
   "S_BUNDLE_MORE_FMT": "%u inputs meer",
   "S_BUNDLE_NOCHANGE_FMT": "geen wisselgeld, dit leegt alle %u",
+  "S_BUNDLE_MINE": "MIJN",
   "S_CMP_8": "vergelijk opgelichte",
   "S_COINS_HELP_B": "NIET HIER: het staat op het bitcoin-netwerk. geen apparaat houdt het, dit ook niet.\nALLEEN SLEUTELS: wat je bezit is de sleutel die het opent, en die houdt deze signer.\nOPGEBRUIKT: er een openen gebruikt hem helemaal. wat je niet stuurt komt nieuw terug.",
   "S_C_DUSTCH": "dust-wisselgeld",

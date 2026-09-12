@@ -485,6 +485,7 @@
   "S_BUNDLE_IN_FMT": "INPUT (%u)",
   "S_BUNDLE_MORE_FMT": "%u input in più",
   "S_BUNDLE_NOCHANGE_FMT": "nessun resto, questo svuota tutte le %u",
+  "S_BUNDLE_MINE": "MIO",
   "S_CMP_8": "confronta gli accesi",
   "S_COINS_HELP_B": "NON QUI: è sulla rete bitcoin. nessun dispositivo lo tiene, questo compreso.\nSOLO CHIAVI: quello che possiedi è la chiave che lo apre, ed è lei che questo signer tiene.\nSI CONSUMA: aprirne uno lo spende tutto. quello che non mandi torna nuovo.",
   "S_C_DUSTCH": "resto polvere",

@@ -485,6 +485,7 @@
   "S_BUNDLE_IN_FMT": "GİRDİLER (%u)",
   "S_BUNDLE_MORE_FMT": "%u girdi daha",
   "S_BUNDLE_NOCHANGE_FMT": "para üstü yok, bu %u tanesini de boşaltır",
+  "S_BUNDLE_MINE": "BENİM",
   "S_CMP_8": "aydınlıkları karşılaştırın",
   "S_COINS_HELP_B": "BURADA DEĞİL: bitcoin ağında. hiçbir cihaz tutmaz, bu da tutmaz.\nYALNIZCA ANAHTAR: sahip olduğunuz şey onu açan anahtardır, ve bu signer onu tutar.\nTÜKENİR: birini açmak hepsini harcar. göndermediğiniz yeni olarak geri gelir.",
   "S_C_DUSTCH": "toz para üstü",

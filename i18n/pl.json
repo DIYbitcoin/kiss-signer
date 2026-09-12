@@ -485,6 +485,7 @@
   "S_BUNDLE_IN_FMT": "WEJŚCIA (%u)",
   "S_BUNDLE_MORE_FMT": "jeszcze %u wejść",
   "S_BUNDLE_NOCHANGE_FMT": "bez reszty, to opróżnia wszystkie %u",
+  "S_BUNDLE_MINE": "MOJE",
   "S_CMP_8": "porównaj podświetlone",
   "S_COINS_HELP_B": "NIE TUTAJ: to jest w sieci bitcoin. żadne urządzenie tego nie trzyma, to też nie.\nTYLKO KLUCZE: masz klucz, który to otwiera, i to on zostaje w tym signerze.\nZUŻYWA SIĘ: otwarcie jednego zużywa całość. czego nie wyślesz, wraca jako nowe.",
   "S_C_DUSTCH": "reszta-pył",

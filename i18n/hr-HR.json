@@ -485,6 +485,7 @@
   "S_BUNDLE_IN_FMT": "ULAZI (%u)",
   "S_BUNDLE_MORE_FMT": "još %u ulaza",
   "S_BUNDLE_NOCHANGE_FMT": "bez ostatka, ovo prazni svih %u",
+  "S_BUNDLE_MINE": "MOJE",
   "S_CMP_8": "usporedi osvijetljene",
   "S_COINS_HELP_B": "NIJE OVDJE: nalazi se na bitcoin mreži. nijedan uređaj to ne drži, ni ovaj.\nSAMO KLJUČEVI: vaše je ključ koji to otključava, i njega drži ovaj signer.\nPOTROŠI SE: otključavanjem jednog troši se sve. što ne pošaljete vraća se kao novo.",
   "S_C_DUSTCH": "dust ostatak",

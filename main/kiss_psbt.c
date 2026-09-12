@@ -1068,7 +1068,10 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
                 stop(s, "change address does not re-derive");  // active attack marker
             } else {
                 so->is_change = true;
-                so->index = path[4];   // our_purpose proved the path is 5 long
+                // our_purpose proved the path is 5 long and that path[3] is
+                // 0 or 1, so both of these are safe to read.
+                so->branch = path[3];
+                so->index = path[4];
                 s->change_sats += o->satoshi;
                 // Change parked past every scanner's window. Its own `if`, not
                 // folded into the pair below: an output can be both dust AND

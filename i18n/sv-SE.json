@@ -485,6 +485,7 @@
   "S_BUNDLE_IN_FMT": "INGÅNGAR (%u)",
   "S_BUNDLE_MORE_FMT": "%u indata till",
   "S_BUNDLE_NOCHANGE_FMT": "ingen växel, detta tömmer alla %u",
+  "S_BUNDLE_MINE": "MIN",
   "S_CMP_8": "jämför de upplysta",
   "S_COINS_HELP_B": "INTE HÄR: den ligger på bitcoin-nätverket. ingen enhet håller den, inte heller den här.\nBARA NYCKLAR: det du äger är nyckeln som öppnar den, och nyckeln är det den här signern sparar.\nFÖRBRUKAS: att öppna en förbrukar hela. det du inte skickar kommer tillbaka som en ny.",
   "S_C_DUSTCH": "dammväxel",

@@ -485,6 +485,7 @@
   "S_BUNDLE_IN_FMT": "ĐẦU VÀO (%u)",
   "S_BUNDLE_MORE_FMT": "thêm %u đầu vào",
   "S_BUNDLE_NOCHANGE_FMT": "không có tiền thừa, dùng hết cả %u đồng",
+  "S_BUNDLE_MINE": "CỦA TÔI",
   "S_CMP_8": "so các ký tự sáng",
   "S_COINS_HELP_B": "KHÔNG Ở ĐÂY: nó ở trên mạng bitcoin. không thiết bị nào giữ, kể cả cái này.\nCHỈ KHÓA: thứ bạn sở hữu là khóa mở nó, và máy ký này giữ khóa đó.\nDÙNG HẾT: mở một cái là tiêu cả. phần không gửi quay về thành cái mới.",
   "S_C_DUSTCH": "tiền thừa bụi",

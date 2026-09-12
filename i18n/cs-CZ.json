@@ -485,6 +485,7 @@
   "S_BUNDLE_IN_FMT": "VSTUPY (%u)",
   "S_BUNDLE_MORE_FMT": "ještě %u vstupů",
   "S_BUNDLE_NOCHANGE_FMT": "bez drobných, tímto se vyprázdní všech %u",
+  "S_BUNDLE_MINE": "MOJE",
   "S_CMP_8": "porovnejte zvýrazněné",
   "S_COINS_HELP_B": "NENÍ TU: je to v síti bitcoin. žádné zařízení to nedrží, ani toto.\nJEN KLÍČE: vlastníte klíč, který to otevírá, a ten drží tento signer.\nSPOTŘEBUJE SE: otevřením se utratí celý. co nepošlete, vrátí se jako nový.",
   "S_C_DUSTCH": "prachové drobné",

@@ -488,6 +488,7 @@
   "S_D_LT_CAP": "NOT BEFORE BLOCK",
   "S_BUNDLE_MORE_FMT": "%u more inputs",
   "S_BUNDLE_NOCHANGE_FMT": "no change, this empties all %u",
+  "S_BUNDLE_MINE": "MINE",
   "S_CMP_8": "compare lit characters",
   "S_COINS_HELP_B": "NOT HELD HERE: it is on the bitcoin network. no device holds it, this one included.\nKEYS ONLY: what you own is the key that unlocks it, and the key is what this signer keeps.\nUSED UP: unlocking one uses all of it. what you do not send comes back as a new one.",
   "S_C_DUSTCH": "dust change",

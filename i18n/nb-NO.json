@@ -485,6 +485,7 @@
   "S_BUNDLE_IN_FMT": "INNGANGER (%u)",
   "S_BUNDLE_MORE_FMT": "%u til",
   "S_BUNDLE_NOCHANGE_FMT": "ingen veksel, dette tømmer alle %u",
+  "S_BUNDLE_MINE": "MIN",
   "S_CMP_8": "sammenlign de opplyste",
   "S_COINS_HELP_B": "IKKE HER: den ligger på bitcoin-nettverket. ingen enhet holder den, heller ikke denne.\nBARE NØKLER: det du eier er nøkkelen som låser den opp, og den holder denne signeren.\nBRUKT OPP: å låse opp én bruker alt. det du ikke sender kommer tilbake som nytt.",
   "S_C_DUSTCH": "støvveksel",

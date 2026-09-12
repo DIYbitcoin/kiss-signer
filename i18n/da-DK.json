@@ -485,6 +485,7 @@
   "S_BUNDLE_IN_FMT": "INPUT (%u)",
   "S_BUNDLE_MORE_FMT": "%u input mere",
   "S_BUNDLE_NOCHANGE_FMT": "ingen byttepenge, dette tømmer alle %u",
+  "S_BUNDLE_MINE": "MIN",
   "S_CMP_8": "sammenlign de oplyste",
   "S_COINS_HELP_B": "IKKE HER: den ligger på bitcoin-netværket. ingen enhed holder den, heller ikke denne.\nKUN NØGLER: det du ejer er nøglen der låser den op, og den holder denne signer.\nBRUGT OP: at låse én op bruger det hele. det du ikke sender kommer tilbage som nyt.",
   "S_C_DUSTCH": "støv som byttepenge",

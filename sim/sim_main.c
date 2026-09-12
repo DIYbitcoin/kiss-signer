@@ -744,7 +744,10 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
   s->outs[0].sats = 60000;
   snprintf(s->outs[1].addr, sizeof s->outs[1].addr,
            "bc1q8c6fshw2dlwun7ekn9qwf37cu2rn755upcp6el");
-  s->outs[1].sats = 39000; s->outs[1].is_change = true;
+  // branch 1: the change half of the wallet, which is what makes the row read
+  // CHANGE (YOURS) rather than RECEIVE (YOURS). A fixture that left it zero
+  // would photograph the other label on every frame of the sign walk.
+  s->outs[1].sats = 39000; s->outs[1].is_change = true; s->outs[1].branch = 1;
   if (len >= 7 && memmem(bytes, len, "NOTMINE", 7)) {
     // The ownership refusal WITH both halves of the compare present: this
     // signer's own fingerprint against the one the coordinator wrote into
@@ -805,6 +808,7 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
     snprintf(s->outs[5].addr, sizeof s->outs[5].addr,
              "bc1q8c6fshw2dlwun7ekn9qwf37cu2rn755upcp6el");
     s->outs[5].sats = 39000; s->outs[5].is_change = true;
+    s->outs[5].branch = 1;
     // A locktime that binds, on the one fixture whose header is otherwise
     // uncrowded: the badge has to be visible somewhere the walk photographs.
     s->locktime = 5127853; s->lock_binds = true;
