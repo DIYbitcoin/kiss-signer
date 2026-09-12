@@ -304,7 +304,7 @@ void wt_sub_fit(lv_obj_t *scr, int w);
 #define WT_ICON_SHIELD  "\xEF\x8F\xAD"   // U+F3ED shield-halved
 // The settings band's language control. It wore a bare forward arrow, which
 // is the glyph the SCREEN'S OWN action wears -- so the one control on the
-// band that picks between 21 languages was marked exactly like a "go on".
+// band that picks between 22 languages was marked exactly like a "go on".
 // A globe says what it is before a word of it is read, which was the ask.
 // Added to SYMS in the same edit that named it here.
 #define WT_ICON_LANG    "\xEF\x82\xAC"   // U+F0AC globe

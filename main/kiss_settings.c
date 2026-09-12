@@ -1560,10 +1560,21 @@ void kiss_lang_picker_open(lv_obj_t *parent, void (*picked_cb)(void))
     lv_obj_set_style_text_letter_space(t, 3, 0);
     lv_obj_set_pos(t, 48, 30);
 
-    // 21 locales in 3x7. Fixed rows keep every language one tap away without
+    // 22 locales in 3x8. Fixed rows keep every language one tap away without
     // scrolling, while the compact labels still leave room for each flag.
     // i18n_pick_order (generated) = alphabetical display order, decoupled
     // from the append-only enum whose index is the stored NVS value.
+    //
+    // THE PITCH IS THE ONLY NUMBER THAT MOVED, 52 to 48, and the reason is
+    // worth writing down because the old comment said "3x7" and that sentence
+    // is what made a 22nd language look free. At 52 the eighth row lands at
+    // y=440 and ends at 480, flush with the panel edge, with its 8px extended
+    // tap area off the glass entirely. At 48 it lands at 412..452, 28px above
+    // the edge, and the title above (y=30, font28, line_height 37, so it ends
+    // at 67) keeps the same 9px of air it has always had. Three columns is not
+    // a choice either: PORTUGUES (PORTUGAL) measures 185px at font14 and the
+    // flag plus the flex pad take 40 more, so a fourth column has nowhere to
+    // go on 800px. 24 slots for 22 languages is the headroom this now has.
     for (int i = 0; i < I18N_LANG_N; i++) {
         int id = i18n_pick_order[i];
         const bool on = id == i18n_get_lang();
@@ -1574,7 +1585,7 @@ void kiss_lang_picker_open(lv_obj_t *parent, void (*picked_cb)(void))
                                      i18n_lang_info(id)->native, false,
                                      on ? wt_accent() : WT_INK, on,
                                      lang_pick_cb, (void *)(intptr_t)id);
-        lv_obj_set_pos(p, 16 + (i % 3) * 260, 76 + (i / 3) * 52);
+        lv_obj_set_pos(p, 16 + (i % 3) * 260, 76 + (i / 3) * 48);
         // Every row is in its own script. Select its regional font explicitly;
         // the current UI language must not control another locale's glyph form.
         lv_obj_t *name = lv_obj_get_child(p, 0);

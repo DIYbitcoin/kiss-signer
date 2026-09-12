@@ -5547,12 +5547,16 @@ int main(void) {
   // LANGUAGE lives on the action band now, its label the active language's
   // own name -- so it is on EVERY tab, and the picker behind it is unchanged.
   band_lang();                                      // -> the full screen picker
-  save("/tmp/sim_lang_picker.ppm");                 // 21 locale choices, current selected
+  save("/tmp/sim_lang_picker.ppm");                 // 22 locale choices, current selected
   {                                                 // re-pick the ACTIVE language so a
     int li = kiss_lang_pick_slot(i18n_get_lang()); // SIM_LANG walk stays in its locale
     // The cells are flag + word now, left aligned and content sized, so the
     // tap aims just inside the cell's head rather than a 248px box centre.
-    touch(16 + (li % 3) * 260 + 20, 76 + (li / 3) * 52 + 20);
+    // Hand copy of the grid in kiss_lang_picker_open(). The pitch is 48,
+    // not 52: the 22nd locale needed an eighth row and 52 put it flush
+    // with the panel edge. Both copies move together or the walk taps a
+    // cell that is no longer there.
+    touch(16 + (li % 3) * 260 + 20, 76 + (li / 3) * 48 + 20);
     pump(3); release(); pump(10);                   // settings rebuilt, same language
   }
 

@@ -894,5 +894,6 @@ enum {
     I18N_DA,
     I18N_CS,
     I18N_HR,
+    I18N_HU,
     I18N_LANG_N
 };
