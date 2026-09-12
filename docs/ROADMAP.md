@@ -84,7 +84,7 @@ that opens a modest set of keys. See `main/kiss_duress.h`.
 
 | Feature | Status | Notes |
 |---|---|---|
-| 21 locales, 19 languages | done | Latin, Cyrillic, ja, ko, zh. Spanish and Portuguese have regional variants |
+| 22 locales, 20 languages | done | Latin, Cyrillic, ja, ko, zh. Spanish and Portuguese have regional variants |
 | Screenshots generated from firmware | done | `tools/gen_docs_shots.sh`, CI fails on drift |
 | Text fit report gates the build | done | `sim/fitcheck.c` covers body, title, row and sub-line budgets; overlapcheck's FIT question reports when `wt_note_fit` gives up and sets font14 |
 | Text overlap gate | done | `sim/overlapcheck.c`, nine questions per stop, three shrink-only backlogs, run by `sim/run_overlapcheck.sh` |
@@ -103,7 +103,7 @@ that opens a modest set of keys. See `main/kiss_duress.h`.
 - **The normal beta does not encrypt flash.** Keys in FLASH are extractable by
   someone with the device and the right equipment. Use AMNESIC, or SD, or wait
   for the encrypted build, for anything that matters.
-- **20 of the 21 locales have not been read by a native speaker.** The English
+- **21 of the 22 locales have not been read by a native speaker.** The English
   copy is reviewed; the rest is machine-written against a term glossary. One
   screen carries a security caveat that a translation can quietly turn into a
   reassurance. See [`i18n/GLOSSARY.md`](../i18n/GLOSSARY.md).
