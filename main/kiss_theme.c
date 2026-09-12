@@ -8730,26 +8730,29 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
             // all of it. bundle_note_ink then finds no '#' and leaves it to
             // the object colour, which is the right answer for a stand down
             // too.
-            const lv_color_t wc = WT_MUT;
-            if (acc) {
-                /* whole label in the accent: mark and word together */
-            } else if (out[i].label && o + 2 < sizeof m) {
-                o += (size_t)snprintf(m + o, sizeof m - o, "  #%02X%02X%02X ",
-                                      wc.red, wc.green, wc.blue);
-                // '#' opens a colour run, so a literal one -- the change row's
-                // address index -- has to be doubled or LVGL eats the digits
-                // after it as a colour.
-                for (const char *q = out[i].label; *q && o + 3 < sizeof m; q++) {
-                    if (*q == '#') m[o++] = '#';
-                    m[o++] = *q;
-                }
-                if (o + 2 < sizeof m) m[o++] = '#';
-                m[o] = 0;
-            }
-            if (acc && out[i].label && o + 2 < sizeof m)
+            // THE ACCENT MEANS ONE THING ON THIS SCREEN, and it did not
+            // before: every row's mark took it, so the colour that also
+            // carries the owner's own amount and word was sitting on the
+            // recipient row and the fee row too. Three rows lit in the theme
+            // colour is a decoration; one is an answer. The rows that are not
+            // the owner's are mark and word alike in WT_MUT now, and the
+            // accent appears on exactly the money coming back.
+            //
+            // That is this device's version of what Electrum Mobile spends
+            // three fixed colours on -- green inputs, white receive, yellow
+            // change. One colour does it here, it follows whatever theme the
+            // owner is in rather than being written into the screen, and the
+            // amber stays free to mean a caution.
+            //
+            // No RECOLOR markup any more, on either row. It existed to hold a
+            // mark in the accent while the words beside it stayed muted, and
+            // with the mark muted there is nothing left for it to do. The '#'
+            // doubling that went with it is gone too, so a label may carry a
+            // literal '#' again.
+            if (out[i].label && o + 2 < sizeof m)
                 snprintf(m + o, sizeof m - o, "  %s", out[i].label);
-            b->note[k] = bundle_txt(line, m, wt_font14(), wt_accent(), true);
-            if (!acc) lv_label_set_recolor(b->note[k], true);
+            b->note[k] = bundle_txt(line, m, wt_font14(),
+                                    acc ? wt_accent() : WT_MUT, acc);
         } else if (out[i].label) {
             b->note[k] = bundle_txt(line, out[i].label, wt_font14(),
                                     WT_MUT, false);
@@ -9114,16 +9117,14 @@ void wt_bundle_state(lv_obj_t *bundle, int state)
                            acc && !b->flag[k], acc);
             bundle_fold_ink(b, k - (int)b->out0, false);
             live_out = true;   // the page dim below is what this just undid
-            // The note's own colour is its MARK, which is the accent on every
-            // row -- its words carry WT_MUT in markup. bundle_repaint paints
-            // the note with the amount, so this puts the mark back.
-            if (b->note[k]) {
-                lv_obj_set_style_text_color(b->note[k], wt_accent(), 0);
-                // ...and its WORDS back to what they were built with: WT_MUT,
-                // or the accent on the one row whose subject is money coming
-                // back. Same test the builder used.
-                bundle_note_ink(b, k, acc ? wt_accent() : WT_MUT);
-            }
+            // bundle_repaint paints the note with the AMOUNT, which is not
+            // what the note is: a recipient's figure comes back to WT_INK and
+            // its mark and word must not. Put the note back to what the
+            // builder gave it, by the same test the builder used -- the accent
+            // on the rows that are the owner's, WT_MUT on the rest.
+            if (b->note[k])
+                lv_obj_set_style_text_color(b->note[k],
+                                            acc ? wt_accent() : WT_MUT, 0);
         } else {
             // An input at rest, taken from its role rather than assumed to be
             // muted: a flagged one wears WT_WARN and has to come back to it
