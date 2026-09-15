@@ -244,13 +244,13 @@ It used to draw a dimmed one, on the reasoning that the shape of the transaction
 
 It said "check your paper against these keys" until the paper was checked, then "pair a coordinator, then verify an address" until one had spoken, and it came off the bench as a first-time-user walkthrough on the screen the owner looks at every day. The order it was teaching is in docs/walkthrough.md, which is where the owner asked for it to live -- the same argument that took the passphrase line off this screen, a few paragraphs down in kiss_home_build(). The tiles are the home. A signer that keeps suggesting the next thing is a signer that never finishes setting itself up. tile title string ids, in tile order (sign, receive, keys, settings). STR_H_TILE_WALLET is a legacy KEY NAME whose value has been "Keys" for a while; renaming the key would touch all 21 locale files for nothing.
 
-[`main/main.c:248`](../main/main.c#L248)
+[`main/main.c:167`](../main/main.c#L167)
 
 ### a draw that can no longer become the word is cleared HERE, on the lift, not left to the 3s idle
 
 The word is the FIRST stored.strokes strokes of the buffer, so once that many have been drawn without matching, no later stroke can change the answer -- and every attempt after it appended to the corpse instead of starting fresh. The device then answered to nothing at all until the owner put their hand down for a full three seconds, which is not what a person does between two tries. Reported from the bench as a signer that would not open to its own word. The log showed the strokes counting 1..17 across five attempts, 2.5s apart, and never resetting. The heuristic that catches an abandoned KISS is switched OFF whenever a word is stored -- it is built on the letters being drawn left to right, which a custom word is not -- so the idle was the only clear there was.
 
-[`main/main.c:2261`](../main/main.c#L2261)
+[`main/main.c:1850`](../main/main.c#L1850)
 
 ## `sim/sim_main.c`
 
