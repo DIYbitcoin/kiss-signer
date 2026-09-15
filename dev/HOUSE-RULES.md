@@ -69,6 +69,14 @@ docker run --rm -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory \
   espressif/idf:v6.1 idf.py -B /project/build-docker build
 ```
 
+Once per board the change touches. That line is the Guition's; the 3.5in
+board is the same line with `-B /project/build_ws35 -DKISS_BOARD=ws35`. The
+committed `sdkconfig` is the Guition's profile and is never edited for the
+3.5in: that board's sdkconfig is generated inside `build_ws35/` from the
+committed one plus `sdkconfig.ws35`, and after either of those changes,
+delete `build_ws35/sdkconfig` and reconfigure. Nothing about this reaches
+`tools/preflight.sh`, whose header excludes the container build on purpose.
+
 `-B /project/build-docker` rather than a path in the container's own `/tmp`:
 with `--rm` the container filesystem goes when the run ends, so a build
 directory there is written once and thrown away, and every invocation pays a

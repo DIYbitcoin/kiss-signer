@@ -36,8 +36,10 @@ gh pr create -B develop
 Desktop CI runs everything that proves correctness *without* hardware. That
 is deliberately not enough for `main`. Anything touching display, QR or
 animation, camera, SD card, buttons, or touch must be run on a real device
-before it crosses. A missing glyph draws a blank placeholder box, and CI cannot
-see that.
+before it crosses -- on each board the change touches, and a change under
+`main/board_*.c`, `main/kiss_board.h` or `sdkconfig.ws35` needs the 3.5in
+board's verdict as well as the Guition's. A missing glyph draws a blank
+placeholder box, and CI cannot see that.
 
 ## Cutting a release
 
