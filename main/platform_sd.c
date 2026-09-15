@@ -87,7 +87,9 @@ int platform_sd_info(platform_sd_info_t *out)
 #include "driver/sdmmc_host.h"
 #include "sdmmc_cmd.h"
 #include "sd_pwr_ctrl_by_on_chip_ldo.h"
+#include "esp_log.h"
 #define SD_BASE "/sdcard"
+static const char *TAG = "sd";
 
 static sdmmc_card_t *s_card;
 static sd_pwr_ctrl_handle_t s_pwr;   // LDO stays claimed across mounts
@@ -123,10 +125,16 @@ int platform_sd_mount(void)
         .max_files = 5,
         .allocation_unit_size = 16 * 1024,
     };
-    if (esp_vfs_fat_sdmmc_mount(SD_BASE, &host, &slot, &mc, &s_card) != ESP_OK) {
+    esp_err_t rc = esp_vfs_fat_sdmmc_mount(SD_BASE, &host, &slot, &mc, &s_card);
+    if (rc != ESP_OK) {
+        // The one line that says, at the bench, whether the card or the wiring
+        // is the problem; the home badge cannot be read on a board whose
+        // layout has not landed yet.
+        ESP_LOGW(TAG, "SD: mount failed (%s)", esp_err_to_name(rc));
         s_card = NULL;
         return -2;
     }
+    ESP_LOGI(TAG, "SD: mounted");
     return 0;
 }
 

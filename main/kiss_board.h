@@ -59,4 +59,12 @@ void kiss_board_touch_start(void);
 bool kiss_board_touch_ok(void);
 // The I2C bus the touch controller lives on; the camera's SCCB shares it.
 i2c_master_bus_handle_t kiss_board_i2c_bus(void);
+#ifdef KISS_BOARD_WS35
+// The one door onto the SPI panel, shared by LVGL and the camera. x2 and y2
+// are exclusive, esp_lcd's convention. `px` is already in the panel's byte
+// order and written back from the cache. LVGL's calls return at once and the
+// DMA-done callback hands the buffer back; a camera call (cam) returns when
+// the transfer is complete, so its buffer is free again.
+void kiss_board_blit(int x1, int y1, int x2, int y2, const void *px, bool cam);
+#endif
 #endif

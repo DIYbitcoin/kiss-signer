@@ -43,15 +43,18 @@
 #include "i18n.h"
 #include "osd_strips.h"
 #include "kiss_theme.h"   // wt_lock_565: the reticle's acquire colour
+#include "kiss_board.h"   // KISS_PANEL_W/H: the panel the frames land on
 
 static const char *TAG = "camspike";
 
 #define OV02C10_SCCB_ADDR 0x36   // the sensor Guition ships on this board's ribbon
 #define CAM_BUF_NUM 2
-// Native panel geometry (portrait); the PPA renders camera frames directly in
-// panel orientation, so no LVGL/rot_flush work happens per frame.
-#define PANEL_W 480
-#define PANEL_H 800
+// Native panel geometry, from the board. On the Guition (portrait 480x800)
+// the PPA renders camera frames directly in panel orientation, so no LVGL or
+// rotate work happens per frame; the 3.5in board has no framebuffer to render
+// into and refuses to start until its own transport lands.
+#define PANEL_W KISS_PANEL_W
+#define PANEL_H KISS_PANEL_H
 
 typedef struct {
   int fd;

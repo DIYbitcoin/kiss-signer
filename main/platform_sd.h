@@ -1,7 +1,8 @@
-// SD card platform seam. Device: SDMMC slot 0 on the Guition JC4880P443C
-// (CLK 43 / CMD 44 / D0-D3 39-42, IO MUX, card powered from on-chip LDO 4 —
-// wiring taken from Guition's own board demo BSP). Sim: a host directory,
-// so the whole Sign flow runs headless.
+// SD card platform seam. Device: SDMMC slot 0 (CLK 43 / CMD 44 / D0-D3
+// 39-42, IO MUX, card powered from on-chip LDO 4). The Guition JC4880P443C
+// and the Waveshare 3.5in are wired identically here, so both boards share
+// this file; the wiring was taken from each vendor's own board BSP. Sim: a
+// host directory, so the whole Sign flow runs headless.
 #pragma once
 #include <stdint.h>
 #include <stddef.h>
