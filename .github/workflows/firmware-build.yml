@@ -24,6 +24,18 @@ name: firmware build
 # fire by hand without the other three. The branch rules that used to live in
 # the `on:` block below are in ci.yml now, beside the other three, where they
 # can be read together.
+#
+# Two legs since the 3.5in board: one per board profile, both gating. The
+# Guition leg is textually the line this job always ran, with the committed
+# sdkconfig and no -DKISS_BOARD, so the image it builds is the image it always
+# built. The 3.5in leg builds into its own directory with its own generated
+# sdkconfig. Each leg then reads its map for the OTHER board's driver: the
+# requirements are unconditional and an unreferenced library member is not
+# linked, and this is where that claim is checked rather than believed. It
+# looks for a library MEMBER being pulled in, `lib<driver>.a(`, not for the
+# library's name, which the linker lists as LOADed whether or not it uses it.
+# A build must also leave the committed sdkconfig alone: a leg that rewrites
+# it has been pointed at the wrong profile.
 on:
   workflow_call:
   workflow_dispatch:
@@ -31,6 +43,20 @@ on:
 jobs:
   dev-build:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - board: guition
+            args: "-B build"
+            bin: build/guition_kiss_bringup.bin
+            map: build/guition_kiss_bringup.map
+            absent: 'libespressif__esp_lcd_st7796\.a\(|libespressif__esp_lcd_touch_ft5x06\.a\('
+          - board: ws35
+            args: "-B build_ws35 -DKISS_BOARD=ws35"
+            bin: build_ws35/ws35_kiss_bringup.bin
+            map: build_ws35/ws35_kiss_bringup.map
+            absent: 'libespressif__esp_lcd_st7701\.a\(|libespressif__esp_lcd_touch_gt911\.a\('
     steps:
       - uses: actions/checkout@v4
 
@@ -44,7 +70,7 @@ jobs:
       # log to say which half moved. The digest is printed for the same reason
       # -- a build's trust anchor that only exists in a file nobody opened
       # while reading the log is not visible.
-      - name: Build firmware (Docker ESP-IDF, committed sdkconfig)
+      - name: Build firmware (Docker ESP-IDF, ${{ matrix.board }})
         run: |
           . tools/idf_image.sh
           echo "toolchain: $KISS_IDF_IMAGE"
@@ -54,9 +80,15 @@ jobs:
             -e GIT_CONFIG_VALUE_0=/project \
             -v "$PWD":/project -w /project \
             "$KISS_IDF_IMAGE" \
-            idf.py -B build -DKISS_COMMIT="$(git rev-parse --short HEAD)" build
+            idf.py ${{ matrix.args }} -DKISS_COMMIT="$(git rev-parse --short HEAD)" build
 
-      - name: Image size
+      - name: Image size and link hygiene
         run: |
-          ls -l build/guition_kiss_bringup.bin
-          sha256sum build/guition_kiss_bringup.bin
+          ls -l ${{ matrix.bin }}
+          sha256sum ${{ matrix.bin }}
+          if grep -qE '${{ matrix.absent }}' ${{ matrix.map }}; then
+            echo "the other board's driver was linked into the ${{ matrix.board }} image:"
+            grep -E '${{ matrix.absent }}' ${{ matrix.map }} | head
+            exit 1
+          fi
+          git diff --exit-code -- sdkconfig
