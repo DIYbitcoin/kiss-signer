@@ -4432,13 +4432,6 @@ CONFIG_ESP_LCD_TOUCH_MAX_BUTTONS=1
 # end of ESP LCD TOUCH
 
 #
-# ESP LVGL PORT
-#
-# default:
-# CONFIG_LVGL_PORT_ENABLE_PPA is not set
-# end of ESP LVGL PORT
-
-#
 # Espressif SCCB Configurations
 #
 # default:

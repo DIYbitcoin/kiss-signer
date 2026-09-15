@@ -100,20 +100,6 @@ dependencies:
       registry_url: https://components.espressif.com/
       type: service
     version: 1.2.0~2
-  espressif/esp_lvgl_port:
-    component_hash: fb6c1fdfe70d4ca39a035d63ca394a35f17ec84ce16ff98ecb13a54155d75da4
-    dependencies:
-    - name: idf
-      require: private
-      version: '>=5.2'
-    - name: lvgl/lvgl
-      registry_url: https://components.espressif.com
-      require: public
-      version: '>=8,<10'
-    source:
-      registry_url: https://components.espressif.com/
-      type: service
-    version: 2.8.0~1
   espressif/esp_sccb_intf:
     component_hash: c071b189e49f40940722aea01a5489f873385cc39cd5b14012341135b85d1a9d
     dependencies:
@@ -175,7 +161,7 @@ dependencies:
       require: private
       version: '>=5.4'
     source:
-      registry_url: https://components.espressif.com
+      registry_url: https://components.espressif.com/
       type: service
     targets:
     - esp32s2
@@ -199,7 +185,7 @@ dependencies:
       - if: target not in ["linux"]
       version: ^1.0.0
     source:
-      registry_url: https://components.espressif.com
+      registry_url: https://components.espressif.com/
       type: service
     targets:
     - esp32s2
@@ -217,7 +203,7 @@ dependencies:
     component_hash: 184e532558c1c45fefed631f3e235423d22582aafb4630f3e8885c35281a49ae
     dependencies: []
     source:
-      registry_url: https://components.espressif.com
+      registry_url: https://components.espressif.com/
       type: service
     version: 9.5.0
 direct_dependencies:
@@ -225,10 +211,12 @@ direct_dependencies:
 - espressif/esp_cam_sensor
 - espressif/esp_lcd_st7701
 - espressif/esp_lcd_touch_gt911
-- espressif/esp_lvgl_port
 - espressif/esp_sccb_intf
 - espressif/esp_video
+- espressif/usb
+- espressif/usb_host_uvc
 - idf
-manifest_hash: 727848325b56a124a72eece9b81ffa679807cbc11ab3b598efbb02103e8de87a
+- lvgl/lvgl
+manifest_hash: dc9db9df59126cacb973efdbc593f1ea14e38d7d7c5f9a74a78f7d39f0b67b1a
 target: esp32p4
 version: 3.0.0
