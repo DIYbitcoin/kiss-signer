@@ -1,4 +1,36 @@
 cmake_minimum_required(VERSION 3.16)
+# The board. Chosen here, at configure time, and nowhere else. The image name
+# and the app descriptor's project_name both come from project(), which runs
+# before Kconfig, so the profile has to be picked from a variable project() can
+# see; main/CMakeLists.txt then asserts that the sdkconfig this produced agrees
+# with it, so -DKISS_BOARD and CONFIG_KISS_BOARD_* can never drift apart.
+#
+# guition is the default and produces exactly what this file produced before
+# the second board existed: project(guition_kiss_bringup), the committed
+# sdkconfig, and not a byte of difference in the image. The 3.5in board keeps
+# its generated sdkconfig inside its own build directory (gitignored /build*/),
+# layered from sdkconfig.defaults, the committed sdkconfig (the Guition
+# profile: everything the two boards share, which is nearly everything) and
+# sdkconfig.ws35 (only what differs). Later files win. An explicit -DSDKCONFIG
+# or -DSDKCONFIG_DEFAULTS on the command line still takes precedence, which is
+# how the release scripts hand in their regenerated sdkconfig.release.
+#
+# Above the include on purpose: project.cmake reads SDKCONFIG the moment it is
+# included, so a value set after that line is a value it never sees.
+set(KISS_BOARD "guition" CACHE STRING "board profile: guition (default) or ws35")
+if(NOT KISS_BOARD MATCHES "^(guition|ws35)$")
+    message(FATAL_ERROR "KISS_BOARD=${KISS_BOARD}: this tree knows guition and ws35")
+endif()
+if(KISS_BOARD STREQUAL "ws35")
+    if(NOT SDKCONFIG)
+        set(SDKCONFIG "${CMAKE_BINARY_DIR}/sdkconfig")
+    endif()
+    if(NOT SDKCONFIG_DEFAULTS)
+        set(SDKCONFIG_DEFAULTS
+            "${CMAKE_CURRENT_LIST_DIR}/sdkconfig.defaults;${CMAKE_CURRENT_LIST_DIR}/sdkconfig;${CMAKE_CURRENT_LIST_DIR}/sdkconfig.ws35")
+    endif()
+endif()
+
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
 # The VERSION file, read ONCE. It becomes PROJECT_VER, which lands in the
@@ -27,4 +59,4 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
              ${CMAKE_CURRENT_LIST_DIR}/VERSION)
 file(STRINGS ${CMAKE_CURRENT_LIST_DIR}/VERSION PROJECT_VER LIMIT_COUNT 1)
 
-project(guition_kiss_bringup)
+project(${KISS_BOARD}_kiss_bringup)

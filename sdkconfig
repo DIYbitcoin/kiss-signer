@@ -1313,6 +1313,15 @@ CONFIG_PARTITION_TABLE_MD5=y
 # end of Partition Table
 
 #
+# KISS board
+#
+# default:
+CONFIG_KISS_BOARD_GUITION=y
+# default:
+# CONFIG_KISS_BOARD_WS35 is not set
+# end of KISS board
+
+#
 # Compiler options
 #
 # CONFIG_COMPILER_OPTIMIZATION_DEBUG is not set

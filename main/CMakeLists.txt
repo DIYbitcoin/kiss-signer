@@ -83,6 +83,37 @@ target_compile_definitions(${COMPONENT_LIB} PRIVATE LV_LVGL_H_INCLUDE_SIMPLE=1)
 idf_build_get_property(KISS_VERSION_LINE PROJECT_VER)
 target_compile_definitions(${COMPONENT_LIB} PRIVATE KISS_VERSION_STR="${KISS_VERSION_LINE}")
 
+# The project name, for the same reason: it is the app descriptor's
+# project_name, the one field an SD update image carries that says which BOARD
+# it was built for, and kiss_fw.c compares it against the running image. The
+# simulator has no descriptor and takes a default in the source.
+target_compile_definitions(${COMPONENT_LIB} PRIVATE KISS_PROJECT_STR="${CMAKE_PROJECT_NAME}")
+
+# The board profile, asserted rather than trusted. The root CMakeLists.txt
+# picks the project name from -DKISS_BOARD before Kconfig runs, and Kconfig
+# then says CONFIG_KISS_BOARD_* from whichever sdkconfig it was handed. Those
+# are two sources, and a build directory configured for one board and then
+# re-pointed at the other would otherwise link the 4.3in image under the
+# 3.5in name, or the reverse, without a word. Not during IDF's early expansion
+# pass, which runs this file once to collect requirements before any CONFIG_
+# symbol exists; in the real pass they are guaranteed to be visible.
+if(NOT CMAKE_BUILD_EARLY_EXPANSION)
+    if(KISS_BOARD STREQUAL "ws35" AND NOT CONFIG_KISS_BOARD_WS35)
+        message(FATAL_ERROR "KISS_BOARD=ws35 but the sdkconfig is not the ws35 profile: "
+                            "delete the build directory's sdkconfig and reconfigure")
+    elseif(KISS_BOARD STREQUAL "guition" AND CONFIG_KISS_BOARD_WS35)
+        message(FATAL_ERROR "the committed sdkconfig has been switched to the ws35 profile; "
+                            "it must stay the Guition profile")
+    endif()
+    # Both camera sensors answer at SCCB address 0x36, so an image carrying
+    # both drivers would let esp_video's auto-detect pick one by chip-ID
+    # readback order. Exactly one per board profile.
+    if(CONFIG_CAMERA_OV5647 AND CONFIG_CAMERA_OV02C10)
+        message(FATAL_ERROR "both camera sensors are enabled and both answer at SCCB 0x36: "
+                            "exactly one per board profile")
+    endif()
+endif()
+
 # short commit for verifier matching. Passed by tools/build_release.sh from the
 # HOST's git (as a cache var it re-triggers configure whenever it changes; git
 # inside the container can't read the bind-mounted repo's ownership anyway).

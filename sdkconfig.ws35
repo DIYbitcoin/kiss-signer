@@ -1,0 +1,31 @@
+# Waveshare ESP32-P4-WIFI6-Touch-LCD-3.5 ("ws35").
+#
+# Layered by the root CMakeLists.txt OVER the committed sdkconfig (the Guition
+# profile) when -DKISS_BOARD=ws35, so every line here is a DIFFERENCE between
+# the two boards and anything absent is shared: flash DIO/80M/16MB and the
+# partition table, PSRAM in HEX mode, every LVGL setting tools/check_lv_conf.py
+# pins against the simulator, rollback, stack canaries, log levels. Never
+# hand-edit build_ws35/sdkconfig; it is generated from this chain, and after a
+# change to this file or to the committed sdkconfig, delete it and reconfigure.
+CONFIG_KISS_BOARD_GUITION=n
+CONFIG_KISS_BOARD_WS35=y
+
+# --- camera: OV5647 on the ribbon, MIPI-CSI 2-lane ---
+# SCCB address 0x36, the SAME address as the Guition's OV02C10, so exactly one
+# of the two drivers may be compiled in; main/CMakeLists.txt refuses both. The
+# RAW10 1280x960 binning mode is the one Kern runs this sensor in on this
+# board. The ISP pipeline controller stays inherited (=n): that was an OV02C10
+# entropy finding (sdkconfig.defaults) and step 1.5 re-measures it here.
+CONFIG_CAMERA_OV02C10=n
+CONFIG_CAMERA_OV5647=y
+CONFIG_CAMERA_OV5647_MIPI_RAW8_800X800_50FPS=n
+CONFIG_CAMERA_OV5647_MIPI_RAW10_1280X960_BINNING_45FPS=y
+CONFIG_CAMERA_OV5647_MIPI_DEFAULT_FMT_RAW10_1280X960_BINNING_45FPS=y
+
+# --- chip revision ---
+# Waveshare ships this board with v1.x AND v3.x P4 silicon, and an image built
+# for one refuses to boot on the other. The committed sdkconfig is the v1.x
+# profile. Only after the step 0 read of the owner's chip says v3.x, add:
+# CONFIG_ESP32P4_SELECTS_REV_LESS_V3=n
+# CONFIG_ESP32P4_REV_MIN_100=n
+# CONFIG_ESP32P4_REV_MIN_300=y
