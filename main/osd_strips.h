@@ -8,6 +8,7 @@
 // Everything is composed on the UI task before the stream task is created and
 // freed after it is joined, so nothing allocates while frames are flowing.
 #pragma once
+#include "kiss_board.h"   // SX: the lane is 640 on the wide canvas
 
 #include <stdbool.h>
 
@@ -22,7 +23,7 @@ enum { OSD_SEARCH, OSD_SEEN, OSD_STUCK, OSD_CUTOFF, OSD_READ,
 // The lane a caption gets: 800px of landscape width, less the overscan insets
 // the panel's own bezel eats. Inherited from the generator, which fitted its
 // TrueType size down until the text cleared it.
-#define OSD_MAX_W 640
+#define OSD_MAX_W SX(640)
 
 // Muting, which the baked art used to carry in its own alpha and a composed
 // strip cannot: a composed strip is full coverage, because that is what the

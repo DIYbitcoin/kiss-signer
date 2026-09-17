@@ -8,6 +8,7 @@
 // The picker screens live in kiss_duress_ui.c so that this file stays
 // linkable into /tmp/kisstest without dragging LVGL in behind it.
 #include "kiss_duress.h"
+#include "kiss_board.h"   // SX/SY: the floors are drawn on the wide canvas
 
 #include <string.h>
 
@@ -47,7 +48,7 @@ int kiss_duress_classify(const int *xs, const int *ys, int n,
         return WDG_NONE;
 
     const int W = bx1 - bx0, H = by1 - by0;
-    if (W < 80 || H < 40)        // no usable reference frame; refuse
+    if (W < SX(80) || H < SY(40))   // no usable reference frame; refuse
         return WDG_NONE;
 
     int sx0 = xs[0], sx1 = xs[0], sy0 = ys[0], sy1 = ys[0];
@@ -75,7 +76,7 @@ int kiss_duress_classify(const int *xs, const int *ys, int n,
     // close worst when they are big and quick. Half the span, and a floor of
     // 60px so a small circle is not held to a few pixels either.
     int close = span / 2;
-    if (close < 60) close = 60;
+    if (close < SX(60)) close = SX(60);
     if (sw * 10 >= W * 6 && sh * 10 >= H * 6 && ends <= close)
         return WDG_CIRCLE;
 
@@ -129,7 +130,7 @@ int kiss_duress_classify(const int *xs, const int *ys, int n,
 // The tests are ordered exactly as the framed ones are, and for the same
 // reason: a loop is wide and tall enough to look like several other things if
 // you only measure its box, so it is asked first.
-#define WDF_MIN_SPAN 80
+#define WDF_MIN_SPAN SX(80)
 
 int kiss_duress_classify_free(const int *xs, const int *ys, int n)
 {
@@ -159,7 +160,7 @@ int kiss_duress_classify_free(const int *xs, const int *ys, int n)
     // for precision is how a board ends up drawing tiny circles to be
     // understood at all.
     int close = span / 2;
-    if (close < 60) close = 60;
+    if (close < SX(60)) close = SX(60);
     if (lo * 10 >= span * 6 && ends <= close)
         return WDF_CIRCLE;
 

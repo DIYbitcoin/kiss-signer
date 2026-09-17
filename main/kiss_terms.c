@@ -173,7 +173,7 @@ static void terms_band_draw(void)
         s_band = wt_word_action(s_band_scr, LV_SYMBOL_RIGHT, tr(STR_H_MORE),
                                 false, wt_accent(), true, more_cb, NULL);
         lv_obj_align(s_band, LV_ALIGN_BOTTOM_LEFT, WT_ACT_X,
-                     -(LV_VER_RES - WT_ACTION_Y - WT_ACTION_H) - 8);
+                     -(LV_VER_RES - WT_ACTION_Y - WT_ACTION_H) - SY(8));
         return;
     }
     // ONE line, by rank. The hint is an instruction and outranks a report:

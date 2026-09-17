@@ -259,16 +259,50 @@ static lv_obj_t *diagram_box(int y)
 {
     lv_obj_t *col = lv_obj_create(s_scr);
     lv_obj_remove_style_all(col);
-    lv_obj_set_pos(col, 48, y);
-    lv_obj_set_width(col, 704);
+    lv_obj_set_pos(col, SX(48), y);
+    lv_obj_set_width(col, SX(704));
     lv_obj_set_height(col, LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(col, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
                           LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_row(col, 12, 0);
+    lv_obj_set_style_pad_row(col, SY(12), 0);
     lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
     return col;
 }
+
+#if KISS_NARROW
+// FORGET MY SWIPE between the screen's action and its exit on the 3.5in band.
+// At a fixed x it sat 25 px from one neighbour and 17 from the other in
+// English and ran into NOT NOW's arrow the moment either word grew. Centred in
+// the room the two measured words leave, it keeps the same distance to both,
+// and its hit box takes the row's height down to the panel edge like theirs.
+//
+// Where the three do not fit with 12 px either side (French: CREER UN LEURRE,
+// OUBLIER LE GESTE, PLUS TARD) the middle word gives up its tracking first and
+// then its cross, the one part of it that is decoration.
+static void band_between(lv_obj_t *mid, lv_obj_t *left, lv_obj_t *right)
+{
+    lv_obj_update_layout(s_scr);
+    const int l = lv_obj_get_x(left) + lv_obj_get_width(left)
+                  - lv_obj_get_style_pad_right(left, LV_PART_MAIN);
+    const int r = lv_obj_get_x(right)
+                  + lv_obj_get_style_pad_left(right, LV_PART_MAIN);
+    const int pb = LV_MAX(0, SCREEN_H - (WT_ACTION_Y + WT_ACTION_H));
+    lv_obj_set_style_pad_bottom(mid, pb, 0);
+    lv_obj_set_height(mid, WT_ACTION_H + pb);
+    lv_obj_update_layout(mid);
+    lv_obj_t *mark = lv_obj_get_child(mid, 0), *word = lv_obj_get_child(mid, 1);
+    if (word && lv_obj_get_width(mid) + 2 * 12 > r - l) {
+        lv_obj_set_style_text_letter_space(word, 0, 0);
+        lv_obj_update_layout(mid);
+    }
+    if (word && lv_obj_get_width(mid) + 2 * 12 > r - l) {
+        lv_obj_add_flag(mark, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_update_layout(mid);
+    }
+    lv_obj_set_pos(mid, l + (r - l - lv_obj_get_width(mid)) / 2, WT_ACTION_Y);
+}
+#endif
 
 static void chip_icon(lv_obj_t *row, const char *icon, const char *txt,
                       bool accent)
@@ -287,7 +321,7 @@ static void chip_icon(lv_obj_t *row, const char *icon, const char *txt,
 // the finger draws. The stroke's name and both wallet labels are.
 static void diagram_two_ways(void)
 {
-    lv_obj_t *box = diagram_box(112);
+    lv_obj_t *box = diagram_box(SY(112));
 
     lv_obj_t *r1 = wt_diagram_row(box);
     wt_chip(r1, "KISS", false);
@@ -338,7 +372,7 @@ static void stage_build(int stage)
                 { .cap = tr(STR_G_TECHNICAL), .val = tr(STR_T_DECOY_TERM),
                   .icon = LV_SYMBOL_LIST },
             };
-            wt_facts(s_scr, 232, facts, 3);
+            wt_facts(s_scr, SY(232), facts, 3);
         }
         // Three controls on the standard row. The TALL row and the group fit
         // existed for pill boxes whose labels had to wrap inside fixed widths;
@@ -348,8 +382,9 @@ static void stage_build(int stage)
         // "SET UP A SPARE", not OK: on a screen explaining a decoy wallet, an
         // OK button tells the owner nothing about which of the two things is
         // about to happen. This one commits to the second wallet with words.
-        wt_arrow_action(s_scr, tr(STR_GD_SET_UP_SPARE), false, true, 48,
-                        WT_ACTION_Y, 240, false, next_cb, NULL);
+        lv_obj_t *act = wt_arrow_action(s_scr, tr(STR_GD_SET_UP_SPARE), false,
+                                        true, SX(48), WT_ACTION_Y, SX(240),
+                                        false, next_cb, NULL);
         // The way back to plain behaviour, and it is the ESCAPE HATCH the
         // enforced stroke rests on: forgetting your stroke costs two taps
         // inside the spare, never your keys.
@@ -367,9 +402,15 @@ static void stage_build(int stage)
         lv_obj_t *off = wt_word_action(s_scr, LV_SYMBOL_CLOSE,
                                        tr(STR_GD_TURN_OFF), true, WT_INK,
                                        false, turn_off_cb, NULL);
-        lv_obj_set_pos(off, 330, WT_ACTION_Y + 6);
-        wt_arrow_action(s_scr, tr(STR_GD_SKIP), true, false, WT_EXIT_X,
-                        WT_ACTION_Y, 140, true, skip_cb, NULL);
+        lv_obj_set_pos(off, SX(330), WT_ACTION_Y + SY(6));
+        lv_obj_t *skip = wt_arrow_action(s_scr, tr(STR_GD_SKIP), true, false,
+                                         WT_EXIT_X, WT_ACTION_Y, SX(140), true,
+                                         skip_cb, NULL);
+#if KISS_NARROW
+        band_between(off, act, skip);
+#else
+        (void)act; (void)skip;
+#endif
         break;
     }
     case ST_FUND: {
@@ -382,12 +423,12 @@ static void stage_build(int stage)
         // It does not: it is a different keyset with a different code, and a
         // reader who misses that will compare the spare against their paper and
         // conclude the device is broken.
-        lv_obj_t *row = wt_diagram_row(diagram_box(112));
+        lv_obj_t *row = wt_diagram_row(diagram_box(SY(112)));
         chip_icon(row, WT_ICON_SECRET, tr(STR_D_SPARE), false);
         wt_diagram_op(row, LV_SYMBOL_RIGHT);
         chip_icon(row, WT_ICON_KEY, tr(STR_D_OWN_FP), true);
         // Two claims, two columns: it really works, and an empty one is a tell.
-        wt_body_para(s_scr, tr(STR_GD_FUND_B), 190);
+        wt_body_para(s_scr, tr(STR_GD_FUND_B), SY(190));
         // Same rationale as ST_INTRO, opposite wallet -- and that is the whole
         // point of the pair. ST_INTRO's action opens THIS screen, which is about
         // the spare, so it says SPARE. This action opens ST_DONE, which
@@ -395,10 +436,10 @@ static void stage_build(int stage)
         // SPARE for both, which put the word SPARE on the door to the real
         // wallet's only setting, and readers concluded the stroke belonged to
         // the decoy. The two actions name different wallets on purpose.
-        wt_arrow_action(s_scr, tr(STR_GD_SET_UP_REAL), false, true, 48,
-                        WT_ACTION_Y, 420, false, next_cb, NULL);
+        wt_arrow_action(s_scr, tr(STR_GD_SET_UP_REAL), false, true, SX(48),
+                        WT_ACTION_Y, SX(420), false, next_cb, NULL);
         wt_arrow_action(s_scr, tr(STR_GD_SKIP), true, false, WT_EXIT_X,
-                        WT_ACTION_Y, 140, true, skip_cb, NULL);
+                        WT_ACTION_Y, SX(140), true, skip_cb, NULL);
         break;
     }
     // The model, confirmed once, before anything is configured. Every string
@@ -409,7 +450,7 @@ static void stage_build(int stage)
     case ST_ACK: {
         s_scr = wt_screen(s_parent, tr(STR_L_WARN_T), NULL);
         wt_chrome_head(s_scr);
-        lv_obj_t *row = wt_diagram_row(diagram_box(112));
+        lv_obj_t *row = wt_diagram_row(diagram_box(SY(112)));
         chip_icon(row, WT_ICON_SECRET, tr(STR_D_SPARE), false);
         wt_diagram_op(row, "+");
         chip_icon(row, WT_ICON_LOCK, tr(STR_D_PASSPHRASE), false);
@@ -428,16 +469,16 @@ static void stage_build(int stage)
             { .cap = tr(STR_D_REAL), .val = tr(STR_I_RESTORE_VAL),
               .icon = WT_ICON_KEY },
         };
-        wt_facts(s_scr, 208, facts, 2);
+        wt_facts(s_scr, SY(208), facts, 2);
 
         // The same resolve the sign flow's cautions wear: a tick and the
         // words, nothing drawn around them. SKIP leaves, so it points back.
-        wt_arrow_action(s_scr, tr(STR_GD_SKIP), true, false, 48, WT_ACTION_Y,
-                        190, false, skip_cb, NULL);
+        wt_arrow_action(s_scr, tr(STR_GD_SKIP), true, false, SX(48), WT_ACTION_Y,
+                        SX(190), false, skip_cb, NULL);
         lv_obj_t *ack = wt_word_action(s_scr, LV_SYMBOL_OK,
                                        tr(STR_C_I_UNDERSTAND), true,
                                        wt_accent(), true, next_cb, NULL);
-        lv_obj_align(ack, LV_ALIGN_TOP_RIGHT, -48, WT_ACTION_Y + 6);
+        lv_obj_align(ack, LV_ALIGN_TOP_RIGHT, -SX(48), WT_ACTION_Y + SY(6));
         break;
     }
     // Six shapes, two rows of three, at the geometry the deleted screen used.
@@ -450,21 +491,42 @@ static void stage_build(int stage)
         wt_chrome_head(s_scr);
         // Each choice is a destination, so it wears the chevron the settings
         // rows already taught: word and arrow, nothing drawn around them.
+#if KISS_NARROW
+        // Three columns 144 px apart on the 3.5in hold the English names
+        // with 18 px to spare, and TRAIT AU-DESSUS ran into BARRER. The
+        // widest name decides: three columns while it clears the next one
+        // by 12 px, otherwise two columns of three, which end at 211.
+        lv_obj_t *pick[WDG_N] = { 0 };
+        int widest = 0;
+#endif
         for (int g = WDG_UNDERLINE, i = 0; g < WDG_N; g++, i++) {
             const int key = kiss_duress_label_key(g);
             if (key < 0) continue;
             lv_obj_t *c = wt_word_action(s_scr, WT_ICON_ARR_R,
                                          tr((uint16_t)key), false, WT_INK,
                                          false, pick_cb, (void *)(intptr_t)g);
-            lv_obj_set_pos(c, 48 + (i % 3) * 240, 134 + (i / 3) * 72);
+            lv_obj_set_pos(c, SX(48) + (i % 3) * SX(240), SY(134) + (i / 3) * SY(72));
+#if KISS_NARROW
+            pick[i] = c;
+            lv_obj_update_layout(c);
+            widest = LV_MAX(widest, lv_obj_get_width(c));
+#endif
         }
+#if KISS_NARROW
+        if (widest + 12 > SX(240)) {
+            for (int i = 0; i < WDG_N; i++)
+                if (pick[i])
+                    lv_obj_set_pos(pick[i], SX(48) + (i % 2) * (SX(704) / 2),
+                                   SY(134) + (i / 2) * SY(72));
+        }
+#endif
         // No body here, and no new key for one. What forgetting costs is said
         // where it is actually earned -- on the rehearsal, by GD_DRAW_AGAIN_S,
         // which is the sentence "so a slip now does not lock you out later" and
         // already ships. A paragraph on this screen would be a third telling of
         // a rule the subtitle and the next screen both make.
         wt_arrow_action(s_scr, tr(STR_GD_SKIP), true, false, WT_EXIT_X,
-                        WT_ACTION_Y, 140, true, skip_cb, NULL);
+                        WT_ACTION_Y, SX(140), true, skip_cb, NULL);
         break;
     }
     case ST_DRAW: {
@@ -474,12 +536,12 @@ static void stage_build(int stage)
         // the screen that named it.
         const int key = kiss_duress_label_key(s_pick);
         if (key >= 0)
-            wt_lbl(s_scr, tr((uint16_t)key), 48, 104, wt_font23(), wt_accent());
+            wt_lbl(s_scr, tr((uint16_t)key), SX(48), SY(104), wt_font23(), wt_accent());
 
         // The reference word. Its box is what kiss_duress_classify measures
         // against, so it is a real object with real coordinates and not a
         // painted decoration.
-        s_word_box = wt_card(s_scr, 250, 150, 300, 96);
+        s_word_box = wt_card(s_scr, SX(250), SY(150), SX(300), SY(96));
         lv_obj_t *w = wt_lbl(s_word_box, "KISS", 0, 0, wt_font34(), WT_INK);
         lv_obj_center(w);
 
@@ -488,8 +550,8 @@ static void stage_build(int stage)
         // cannot draw. Built after the card so the press lands here.
         lv_obj_t *cv = lv_obj_create(s_scr);
         lv_obj_remove_style_all(cv);
-        lv_obj_set_pos(cv, 0, 110);
-        lv_obj_set_size(cv, 800, 200);
+        lv_obj_set_pos(cv, 0, SY(110));
+        lv_obj_set_size(cv, SCREEN_W, SY(200));
         lv_obj_add_flag(cv, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_remove_flag(cv, LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_add_event_cb(cv, rehearse_press_cb, LV_EVENT_PRESSING, NULL);
@@ -512,11 +574,11 @@ static void stage_build(int stage)
         // Empty until a stroke lands. GD_DRAW_AGAIN_S opens with "the same
         // stroke again", which is a lie before there has been a first one --
         // the subtitle already says what to do, and this line exists to react.
-        s_rhint = wt_lbl(s_scr, "", 48, 286, wt_font23(), WT_MUT);
-        lv_obj_set_width(s_rhint, 704);
+        s_rhint = wt_lbl(s_scr, "", SX(48), SY(286), wt_font23(), WT_MUT);
+        lv_obj_set_width(s_rhint, SX(704));
         rehearse_reset();
         wt_arrow_action(s_scr, tr(STR_GD_SKIP), true, false, WT_EXIT_X,
-                        WT_ACTION_Y, 140, true, skip_cb, NULL);
+                        WT_ACTION_Y, SX(140), true, skip_cb, NULL);
         break;
     }
     case ST_NOPASS: {
@@ -525,11 +587,11 @@ static void stage_build(int stage)
         // Why there is nothing to hide behind, in two chips: the layer this
         // feature stands on is missing. GD_OFF is the same "NOT SET" the ways
         // in row on Settings shows, so the reader has met it already.
-        lv_obj_t *row = wt_diagram_row(diagram_box(112));
+        lv_obj_t *row = wt_diagram_row(diagram_box(SY(112)));
         chip_icon(row, WT_ICON_LOCK, tr(STR_D_PASSPHRASE), false);
         wt_diagram_op(row, LV_SYMBOL_RIGHT);
         wt_chip(row, tr(STR_GD_OFF), false);
-        wt_body_para(s_scr, tr(STR_GD_NOPASS_B), 190);
+        wt_body_para(s_scr, tr(STR_GD_NOPASS_B), SY(190));
         // The missing layer is ADDABLE, and this is the room for it. The
         // body above already says the rest: add a passphrase and the current
         // keys become the spare. The add-later login runs the wizard's
@@ -543,14 +605,21 @@ static void stage_build(int stage)
         // tells a prober that one is -- and the row that opens this screen was
         // un-hidden for precisely that reason. A layout that changes shape is
         // the same confession as a control that comes and goes.
-        wt_arrow_action(s_scr, tr(STR_L_CREATE_PASS_BTN), false, true, 48,
-                        WT_ACTION_Y, 340, false, add_pass_cb, NULL);
+        lv_obj_t *add = wt_arrow_action(s_scr, tr(STR_L_CREATE_PASS_BTN), false,
+                                        true, SX(48), WT_ACTION_Y, SX(340),
+                                        false, add_pass_cb, NULL);
         lv_obj_t *off = wt_word_action(s_scr, LV_SYMBOL_CLOSE,
                                        tr(STR_GD_TURN_OFF), true, WT_INK,
                                        false, turn_off_cb, NULL);
-        lv_obj_set_pos(off, 396, WT_ACTION_Y + 6);
-        wt_arrow_action(s_scr, tr(STR_C_OK), true, false, WT_BACK_X,
-                        WT_ACTION_Y, 140, true, skip_cb, NULL);
+        lv_obj_set_pos(off, SX(396), WT_ACTION_Y + SY(6));
+        lv_obj_t *ok = wt_arrow_action(s_scr, tr(STR_C_OK), true, false,
+                                       WT_BACK_X, WT_ACTION_Y, SX(140), true,
+                                       skip_cb, NULL);
+#if KISS_NARROW
+        band_between(off, add, ok);
+#else
+        (void)add; (void)ok;
+#endif
         break;
     }
     default: {
@@ -560,7 +629,7 @@ static void stage_build(int stage)
         // only what the diagram cannot say — the stroke routes, it does not
         // unlock, and this is the last screen in the flow that says so.
         diagram_two_ways();
-        wt_body_para(s_scr, tr(STR_GD_DONE_B), 250);
+        wt_body_para(s_scr, tr(STR_GD_DONE_B), SY(250));
         // The drawing is offered HERE, at the end of the flow, and that is the
         // whole of the discoverability fix. kiss_word_ui_open had exactly one
         // caller in the shipped firmware -- a third pill on a Settings page --
@@ -568,10 +637,10 @@ static void stage_build(int stage)
         // letters in the diagram they are looking at can be replaced. Reported
         // from the bench as the drawing being missing; it was reachable, and
         // never offered anywhere the decision was being made.
-        wt_arrow_action(s_scr, tr(STR_GD_WORD_PILL), false, false, 48,
-                        WT_ACTION_Y, 380, false, word_cb, NULL);
-        wt_arrow_action(s_scr, tr(STR_C_DONE), false, true, 552, WT_ACTION_Y,
-                        200, true, save_cb, NULL);
+        wt_arrow_action(s_scr, tr(STR_GD_WORD_PILL), false, false, SX(48),
+                        WT_ACTION_Y, SX(380), false, word_cb, NULL);
+        wt_arrow_action(s_scr, tr(STR_C_DONE), false, true, SX(552), WT_ACTION_Y,
+                        SX(200), true, save_cb, NULL);
         break;
     }
     }

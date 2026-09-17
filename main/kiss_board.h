@@ -11,7 +11,7 @@
 #pragma once
 #include <stdbool.h>
 
-#ifndef SIMULATOR
+#ifdef ESP_PLATFORM
 #include "sdkconfig.h"
 #if defined(CONFIG_KISS_BOARD_WS35) && !defined(KISS_BOARD_WS35)
 #define KISS_BOARD_WS35 1
@@ -43,11 +43,25 @@
 #define KISS_NARROW 0
 #endif
 
+// THE UI IS DRAWN ONCE, ON THE WIDE CANVAS. Every length in the screens and
+// the kit is written for 800x480, and a board that is smaller scales it at
+// compile time: SX for an x or a width, SY for a y or a height. On the wide
+// board both fold to the number itself, so nothing there can move by a pixel;
+// on the 3.5in they are 3/5 and 2/3. Integer arithmetic, floor: a position and
+// a width scaled apart can disagree with their sum by one pixel, which is why
+// the kit's right edges are computed from the scaled parts, never scaled as a
+// sum. Fonts do not scale by this; the composites in kiss_theme.c are set at
+// three fifths on a narrow board, a rung chosen per size rather than computed.
+#define KISS_DESIGN_W 800
+#define KISS_DESIGN_H 480
+#define SX(v) ((v) * SCREEN_W / KISS_DESIGN_W)
+#define SY(v) ((v) * SCREEN_H / KISS_DESIGN_H)
+
 // The touch read is the platform seam: the device reads its controller, the
 // simulator feeds scripted input.
 bool platform_read_touch(int *x, int *y);
 
-#ifndef SIMULATOR
+#ifdef ESP_PLATFORM
 #include "lvgl.h"
 #include "driver/i2c_master.h"
 // In the order app_main calls them. The radio hold comes first, before

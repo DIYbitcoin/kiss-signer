@@ -233,8 +233,11 @@ static void mk_screen2(const char *title, const char *sub)
     // title gets 436 rather than the full 704. Without this the Italian and
     // Scandinavian titles ran straight through "spot check 1 of 3" -- and the
     // fit now steps inside the mono ladder the chrome head just set.
-    wt_title_fit(s_scr, 436);
-    lv_obj_t *l = wt_note(s_scr, sub, 48, 66, 704, 58);
+    // The whole lane on the 3.5in, where no counter shares the row any more:
+    // at 261 px TAP TO ADD RANDOMNESS fell two rungs, to a face smaller than
+    // every other title, with the cursor left where the first rung ended.
+    wt_title_fit(s_scr, KISS_NARROW ? SX(704) : SX(436));
+    lv_obj_t *l = wt_note(s_scr, sub, SX(48), SY(66), SX(704), SY(58));
     lv_obj_set_style_text_color(l, MUT_COL, 0);
 }
 
@@ -453,13 +456,13 @@ static void verify_finish(void)
         char buf[128];   // Cyrillic runs 2 bytes/char: 48 truncated every ru render
         snprintf(buf, sizeof buf, tr(STR_W_VBAD_FMT), mism + 1);
         mk_screen(tr(STR_W_VBAD_T), tr(STR_W_VBAD_S));
-        mk_lbl(buf, 48, 150, wt_font28(), STOP_COL);
-        wt_body_para(s_scr, tr(STR_W_VBAD_B), 206);
+        mk_lbl(buf, SX(48), SY(150), wt_font28(), STOP_COL);
+        wt_body_para(s_scr, tr(STR_W_VBAD_B), SY(206));
         // Typing them again is what this screen is for; DONE is the way out.
         wt_arrow_action(s_scr, tr(STR_C_DONE), true, false, WT_EXIT_X,
-                        WT_ACTION_Y, 140, true, verify_exit_cb, NULL);
+                        WT_ACTION_Y, SX(140), true, verify_exit_cb, NULL);
         wt_arrow_action(s_scr, tr(STR_W_TYPE_AGAIN_BTN), false, true, WT_ACT_X,
-                        WT_ACTION_Y, 300, false, verify_retry_cb, NULL);
+                        WT_ACTION_Y, SX(300), false, verify_retry_cb, NULL);
     }
 }
 
@@ -485,7 +488,7 @@ static void verify_ok_screen(void)
         const bool full = s_verify_full || !pp_needed;
         mk_screen(tr(full ? STR_L_BACKUP_VERIFIED : STR_W_VOK_T),
                   full ? NULL : tr(STR_W_VOK_S));
-        mk_lbl(tr_sym(LV_SYMBOL_OK, STR_W_VOK_MATCH), 48, 150,
+        mk_lbl(tr_sym(LV_SYMBOL_OK, STR_W_VOK_MATCH), SX(48), SY(150),
                wt_font28(), OK_COL);
 
         // THIS is where the fingerprint gets written down, and it is the only
@@ -515,11 +518,11 @@ static void verify_ok_screen(void)
         // diagram, on the intro's own card skeleton -- so the page still has
         // its framed figure and the body is not the only thing on the glass.
         if (!fp_known) {
-            lv_obj_t *vcard = wt_card(s_scr, 48, 208, 704, 64);
+            lv_obj_t *vcard = wt_card(s_scr, SX(48), SY(208), SX(704), SY(64));
             lv_obj_t *vcol = lv_obj_create(vcard);
             lv_obj_remove_style_all(vcol);
             lv_obj_set_pos(vcol, 0, 0);
-            lv_obj_set_size(vcol, 704, 84);
+            lv_obj_set_size(vcol, SX(704), SY(84));
             lv_obj_set_flex_flow(vcol, LV_FLEX_FLOW_COLUMN);
             lv_obj_set_flex_align(vcol, LV_FLEX_ALIGN_CENTER,
                                   LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
@@ -532,8 +535,8 @@ static void verify_ok_screen(void)
         // passphrase, which is the same fault as the subtitle above and was
         // reported in the same breath.
         mk_body(tr(pp_needed ? STR_W_VOK_B : STR_W_VOK_B_NP),
-                48, fp_known ? 196 : 296, 704,
-                fp_known ? 58 : WT_CONTENT_BOTTOM - 296, MUT_COL);
+                SX(48), fp_known ? SY(196) : SY(296), SX(704),
+                fp_known ? SY(58) : WT_CONTENT_BOTTOM - SY(296), MUT_COL);
 
         if (fp_known) {
             char fpbuf[16];
@@ -544,8 +547,8 @@ static void verify_ok_screen(void)
             // house rule puts a word somebody reads at 23 or above. It was
             // the smallest thing on a screen whose subject is those eight
             // characters.
-            mk_lbl(tr(STR_L_FP_CAP), 48, 258, wt_font23(), MUT_COL);
-            lv_obj_t *f = mk_lbl(fpbuf, 48, 292, wt_font28(), INK_COL);
+            mk_lbl(tr(STR_L_FP_CAP), SX(48), SY(258), wt_font23(), MUT_COL);
+            lv_obj_t *f = mk_lbl(fpbuf, SX(48), SY(292), wt_font28(), INK_COL);
             lv_obj_set_style_text_letter_space(f, 4, 0);
             // ONE LINE, so it lands at font28 rather than font23. It used to
             // say "this code names the keys open right now. you will see it
@@ -558,12 +561,12 @@ static void verify_ok_screen(void)
             // INK, matching setup_warn_screen. Not the accent and not WT_OK:
             // in GREEN theme those are the same colour, and the green tick
             // above is already carrying the status.
-            mk_body(tr(STR_W_VOK_FP), 48, 336, 704, 46, INK_COL);
+            mk_body(tr(STR_W_VOK_FP), SX(48), SY(336), SX(704), SY(46), INK_COL);
         }
 
         // Only the exit in the bar, so it takes the corner.
         wt_arrow_action(s_scr, tr(STR_C_DONE), false, true, WT_BACK_X,
-                        WT_ACTION_Y, 140, true, verify_exit_cb, NULL);
+                        WT_ACTION_Y, SX(140), true, verify_exit_cb, NULL);
     }
 }
 
@@ -599,9 +602,9 @@ static void verify_intro_screen(void)
     wt_explain(s_scr, tr(STR_W_VINTRO_S), tr(STR_W_VINTRO_W1_B), facts, 3);
 
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_EXIT_X,
-                    WT_ACTION_Y, 140, true, verify_exit_cb, NULL);
+                    WT_ACTION_Y, SX(140), true, verify_exit_cb, NULL);
     wt_arrow_action(s_scr, tr(STR_W_TYPE_MY_WORDS), false, true, WT_ACT_X,
-                    WT_ACTION_Y, 300, false, verify_start_cb, NULL);
+                    WT_ACTION_Y, SX(300), false, verify_start_cb, NULL);
 }
 
 // ---- quiz (prove the backup) ----
@@ -672,7 +675,7 @@ static void quiz_screen(void)
     // 146, not 120: the subtitle is two readable lines now and bottomed at 124,
     // so the question was overlapping it by 4px.
     snprintf(buf, sizeof buf, tr(STR_W_WHICH_FMT), s_quiz_pos + 1);
-    mk_lbl(buf, 48, 146, wt_font28(), INK_COL);
+    mk_lbl(buf, SX(48), SY(146), wt_font28(), INK_COL);
 
     for (int i = 0; i < 4; i++) {
         const char *w = s_w[s_quiz_pos];
@@ -685,7 +688,7 @@ static void quiz_screen(void)
         }
         lv_obj_t *q = wt_word_action(s_scr, NULL, w, true, WT_INK, false,
                                      quiz_pick_cb, (void *)(intptr_t)i);
-        lv_obj_set_pos(q, 48 + (i % 2) * 380, 214 + (i / 2) * 80);
+        lv_obj_set_pos(q, SX(48) + (i % 2) * SX(380), SY(214) + (i / 2) * SY(80));
     }
 
     // Progress as dots, not as text. Per SWEEP-01 edit 3: three 10px dots
@@ -694,9 +697,11 @@ static void quiz_screen(void)
     for (int i = 0; i < QUIZ_ROUNDS; i++) {
         lv_obj_t *dot = lv_obj_create(s_scr);
         lv_obj_remove_style_all(dot);
-        lv_obj_set_size(dot, 10, 10);
-        lv_obj_set_pos(dot, 48 + i * 18, 176);
-        lv_obj_set_style_radius(dot, 5, 0);
+        lv_obj_set_size(dot, SX(10), SX(10));
+        // 125 on the 3.5in, under the question's own line box: the scaled 117
+        // sat 2 px under its baseline and read as part of the sentence.
+        lv_obj_set_pos(dot, SX(48) + i * SX(18), KISS_NARROW ? 125 : SY(176));
+        lv_obj_set_style_radius(dot, SX(5), 0);
         lv_obj_set_style_bg_color(dot, i < s_quiz_round ? WT_OK : WT_EDGE, 0);
         lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, 0);
     }
@@ -704,8 +709,8 @@ static void quiz_screen(void)
     // the paper is wrong, but there was no way back to the words without
     // leaving setup. This action takes s_wpage back to 0 and reopens the words
     // screen, same as the wrong-answer path but reached deliberately.
-    wt_arrow_action(s_scr, tr(STR_W_QUIZ_SHOW_AGAIN), true, false, 48,
-                    WT_ACTION_Y, 300, false, words_go_again_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_W_QUIZ_SHOW_AGAIN), true, false, SX(48),
+                    WT_ACTION_Y, SX(300), false, words_go_again_cb, NULL);
 }
 
 // ---- words on screen (the backup moment) ----
@@ -748,7 +753,7 @@ static lv_obj_t *aside_col(lv_obj_t *p, int x, int y, int w)
     lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(col, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
                           LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_row(col, 8, 0);
+    lv_obj_set_style_pad_row(col, SY(8), 0);
     lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
     return col;
 }
@@ -764,7 +769,9 @@ static void cksum_diagram(lv_obj_t *col)
 {
     char n1[16], okw[16];   // 16: device gcc sizes %d for a full int
     snprintf(n1, sizeof n1, "%d", s_count - 1);
-    snprintf(okw, sizeof okw, "%s 1", LV_SYMBOL_OK);
+    // Two spaces on the 3.5in, the icon text rule: at one, the tick's arm
+    // ended 4 px from the 1 and the pair read as a single glyph.
+    snprintf(okw, sizeof okw, KISS_NARROW ? "%s  1" : "%s 1", LV_SYMBOL_OK);
 
     // The premise, and until this row nothing in any flow had shown one: the
     // words ARE numbers. On the cards path it is checkable against the deck in
@@ -816,13 +823,23 @@ static void cksum_diagram(lv_obj_t *col)
         // The check group then takes the same tick row 1 gives the check, so
         // which half is which is answered on the screen instead of by the
         // colour, which four accents are free to change.
+#if KISS_NARROW
+        // A cell is an index into the group, never a canvas coordinate: SX(11)
+        // is 6 on the 3.5in, which put every check cell 18 px past the end of
+        // its own group and left an empty gap after the "+". 6 px cells on an
+        // 8 px pitch also read as cells there, where the scaled 4 on 9 read as
+        // hairlines.
+        const int cp = 8, cw = 6;
+#else
+        const int cp = 9, cw = SX(7);
+#endif
         lv_obj_t *grp[2];
         for (int g = 0; g < 2; g++) {
             int n = g == 0 ? 11 - cs : cs;
             if (g) wt_diagram_op(r2, "+");
             grp[g] = lv_obj_create(r2);
             lv_obj_remove_style_all(grp[g]);
-            lv_obj_set_size(grp[g], n * 9 - 2, 15);
+            lv_obj_set_size(grp[g], n * cp - 2, SY(15));
             lv_obj_remove_flag(grp[g], LV_OBJ_FLAG_SCROLLABLE);
         }
         for (int b = 0; b < 11; b++) {
@@ -831,8 +848,12 @@ static void cksum_diagram(lv_obj_t *col)
             lv_obj_t *cells = grp[ck ? 1 : 0];
             lv_obj_t *c = lv_obj_create(cells);
             lv_obj_remove_style_all(c);
-            lv_obj_set_pos(c, (ck ? b - (11 - cs) : b) * 9, 0);
-            lv_obj_set_size(c, 7, 15);
+#if KISS_NARROW
+            lv_obj_set_pos(c, (ck ? b - (11 - cs) : b) * cp, 0);
+#else
+            lv_obj_set_pos(c, (ck ? b - (SX(11) - cs) : b) * cp, 0);
+#endif
+            lv_obj_set_size(c, cw, SY(15));
             lv_obj_set_style_radius(c, 1, 0);
             // An UNSET check bit still has to read as a check bit, or the
             // group only appears when its bits happen to be ones -- here that
@@ -919,8 +940,8 @@ static void words_screen(void)
     // rather than the full 704 -- the same arrangement the quiz uses for its
     // round counter, and for the same reason: without it the longer titles run
     // straight through the chip.
-    wt_title_fit(s_scr, 594);
-    wt_help_chip(s_scr, 722, 24, MUT_COL, words_help_cb, NULL);
+    wt_title_fit(s_scr, SX(594));
+    wt_help_chip(s_scr, SX(722), SY(24), MUT_COL, words_help_cb, NULL);
 
     // The verdict belongs HERE. The checksum held the only tick in the flow, on
     // an explainer most owners never open, while the screen everyone copies
@@ -929,7 +950,9 @@ static void words_screen(void)
     // being read off the glass, and let the "?" beside it explain why.
     lv_obj_t *okc = wt_state_chip(s_scr, tr(STR_W_WRITE_OK), WT_OK);
     lv_obj_update_layout(okc);
-    lv_obj_set_pos(okc, 706 - lv_obj_get_width(okc), 30);
+    // 13 on the 3.5in, centred on the "?" beside it: at the scaled 20 the chip
+    // hung below the title row and ended 4 px over the subtitle it spans.
+    lv_obj_set_pos(okc, SX(706) - lv_obj_get_width(okc), KISS_NARROW ? 13 : SY(30));
 
     const int first = s_wpage * WORDS_PER_PAGE;
     int on = s_count - first;
@@ -938,8 +961,15 @@ static void words_screen(void)
     for (int k = 0; k < on; k++) {
         char buf[32];
         snprintf(buf, sizeof buf, "%2d. %.11s", first + k + 1, s_w[first + k]);
-        mk_lbl(buf, 48 + (k / rows) * 352, 104 + (k % rows) * 40,
+#if KISS_NARROW
+        // 68 on a 25 pitch: the scaled 69 on 26 left the paper line under the
+        // grid ending 2 px inside the band. Six rows now end at 215.
+        mk_lbl(buf, SX(48) + (k / rows) * SX(352), 68 + (k % rows) * 25,
                wt_font28(), INK_COL);
+#else
+        mk_lbl(buf, SX(48) + (k / rows) * SX(352), SY(104) + (k % rows) * SY(40),
+               wt_font28(), INK_COL);
+#endif
     }
     // the one rule that matters while they are copying: loud, under the grid,
     // not buried at the end of the subtitle
@@ -949,15 +979,15 @@ static void words_screen(void)
     // wording of one rule, on the third screen that gives it. Two negations
     // and no instruction, against "on paper, in order" which says what to do
     // and adds the part that matters while somebody is copying twelve words.
-    lv_obj_t *po = mk_lbl(tr(STR_I_WORDS_S), 48, 352,
-                          wt_body_font(tr(STR_I_WORDS_S), 700, 40),
+    lv_obj_t *po = mk_lbl(tr(STR_I_WORDS_S), SX(48), KISS_NARROW ? 224 : SY(352),
+                          wt_body_font(tr(STR_I_WORDS_S), SX(700), SY(40)),
                           wt_ink_for(WARN_COL));
-    lv_obj_set_width(po, 700);
+    lv_obj_set_width(po, SX(700));
     lv_label_set_long_mode(po, LV_LABEL_LONG_WRAP);
 
     if (pages > 1 && s_wpage > 0)
-        wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 48, WT_ACTION_Y,
-                        160, false, words_page_cb, (void *)(intptr_t)-1);
+        wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, SX(48), WT_ACTION_Y,
+                        SX(160), false, words_page_cb, (void *)(intptr_t)-1);
     // There was no way OUT of this screen: BACK only pages between halves of
     // the word list, so someone who picked the wrong length, or who simply has
     // no paper to hand, could only go forward or pull the power. CANCEL is the
@@ -971,14 +1001,14 @@ static void words_screen(void)
     // Nothing is staged yet at this point (kiss_seed_stage runs after the
     // quiz), so leaving here stores nothing and destroys nothing.
     if (s_wpage == 0)
-        wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, 48, WT_ACTION_Y,
-                        160, false, cancel_cb, NULL);
+        wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, SX(48), WT_ACTION_Y,
+                        SX(160), false, cancel_cb, NULL);
     if (s_wpage < pages - 1)
-        wt_arrow_action(s_scr, tr(STR_R_NEXT), false, true, 430, WT_ACTION_Y,
-                        322, true, words_page_cb, (void *)(intptr_t)1);
+        wt_arrow_action(s_scr, tr(STR_R_NEXT), false, true, SX(430), WT_ACTION_Y,
+                        SX(322), true, words_page_cb, (void *)(intptr_t)1);
     else
-        wt_arrow_action(s_scr, tr(STR_W_WROTE), false, true, 430, WT_ACTION_Y,
-                        322, true, words_go_cb, NULL);
+        wt_arrow_action(s_scr, tr(STR_W_WROTE), false, true, SX(430), WT_ACTION_Y,
+                        SX(322), true, words_go_cb, NULL);
     // After the actions, never before: the first control on the row summons
     // the opaque action bar (action_bar_ensure), which swallowed this counter
     // on page one, where nothing preceded it. Page two only ever looked right
@@ -986,7 +1016,15 @@ static void words_screen(void)
     if (pages > 1) {
         char cnt[40];   // large enough for conservative compiler range analysis
         snprintf(cnt, sizeof cnt, "%d-%d / %d", first + 1, first + on, s_count);
-        mk_lbl(cnt, 232, 416, wt_font23(), MUT_COL);
+#if KISS_NARROW
+        // Centred on the row's own line: the scaled 277 sat the counter 5 px
+        // above the baselines of the actions either side of it.
+        mk_lbl(cnt, SX(232),
+               WT_ACTION_Y + (WT_ACTION_H - lv_font_get_line_height(wt_font23())) / 2,
+               wt_font23(), MUT_COL);
+#else
+        mk_lbl(cnt, SX(232), SY(416), wt_font23(), MUT_COL);
+#endif
     }
 }
 
@@ -1043,17 +1081,39 @@ void kiss_setup_entropy(const uint8_t *entropy, unsigned len)
 // code cannot prove and is exactly the false assurance the Coldcard postmortem
 // warns about. The camera's two sources were captured on the previous screen
 // and wait in the statics below until the last tap folds all three.
-#define TAP_CARD_X   100
-#define TAP_CARD_Y   130
-#define TAP_CARD_W   600
-#define TAP_CARD_H   260
+#if KISS_NARROW
+// The 3.5in card takes the whole lane and ends at 242. Scaled, it was 360 wide
+// and ran to 259, through the band, while the bit strip was placed 43 px under
+// its bottom edge and 384 px wide in a 324 lane, so it never drew. On the full
+// lane the 64 segments are 3 px instead of 2, the strip fits under the note,
+// and the target the owner taps 64 times is 62 px wider.
+#define TAP_CARD_X   SX(48)
+#define TAP_CARD_Y   86
+#define TAP_CARD_W   SX(704)
+#define TAP_CARD_H   156
+#define TAP_CAP_Y     12
+#define TAP_SEG_Y     40
+#define TAP_SEG_H     16
+#define TAP_CNT_Y     66
+#define TAP_NOTE_Y    98
+#else
+#define TAP_CARD_X   SX(100)
+#define TAP_CARD_Y   SY(130)
+#define TAP_CARD_W   SX(600)
+#define TAP_CARD_H   SY(260)
+#define TAP_CAP_Y    SY(16)
+#define TAP_SEG_Y    SY(62)
+#define TAP_SEG_H    SY(26)
+#define TAP_CNT_Y   SY(108)
+#define TAP_NOTE_Y  SY(168)
+#endif
 #define TAP_SEG_GAP    3
 
 static uint8_t s_cam_chain[32];   // source 1: the camera frame fold, frozen
 static uint8_t s_cam_trng[32];    // source 2: the chip read at capture
 static bool    s_cam_have;        // false when the camera failed: cam stays 0
 
-#define TAP_BITS_Y    216   // under the note, clear of the card's bottom edge
+#define TAP_BITS_Y    (KISS_NARROW ? 138 : 216)   // under the note, clear of the card's bottom edge
 #define TAP_BITS_N     64
 #define TAP_BITS_P      6   // same 5px cell and 1px gap as the dice strip
 
@@ -1247,11 +1307,11 @@ static void ent_fail_screen(void)
 {
     mk_screen(tr(STR_W_ENT_FAIL_T), NULL);
 
-    lv_obj_t *card = wt_card(s_scr, 48, 132, 704, 56);
+    lv_obj_t *card = wt_card(s_scr, SX(48), SY(132), SX(704), SY(56));
     lv_obj_t *col = lv_obj_create(card);
     lv_obj_remove_style_all(col);
     lv_obj_set_pos(col, 0, 0);
-    lv_obj_set_size(col, 704, 56);
+    lv_obj_set_size(col, SX(704), SY(56));
     lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(col, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
                           LV_FLEX_ALIGN_CENTER);
@@ -1272,10 +1332,10 @@ static void ent_fail_screen(void)
     if (nl) lv_obj_set_style_text_color(nl, STOP_COL, 0);
 
     // 212..398: the body has one sentence and no longer needs 260px of room.
-    mk_body(tr(STR_W_ENT_FAIL_B), 48, 212, 704, WT_CONTENT_BOTTOM - 212, INK_COL);
+    mk_body(tr(STR_W_ENT_FAIL_B), SX(48), SY(212), SX(704), WT_CONTENT_BOTTOM - SY(212), INK_COL);
     // One control, and it is the screen's job, so it takes the corner.
-    wt_arrow_action(s_scr, tr(STR_C_TRY_AGAIN), false, true, 592, WT_ACTION_Y,
-                    160, true, ent_retry_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_TRY_AGAIN), false, true, SX(592), WT_ACTION_Y,
+                    SX(160), true, ent_retry_cb, NULL);
 }
 
 static void tap_screen(void)
@@ -1290,7 +1350,7 @@ static void tap_screen(void)
     lv_obj_remove_style_all(s_tap_card);
     lv_obj_set_pos(s_tap_card, TAP_CARD_X, TAP_CARD_Y);
     lv_obj_set_size(s_tap_card, TAP_CARD_W, TAP_CARD_H);
-    lv_obj_set_style_radius(s_tap_card, 10, 0);
+    lv_obj_set_style_radius(s_tap_card, SX(10), 0);
     lv_obj_set_style_border_width(s_tap_card, 1, 0);
     lv_obj_set_style_border_color(s_tap_card, WT_EDGE, 0);
     lv_obj_set_style_bg_color(s_tap_card, WT_PANEL, 0);
@@ -1302,7 +1362,7 @@ static void tap_screen(void)
     // drag counts once, not once per move.
     lv_obj_add_event_cb(s_tap_card, tap_hit_cb, LV_EVENT_CLICKED, NULL);
 
-    wt_lbl(s_tap_card, tr(STR_W_ENT_SRC3_CAP), 18, 16, wt_font14(), MUT_COL);
+    wt_lbl(s_tap_card, tr(STR_W_ENT_SRC3_CAP), SX(18), TAP_CAP_Y, wt_font14(), MUT_COL);
 
     // 64 segments, not a smooth fill: a segment is a countable event, while a
     // continuous bar would imply a measurement of quality we refuse to claim.
@@ -1311,8 +1371,8 @@ static void tap_screen(void)
     for (int i = 0; i < WTAP_TARGET; i++) {
         lv_obj_t *seg = lv_obj_create(s_tap_card);
         lv_obj_remove_style_all(seg);
-        lv_obj_set_pos(seg, 18 + i * (sw + TAP_SEG_GAP), 62);
-        lv_obj_set_size(seg, sw, 26);
+        lv_obj_set_pos(seg, SX(18) + i * (sw + TAP_SEG_GAP), TAP_SEG_Y);
+        lv_obj_set_size(seg, sw, TAP_SEG_H);
         lv_obj_set_style_radius(seg, 2, 0);
         lv_obj_set_style_bg_color(seg, WT_EDGE, 0);
         lv_obj_set_style_bg_opa(seg, LV_OPA_COVER, 0);
@@ -1323,24 +1383,24 @@ static void tap_screen(void)
 
     char buf[16];
     snprintf(buf, sizeof buf, "0 / %u", (unsigned)WTAP_TARGET);
-    s_tap_count = wt_lbl(s_tap_card, buf, 18, 108, wt_font_mono28(), INK_COL);
+    s_tap_count = wt_lbl(s_tap_card, buf, SX(18), TAP_CNT_Y, wt_font_mono28(), INK_COL);
     lv_obj_remove_flag(s_tap_count, LV_OBJ_FLAG_CLICKABLE);
 
     // The only instruction on the screen, and it was font14 under 92px of empty
     // card. Sized to the room it actually has instead of to the smallest rung.
-    lv_obj_t *note = wt_lbl(s_tap_card, tr(STR_W_ENT_TAP_NOTE), 18, 168,
+    lv_obj_t *note = wt_lbl(s_tap_card, tr(STR_W_ENT_TAP_NOTE), SX(18), TAP_NOTE_Y,
                             wt_body_font(tr(STR_W_ENT_TAP_NOTE),
-                                         TAP_CARD_W - 36, TAP_BITS_Y - 168 - 6),
+                                         TAP_CARD_W - SX(36), TAP_BITS_Y - TAP_NOTE_Y - SY(6)),
                             MUT_COL);
-    lv_obj_set_width(note, TAP_CARD_W - 36);
+    lv_obj_set_width(note, TAP_CARD_W - SX(36));
     lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
     lv_obj_remove_flag(note, LV_OBJ_FLAG_CLICKABLE);
 
     for (int b = 0; b < TAP_BITS_N; b++) {
         lv_obj_t *c = lv_obj_create(s_tap_card);
         lv_obj_remove_style_all(c);
-        lv_obj_set_pos(c, 18 + b * TAP_BITS_P, TAP_BITS_Y);
-        lv_obj_set_size(c, TAP_BITS_P - 1, 14);
+        lv_obj_set_pos(c, SX(18) + b * TAP_BITS_P, TAP_BITS_Y);
+        lv_obj_set_size(c, TAP_BITS_P - 1, SY(14));
         lv_obj_set_style_radius(c, 1, 0);
         lv_obj_set_style_bg_color(c, WT_DIV, 0);
         lv_obj_set_style_bg_opa(c, LV_OPA_COVER, 0);
@@ -1351,8 +1411,8 @@ static void tap_screen(void)
 
     // CANCEL only. Same rule the words screen documents: no screen without an
     // exit. Nothing is staged here, because the seed does not exist yet.
-    wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, 592, WT_ACTION_Y,
-                    160, true, cancel_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, SX(592), WT_ACTION_Y,
+                    SX(160), true, cancel_cb, NULL);
 }
 
 #ifdef SIMULATOR
@@ -1531,13 +1591,39 @@ static void ent_mix_help_cb(lv_event_t *e)
 // The floor is WT_CONTENT_BOTTOM (398). That leaves 270: a 200 tall preview with
 // its readiness line under it on the left, and two 96 tall cards plus the
 // equation on the right, both landing clear of the bar.
-#define ENT_CAM_X   48                  // the preview column, landscape UI space
-#define ENT_CAM_Y   128
-#define ENT_CAM_W   300
-#define ENT_CAM_H   200
-#define ENT_CARD_H  96
-#define ENT_COL_X   372                 // the source cards
-#define ENT_COL_W   380
+#if KISS_NARROW
+// The 3.5in has 168 px between the two line subtitle and the band for what the
+// wide board spreads over 270. Scaled, both source captions ran off their
+// cards' right edge, each note lost its descenders to the card's bottom border,
+// the bar sat on the caption's baseline and the equation card crossed the band.
+// So: the preview keeps the wide board's 3:2 and its share of the width at
+// 150x100, its corner marks level with the sources' top at 86; the sources are
+// two open blocks with no box to pad, caption, bar and a two line note; and the
+// equation card closes the same column at 212..248.
+#define ENT_CAM_X   SX(48)
+#define ENT_CAM_Y   91
+#define ENT_CAM_W   150
+#define ENT_CAM_H   100
+#define ENT_SRC_Y   86
+#define ENT_SRC_GAP  5
+#define ENT_CARD_H  58
+#define ENT_COL_X   195
+#define ENT_COL_W   (SX(752) - ENT_COL_X)
+#define ENT_BAR_W   ENT_COL_W
+#define ENT_EQ_H    36
+#else
+#define ENT_CAM_X   SX(48)                  // the preview column, landscape UI space
+#define ENT_CAM_Y   SY(128)
+#define ENT_CAM_W   SX(300)
+#define ENT_CAM_H   SY(200)
+#define ENT_SRC_Y   ENT_CAM_Y
+#define ENT_SRC_GAP SY(8)
+#define ENT_CARD_H  SY(96)
+#define ENT_COL_X   SX(372)                 // the source cards
+#define ENT_COL_W   SX(380)
+#define ENT_BAR_W   (ENT_COL_W - SX(28))
+#define ENT_EQ_H    SY(56)
+#endif
 
 static lv_obj_t *s_ent_bar1, *s_ent_bar2, *s_ent_state, *s_ent_dot;
 static lv_obj_t *s_ent_capture;
@@ -1553,15 +1639,25 @@ static lv_obj_t *ent_card(int y, int cap, int note, bool full, lv_obj_t **out_ca
     lv_obj_remove_style_all(card);
     lv_obj_set_pos(card, ENT_COL_X, y);
     lv_obj_set_size(card, ENT_COL_W, ENT_CARD_H);
-    lv_obj_set_style_radius(card, 10, 0);
+#if !KISS_NARROW
+    lv_obj_set_style_radius(card, SX(10), 0);
     lv_obj_set_style_border_width(card, 1, 0);
     lv_obj_set_style_border_color(card, WT_HAIR, 0);
     lv_obj_set_style_bg_color(card, WT_PANEL, 0);
     lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
+#endif
     lv_obj_remove_flag(card, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
-    lv_obj_t *c = wt_lbl(card, tr(cap), 14, 12, wt_font14(), MUT_COL);
+#if KISS_NARROW
+    // Open on the 3.5in, flush to the column: the box's 8 px of inset each side
+    // is what pushed WHAT YOU POINT AT off the edge.
+    const int pad_x = 0, cap_y = 0, bar_y = 19, note_y = 24, note_h = 34;
+#else
+    const int pad_x = SX(14), cap_y = SY(12), bar_y = SY(34), note_y = SY(44),
+              note_h = SY(50);
+#endif
+    lv_obj_t *c = wt_lbl(card, tr(cap), pad_x, cap_y, wt_font14(), MUT_COL);
     lv_obj_set_style_text_letter_space(c, 1, 0);
     // No bit count here, deliberately. Both source cards used to carry "128
     // bits" in this corner and the tap screen budgets its 64 taps at 128 too,
@@ -1583,9 +1679,9 @@ static lv_obj_t *ent_card(int y, int cap, int note, bool full, lv_obj_t **out_ca
     // below it hold TWO lines of font23 inside a 96px card -- it was font14,
     // and font14 is for marks. The caption ends at 30, so the bar still clears
     // it by four.
-    lv_obj_set_pos(track, 14, 34);
-    lv_obj_set_size(track, ENT_COL_W - 28, 5);
-    lv_obj_set_style_radius(track, 100, 0);
+    lv_obj_set_pos(track, pad_x, bar_y);
+    lv_obj_set_size(track, ENT_BAR_W, SY(5));
+    lv_obj_set_style_radius(track, SX(100), 0);
     lv_obj_set_style_bg_color(track, WT_DIV, 0);
     lv_obj_set_style_bg_opa(track, LV_OPA_COVER, 0);
     lv_obj_remove_flag(track, LV_OBJ_FLAG_CLICKABLE);
@@ -1594,8 +1690,8 @@ static lv_obj_t *ent_card(int y, int cap, int note, bool full, lv_obj_t **out_ca
     lv_obj_t *fill = lv_obj_create(track);
     lv_obj_remove_style_all(fill);
     lv_obj_set_pos(fill, 0, 0);
-    lv_obj_set_size(fill, full ? ENT_COL_W - 28 : 0, 5);
-    lv_obj_set_style_radius(fill, 100, 0);
+    lv_obj_set_size(fill, full ? ENT_BAR_W : 0, SY(5));
+    lv_obj_set_style_radius(fill, SX(100), 0);
     lv_obj_set_style_bg_color(fill, OK_COL, 0);
     lv_obj_set_style_bg_opa(fill, LV_OPA_COVER, 0);
     lv_obj_remove_flag(fill, LV_OBJ_FLAG_CLICKABLE);
@@ -1606,12 +1702,12 @@ static lv_obj_t *ent_card(int y, int cap, int note, bool full, lv_obj_t **out_ca
     // fitted and could not be read -- and the right column of this screen is
     // three boxes packed to WT_CONTENT_BOTTOM, so the eight pixels had to come
     // from inside the card rather than from the page.
-    lv_obj_t *n = wt_lbl(card, tr(note), 14, 44, wt_font23(), MUT_COL);
-    lv_obj_set_width(n, ENT_COL_W - 28);
+    lv_obj_t *n = wt_lbl(card, tr(note), pad_x, note_y, wt_font23(), MUT_COL);
+    lv_obj_set_width(n, ENT_BAR_W);
     // HEIGHT PINNED to the two lines the card has room for, so a third line is
     // CLIPPED rather than drawn over the card below -- and clipped is what the
     // overlap gate can see. Unpinned it grew silently past the card's edge.
-    lv_obj_set_height(n, 50);
+    lv_obj_set_height(n, note_h);
     lv_label_set_long_mode(n, LV_LABEL_LONG_WRAP);
     if (out_card) *out_card = card;
     return fill;
@@ -1653,7 +1749,7 @@ static int s_ent_last_ready = -1;    // tri-state, so the first paint is forced
 static void ent_ui_sync(int pct, int reason)
 {
     if (s_ent_bar1 && pct != s_ent_last_pct) {
-        lv_obj_set_width(s_ent_bar1, (ENT_COL_W - 28) * pct / 100);
+        lv_obj_set_width(s_ent_bar1, ENT_BAR_W * pct / 100);
         s_ent_last_pct = pct;
     }
     bool ready = pct >= 100;
@@ -1732,6 +1828,18 @@ static void ent_ui_sync(int pct, int reason)
 // while no screen could reach it. 12 is still what most owners should pick and
 // still what the count screen lists first; the choice is no longer made for
 // them by a callback.
+#if KISS_NARROW
+// Three chooser rows under a subtitle, on the 3.5in. The kit's grid scales to
+// 62 tall on a 66 pitch from 64, which cuts the third row's bottom edge 4 px
+// under the band. 58 on a 63 pitch ends it at 248, six clear, and a row still
+// holds its label and its sentence with room above and below both.
+#define SETUP_CHOICE_H     58
+#define SETUP_CHOICE_Y(i)  (WT_CHOICE_Y(0) + (i) * 63)
+#else
+#define SETUP_CHOICE_H     WT_CHOICE_H
+#define SETUP_CHOICE_Y(i)  WT_CHOICE_Y(i)
+#endif
+
 static void method_cam_cb(lv_event_t *e)  { (void)e; s_cards = false; s_dice = false; s_count = 12; entropy_screen(); }
 // Dice goes STRAIGHT to the keypad now, at 12, the same as the camera beside
 // it. It went through the count screen so the 99 roll floor was reachable, and
@@ -1769,11 +1877,11 @@ static void method_screen(void)
     // the page renders a rung larger than the others and the list reads ragged.
     const char *const MSUB[3] = { tr(STR_W_MIX_NOTE), tr(STR_W_METHOD_DICE_S),
                                   tr(STR_W_CARDS_NOTE) };
-    const lv_font_t *msf = wt_row_sub_font(MSUB, 3, WT_CHOICE_W, WT_CHOICE_H,
+    const lv_font_t *msf = wt_row_sub_font(MSUB, 3, WT_CHOICE_W, SETUP_CHOICE_H,
                                            true, true);
     wt_row_x(s_scr, LV_SYMBOL_IMAGE, tr(STR_W_CHOOSE_MIX), tr(STR_W_MIX_NOTE), msf,
-             NULL, NULL, WT_INK, false, WT_CHOICE_X, WT_CHOICE_Y(0),
-             WT_CHOICE_W, WT_CHOICE_H, method_cam_cb, NULL);
+             NULL, NULL, WT_INK, false, WT_CHOICE_X, SETUP_CHOICE_Y(0),
+             WT_CHOICE_W, SETUP_CHOICE_H, method_cam_cb, NULL);
     // Its OWN title and subline, not W_CHOOSE_DICE and W_DICE_NOTE: both of
     // those are also what settings prints under MADE WITH for a seed that was
     // rolled, where naming the coin would describe a path this seed did not
@@ -1785,17 +1893,17 @@ static void method_screen(void)
     // 2.6x the taps of 50 rolls, and nobody should meet that number for the
     // first time on tap 60.
     wt_row_x(s_scr, LV_SYMBOL_LIST, tr(STR_W_METHOD_DICE_T), tr(STR_W_METHOD_DICE_S),
-             msf, NULL, NULL, WT_INK, false, WT_CHOICE_X, WT_CHOICE_Y(1),
-             WT_CHOICE_W, WT_CHOICE_H, method_dice_cb, NULL);
+             msf, NULL, NULL, WT_INK, false, WT_CHOICE_X, SETUP_CHOICE_Y(1),
+             WT_CHOICE_W, SETUP_CHOICE_H, method_dice_cb, NULL);
     // KEYBOARD, not SHUFFLE. This row's whole subject is a word LIST the owner
     // cuts up and picks from, and a shuffle mark is the last thing on this
     // screen that reads as a deck of playing cards -- which is exactly how the
     // mode kept being misread. The glyph now says what the owner does here.
     wt_row_x(s_scr, LV_SYMBOL_KEYBOARD, tr(STR_W_CHOOSE_CARDS), tr(STR_W_CARDS_NOTE),
-             msf, NULL, NULL, WT_INK, false, WT_CHOICE_X, WT_CHOICE_Y(2),
-             WT_CHOICE_W, WT_CHOICE_H, method_cards_cb, NULL);
+             msf, NULL, NULL, WT_INK, false, WT_CHOICE_X, SETUP_CHOICE_Y(2),
+             WT_CHOICE_W, SETUP_CHOICE_H, method_cards_cb, NULL);
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_BACK_X,
-                    WT_ACTION_Y, 140, true, goto_choose_cb, NULL);
+                    WT_ACTION_Y, SX(140), true, goto_choose_cb, NULL);
 }
 
 // ---- dice screen ----
@@ -1808,41 +1916,66 @@ static void method_screen(void)
 // the one sentence explaining the hash all ran narrow so a margin could be
 // wide. 704 is +104px of key and +104px of reading width for no layout risk,
 // since the lane is the one every other screen already builds against.
-#define DICE_CARD_X    48
-#define DICE_CARD_Y    96
-#define DICE_CARD_W   704
-#define DICE_CARD_H   298
+#define DICE_CARD_X    SX(48)
+#define DICE_CARD_W   SX(704)
+#if KISS_NARROW
+// 66 and at most 183 on the 3.5in: scaled, the card ran from 64 to 262, four
+// pixels under the subtitle and with its hash line through the band. Its height
+// is set once the note has been measured (see dice_screen_build).
+#define DICE_CARD_Y     66
+#define DICE_CARD_H    183
+#else
+#define DICE_CARD_Y    SY(96)
+#define DICE_CARD_H   SY(298)
+#endif
 #define DICE_LANE     (DICE_CARD_W - 36)   // 18px inset each side: 668
-#define DICE_KEY_W    103   // (668 - 5*10) / 6
-#define DICE_KEY_H     60
-#define DICE_KEY_GAP   10
+#define DICE_KEY_W    SX(103)   // (668 - 5*10) / 6
+#define DICE_KEY_H     (KISS_NARROW ? 38 : SY(60))
+#define DICE_KEY_GAP   SX(10)
 // Base 2 spends the four key slots a coin does not need on the two it does:
 // 18..342 and 362..686, the same lane the six keys fill. 128 taps is a long
 // session and a 324px key is the difference between it being one.
-#define DICE_KEY_W2   324   // (668 - 20) / 2
-#define DICE_KEY_GAP2  20
+#define DICE_KEY_W2   SX(324)   // (668 - 20) / 2
+#define DICE_KEY_GAP2  SX(20)
 // The rows, top to bottom, with what each one costs. Every gap here was spent
 // buying the note below a readable size: it was a font14 sentence in a 44px
 // band, which is the bug this file's house rules name four times over.
-#define DICE_KEY_Y     16   // keys   16..76
-#define DICE_BAR_TOP   84   // tracks 84..128
-#define DICE_BAR_H     44   // full height = TWICE the fair share, so the fair
+#if KISS_NARROW
+// The same rows in the 3.5in card, each packed to the face it holds rather
+// than scaled from the wide canvas's: keys 8..46, tracks 52..76, counts 77..94,
+// tally 96..118, and the note from 124 with a box that holds two lines, so a
+// longer locale wraps instead of landing on the hash.
+#define DICE_KEY_Y       8
+#define DICE_BAR_TOP    52
+#define DICE_BAR_H      24
+#else
+#define DICE_KEY_Y     SY(16)   // keys   16..76
+#define DICE_BAR_TOP   SY(84)   // tracks 84..128
+#define DICE_BAR_H     SY(44)   // full height = TWICE the fair share, so the fair
                             //   share tick always sits at exactly half height
+#endif
 // A column is HALF the key it belongs to, rather than a fixed 40. Under a
 // coin's 324px key a 40px stub read as a column that had failed to draw, and
 // the histogram is the evidence this screen exists to show.
 #define DICE_BAR_W    (DICE_KEY_W / 2)
 #define DICE_BAR_BASE (DICE_BAR_TOP + DICE_BAR_H)
 #define DICE_TICK_Y   (DICE_BAR_TOP + DICE_BAR_H / 2)
-#define DICE_CNT_Y    132   // counts 132..163 at font23. A count under a column
+#if KISS_NARROW
+#define DICE_CNT_Y      77
+#define DICE_TALLY_Y    96
+#define DICE_NOTE_Y    124
+#define DICE_NOTE_H     36
+#else
+#define DICE_CNT_Y    SY(132)   // counts 132..163 at font23. A count under a column
                             // is the evidence the histogram exists to show, so
                             // it is read, so it is not font14.
-#define DICE_TALLY_Y  166   // tally  166..204 at mono28
-#define DICE_NOTE_Y   206   // note   206..244: 38 tall, which is both enough
-#define DICE_NOTE_H    38   //   for font23 and enough that the FIT gate polices
+#define DICE_TALLY_Y  SY(166)   // tally  166..204 at mono28
+#define DICE_NOTE_Y   SY(206)   // note   206..244: 38 tall, which is both enough
+#define DICE_NOTE_H    SY(38)   //   for font23 and enough that the FIT gate polices
                             //   it (a body under 36 tall is the box deciding).
+#endif
 #define DICE_BITS_Y   248   // strip  248..260
-#define DICE_FP_Y     264   // hash   264..295 at mono23, 3 clear of the card
+#define DICE_FP_Y     SY(264)   // hash   264..295 at mono23, 3 clear of the card
 #define DICE_BITS_N    64
 #define DICE_BITS_P    10   // 9px cell, 1px gap: 64 of them span 639 of 668
 
@@ -2023,8 +2156,8 @@ static void dice_bars_make(lv_obj_t *par, int faces, int bw, int x0, int pitch,
     // skyline against it says "a die did this" with no words in any locale.
     lv_obj_t *tick = lv_obj_create(par);
     lv_obj_remove_style_all(tick);
-    lv_obj_set_pos(tick, x0 - DICE_KEY_GAP - 12, y + DICE_BAR_H / 2);
-    lv_obj_set_size(tick, (faces - 1) * pitch + bw + 2 * (DICE_KEY_GAP + 12), 1);
+    lv_obj_set_pos(tick, x0 - DICE_KEY_GAP - SX(12), y + DICE_BAR_H / 2);
+    lv_obj_set_size(tick, (faces - 1) * pitch + bw + 2 * (DICE_KEY_GAP + SX(12)), 1);
     lv_obj_set_style_bg_color(tick, WT_DIV, 0);
     lv_obj_set_style_bg_opa(tick, LV_OPA_COVER, 0);
 }
@@ -2136,7 +2269,10 @@ static void dice_refresh(void)
             // A fixed inset, not one derived from the card width: this was
             // -(DICE_CARD_W - 540), which read as 60 only while the card was
             // 600 wide and silently became 164 when it grew.
-            lv_obj_align(s_dice_chip, LV_ALIGN_TOP_RIGHT, -60, DICE_TALLY_Y + 2);
+            // On the tally's own top on the 3.5in: two pixels lower put the
+            // chip's tint within 2 px of the note's first line under it.
+            lv_obj_align(s_dice_chip, LV_ALIGN_TOP_RIGHT, -SX(60),
+                         KISS_NARROW ? DICE_TALLY_Y : DICE_TALLY_Y + 2);
             lv_obj_remove_flag(s_dice_chip, LV_OBJ_FLAG_HIDDEN);
         }
     }
@@ -2196,14 +2332,23 @@ static void dice_warn_screen(int verdict)
     mk_screen(tr(STR_W_DICE_WARN_T),
               tr(verdict == WD_Q_UNEVEN ? STR_W_DICE_UNEVEN_S
                                         : STR_W_DICE_PATTERN_S));
-    lv_obj_t *card = wt_card(s_scr, 48, 104, 704, 92);
+    lv_obj_t *card = wt_card(s_scr, SX(48), SY(104), SX(704), SY(92));
     for (int i = 0; i < 6; i++) s_dice_cnt[i] = NULL;
     // Two columns are centred in the 704 lane rather than left where six start:
     // a pair hard against the left edge reads as four that failed to draw.
+#if KISS_NARROW
+    // Scaled pitches, centred for both: the wide pixel pitches put four of a
+    // die's six columns in the 422 card and a coin's second one half off it.
+    int faces = dice_faces(), wpitch = faces == 2 ? SX(292) : SX(117);
+    int wbw = dice_bar_w();
+    dice_bars_make(card, faces, wbw,
+                   (SX(704) - ((faces - 1) * wpitch + wbw)) / 2, wpitch, SY(24));
+#else
     int faces = dice_faces(), wpitch = faces == 2 ? 292 : 117;
     int wbw = dice_bar_w();
     dice_bars_make(card, faces, wbw,
-                   faces == 2 ? (704 - (wpitch + wbw)) / 2 : 58, wpitch, 24);
+                   faces == 2 ? (SX(704) - (wpitch + wbw)) / 2 : SX(58), wpitch, SY(24));
+#endif
     kiss_dice_q_t q;
     kiss_dice_judge(kiss_dice_digits(), kiss_dice_count(), kiss_dice_base(),
                     dice_need(), &q);
@@ -2224,16 +2369,16 @@ static void dice_warn_screen(int verdict)
         { .cap = tr(STR_W_DICE_W2_H), .val = tr(STR_W_DICE_W2_B),
           .icon = LV_SYMBOL_LOOP },
     };
-    wt_facts(s_scr, 232, facts, 2);
+    wt_facts(s_scr, SY(232), facts, 2);
 
     // No USE ANYWAY. KEEP GOING keeps the right hand slot it already had, so
     // the muscle memory survives, and it is primary because it is the way
     // through: the rolls are all still banked, which is the whole reason
     // DICE_MAX is what it is. START OVER discards them, so it points back.
-    wt_arrow_action(s_scr, tr(STR_W_START_OVER), true, false, 48, WT_ACTION_Y,
-                    330, false, method_dice_cb, NULL);
-    wt_arrow_action(s_scr, tr(STR_W_DICE_MORE), false, true, 422, WT_ACTION_Y,
-                    330, true, dice_keep_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_W_START_OVER), true, false, SX(48), WT_ACTION_Y,
+                    SX(330), false, method_dice_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_W_DICE_MORE), false, true, SX(422), WT_ACTION_Y,
+                    SX(330), true, dice_keep_cb, NULL);
 }
 
 static void dice_done_cb(lv_event_t *e)
@@ -2284,7 +2429,7 @@ static void dice_screen_build(void)
     // screen because a fourth choice row does not exist: WT_CHOICE_Y(3) is 402
     // and WT_CONTENT_BOTTOM is 398. The geometry is the first boot language
     // control's, moved up to 22 so its 44px clears the subtitle band at 66.
-    wt_title_fit(s_scr, 436);
+    wt_title_fit(s_scr, SX(436));
     for (int i = 0; i < 2; i++) {
         unsigned b = i ? 2u : 6u;
         const bool on = b == kiss_dice_base();
@@ -2294,7 +2439,9 @@ static void dice_screen_build(void)
                                         tr(i ? STR_W_COIN : STR_W_CHOOSE_DICE),
                                         true, on ? wt_accent() : WT_MUT,
                                         on, dice_mode_cb, (void *)(intptr_t)b);
-        lv_obj_set_pos(s_dice_mode[i], 500 + i * 130, 24);
+        // On the title's own line on the 3.5in: at the scaled 16 the pair hung
+        // halfway down to the subtitle and belonged to neither row.
+        lv_obj_set_pos(s_dice_mode[i], SX(500) + i * SX(130), KISS_NARROW ? 7 : SY(24));
         lv_obj_set_style_opa(lv_obj_get_child(s_dice_mode[i], 0),
                              on ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
     }
@@ -2324,7 +2471,7 @@ static void dice_screen_build(void)
     // the one line written for the reader who is going to recompute it.
     for (int i = 0; i < faces; i++) {
         lv_obj_t *k = lv_button_create(s_dice_card);
-        lv_obj_set_pos(k, 18 + i * pitch, DICE_KEY_Y);
+        lv_obj_set_pos(k, SX(18) + i * pitch, DICE_KEY_Y);
         lv_obj_set_size(k, kw, DICE_KEY_H);
         lv_obj_add_event_cb(k, dice_key_cb, LV_EVENT_CLICKED, (void *)(intptr_t)(i + 1));
         lv_obj_t *lbl = lv_label_create(k);
@@ -2340,20 +2487,20 @@ static void dice_screen_build(void)
 
     // the live histogram under the keys, one exact count under each column
     dice_bars_make(s_dice_card, faces, dice_bar_w(),
-                   18 + (kw - dice_bar_w()) / 2, pitch, DICE_BAR_TOP);
+                   SX(18) + (kw - dice_bar_w()) / 2, pitch, DICE_BAR_TOP);
     for (int i = 0; i < faces; i++) {
-        s_dice_cnt[i] = wt_lbl(s_dice_card, "0", 18 + i * pitch,
+        s_dice_cnt[i] = wt_lbl(s_dice_card, "0", SX(18) + i * pitch,
                                DICE_CNT_Y, wt_font23(), MUT_COL);
         lv_obj_set_width(s_dice_cnt[i], kw);
         lv_obj_set_style_text_align(s_dice_cnt[i], LV_TEXT_ALIGN_CENTER, 0);
     }
 
-    s_dice_tally = wt_lbl(s_dice_card, "", 18, DICE_TALLY_Y, wt_font_mono28(), INK_COL);
+    s_dice_tally = wt_lbl(s_dice_card, "", SX(18), DICE_TALLY_Y, wt_font_mono28(), INK_COL);
 
     // the verdict chip (hidden until the floor) and the "?" that explains it
     s_dice_chip = wt_state_chip(s_dice_card, "", WARN_COL);
     lv_obj_add_flag(s_dice_chip, LV_OBJ_FLAG_HIDDEN);
-    wt_help_chip(s_dice_card, DICE_CARD_W - 44, DICE_TALLY_Y - 2, MUT_COL,
+    wt_help_chip(s_dice_card, DICE_CARD_W - SX(44), DICE_TALLY_Y - 2, MUT_COL,
                  dice_help_cb, NULL);
 
     // wt_note, not wt_lbl at font14. This is the sentence that tells a doubter
@@ -2364,8 +2511,19 @@ static void dice_screen_build(void)
     lv_obj_t *note = wt_note(s_dice_card,
                              tr(coin ? STR_W_COIN_VERIFY_NOTE
                                      : STR_W_DICE_VERIFY_NOTE),
-                             18, DICE_NOTE_Y, DICE_LANE, DICE_NOTE_H);
+                             SX(18), DICE_NOTE_Y, DICE_LANE, DICE_NOTE_H);
+#if KISS_NARROW
+    // The hash follows the note instead of a fixed row: one line in English,
+    // two in the longer locales, and the card ends under whichever it used. A
+    // fixed row had to be placed for two lines and left English a 19 px hole.
+    lv_obj_update_layout(note);
+    const int fp_y = DICE_NOTE_Y + lv_obj_get_height(note) + 4;
+    lv_obj_set_height(s_dice_card,
+                      fp_y + lv_font_get_line_height(wt_font_mono23()) + 8);
+#else
     (void)note;
+    const int fp_y = DICE_FP_Y;
+#endif
 
     // live SHA256 fingerprint: first 8 bytes, tap to reveal all 64 hex. The
     // value the owner can reproduce on any offline machine to check the device.
@@ -2379,10 +2537,10 @@ static void dice_screen_build(void)
     // string would draw a placeholder box. It is the whole affordance: nothing
     // else on the screen said the line could be tapped, and a mark says it in
     // 21 locales for the cost of none.
-    s_dice_eye = wt_lbl(s_dice_card, LV_SYMBOL_EYE_OPEN, 18, DICE_FP_Y + 4,
+    s_dice_eye = wt_lbl(s_dice_card, LV_SYMBOL_EYE_OPEN, SX(18), fp_y + SY(4),
                         wt_font23(), MUT_COL);
-    s_dice_fp = wt_lbl(s_dice_card, "", 52, DICE_FP_Y, wt_font_mono23(), INK_COL);
-    lv_obj_set_width(s_dice_fp, DICE_LANE - 34);
+    s_dice_fp = wt_lbl(s_dice_card, "", SX(52), fp_y, wt_font_mono23(), INK_COL);
+    lv_obj_set_width(s_dice_fp, DICE_LANE - SX(34));
     lv_label_set_long_mode(s_dice_fp, LV_LABEL_LONG_WRAP);
     lv_obj_add_flag(s_dice_fp, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(s_dice_fp, dice_fp_cb, LV_EVENT_CLICKED, NULL);
@@ -2392,11 +2550,15 @@ static void dice_screen_build(void)
     // 20px target on a screen whose other controls are 60 tall.
     lv_obj_set_ext_click_area(s_dice_eye, 14);
 
+#if !KISS_NARROW
+    // Not on the 3.5in. Scaled, the strip sat 50 px under the card's own bottom
+    // edge and ran 640 px in a 386 lane, so it never drew; the card has no row
+    // left for it, and the hash above says the same bytes in figures.
     for (int b = 0; b < DICE_BITS_N; b++) {
         lv_obj_t *c = lv_obj_create(s_dice_card);
         lv_obj_remove_style_all(c);
-        lv_obj_set_pos(c, 18 + b * DICE_BITS_P, DICE_BITS_Y);
-        lv_obj_set_size(c, DICE_BITS_P - 1, 14);
+        lv_obj_set_pos(c, SX(18) + b * DICE_BITS_P, DICE_BITS_Y);
+        lv_obj_set_size(c, DICE_BITS_P - 1, SY(14));
         lv_obj_set_style_radius(c, 1, 0);
         lv_obj_set_style_bg_color(c, WT_DIV, 0);
         lv_obj_set_style_bg_opa(c, LV_OPA_COVER, 0);
@@ -2404,6 +2566,7 @@ static void dice_screen_build(void)
         lv_obj_remove_flag(c, LV_OBJ_FLAG_CLICKABLE);
         s_dice_bits[b] = c;
     }
+#endif
 
     // action row (WT_ACTION_Y): CANCEL out on the left, UNDO in the middle,
     // DONE (disabled until the floor is met) in the corner. 160 + 200 + 200 =
@@ -2419,12 +2582,12 @@ static void dice_screen_build(void)
     // HOÀN TÁC all fell to font14 at 140, and the row has the slack.
     // 48, not the corner: dice_back_cb throws the whole roll set away on one
     // tap with no confirm. See the exemption in kiss_theme.h.
-    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 48, WT_ACTION_Y, 160,
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, SX(48), WT_ACTION_Y, SX(160),
                     false, dice_back_cb, NULL);
-    wt_arrow_action(s_scr, tr(STR_W_DICE_UNDO), true, false, 280, WT_ACTION_Y,
-                    200, false, dice_undo_cb, NULL);
-    s_dice_done = wt_arrow_action(s_scr, tr(STR_C_DONE), false, true, 552,
-                                  WT_ACTION_Y, 200, true, dice_done_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_W_DICE_UNDO), true, false, SX(280), WT_ACTION_Y,
+                    SX(200), false, dice_undo_cb, NULL);
+    s_dice_done = wt_arrow_action(s_scr, tr(STR_C_DONE), false, true, SX(552),
+                                  WT_ACTION_Y, SX(200), true, dice_done_cb, NULL);
     dice_refresh();
 }
 
@@ -2466,23 +2629,31 @@ static void entropy_screen(void)
     // on-video bar as the cue a holder waits on.
     s_ent_dot = lv_obj_create(s_scr);
     lv_obj_remove_style_all(s_ent_dot);
-    lv_obj_set_pos(s_ent_dot, ENT_CAM_X, ENT_CAM_Y + ENT_CAM_H + 14);
-    lv_obj_set_size(s_ent_dot, 9, 9);
-    lv_obj_set_style_radius(s_ent_dot, 100, 0);
+#if KISS_NARROW
+    // Under the corner marks, not through them: the scaled 5 px put the line's
+    // capitals on the lower marks' strokes. The dot centres on its first line.
+    const int ent_state_y = ENT_CAM_Y + ENT_CAM_H + 9;
+    lv_obj_set_pos(s_ent_dot, ENT_CAM_X, ent_state_y + 6);
+#else
+    const int ent_state_y = ENT_CAM_Y + ENT_CAM_H + SY(8);
+    lv_obj_set_pos(s_ent_dot, ENT_CAM_X, ENT_CAM_Y + ENT_CAM_H + SY(14));
+#endif
+    lv_obj_set_size(s_ent_dot, SX(9), SX(9));
+    lv_obj_set_style_radius(s_ent_dot, SX(100), 0);
     lv_obj_set_style_bg_color(s_ent_dot, WT_EDGE, 0);
     lv_obj_set_style_bg_opa(s_ent_dot, LV_OPA_COVER, 0);
     lv_obj_remove_flag(s_ent_dot, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_remove_flag(s_ent_dot, LV_OBJ_FLAG_SCROLLABLE);
-    s_ent_state = wt_lbl(s_scr, tr(STR_W_ENT_LOW), ENT_CAM_X + 18,
-                         ENT_CAM_Y + ENT_CAM_H + 8, wt_font14(), MUT_COL);
-    lv_obj_set_width(s_ent_state, ENT_CAM_W - 18);
+    s_ent_state = wt_lbl(s_scr, tr(STR_W_ENT_LOW), ENT_CAM_X + SX(18),
+                         ent_state_y, wt_font14(), MUT_COL);
+    lv_obj_set_width(s_ent_state, ENT_CAM_W - SX(18));
     lv_label_set_long_mode(s_ent_state, LV_LABEL_LONG_WRAP);
 
     // Right: the two sources, then the equation.
     lv_obj_t *card1 = NULL;
-    s_ent_bar1 = ent_card(ENT_CAM_Y, STR_W_ENT_SRC1_CAP, STR_W_ENT_SRC1_NOTE,
+    s_ent_bar1 = ent_card(ENT_SRC_Y, STR_W_ENT_SRC1_CAP, STR_W_ENT_SRC1_NOTE,
                           false, &card1);
-    s_ent_bar2 = ent_card(ENT_CAM_Y + ENT_CARD_H + 8, STR_W_ENT_SRC2_CAP,
+    s_ent_bar2 = ent_card(ENT_SRC_Y + ENT_CARD_H + ENT_SRC_GAP, STR_W_ENT_SRC2_CAP,
                           STR_W_ENT_SRC2_NOTE, true, NULL);
 
     // 1 + 2 + 3 -> 12 WORDS, in a CARD, with the "?" in that card's own top
@@ -2496,9 +2667,10 @@ static void entropy_screen(void)
     //
     // 336..392, under the two 96-tall source cards (which end at 328) and clear
     // of WT_CONTENT_BOTTOM at 398.
-    lv_obj_t *eqc = wt_card(s_scr, ENT_COL_X, ENT_CAM_Y + 2 * ENT_CARD_H + 16,
-                            ENT_COL_W, 56);
-    wt_help_chip(eqc, ENT_COL_W - 42, 13, MUT_COL, ent_mix_help_cb, NULL);
+    lv_obj_t *eqc = wt_card(s_scr, ENT_COL_X,
+                            ENT_SRC_Y + 2 * ENT_CARD_H + 2 * ENT_SRC_GAP,
+                            ENT_COL_W, ENT_EQ_H);
+    wt_help_chip(eqc, ENT_COL_W - SX(42), SY(13), MUT_COL, ent_mix_help_cb, NULL);
 
     // A flex column parent, because wt_diagram_row takes its y from the layout.
     // Width stops short of the chip so a long translated result chip cannot
@@ -2506,7 +2678,7 @@ static void entropy_screen(void)
     lv_obj_t *eq = lv_obj_create(eqc);
     lv_obj_remove_style_all(eq);
     lv_obj_set_pos(eq, 0, 0);
-    lv_obj_set_size(eq, ENT_COL_W - 46, 56);
+    lv_obj_set_size(eq, ENT_COL_W - SX(46), ENT_EQ_H);
     lv_obj_set_flex_flow(eq, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(eq, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
                           LV_FLEX_ALIGN_CENTER);
@@ -2532,9 +2704,9 @@ static void entropy_screen(void)
 #ifdef SIMULATOR
     (void)card1; (void)op1;   // the sim has no camera-failure branch to strike
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_EXIT_X,
-                    WT_ACTION_Y, 140, true, goto_choose_cb, NULL);
+                    WT_ACTION_Y, SX(140), true, goto_choose_cb, NULL);
     s_ent_capture = wt_arrow_action(s_scr, tr(STR_W_ENT_CAPTURE), false, true,
-                                    WT_ACT_X, WT_ACTION_Y, 300, false,
+                                    WT_ACT_X, WT_ACTION_Y, SX(300), false,
                                     sim_entropy_cb, NULL);
     // The sim has no camera and no meter, so the walk would see a permanently
     // disabled CAPTURE. Show the ready state: it is the one the scripted
@@ -2550,14 +2722,14 @@ static void entropy_screen(void)
         lv_obj_add_event_cb(s_scr, ent_tap_cb, LV_EVENT_CLICKED, NULL);
         if (!s_ent_tmr) s_ent_tmr = lv_timer_create(ent_poll_cb, 80, NULL);
         s_ent_capture = wt_arrow_action(s_scr, tr(STR_W_ENT_CAPTURE), false,
-                                        true, WT_ACT_X, WT_ACTION_Y, 300,
+                                        true, WT_ACT_X, WT_ACTION_Y, SX(300),
                                         false, ent_tap_cb, NULL);
         ent_ui_sync(0, camera_entropy_reason());
     } else {
         // The camera failed. The preview column carries the error.
-        mk_lbl(tr(STR_C_CAM_UNAVAIL), ENT_CAM_X + 14, ENT_CAM_Y + 100,
+        mk_lbl(tr(STR_C_CAM_UNAVAIL), ENT_CAM_X + SX(14), ENT_CAM_Y + SY(100),
                wt_font23(), STOP_COL);
-        mk_lbl(camera_spike_status(), ENT_CAM_X + 14, ENT_CAM_Y + 134,
+        mk_lbl(camera_spike_status(), ENT_CAM_X + SX(14), ENT_CAM_Y + SY(134),
                wt_font14(), MUT_COL);
 
         // And the rest of the screen stops promising a source it will not
@@ -2585,11 +2757,11 @@ static void entropy_screen(void)
         // there, so the seed loses a source rather than the device losing its
         // only path to a wallet. CAPTURE goes straight to the taps.
         s_ent_capture = wt_arrow_action(s_scr, tr(STR_W_ENT_CAPTURE), false,
-                                        true, WT_ACT_X, WT_ACTION_Y, 300,
+                                        true, WT_ACT_X, WT_ACTION_Y, SX(300),
                                         false, tap_only_cb, NULL);
     }
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_EXIT_X,
-                    WT_ACTION_Y, 140, true, ent_back_cb, NULL);
+                    WT_ACTION_Y, SX(140), true, ent_back_cb, NULL);
 #endif
 }
 
@@ -2692,7 +2864,7 @@ static void restore_screen(void)
               s_verify ? tr(STR_W_VERIFY_S)
                        : tr(STR_W_RESTORE_S));
 
-    s_word_lbl = mk_lbl("", 48, 108, wt_font28(), INK_COL);
+    s_word_lbl = mk_lbl("", SX(48), SY(108), wt_font28(), INK_COL);
 
     // Bare words, the way every phone keyboard offers its suggestions. No
     // mark, so the word label keeps child index 0 for the accept callback
@@ -2708,25 +2880,25 @@ static void restore_screen(void)
                                   restore_accept_cb, NULL);
         lv_obj_set_style_text_font(lv_obj_get_child(s_sug[i], 0),
                                    wt_font28(), 0);
-        lv_obj_set_height(s_sug[i], 54);
+        lv_obj_set_height(s_sug[i], SY(54));
         lv_obj_set_ext_click_area(s_sug[i], 14);
-        lv_obj_set_pos(s_sug[i], 48 + i * 250, 156);
+        lv_obj_set_pos(s_sug[i], SX(48) + i * SX(250), SY(156));
         lv_obj_add_flag(s_sug[i], LV_OBJ_FLAG_HIDDEN);
     }
 
     lv_obj_t *kb = lv_buttonmatrix_create(s_scr);
     lv_buttonmatrix_set_map(kb, RESTORE_MAP);
-    lv_obj_set_size(kb, 800, 250);
-    lv_obj_set_pos(kb, 0, 224);
+    lv_obj_set_size(kb, SCREEN_W, SY(250));
+    lv_obj_set_pos(kb, 0, SY(224));
     lv_obj_set_style_bg_color(kb, BG_COL, 0);
     lv_obj_set_style_border_width(kb, 0, 0);
-    lv_obj_set_style_pad_all(kb, 6, 0);
+    lv_obj_set_style_pad_all(kb, SX(6), 0);
     lv_obj_set_style_pad_gap(kb, 6, 0);
     lv_obj_set_style_bg_color(kb, KEY_COL, LV_PART_ITEMS);
     lv_obj_set_style_text_color(kb, INK_COL, LV_PART_ITEMS);
     lv_obj_set_style_text_font(kb, wt_font28(), LV_PART_ITEMS);
     lv_obj_set_style_shadow_width(kb, 0, LV_PART_ITEMS);
-    lv_obj_set_style_radius(kb, 8, LV_PART_ITEMS);
+    lv_obj_set_style_radius(kb, SX(8), LV_PART_ITEMS);
     lv_obj_set_style_border_width(kb, 0, LV_PART_ITEMS);
     lv_obj_add_event_cb(kb, restore_kb_cb, LV_EVENT_VALUE_CHANGED, NULL);
     restore_refresh();
@@ -2795,14 +2967,20 @@ static void cards_intro_screen(void)
     // The draw as an equation: 11 + 1 -> 12. Numerals, so the card reads in
     // every locale; the accent sits on the 1 the device contributes. Same
     // 128..212 band as the backup check and passphrase intros.
-    lv_obj_t *card = wt_card(s_scr, 48, 128, 704, 64);
+    lv_obj_t *card = wt_card(s_scr, SX(48), SY(128), SX(704), SY(64));
     lv_obj_t *col = lv_obj_create(card);
     lv_obj_remove_style_all(col);
     lv_obj_set_pos(col, 0, 0);
     // 46 narrower than the card so a locale with wider numerals cannot centre
     // the equation underneath the "?" in the corner. Same reservation the
     // entropy screen's equation card makes for the same chip.
-    lv_obj_set_size(col, 704 - 46, 84);
+#if KISS_NARROW
+    // The card's own height on the 3.5in: centred in a column 14 px taller
+    // than the card, the chips' underlines sat 2 px off its bottom border.
+    lv_obj_set_size(col, SX(704) - SX(46), SY(64));
+#else
+    lv_obj_set_size(col, SX(704) - SX(46), SY(84));
+#endif
     lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(col, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
                           LV_FLEX_ALIGN_CENTER);
@@ -2822,7 +3000,9 @@ static void cards_intro_screen(void)
     // rest of the device does. The equation says 11 + 1 -> 12 without saying
     // where the 11 come from or why the device gets the 1; that is what opens
     // from here.
-    wt_help_chip(card, 704 - 44, 12, MUT_COL, cards_help_cb, NULL);
+    // Centred on the equation's line on the 3.5in rather than 8 px from the top.
+    wt_help_chip(card, SX(704) - SX(44), KISS_NARROW ? 12 : SY(12), MUT_COL,
+                 cards_help_cb, NULL);
 
     // How the draw is made, and the one way it stops being a draw -- as rows
     // under the equation, the same shape every explainer on the device wears
@@ -2836,15 +3016,15 @@ static void cards_intro_screen(void)
             { .cap = tr(STR_G_TECHNICAL), .val = tr(STR_T_RNG_TERM),
               .icon = LV_SYMBOL_LIST },
         };
-        wt_facts(s_scr, 220, facts, 3);
+        wt_facts(s_scr, SY(220), facts, 3);
     }
 
     // Back to the METHOD chooser, not the count screen: cards makes 12 and no
     // longer passes through it.
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_EXIT_X,
-                    WT_ACTION_Y, 140, true, goto_method_cb, NULL);
+                    WT_ACTION_Y, SX(140), true, goto_method_cb, NULL);
     wt_arrow_action(s_scr, tr(STR_W_TYPE_MY_WORDS), false, true, WT_ACT_X,
-                    WT_ACTION_Y, 300, false, cards_start_cb, NULL);
+                    WT_ACTION_Y, SX(300), false, cards_start_cb, NULL);
 }
 
 // ---- the draw, drawn ----
@@ -2858,19 +3038,19 @@ static void cards_intro_screen(void)
 // narrows each index to about six bits, which is strictly less than the same
 // observer gets three taps later on words_screen, where every word is spelled
 // out — so this is not a new exposure class and carries no mitigation.
-#define CARDS_BAR_W  14
-#define CARDS_BAR_H  64
+#define CARDS_BAR_W  SX(14)
+#define CARDS_BAR_H  SY(64)
 static void cards_bars_make(lv_obj_t *card, lv_color_t col)
 {
     if (s_nw < 2) return;
-    int usable = 704 - 36 - CARDS_BAR_W;
+    int usable = SX(704) - SX(36) - CARDS_BAR_W;
     int pitch = usable / (s_nw - 1);
     for (int i = 0; i < s_nw; i++) {
         lv_obj_t *b = lv_obj_create(card);
         lv_obj_remove_style_all(b);
         // +4 so index 0 still draws a visible stub rather than nothing.
         int h = 4 + (int)((uint32_t)s_cidx[i] * (CARDS_BAR_H - 4) / 2047);
-        lv_obj_set_pos(b, 18 + i * pitch, 14 + (CARDS_BAR_H - h));
+        lv_obj_set_pos(b, SX(18) + i * pitch, SY(14) + (CARDS_BAR_H - h));
         lv_obj_set_size(b, CARDS_BAR_W, h);
         lv_obj_set_style_bg_color(b, col, 0);
         lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
@@ -2881,7 +3061,7 @@ static void cards_bars_make(lv_obj_t *card, lv_color_t col)
     // that never crosses it came off one end of the deck.
     lv_obj_t *tick = lv_obj_create(card);
     lv_obj_remove_style_all(tick);
-    lv_obj_set_pos(tick, 18, 14 + CARDS_BAR_H / 2);
+    lv_obj_set_pos(tick, SX(18), SY(14) + CARDS_BAR_H / 2);
     lv_obj_set_size(tick, usable + CARDS_BAR_W, 1);
     lv_obj_set_style_bg_color(tick, WT_DIV, 0);
     lv_obj_set_style_bg_opa(tick, LV_OPA_COVER, 0);
@@ -2933,7 +3113,7 @@ static void cards_verdict_screen(int title, lv_color_t col)
 {
     mk_screen(tr(title), tr(cards_sub_key()));
 
-    lv_obj_t *card = wt_card(s_scr, 48, 104, 704, 92);
+    lv_obj_t *card = wt_card(s_scr, SX(48), SY(104), SX(704), SY(92));
     cards_bars_make(card, col);
 
     // Reusing the dice pair's captions: already parallel, already translated,
@@ -2945,13 +3125,13 @@ static void cards_verdict_screen(int title, lv_color_t col)
         { .cap = tr(STR_W_DICE_W2_H), .val = tr(STR_W_CARDS_FIX_B),
           .icon = LV_SYMBOL_SHUFFLE },
     };
-    wt_facts(s_scr, 224, facts, 2);
+    wt_facts(s_scr, SY(224), facts, 2);
 
     // CANCEL leaves, START OVER is the way through and takes the corner.
-    wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, 48, WT_ACTION_Y,
-                    330, false, cards_cancel_cb, NULL);
-    wt_arrow_action(s_scr, tr(STR_W_START_OVER), false, true, 422,
-                    WT_ACTION_Y, 330, true, cards_retype_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, SX(48), WT_ACTION_Y,
+                    SX(330), false, cards_cancel_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_W_START_OVER), false, true, SX(422),
+                    WT_ACTION_Y, SX(330), true, cards_retype_cb, NULL);
 }
 
 // A restore that did not work out, and there is exactly one of these however it
@@ -2968,16 +3148,18 @@ static void check_screen(bool degenerate)
 {
     mk_screen(tr(STR_W_CHECK_T),
               tr(degenerate ? cards_sub_key() : STR_W_CHECK_S));
-    int by = 140;
+    int by = SY(140);
     if (degenerate) {
-        lv_obj_t *card = wt_card(s_scr, 48, 104, 704, 92);
+        lv_obj_t *card = wt_card(s_scr, SX(48), SY(104), SX(704), SY(92));
         cards_bars_make(card, STOP_COL);
-        by = 224;
+        // Scaled on the 3.5in, where the unscaled 224 left 94 px of empty glass
+        // between the evidence and the sentence about it.
+        by = KISS_NARROW ? SY(224) : 224;
     }
     mk_body(tr(degenerate ? STR_W_CARDS_BLOCK_B : STR_W_CHECK_B),
-            48, by, 704, WT_CONTENT_BOTTOM - by, STOP_COL);
-    wt_arrow_action(s_scr, tr(STR_W_START_OVER), true, false, 48,
-                    WT_ACTION_Y, 240, false, goto_restore_cb, NULL);
+            SX(48), by, SX(704), WT_CONTENT_BOTTOM - by, STOP_COL);
+    wt_arrow_action(s_scr, tr(STR_W_START_OVER), true, false, SX(48),
+                    WT_ACTION_Y, SX(240), false, goto_restore_cb, NULL);
 }
 
 // Kept apart from the block screen for the title and the colour, not for the
@@ -3000,15 +3182,15 @@ static void cards_cksum_screen(void)
 {
     mk_screen(tr(STR_W_CKSUM_T), tr(STR_W_CKSUM_S));
 
-    lv_obj_t *card = wt_card(s_scr, 48, 104, 704, 100);
+    lv_obj_t *card = wt_card(s_scr, SX(48), SY(104), SX(704), SY(100));
     lv_obj_t *col = lv_obj_create(card);
     lv_obj_remove_style_all(col);
     lv_obj_set_pos(col, 0, 0);
-    lv_obj_set_size(col, 704, 100);
+    lv_obj_set_size(col, SX(704), SY(100));
     lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(col, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
                           LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_row(col, 8, 0);
+    lv_obj_set_style_pad_row(col, SY(8), 0);
     lv_obj_remove_flag(col, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
 
@@ -3044,8 +3226,8 @@ static void cards_cksum_screen(void)
     // The one concrete number: how many of the 2048 list words fit these.
     char fit[96];
     snprintf(fit, sizeof fit, tr(STR_W_CKSUM_FIT_FMT), s_ncand);
-    lv_obj_t *fl = mk_lbl(fit, 48, 210, wt_font23(), wt_accent());
-    lv_obj_set_width(fl, 704);
+    lv_obj_t *fl = mk_lbl(fit, SX(48), SY(210), wt_font23(), wt_accent());
+    lv_obj_set_width(fl, SX(704));
     lv_obj_set_style_text_align(fl, LV_TEXT_ALIGN_CENTER, 0);
 
     // What the last word is and what it catches, as rows under the count.
@@ -3059,14 +3241,14 @@ static void cards_cksum_screen(void)
               .icon = LV_SYMBOL_WARNING,
               .icon_col = WT_WARN },
         };
-        wt_facts(s_scr, 252, facts, 2);
+        wt_facts(s_scr, SY(252), facts, 2);
     }
 
     // 48, not the corner: cards_cancel_cb discards the typed words on one tap.
-    wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, 48, WT_ACTION_Y,
-                    140, false, cards_cancel_cb, NULL);
-    wt_arrow_action(s_scr, tr(STR_W_CKSUM_GO), false, true, 452, WT_ACTION_Y,
-                    300, true, cards_pick_go_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, SX(48), WT_ACTION_Y,
+                    SX(140), false, cards_cancel_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_W_CKSUM_GO), false, true, SX(452), WT_ACTION_Y,
+                    SX(300), true, cards_pick_go_cb, NULL);
 }
 
 static void cards_cksum_open(void)
@@ -3154,30 +3336,49 @@ static void cards_pick_screen(void)
     // The grid keeps the chooser frame; the candidates inside it are bare
     // words now, each with the 8px ext click area the word action carries,
     // on the same 176x66 pitch the boxes used.
-    lv_obj_t *card = wt_card(s_scr, WT_CHOICE_X, 104, WT_CHOICE_W, rows * 66 + 22);
+#if KISS_NARROW
+    // 66 with a 42 pitch on the 3.5in: the scaled 69 and 44 ran four rows to
+    // 259, so the frame had no bottom edge and the last row's words sat on the
+    // band. Four rows end at 240; the 26 px words keep their 8 px click margin
+    // without two targets overlapping.
+    const int grid_y = 66, grid_top = 10, grid_pitch = 42;
+    lv_obj_t *card = wt_card(s_scr, WT_CHOICE_X, grid_y, WT_CHOICE_W,
+                             rows * grid_pitch + 6);
+#else
+    const int grid_top = SY(24), grid_pitch = SY(66);
+    lv_obj_t *card = wt_card(s_scr, WT_CHOICE_X, SY(104), WT_CHOICE_W, rows * SY(66) + SY(22));
+#endif
     for (int k = 0; k < on; k++) {
         lv_obj_t *w = wt_word_action(card, NULL,
                                      kiss_lastword_word(s_cand[first + k]),
                                      true, WT_INK, false, cards_pick_cb,
                                      (void *)(intptr_t)(first + k));
-        lv_obj_set_pos(w, 14 + (k % 4) * 176, 24 + (k / 4) * 66);
+        lv_obj_set_pos(w, SX(14) + (k % 4) * SX(176), grid_top + (k / 4) * grid_pitch);
     }
 
     // Same action row contract as the reveal pager: CANCEL only on page one,
     // BACK owns that slot on later pages, NEXT while there is more to see.
     if (s_cpage == 0)
-        wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, 48, WT_ACTION_Y,
-                        160, false, cards_cancel_cb, NULL);
+        wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, SX(48), WT_ACTION_Y,
+                        SX(160), false, cards_cancel_cb, NULL);
     else
-        wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 48, WT_ACTION_Y,
-                        160, false, cards_page_cb, (void *)(intptr_t)-1);
+        wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, SX(48), WT_ACTION_Y,
+                        SX(160), false, cards_page_cb, (void *)(intptr_t)-1);
     if (s_cpage < pages - 1)
-        wt_arrow_action(s_scr, tr(STR_R_NEXT), false, true, 430, WT_ACTION_Y,
-                        322, true, cards_page_cb, (void *)(intptr_t)1);
+        wt_arrow_action(s_scr, tr(STR_R_NEXT), false, true, SX(430), WT_ACTION_Y,
+                        SX(322), true, cards_page_cb, (void *)(intptr_t)1);
     if (pages > 1) {
         char cnt[40];
         snprintf(cnt, sizeof cnt, "%d-%d / %d", first + 1, first + on, s_ncand);
-        mk_lbl(cnt, 232, 416, wt_font23(), MUT_COL);
+#if KISS_NARROW
+        // Centred on the row's own line: the scaled 277 sat the counter 5 px
+        // above the baselines of the actions either side of it.
+        mk_lbl(cnt, SX(232),
+               WT_ACTION_Y + (WT_ACTION_H - lv_font_get_line_height(wt_font23())) / 2,
+               wt_font23(), MUT_COL);
+#else
+        mk_lbl(cnt, SX(232), SY(416), wt_font23(), MUT_COL);
+#endif
     }
 }
 
@@ -3228,19 +3429,19 @@ static void count_screen(void)
     const char *const CSUB[3] = { tr(STR_W_12_NOTE), tr(STR_W_24_NOTE),
                                   tr(STR_W_LOAD_SCAN_NOTE) };
     const lv_font_t *csf = wt_row_sub_font(CSUB, s_restore ? 3 : 2,
-                                           WT_CHOICE_W, WT_CHOICE_H, true, true);
+                                           WT_CHOICE_W, SETUP_CHOICE_H, true, true);
     wt_row_x(s_scr, LV_SYMBOL_LIST, tr(STR_W_12), tr(STR_W_12_NOTE), csf,
-             NULL, NULL, WT_INK, false, WT_CHOICE_X, WT_CHOICE_Y(0),
-             WT_CHOICE_W, WT_CHOICE_H, count_pick_cb, (void *)(intptr_t)12);
+             NULL, NULL, WT_INK, false, WT_CHOICE_X, SETUP_CHOICE_Y(0),
+             WT_CHOICE_W, SETUP_CHOICE_H, count_pick_cb, (void *)(intptr_t)12);
     wt_row_x(s_scr, LV_SYMBOL_LIST, tr(STR_W_24), tr(STR_W_24_NOTE), csf,
-             NULL, NULL, WT_INK, false, WT_CHOICE_X, WT_CHOICE_Y(1),
-             WT_CHOICE_W, WT_CHOICE_H, count_pick_cb, (void *)(intptr_t)24);
+             NULL, NULL, WT_INK, false, WT_CHOICE_X, SETUP_CHOICE_Y(1),
+             WT_CHOICE_W, SETUP_CHOICE_H, count_pick_cb, (void *)(intptr_t)24);
     // An encrypted backup carries its own length, so it sits beside the count
     // rather than after it.
     if (s_restore)
         wt_row_x(s_scr, WT_ICON_QR, tr(STR_W_SCAN_KEF_QR),
                  tr(STR_W_LOAD_SCAN_NOTE), csf, NULL, NULL, WT_INK, false,
-                 WT_CHOICE_X, WT_CHOICE_Y(2), WT_CHOICE_W, WT_CHOICE_H,
+                 WT_CHOICE_X, SETUP_CHOICE_Y(2), WT_CHOICE_W, SETUP_CHOICE_H,
                  restore_scan_cb, NULL);
     else {
         // UNREACHABLE, and left standing on purpose for one release.
@@ -3256,15 +3457,15 @@ static void count_screen(void)
         // that belongs with it. check_screen_coverage.py will name it as built
         // and never captured, which is the correct report -- it is built by a
         // branch nothing takes.
-        lv_obj_t *hc = wt_card(s_scr, WT_CHOICE_X, 306, WT_CHOICE_W, 76);
-        wt_note(hc, tr(STR_W_SEED_HELP), 16, 22, WT_CHOICE_W - 32 - 34, 34);
-        wt_help_chip(hc, WT_CHOICE_W - 44, 23, MUT_COL, whatseed_count_cb, NULL);
+        lv_obj_t *hc = wt_card(s_scr, WT_CHOICE_X, SY(306), WT_CHOICE_W, SY(76));
+        wt_note(hc, tr(STR_W_SEED_HELP), SX(16), SY(22), WT_CHOICE_W - SX(32) - SX(34), SY(34));
+        wt_help_chip(hc, WT_CHOICE_W - SX(44), SY(23), MUT_COL, whatseed_count_cb, NULL);
         lv_obj_add_flag(hc, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_add_event_cb(hc, whatseed_count_cb, LV_EVENT_CLICKED, NULL);
     }
     // Restore is the only way in now, so BACK has one destination again.
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_BACK_X,
-                    WT_ACTION_Y, 140, true, goto_choose_cb, NULL);
+                    WT_ACTION_Y, SX(140), true, goto_choose_cb, NULL);
     // The same envelope off the card instead of the glass: a .kef file. The
     // chooser grid is full at three, so the card path sits on the action row,
     // wearing the SD mark the word action gives it.
@@ -3272,7 +3473,7 @@ static void count_screen(void)
         lv_obj_t *sd = wt_word_action(s_scr, WT_ICON_SD, tr(STR_S_FROM_SD),
                                       true, WT_INK, false,
                                       kef_sd_open_restore_cb, NULL);
-        lv_obj_set_pos(sd, WT_ACT_X, WT_ACTION_Y + 6);
+        lv_obj_set_pos(sd, WT_ACT_X, WT_ACTION_Y + SY(6));
     }
 }
 
@@ -3336,18 +3537,18 @@ static void storage_screen(void)
         STR_W_SD_NOTE, STR_W_AMNESIC_NOTE
     };
     const char *const SSUB[3] = { tr(NOTE[0]), tr(NOTE[1]), tr(NOTE[2]) };
-    const lv_font_t *ssf = wt_row_sub_font(SSUB, 3, WT_CHOICE_W, WT_CHOICE_H,
+    const lv_font_t *ssf = wt_row_sub_font(SSUB, 3, WT_CHOICE_W, SETUP_CHOICE_H,
                                            true, true);
     for (int i = 0; i < 3; i++) {
         lv_obj_t *row = wt_row_x(s_scr, ICON[i], tr(BTN[i]), tr(NOTE[i]), ssf,
                                  NULL, NULL, WT_INK, false,
-                                 WT_CHOICE_X, WT_CHOICE_Y(i), WT_CHOICE_W,
-                                 WT_CHOICE_H, storage_pick_cb,
+                                 WT_CHOICE_X, SETUP_CHOICE_Y(i), WT_CHOICE_W,
+                                 SETUP_CHOICE_H, storage_pick_cb,
                                  (void *)(intptr_t)MODE[i]);
         if (i == 0 && !enc) wt_row_sub_color(row, WT_WARN);
     }
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_BACK_X,
-                    WT_ACTION_Y, 140, true, goto_choose_cb, NULL);
+                    WT_ACTION_Y, SX(140), true, goto_choose_cb, NULL);
 }
 
 // ---- entry ----
@@ -3435,7 +3636,7 @@ static void whatseed_open(void (*ret)(void))
     wt_explain(s_scr, tr(STR_W_WHATSEED_HEAD), tr(STR_W_WHATSEED_B), facts, 3);
 
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_BACK_X,
-                    WT_ACTION_Y, 140, true, whatseed_back_cb, NULL);
+                    WT_ACTION_Y, SX(140), true, whatseed_back_cb, NULL);
 }
 
 static void whatseed_cb(lv_event_t *e) { (void)e; whatseed_open(choose_screen); }
@@ -3452,7 +3653,7 @@ static void choose_screen(void)
     mk_screen(tr(STR_W_SETUP_T), tr(STR_W_SETUP_S));
     // The language control sits on the title's row, so the title gets 496.
     // French, Italian and Portuguese titles reached into it at font34.
-    wt_title_fit(s_scr, 496);
+    wt_title_fit(s_scr, SX(496));
     // A whole sentence on each row, not the bare word "seed": nobody arrives
     // knowing what a seed is, and this is the first screen a new owner ever
     // reaches. STR_W_CREATE_NEW and STR_W_RESTORE_FROM_WORDS keep their short
@@ -3503,9 +3704,19 @@ static void choose_screen(void)
         // chip. wt_note_fit takes the biggest font that fits the box it is
         // given, so a taller box does NOT mean bigger type here -- it means a
         // short sentence stranded at the top of a half empty card.
-        lv_obj_t *hc = wt_card(s_scr, WT_CHOICE_X, 306, WT_CHOICE_W, 76);
-        wt_note(hc, tr(STR_W_SEED_HELP), 16, 22, WT_CHOICE_W - 32 - 34, 34);
-        wt_help_chip(hc, WT_CHOICE_W - 44, 23, MUT_COL, whatseed_cb, NULL);
+#if KISS_NARROW
+        // 200..242 on the 3.5in: scaled, the card's bottom edge landed on the
+        // band's own top line at 254 and read as cut off. 42 still centres one
+        // line and the mark with 11 px above and below.
+        lv_obj_t *hc = wt_card(s_scr, WT_CHOICE_X, WT_CHOICE_Y(1) + WT_CHOICE_H + 8,
+                               WT_CHOICE_W, 42);
+        wt_note(hc, tr(STR_W_SEED_HELP), SX(16), 12, WT_CHOICE_W - SX(32) - SX(34), SY(34));
+        wt_help_chip(hc, WT_CHOICE_W - SX(44), 11, MUT_COL, whatseed_cb, NULL);
+#else
+        lv_obj_t *hc = wt_card(s_scr, WT_CHOICE_X, SY(306), WT_CHOICE_W, SY(76));
+        wt_note(hc, tr(STR_W_SEED_HELP), SX(16), SY(22), WT_CHOICE_W - SX(32) - SX(34), SY(34));
+        wt_help_chip(hc, WT_CHOICE_W - SX(44), SY(23), MUT_COL, whatseed_cb, NULL);
+#endif
         // The whole card opens it, not just the 30px mark. Someone who does not
         // know what a seed is will reach for the sentence, not the punctuation.
         lv_obj_add_flag(hc, LV_OBJ_FLAG_CLICKABLE);
@@ -3534,7 +3745,7 @@ static void choose_screen(void)
     // Settings then, there is a device behind it, and going back is correct.
     if (kiss_seed_exists())
         wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, WT_BACK_X,
-                        WT_ACTION_Y, 140, true, cancel_cb, NULL);
+                        WT_ACTION_Y, SX(140), true, cancel_cb, NULL);
 
     // first boot happens BEFORE Settings is reachable: a fresh device must not
     // trap its owner in English, so the language picker lives here too
@@ -3558,7 +3769,10 @@ static void choose_screen(void)
             lv_obj_move_to_index(fl, 0);
         }
         lv_obj_update_layout(lp);
-        lv_obj_set_pos(lp, 752 - lv_obj_get_width(lp), 32);
+        // On the title's own line on the 3.5in, for the reason the dice
+        // screen's DICE / COIN pair is: at the scaled 21 it floated between
+        // the title and the subtitle.
+        lv_obj_set_pos(lp, SX(752) - lv_obj_get_width(lp), KISS_NARROW ? 7 : SY(32));
     }
 }
 
@@ -3609,9 +3823,9 @@ static void kef_wipe_env(void)
 static void kef_bad_screen(void)
 {
     mk_screen(tr(STR_W_KEF_BAD_T), tr(STR_W_KEF_BAD_S));
-    wt_body_para(s_scr, tr(STR_W_KEF_BAD_B), 140);
-    wt_arrow_action(s_scr, tr(STR_C_TRY_AGAIN), false, true, 452,
-                    WT_ACTION_Y, 300, true,
+    wt_body_para(s_scr, tr(STR_W_KEF_BAD_B), SY(140));
+    wt_arrow_action(s_scr, tr(STR_C_TRY_AGAIN), false, true, SX(452),
+                    WT_ACTION_Y, SX(300), true,
                     s_qr_from_restore ? goto_count_cb : load_back_cb, NULL);
 }
 
@@ -3718,11 +3932,11 @@ static void kef_sd_pick_screen(void)
     if (platform_sd_mount() != 0) {
         platform_sd_unmount();
         mk_screen(tr(STR_W_SD_MISSING_T), NULL);
-        wt_body_para(s_scr, tr(STR_W_KEF_SD_NONE_B), 140);
-        wt_arrow_action(s_scr, tr(STR_C_TRY_AGAIN), false, true, 452,
-                        WT_ACTION_Y, 300, true, kef_sd_retry_cb, NULL);
-        wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 48, WT_ACTION_Y,
-                        140, false, kef_pick_back_cb, NULL);
+        wt_body_para(s_scr, tr(STR_W_KEF_SD_NONE_B), SY(140));
+        wt_arrow_action(s_scr, tr(STR_C_TRY_AGAIN), false, true, SX(452),
+                        WT_ACTION_Y, SX(300), true, kef_sd_retry_cb, NULL);
+        wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, SX(48), WT_ACTION_Y,
+                        SX(140), false, kef_pick_back_cb, NULL);
         return;
     }
     int total = 0;
@@ -3730,24 +3944,32 @@ static void kef_sd_pick_screen(void)
     platform_sd_unmount();
     if (n <= 0) {
         mk_screen(tr(STR_W_KEF_SD_T), NULL);
-        wt_body_para(s_scr, tr(STR_W_KEF_SD_EMPTY), 140);
+        wt_body_para(s_scr, tr(STR_W_KEF_SD_EMPTY), SY(140));
         wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_BACK_X,
-                        WT_ACTION_Y, 140, true, kef_pick_back_cb, NULL);
+                        WT_ACTION_Y, SX(140), true, kef_pick_back_cb, NULL);
         return;
     }
     mk_screen(tr(STR_W_KEF_SD_T), tr(STR_W_KEF_SD_S));
     for (int i = 0; i < n; i++)
         wt_row_x(s_scr, WT_ICON_LOCK, s_kef_files[i], NULL, NULL, NULL, NULL,
-                 WT_INK, false, WT_CHOICE_X, WT_CHOICE_Y(i), WT_CHOICE_W,
-                 WT_CHOICE_H, kef_file_tap_cb, (void *)(intptr_t)i);
+                 WT_INK, false, WT_CHOICE_X, SETUP_CHOICE_Y(i), WT_CHOICE_W,
+                 SETUP_CHOICE_H, kef_file_tap_cb, (void *)(intptr_t)i);
     if (total > n) {
         // the same window note the cards pager draws: digits carry it all
         char cnt[32];
         snprintf(cnt, sizeof cnt, "%d / %d", n, total);
-        mk_lbl(cnt, 232, 416, wt_font23(), MUT_COL);
+#if KISS_NARROW
+        // Centred on the row's own line: the scaled 277 sat the counter 5 px
+        // above the baselines of the actions either side of it.
+        mk_lbl(cnt, SX(232),
+               WT_ACTION_Y + (WT_ACTION_H - lv_font_get_line_height(wt_font23())) / 2,
+               wt_font23(), MUT_COL);
+#else
+        mk_lbl(cnt, SX(232), SY(416), wt_font23(), MUT_COL);
+#endif
     }
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_BACK_X,
-                    WT_ACTION_Y, 140, true, kef_pick_back_cb, NULL);
+                    WT_ACTION_Y, SX(140), true, kef_pick_back_cb, NULL);
 }
 
 static void kef_sd_open_restore_cb(lv_event_t *e)
@@ -3767,9 +3989,9 @@ static void kef_sd_open_load_cb(lv_event_t *e)
 static void qr_bad_screen(void)
 {
     mk_screen(tr(STR_W_QRBAD_T), tr(STR_W_QRBAD_S));
-    wt_body_para(s_scr, tr(STR_W_QRBAD_B), 140);
-    wt_arrow_action(s_scr, tr(STR_C_TRY_AGAIN), false, true, 452,
-                    WT_ACTION_Y, 300, true,
+    wt_body_para(s_scr, tr(STR_W_QRBAD_B), SY(140));
+    wt_arrow_action(s_scr, tr(STR_C_TRY_AGAIN), false, true, SX(452),
+                    WT_ACTION_Y, SX(300), true,
                     s_qr_from_restore ? goto_count_cb : load_back_cb, NULL);
 }
 
@@ -3813,20 +4035,30 @@ static void load_screen(void)
     lv_obj_t *ld = wt_word_action(s_scr, WT_ICON_ARR_R,
                                   tr(STR_W_TYPE_MY_WORDS), false,
                                   wt_accent(), true, load_type_cb, NULL);
-    lv_obj_set_pos(ld, 48, 156);
     lv_obj_t *sc = wt_word_action(s_scr, WT_ICON_ARR_R,
                                   tr(STR_W_SCAN_KEF_QR), false, WT_INK,
                                   false, load_scan_cb, NULL);
-    lv_obj_set_pos(sc, 48, 270);
-    wt_wraph(s_scr, tr(STR_W_LOAD_TYPE_NOTE), 430, 150, 340, 110);
-    wt_wraph(s_scr, tr(STR_W_LOAD_SCAN_NOTE), 430, 266, 340, 130);
-    wt_arrow_action(s_scr, tr(STR_W_CREATE_NEW), false, false, 560,
-                    WT_ACTION_Y, 190, true, load_new_cb, NULL);
+#if KISS_NARROW
+    // Stacked on the 3.5in, each note under its own action on the whole lane.
+    // Beside them the notes had 204 px and wrapped to three ragged lines each,
+    // stranding "paper." and "opens", next to a column of two short labels.
+    lv_obj_set_pos(ld, SX(48), 84);
+    lv_obj_set_pos(sc, SX(48), 170);
+    wt_wraph(s_scr, tr(STR_W_LOAD_TYPE_NOTE), SX(48), 112, SX(704), 50);
+    wt_wraph(s_scr, tr(STR_W_LOAD_SCAN_NOTE), SX(48), 198, SX(704), 50);
+#else
+    lv_obj_set_pos(ld, SX(48), SY(156));
+    lv_obj_set_pos(sc, SX(48), SY(270));
+    wt_wraph(s_scr, tr(STR_W_LOAD_TYPE_NOTE), SX(430), SY(150), SX(340), SY(110));
+    wt_wraph(s_scr, tr(STR_W_LOAD_SCAN_NOTE), SX(430), SY(266), SX(340), SY(130));
+#endif
+    wt_arrow_action(s_scr, tr(STR_W_CREATE_NEW), false, false, SX(560),
+                    WT_ACTION_Y, SX(190), true, load_new_cb, NULL);
     // An amnesic session restores from a .kef backup the same way the wizard
     // does: the card path shares the action row with CREATE NEW.
     lv_obj_t *sd = wt_word_action(s_scr, WT_ICON_SD, tr(STR_S_FROM_SD), true,
                                   WT_INK, false, kef_sd_open_load_cb, NULL);
-    lv_obj_set_pos(sd, WT_ACT_X, WT_ACTION_Y + 6);
+    lv_obj_set_pos(sd, WT_ACT_X, WT_ACTION_Y + SY(6));
 }
 
 // ---- configured SD wallet: card/file gate before passphrase entry ----
@@ -3874,17 +4106,17 @@ static void sd_problem_screen(int rc)
 {
     s_sd_problem = rc;
     mk_screen(tr(STR_W_SD_MISSING_T), tr(STR_W_SD_MISSING_S));
-    mk_body(sd_problem_body(s_sd_problem), 48, 132, 704, 226,
+    mk_body(sd_problem_body(s_sd_problem), SX(48), SY(132), SX(704), SY(226),
             s_sd_problem == WSEED_ERR_SD_MISSING ? MUT_COL : WARN_COL);
 
     // TRY AGAIN at 48, the recovery path in the middle, the way out in the
     // corner -- the same three-up lane split the boxes used.
     wt_arrow_action(s_scr, tr(STR_C_TRY_AGAIN), false, true, WT_ACT_X,
-                    WT_ACTION_Y, 240, false, sd_retry_cb, NULL);
-    wt_arrow_action(s_scr, tr(STR_W_RESTORE_FROM_WORDS), false, false, 310,
-                    WT_ACTION_Y, 280, false, sd_recover_cb, NULL);
+                    WT_ACTION_Y, SX(240), false, sd_retry_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_W_RESTORE_FROM_WORDS), false, false, SX(310),
+                    WT_ACTION_Y, SX(280), false, sd_recover_cb, NULL);
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_EXIT_X,
-                    WT_ACTION_Y, 140, true, sd_problem_back_cb, NULL);
+                    WT_ACTION_Y, SX(140), true, sd_problem_back_cb, NULL);
 }
 
 void kiss_setup_open_load(lv_obj_t *parent, void (*done_cb)(void))

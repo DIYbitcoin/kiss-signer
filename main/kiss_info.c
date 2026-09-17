@@ -101,8 +101,8 @@ static void sp_permission_fact(lv_obj_t *parent, const char *icon,
 {
     lv_obj_t *row = lv_obj_create(parent);
     lv_obj_remove_style_all(row);
-    lv_obj_set_size(row, 560, 38);
-    lv_obj_set_style_radius(row, 12, 0);
+    lv_obj_set_size(row, SX(560), SY(38));
+    lv_obj_set_style_radius(row, SX(12), 0);
     lv_obj_set_style_bg_color(row, WT_KEY, 0);
     lv_obj_set_style_bg_opa(row, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(row, 1, 0);
@@ -124,13 +124,13 @@ static void sp_permission_fact(lv_obj_t *parent, const char *icon,
     lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
                           LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(row, 14, 0);
+    lv_obj_set_style_pad_column(row, SX(14), 0);
 
     lv_obj_t *ic = wt_lbl(row, icon, 0, 0, wt_font23(), icon_color);
     lv_obj_set_width(ic, LV_SIZE_CONTENT);
-    lv_obj_t *fact = wt_note(row, tr(key), 0, 0, 482, 29);
+    lv_obj_t *fact = wt_note(row, tr(key), 0, 0, SX(482), SY(29));
     lv_obj_set_width(fact, LV_SIZE_CONTENT);
-    lv_obj_set_style_max_width(fact, 482, 0);
+    lv_obj_set_style_max_width(fact, SX(482), 0);
     lv_obj_set_style_text_align(fact, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_color(fact, WT_INK, 0);
 }
@@ -150,7 +150,7 @@ static void sp_permission_model(lv_obj_t *parent)
     lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(col, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
                           LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_row(col, 6, 0);
+    lv_obj_set_style_pad_row(col, SY(6), 0);
     lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
 
     // Three rows, three jobs, and only TWO of them are coloured.
@@ -205,7 +205,7 @@ static int aside_col(lv_obj_t *par, int x, int y, int w, void (*fill)(lv_obj_t *
     lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(col, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
                           LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_row(col, 10, 0);
+    lv_obj_set_style_pad_row(col, SY(10), 0);
     lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
     fill(col);
     lv_obj_update_layout(col);
@@ -219,8 +219,24 @@ static int aside_col(lv_obj_t *par, int x, int y, int w, void (*fill)(lv_obj_t *
 static char s_fp_code[16];
 static void diagram_fpid(lv_obj_t *col) { wt_diagram_fpid(col, s_fp_code); }
 
+#if KISS_NARROW
+// The fingerprint card's claims, handed to its aside for the length of one
+// kiss_info_fp_card_open call; see fp_claims.
+static const char *const *s_fp_mark, *const *s_fp_claim;
+static int s_fp_n;
+static void fp_claims(lv_obj_t *ovl, int y0);
+static int aside_fp(lv_obj_t *p, int x, int y, int w)
+{
+    const int h = aside_col(p, x, y, w, diagram_fpid);
+    // Drawn here rather than after the card opens, so the claims arrive on
+    // the card's own entry stagger instead of popping in ahead of it.
+    if (s_fp_n) fp_claims(p, y + h + 20);   // the explainer's own band gap
+    return h;
+}
+#else
 static int aside_fp(lv_obj_t *p, int x, int y, int w)
 { return aside_col(p, x, y, w, diagram_fpid); }
+#endif
 static int aside_pair(lv_obj_t *p, int x, int y, int w)
 { return aside_col(p, x, y, w, wt_diagram_pair); }
 static int aside_scan(lv_obj_t *p, int x, int y, int w)
@@ -259,6 +275,50 @@ static lv_obj_t *help_open_on(lv_obj_t *parent, const char *title,
     return wt_explain_open(parent, &e);
 }
 
+#if KISS_NARROW
+// The card's claims as a LIST on the 3.5in: each mark in its own column, its
+// sentence wrapping beside it, 8 px between claims. As one paragraph the
+// first claim's second line ("code.") wrapped back under the link mark and
+// the three claims ran together with no air, so the wrap read as a fourth
+// item. Two objects a claim, three claims at most, on an overlay.
+static void fp_claims(lv_obj_t *ovl, int y0)
+{
+    const char *const *mark = s_fp_mark, *const *claim = s_fp_claim;
+    const int n = s_fp_n, gap = SY(12);
+    const lv_font_t *f = wt_font28();
+    int mw = 0, h[3] = {0}, total = 0;
+    for (int pass = 0; pass < 2; pass++) {
+        mw = 0;
+        for (int i = 0; i < n; i++) {
+            lv_point_t sz;
+            lv_text_get_size(&sz, mark[i], f, 0, 0, LV_COORD_MAX,
+                             LV_TEXT_FLAG_NONE);
+            if (sz.x > mw) mw = sz.x;
+        }
+        total = (n - 1) * gap;
+        for (int i = 0; i < n; i++) {
+            lv_point_t sz;
+            lv_text_get_size(&sz, claim[i], f, 0, 0,
+                             SX(752) - SX(48) - mw - SX(14), LV_TEXT_FLAG_NONE);
+            h[i] = sz.y;
+            total += sz.y;
+        }
+        if (y0 + total <= WT_CONTENT_BOTTOM - 4) break;
+        f = wt_font23();                   // the body ladder's next rung
+    }
+    // A third of the slack above, the rest below: the explainer's own rule.
+    const int slack = WT_CONTENT_BOTTOM - y0 - total;
+    if (slack > 0) y0 += slack / 3;
+    const int tx = SX(48) + mw + SX(14);
+    for (int i = 0; i < n; i++) {
+        wt_lbl(ovl, mark[i], SX(48), y0, f, WT_MUT);
+        // max_h is the claim's own height at f, so the ladder lands on f.
+        wt_wrap(ovl, claim[i], tx, y0, SX(752) - tx, h[i]);
+        y0 += h[i] + gap;
+    }
+}
+#endif
+
 lv_obj_t *kiss_info_fp_card_open(lv_obj_t *parent, const char *fingerprint,
                                    bool exit_hint)
 {
@@ -277,6 +337,26 @@ lv_obj_t *kiss_info_fp_card_open(lv_obj_t *parent, const char *fingerprint,
     // chain at full size. No blank lines: one costs a whole line of type.
     const char *b  = tr(STR_I_H_FP_B);
     const char *nl = strchr(b, '\n');
+#if KISS_NARROW
+    if (nl) {
+        char first[256];
+        size_t fl = (size_t)(nl - b);
+        if (fl >= sizeof first) fl = sizeof first - 1;
+        memcpy(first, b, fl);
+        first[fl] = 0;
+        const char *const mark[3] = { WT_ICON_LINK, LV_SYMBOL_OK,
+                                      LV_SYMBOL_PLAY };
+        const char *const claim[3] = { first, nl + 1, tr(STR_H_EXIT_HINT) };
+        s_fp_mark = mark;
+        s_fp_claim = claim;
+        s_fp_n = exit_hint ? 3 : 2;
+        lv_obj_t *ovl = help_open_on(parent, title, "", DIAG_FP, false, NULL,
+                                     NULL, 0);
+        s_fp_n = 0;
+        s_fp_mark = s_fp_claim = NULL;
+        return ovl;
+    }
+#endif
     char body[512];
     if (nl && exit_hint)
         snprintf(body, sizeof body, "%s %.*s\n%s %s\n%s %s",
@@ -328,17 +408,17 @@ lv_obj_t *kiss_info_help_card_open(lv_obj_t *parent, const char *title,
 // keeps its 264, which means it keeps the left margin and its full height,
 // and the card that would have framed both bays goes instead. The white QR
 // card is the frame on this page, as it was before.
-#define PAIR_STRIP_Y     62   // the contract's 70, less the 8 the QR needs
-#define PAIR_QR_X        48
-#define PAIR_QR_Y        96
-#define PAIR_QR_CARD    300
-#define PAIR_QR_PX      264
-#define PAIR_RULE_X     372
-#define PAIR_BAY_X      392
-#define PAIR_BAY_W      (752 - PAIR_BAY_X)   // 360; the widest rung is 350
-#define PAIR_RUNG_Y     112
-#define PAIR_RUNG_PITCH  52
-#define PAIR_TAIL_Y     280
+#define PAIR_STRIP_Y     SY(62)   // the contract's 70, less the 8 the QR needs
+#define PAIR_QR_X        SX(48)
+#define PAIR_QR_Y        SY(96)
+#define PAIR_QR_CARD    SX(300)
+#define PAIR_QR_PX      SX(264)
+#define PAIR_RULE_X     SX(372)
+#define PAIR_BAY_X      SX(392)
+#define PAIR_BAY_W      (SX(752) - PAIR_BAY_X)   // 360; the widest rung is 350
+#define PAIR_RUNG_Y     SY(112)
+#define PAIR_RUNG_PITCH  SY(52)
+#define PAIR_TAIL_Y     SY(280)
 
 // The note's FIRST line, cut on " > " into ladder rungs. The separator is
 // literal and never per-locale: the paths themselves are the coordinator's own
@@ -556,21 +636,65 @@ static void pair_instructions_cb(lv_event_t *e)
     // The body clears the HEAD, measured rather than guessed: wt_section moved
     // up a rung and both bodies were sitting inside the head's own line box,
     // which the overlap gate read as text on text on both cards.
-    lv_obj_t *c1 = wt_card(s_scr, 36, 96, 716, 162);
-    lv_obj_t *h1 = wt_section(c1, tr_sym(WT_ICON_QR, STR_I_SHOW_TO), 16, 10);
+#if KISS_NARROW
+    // Re-cut on the 3.5in, not scaled. Scaled, VERIFY ran 176..264 and its
+    // third line sat under the band's floor at 254, while SHOW IT TO kept
+    // 40 px of empty card under a two line path. Each card is now as tall as
+    // its head and its note measure in this locale, plus 4 px of air, 6 px
+    // apart, the first 8 px under the trail's words. A locale whose proof
+    // runs a line longer (ru takes four) gives up the air first and then
+    // lifts the pair, never above the 64 the trail was lifted to clear.
+    const int gap = 6;
+    const char *note = s_pair_fmt ? tr(STR_I_NOTE_BW) : tr(STR_I_NOTE_SPARROW);
+    lv_point_t ns, ps;
+    lv_text_get_size(&ns, note, wt_font23(), 0, 0, SX(688), LV_TEXT_FLAG_NONE);
+    lv_text_get_size(&ps, tr(STR_I_PROVE), wt_font23(), 0, 0, SX(688),
+                     LV_TEXT_FLAG_NONE);
+    int note_h = ns.y + 4, prove_h = ps.y + 4;
+
+    lv_obj_t *c1 = wt_card(s_scr, SX(36), 0, SX(716), 0);
+    lv_obj_t *h1 = wt_section(c1, tr_sym(WT_ICON_QR, STR_I_SHOW_TO), SX(16), gap);
+    lv_obj_t *c2 = wt_card(s_scr, SX(36), 0, SX(716), 0);
+    lv_obj_t *h2 = wt_section(c2, tr_sym(LV_SYMBOL_OK, STR_R_VERIFY), SX(16), gap);
+    lv_obj_update_layout(h1);
+    lv_obj_update_layout(h2);
+    const int b1 = gap + lv_obj_get_height(h1) + 4;
+    const int b2 = gap + lv_obj_get_height(h2) + 4;
+    const int floor_y = WT_CONTENT_BOTTOM - gap;
+    int cy = 70;
+    if (cy + b1 + note_h + b2 + prove_h + 3 * gap > floor_y) {
+        note_h -= 4;
+        prove_h -= 4;
+    }
+    const int need = b1 + note_h + b2 + prove_h + 3 * gap;
+    if (cy + need > floor_y) cy = LV_MAX(64, floor_y - need);
+
+    lv_obj_set_y(c1, cy);
+    lv_obj_set_height(c1, b1 + note_h + gap);
+    lv_obj_t *steps = wt_note(c1, note, SX(16), b1, SX(688), note_h);
+    lv_obj_set_style_text_color(steps, WT_INK, 0);
+
+    lv_obj_set_y(c2, cy + b1 + note_h + 2 * gap);
+    lv_obj_set_height(c2, b2 + prove_h + gap);
+    lv_obj_t *prove = wt_note(c2, tr(STR_I_PROVE), SX(16), b2, SX(688), prove_h);
+    lv_obj_set_style_text_color(prove, WT_INK, 0);
+#else
+    lv_obj_t *c1 = wt_card(s_scr, SX(36), SY(96), SX(716), SY(162));
+    lv_obj_t *h1 = wt_section(c1, tr_sym(WT_ICON_QR, STR_I_SHOW_TO), SX(16), SY(10));
     lv_obj_update_layout(h1);
     const int b1 = 10 + lv_obj_get_height(h1) + 4;
     lv_obj_t *steps = wt_note(c1,
         s_pair_fmt ? tr(STR_I_NOTE_BW) : tr(STR_I_NOTE_SPARROW),
-        16, b1, 688, 162 - b1 - 12);
+        SX(16), b1, SX(688), SY(162) - b1 - SY(12));
     lv_obj_set_style_text_color(steps, WT_INK, 0);
 
-    lv_obj_t *c2 = wt_card(s_scr, 36, 264, 716, 132);
-    lv_obj_t *h2 = wt_section(c2, tr_sym(LV_SYMBOL_OK, STR_R_VERIFY), 16, 8);
+    lv_obj_t *c2 = wt_card(s_scr, SX(36), SY(264), SX(716), SY(132));
+    lv_obj_t *h2 = wt_section(c2, tr_sym(LV_SYMBOL_OK, STR_R_VERIFY), SX(16), SY(8));
     lv_obj_update_layout(h2);
     const int b2 = 8 + lv_obj_get_height(h2) + 4;
-    lv_obj_t *prove = wt_note(c2, tr(STR_I_PROVE), 16, b2, 688, 132 - b2 - 10);
+    lv_obj_t *prove = wt_note(c2, tr(STR_I_PROVE), SX(16), b2, SX(688), SY(132) - b2 - SY(10));
     lv_obj_set_style_text_color(prove, WT_INK, 0);
+#endif
 
     // RECEIVE's band, in RECEIVE's own three positions: the screen's action on
     // the left at WT_ACT_X, the secondary at 300, the exit in the corner. BACK
@@ -583,8 +707,8 @@ static void pair_instructions_cb(lv_event_t *e)
     // the same control. It opens the camera directly; see kiss_recv_open_verify.
     wt_arrow_action(s_scr, tr(STR_R_VERIFY), false, true, WT_ACT_X, WT_ACTION_Y,
                     0, false, pair_verify_go_cb, NULL);
-    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 300, WT_ACTION_Y, 0, false, pair_qr_back_cb, NULL);
-    wt_arrow_action(s_scr, tr(STR_C_DONE), true, false, 592, WT_ACTION_Y, 160, true, pair_back_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, SX(300), WT_ACTION_Y, 0, false, pair_qr_back_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_DONE), true, false, SX(592), WT_ACTION_Y, SX(160), true, pair_back_cb, NULL);
 }
 
 static void sp_key_warn_cb(lv_event_t *e);   // scan-key export, warning first
@@ -628,9 +752,9 @@ static void pair_term_more(int id)
     wt_chrome_head(s_scr);
     wt_trail(s_scr, WT_ICON_WHAT, tr(STR_S_GLOSSARY_T), false);
 
-    wt_lbl(s_scr, tr(STR_T_WATCH_P2_HEAD), WT_LANE_X, 118, wt_font_mono28(),
+    wt_lbl(s_scr, tr(STR_T_WATCH_P2_HEAD), WT_LANE_X, SY(118), wt_font_mono28(),
            WT_INK);
-    wt_lbl(s_scr, tr(STR_T_WATCH_P2_B), WT_LANE_X, 158,
+    wt_lbl(s_scr, tr(STR_T_WATCH_P2_B), WT_LANE_X, SY(158),
            wt_font_mono23(), WT_MUT);
     // FRAMED, because a descriptor is a VALUE and the chrome contract asks
     // every screen for something framed above the action row. It was four
@@ -649,16 +773,26 @@ static void pair_term_more(int id)
     // It also stops being a WALL by measure, which is the honest order of
     // events: the column is narrower because it reads better, and a 704px
     // paragraph of data in a box was what the gate objected to.
-    const int dw = 470;
-    lv_obj_t *d = wt_addr_spans(s_scr, txt, dw - 48, wt_font_mono23());
+    const int dw = SX(470);
+    lv_obj_t *d = wt_addr_spans(s_scr, txt, dw - SX(48), wt_font_mono23());
     lv_obj_update_layout(d);
-    lv_obj_t *card = wt_card(s_scr, WT_LANE_X, 196, dw,
-                             lv_obj_get_height(d) + 44);
+#if KISS_NARROW
+    // 12 px above and below the text on the 3.5in, not the scaled 14 and 15:
+    // five lines of the descriptor put the card's edge 5 px over the band's
+    // floor line, and this brings it to 10.
+    lv_obj_t *card = wt_card(s_scr, WT_LANE_X, SY(196), dw,
+                             lv_obj_get_height(d) + 24);
     lv_obj_set_parent(d, card);
-    lv_obj_set_pos(d, 24, 22);
+    lv_obj_set_pos(d, SX(24), 12);
+#else
+    lv_obj_t *card = wt_card(s_scr, WT_LANE_X, SY(196), dw,
+                             lv_obj_get_height(d) + SY(44));
+    lv_obj_set_parent(d, card);
+    lv_obj_set_pos(d, SX(24), SY(22));
+#endif
 
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_BACK_X,
-                    WT_ACTION_Y, 140, true, desc2_back_cb, NULL);
+                    WT_ACTION_Y, SX(140), true, desc2_back_cb, NULL);
 }
 
 static void pair_terms_back_cb(lv_event_t *e)
@@ -679,7 +813,7 @@ static void pair_terms_cb(lv_event_t *e)
     kiss_terms_list(s_scr, KISS_TERMS_PAIR, 3);
     kiss_terms_hint(s_scr, KISS_TERMS_PAIR, 3);
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_BACK_X,
-                    WT_ACTION_Y, 140, true, pair_terms_back_cb, NULL);
+                    WT_ACTION_Y, SX(140), true, pair_terms_back_cb, NULL);
 }
 
 // WHAT THIS QR HANDS OVER, at the moment it is handed over -- on the BAND now
@@ -722,8 +856,11 @@ static void pair_terms_cb(lv_event_t *e)
 // says NEXT in a word wide enough to reach past that, and the walk caught both
 // halves of this sentence sitting on its arrow -- a fixed left edge here is a
 // promise about how long a translation is.
-static void pair_band_claim(lv_obj_t *next_act)
+static void pair_band_claim(lv_obj_t *next_act, lv_obj_t *exit_act)
 {
+#if !KISS_NARROW
+    (void)exit_act;
+#endif
     const char *txt = tr(STR_K_EXPL_COORD);
     const char *sp = strstr(txt, ". ");
     const char *cjk = strstr(txt, "\xE3\x80\x82");
@@ -747,13 +884,33 @@ static void pair_band_claim(lv_obj_t *next_act)
     // Centred in the band the way wt_standing centres its own line, so the
     // claim sits on the same rung as every other sentence down here.
     int y = WT_ACTION_Y + (WT_ACTION_H - n * lh) / 2;
+#if KISS_NARROW
+    // Word to word on the 3.5in, both ends measured. The wide 190 left edge
+    // is 40% of this glass and SX(592) stopped the lane 47 px short of BACK's
+    // word, so the claim had 158 px where "it sees every transaction." needs
+    // 218 and both halves read "it sees every tr...". NEXT's box reaches the
+    // panel edge here, so its word ends at x + width, not WT_ACT_X + width;
+    // 12 px of air on each side keeps the claim clear of both arrows.
+    int x0 = 0;
+    if (next_act) {
+        lv_obj_update_layout(next_act);   // or the width answers zero
+        x0 = lv_obj_get_x(next_act) + lv_obj_get_width(next_act) + SX(20);
+    }
+    int x1 = SX(592) - SX(12);
+    if (exit_act) {
+        lv_obj_update_layout(exit_act);
+        x1 = lv_obj_get_x(exit_act) - SX(20);
+    }
+    const int w = x1 - x0;
+#else
     int x0 = 190;
     if (next_act) {
         lv_obj_update_layout(next_act);   // or the width answers zero
         const int after = WT_ACT_X + lv_obj_get_width(next_act) + 16;
         if (after > x0) x0 = after;
     }
-    const int w = 592 - 12 - x0;
+    const int w = SX(592) - SX(12) - x0;
+#endif
     if (w < 120) return;                  // no lane left: the controls win
     const char *line[2] = { one, rest };
     for (int i = 0; i < n; i++) {
@@ -845,8 +1002,8 @@ static void pair_screen(void)
         // halves of one instruction rather than two unrelated blocks.
         lv_obj_t *v = lv_obj_create(s_scr);
         lv_obj_remove_style_all(v);
-        lv_obj_set_pos(v, PAIR_RULE_X, PAIR_QR_Y + 8);
-        lv_obj_set_size(v, 1, PAIR_QR_CARD - 16);
+        lv_obj_set_pos(v, PAIR_RULE_X, PAIR_QR_Y + SY(8));
+        lv_obj_set_size(v, 1, PAIR_QR_CARD - SY(16));
         lv_obj_set_style_bg_color(v, WT_DIV, 0);
         lv_obj_set_style_bg_opa(v, LV_OPA_COVER, 0);
         lv_obj_remove_flag(v, LV_OBJ_FLAG_CLICKABLE);
@@ -897,8 +1054,8 @@ static void pair_screen(void)
     // only its page-back -- so the adjacency exemption has nothing to protect
     // here, and both pages agree on where the exit is.
     lv_obj_t *nx = wt_arrow_action(s_scr, tr(STR_R_NEXT), false, false, WT_ACT_X, WT_ACTION_Y, 0, false, pair_instructions_cb, NULL);
-    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, pair_back_cb, NULL);
-    pair_band_claim(nx);
+    lv_obj_t *bk = wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, SX(592), WT_ACTION_Y, SX(160), true, pair_back_cb, NULL);
+    pair_band_claim(nx, bk);
     wt_swipe_watch(s_scr, pair_gesture_cb);
     // The silent-payment SCAN KEY used to live HERE, buried one tap inside PAIR
     // COORDINATOR. It is its own export with its own consent warning, and
@@ -990,24 +1147,24 @@ static void sp_key_show(void *ud)
     // left for whatever reuses this frame.
     char key[256];
     if (kiss_session_sp_scan_export(key, sizeof key) != 0) {
-        lv_obj_t *card = wt_card(s_scr, 48, 128, 704, 140);
+        lv_obj_t *card = wt_card(s_scr, SX(48), SY(128), SX(704), SY(140));
         lv_obj_t *ic = wt_lbl(card, WT_ICON_LOCK, 0, 0, wt_font34(), WT_WARN);
-        lv_obj_align(ic, LV_ALIGN_LEFT_MID, 28, 0);
+        lv_obj_align(ic, LV_ALIGN_LEFT_MID, SX(28), 0);
         lv_obj_t *chip = wt_state_chip(card, tr(STR_C_SESSION_LOCKED), WT_WARN);
-        lv_obj_align(chip, LV_ALIGN_LEFT_MID, 92, 0);
+        lv_obj_align(chip, LV_ALIGN_LEFT_MID, SX(92), 0);
         // Not L_FAIL_OPEN_B: nothing went WRONG. The lock is the device
         // doing its job, and a refusal note that reads like a fault teaches an
         // owner to fear a feature. Reassurance first, then the mechanism, then
         // the way back.
-        wt_note(s_scr, tr(STR_C_LOCKED_B), 48, 296, 704, 90);
-        wt_arrow_action(s_scr, tr(STR_C_DONE), true, false, 592, WT_ACTION_Y, 160, true, sp_key_back_cb, NULL);
+        wt_note(s_scr, tr(STR_C_LOCKED_B), SX(48), SY(296), SX(704), SY(90));
+        wt_arrow_action(s_scr, tr(STR_C_DONE), true, false, SX(592), WT_ACTION_Y, SX(160), true, sp_key_back_cb, NULL);
         // A refusal can still have written part of a key before it gave up.
         kiss_wipe(key, sizeof key);
         return;
     }
 
     lv_obj_t *qr = NULL;
-    wt_qr_card(s_scr, &qr, 48, 96, 300, 264);
+    wt_qr_card(s_scr, &qr, SX(48), SY(96), SX(300), SX(264));
     if (qr)
         wt_qr_update(qr, key, (uint32_t)strlen(key));
     s_sp_key_qr = qr;
@@ -1026,8 +1183,8 @@ static void sp_key_show(void *ud)
     // font14 was using 78 of it, so the fix costs nothing but the empty band.
     // 360 wide at mono23 is 26 cells of 13.81px, and 144 characters wrap into
     // six lines of 25 -- 96 through 246, with the note moved down to meet it.
-    lv_obj_t *k = wt_lbl(s_scr, key, 400, 96, wt_font_mono23(), WT_INK);
-    lv_obj_set_width(k, 360);
+    lv_obj_t *k = wt_lbl(s_scr, key, SX(400), SY(96), wt_font_mono23(), WT_INK);
+    lv_obj_set_width(k, SX(360));
     lv_label_set_long_mode(k, LV_LABEL_LONG_WRAP);
     s_sp_key_lbl = k;
 
@@ -1035,12 +1192,12 @@ static void sp_key_show(void *ud)
     // the wrap depends on where LVGL takes its breaks, and a hard 250 is how
     // the old layout ended up with a band of dead glass above it.
     lv_obj_update_layout(k);
-    int note_y = 96 + lv_obj_get_height(k) + 16;
-    wt_note(s_scr, tr(STR_R_SP_EXPORT_NOTE), 400, note_y, 360,
+    int note_y = SY(96) + lv_obj_get_height(k) + SY(16);
+    wt_note(s_scr, tr(STR_R_SP_EXPORT_NOTE), SX(400), note_y, SX(360),
             WT_CONTENT_BOTTOM - note_y);
 
     // 592, not WT_BACK_X: 160 wide, so 752-160 is flush.
-    wt_arrow_action(s_scr, tr(STR_C_DONE), true, false, 592, WT_ACTION_Y, 160, true, sp_key_back_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_DONE), true, false, SX(592), WT_ACTION_Y, SX(160), true, sp_key_back_cb, NULL);
 
     // The QR and the label hold their own copies now, so the stack one has no
     // reader left. Here rather than at a single exit, because there is none.
@@ -1086,9 +1243,9 @@ static void sp_key_warn_cb(lv_event_t *e)
     // the gate's amber belongs to the caution line, not to the way forward --
     // the third of the three yellow runs the bench counted on this screen.
     wt_slide_rule(s_scr, tr(STR_W_HOLD_SHOW), tr(STR_G_FW_KEEP_HOLDING),
-                  WT_ACT_X, WT_ACTION_Y_SLIDE, 330, sp_key_show, NULL);
-    wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, 592, WT_ACTION_Y,
-                    160, true, sp_key_back_cb, NULL);
+                  WT_ACT_X, WT_ACTION_Y_SLIDE, SX(330), sp_key_show, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, SX(592), WT_ACTION_Y,
+                    SX(160), true, sp_key_back_cb, NULL);
 }
 
 // ---- BACKUP WORDS (warning first, then the grid) ----
@@ -1181,7 +1338,13 @@ static void words_render_page(int page)
         lv_obj_t *tl = wt_trail(s_scr, WT_ICON_KEY, trail, false);
         // The trail gives up the lane the sheet dots and the verdict chip
         // stand in -- the gate reads boxes, not ink.
-        lv_obj_set_width(tl, 524 - 12 - lv_obj_get_x(tl));
+#if KISS_NARROW
+        // Measured after a layout pass. Before one, lv_obj_get_x answers 0,
+        // so on the 3.5in the box ran on to 358, some 50 px past its lane,
+        // and lay under the verdict beside it.
+        lv_obj_update_layout(tl);
+#endif
+        lv_obj_set_width(tl, SX(524) - SX(12) - lv_obj_get_x(tl));
     }
     if (pages > 1) wt_sheet_dots(s_scr, pages, page);
 
@@ -1190,9 +1353,22 @@ static void words_render_page(int page)
     // what stops a holder wondering whether a word they cannot read is a
     // word gone wrong.
     lv_obj_t *okc = wt_state_chip(s_scr, tr(STR_W_WRITE_OK), WT_OK);
+#if KISS_NARROW
+    // The words alone, green, on the trail's own line. The tinted chip is 24
+    // px tall and the strip here is 20, so it ran 44..68 across the header
+    // rule at 66 and into the trail's box; no padding that still reads as a
+    // chip fits between the title and that rule. The tint is the part that
+    // goes -- the ink still carries the verdict -- and the words sit on the
+    // trail's lifted line, as clear of the rule as the trail itself.
+    lv_obj_set_style_bg_opa(okc, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_pad_all(okc, 0, 0);
     lv_obj_update_layout(okc);
-    lv_obj_set_pos(okc, 752 - lv_obj_get_width(okc),
-                   70 + (30 - lv_obj_get_height(okc)) / 2);
+    lv_obj_set_pos(okc, SX(752) - lv_obj_get_width(okc), SY(66));
+#else
+    lv_obj_update_layout(okc);
+    lv_obj_set_pos(okc, SX(752) - lv_obj_get_width(okc),
+                   SY(70) + (SY(30) - lv_obj_get_height(okc)) / 2);
+#endif
 
     wt_word_grid(s_scr, wp, on, first);
     kiss_wipe(words, sizeof words);
@@ -1206,11 +1382,11 @@ static void words_render_page(int page)
     // and it happens once the owner has seen every word. STR_R_NEXT is the
     // receive flow's page-forward label, already in 21 locales.
     if (page < pages - 1)
-        wt_arrow_action(s_scr, tr(STR_R_NEXT), false, true, 592, WT_ACTION_Y,
-                        160, true, words_page_cb, (void *)(intptr_t)1);
+        wt_arrow_action(s_scr, tr(STR_R_NEXT), false, true, SX(592), WT_ACTION_Y,
+                        SX(160), true, words_page_cb, (void *)(intptr_t)1);
     else
-        wt_arrow_action(s_scr, tr(STR_C_DONE), true, false, 592, WT_ACTION_Y,
-                        160, true, words_back_cb, NULL);
+        wt_arrow_action(s_scr, tr(STR_C_DONE), true, false, SX(592), WT_ACTION_Y,
+                        SX(160), true, words_back_cb, NULL);
 }
 
 static void words_page(void);
@@ -1256,10 +1432,10 @@ static void words_gate_screen(void)
                     // The ACCENT. Amber is a mark colour, and a slide label
                     // is a word the owner reads. WT_STOP still carries the one
                     // gate that cannot be undone.
-                    WT_ACT_X, WT_ACTION_Y_SLIDE, 330, wt_accent(), wt_accent(),
+                    WT_ACT_X, WT_ACTION_Y_SLIDE, SX(330), wt_accent(), wt_accent(),
                     words_reveal, NULL);
-    wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, 592, WT_ACTION_Y,
-                    160, true, words_gate_cancel_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, SX(592), WT_ACTION_Y,
+                    SX(160), true, words_gate_cancel_cb, NULL);
 }
 
 static void words_show_cb(lv_event_t *e)
@@ -1590,7 +1766,7 @@ static void words_page(void)
     // the action bar stops competing with the page for the same subject. No
     // attention chip either: wt_alert_chip plants itself at WT_ACT_X, which is
     // exactly where those two pills used to sit.
-    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, words_back_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, SX(592), WT_ACTION_Y, SX(160), true, words_back_cb, NULL);
 }
 
 static void words_warn_screen(lv_event_t *e)
@@ -1653,7 +1829,9 @@ static void kef_sd_cb(lv_event_t *e)
     // card refused and nothing was kept.
     if (!s_kef_sd_chip) {
         s_kef_sd_chip = wt_state_chip(s_scr, "", WT_OK);
-        lv_obj_set_pos(s_kef_sd_chip, 400, 344);
+#if !KISS_NARROW
+        lv_obj_set_pos(s_kef_sd_chip, SX(400), SY(344));
+#endif
     }
     // Declared font14: a state CHIP is a mark by kit definition, and this one
     // reports a result the screen has already acted on. The one chip on the
@@ -1663,6 +1841,21 @@ static void kef_sd_cb(lv_event_t *e)
                       tr_sym(ok ? LV_SYMBOL_OK : LV_SYMBOL_WARNING,
                              ok ? STR_S_SAVED_NOTE : STR_S_FAIL_SD_WRITE),
                       ok ? WT_OK : WT_STOP);
+#if KISS_NARROW
+    // Placed once its words are in, bottom level with the QR card's bottom.
+    // At the scaled 344 the chip ran 229..253, one px above the band's
+    // floor; level with the code it ends at 244 and reads as the card's own
+    // verdict. The refusal is wider than the 211 px lane beside the code and
+    // ran off the glass, so a chip that wide wraps, and grows upward.
+    lv_obj_set_width(s_kef_sd_chip, LV_SIZE_CONTENT);
+    lv_obj_update_layout(s_kef_sd_chip);
+    if (lv_obj_get_width(s_kef_sd_chip) > SX(352)) {
+        lv_obj_set_width(s_kef_sd_chip, SX(352));
+        lv_obj_update_layout(s_kef_sd_chip);
+    }
+    lv_obj_set_pos(s_kef_sd_chip, SX(400),
+                   SY(96) + SX(300) - lv_obj_get_height(s_kef_sd_chip));
+#endif
 }
 
 static void kef_show_screen(void)
@@ -1681,21 +1874,21 @@ static void kef_show_screen(void)
     s_kef_sd_chip = NULL;
 
     lv_obj_t *qr = NULL;
-    wt_qr_card(s_scr, &qr, 48, 96, 300, 264);
+    wt_qr_card(s_scr, &qr, SX(48), SY(96), SX(300), SX(264));
     if (qr) wt_qr_update(qr, s_kef_env, (uint32_t)s_kef_env_len);
 
     // The fingerprint is the envelope's visible name: it says WHICH keys are
     // inside without opening it, and it is what the .kef file is called.
     lv_obj_t *card = wt_value_card(s_scr, tr(STR_D_FINGERPRINT), s_kef_id,
-                                   400, 96, 352, true);
+                                   SX(400), SY(96), SX(352), true);
     lv_obj_update_layout(card);
-    int below = 96 + lv_obj_get_height(card) + 12;
-    wt_note(s_scr, tr(STR_I_KEF_SHOW_NOTE), 400, below, 352, 332 - below);
+    int below = SY(96) + lv_obj_get_height(card) + SY(12);
+    wt_note(s_scr, tr(STR_I_KEF_SHOW_NOTE), SX(400), below, SX(352), SY(332) - below);
 
     lv_obj_t *sd = wt_word_action(s_scr, WT_ICON_SD, tr(STR_I_KEF_SD_BTN),
                                   true, WT_INK, false, kef_sd_cb, NULL);
-    lv_obj_set_pos(sd, WT_ACT_X, WT_ACTION_Y + 6);
-    wt_arrow_action(s_scr, tr(STR_C_DONE), true, true, 592, WT_ACTION_Y, 160, true, kef_finish_cb, NULL);
+    lv_obj_set_pos(sd, WT_ACT_X, WT_ACTION_Y + SY(6));
+    wt_arrow_action(s_scr, tr(STR_C_DONE), true, true, SX(592), WT_ACTION_Y, SX(160), true, kef_finish_cb, NULL);
 }
 
 static void kef_warn_reopen(void) { kef_warn_screen(NULL); }
@@ -1763,8 +1956,8 @@ static void kef_warn_screen(lv_event_t *e)
     // Making the envelope puts the keys on the glass as a QR one screen
     // later, so the entry is a deliberate slide, the scan-key precedent.
     wt_slide_rule(s_scr, tr(STR_I_KEF_MAKE_BTN), tr(STR_G_FW_KEEP_HOLDING),
-                  WT_ACT_X, WT_ACTION_Y_SLIDE, 330, kef_make, NULL);
-    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, kef_finish_cb, NULL);
+                  WT_ACT_X, WT_ACTION_Y_SLIDE, SX(330), kef_make, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, SX(592), WT_ACTION_Y, SX(160), true, kef_finish_cb, NULL);
 }
 
 // ---- the section home: facts + actions ----
@@ -1838,7 +2031,7 @@ static void info_addr_value(lv_obj_t *row)
         // has to read as a state.
         lv_obj_t *st = wt_lbl(row, tr(STR_C_SESSION_LOCKED), WT_LINE_PAD,
                               wt_line_val_y(), wt_font23(), WT_MUT);
-        lv_obj_set_width(st, 300);
+        lv_obj_set_width(st, SX(300));
         lv_obj_set_height(st, lv_font_get_line_height(wt_font23()));
         lv_label_set_long_mode(st, LV_LABEL_LONG_DOT);
         return;
@@ -1890,7 +2083,7 @@ static void info_addr_value(lv_obj_t *row)
 static void info_tab_build(void)
 {
     lv_obj_t *p = s_ictx.pane;
-    const int X = 48, W = 704;
+    const int X = SX(48), W = SX(704);
 
     if (s_help_open) {
         // The [ ? ] content: the lane replaced, not a card and not an
@@ -1912,7 +2105,16 @@ static void info_tab_build(void)
         return;
     }
 
-    const int H = 76;
+#if KISS_NARROW
+    // A 48 px pitch from 72 on the 3.5in. At the scaled 50 from 80 the last
+    // rule fell at 231 and the sentence under it ran 238..255, two px into
+    // the band. Three rows still clear a 14 px caption and an 18 px value
+    // with air under each, and the sentence sits centred in the 38 px left
+    // between the last rule and the floor.
+    const int H = SY(72), Y0 = SY(108), NOTE_Y = SY(339);
+#else
+    const int H = SY(76), Y0 = SY(120), NOTE_Y = SY(358);
+#endif
 
     // NO EMPTY STATE. An unpaired signer never reaches this page: it opened
     // on a headline naming the absence, a sentence saying what pairing would
@@ -1924,11 +2126,11 @@ static void info_tab_build(void)
     // kiss_info_open() forwards straight to pair_screen() instead; see the
     // note there for why BACK from it has to leave for HOME.
 
-    wt_line_row_stage(wt_line_row(p, X, 120, W, H, tr(STR_K_CAP_PAIRING),
+    wt_line_row_stage(wt_line_row(p, X, Y0, W, H, tr(STR_K_CAP_PAIRING),
                                   tr(STR_I_PAIR_T), wt_font28(), WT_INK,
                                   tr(STR_K_PAIR_SUB), NULL,
                                   pair_open_cb, NULL), 0);
-    wt_line_rule_draw(wt_line_rule(p, X, 120 + H, W), 110, 320);
+    wt_line_rule_draw(wt_line_rule(p, X, Y0 + H, W), 110, 320);
     // "Scan" elsewhere on this device means the camera. Here it means searching
     // the chain, and the caption above the value is what says which.
     //
@@ -1937,17 +2139,17 @@ static void info_tab_build(void)
     // silent payment tab. This is the only launcher now and the screens are
     // owned here. The prefix is historical; there is no RECEIVE screen to go
     // looking for, and renaming a key is 21 locale files for an internal name.
-    wt_line_row_stage(wt_line_row(p, X, 196, W, H, tr(STR_R_SP_BTN),
+    wt_line_row_stage(wt_line_row(p, X, Y0 + H, W, H, tr(STR_R_SP_BTN),
                                   tr(STR_R_SP_SCAN_BTN), wt_font28(), WT_INK,
                                   tr(STR_K_SP_SUB), NULL,
                                   sp_key_warn_cb, NULL), 1);
-    wt_line_rule_draw(wt_line_rule(p, X, 196 + H, W), 152, 320);
+    wt_line_rule_draw(wt_line_rule(p, X, Y0 + 2 * H, W), 152, 320);
 
-    lv_obj_t *ar = wt_line_row(p, X, 272, W, H, tr(STR_I_SEC_FIRST), NULL,
+    lv_obj_t *ar = wt_line_row(p, X, Y0 + 2 * H, W, H, tr(STR_I_SEC_FIRST), NULL,
                    NULL, WT_INK, tr(STR_S_CMP_8), NULL,
                    first_addr_go_cb, NULL);
     info_addr_value(ar);
-    wt_line_rule_draw(wt_line_rule(p, X, 272 + H, W), 194, 320);
+    wt_line_rule_draw(wt_line_rule(p, X, Y0 + 3 * H, W), 194, 320);
     // 368, thirty clear of the floor. No explainer on this tab: four lines
     // IS the explanation, and a sentence under them would be the page
     // telling an owner what they have just read.
@@ -1963,7 +2165,7 @@ static void info_tab_build(void)
     // tiny-type bug, arrived at by a helper doing exactly what it says. One
     // line at 23 fits the band with room; a locale too long for the lane loses
     // its tail and CUT is what reports that.
-    lv_obj_t *ex = wt_lbl(p, tr(STR_K_EXPL_COORD), X, 358, wt_font23(),
+    lv_obj_t *ex = wt_lbl(p, tr(STR_K_EXPL_COORD), X, NOTE_Y, wt_font23(),
                           WT_MUT);
     lv_obj_set_width(ex, W);
     lv_obj_set_height(ex, lv_font_get_line_height(wt_font23()));
@@ -2035,7 +2237,7 @@ static void info_screen(void)
     s_ictx.pane = wt_pane_new(&s_ictx);
     info_tab_build();
 
-    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160,
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, SX(592), WT_ACTION_Y, SX(160),
                     true, close_cb, NULL);
 }
 

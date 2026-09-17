@@ -339,10 +339,17 @@ void kiss_scan_open_raw(lv_obj_t *parent, kiss_scan_task_t task,
 // crowd the right column moved to the SIGN page's SCAN QR tab, where they
 // can be read before the camera is even open -- what is left here is the
 // picture, the one line that changes while you wait, and the way out.
-#define SCN_CAM_X 48
-#define SCN_CAM_Y 112
-#define SCN_CAM_W 300
-#define SCN_CAM_H 188
+#define SCN_CAM_X SX(48)
+#if KISS_NARROW
+// 6 lower on the 3.5in. The corner brackets are drawn 5 px outside the box,
+// and at the scaled 74 their top arms sat 2 px under the header's hairline;
+// at 80 they clear it by 8 and the bottom arms still end 45 above the floor.
+#define SCN_CAM_Y (SY(112) + 6)
+#else
+#define SCN_CAM_Y SY(112)
+#endif
+#define SCN_CAM_W SX(300)
+#define SCN_CAM_H SY(188)
 
 // The rect, for anything outside this file that has to put something in the
 // same place. Below the #defines on purpose -- there is nowhere earlier it
@@ -354,8 +361,8 @@ void kiss_scan_view_rect(int *x, int *y, int *w, int *h)
     if (w) *w = SCN_CAM_W;
     if (h) *h = SCN_CAM_H;
 }
-#define SCN_COL_X 396
-#define SCN_COL_W 356
+#define SCN_COL_X SX(396)
+#define SCN_COL_W SX(356)
 
 static void scan_status(const char *state, const char *hint)
 {
@@ -395,7 +402,7 @@ static void scan_open_common(lv_obj_t *parent, kiss_scan_task_t task)
     lv_label_set_text(s_prog, tr(STR_N_STARTING));
     lv_obj_set_style_text_color(s_prog, INK_COL, 0);
     lv_obj_set_style_text_font(s_prog, wt_chrome28(tr(STR_N_WAIT_QR)), 0);
-    lv_obj_set_pos(s_prog, SCN_COL_X, 124);
+    lv_obj_set_pos(s_prog, SCN_COL_X, SY(124));
     lv_obj_set_width(s_prog, SCN_COL_W);
     lv_obj_set_height(s_prog, lv_font_get_line_height(wt_chrome28(tr(STR_N_WAIT_QR))));
     lv_label_set_long_mode(s_prog, LV_LABEL_LONG_DOT);
@@ -407,7 +414,7 @@ static void scan_open_common(lv_obj_t *parent, kiss_scan_task_t task)
     lv_label_set_text(s_hint, "");
     lv_obj_set_style_text_color(s_hint, MUT_COL, 0);
     lv_obj_set_style_text_font(s_hint, wt_chrome18(tr(STR_N_RETRY)), 0);
-    lv_obj_set_pos(s_hint, SCN_COL_X, 168);
+    lv_obj_set_pos(s_hint, SCN_COL_X, SY(168));
     lv_obj_set_width(s_hint, SCN_COL_W);
     lv_obj_set_height(s_hint, 2 * lv_font_get_line_height(wt_chrome18(tr(STR_N_RETRY))));
     lv_label_set_long_mode(s_hint, LV_LABEL_LONG_DOT);
@@ -426,7 +433,7 @@ static void scan_open_common(lv_obj_t *parent, kiss_scan_task_t task)
     lv_label_set_text(note, ntxt);
     lv_obj_set_style_text_color(note, MUT_COL, 0);
     lv_obj_set_style_text_font(note, wt_chrome18(ntxt), 0);
-    lv_obj_set_pos(note, SCN_COL_X, 232);
+    lv_obj_set_pos(note, SCN_COL_X, SY(232));
     lv_obj_set_width(note, SCN_COL_W);
     lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
 
@@ -436,8 +443,8 @@ static void scan_open_common(lv_obj_t *parent, kiss_scan_task_t task)
     // person struggling to scan does not know they have another option,
     // because that choice was a tab ago. Muted text, not a control, because
     // it is not reachable from here without cancelling first.
-    wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, 552, WT_ACTION_Y,
-                    200, true, cancel_btn_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, SX(552), WT_ACTION_Y,
+                    SX(200), true, cancel_btn_cb, NULL);
     // ...and only on the two doors a card can actually be used at. The address
     // checker has no card route and the passphrase has no file: naming one
     // there is an instruction that dead ends, printed under a live camera.
@@ -449,7 +456,7 @@ static void scan_open_common(lv_obj_t *parent, kiss_scan_task_t task)
         lv_obj_set_style_text_font(or, of, 0);
         lv_obj_set_pos(or, WT_ACT_X,
                        WT_ACTION_Y + (WT_ACTION_H - lv_font_get_line_height(of)) / 2);
-        lv_obj_set_width(or, 480);
+        lv_obj_set_width(or, SX(480));
         lv_obj_set_height(or, lv_font_get_line_height(of));
         lv_label_set_long_mode(or, LV_LABEL_LONG_DOT);
     }

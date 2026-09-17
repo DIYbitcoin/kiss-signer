@@ -19,6 +19,7 @@
 #pragma once
 #include <stdbool.h>
 #include <stdint.h>
+#include "kiss_board.h"   // SX: the corner box is drawn on the wide canvas
 
 // Points accepted in one call. Matches GEST_MAX in main.c, which is the buffer
 // the collector fills.
@@ -51,7 +52,7 @@ bool cw_match(const int *xs, const int *ys, const uint8_t *sid,
 // with ink: a tap is already a distinct answer in the collector (one stroke,
 // bbox under 22px) and the corner is already spoken for -- it is where the logo
 // sits on the home screen, so lock and unlock end up the same place.
-#define CW_QT_BOX 120     // the corner, px from the top left
+#define CW_QT_BOX SX(120) // the corner, px from the top left, on the wide canvas
 #define CW_QT_MS  800     // the second tap has this long to land
 
 // Is this tap inside the corner? main.c asks BEFORE cw_quick_tap, because a tap

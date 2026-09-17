@@ -42,12 +42,12 @@ static lv_obj_t *s_band;
 // The page under the header. x=48 like every action bar; the text lane is
 // WT_LINE_PAD further in, so a trade block and a line row start on the same
 // vertical.
-#define FW_X       48
-#define FW_W      704
+#define FW_X       SX(48)
+#define FW_W      SX(704)
 #define FW_TXT_X  (FW_X + WT_LINE_PAD)
-#define FW_BAND_Y  76
-#define FW_HRULE_Y 105
-#define FW_PANE_Y 120
+#define FW_BAND_Y  SY(76)
+#define FW_HRULE_Y SY(105)
+#define FW_PANE_Y SY(120)
 
 // A line row is a font23 caption over a font28 value now, and 58 does not hold
 // one: the kit measures the value at wt_line_val_y() + the value's own line
@@ -59,10 +59,24 @@ static lv_obj_t *s_band;
 // Two of them plus the closing rule is 152px, so the last rule sits at 396 and
 // the block starts at 240. That is 20px higher than the drawing puts it, and
 // the caution line above moves the same 16 to keep its gap.
-#define FW_ROW_H    76
-#define FW_ROW1_Y   240
+#if KISS_NARROW
+// On the 3.5in 76 and 240 scale to 50px rows from 160, and the second one ran
+// to 264: "checked before anything is written" sat on the band's rule. A 14px
+// caption over an 18px value, stepped down for its "?" chip, needs 48 with the
+// descenders clear of the rule under it. Both rules sit 4 above their row, so
+// the block runs 140..244, and the caution line moves up 10 to stay clear of
+// the first rule.
+#define FW_ROW_H     48
+#define FW_ROW1_Y    144
+#define FW_ROW1_RULE 4
+#define FW_CAUTION_Y 118
+#else
+#define FW_ROW_H    SY(76)
+#define FW_ROW1_Y   SY(240)
+#define FW_ROW1_RULE SY(12)
+#define FW_CAUTION_Y SY(192)
+#endif
 #define FW_ROW2_Y   (FW_ROW1_Y + FW_ROW_H + 4)
-#define FW_CAUTION_Y 192
 
 static void fw_screen(void);
 
@@ -103,7 +117,7 @@ static void fw_enter(lv_obj_t *o, int ms, int delay)
     lv_anim_init(&a);
     lv_anim_set_var(&a, o);
     lv_anim_set_exec_cb(&a, an_ty);
-    lv_anim_set_values(&a, 9, 0);
+    lv_anim_set_values(&a, SY(9), 0);
     lv_anim_set_duration(&a, ms);
     lv_anim_set_delay(&a, delay);
     lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
@@ -191,7 +205,11 @@ static void fw_head(const char *title, const char *band, bool accent)
     if (accent) lv_obj_add_flag(m, WT_FLAG_ACCENT);
     lv_obj_update_layout(m);
 
-    lv_obj_t *l = wt_lbl(s_scr, band, FW_X + lv_obj_get_width(m) + 8, FW_BAND_Y,
+    // 8 on the 3.5in: SX(8) is 4px there, and the arrows read as the first
+    // letter of RUNNING rather than a mark beside it.
+    lv_obj_t *l = wt_lbl(s_scr, band,
+                         FW_X + lv_obj_get_width(m) + (KISS_NARROW ? 8 : SX(8)),
+                         FW_BAND_Y,
                          wt_font14(), accent ? wt_accent() : WT_MUT);
     lv_obj_set_style_text_letter_space(l, 2, 0);
     if (accent) lv_obj_add_flag(l, WT_FLAG_ACCENT);
@@ -250,7 +268,7 @@ static lv_obj_t *fw_trade(int y, const fw_trade_t *t)
 
     lv_obj_t *j = wt_lbl(box, t->joiner, 0, 0, wt_font23(), t->jc);
     if (t->accent) lv_obj_add_flag(j, WT_FLAG_ACCENT);
-    lv_obj_align(j, LV_ALIGN_BOTTOM_LEFT, x, -6);
+    lv_obj_align(j, LV_ALIGN_BOTTOM_LEFT, x, -SY(6));
     lv_obj_update_layout(j);
     x += lv_obj_get_width(j) + 18;
 
@@ -266,20 +284,30 @@ static lv_obj_t *fw_trade(int y, const fw_trade_t *t)
     if (t->lamp) {
         lv_obj_t *dot = lv_obj_create(box);
         lv_obj_remove_style_all(dot);
-        lv_obj_set_size(dot, 8, 8);
-        lv_obj_set_style_radius(dot, 4, 0);
+        lv_obj_set_size(dot, SX(8), SX(8));
+        lv_obj_set_style_radius(dot, SX(4), 0);
         lv_obj_set_style_bg_color(dot, t->lampc, 0);
         lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, 0);
-        lv_obj_set_style_shadow_width(dot, 10, 0);
+        lv_obj_set_style_shadow_width(dot, SX(10), 0);
         lv_obj_set_style_shadow_color(dot, t->lampc, 0);
         lv_obj_remove_flag(dot, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_align(dot, LV_ALIGN_BOTTOM_LEFT, x, -10);
+#if KISS_NARROW
+        // On the 3.5in the 4px dot sat on the word's baseline 5px before its
+        // first letter and read as a full stop: ".NEWER". Six pixels, centred
+        // on the capitals, with 6px of air before the word.
+        lv_obj_set_size(dot, 6, 6);
+        lv_obj_set_style_radius(dot, 3, 0);
+        lv_obj_align(dot, LV_ALIGN_BOTTOM_LEFT, x, -9);
+#else
+        lv_obj_align(dot, LV_ALIGN_BOTTOM_LEFT, x, -SY(10));
+#endif
 
         // The DOT above keeps the lamp colour; its word takes the accent.
         lv_obj_t *w = wt_lbl(box, t->lamp, 0, 0, wt_font14(),
                              wt_ink_for(t->lampc));
         lv_obj_set_style_text_letter_space(w, 2, 0);
-        lv_obj_align(w, LV_ALIGN_BOTTOM_LEFT, x + 16, -4);
+        lv_obj_align(w, LV_ALIGN_BOTTOM_LEFT, x + (KISS_NARROW ? 12 : SX(16)),
+                     -SY(4));
     }
 
     fw_enter(box, 280, 40);
@@ -389,8 +417,18 @@ static void fw_mark_after_cap(lv_obj_t *row, lv_event_cb_t cb)
     // font14 when this was written and is font23 now, and a hand offset that
     // looked right against the first sat 8px high against the second.
     lv_obj_t *chip = wt_help_chip(row, 0, 0, wt_accent(), cb, NULL);
-    lv_obj_set_pos(chip, WT_LINE_PAD + lv_obj_get_width(cap) + 10,
-                   WT_LINE_CAP_Y + (lv_obj_get_height(cap) - 30) / 2);
+    lv_obj_set_pos(chip, WT_LINE_PAD + lv_obj_get_width(cap) + SX(10),
+                   WT_LINE_CAP_Y + (lv_obj_get_height(cap) - SY(30)) / 2);
+#if KISS_NARROW
+    // On the 3.5in the 18px chip centred on a 19px caption ends one pixel
+    // above the value's ascenders, so the mark and the answer touch. The value
+    // steps down 3 to give the mark 4px of air; FW_ROW_H carries the 3.
+    for (uint32_t i = 0; i < n; i++) {
+        lv_obj_t *v = lv_obj_get_child(row, i);
+        if (lv_obj_get_user_data(v) == WT_LINE_VAL_TAG)
+            lv_obj_set_y(v, lv_obj_get_style_y(v, LV_PART_MAIN) + 3);
+    }
+#endif
 }
 
 // ---- 5. the verdict --------------------------------------------------------
@@ -474,12 +512,12 @@ static void result_screen(int rc)
         .tc     = ok ? wt_accent() : WT_DIM,
         .accent = ok,
     };
-    fw_trade(FW_PANE_Y + 4, &t);
+    fw_trade(FW_PANE_Y + SY(4), &t);
     // 172, not 192. The claims below lost 62px to the slide's band, and the
     // 56px of dead glass between the trade row and the rule is where it comes
     // back from -- the pair is what this screen is for, and the air above it
     // was never carrying anything.
-    fw_rule_in(164, 150);
+    fw_rule_in(SY(164), 150);
 
     // The strings already carry a blank line between the verdict and what
     // becomes of the old firmware, so the split costs no key. A body with no
@@ -508,15 +546,45 @@ static void result_screen(int rc)
     // boxes is also the right shape regardless: what happened is not what to
     // do, and the second is the only line here the owner can act on.
     const bool remedy = rc == WFW_ERR_REJECTED || rc == WFW_ERR_PQ_REJECTED;
+#if KISS_NARROW
+    // STACKED ON WHAT THEY MEASURE on the 3.5in. The three boxes below scale
+    // to 29, 45 and 26px there, and both rungs are 14px on this board, so the
+    // boxes decided nothing about the size and everything about the overlap:
+    // the remedy's second line ran 10px under the band. Each paragraph starts
+    // a line's air below the one before it, from just under the rule, and
+    // takes the pane's full width, which is what keeps "get the release again
+    // from the project's own page." on one line.
+    const int nw = FW_W - WT_LINE_PAD;
+    int ny = SY(164) + 10;
+    lv_obj_t *b = wt_note(s_scr, tail ? head : body, FW_TXT_X, ny, nw,
+                          WT_CONTENT_BOTTOM - ny);
+    fw_enter(b, 240, 190);
+    lv_obj_update_layout(b);
+    ny += lv_obj_get_height(b) + 10;
+    if (tail) {
+        lv_obj_t *tl = wt_note(s_scr, tail, FW_TXT_X, ny, nw,
+                               WT_CONTENT_BOTTOM - ny);
+        lv_obj_set_style_text_color(tl, WT_DIM, 0);
+        fw_enter(tl, 240, 232);
+        lv_obj_update_layout(tl);
+        ny += lv_obj_get_height(tl) + 10;
+    }
+    if (remedy) {
+        lv_obj_t *fx = wt_note(s_scr, tr(STR_G_FW_FAIL_SIG_FIX), FW_TXT_X, ny,
+                               nw, WT_CONTENT_BOTTOM - ny);
+        lv_obj_set_style_text_color(fx, WT_MUT, 0);
+        fw_enter(fx, 240, 262);
+    }
+#else
     // 68 leaves the step a readable rung. At 84 the remedy had 38px, which is
     // one line at font14, and the fit gate is right that the answer to a
     // sentence that will not fit is the copy and not the size.
-    const int tail_h = remedy ? 68 : WT_CONTENT_BOTTOM - 268;
-    lv_obj_t *b = wt_note(s_scr, tail ? head : body, FW_TXT_X, 216, 620,
-                          268 - 216 - 8);
+    const int tail_h = remedy ? SY(68) : WT_CONTENT_BOTTOM - SY(268);
+    lv_obj_t *b = wt_note(s_scr, tail ? head : body, FW_TXT_X, SY(216), SX(620),
+                          SY(268) - SY(216) - SY(8));
     fw_enter(b, 240, 190);
     if (tail) {
-        lv_obj_t *tl = wt_note(s_scr, tail, FW_TXT_X, 268, 620, tail_h);
+        lv_obj_t *tl = wt_note(s_scr, tail, FW_TXT_X, SY(268), SX(620), tail_h);
         lv_obj_set_style_text_color(tl, WT_DIM, 0);
         fw_enter(tl, 240, 232);
     }
@@ -524,11 +592,12 @@ static void result_screen(int rc)
         // MUT, not DIM. The sentence above it is a footnote about what did not
         // happen; this one is the step, and the two cannot read alike.
         lv_obj_t *fx = wt_note(s_scr, tr(STR_G_FW_FAIL_SIG_FIX), FW_TXT_X,
-                               268 + tail_h + 8, 620,
-                               WT_CONTENT_BOTTOM - (268 + tail_h + 8));
+                               SY(268) + tail_h + SY(8), SX(620),
+                               WT_CONTENT_BOTTOM - (SY(268) + tail_h + SY(8)));
         lv_obj_set_style_text_color(fx, WT_MUT, 0);
         fw_enter(fx, 240, 262);
     }
+#endif
 
     if (ok) {
         char act[WT_ICON_TEXT_MAX];
@@ -542,7 +611,7 @@ static void result_screen(int rc)
         wt_arrow_action(s_scr, tr(STR_C_TRY_AGAIN), false, true, WT_ACT_X,
                         WT_ACTION_Y, 0, false, result_back_cb, NULL);
     }
-    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160,
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, SX(592), WT_ACTION_Y, SX(160),
                     true, close_cb, NULL);
 }
 
@@ -596,8 +665,8 @@ static void fw_light_band(int y)
     lv_obj_t *b = lv_obj_create(s_scr);
     lv_obj_remove_style_all(b);
     lv_obj_set_pos(b, FW_X, y);
-    lv_obj_set_size(b, FW_W, 58);
-    lv_obj_set_style_radius(b, 6, 0);
+    lv_obj_set_size(b, FW_W, SY(58));
+    lv_obj_set_style_radius(b, SX(6), 0);
     lv_obj_set_style_bg_color(b, WT_INK, 0);
     lv_obj_set_style_bg_grad_color(b, WT_INK, 0);
     lv_obj_set_style_bg_grad_dir(b, LV_GRAD_DIR_HOR, 0);
@@ -620,7 +689,7 @@ static void fw_light_band(int y)
     // the treatment a caption lane gets. Nothing an owner has to read is
     // font14. Spacing drops to 2 because font23 does not need the width and
     // the string has to stay inside the band.
-    lv_obj_t *l = wt_lbl(b, tr(STR_G_FW_BACKLIGHT), WT_LINE_PAD, 16,
+    lv_obj_t *l = wt_lbl(b, tr(STR_G_FW_BACKLIGHT), WT_LINE_PAD, SY(16),
                          wt_font23(), WT_MUT);
     lv_obj_set_style_text_letter_space(l, 2, 0);
 
@@ -705,8 +774,8 @@ static void writing_apply(void *ud)
     // No BACK and no CANCEL: past this point the receiving slot is being
     // erased, and the honest options are finish or lose power, neither of
     // which is a button.
-    fw_light_band(156);
-    fw_claims(230, tr(STR_G_FW_DARK_H), tr(STR_G_FW_DARK_B),
+    fw_light_band(SY(156));
+    fw_claims(SY(230), tr(STR_G_FW_DARK_H), tr(STR_G_FW_DARK_B),
               LV_SYMBOL_EYE_CLOSE, wt_accent());
 
     // Lit long enough to be read, then dark. This was 30 ms, which is two
@@ -745,7 +814,7 @@ static void confirm_screen(void)
         .accent = !down,
     };
     fw_trade(FW_PANE_Y, &t);
-    fw_rule_in(192, 150);
+    fw_rule_in(SY(192), 150);
 
     // Two claims, not one paragraph. A downgrade swaps the left block for the
     // one that says so and turns its rule amber: on that path the interesting
@@ -756,7 +825,7 @@ static void confirm_screen(void)
     // 210, not the 186 the blocks started at: the rule fw_rule_in draws at
     // 192 ran straight through the first row's caption. A block began with a
     // heading and its body cleared the rule; a row IS its first line.
-    fw_claims(210,
+    fw_claims(SY(210),
               tr(down ? STR_G_FW_DOWN_H : STR_G_FW_ROW_SIG),
               tr(down ? STR_G_FW_DOWN_B : STR_G_FW_WHY_H),
               down ? LV_SYMBOL_WARNING : LV_SYMBOL_OK,
@@ -767,8 +836,8 @@ static void confirm_screen(void)
     // WT_ACTION_Y rather than the tall bar: the tall bar existed to give a fat
     // pill room.
     wt_slide_rule(s_scr, tr(STR_G_FW_HOLD), tr(STR_G_FW_KEEP_HOLDING),
-                  WT_ACT_X, WT_ACTION_Y_SLIDE, 330, writing_apply, NULL);
-    wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, 592, WT_ACTION_Y, 160,
+                  WT_ACT_X, WT_ACTION_Y_SLIDE, SX(330), writing_apply, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, SX(592), WT_ACTION_Y, SX(160),
                     true, confirm_cancel_cb, NULL);
 }
 
@@ -814,20 +883,25 @@ static void nothing_to_install(int rc)
 
     // The GLYPH keeps the warning colour and the HEADLINE takes the accent:
     // amber is a mark colour, and these six screens are read.
-    lv_obj_t *g = wt_lbl(s_scr, glyph, FW_TXT_X, 124, wt_font23(), col);
+    lv_obj_t *g = wt_lbl(s_scr, glyph, FW_TXT_X, SY(124), wt_font23(), col);
     if (rc == WFW_ERR_SAME) lv_obj_add_flag(g, WT_FLAG_ACCENT);
     lv_obj_update_layout(g);
-    lv_obj_t *hd = wt_lbl(s_scr, h, FW_TXT_X + lv_obj_get_width(g) + 14, 118,
+    lv_obj_t *hd = wt_lbl(s_scr, h, FW_TXT_X + lv_obj_get_width(g) + SX(14), SY(118),
                           wt_font28(), wt_ink_for(col));
     lv_obj_add_flag(hd, WT_FLAG_ACCENT);
     fw_enter(g, 280, 40);
     fw_enter(hd, 280, 40);
 
-    lv_obj_t *bd = wt_note(s_scr, b, FW_TXT_X, 176, 640, 270 - 176 - 8);
+    // The pane's full width on the 3.5in: SX(640) is 384 there, and "the card
+    // holds the version this device is running." left its last word alone on
+    // a second line with 30px of the lane unused.
+    lv_obj_t *bd = wt_note(s_scr, b, FW_TXT_X, SY(176),
+                           KISS_NARROW ? FW_W - WT_LINE_PAD : SX(640),
+                           SY(270) - SY(176) - SY(8));
     lv_obj_set_style_text_color(bd, WT_MUT, 0);
     fw_enter(bd, 260, 120);
 
-    fw_rule_in(270, 150);
+    fw_rule_in(SY(270), 150);
 
     // The remedy, as a line you can tap rather than a second paragraph. The
     // screen this replaces printed the whole "where the file goes" explainer
@@ -837,14 +911,14 @@ static void nothing_to_install(int rc)
     // "?" beside the caption already says, and one action never gets two
     // marks. The row still takes the tap -- wt_line_press and the handler are
     // added by hand below the chip.
-    lv_obj_t *row = wt_line_row(s_scr, FW_X, 282, FW_W, FW_ROW_H,
+    lv_obj_t *row = wt_line_row(s_scr, FW_X, SY(282), FW_W, FW_ROW_H,
                                 tr(STR_G_FW_WHERE_CAP),
                                 tr(STR_G_FW_WHERE_SHORT), wt_font23(), WT_INK,
                                 NULL, NULL, NULL, NULL);
     fw_row_tap(row, where_help_cb);
     fw_mark_after_cap(row, where_help_cb);
     fw_enter(row, 260, 190);
-    fw_rule_in(282 + FW_ROW_H, 300);
+    fw_rule_in(SY(282) + FW_ROW_H, 300);
 }
 
 // ---- 1. the offer ----------------------------------------------------------
@@ -865,8 +939,8 @@ static void fw_screen(void)
         if (rc != WFW_ERR_SAME && rc != WFW_ERR_UNSIGNED)
             wt_arrow_action(s_scr, tr(STR_C_TRY_AGAIN), false, true, WT_ACT_X,
                             WT_ACTION_Y, 0, false, fw_rescan_cb, NULL);
-        wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y,
-                        160, true, close_cb, NULL);
+        wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, SX(592), WT_ACTION_Y,
+                        SX(160), true, close_cb, NULL);
         return;
     }
 
@@ -892,7 +966,7 @@ static void fw_screen(void)
         .lamp   = tr(down ? STR_G_FW_OLDER_LAMP : STR_G_FW_NEWER_LAMP),
         .lampc  = down ? WT_WARN : WT_OK,
     };
-    fw_trade(144, &t);
+    fw_trade(SY(144), &t);
 
     // The one thing wrong with this offer, on one full width line.
     //
@@ -927,7 +1001,7 @@ static void fw_screen(void)
         fw_enter(n, 240, 40);
     }
 
-    fw_rule_in(FW_ROW1_Y - 12, 150);
+    fw_rule_in(FW_ROW1_Y - FW_ROW1_RULE, 150);
 
     // The file, and how big it is. No arrow: this line opens nothing, and an
     // arrow on it would promise a screen that does not exist.
@@ -974,7 +1048,7 @@ static void fw_screen(void)
     // this whole pass removes.
     wt_arrow_action(s_scr, tr(STR_G_FW_INSTALL), false, true, WT_ACT_X,
                     WT_ACTION_Y, 0, false, install_cb, NULL);
-    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160,
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, SX(592), WT_ACTION_Y, SX(160),
                     true, close_cb, NULL);
 }
 

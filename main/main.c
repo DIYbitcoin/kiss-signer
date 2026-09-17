@@ -19,6 +19,7 @@
 #include "gameover_img.h"
 #include "game_bg.h"
 #include "kiss_img.h"
+#include "kiss_fonts.h"   // font_kiss_mono23: the 3.5in fingerprint chip
 #include "tile_lbls.h"   // TILE_LBL_Y (strips replaced by live i18n labels)
 #include "i18n.h"
 #include "kiss_ui.h"
@@ -64,9 +65,10 @@ static const char *TAG = "kiss";
 #define MAX_ENT 28
 #define TRAIL_LEN 6       // trail length (per-frame redraw is bounded by the local-origin fix below)
 #ifndef BLADE_MAX_SPAN
-#define BLADE_MAX_SPAN 150  // px: hard cap on blade length so a fast swipe / dropped frame can't
+#define BLADE_MAX_SPAN SX(150)  // px: hard cap on blade length so a fast swipe / dropped frame can't
                             // stretch the redraw box across the screen (breaks the lag feedback loop)
 #endif
+#define TAP_BOX 22  // px, the same on every board: see the collector
 #define GRAVITY 0.5f
 #define TICK_MS 16
 
@@ -82,19 +84,21 @@ typedef struct {
 
 // A watermelon is a heavy slow three points and a cherry is a fast tumbling
 // one. Sizes are untouched: make_sprite takes the pre-sized fast path on
-// purpose, so real size variety means re-baking art. Character comes out of
+// purpose, so real size variety means re-baking art (the 3.5in's sprites
+// are baked at SX() of these numbers, so the numbers are SX() too). Character
+// comes out of
 // launch speed, spin rate and point value instead, which is free. The bomb
 // gets a NEGATIVE lift deliberately -- a slower arc is a readable arc, which
 // is the fix for bombs at high spawn rates being noise rather than threat.
 static const def_t DEFS[] = {
-    {&img_watermelon, &img_watermelon_half, &img_watermelon_halfr, 104, 104, false, false, 0xF0364C, 3, -3, 3},
-    {&img_apple,      &img_apple_half,      &img_apple_halfr,       94,  94, false, false, 0xF3E8C6, 1,  0, 5},
-    {&img_orange,     &img_orange_half,     &img_orange_halfr,      94,  94, false, false, 0xFF9E1B, 1,  0, 5},
-    {&img_pineapple,  &img_pineapple_half,  &img_pineapple_halfr,  112, 112, false, false, 0xFFD23A, 2, -2, 4},
-    {&img_strawberry, NULL, NULL, 100, 0, false, true,  0xFF466E, 1,  1, 7},
-    {&img_cherries,   NULL, NULL,  90, 0, false, true,  0xE01F2A, 1,  2, 8},
-    {&img_grapes,     NULL, NULL,  94, 0, false, true,  0x9C4DCC, 1,  1, 6},
-    {&img_bomb,       NULL, NULL,  92, 0, true,  false, 0,        0, -2, 2},
+    {&img_watermelon, &img_watermelon_half, &img_watermelon_halfr, SX(104), SX(104), false, false, 0xF0364C, 3, -3, 3},
+    {&img_apple,      &img_apple_half,      &img_apple_halfr,       SX(94), SX(94), false, false, 0xF3E8C6, 1,  0, 5},
+    {&img_orange,     &img_orange_half,     &img_orange_halfr,      SX(94), SX(94), false, false, 0xFF9E1B, 1,  0, 5},
+    {&img_pineapple,  &img_pineapple_half,  &img_pineapple_halfr,  SX(112), SX(112), false, false, 0xFFD23A, 2, -2, 4},
+    {&img_strawberry, NULL, NULL, SX(100), 0, false, true,  0xFF466E, 1,  1, 7},
+    {&img_cherries,   NULL, NULL,  SX(90), 0, false, true,  0xE01F2A, 1,  2, 8},
+    {&img_grapes,     NULL, NULL,  SX(94), 0, false, true,  0x9C4DCC, 1,  1, 6},
+    {&img_bomb,       NULL, NULL,  SX(92), 0, true,  false, 0,        0, -2, 2},
 };
 #define NUM_DEFS (sizeof(DEFS) / sizeof(DEFS[0]))
 #define BOMB_IDX (NUM_DEFS - 1)
@@ -386,7 +390,7 @@ static void score_popup(int x, int y, const char *txt, uint32_t color) {
   lv_anim_t a;
   lv_anim_init(&a); lv_anim_set_var(&a, l);
   lv_anim_set_exec_cb(&a, anim_y_cb);
-  lv_anim_set_values(&a, y, y - 54);
+  lv_anim_set_values(&a, y, y - SY(54));
   lv_anim_set_duration(&a, 600);
   lv_anim_set_ready_cb(&a, anim_del_cb);
   lv_anim_start(&a);
@@ -408,14 +412,14 @@ static void life_gain_fx(lv_obj_t *heart) {
   lv_anim_set_duration(&a, 380);
   lv_anim_set_path_cb(&a, lv_anim_path_overshoot);
   lv_anim_start(&a);
-  score_popup(SCREEN_W - 176, 44, "+1 LIFE", 0x8CF09A);
+  score_popup(SCREEN_W - SX(176), SY(44), "+1 LIFE", 0x8CF09A);
 }
 
 static void explosion(float x, float y) {
   lv_obj_t *o = lv_image_create(lv_screen_active());
   lv_image_set_src(o, &img_explosion);
   lv_image_set_pivot(o, 72, 72);
-  lv_obj_set_pos(o, (int)x - 72, (int)y - 72);
+  lv_obj_set_pos(o, (int)x - SX(72), (int)y - SY(72));
   lv_anim_t a;
   lv_anim_init(&a);
   lv_anim_set_var(&a, o);
@@ -459,7 +463,7 @@ static void juice_splat(float x, float y, uint32_t col) {
   lv_image_set_src(o, &img_splat);  // 100px, white -> recolored to juice
   lv_obj_set_style_image_recolor(o, lv_color_hex(col), 0);
   lv_obj_set_style_image_recolor_opa(o, LV_OPA_COVER, 0);
-  lv_obj_set_pos(o, (int)x - 50, (int)y - 50);
+  lv_obj_set_pos(o, (int)x - SX(50), (int)y - SY(50));
   lv_anim_t b;
   lv_anim_init(&b);
   lv_anim_set_var(&b, o);
@@ -545,8 +549,16 @@ static float diff_progress(void) {
 //
 // Apex is deliberately roughly constant across the ramp. What changes is the
 // TIME the fruit spends in the air, which is the part that reads as difficulty.
+// Scaled to the canvas: a throw's apex goes with the SQUARE of its speed, so
+// the 3.5in's 320px canvas takes root(2/3) of the wide speed to put the same
+// arc on its glass instead of throwing fruit off the top where nothing can
+// cut them.
 static int launch_speed(float p) {
+#if KISS_NARROW
+  return (int)(rnd_range(15 + (int)(p * 5), 18 + (int)(p * 9)) * 0.8165f);
+#else
   return rnd_range(15 + (int)(p * 5), 18 + (int)(p * 9));
+#endif
 }
 static float fruit_gravity(float p) { return GRAVITY * (0.70f + 0.30f * p); }
 
@@ -684,7 +696,7 @@ static void spawn_juice(float x, float y, uint32_t col, int n) {
     e->rot = 0.0f;
     e->av = 0.0f;                          // droplets never take the rotate path
     e->rot_q = 0;
-    e->size = 16;
+    e->size = SX(16);                      // the droplet's edge, baked per board
     e->x = x;
     e->y = y;
     e->vx = cosf(a) * sp;
@@ -698,6 +710,24 @@ static void update_hearts(void) {
   for (int i = 0; i < 3; i++)
     lv_image_set_src(s_hearts[i], i < s_lives ? &img_heart : &img_heart_empty);
 }
+
+// The game over card's live rows. On the 3.5in they are pixels, one stack with
+// the card gameover_mock.py draws there: at the scaled 48 px the score sat on
+// the card's rule and the 28 px BEST ran through its bottom border, and the
+// NEW BEST ribbon lay across the card's top. The score steps down to 40 px
+// (digits 153..181 over the rule at 188), BEST takes 195..215 of a card that
+// ends at 226, and the ribbon rides 60..116, clear of the title and the card.
+#if KISS_NARROW
+#define OVER_NUM_FONT  (&lv_font_montserrat_40)
+#define OVER_NUM_Y     145
+#define OVER_BEST_Y    190
+#define OVER_RIBBON_Y  60
+#else
+#define OVER_NUM_FONT  (&lv_font_montserrat_48)
+#define OVER_NUM_Y     SY(240)
+#define OVER_BEST_Y    SY(316)
+#define OVER_RIBBON_Y  SY(128)
+#endif
 
 static void show_game_over(void) {
   s_state = ST_OVER;
@@ -715,8 +745,8 @@ static void show_game_over(void) {
   lv_obj_add_flag(s_blade_glow, LV_OBJ_FLAG_HIDDEN);
   lv_label_set_text_fmt(s_over_lbl, "%d", s_score);
   lv_label_set_text_fmt(s_best_lbl, "BEST  %d", s_best);
-  lv_obj_align(s_over_lbl, LV_ALIGN_TOP_MID, 0, 240);   // re-center for digit count (landscape card)
-  lv_obj_align(s_best_lbl, LV_ALIGN_TOP_MID, 0, 316);
+  lv_obj_align(s_over_lbl, LV_ALIGN_TOP_MID, 0, OVER_NUM_Y);   // re-center for digit count (landscape card)
+  lv_obj_align(s_best_lbl, LV_ALIGN_TOP_MID, 0, OVER_BEST_Y);
   if (newbest) lv_obj_clear_flag(s_newbest, LV_OBJ_FLAG_HIDDEN);
   else lv_obj_add_flag(s_newbest, LV_OBJ_FLAG_HIDDEN);
   lv_obj_move_foreground(s_over_panel);
@@ -759,14 +789,14 @@ static void fruit_hop_done(lv_anim_t *a) {
   lv_anim_init(&f);
   lv_anim_set_var(&f, o);
   lv_anim_set_exec_cb(&f, logo_y_cb);
-  lv_anim_set_values(&f, menu_fruit_y[i], menu_fruit_y[i] - 12);
+  lv_anim_set_values(&f, menu_fruit_y[i], menu_fruit_y[i] - SY(12));
   lv_anim_set_duration(&f, 2600 + i * 300);
   lv_anim_set_reverse_duration(&f, 2600 + i * 300);
   lv_anim_set_repeat_count(&f, LV_ANIM_REPEAT_INFINITE);
   lv_anim_set_path_cb(&f, lv_anim_path_ease_in_out);
   lv_anim_start(&f);
   lv_anim_set_exec_cb(&f, saver_set_x);
-  lv_anim_set_values(&f, menu_fruit_x[i] - 7, menu_fruit_x[i] + 7);
+  lv_anim_set_values(&f, menu_fruit_x[i] - SX(7), menu_fruit_x[i] + SX(7));
   lv_anim_set_duration(&f, 3400 + i * 370);
   lv_anim_set_reverse_duration(&f, 3400 + i * 370);
   lv_anim_start(&f);
@@ -803,12 +833,12 @@ static void menu_idle_drift_stop(void) {
 static void menu_intro(void) {
   for (int i = 0; i < LOGO_LT_N; i++) {
     if (!s_logo_lt[i]) return;
-    lv_obj_set_y(s_logo_lt[i], logo_lt_y[i] - 320);  // park off-screen until its delay is up
+    lv_obj_set_y(s_logo_lt[i], logo_lt_y[i] - SY(320));  // park off-screen until its delay is up
     lv_anim_t a;
     lv_anim_init(&a);
     lv_anim_set_var(&a, s_logo_lt[i]);
     lv_anim_set_exec_cb(&a, logo_y_cb);
-    lv_anim_set_values(&a, logo_lt_y[i] - 320, logo_lt_y[i]);
+    lv_anim_set_values(&a, logo_lt_y[i] - SY(320), logo_lt_y[i]);
     lv_anim_set_duration(&a, 420);
     lv_anim_set_delay(&a, 40 + i * 55);
     lv_anim_set_path_cb(&a, lv_anim_path_overshoot);
@@ -818,13 +848,13 @@ static void menu_intro(void) {
     if (!s_menu_fruit[i]) return;
     lv_anim_delete(s_menu_fruit[i], NULL);           // stop a previous run's idle drift
     lv_obj_set_x(s_menu_fruit[i], menu_fruit_x[i]);
-    lv_obj_set_y(s_menu_fruit[i], menu_fruit_y[i] + 26);
+    lv_obj_set_y(s_menu_fruit[i], menu_fruit_y[i] + SY(26));
     lv_obj_set_style_opa(s_menu_fruit[i], 0, 0);
     lv_anim_t a;
     lv_anim_init(&a);
     lv_anim_set_var(&a, s_menu_fruit[i]);
     lv_anim_set_exec_cb(&a, logo_y_cb);
-    lv_anim_set_values(&a, menu_fruit_y[i] + 26, menu_fruit_y[i]);
+    lv_anim_set_values(&a, menu_fruit_y[i] + SY(26), menu_fruit_y[i]);
     lv_anim_set_duration(&a, 300);
     lv_anim_set_delay(&a, 1060 + i * 90);
     lv_anim_set_path_cb(&a, lv_anim_path_overshoot);
@@ -905,7 +935,7 @@ static void slice(ent_t *e, float bdx, float bdy) {
   int pts = e->gold ? 5 : dd->points;
   s_score += pts;
   { char b[8]; snprintf(b, sizeof b, "+%d", pts);
-    score_popup((int)e->x - 6, (int)e->y - 24, b,
+    score_popup((int)e->x - SX(6), (int)e->y - SY(24), b,
                 e->gold ? 0xFFD23A : 0xFFFFFF); }
   lv_label_set_text_fmt(s_score_lbl, "%d", s_score);
   if (s_score / 50 > s_life_milestone) {       // every 50 pts: earn a life back (handles combo jumps)
@@ -919,7 +949,7 @@ static void slice(ent_t *e, float bdx, float bdy) {
   if (e->gold) {
     s_frenzy_ms = FRENZY_MS;
     screen_flash(0xFFD23A);
-    score_popup(SCREEN_W/2 - 110, SCREEN_H/2 - 40, "FRENZY!", 0xFFD23A);
+    score_popup(SCREEN_W/2 - SX(110), SCREEN_H/2 - SY(40), "FRENZY!", 0xFFD23A);
   }
   const def_t *d = &DEFS[e->defi];
   juice_splat(e->x, e->y, d->juice);  // big juicy splash on every slice
@@ -1107,14 +1137,14 @@ static void saver_show(void) {
     lv_obj_t *f = lv_image_create(scr);
     lv_image_set_src(f, DEFS[pick_fruit()].whole);  // varied fruit, never the bomb, no triple-repeats
     int bx = rnd_range(24, SCREEN_W - 96);
-    lv_obj_set_pos(f, bx, SCREEN_H + 60);
+    lv_obj_set_pos(f, bx, SCREEN_H + SY(60));
     s_saver_fruit[i] = f;
 
     lv_anim_t a;
     lv_anim_init(&a);
     lv_anim_set_var(&a, f);
     lv_anim_set_exec_cb(&a, saver_set_y);
-    lv_anim_set_values(&a, SCREEN_H + 90, -140);            // rise off-bottom to off-top (loops unseen)
+    lv_anim_set_values(&a, SCREEN_H + SY(90), -SY(140));            // rise off-bottom to off-top (loops unseen)
     lv_anim_set_duration(&a, rnd_range(7000, 12000));
     lv_anim_set_delay(&a, i * 1100);
     lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
@@ -1124,7 +1154,7 @@ static void saver_show(void) {
     lv_anim_init(&b);
     lv_anim_set_var(&b, f);
     lv_anim_set_exec_cb(&b, saver_set_x);
-    lv_anim_set_values(&b, bx - 26, bx + 26);                // gentle horizontal sway
+    lv_anim_set_values(&b, bx - SX(26), bx + SX(26));                // gentle horizontal sway
     lv_anim_set_duration(&b, rnd_range(2600, 4200));
     lv_anim_set_reverse_duration(&b, rnd_range(2600, 4200));
     lv_anim_set_repeat_count(&b, LV_ANIM_REPEAT_INFINITE);
@@ -1179,12 +1209,59 @@ static bool detect_cover_word(const lv_point_t *p, int n, int strokes) {
   return cw_match(kx, ky, s_gid, n, strokes);
 }
 
+// The home tiles. The 3.5in's are a little wider than three fifths, 102 px
+// eight apart, so the 18 px tile words keep their margins (assets/generators/
+// kiss_mock.py draws the same boxes); the wide board's are what they were.
+#define HOME_TILE_X(i) (KISS_NARROW ? 24 + (i) * 110 : SX(50) + (i) * SX(180))
+#define HOME_TILE_W    (KISS_NARROW ? 102 : SX(161))
+#define HOME_TILE_LW   (KISS_NARROW ? 102 : SX(160))
+// A press on tile i: on the 3.5in the tile plus half its gap each side, so the
+// four boxes meet and none overlaps; the wide board keeps its measured boxes.
+#define TILE_HIT(i, wx0, wx1) (KISS_NARROW ? (tx >= HOME_TILE_X(i) - 4 && \
+                                              tx <= HOME_TILE_X(i) + HOME_TILE_W + 3) \
+                                           : (tx >= SX(wx0) && tx <= SX(wx1)))
+
+// Where a press opens the fingerprint card: the chip's left edge, on either board.
+#define HOME_CHIP_HIT_X (KISS_NARROW ? 300 : SX(566))
+
+#if KISS_NARROW
+// The fingerprint chip's box on the 3.5in, where its code is set at 23 px.
+#define HOME_CHIP_X 300
+#define HOME_CHIP_Y 22
+#define HOME_CHIP_W 140
+#define HOME_CHIP_H 36
+#endif
+
+// The tile words take the 3.5in's 18 px rung when the word fits its tile,
+// and the 14 px floor only when a translation does not: at 14 they read as
+// fine print under a 60 px icon. The wide board's tiles are unchanged.
+static const lv_font_t *tile_font(const char *t) {
+#if KISS_NARROW
+  lv_point_t sz;
+  lv_text_get_size(&sz, t, wt_font28(), 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+  return sz.x <= HOME_TILE_LW - 14 ? wt_font28() : wt_font23();
+#else
+  (void)t;
+  return wt_font23();
+#endif
+}
+
 // center the code + caption on the baked chip frame (566..760 x 39..86 in kiss_mock.py)
 static void fp_chip_place(void) {
+#if KISS_NARROW
+  const int cx = HOME_CHIP_X + HOME_CHIP_W / 2;
   lv_obj_update_layout(s_fp_chip);
-  lv_obj_set_pos(s_fp_chip, 663 - lv_obj_get_width(s_fp_chip) / 2, 46);
+  lv_obj_set_pos(s_fp_chip, cx - lv_obj_get_width(s_fp_chip) / 2,
+                 HOME_CHIP_Y + (HOME_CHIP_H - lv_obj_get_height(s_fp_chip)) / 2);
   lv_obj_update_layout(s_fp_cap);
-  lv_obj_set_pos(s_fp_cap, 663 - lv_obj_get_width(s_fp_cap) / 2, 92);
+  lv_obj_set_pos(s_fp_cap, cx - lv_obj_get_width(s_fp_cap) / 2,
+                 HOME_CHIP_Y + HOME_CHIP_H + 3);
+#else
+  lv_obj_update_layout(s_fp_chip);
+  lv_obj_set_pos(s_fp_chip, SX(663) - lv_obj_get_width(s_fp_chip) / 2, SY(46));
+  lv_obj_update_layout(s_fp_cap);
+  lv_obj_set_pos(s_fp_cap, SX(663) - lv_obj_get_width(s_fp_cap) / 2, SY(92));
+#endif
 }
 
 // unlock hand-off, in two acts on the freshly-revealed home screen:
@@ -1210,10 +1287,20 @@ static void fp_fly_glide(void) {
   lv_anim_set_delay(&a, 140);                 // a beat to read the locked code
   lv_anim_set_path_cb(&a, lv_anim_path_ease_in_out);
   lv_anim_set_exec_cb(&a, fly_x_cb);
-  lv_anim_set_values(&a, sx, 663 - fw / 2);   // land centered on the chip frame (663,61)
+#if KISS_NARROW
+  // Landed already: the flier started on the chip label (fp_fly_start).
+  (void)fw; (void)fh;
+  lv_obj_update_layout(s_fp_chip);
+  lv_anim_set_values(&a, sx, lv_obj_get_x(s_fp_chip));
   lv_anim_start(&a);
   lv_anim_set_exec_cb(&a, fly_y_cb);
-  lv_anim_set_values(&a, sy, 61 - fh / 2);
+  lv_anim_set_values(&a, sy, lv_obj_get_y(s_fp_chip));
+#else
+  lv_anim_set_values(&a, sx, SX(663) - fw / 2);   // land centered on the chip frame (663,61)
+  lv_anim_start(&a);
+  lv_anim_set_exec_cb(&a, fly_y_cb);
+  lv_anim_set_values(&a, sy, SY(61) - fh / 2);
+#endif
   lv_anim_start(&a);
   // last stretch: flier fades out...
   lv_anim_set_exec_cb(&a, anim_opa_cb);
@@ -1288,12 +1375,26 @@ static void fp_fly_start(void) {
   s_fp_fly = lv_label_create(s_home);
   lv_label_set_text(s_fp_fly, s_fp_hex);      // real code first: size the label off it
   lv_obj_set_style_text_color(s_fp_fly, wt_accent(), 0);
+#if KISS_NARROW
+  // The code decrypts inside its own chip, in the chip's face and spacing, so
+  // the glide below has nowhere to go and the crossfade lands on the same
+  // pixels. Mid screen, where the wide board starts it, is the top edge of the
+  // 3.5in's tile row: the tile rims struck through the code for the whole
+  // decrypt, and there is no clear band between the tagline and the tiles
+  // that a code this size would fit in.
+  lv_obj_set_style_text_font(s_fp_fly, &font_kiss_mono23, 0);
+  lv_obj_set_style_text_letter_space(s_fp_fly, 2, 0);
+  lv_obj_update_layout(s_fp_fly);
+  lv_obj_update_layout(s_fp_chip);
+  lv_obj_set_pos(s_fp_fly, lv_obj_get_x(s_fp_chip), lv_obj_get_y(s_fp_chip));
+#else
   lv_obj_set_style_text_font(s_fp_fly, wt_font_num48(), 0);
   lv_obj_set_style_text_letter_space(s_fp_fly, 4, 0);
   lv_obj_update_layout(s_fp_fly);
   // start where the reveal card showed the code (box center 400,163 in kiss_ui.c)
-  lv_obj_set_pos(s_fp_fly, 400 - lv_obj_get_width(s_fp_fly) / 2,
-                 163 - lv_obj_get_height(s_fp_fly) / 2);
+  lv_obj_set_pos(s_fp_fly, SX(400) - lv_obj_get_width(s_fp_fly) / 2,
+                 SY(163) - lv_obj_get_height(s_fp_fly) / 2);
+#endif
   lv_obj_set_style_opa(s_fp_chip, 0, 0);      // chip appears only when the glide lands
   lv_obj_set_style_opa(s_fp_cap, 0, 0);
   lv_obj_clear_flag(s_fp_chip, LV_OBJ_FLAG_HIDDEN);
@@ -1367,7 +1468,7 @@ static void kiss_home_restyle(void) {
     if (s_tile_ttl[i]) {
       // These objects survive a Settings language change. Refresh the font as
       // well as the text so regional CJK glyph forms switch immediately.
-      lv_obj_set_style_text_font(s_tile_ttl[i], wt_font23(), 0);
+      lv_obj_set_style_text_font(s_tile_ttl[i], tile_font(tr(TILE_TTL_STR[i])), 0);
       lv_label_set_text(s_tile_ttl[i], tr(TILE_TTL_STR[i]));
     }
   if (s_theme_cap) {
@@ -1397,12 +1498,18 @@ static void kiss_home_restyle(void) {
     lv_label_set_text(s_theme_lbl, wt_accent_name());
     lv_obj_set_style_text_color(s_theme_lbl, lv_color_hex(0xE8EEF7), 0);
     lv_obj_update_layout(s_theme_lbl);           // right-align: long names must not
-    int tx = 760 - lv_obj_get_width(s_theme_lbl);  // leave the safe area (overscan!)
-    lv_obj_set_pos(s_theme_lbl, tx, 428);
-    if (s_theme_dot) lv_obj_set_pos(s_theme_dot, tx - 26, 430);
+    // The tag's right edge. 760 clears the corner bracket at 744..768 on the
+    // wide canvas because the bracket's own lines are its far sides; scaled,
+    // the bracket is 14 px and the word ran under its foot ("MONO too close
+    // to the bottom bracket", from the bench), so the small board ends the
+    // tag ten pixels short of the bracket's box instead.
+    const int tag_r = KISS_NARROW ? SX(744) - 10 : SX(760);
+    int tx = tag_r - lv_obj_get_width(s_theme_lbl);  // leave the safe area (overscan!)
+    lv_obj_set_pos(s_theme_lbl, tx, SY(428));
+    if (s_theme_dot) lv_obj_set_pos(s_theme_dot, tx - SX(26), SY(430));
     if (s_theme_cap) {
       lv_obj_update_layout(s_theme_cap);
-      lv_obj_set_pos(s_theme_cap, 760 - lv_obj_get_width(s_theme_cap), 406);
+      lv_obj_set_pos(s_theme_cap, tag_r - lv_obj_get_width(s_theme_cap), SY(406));
     }
   }
   for (int i = 0; i < N_MOTES; i++)
@@ -1442,12 +1549,12 @@ void kiss_home_refresh(void) {
     // rendered label rather than a number written here.
     lv_obj_update_layout(s_net_lbl);
     const int lw = lv_obj_get_width(s_net_lbl), gap = 10;
-    const int x0 = (800 - (8 + gap + lw)) / 2;
+    const int x0 = (SCREEN_W - (8 + gap + lw)) / 2;
     if (s_net_dot) {
-      lv_obj_set_pos(s_net_dot, x0, 56);
+      lv_obj_set_pos(s_net_dot, x0, SY(56));
       lv_obj_clear_flag(s_net_dot, LV_OBJ_FLAG_HIDDEN);
     }
-    lv_obj_set_pos(s_net_lbl, x0 + 8 + gap, 52);
+    lv_obj_set_pos(s_net_lbl, x0 + SX(8) + gap, SY(52));
   } else {
     lv_obj_add_flag(s_net_lbl, LV_OBJ_FLAG_HIDDEN);
     if (s_net_dot) lv_obj_add_flag(s_net_dot, LV_OBJ_FLAG_HIDDEN);
@@ -1479,11 +1586,11 @@ static void tiles_settle(void) {
     // icon/title already said, so removing them also lets the title sit at the
     // visual centre of the label area.
     lv_obj_t *label = s_tile_ttl[i];
-    const int base = TILE_LBL_Y + 22;
+    const int base = SY(TILE_LBL_Y + 22);
     if (!label) return;
     lv_anim_delete(label, NULL);        // re-unlock mid-settle: start clean
     lv_obj_set_style_opa(label, 0, 0);
-    lv_obj_set_y(label, base - 12);
+    lv_obj_set_y(label, base - SY(12));
     lv_anim_t a;
     lv_anim_init(&a);
     lv_anim_set_var(&a, label);
@@ -1491,7 +1598,7 @@ static void tiles_settle(void) {
     lv_anim_set_duration(&a, 260);
     lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
     lv_anim_set_exec_cb(&a, fly_y_cb);
-    lv_anim_set_values(&a, base - 12, base);
+    lv_anim_set_values(&a, base - SY(12), base);
     lv_anim_start(&a);
     lv_anim_set_exec_cb(&a, anim_opa_cb);
     lv_anim_set_values(&a, 0, 255);
@@ -1500,24 +1607,24 @@ static void tiles_settle(void) {
 }
 
 static void motes_start(void) {
-  static const int mx[N_MOTES]  = {150, 260, 430, 590, 735};
+  static const int mx[N_MOTES]  = {SX(150), SX(260), SX(430), SX(590), SX(735)};
   static const int mms[N_MOTES] = {9000, 12400, 7600, 10800, 14200};
   for (int i = 0; i < N_MOTES; i++) {
     if (!s_mote[i]) return;
     lv_anim_delete(s_mote[i], NULL);
-    lv_obj_set_pos(s_mote[i], mx[i], 474);
+    lv_obj_set_pos(s_mote[i], mx[i], SY(474));
     lv_anim_t a;
     lv_anim_init(&a);
     lv_anim_set_var(&a, s_mote[i]);
     lv_anim_set_exec_cb(&a, fly_y_cb);
-    lv_anim_set_values(&a, 474, 2);
+    lv_anim_set_values(&a, SY(474), 2);
     lv_anim_set_duration(&a, mms[i]);
     lv_anim_set_delay(&a, i * 900);
     lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
     lv_anim_set_repeat_delay(&a, 500 + i * 400);
     lv_anim_start(&a);
     lv_anim_set_exec_cb(&a, anim_opa_cb);   // independent shimmer on top
-    lv_anim_set_values(&a, 30, 120);
+    lv_anim_set_values(&a, SY(30), SY(120));
     lv_anim_set_duration(&a, 2600 + i * 500);
     lv_anim_set_reverse_duration(&a, 2600 + i * 500);
     lv_anim_set_delay(&a, 0);
@@ -1531,7 +1638,7 @@ static void motes_stop(void) {
     if (!s_mote[i]) return;
     lv_anim_delete(s_mote[i], NULL);
     lv_obj_set_style_opa(s_mote[i], 0, 0);
-    lv_obj_set_y(s_mote[i], 474);           // parked in-bounds (invisible: opa 0)
+    lv_obj_set_y(s_mote[i], SY(474));           // parked in-bounds (invisible: opa 0)
   }
 }
 
@@ -2100,11 +2207,30 @@ lv_obj_t *kiss_touch_dead_banner(lv_obj_t *parent)
   // touch panel is dead, and it is the instruction that gets the owner out of
   // that state. The chip self sizes, so nothing else moves.
   lv_obj_set_style_text_font(chip, wt_font23(), 0);
+#if KISS_NARROW
+  // The kit's 6 px sides left the last letter 7 px from the chip's edge on
+  // the 3.5in, where this sentence nearly spans the glass; 12 clears it. A
+  // translation longer than the glass wraps inside 16 px margins rather than
+  // running off both edges.
+  lv_obj_set_style_pad_hor(chip, 12, 0);
+  lv_obj_update_layout(chip);
+  const bool wrapped = lv_obj_get_width(chip) > SCREEN_W - 32;
+  if (wrapped) {
+    lv_obj_set_width(chip, SCREEN_W - 32);
+    lv_obj_set_style_text_align(chip, LV_TEXT_ALIGN_CENTER, 0);
+  }
+#endif
   lv_obj_update_layout(chip);
   // Bottom edge, not the top: the top is where the game's own title art is,
   // and the fault does not get to cover the cover story.
-  lv_obj_set_pos(chip, (SCREEN_W - lv_obj_get_width(chip)) / 2,
-                 SCREEN_H - lv_obj_get_height(chip) - 12);
+  int chip_y = SCREEN_H - lv_obj_get_height(chip) - SY(12);
+#if KISS_NARROW
+  // Two lines at the bottom edge reached up through the PLAY label (the
+  // button's top is SY(356) in menu_mock.py), so a wrapped chip sits on the
+  // island instead, 6 px above the button.
+  if (wrapped) chip_y = SY(356) - 6 - lv_obj_get_height(chip);
+#endif
+  lv_obj_set_pos(chip, (SCREEN_W - lv_obj_get_width(chip)) / 2, chip_y);
   lv_obj_move_foreground(chip);
   return chip;
 }
@@ -2412,7 +2538,7 @@ static void game_tick(lv_timer_t *t) {
       // drawn around them.
       lv_obj_t *card = lv_obj_create(s_lock_warn);
       lv_obj_remove_style_all(card);
-      lv_obj_set_size(card, LV_PCT(100), 56);
+      lv_obj_set_size(card, LV_PCT(100), SY(56));
       lv_obj_align(card, LV_ALIGN_TOP_MID, 0, 0);
       lv_obj_set_style_bg_color(card, WT_PANEL, 0);
       lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
@@ -2422,7 +2548,7 @@ static void game_tick(lv_timer_t *t) {
       lv_obj_set_flex_flow(card, LV_FLEX_FLOW_ROW);
       lv_obj_set_flex_align(card, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
                             LV_FLEX_ALIGN_CENTER);
-      lv_obj_set_style_pad_column(card, 12, 0);
+      lv_obj_set_style_pad_column(card, SX(12), 0);
       lv_obj_remove_flag(card, LV_OBJ_FLAG_CLICKABLE);
       lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
       lv_obj_t *mk = lv_label_create(card);          // marks before words
@@ -2440,7 +2566,7 @@ static void game_tick(lv_timer_t *t) {
     // and the only way out was pulling the power. This handler reads the same
     // touch the unlock gesture reads, so it is on a path known to work here.
     // Same top-left corner CANCEL once occupied, so nothing new has to be learned.
-    if (kiss_scan_active() && pressed && !s_prev_press && tx < 200 && ty < 110) {
+    if (kiss_scan_active() && pressed && !s_prev_press && tx < SX(200) && ty < SY(110)) {
       kiss_scan_cancel();
       s_prev_press = pressed;
       return;
@@ -2515,37 +2641,37 @@ static void game_tick(lv_timer_t *t) {
       uint32_t tri = ph < 60 ? ph : 120 - ph;        // 0..60..0
       lv_obj_set_style_opa(s_sd_badge, (lv_opa_t)(180 + tri * 75 / 60), 0);
     }
-    if (!cam_on && pressed && !s_prev_press && tx < 88 && ty < 88) {
+    if (!cam_on && pressed && !s_prev_press && tx < SX(88) && ty < SY(88)) {
       kiss_lock();
     } else if (cam_on) {
-      bool zoom_zone = (tx >= 680 || tx <= 120) && ty > 120;
+      bool zoom_zone = (tx >= SX(680) || tx <= SX(120)) && ty > SY(120);
       if (pressed && (s_zoom_drag || zoom_zone)) {            // edge drag = zoom
         if (!s_prev_press) { s_zoom_anchor = ty; s_zoom_drag = true; }
         else if (s_zoom_drag) {
-          while (s_zoom_anchor - ty >= 60) { camera_spike_zoom(+1); s_zoom_anchor -= 60; }
-          while (ty - s_zoom_anchor >= 60) { camera_spike_zoom(-1); s_zoom_anchor += 60; }
+          while (s_zoom_anchor - ty >= SY(60)) { camera_spike_zoom(+1); s_zoom_anchor -= SY(60); }
+          while (ty - s_zoom_anchor >= SY(60)) { camera_spike_zoom(-1); s_zoom_anchor += SY(60); }
         }
-      } else if (pressed && !s_prev_press && ty < 110) {
-        if (tx < 200) {                                       // top-left: close camera
+      } else if (pressed && !s_prev_press && ty < SY(110)) {
+        if (tx < SX(200)) {                                       // top-left: close camera
           camera_spike_toggle(s_home, kiss_board_i2c_bus());
           if (s_cam_lbl) lv_label_set_text(s_cam_lbl, "");    // don't leave dev status on home
-        } else if (tx >= 600) {                               // top-right: orientation
+        } else if (tx >= SX(600)) {                               // top-right: orientation
           camera_spike_cycle_orientation();
         }
       }
-    } else if (pressed && !s_prev_press && tx >= 566 && ty < 110) {
+    } else if (pressed && !s_prev_press && tx >= HOME_CHIP_HIT_X && ty < SY(110)) {
       s_fp_pend = true;                  // fingerprint chip: open the card on release
     } else if (pressed && !s_prev_press &&
-               tx >= 40 && tx <= 220 && ty >= 140 && ty <= 340) {  // Sign tile
+               TILE_HIT(0, 40, 220) && ty >= SY(140) && ty <= SY(340)) {  // Sign tile
       s_tile_pend = 1;
     } else if (pressed && !s_prev_press &&
-               tx >= 230 && tx <= 390 && ty >= 140 && ty <= 340) { // Receive tile
+               TILE_HIT(1, 230, 390) && ty >= SY(140) && ty <= SY(340)) { // Receive tile
       s_tile_pend = 2;
     } else if (pressed && !s_prev_press &&
-               tx >= 410 && tx <= 570 && ty >= 140 && ty <= 340) { // Keys tile: export
+               TILE_HIT(2, 410, 570) && ty >= SY(140) && ty <= SY(340)) { // Keys tile: export
       s_tile_pend = 3;
     } else if (pressed && !s_prev_press &&
-               tx >= 590 && tx <= 750 && ty >= 140 && ty <= 340) { // Settings tile
+               TILE_HIT(3, 590, 750) && ty >= SY(140) && ty <= SY(340)) { // Settings tile
       s_tile_pend = 4;
     } else if (!pressed && s_prev_press && s_fp_pend) {           // finger lifted: card
       s_fp_pend = false;
@@ -2560,16 +2686,16 @@ static void game_tick(lv_timer_t *t) {
     }
     if (!pressed) s_zoom_drag = false;
 #else
-    if (pressed && !s_prev_press && tx < 88 && ty < 88) kiss_lock();
-    else if (pressed && !s_prev_press && tx >= 566 && ty < 110)
+    if (pressed && !s_prev_press && tx < SX(88) && ty < SY(88)) kiss_lock();
+    else if (pressed && !s_prev_press && tx >= HOME_CHIP_HIT_X && ty < SY(110))
       s_fp_pend = true;                  // fingerprint chip: open the card on release
-    else if (pressed && !s_prev_press && tx >= 40 && tx <= 220 && ty >= 140 && ty <= 340)
+    else if (pressed && !s_prev_press && TILE_HIT(0, 40, 220) && ty >= SY(140) && ty <= SY(340))
       s_tile_pend = 1;
-    else if (pressed && !s_prev_press && tx >= 230 && tx <= 390 && ty >= 140 && ty <= 340)
+    else if (pressed && !s_prev_press && TILE_HIT(1, 230, 390) && ty >= SY(140) && ty <= SY(340))
       s_tile_pend = 2;
-    else if (pressed && !s_prev_press && tx >= 410 && tx <= 570 && ty >= 140 && ty <= 340)
+    else if (pressed && !s_prev_press && TILE_HIT(2, 410, 570) && ty >= SY(140) && ty <= SY(340))
       s_tile_pend = 3;
-    else if (pressed && !s_prev_press && tx >= 590 && tx <= 750 && ty >= 140 && ty <= 340)
+    else if (pressed && !s_prev_press && TILE_HIT(3, 590, 750) && ty >= SY(140) && ty <= SY(340))
       s_tile_pend = 4;
     else if (!pressed && s_prev_press && s_fp_pend) {
       s_fp_pend = false;
@@ -2610,7 +2736,7 @@ static void game_tick(lv_timer_t *t) {
             int mx = -9999;                             // starts well LEFT of how far right we'd
             for (int i = 0; i < s_gn; i++)              // reached: KISS is drawn L->R, so only a
               if (s_gpt[i].x > mx) mx = s_gpt[i].x;     // RESTART (a fresh K) begins far to the left.
-            if (tx < mx - 160) { s_gn = 0; s_strokes = 0; }  // -> no points bleeding between tries
+            if (tx < mx - SX(160)) { s_gn = 0; s_strokes = 0; }  // -> no points bleeding between tries
           }
           s_stroke_n0 = s_gn; s_strokes++;
         }
@@ -2619,10 +2745,12 @@ static void game_tick(lv_timer_t *t) {
         // slow, careful draw fills the buffer in ~2.5s and the trailing letters
         // are silently dropped -- the classic "I drew KISS perfectly and nothing
         // happened" failure. Decimation bounds points by ink length, not time.
+        // The 10px is the wide canvas's; a smaller board keeps the same ink
+        // fraction, or its letters lose the samples the recogniser counts.
         if (s_gn < GEST_MAX &&
             (s_gn == s_stroke_n0 ||
-             LV_ABS(tx - s_gpt[s_gn - 1].x) >= 10 ||
-             LV_ABS(ty - s_gpt[s_gn - 1].y) >= 10)) {
+             LV_ABS(tx - s_gpt[s_gn - 1].x) >= SX(10) ||
+             LV_ABS(ty - s_gpt[s_gn - 1].y) >= SY(10))) {
           s_gpt[s_gn].x = tx; s_gpt[s_gn].y = ty;
           s_gid[s_gn] = (uint8_t)s_strokes; s_gn++;
         }
@@ -2640,11 +2768,30 @@ static void game_tick(lv_timer_t *t) {
             if (s_gpt[i].y < y0) y0 = s_gpt[i].y;
             if (s_gpt[i].y > y1) y1 = s_gpt[i].y;
           }
-          bool tap = (s_stroke_n0 == 0 && x1 - x0 < 22 && y1 - y0 < 22);
+          // A finger that rolls under TAP_BOX pixels is a tap. The box is a
+          // physical size, a couple of millimetres of skin, and the small
+          // board's glass has FEWER pixels per millimetre than the wide one
+          // (about 6.5 against 8.4), so the wide number already covers the
+          // same roll there and it does not scale. Scaled with the canvas it
+          // read 13 px, a quarter tighter in millimetres than the wide board,
+          // and the first flash of this layout came back with the game-over
+          // buttons dead to taps. A stroke that short means nothing to any
+          // recogniser (the smallest mark is SX(80)), so nothing is lost.
+          bool tap = (s_stroke_n0 == 0 && x1 - x0 < TAP_BOX && y1 - y0 < TAP_BOX);
+#ifndef SIMULATOR
+          // The first lifts after boot, so a dead button can be read off the
+          // serial log as "stroke" against "tap" without a second flash.
+          static int lifts_logged;
+          if (lifts_logged < 16) {
+            lifts_logged++;
+            ESP_LOGI(TAG, "gesture: lift, %d point(s), box %dx%d, %s", s_gn - s_stroke_n0,
+                     x1 - x0, y1 - y0, tap ? "tap" : "stroke");
+          }
+#endif
           if (tap && s_state == ST_OVER) {
             // baked buttons (coords from gameover_mock.py, padded): PLAY AGAIN
             // restarts; the MENU button -- and any stray tap -- returns to the menu
-            if (x1 >= 220 && x1 <= 580 && y1 >= 356 && y1 <= 458) start_game();
+            if (x1 >= SX(220) && x1 <= SX(580) && y1 >= SY(356) && y1 <= SY(458)) start_game();
             else go_menu();
             s_gn = 0; s_strokes = 0;
           } else if (tap) {
@@ -2696,7 +2843,7 @@ static void game_tick(lv_timer_t *t) {
     lv_label_set_text_fmt(s_score_lbl, "%d", s_score);
     char b[28];
     snprintf(b, sizeof b, "%d FRUIT  +%d", s_combo_n, bonus);
-    score_popup((int)s_combo_x - 60, (int)s_combo_y - 30, b, 0xFFD23A);
+    score_popup((int)s_combo_x - SX(60), (int)s_combo_y - SY(30), b, 0xFFD23A);
     s_combo_n = 0;
   }
   if (s_frenzy_ms > 0) {
@@ -2865,10 +3012,10 @@ static void storage_locked_screen(lv_obj_t *root,
   lv_obj_t *page = wt_screen(root, "STORAGE LOCKED",
                              "NON-DESTRUCTIVE SAFE MODE");
   lv_obj_set_style_text_color(wt_screen_title(page), WT_STOP, 0);
-  lv_obj_t *body = wt_wraph(page, BODY, 48, 116, 704, 236);
+  lv_obj_t *body = wt_wraph(page, BODY, SX(48), SY(116), SX(704), SY(236));
   lv_obj_set_style_text_color(body, WT_INK, 0);
-  lv_obj_t *code = wt_lbl(page, cause, 48, 398, wt_font14(), WT_WARN);
-  lv_obj_set_width(code, 704);
+  lv_obj_t *code = wt_lbl(page, cause, SX(48), SY(398), wt_font14(), WT_WARN);
+  lv_obj_set_width(code, SX(704));
   lv_label_set_long_mode(code, LV_LABEL_LONG_WRAP);
 }
 
@@ -2930,13 +3077,13 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   lv_label_set_text(s_score_lbl, "0");
   lv_obj_set_style_text_color(s_score_lbl, lv_color_hex(0xF6D157), LV_PART_MAIN);  // gold
   lv_obj_set_style_text_font(s_score_lbl, &lv_font_montserrat_40, LV_PART_MAIN);
-  lv_obj_align(s_score_lbl, LV_ALIGN_TOP_LEFT, 22, 40);  // below top overscan, level with hearts
+  lv_obj_align(s_score_lbl, LV_ALIGN_TOP_LEFT, SX(22), SY(40));  // below top overscan, level with hearts
   lv_obj_add_flag(s_score_lbl, LV_OBJ_FLAG_HIDDEN);
 
   for (int i = 0; i < 3; i++) {
     s_hearts[i] = lv_image_create(scr);
     lv_image_set_src(s_hearts[i], &img_heart);
-    lv_obj_align(s_hearts[i], LV_ALIGN_TOP_RIGHT, -64 - (2 - i) * 44, 50);  // padded sprite + below overscan band
+    lv_obj_align(s_hearts[i], LV_ALIGN_TOP_RIGHT, -SX(64) - (2 - i) * SX(44), SY(50));  // padded sprite + below overscan band
     lv_obj_add_flag(s_hearts[i], LV_OBJ_FLAG_HIDDEN);
   }
 
@@ -2979,18 +3126,18 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   s_over_lbl = lv_label_create(s_over_panel);  // big score number (on the card)
   lv_label_set_text(s_over_lbl, "0");
   lv_obj_set_style_text_color(s_over_lbl, lv_color_hex(0xFFFFFF), 0);
-  lv_obj_set_style_text_font(s_over_lbl, &lv_font_montserrat_48, 0);
-  lv_obj_align(s_over_lbl, LV_ALIGN_TOP_MID, 0, 240);
+  lv_obj_set_style_text_font(s_over_lbl, OVER_NUM_FONT, 0);
+  lv_obj_align(s_over_lbl, LV_ALIGN_TOP_MID, 0, OVER_NUM_Y);
 
   s_best_lbl = lv_label_create(s_over_panel);  // BEST n
   lv_label_set_text(s_best_lbl, "BEST  0");
   lv_obj_set_style_text_color(s_best_lbl, lv_color_hex(0xECC878), 0);
   lv_obj_set_style_text_font(s_best_lbl, &lv_font_montserrat_28, 0);
-  lv_obj_align(s_best_lbl, LV_ALIGN_TOP_MID, 0, 316);
+  lv_obj_align(s_best_lbl, LV_ALIGN_TOP_MID, 0, OVER_BEST_Y);
 
   s_newbest = lv_image_create(s_over_panel);  // NEW BEST! ribbon (shown when beaten)
   lv_image_set_src(s_newbest, &img_newbest);
-  lv_obj_align(s_newbest, LV_ALIGN_TOP_MID, 0, 128);
+  lv_obj_align(s_newbest, LV_ALIGN_TOP_MID, 0, OVER_RIBBON_Y);
   lv_obj_add_flag(s_newbest, LV_OBJ_FLAG_HIDDEN);
 
 
@@ -3031,27 +3178,27 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   for (int i = 0; i < 4; i++) {
     lv_obj_t *c = lv_obj_create(s_home);
     lv_obj_remove_style_all(c);
-    lv_obj_set_pos(c, 50 + i * 180, 150);
-    lv_obj_set_size(c, 161, 183);
-    lv_obj_set_style_radius(c, 12, 0);
+    lv_obj_set_pos(c, HOME_TILE_X(i), SY(150));
+    lv_obj_set_size(c, HOME_TILE_W, SY(183));
+    lv_obj_set_style_radius(c, SX(12), 0);
     lv_obj_set_style_border_width(c, 2, 0);
     lv_obj_set_style_bg_opa(c, 26, 0);              // glass wash; icons stay readable
-    lv_obj_set_style_shadow_width(c, 18, 0);        // the baked art's neon glow, live
+    lv_obj_set_style_shadow_width(c, SX(18), 0);        // the baked art's neon glow, live
     lv_obj_set_style_shadow_opa(c, 70, 0);
     lv_obj_remove_flag(c, LV_OBJ_FLAG_CLICKABLE);
     s_card_frame[i] = c;
   }
   static const struct { int x, y; lv_border_side_t side; } CORN[4] = {
-    {24, 24, LV_BORDER_SIDE_LEFT | LV_BORDER_SIDE_TOP},
-    {744, 24, LV_BORDER_SIDE_RIGHT | LV_BORDER_SIDE_TOP},
-    {24, 424, LV_BORDER_SIDE_LEFT | LV_BORDER_SIDE_BOTTOM},
-    {744, 424, LV_BORDER_SIDE_RIGHT | LV_BORDER_SIDE_BOTTOM},
+    {SX(24), SY(24), LV_BORDER_SIDE_LEFT | LV_BORDER_SIDE_TOP},
+    {SX(744), SY(24), LV_BORDER_SIDE_RIGHT | LV_BORDER_SIDE_TOP},
+    {SX(24), SY(424), LV_BORDER_SIDE_LEFT | LV_BORDER_SIDE_BOTTOM},
+    {SX(744), SY(424), LV_BORDER_SIDE_RIGHT | LV_BORDER_SIDE_BOTTOM},
   };
   for (int i = 0; i < 4; i++) {
     lv_obj_t *c = lv_obj_create(s_home);
     lv_obj_remove_style_all(c);
     lv_obj_set_pos(c, CORN[i].x, CORN[i].y);
-    lv_obj_set_size(c, 32, 32);
+    lv_obj_set_size(c, SX(32), SX(32));
     lv_obj_set_style_border_width(c, 3, 0);
     lv_obj_set_style_border_side(c, CORN[i].side, 0);
     lv_obj_remove_flag(c, LV_OBJ_FLAG_CLICKABLE);
@@ -3059,32 +3206,47 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   }
   s_underline = lv_obj_create(s_home);
   lv_obj_remove_style_all(s_underline);
-  lv_obj_set_pos(s_underline, 46, 94);
-  lv_obj_set_size(s_underline, 143, 3);
+#if KISS_NARROW
+  // Two rows under the scaled 62, where the rule sat 2 px below the KISS
+  // letters and 3 px above the tagline. kiss_mock.py lifts the word two rows
+  // and drops the tagline four, so the rule keeps 6 px from each.
+  lv_obj_set_pos(s_underline, SX(46), 64);
+#else
+  lv_obj_set_pos(s_underline, SX(46), SY(94));
+#endif
+  lv_obj_set_size(s_underline, SX(143), 3);
   lv_obj_set_style_bg_opa(s_underline, LV_OPA_COVER, 0);
   s_chip_frame = lv_obj_create(s_home);
   lv_obj_remove_style_all(s_chip_frame);
-  lv_obj_set_pos(s_chip_frame, 566, 40);
-  lv_obj_set_size(s_chip_frame, 195, 47);
-  lv_obj_set_style_radius(s_chip_frame, 10, 0);
+#if KISS_NARROW
+  // Wider and a little taller than three fifths of the wide chip: the code
+  // inside is set at 23 px here, not scaled down with the box (the bench
+  // called the scaled one tiny).
+  lv_obj_set_pos(s_chip_frame, HOME_CHIP_X, HOME_CHIP_Y);
+  lv_obj_set_size(s_chip_frame, HOME_CHIP_W, HOME_CHIP_H);
+#else
+  lv_obj_set_pos(s_chip_frame, SX(566), SY(40));
+  lv_obj_set_size(s_chip_frame, SX(195), SY(47));
+#endif
+  lv_obj_set_style_radius(s_chip_frame, SX(10), 0);
   lv_obj_set_style_border_width(s_chip_frame, 2, 0);
   lv_obj_remove_flag(s_chip_frame, LV_OBJ_FLAG_CLICKABLE);
   // live theme tag, bottom-right (replaces the baked dot that always lied MONO)
   s_theme_dot = lv_obj_create(s_home);
   lv_obj_remove_style_all(s_theme_dot);
-  lv_obj_set_pos(s_theme_dot, 676, 426);
-  lv_obj_set_size(s_theme_dot, 16, 16);
-  lv_obj_set_style_radius(s_theme_dot, 8, 0);
+  lv_obj_set_pos(s_theme_dot, SX(676), SY(426));
+  lv_obj_set_size(s_theme_dot, SX(16), SX(16));
+  lv_obj_set_style_radius(s_theme_dot, SX(8), 0);
   lv_obj_set_style_bg_opa(s_theme_dot, LV_OPA_COVER, 0);
   s_theme_cap = lv_label_create(s_home);
   lv_label_set_text(s_theme_cap, tr(STR_H_THEME));
   lv_obj_set_style_text_color(s_theme_cap, lv_color_hex(0x7A869C), 0);
   lv_obj_set_style_text_font(s_theme_cap, wt_font14(), 0);
-  lv_obj_set_pos(s_theme_cap, 704, 408);
+  lv_obj_set_pos(s_theme_cap, SX(704), SY(408));
   s_theme_lbl = lv_label_create(s_home);
   lv_obj_set_style_text_font(s_theme_lbl, wt_font14(), 0);
   lv_obj_set_style_text_letter_space(s_theme_lbl, 1, 0);
-  lv_obj_set_pos(s_theme_lbl, 704, 428);
+  lv_obj_set_pos(s_theme_lbl, SX(704), SY(428));
 
   // Fingerprint chip (top-right) — the baked art leaves this area BLANK (dynamic
   // content); live labels own it. Coords from assets/generators/kiss_mock.py.
@@ -3092,20 +3254,24 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   s_fp_chip = lv_label_create(s_home);
   lv_label_set_text(s_fp_chip, s_fp_hex);
   lv_obj_set_style_text_color(s_fp_chip, wt_accent(), 0);
+#if KISS_NARROW
+  lv_obj_set_style_text_font(s_fp_chip, &font_kiss_mono23, 0);  // fills the wider chip
+#else
   lv_obj_set_style_text_font(s_fp_chip, wt_font_mono28(), 0);   // fills the chip frame
+#endif
   lv_obj_set_style_text_letter_space(s_fp_chip, 2, 0);
 
   s_fp_cap = lv_label_create(s_home);
   lv_label_set_text(s_fp_cap, tr(STR_H_FINGERPRINT));
   lv_obj_set_style_text_color(s_fp_cap, lv_color_hex(0x7A869C), 0);   // muted, like the mock
-  lv_obj_set_style_text_font(s_fp_cap, wt_font14(), 0);
+  lv_obj_set_style_text_font(s_fp_cap, KISS_NARROW ? wt_font28() : wt_font14(), 0);
   fp_chip_place();
 
   s_cam_lbl = lv_label_create(s_home);         // bottom-center status/error slot: blank
   lv_label_set_text(s_cam_lbl, "");              // until something (camera/error) fills it.
   lv_obj_set_style_text_color(s_cam_lbl, lv_color_hex(0x7A869C), 0);  // baked art leaves this
   lv_obj_set_style_text_font(s_cam_lbl, wt_font14(), 0);   // bottom gap free
-  lv_obj_align(s_cam_lbl, LV_ALIGN_BOTTOM_MID, 0, -14);
+  lv_obj_align(s_cam_lbl, LV_ALIGN_BOTTOM_MID, 0, -SY(14));
 
   // Persistent storage badge, on the SAME LINE as the build identity and to the
   // right of it. It appears ONLY when these keys live on the SD card, so the
@@ -3143,12 +3309,12 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   // clean, and kept in sync by kiss_home_refresh().
   s_net_dot = lv_obj_create(s_home);
   lv_obj_remove_style_all(s_net_dot);
-  lv_obj_set_size(s_net_dot, 8, 8);
-  lv_obj_set_style_radius(s_net_dot, 4, 0);
+  lv_obj_set_size(s_net_dot, SX(8), SX(8));
+  lv_obj_set_style_radius(s_net_dot, SX(4), 0);
   lv_obj_set_style_bg_color(s_net_dot, WT_WARN, 0);
   lv_obj_set_style_bg_opa(s_net_dot, LV_OPA_COVER, 0);
   lv_obj_set_style_shadow_color(s_net_dot, WT_WARN, 0);
-  lv_obj_set_style_shadow_width(s_net_dot, 10, 0);
+  lv_obj_set_style_shadow_width(s_net_dot, SX(10), 0);
   lv_obj_set_style_shadow_opa(s_net_dot, 140, 0);
   lv_obj_remove_flag(s_net_dot, LV_OBJ_FLAG_CLICKABLE);
   wt_dot_breathe(s_net_dot, 8, 3, false);
@@ -3179,9 +3345,16 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   //
   // 420 rather than 424: font23 is a taller line box than the font14 this
   // corner used to draw, and the band's own top is what it must stay clear of.
-  s_home_build_id = kiss_build_id_make_at(s_home, 48, 420, false, false, false);
+#if KISS_NARROW
+  // Inside the corner bracket, not under it: scaled, 48 is 28 px and the
+  // bracket's box runs 14..33, so the warning mark sat on its foot.
+  s_home_build_id = kiss_build_id_make_at(s_home, SX(24) + SX(32) + 10, SY(420),
+                                          false, false, false);
+#else
+  s_home_build_id = kiss_build_id_make_at(s_home, SX(48), SY(420), false, false, false);
+#endif
   // Now the row has a measured width, the badge can stand clear of it.
-  lv_obj_set_pos(s_sd_badge, kiss_build_id_right() + 28, 424);
+  lv_obj_set_pos(s_sd_badge, kiss_build_id_right() + SX(28), SY(424));
 
   // NOTHING here says how to reach the other signer.
   //
@@ -3205,11 +3378,11 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   for (int i = 0; i < 4; i++) {
     s_tile_ttl[i] = lv_label_create(s_home);
     lv_label_set_text(s_tile_ttl[i], tr(TILE_TTL_STR[i]));
-    lv_obj_set_style_text_font(s_tile_ttl[i], wt_font23(), 0);
+    lv_obj_set_style_text_font(s_tile_ttl[i], tile_font(tr(TILE_TTL_STR[i])), 0);
     lv_obj_set_style_text_color(s_tile_ttl[i], lv_color_hex(0xE8EEF7), 0);
     lv_obj_set_style_text_align(s_tile_ttl[i], LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(s_tile_ttl[i], 160);
-    lv_obj_set_pos(s_tile_ttl[i], 50 + i * 180, TILE_LBL_Y + 22);
+    lv_obj_set_width(s_tile_ttl[i], HOME_TILE_LW);
+    lv_obj_set_pos(s_tile_ttl[i], HOME_TILE_X(i), SY(TILE_LBL_Y + 22));
   }
 
   kiss_home_restyle();
@@ -3219,12 +3392,12 @@ void build_game(void) {  // non-static: the simulator harness calls this too
     s_mote[i] = lv_obj_create(s_home);
     lv_obj_remove_style_all(s_mote[i]);
     lv_obj_clear_flag(s_mote[i], LV_OBJ_FLAG_CLICKABLE);   // must never eat a tap
-    lv_obj_set_size(s_mote[i], 4, 4);
+    lv_obj_set_size(s_mote[i], SX(4), SX(4));
     lv_obj_set_style_radius(s_mote[i], 2, 0);
     lv_obj_set_style_bg_color(s_mote[i], wt_accent(), 0);
     lv_obj_set_style_bg_opa(s_mote[i], LV_OPA_COVER, 0);
     lv_obj_set_style_opa(s_mote[i], 0, 0);
-    lv_obj_set_pos(s_mote[i], 0, 474);
+    lv_obj_set_pos(s_mote[i], 0, SY(474));
     // A mote rises the full height of the screen, so at some tick it is always
     // sitting below WT_CONTENT_BOTTOM -- which is content crossing the line as
     // far as the screen-walk gate can tell, and is nothing at all as far as a
@@ -3250,10 +3423,10 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   lv_obj_set_style_text_font(s_saver_hint, &lv_font_montserrat_28, 0);
   lv_obj_set_style_bg_color(s_saver_hint, lv_color_hex(0x10131C), 0);
   lv_obj_set_style_bg_opa(s_saver_hint, 110, 0);            // subtle dark backing so it reads on any backdrop
-  lv_obj_set_style_pad_hor(s_saver_hint, 24, 0);
-  lv_obj_set_style_pad_ver(s_saver_hint, 11, 0);
-  lv_obj_set_style_radius(s_saver_hint, 4, 0);   // a bubble is a pill too
-  lv_obj_align(s_saver_hint, LV_ALIGN_BOTTOM_MID, 0, -64);
+  lv_obj_set_style_pad_hor(s_saver_hint, SX(24), 0);
+  lv_obj_set_style_pad_ver(s_saver_hint, SY(11), 0);
+  lv_obj_set_style_radius(s_saver_hint, SX(4), 0);   // a bubble is a pill too
+  lv_obj_align(s_saver_hint, LV_ALIGN_BOTTOM_MID, 0, -SY(64));
   lv_obj_add_flag(s_saver_hint, LV_OBJ_FLAG_HIDDEN);
   // The pulse starts with the saver and dies with it (saver_hint_pulse /
   // saver_hide). It used to start HERE, once, at REPEAT_INFINITE -- so it ran
@@ -3311,7 +3484,11 @@ void app_main(void) {
   // this costs nothing and keeps boot order boring.
   kiss_trng_start();
   build_game();
+#if KISS_NARROW
+  ESP_LOGI(TAG, "fruit game running (landscape, turned in the panel)");
+#else
   ESP_LOGI(TAG, "fruit game running (landscape, manual rotated flush)");
+#endif
   // The one symptom of the GT911 not coming up is a device that ignores you;
   // say it instead. s_menu_panel exists as of build_game.
   if (!kiss_board_touch_ok()) kiss_touch_dead_banner(s_menu_panel);

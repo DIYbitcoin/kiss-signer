@@ -453,7 +453,7 @@ static void storage_result_screen(int rc, int target)
     wt_outcome(s_scr, &o);
     // A lone acknowledge is still the way off the screen, and it LEAVES, so
     // its arrow leads.
-    wt_arrow_action(s_scr, tr(STR_C_OK), true, false, 592, WT_ACTION_Y, 160,
+    wt_arrow_action(s_scr, tr(STR_C_OK), true, false, SX(592), WT_ACTION_Y, SX(160),
                     true, storage_result_ack_cb, NULL);
 }
 
@@ -524,11 +524,11 @@ static void storage_confirm_screen(int target)
     wt_slide_rule_c(s_scr,
                     tr(amn ? STR_G_STORAGE_HOLD_AMNESIC
                            : STR_G_STORAGE_HOLD_MOVE),
-                    tr(STR_G_FW_KEEP_HOLDING), WT_ACT_X, WT_ACTION_Y_SLIDE, 330,
+                    tr(STR_G_FW_KEEP_HOLDING), WT_ACT_X, WT_ACTION_Y_SLIDE, SX(330),
                     wt_accent(), wt_accent(), storage_apply,
                     (void *)(intptr_t)target);
-    wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, 592, WT_ACTION_Y,
-                    160, true, storage_confirm_cancel_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, SX(592), WT_ACTION_Y,
+                    SX(160), true, storage_confirm_cancel_cb, NULL);
 }
 
 // ---- the card itself: capacity, free space, and what is on it ----
@@ -599,15 +599,15 @@ static void sdinfo_screen(void)
         // empty slot on this page is the same thing. The pair that was here
         // put "no card" in a coloured column beside a column describing a
         // screen that is not on the glass.
-        lv_obj_t *g = wt_lbl(s_scr, LV_SYMBOL_WARNING, WT_LANE_X, 124,
+        lv_obj_t *g = wt_lbl(s_scr, LV_SYMBOL_WARNING, WT_LANE_X, SY(124),
                              wt_font23(), WT_WARN);
         lv_obj_update_layout(g);
         lv_obj_t *h = wt_lbl(s_scr, tr(STR_G_FW_NOCARD_H),
-                             WT_LANE_X + lv_obj_get_width(g) + 14, 118,
+                             WT_LANE_X + lv_obj_get_width(g) + SX(14), SY(118),
                              wt_font28(), wt_ink_for(WT_WARN));
         lv_obj_add_flag(h, WT_FLAG_ACCENT);
-        lv_obj_t *b = wt_note(s_scr, tr(STR_G_FW_NOCARD_B), WT_LANE_X, 176,
-                              WT_LANE_W, 60);
+        lv_obj_t *b = wt_note(s_scr, tr(STR_G_FW_NOCARD_B), WT_LANE_X, SY(176),
+                              WT_LANE_W, SY(60));
         lv_obj_set_style_text_color(b, WT_MUT, 0);
         // ...and one row saying what the screen behind the empty slot is for,
         // so an owner who opened it by mistake knows what they were after.
@@ -615,8 +615,8 @@ static void sdinfo_screen(void)
             { .cap = tr(STR_G_SD_ABOUT_H), .val = tr(STR_G_SD_ABOUT_B),
               .icon = WT_ICON_SD },
         };
-        wt_facts(s_scr, 260, facts, 1);
-        wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, sdinfo_back_cb, NULL);
+        wt_facts(s_scr, SY(260), facts, 1);
+        wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, SX(592), WT_ACTION_Y, SX(160), true, sdinfo_back_cb, NULL);
         return;
     }
 
@@ -639,19 +639,46 @@ static void sdinfo_screen(void)
     wt_fmt_bytes(used, a, sizeof a);
     wt_fmt_bytes(inf.total_bytes, b, sizeof b);
     char *ua = strrchr(a, ' '), *ub = strrchr(b, ' ');
+#if KISS_NARROW
+    // The pair breaks AFTER the slash on the 3.5in. The card is 219px there,
+    // fifteen characters of spaced mono18, so "0.0 MB / 29.7 GB" wrapped on
+    // its last space and stranded the unit alone on the second line. Broken
+    // by hand it is two halves of one reading, each well inside the card.
+    if (ua && ub && strcmp(ua, ub) == 0) *ua = 0;
+    snprintf(val, sizeof val, "%s /\n%s", a, b);
+#else
     if (ua && ub && strcmp(ua, ub) == 0) {
         *ua = 0;                                  // "123.4" / "256.0 GB"
         snprintf(val, sizeof val, "%s / %s", a, b);
     } else {
         snprintf(val, sizeof val, "%s / %s", a, b);
     }
-    wt_value_card(s_scr, tr(STR_G_SD_SPACE_CAP), val,
-                  WT_LIST_L_X, WT_LIST_Y(0), WT_LIST_W, true);
+#endif
+
+    // The grid. On the 3.5in the list's 42px rows on a 47 pitch put the
+    // fourth right-hand row, the sealed words file, at 212..254: on the band's
+    // rule, with its sub-line's descenders under it. 40 on a 45 pitch from 70
+    // ends that row at 245, and a two line row still clears its border.
+#if KISS_NARROW
+    const int row_h = 40, pitch = 45, top = 70;
+#else
+    const int row_h = WT_ROW_H, pitch = WT_LIST_PITCH, top = WT_LIST_Y(0);
+#endif
+    lv_obj_t *space = wt_value_card(s_scr, tr(STR_G_SD_SPACE_CAP), val,
+                                    WT_LIST_L_X, top, WT_LIST_W, true);
+#if KISS_NARROW
+    // ...and the card spans the two rows beside it exactly, so its foot and
+    // the firmware row's share a line instead of missing it by two pixels.
+    if (lv_obj_get_style_height(space, LV_PART_MAIN) < pitch + row_h)
+        lv_obj_set_height(space, pitch + row_h);
+#else
+    (void)space;
+#endif
 
     wt_fmt_bytes(inf.free_bytes, a, sizeof a);
     wt_row_x(s_scr, LV_SYMBOL_DRIVE, tr(STR_G_SD_ROW_FREE), NULL, NULL,
              a, wt_font_mono23(), WT_INK, false,
-             WT_LIST_L_X, WT_LIST_Y(2), WT_LIST_W, WT_ROW_H, NULL, NULL);
+             WT_LIST_L_X, top + 2 * pitch, WT_LIST_W, row_h, NULL, NULL);
 
     // Counts from the directory, not from a kept window: every lister returns
     // the real total, so a card holding more files than any screen shows still
@@ -666,21 +693,21 @@ static void sdinfo_screen(void)
              nsigned > 0 ? nsigned : 0);
     wt_row_x(s_scr, LV_SYMBOL_FILE, tr(STR_G_SD_ROW_PSBT), sub, NULL,
              cnt, wt_font_mono23(), WT_INK, false,
-             WT_LIST_R_X, WT_LIST_Y(0), WT_LIST_W, WT_ROW_H, NULL, NULL);
+             WT_LIST_R_X, top, WT_LIST_W, row_h, NULL, NULL);
 
     total = 0;
     platform_sd_list_firmware(one, 1, &total);
     snprintf(cnt, sizeof cnt, "%d", total);
     wt_row_x(s_scr, LV_SYMBOL_DOWNLOAD, tr(STR_G_SD_ROW_FW), NULL, NULL,
              cnt, wt_font_mono23(), WT_INK, false,
-             WT_LIST_R_X, WT_LIST_Y(1), WT_LIST_W, WT_ROW_H, NULL, NULL);
+             WT_LIST_R_X, top + pitch, WT_LIST_W, row_h, NULL, NULL);
 
     total = 0;
     platform_sd_list_kef(one, 1, &total);
     snprintf(cnt, sizeof cnt, "%d", total);
     wt_row_x(s_scr, WT_ICON_LOCK, tr(STR_G_SD_ROW_KEF), NULL, NULL,
              cnt, wt_font_mono23(), WT_INK, false,
-             WT_LIST_R_X, WT_LIST_Y(2), WT_LIST_W, WT_ROW_H, NULL, NULL);
+             WT_LIST_R_X, top + 2 * pitch, WT_LIST_W, row_h, NULL, NULL);
 
     // Only in SD storage mode: the sealed words file, present or not. The
     // filename is the label -- it is a filename, not a phrase to translate --
@@ -701,8 +728,8 @@ static void sdinfo_screen(void)
                                  NULL,
                                  present ? LV_SYMBOL_OK : LV_SYMBOL_WARNING,
                                  NULL, present ? WT_OK : WT_WARN, false,
-                                 WT_LIST_R_X, WT_LIST_Y(3), WT_LIST_W,
-                                 WT_ROW_H, NULL, NULL);
+                                 WT_LIST_R_X, top + 3 * pitch, WT_LIST_W,
+                                 row_h, NULL, NULL);
         // The badge stays MUTED on this one row. The card already carries a
         // severity tint and the value slot already carries a tick or a warning
         // sign, and on GREEN the accent is WT_OK to the byte -- so an accented
@@ -713,7 +740,7 @@ static void sdinfo_screen(void)
         if (!present) wt_row_sub_color(row, WT_WARN);
     }
 
-    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, sdinfo_back_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, SX(592), WT_ACTION_Y, SX(160), true, sdinfo_back_cb, NULL);
 }
 
 // The card page's one door, on the STORAGE chooser's band, where the card is
@@ -821,7 +848,7 @@ static void help_open_cb(lv_event_t *e)
                     *pf = wt_font_mono23();
     const int hh = lv_font_get_line_height(hf);
     const int rh = lv_font_get_line_height(pf);
-    const int h  = 16 + hh + 12 + 3 * rh + 2 * 10 + 16;
+    const int h  = SY(16) + hh + SY(12) + 3 * rh + 2 * SY(10) + SY(16);
 
     // CENTRED, both ways, and WIDER. It was 480 wide starting at x=250, which
     // put it 250..730 on an 800px screen -- off centre by 90px -- and left the
@@ -833,12 +860,12 @@ static void help_open_cb(lv_event_t *e)
     // goes to the note lane, which is the half of the card that answers WHICH
     // ONE. Vertically it sits in the middle of the content area rather than
     // hanging by its feet off the action row.
-    const int W = 640, X = (800 - W) / 2;
+    const int W = SX(640), X = (SCREEN_W - W) / 2;
     const int Y = WT_LANE_Y + (WT_CONTENT_BOTTOM - WT_LANE_Y - h) / 2;
     lv_obj_t *box = wt_overlay_box(s_scr, &s_help, X, Y, W, h, 12,
                                    help_close_cb);
 
-    wt_lbl(box, tr(STR_I_BIP_T), 20, 16, hf, WT_INK);
+    wt_lbl(box, tr(STR_I_BIP_T), SX(20), SY(16), hf, WT_INK);
     // CLOSE IS A CONTROL. It was a bare label with no handler at all, so the
     // one word on the card that says how to leave did nothing when pressed --
     // "CLOSE does not actually work and one has to tap away from popup". A
@@ -846,28 +873,45 @@ static void help_open_cb(lv_event_t *e)
     lv_obj_t *cl = wt_word_action(box, NULL, tr(STR_I_BIP_CLOSE), false,
                                   WT_MUT, false, help_close_cb, NULL);
     lv_obj_update_layout(cl);
-    lv_obj_align(cl, LV_ALIGN_TOP_RIGHT, -20,
-                 16 + (hh - lv_obj_get_height(cl)) / 2);
+    lv_obj_align(cl, LV_ALIGN_TOP_RIGHT, -SX(20),
+                 SY(16) + (hh - lv_obj_get_height(cl)) / 2);
     lv_obj_set_ext_click_area(cl, 10);
 
-    int y = 16 + hh + 12;
+    // The two lanes after the BIP number. On the 3.5in 76 scales to 45 and
+    // BIP44 is 43px at 14, so the prefix beside it read "BIP44m/n...". Both
+    // columns are measured there instead, with 10px after each.
+#if KISS_NARROW
+    int bw = 0, pw = 0;
+    for (int i = 0; i < 3; i++) {
+        lv_point_t sz;
+        lv_text_get_size(&sz, BIP[i], nf, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+        if (sz.x > bw) bw = sz.x;
+        lv_text_get_size(&sz, type_prefix(SC[i], kiss_testnet()), pf, 0, 0,
+                         LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+        if (sz.x > pw) pw = sz.x;
+    }
+    const int px = SX(20) + bw + 10, nx = px + pw + 10;
+#else
+    const int px = SX(20) + SX(76), nx = SX(20) + SX(76) + SX(96);
+#endif
+    int y = SY(16) + hh + SY(12);
     for (int i = 0; i < 3; i++) {
         // The recommended row in full ink and the other two muted: this card
         // answers "which one" as well as "what are they".
         bool best = SC[i] == WSCRIPT_NATIVE;
         lv_color_t c = best ? WT_INK : WT_MUT;
-        wt_lbl(box, BIP[i], 20, y, nf, c);
+        wt_lbl(box, BIP[i], SX(20), y, nf, c);
         // 96, not the drawing's 74. Its prefixes are one glyph and an ellipsis
         // ("1…"); ours are the strings the address type row and the network
         // list already show, and "m/n..." at mono23 is 84px wide -- so a 74px
         // lane put the legacy prefix straight through the note beside it.
-        wt_lbl(box, type_prefix(SC[i], kiss_testnet()), 20 + 76, y, pf,
+        wt_lbl(box, type_prefix(SC[i], kiss_testnet()), px, y, pf,
                best ? WT_INK : WT_MUT);
-        lv_obj_t *nt = wt_lbl(box, tr(NOTE[i]), 20 + 76 + 96, y, nf, c);
-        lv_obj_set_width(nt, W - (20 + 76 + 96) - 20);
+        lv_obj_t *nt = wt_lbl(box, tr(NOTE[i]), nx, y, nf, c);
+        lv_obj_set_width(nt, W - nx - SX(20));
         lv_obj_set_height(nt, lv_font_get_line_height(nf));
         lv_label_set_long_mode(nt, LV_LABEL_LONG_DOT);
-        y += rh + 10;
+        y += rh + SY(10);
     }
 }
 
@@ -956,7 +1000,7 @@ static void storage_chooser_screen(void)
     // ways to pick the same thing. The action says what is behind it.
     wt_arrow_action(s_scr, tr(STR_I_CARD_SUB), false, false, WT_ACT_X,
                     WT_ACTION_Y, 0, false, sdinfo_from_store_cb, NULL);
-    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, store_back_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, SX(592), WT_ACTION_Y, SX(160), true, store_back_cb, NULL);
 }
 
 static void store_open_cb(lv_event_t *e) { (void)e; storage_chooser_screen(); }
@@ -1078,18 +1122,18 @@ static void made_open_cb(lv_event_t *e)
     int src = kiss_seed_source();
     const char *label = NULL, *note = NULL;
     made_labels(src, &label, &note);
-    wt_value_card(s_scr, tr(STR_W_MADE_CAP), label, 48, 104, 704, false);
+    wt_value_card(s_scr, tr(STR_W_MADE_CAP), label, SX(48), SY(104), SX(704), false);
 
     // The legs, for the paths this device folded itself. An import has none to
     // show: the fold happened on somebody else's device and claiming otherwise
     // would be the screen inventing a provenance it does not have.
-    int by = 232;
+    int by = SY(232);
     if (src == WSEED_SRC_MIX || src == WSEED_SRC_DICE || src == WSEED_SRC_COIN) {
-        lv_obj_t *card = wt_card(s_scr, 48, 208, 704, 96);
+        lv_obj_t *card = wt_card(s_scr, SX(48), SY(208), SX(704), SY(96));
         lv_obj_t *col = lv_obj_create(card);
         lv_obj_remove_style_all(col);
         lv_obj_set_pos(col, 0, 0);
-        lv_obj_set_size(col, 704, 96);
+        lv_obj_set_size(col, SX(704), SY(96));
         lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_flex_align(col, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
                               LV_FLEX_ALIGN_CENTER);
@@ -1116,7 +1160,7 @@ static void made_open_cb(lv_event_t *e)
 
     wt_body_para(s_scr, note, by);
     lv_obj_set_ext_click_area(
-        wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, made_back_cb, NULL), 10);
+        wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, SX(592), WT_ACTION_Y, SX(160), true, made_back_cb, NULL), 10);
 }
 
 // Two things to look at again, so the chooser comes back -- with a different
@@ -1176,7 +1220,7 @@ static void audit_open_cb(lv_event_t *e)
              WT_CHOICE_X, WT_CHOICE_Y(1), WT_CHOICE_W, WT_CHOICE_H,
              audit_rng_cb, NULL);
     lv_obj_set_ext_click_area(
-        wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, audit_back_cb, NULL), 10);
+        wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, SX(592), WT_ACTION_Y, SX(160), true, audit_back_cb, NULL), 10);
 }
 
 static void duress_cb(lv_event_t *e)
@@ -1208,7 +1252,7 @@ static void duress_cb(lv_event_t *e)
                 gw_stored_any());
         wt_diagram_op(row, "+");
         wt_chip(row, tr(STR_GD_PICK_REAL_T), true);   // ONE SWIPE, the rule
-        lv_obj_align(row, LV_ALIGN_TOP_MID, 0, 128);
+        lv_obj_align(row, LV_ALIGN_TOP_MID, 0, SY(128));
     }
 
     // The rule in words, under the chips that state it as a picture. The chips
@@ -1230,15 +1274,29 @@ static void duress_cb(lv_event_t *e)
         };
         // 200: the chips end at 155 and the usual 232 left 75px of nothing
         // between the picture and the words about it.
-        wt_facts(s_scr, 200, facts, 3);
+        wt_facts(s_scr, SY(200), facts, 3);
     }
 
     // BACK leftmost, the two actions right aligned to 752. 140 + 270 + 270 with
     // 12px gaps is exactly the 704 lane, which is why this row runs tighter
     // than the 22px the roomier rows get.
-    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, waysin_back_cb, NULL);
-    wt_arrow_action(s_scr, tr(STR_GD_SET_BTN), false, false, WT_ACT_X, WT_ACTION_Y, 0, false, waysin_stroke_cb, NULL);
-    wt_arrow_action(s_scr, tr(STR_GD_WORD_PILL), false, false, 330, WT_ACTION_Y, 0, false, waysin_word_cb, NULL);
+    lv_obj_t *back = wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, SX(592), WT_ACTION_Y, SX(160), true, waysin_back_cb, NULL);
+    lv_obj_t *set = wt_arrow_action(s_scr, tr(STR_GD_SET_BTN), false, false, WT_ACT_X, WT_ACTION_Y, 0, false, waysin_stroke_cb, NULL);
+    lv_obj_t *word = wt_arrow_action(s_scr, tr(STR_GD_WORD_PILL), false, false, SX(330), WT_ACTION_Y, 0, false, waysin_word_cb, NULL);
+#if KISS_NARROW
+    // Centred in the gap its two neighbours leave on the 3.5in rather than
+    // pinned at SX(330). Both of them size to their words, so a fixed 198 sat
+    // 25px from one and 32 from the other in English and runs into whichever
+    // side a longer translation grows toward first.
+    {
+        const int l = lv_obj_get_style_x(set, LV_PART_MAIN) +
+                      lv_obj_get_style_width(set, LV_PART_MAIN);
+        const int r = lv_obj_get_style_x(back, LV_PART_MAIN);
+        lv_obj_set_x(word, (l + r - lv_obj_get_style_width(word, LV_PART_MAIN)) / 2);
+    }
+#else
+    (void)back; (void)set; (void)word;
+#endif
     // Arrow actions never re-font, so the row shares one size by
     // construction -- the fault this comment used to guard against (one label
     // dropping a rung between two at 28) is a shape the kit can no longer
@@ -1360,8 +1418,8 @@ static void do_wipe(void *ud)
             .ok       = false,
         };
         wt_outcome(ovl, &o);
-        wt_arrow_action(ovl, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y,
-                        160, true, wipe_fail_ok_cb, ovl);
+        wt_arrow_action(ovl, tr(STR_C_BACK), true, false, SX(592), WT_ACTION_Y,
+                        SX(160), true, wipe_fail_ok_cb, ovl);
         return;
     }
     kiss_session_close();               // truly gone: session key leaves RAM too
@@ -1404,7 +1462,7 @@ static void do_wipe(void *ud)
     // OK still locks, exactly as it did, for the owner handing the box on.
     wt_arrow_action(ovl, tr(STR_W_CHOOSE_NEW), false, true, WT_ACT_X,
                     WT_ACTION_Y, 0, false, wiped_new_cb, NULL);
-    wt_arrow_action(ovl, tr(STR_C_OK), true, false, 592, WT_ACTION_Y, 160,
+    wt_arrow_action(ovl, tr(STR_C_OK), true, false, SX(592), WT_ACTION_Y, SX(160),
                     true, wiped_ok_cb, NULL);
 }
 
@@ -1491,14 +1549,14 @@ static void erase_screen(void)
         .txt   = tr(STR_G_HOLD_WIPE),
         .held  = tr(STR_G_FW_KEEP_HOLDING),
         .again = tr(STR_G_HOLD_WIPE_BACK),
-        .x = WT_ACT_X, .y = WT_ACTION_Y_SLIDE, .w = 330,
+        .x = WT_ACT_X, .y = WT_ACTION_Y_SLIDE, .w = SX(330),
         .ink = &wipe_ink, .fill = &wipe_fill,
         .done = do_wipe,
         .twice = true,
     };
     wt_slide(s_scr, &wipe);
-    wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, 592, WT_ACTION_Y,
-                    160, true, erase_back_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, SX(592), WT_ACTION_Y,
+                    SX(160), true, erase_back_cb, NULL);
 }
 
 static void endwords_cb(lv_event_t *e) { (void)e; erase_screen(); }
@@ -1546,19 +1604,33 @@ void kiss_lang_picker_open(lv_obj_t *parent, void (*picked_cb)(void))
     s_lang_picked_cb = picked_cb;
     lv_obj_t *ovl = lv_obj_create(parent);
     lv_obj_remove_style_all(ovl);
-    lv_obj_set_size(ovl, 800, 480);
+    lv_obj_set_size(ovl, SCREEN_W, SCREEN_H);
     lv_obj_set_pos(ovl, 0, 0);
     lv_obj_set_style_bg_color(ovl, BG_COL, 0);
     lv_obj_set_style_bg_opa(ovl, LV_OPA_COVER, 0);
     lv_obj_add_flag(ovl, LV_OBJ_FLAG_CLICKABLE);   // swallow stray taps
     lv_obj_clear_flag(ovl, LV_OBJ_FLAG_SCROLLABLE);
 
+#if KISS_NARROW
+    // NO TITLE on the 3.5in: the grid is the page. Under the heading, on the
+    // scaled 32px pitch, the seventh row sat in the band's moat and the eighth
+    // below it, and a heading plus eight rows only fits above the floor at a
+    // pitch too small for a thumb. Twenty two names, each in its own script
+    // beside its flag, say what this screen is in every language at once;
+    // the heading said it in one. Without it the rows get a 31px pitch from
+    // the top and all eight end above the floor.
+    const int lang_x = 6, lang_y = 8, lang_col = 156, lang_row = 31;
+    int flag_w = 0;
+    for (int i = 0; i < I18N_LANG_N && !flag_w; i++)
+        if (img_lang_flags[i]) flag_w = img_lang_flags[i]->header.w;
+#else
     lv_obj_t *t = lv_label_create(ovl);
     lv_label_set_text(t, tr(STR_G_SEC_LANGUAGE));
     lv_obj_set_style_text_color(t, wt_accent(), 0);
     lv_obj_set_style_text_font(t, wt_font28(), 0);
     lv_obj_set_style_text_letter_space(t, 3, 0);
-    lv_obj_set_pos(t, 48, 30);
+    lv_obj_set_pos(t, SX(48), SY(30));
+#endif
 
     // 22 locales in 3x8. Fixed rows keep every language one tap away without
     // scrolling, while the compact labels still leave room for each flag.
@@ -1581,11 +1653,41 @@ void kiss_lang_picker_open(lv_obj_t *parent, void (*picked_cb)(void))
         // Flag, name, and a trailing tick on the current one. The tick is a
         // resolve, so it follows the word; a tap closes the overlay, so the
         // shift a tick would cause on a re-pick is never seen.
+#if KISS_NARROW
+        // The regional qualifier goes, as it does on the settings band: the
+        // flag beside the name carries the variant. "PORTUGUES (PORTUGAL)" is
+        // 185px at 14 and a column here is 156, so the long names ran under
+        // the next column's flag and off the right edge of the glass. The
+        // widest name that is left, NORSK BOKMAL, is 155 with its flag.
+        const char *nat = i18n_lang_info(id)->native;
+        const char *par = strstr(nat, " (");
+        char shortname[24];
+        size_t sn = par ? (size_t)(par - nat) : strlen(nat);
+        if (sn >= sizeof shortname) sn = sizeof shortname - 1;
+        memcpy(shortname, nat, sn);
+        shortname[sn] = 0;
+        lv_obj_t *p = wt_word_action(ovl, on ? LV_SYMBOL_OK : NULL, shortname,
+                                     false, on ? wt_accent() : WT_INK, on,
+                                     lang_pick_cb, (void *)(intptr_t)id);
+        // Each cell is its whole grid slot and takes taps only there. At 26px
+        // tall with 8px of extended area on a 31px pitch, the row below owned
+        // the bottom of every flag.
+        lv_obj_set_size(p, lang_col, lang_row);
+        lv_obj_set_flex_align(p, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
+                              LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_ext_click_area(p, 0);
+        lv_obj_set_pos(p, lang_x + (i % 3) * lang_col, lang_y + (i / 3) * lang_row);
+        // English has no flag, so its name started a flag's width left of
+        // every other name in the column.
+        if (!img_lang_flags[id])
+            lv_obj_set_style_pad_left(p, flag_w + SX(10), 0);
+#else
         lv_obj_t *p = wt_word_action(ovl, on ? LV_SYMBOL_OK : NULL,
                                      i18n_lang_info(id)->native, false,
                                      on ? wt_accent() : WT_INK, on,
                                      lang_pick_cb, (void *)(intptr_t)id);
-        lv_obj_set_pos(p, 16 + (i % 3) * 260, 76 + (i / 3) * 48);
+        lv_obj_set_pos(p, SX(16) + (i % 3) * SX(260), SY(76) + (i / 3) * SY(48));
+#endif
         // Every row is in its own script. Select its regional font explicitly;
         // the current UI language must not control another locale's glyph form.
         lv_obj_t *name = lv_obj_get_child(p, 0);
@@ -1742,7 +1844,7 @@ static void terms_screen(void)
     terms_build_page();
     wt_swipe_watch(s_scr, terms_gesture_cb);
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_BACK_X,
-                    WT_ACTION_Y, 140, true, terms_back_cb, NULL);
+                    WT_ACTION_Y, SX(140), true, terms_back_cb, NULL);
 }
 
 static void terms_open_cb(lv_event_t *e) { (void)e; s_terms_page = 0;
@@ -1806,7 +1908,7 @@ static void device_screen(void)
     wt_def_list(s_scr, defs, 4);
 
     lv_obj_set_ext_click_area(
-        wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592, WT_ACTION_Y, 160, true, device_back_cb, NULL), 10);
+        wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, SX(592), WT_ACTION_Y, SX(160), true, device_back_cb, NULL), 10);
 }
 
 // ---- what wants reading ----
@@ -2245,8 +2347,8 @@ static void tab_noundo(void)
     // decision.
     lv_obj_t *wash = lv_obj_create(s_pane);
     lv_obj_remove_style_all(wash);
-    lv_obj_set_pos(wash, 8, 118);
-    lv_obj_set_size(wash, 784, WT_CONTENT_BOTTOM - 118);
+    lv_obj_set_pos(wash, SX(8), SY(118));
+    lv_obj_set_size(wash, SX(784), WT_CONTENT_BOTTOM - SY(118));
     lv_obj_set_style_bg_color(wash, WT_STOP, 0);
     // 30 and not the prototype's 13. That number is a CSS alpha over a CSS
     // background; on this panel, over WT_BG, it lands at (8,12,16) against
@@ -2265,12 +2367,18 @@ static void tab_noundo(void)
     // 270 rather than 258. The claim PAIR needs more room than the paragraph it
     // replaces -- two heads and two bodies in two 340px columns -- and the card
     // has it: 126 + 270 lands on 396, two clear of the floor.
-    lv_obj_t *card = wt_card(s_pane, WT_WIDE_X, WT_WIDE_Y(0), WT_WIDE_W, 270);
+    //
+    // 160 on the 3.5in. 270 scales to 180 there and the card ran from 84 to
+    // 264, through the band's rule; the two claims end at 170 at 14px, so the
+    // action keeps its own air above the card's foot and the foot sits 10px
+    // clear of the rule.
+    const int card_h = KISS_NARROW ? 160 : SY(270);
+    lv_obj_t *card = wt_card(s_pane, WT_WIDE_X, WT_WIDE_Y(0), WT_WIDE_W, card_h);
     wt_row_sev(card, WT_SEV_STOP);
 
     // WT_STOP_INK rather than WT_STOP: full stop red on a stop tinted card is
     // the one pairing on this page that vibrates.
-    lv_obj_t *head = wt_lbl(card, tr(STR_I_ROW_ENDWORDS), 24, 22, wt_font28(),
+    lv_obj_t *head = wt_lbl(card, tr(STR_I_ROW_ENDWORDS), SX(24), SY(22), wt_font28(),
                             WT_STOP_INK);
 
     // No fingerprint badge beside the heading any more. It was font14 in a
@@ -2307,7 +2415,7 @@ static void tab_noundo(void)
     // beside it took the accent, so the pair read as one warning and one
     // ordinary fact rather than as two halves of the same claim. The card's
     // own red wash and the hold behind the action are what say irreversible.
-    const int by = 22 + lv_font_get_line_height(wt_font28()) + 8;
+    const int by = SY(22) + lv_font_get_line_height(wt_font28()) + SY(8);
     {
         const lv_font_t *cf = wt_chrome23(tr(STR_I_ERASE_H1));
         wt_fact_t facts[2] = {
@@ -2316,7 +2424,7 @@ static void tab_noundo(void)
             { .cap = tr(STR_I_ERASE_H2), .val = tr(STR_I_ERASE_B2),
               .icon = LV_SYMBOL_FILE, .cap_font = cf },
         };
-        wt_facts_in(card, 24, by, 704, facts, 2);
+        wt_facts_in(card, SX(24), by, SX(704), facts, 2);
     }
 
     // The action, and NO HOLD on it. The hold stays where it already is, on
@@ -2327,9 +2435,9 @@ static void tab_noundo(void)
     // (the confirmation) rather than doing the thing.
     // No bin on the label: the left why-head already wears it, and the icon's
     // width is what pushed the caption beside this row into its ellipsis.
-    const int byy = 270 - 20 - WT_ACTION_H;
+    const int byy = card_h - SY(20) - WT_ACTION_H;
     lv_obj_t *btn = wt_arrow_action(card, tr(STR_I_ERASE_BTN), false, false,
-                                    24, byy, 0, false, endwords_cb, NULL);
+                                    SX(24), byy, 0, false, endwords_cb, NULL);
     for (uint32_t i = 0; i < lv_obj_get_child_count(btn); i++) {
         lv_obj_t *ch = lv_obj_get_child(btn, i);
         lv_obj_set_style_text_color(ch, WT_STOP_INK, 0);
@@ -2514,8 +2622,8 @@ void kiss_settings_open(lv_obj_t *parent)
 
     // BACK takes the bottom RIGHT corner as an ARROW rather than a pill, and
     // it is still what builds the action bar the attention chip stands on.
-    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, 592,
-                    WT_ACTION_Y, 160, true, settings_back_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, SX(592),
+                    WT_ACTION_Y, SX(160), true, settings_back_cb, NULL);
 
     // Opposite it, and only when there is something to say. No "all good" chip:
     // a badge that is always there is a badge nobody reads.
@@ -2558,8 +2666,11 @@ void kiss_settings_open(lv_obj_t *parent)
         // Pinned by its RIGHT edge at 512, exactly where the arrow action put
         // it: the word is a language name and its width moves with the pick,
         // and a left edge that moved would slide the whole band about.
-        lv_obj_set_pos(lang, 512 - lv_obj_get_width(lang),
-                       WT_ACTION_Y + (WT_ACTION_H - 40) / 2);
+        // On the 3.5in the band is 480 wide and 512 scaled put the globe
+        // against the attention action's arrow; 600 leaves the exit's corner
+        // its 30 px and the attention its lane.
+        lv_obj_set_pos(lang, (KISS_NARROW ? SX(600) : SX(512)) - lv_obj_get_width(lang),
+                       WT_ACTION_Y + (WT_ACTION_H - SY(40)) / 2);
         lv_obj_set_ext_click_area(lang, 8);
     }
 
