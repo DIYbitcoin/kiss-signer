@@ -1,0 +1,11 @@
+# The 3.5in board's ceilings: one line per locale, the number of overlapcheck
+# findings it may have on the 480x320 canvas. Read by sim/run_overlapcheck.sh
+# when KISS_BOARD=ws35; sim/overlap_ceilings.txt is the wide board's and the
+# two never share a number, because a lane there is three fifths of a lane
+# here and every count is measured on its own glass.
+#
+# SHRINK ONLY, like the wide file. English is deliberately absent: it has no
+# allowance and the push lane keeps it at zero. The other locales are absent
+# too, until the first full sweep on this board measures them: a locale with
+# no line and findings fails the runner, which is the honest state for a
+# board whose translations have not been walked yet.

@@ -40,8 +40,9 @@
 #include "kiss_scan.h"
 #endif
 
-#define HRES 800
-#define VRES 480
+#include "kiss_board.h"
+#define HRES SCREEN_W
+#define VRES SCREEN_H
 
 void build_game(void);            // main/main.c -- the device calls this too
 void kiss_trng_start(void);       // main/kiss_crypto.c

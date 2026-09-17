@@ -77,6 +77,24 @@ committed one plus `sdkconfig.ws35`, and after either of those changes,
 delete `build_ws35/sdkconfig` and reconfigure. Nothing about this reaches
 `tools/preflight.sh`, whose header excludes the container build on purpose.
 
+The desktop side has the same switch. Every `sim/build_*.sh` reads
+`KISS_BOARD` (`guition`, the default, or `ws35`) and builds that board's
+canvas, art and gesture floors; the binaries and the frames keep their names,
+so a 3.5in build gets its own scratch root:
+
+```bash
+KISS_BOARD=ws35 KISS_SIM_TMP=/tmp/kiss-ws35 bash sim/build_sim.sh
+KISS_BOARD=ws35 KISS_SIM_TMP=/tmp/kiss-ws35 SIM_LANG=en /tmp/kiss-ws35/fruitsim
+```
+
+The screens are written once, on the wide canvas, and scaled by `SX()` and
+`SY()` from `main/kiss_board.h`; on the Guition both fold to the number
+itself, and `tools/preflight.sh` runs the whole gate block a second time for
+the 3.5in. A wide frame that changes under a 3.5in edit is a bug in the edit.
+The 3.5in's walk, taps and coverage are blocking; its fit and overlap counts
+are printed as NOTE until English reads zero there, and the line that makes
+them blocking is one commit away from the day it does.
+
 `-B /project/build-docker` rather than a path in the container's own `/tmp`:
 with `--rm` the container filesystem goes when the run ends, so a build
 directory there is written once and thrown away, and every invocation pays a

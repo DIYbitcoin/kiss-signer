@@ -16,12 +16,22 @@ static void dchk(const char *name, int ok)
 
 int test_defrow(void)
 {
-    // The spec's own worked examples, verbatim.
+    // The spec's own worked examples, verbatim, for the wide lane; the
+    // 3.5in's lane is 178 with a 22 ghost (kiss_defrow.h says why it is not
+    // two thirds of 284) and its numbers are worked the same way.
+#if KISS_NARROW
+    dchk("n=4 closed is 44", wt_def_h_closed(4) == 44);
+    dchk("n=4 open is 112", wt_def_h_open(4) == 112);
+    dchk("n=3 closed is 59", wt_def_h_closed(3) == 59);
+    dchk("n=3 open is 134", wt_def_h_open(3) == 134);
+    dchk("a ghost is 22", wt_def_h_ghost() == 22);
+#else
     dchk("n=4 closed is 71", wt_def_h_closed(4) == 71);
     dchk("n=4 open is 182", wt_def_h_open(4) == 182);
     dchk("n=3 closed is 94", wt_def_h_closed(3) == 94);
     dchk("n=3 open is 216", wt_def_h_open(3) == 216);
     dchk("a ghost is 34", wt_def_h_ghost() == 34);
+#endif
 
     for (int n = 2; n <= 5; n++) {
         char name[64];

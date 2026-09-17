@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "kiss_board.h"   // SX/SY: the strokes below are drawn on the wide canvas
 #include "kiss_duress.h"
 
 static int dfails;
@@ -20,10 +21,10 @@ static void dchk(const char *name, int ok) {
 }
 
 // The KISS the sim walk draws (sim_main.c): x 140..560, y 120..290.
-#define BX0 140
-#define BY0 120
-#define BX1 560
-#define BY1 290
+#define BX0 SX(140)
+#define BY0 SY(120)
+#define BX1 SX(560)
+#define BY1 SY(290)
 
 // Room for a circle drawn right round the word: ~1200px of ink at the touch
 // layer's 10px decimation. Sized from the ink, like GEST_MAX in main.c.
@@ -34,12 +35,15 @@ static void stroke_start(void) { g_n = 0; }
 
 // Straight segment from the current end to (x,y), sampled like a finger does
 // (the touch layer decimates to >=10px moves, so ~12px steps are realistic).
+// Every point in this file is on the wide canvas; the board's own arrives
+// through SX/SY here, as the panel's would, and the sampling step with it.
 static void stroke_to(int x, int y) {
+    x = SX(x); y = SY(y);
     int fx = g_n ? g_xs[g_n - 1] : x, fy = g_n ? g_ys[g_n - 1] : y;
     if (!g_n) { g_xs[g_n] = x; g_ys[g_n] = y; g_n++; return; }
     int dx = x - fx, dy = y - fy;
     int adx = dx < 0 ? -dx : dx, ady = dy < 0 ? -dy : dy;
-    int steps = (adx > ady ? adx : ady) / 12;
+    int steps = (adx > ady ? adx : ady) / SX(12);
     if (steps < 1) steps = 1;
     for (int i = 1; i <= steps && g_n < MAXP; i++) {
         g_xs[g_n] = fx + dx * i / steps;

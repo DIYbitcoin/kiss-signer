@@ -760,6 +760,14 @@ static int oc_colours_of(lv_obj_t *o, bool is_label, oc_colour_t *out, int cap)
 static int s_role_accent_objs;
 static int s_role_status_objs;
 
+// A wall of text is at least this big. The width follows the lane; the
+// HEIGHT does not scale with the canvas, because on the 3.5in the reading
+// face is the 14 floor and its lines are the same pixels tall as they are
+// here -- two paragraphs that are 72px on the wide board are 72px there too,
+// and 90px of words is a wall on either glass.
+#define OC_WALL_W SX(560)
+#define OC_WALL_H 90
+
 // ---- 6. BARE: a screen whose only content is a wall of text ----------------
 //
 // The product has a kit for this -- wt_card, wt_value_card, wt_facts rows,
@@ -862,7 +870,7 @@ static void oc_check_bare(const char *tag)
         if (wall) continue;
         if (!n->is_label || !n->wraps) continue;
         int w = n->vis.x2 - n->vis.x1 + 1, h = n->vis.y2 - n->vis.y1 + 1;
-        if (w >= 560 && h >= 90) wall = n;
+        if (w >= OC_WALL_W && h >= OC_WALL_H) wall = n;
     }
     if (!wall) return;
     if (oc_bare_excused(tag)) return;
@@ -917,8 +925,8 @@ static int  s_fit_n;
 // one line of font23 is 31 -- so font14 there is the box deciding, not the copy,
 // and "high fee" is not a screen anybody needs to fix. 36 is one font23 line
 // with its leading, which is the least a box can offer and still be a choice.
-#define OC_FIT_BODY_W 300
-#define OC_FIT_BODY_H  36
+#define OC_FIT_BODY_W SX(300)
+#define OC_FIT_BODY_H SY(36)
 
 static void oc_fit_sink(const char *kind, const char *txt, int w, int h)
 {
@@ -1453,7 +1461,7 @@ static void oc_check_wall(const char *tag)
         const oc_node_t *n = &s_node[i];
         if (n->buried || !n->is_label || !n->wraps) continue;
         int w = n->vis.x2 - n->vis.x1 + 1, h = n->vis.y2 - n->vis.y1 + 1;
-        if (w >= 560 && h >= 90) { wall = n; break; }
+        if (w >= OC_WALL_W && h >= OC_WALL_H) { wall = n; break; }
     }
     if (!wall) return;
 
@@ -1865,6 +1873,11 @@ static void oc_check_dots(const char *tag)
 static void oc_check_tiny(const char *tag)
 {
     char t[96], sig[192], detail[320];
+    // Not on the 3.5in: there the 23 rung IS the 14 face, so every sentence
+    // an owner reads is at 14 by design and a face under it does not exist.
+    // What this check guards -- a size written in below the reading rung --
+    // has no smaller size to be written in.
+    if (KISS_NARROW) return;
     for (int i = 0; i < s_n; i++) {
         const oc_node_t *n = &s_node[i];
         if (n->buried || !n->is_label) continue;
@@ -2018,7 +2031,9 @@ static void oc_check_amber(const char *tag)
 // better; WCAG says large text may take 3:1 and everything else owes 4.5:1.
 // The two agree, so the boundary is drawn once, at the line height where the
 // kit stops writing captions and starts writing sentences.
-#define OC_FAINT_LARGE_LH  30   // line height at or above which 3:1 applies
+#define OC_FAINT_LARGE_LH  SY(30)   // line height at or above which 3:1 applies;
+                                    // on the 3.5in the whole type scale is three
+                                    // fifths, so "large" is too
 #define OC_FAINT_LARGE     3.0
 #define OC_FAINT_SMALL     4.5
 
@@ -2282,12 +2297,16 @@ int oc_selftest(void);
 
 static int oc_rung(const lv_font_t *f)
 {
+    // By the FACE, not the name: on the 3.5in the names step down (34 is
+    // the 23 face, 28 the 18, 23 and everything under it the 14), and a
+    // rung is how big the glyphs are, which is what a speck is measured by.
     if (f == wt_font14()      || f == wt_font_mono14()) return 0;
     if (f == wt_font_mono18())                         return 1;
     if (f == wt_font_mono21())                         return 2;
     if (f == wt_font23()      || f == wt_font_mono23()) return 3;
-    if (f == wt_font28()      || f == wt_font_mono28()) return 4;
-    if (f == wt_font34()      || f == wt_font_mono34()) return 5;
+    if (f == wt_font28()      || f == wt_font_mono28()) return KISS_NARROW ? 1 : 4;
+    if (f == wt_font34())                              return KISS_NARROW ? 3 : 5;
+    if (f == wt_font_mono34())                         return KISS_NARROW ? 2 : 5;
     return -1;                       // off the ladder: not this check's job
 }
 
@@ -2568,8 +2587,8 @@ static int oc_selftest_case(const char *name, int accent,
     lv_obj_set_style_bg_color(scr, WT_BG, LV_PART_MAIN);
 
     lv_obj_t *card = lv_obj_create(scr);
-    lv_obj_set_size(card, 300, 100);
-    lv_obj_set_pos(card, 40, 40);
+    lv_obj_set_size(card, SX(300), SY(100));
+    lv_obj_set_pos(card, SX(40), SY(40));
     lv_obj_set_style_bg_color(card, fill, LV_PART_MAIN);
     lv_obj_set_style_bg_opa(card, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_border_color(card, border, LV_PART_MAIN);
@@ -2627,14 +2646,14 @@ static int oc_selftest_faint(const char *name, lv_color_t ink, bool on_card,
     lv_obj_t *par = scr;
     if (on_card) {
         par = lv_obj_create(scr);
-        lv_obj_set_size(par, 400, 120);
-        lv_obj_set_pos(par, 20, 20);
+        lv_obj_set_size(par, SX(400), SY(120));
+        lv_obj_set_pos(par, SX(20), SY(20));
         lv_obj_set_style_bg_color(par, WT_CARD, LV_PART_MAIN);
         lv_obj_set_style_bg_opa(par, LV_OPA_COVER, LV_PART_MAIN);
         lv_obj_set_style_border_width(par, 0, LV_PART_MAIN);
         lv_obj_set_style_pad_all(par, 0, LV_PART_MAIN);
     }
-    wt_lbl(par, "SOME WORDS", 40, 40, wt_font23(), ink);
+    wt_lbl(par, "SOME WORDS", SX(40), SY(40), wt_font23(), ink);
     lv_refr_now(NULL);
 
     s_n = 0;
@@ -2664,7 +2683,7 @@ static int oc_selftest_stale(const char *name, bool flagged, bool want_finding)
     lv_obj_t *scr = lv_obj_create(NULL);
     lv_screen_load(scr);
     lv_obj_set_style_bg_color(scr, WT_BG, LV_PART_MAIN);
-    lv_obj_t *l = wt_lbl(scr, "ACCENTED", 40, 40, wt_font23(), wt_accent());
+    lv_obj_t *l = wt_lbl(scr, "ACCENTED", SX(40), SY(40), wt_font23(), wt_accent());
     if (flagged) lv_obj_add_flag(l, WT_FLAG_ACCENT);
     lv_refr_now(NULL);
 
@@ -2706,19 +2725,25 @@ static int oc_selftest_wall(const char *name, bool with_chip, bool want_finding)
     lv_screen_load(scr);
     lv_obj_set_style_bg_color(scr, WT_BG, LV_PART_MAIN);
 
-    lv_obj_t *card = wt_card(scr, 36, 104, 716, 288);
+    // Sized from the content floor, not a number: the 3.5in's action row
+    // sits lower under its moat, and a card reaching past WT_CONTENT_BOTTOM
+    // is under the bar rather than round the paragraph. 288 and 260 on the
+    // wide canvas, as they always were.
+    const int card_h = WT_CONTENT_BOTTOM - SY(104) - SY(6);
+    lv_obj_t *card = wt_card(scr, SX(36), SY(104), SX(716), card_h);
     (void)card;
     lv_obj_t *body = wt_wraph(scr,
         "a paragraph long enough to be a page's body, wide enough to be its "
         "only content, and tall enough that nobody reads it twice. this is the "
-        "shape a card drawn round prose leaves behind.", 52, 118, 688, 260);
+        "shape a card drawn round prose leaves behind.", SX(52), SY(118), SX(688),
+        card_h - SY(28));
     (void)body;
     if (with_chip) {
         lv_obj_t *row = wt_diagram_row(scr);
-        lv_obj_set_pos(row, 48, 60);
+        lv_obj_set_pos(row, SX(48), SY(60));
         wt_chip(row, "SOMETHING", false);
     }
-    wt_arrow_action(scr, "OK", true, false, 300, WT_ACTION_Y, 200, false,
+    wt_arrow_action(scr, "OK", true, false, SX(300), WT_ACTION_Y, SX(200), false,
                     NULL, NULL);
     lv_refr_now(NULL);
 
@@ -2823,7 +2848,7 @@ static int oc_selftest_fit(const char *name, const char *body,
 {
     lv_obj_t *scr = wt_screen(NULL, "SELFTEST", NULL);
     s_fit_n = 0;
-    wt_wraph(scr, body, 48, 118, 340, 40);
+    wt_wraph(scr, body, SX(48), SY(118), SX(340), SY(40));
     lv_refr_now(NULL);
 
     bool got = s_fit_n > 0;
@@ -2870,7 +2895,7 @@ static int oc_selftest_tiny(const char *name, const char *txt, bool declare,
     // LOADED, then rendered: oc_collect reads the coordinates LVGL computed on
     // the last refresh, and a screen that was never on the display has none.
     lv_screen_load(scr);
-    lv_obj_t *l = wt_lbl(scr, txt, 48, 118, wt_font14(), WT_MUT);
+    lv_obj_t *l = wt_lbl(scr, txt, SX(48), SY(118), wt_font14(), WT_MUT);
     if (declare) wt_tiny_ok(l);
     lv_refr_now(NULL);
 
@@ -2899,8 +2924,8 @@ static int oc_selftest_clipx(const char *name, const char *txt,
     lv_screen_load(scr);
     lv_obj_t *box = lv_obj_create(scr);
     lv_obj_remove_style_all(box);
-    lv_obj_set_size(box, box_w, 56);
-    lv_obj_set_pos(box, (800 - box_w) / 2, 8);
+    lv_obj_set_size(box, box_w, SY(56));
+    lv_obj_set_pos(box, (SCREEN_W - box_w) / 2, SY(8));
     lv_obj_remove_flag(box, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_t *l = wt_lbl(box, txt, 0, 0, wt_font23(), WT_WARN);
     lv_obj_center(l);
@@ -2928,16 +2953,16 @@ static int oc_selftest_void(const char *name, bool with_card, bool want_finding)
 {
     lv_obj_t *scr = wt_screen(NULL, "SELFTEST", NULL);
     lv_screen_load(scr);
-    wt_lbl(scr, "two short lines and then nothing at all", 48, 160,
+    wt_lbl(scr, "two short lines and then nothing at all", SX(48), SY(160),
            wt_font23(), WT_MUT);
     if (with_card) {
         // 190 tall, deliberately under OC_VOID_MIN_BLOCK on its short side, so
         // this case proves the COVERAGE arithmetic rather than the big-block
         // exemption sitting in front of it.
-        lv_obj_t *c = wt_card(scr, WT_LANE_X, 196, WT_LANE_W, 190);
-        wt_lbl(c, "a framed figure", 24, 20, wt_font28(), WT_INK);
+        lv_obj_t *c = wt_card(scr, WT_LANE_X, SY(196), WT_LANE_W, SY(190));
+        wt_lbl(c, "a framed figure", SX(24), SY(20), wt_font28(), WT_INK);
     }
-    wt_arrow_action(scr, "OK", true, false, 592, WT_ACTION_Y, 160,
+    wt_arrow_action(scr, "OK", true, false, SX(592), WT_ACTION_Y, SX(160),
                     true, NULL, NULL);
     lv_refr_now(NULL);
 
@@ -2969,10 +2994,10 @@ static int oc_selftest_exit(const char *name, bool with_tabs, bool want_finding)
         };
         wt_tabs_flex(scr, tabs, 2, 1, NULL);
     }
-    lv_obj_t *card = wt_card(scr, WT_LANE_X, 140, WT_LANE_W, 200);
+    lv_obj_t *card = wt_card(scr, WT_LANE_X, SY(140), WT_LANE_W, SY(200));
     lv_obj_set_style_border_color(card, WT_WARN, 0);
-    wt_lbl(card, "nothing on this card", 28, 26, wt_font28(), WT_WARN);
-    wt_arrow_action(scr, "BACK", true, false, 592, WT_ACTION_Y, 160,
+    wt_lbl(card, "nothing on this card", SX(28), SY(26), wt_font28(), WT_WARN);
+    wt_arrow_action(scr, "BACK", true, false, SX(592), WT_ACTION_Y, SX(160),
                     true, NULL, NULL);
     lv_refr_now(NULL);
 
@@ -2996,7 +3021,7 @@ static int oc_selftest_dots(const char *name, const char *txt, int w,
 {
     lv_obj_t *scr = wt_screen(NULL, "SELFTEST", NULL);
     lv_screen_load(scr);
-    lv_obj_t *l = wt_lbl(scr, txt, 48, 118, wt_font23(), WT_MUT);
+    lv_obj_t *l = wt_lbl(scr, txt, SX(48), SY(118), wt_font23(), WT_MUT);
     lv_obj_set_width(l, w);
     lv_obj_set_height(l, lv_font_get_line_height(wt_font23()));
     lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
@@ -3024,7 +3049,7 @@ static int oc_selftest_amber(const char *name, const char *txt,
 {
     lv_obj_t *scr = wt_screen(NULL, "SELFTEST", NULL);
     lv_screen_load(scr);
-    wt_lbl(scr, txt, 48, 118, wt_font23(), WT_WARN);
+    wt_lbl(scr, txt, SX(48), SY(118), wt_font23(), WT_WARN);
     lv_refr_now(NULL);
 
     s_n = 0; s_findings = 0; s_seen_n = 0;
@@ -3054,10 +3079,10 @@ static int oc_selftest_ladder(const char *name, const lv_font_t *mark_f,
     lv_screen_load(scr);
     lv_obj_t *box = lv_obj_create(scr);
     lv_obj_remove_style_all(box);
-    lv_obj_set_pos(box, 48, 118);
-    lv_obj_set_size(box, 600, 60);
-    wt_lbl(box, LV_SYMBOL_WARNING, 0, 12, mark_f, WT_WARN);
-    wt_lbl(box, "NEVER CHECKED", 34, 0, wt_font34(), WT_INK);
+    lv_obj_set_pos(box, SX(48), SY(118));
+    lv_obj_set_size(box, SX(600), SY(60));
+    wt_lbl(box, LV_SYMBOL_WARNING, 0, SY(12), mark_f, WT_WARN);
+    wt_lbl(box, "NEVER CHECKED", SX(34), 0, wt_font34(), WT_INK);
     lv_refr_now(NULL);
 
     s_n = 0; s_findings = 0; s_seen_n = 0;
@@ -3101,13 +3126,14 @@ static int oc_selftest_read(const char *name, const char *kind,
 // that cannot. The second is what the check exists to name, and a dead check
 // fails it -- which matters more here than anywhere else in this file, because
 // the hardware it is about does not exist yet and nobody can catch it on glass.
+#if !KISS_NARROW   // the port forecast is the wide board's; see oc_selftest below
 static int oc_selftest_port(const char *name, const char *body,
                             bool want_finding)
 {
     lv_obj_t *scr = wt_screen(NULL, "SELFTEST", NULL);
     lv_screen_load(scr);
     s_fit_n = 0; s_findings = 0; s_seen_n = 0;
-    wt_body_para(scr, body, 120);
+    wt_body_para(scr, body, SY(120));
     lv_refr_now(NULL);
     oc_check_fit("selftest");
 
@@ -3117,6 +3143,7 @@ static int oc_selftest_port(const char *name, const char *body,
            s_findings == 1 ? "" : "s");
     return got == want_finding ? 0 : 1;
 }
+#endif
 
 // SLACK goes through a real wide row, because the whole check is about a LANE
 // and the sink cannot supply one. It used to build a wt_facts row until that
@@ -3162,7 +3189,7 @@ static int oc_selftest_mark(const char *name, const char *cap,
     lv_obj_t *scr = wt_screen(NULL, "SELFTEST", NULL);
     lv_screen_load(scr);
     s_cut_n = 0; s_findings = 0; s_seen_n = 0;
-    wt_value_card(scr, cap, "A VALUE", 48, 118, 704, true);
+    wt_value_card(scr, cap, "A VALUE", SX(48), SY(118), SX(704), true);
     lv_refr_now(NULL);
     oc_check_cut("selftest");
 
@@ -3182,7 +3209,7 @@ static int oc_selftest_ink(const char *name, bool accent, bool want_finding)
 {
     lv_obj_t *scr = wt_screen(NULL, "SELFTEST", NULL);
     lv_screen_load(scr);
-    wt_body_para(scr, "One sentence. And a second one after it.", 120);
+    wt_body_para(scr, "One sentence. And a second one after it.", SY(120));
     if (accent) {
         // What the bug was: the paragraph flagged so its stops follow the
         // theme, and the flag chosen being the one that paints the whole
@@ -3242,6 +3269,7 @@ int oc_selftest(void)
     else                printf("SLACK self test: 2 cases, all as expected\n");
     printf("\n");
 
+#if !KISS_NARROW
     int was_slack = bad;
     printf("PORT check self test\n");
     // The pinned half goes through the SINK, like the reading-level cases and
@@ -3266,6 +3294,11 @@ int oc_selftest(void)
                                  bad - was_slack);
     else                  printf("PORT self test: 2 cases, all as expected\n");
     printf("\n");
+#else
+    // The port forecast is the WIDE board asking about this one; here the
+    // lane is the measurement, and the FIT check owns it.
+    printf("PORT self test: not on this board\n");
+#endif
 
     int was_ink = bad;
     printf("INK check self test\n");
@@ -3283,8 +3316,10 @@ int oc_selftest(void)
     // that the binary got this far.
     int was = bad;
     printf("LADDER check self test\n");
+    // On the 3.5in the tallest face is three rungs over the floor, so no
+    // mark there can be a speck: the same fixture is clear, and says so.
     bad += oc_selftest_ladder("a font14 mark beside a font34 line, fires",
-                              wt_font14(), true);
+                              wt_font14(), !KISS_NARROW);
     bad += oc_selftest_ladder("a font23 mark beside the same line, clear",
                               wt_font23(), false);
     if (bad != was) printf("LADDER self test: %d case(s) wrong\n", bad - was);
@@ -3323,10 +3358,13 @@ int oc_selftest(void)
 
     was = bad;
     printf("CLIPX check self test\n");
+    // 420 is the banner as it shipped. On the 3.5in the same words are 248px
+    // at the 14 face and SX(420) is 252, which holds them; 240 does not.
     bad += oc_selftest_clipx("the auto-lock banner as it shipped, fires",
-                             "locking soon. tap to stay open.", 420, true);
+                             "locking soon. tap to stay open.",
+                             KISS_NARROW ? SX(400) : 420, true);
     bad += oc_selftest_clipx("the same words in a box that holds them, clear",
-                             "locking soon. tap to stay open.", 780, false);
+                             "locking soon. tap to stay open.", SX(780), false);
     if (bad != was) printf("CLIPX self test: %d case(s) wrong\n", bad - was);
     else            printf("CLIPX self test: 2 cases, all as expected\n");
     printf("\n");
@@ -3409,9 +3447,10 @@ int oc_selftest(void)
     printf("\n");
 
     printf("TINY check self test\n");
+    // The 3.5in has no size under the reading rung: the same sentence is clear there.
     bad += oc_selftest_tiny("a lower case sentence at font14, fires",
                             "the words on your paper are the only way back",
-                            false, true);
+                            false, !KISS_NARROW);
     bad += oc_selftest_tiny("an upper case caption at font14, clear",
                             "WHAT SURVIVES THIS", false, false);
     bad += oc_selftest_tiny("a sentence declared as metadata, clear",
@@ -3467,7 +3506,7 @@ int oc_selftest(void)
         lv_screen_load(scr);
         lv_obj_t *stray = lv_label_create(lv_layer_top());
         lv_label_set_text(stray, "STRAY");
-        lv_obj_set_pos(stray, 100, 100);
+        lv_obj_set_pos(stray, SX(100), SY(100));
         lv_refr_now(NULL);
 
         s_findings = 0; s_seen_n = 0;
@@ -3493,7 +3532,7 @@ int oc_selftest(void)
         lv_obj_set_pos(ovl, 0, 0);
         lv_obj_t *inner = lv_label_create(ovl);
         lv_label_set_text(inner, "LOCKING SOON");
-        lv_obj_set_pos(inner, 300, 220);
+        lv_obj_set_pos(inner, SX(300), SY(220));
         lv_refr_now(NULL);
         s_findings = 0; s_seen_n = 0;
         oc_check_layer("selftest");

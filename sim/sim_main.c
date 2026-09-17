@@ -41,10 +41,12 @@ void kiss_begin_setup(void);  // main.c: the REPLACE WALLET door into the wizard
 #include "kiss_ui.h"
 #include "kiss_usage.h"      // the reuse guard, so the walk can light the USED lamp
 
-// Whole game is LANDSCAPE: the sim renders the 800x480 logical canvas directly
-// (the device reaches it via a one-time panel rotation at boot).
-#define HRES 800
-#define VRES 480
+// The canvas is the board's: 800x480 on the Guition (the device reaches it via
+// a one-time panel rotation at boot), 480x320 on the 3.5in. The walk's scripted
+// points are written in the wide canvas and scaled in touch().
+#include "kiss_board.h"
+#define HRES SCREEN_W
+#define VRES SCREEN_H
 
 void build_game(void);  // from main/main.c
 
@@ -1146,7 +1148,18 @@ static void save_seq(void) {
 
 void sim_home_status(const char *msg);   // main.c (SIMULATOR): bottom-center status slot
 
-static void touch(int x, int y) { g_tx = x; g_ty = y; g_pressed = true; }
+// Every scripted point is written on the wide canvas and lands on this board's
+// through the same SX/SY the screens are laid out with, so one script drives
+// both boards. A control sits at SX(x); a tap at SX(x + 20) is inside it by
+// the same margin it was on the wide board, less a pixel of floor.
+// The folded address, as the kit draws it on this board: the 3.5in keeps the
+// prefix block and the two lit tail blocks and nothing else (wt_addr_short).
+#define ADDR_FOLD(pfx, blk, mid, tail) \
+  (KISS_NARROW ? pfx "  \xE2\x80\xA6  " tail : pfx " " blk "  \xE2\x80\xA6  " mid " " tail)
+static void touch(int x, int y) { g_tx = SX(x); g_ty = SY(y); g_pressed = true; }
+// A point already on THIS board's canvas: one read off a control's coords, or
+// composed from WT_ constants, which are scaled where they are defined.
+static void touch_at(int x, int y) { g_tx = x; g_ty = y; g_pressed = true; }
 
 // Does any label on the live screen contain this text? The verify screen is the
 // one place in the app where a missing string is a security defect rather than
@@ -1481,14 +1494,16 @@ static void set_row(int i)  { touch(SET_LABEL_X, SET_ROW_Y(i)); pump(3); release
 // SET_ROW_Y at a def list lands row 2's tap on row 1 and the walk then
 // photographs the wrong pick in silence, which is the exact derailment
 // check_screen_coverage.py exists to catch.
-#define SET_DEF_Y(n, i)  (114 + (WT_DEF_LANE / (n)) * (i) + (WT_DEF_LANE / (n)) / 2)
+// On the board's canvas already (WT_LANE_Y and WT_DEF_LANE are scaled), so
+// its callers tap through touch_at.
+#define SET_DEF_Y(n, i)  (WT_LANE_Y + (WT_DEF_LANE / (n)) * (i) + (WT_DEF_LANE / (n)) / 2)
 static void def_row(int n, int i)
 {
-  touch(SET_LABEL_X, SET_DEF_Y(n, i)); pump(3); release(); pump(8);
+  touch_at(SX(SET_LABEL_X), SET_DEF_Y(n, i)); pump(3); release(); pump(8);
 }
 static void def_go(int n, int i)
 {
-  touch(SET_CHIP_X, SET_DEF_Y(n, i)); pump(3); release(); pump(8);
+  touch_at(SX(SET_CHIP_X), SET_DEF_Y(n, i)); pump(3); release(); pump(8);
 }
 static void def_cycle(int n, int row, int taps)
 {
@@ -1518,7 +1533,7 @@ static void net_to(int want)
 }
 // LANGUAGE on the band: its box is right-aligned to 512, so a tap near that
 // right edge holds for any locale's name.
-static void band_lang(void)  { touch(490, WT_ACTION_Y + 26); pump(3); release(); pump(8); }
+static void band_lang(void)  { touch_at(SX(490), WT_ACTION_Y + SY(26)); pump(3); release(); pump(8); }
 // THEME is not on the band any more -- it is the swatch and name in the chrome
 // column, right-aligned to 752 above [ ? ], 10..50. 30 is its vertical middle.
 // 740 is 12 inside the RIGHT edge, which is the pinned one: the box grows
@@ -1806,7 +1821,7 @@ static void det_chip_scan(lv_obj_t *o, lv_obj_t **found, int *n)
         lv_area_t la; lv_obj_get_coords(o, &la);
         // y > 104: below the tab strip, so the deck's corner [ ? ] mark --
         // itself a "?" label past x=700 -- never counts as a term chip.
-        if (t && strcmp(t, "?") == 0 && la.x1 >= 700 && la.y1 > 104)
+        if (t && strcmp(t, "?") == 0 && la.x1 >= SX(700) && la.y1 > SY(104))
             found[(*n)++] = o;
         return;
     }
@@ -1881,7 +1896,7 @@ static int tap_row_prefix(const char *pre) {
   pump(4);
   lv_area_t a;
   lv_obj_get_coords(row, &a);
-  touch((a.x1 + a.x2) / 2, (a.y1 + a.y2) / 2);
+  touch_at((a.x1 + a.x2) / 2, (a.y1 + a.y2) / 2);
   pump(3);
   release();
   pump(8);
@@ -1937,7 +1952,7 @@ static void tap_label_exact(const char *txt)
         return;
     }
     lv_area_t a; lv_obj_get_coords(l, &a);
-    touch((a.x1 + a.x2) / 2, (a.y1 + a.y2) / 2);
+    touch_at((a.x1 + a.x2) / 2, (a.y1 + a.y2) / 2);
     pump(3);
     release();
     pump(10);
@@ -1954,7 +1969,7 @@ static void tap_obj(lv_obj_t *p, int hold, int settle)
 {
     if (!p) return;
     lv_area_t a; lv_obj_get_coords(p, &a);
-    touch((a.x1 + a.x2) / 2, (a.y1 + a.y2) / 2);
+    touch_at((a.x1 + a.x2) / 2, (a.y1 + a.y2) / 2);
     pump(hold);
     release();
     pump(settle);
@@ -2122,16 +2137,24 @@ static void slide_grip(int key)
     lv_area_t a; lv_obj_get_coords(p, &a);
     s_slide_x = (a.x1 + a.x2) / 2;
     s_slide_y = (a.y1 + a.y2) / 2;
-    touch(s_slide_x, s_slide_y); pump(3);
+    touch_at(s_slide_x, s_slide_y); pump(3);
 }
-static void slide_go(int px)          // absolute travel from the grip point
+static void slide_go(int px)          // absolute travel from the grip point, wide px
 {
-    for (int i = 1; i <= 6; i++) { touch(s_slide_x + px * i / 6, s_slide_y); pump(3); }
+    for (int i = 1; i <= 6; i++) { touch_at(s_slide_x + SX(px) * i / 6, s_slide_y); pump(3); }
 }
-static void slide_at(int x, int y, int px)   // grip by coordinate, drag, stay down
+static void slide_at(int x, int y, int px)   // grip by a wide-canvas coordinate, drag, stay down
+{
+    s_slide_x = SX(x); s_slide_y = SY(y);
+    touch_at(s_slide_x, s_slide_y); pump(3);
+    slide_go(px);
+}
+// The same, gripped by a MEASURED point (a control's centre, on this
+// board's canvas already); the travel is still a wide-canvas number.
+static void slide_at_measured(int x, int y, int px)
 {
     s_slide_x = x; s_slide_y = y;
-    touch(x, y); pump(3);
+    touch_at(s_slide_x, s_slide_y); pump(3);
     slide_go(px);
 }
 static void slide_fire(int key)
@@ -2151,7 +2174,7 @@ static void slide_fire(int key)
 static void slide_back(int x, int y, int px)
 {
     touch(x, y); pump(3);
-    for (int i = 1; i <= 6; i++) { touch(x - px * i / 6, y); pump(3); }
+    for (int i = 1; i <= 6; i++) { touch_at(SX(x) - SX(px) * i / 6, SY(y)); pump(3); }
 }
 
 // The unlock word as used throughout the scripted walk. Kept as a helper for
@@ -3645,7 +3668,7 @@ int main(void) {
   // away on the card below, and that card is where the full grouped form is
   // asserted -- so the two needles together pin both renderings and which
   // screen each belongs to.
-  must_show("verify/address", "bc1qcr 8te4  \xE2\x80\xA6  80jy 8z30 6fyu");
+  must_show("verify/address", ADDR_FOLD("bc1qcr", "8te4", "80jy", "8z30 6fyu"));
   // The output ROW is the control now, at every recipient count -- the card
   // below the graph is gone and every destination rides its own strand. The
   // first output row sits at the top of the graph's output lane, which starts
@@ -3733,7 +3756,7 @@ int main(void) {
     } else {
       lv_area_t a;
       lv_obj_get_coords(ao, &a);
-      touch((a.x1 + a.x2) / 2, (a.y1 + a.y2) / 2); pump(3); release(); pump(30);
+      touch_at((a.x1 + a.x2) / 2, (a.y1 + a.y2) / 2); pump(3); release(); pump(30);
     }
   }
   save("/tmp/sim_sign_details_addr.ppm");
@@ -3752,7 +3775,7 @@ int main(void) {
     lv_obj_t *chip = det_chip(3);              // SIGHASH, the least-known term
     if (chip) {
       lv_obj_t *par = lv_obj_get_parent(chip);
-      touch(lv_obj_get_x(par) + 15, lv_obj_get_y(par) + 15);
+      touch_at(lv_obj_get_x(par) + SX(15), lv_obj_get_y(par) + SY(15));
       pump(3); release(); pump(30);
     }
   }
@@ -3764,7 +3787,7 @@ int main(void) {
     lv_obj_t *chip = det_chip(0);            // TXID heads the strip
     if (chip) {
       lv_obj_t *par = lv_obj_get_parent(chip);
-      touch(lv_obj_get_x(par) + 15, lv_obj_get_y(par) + 15);
+      touch_at(lv_obj_get_x(par) + SX(15), lv_obj_get_y(par) + SY(15));
       pump(3); release(); pump(40);   // 40: wt_card_intro staggers the overlay over 40+300ms and each child
       // takes 220 to settle, so the LAST one is still travelling 560ms in,
       // against 480ms of pump. The card was always photographed mid intro.
@@ -3960,7 +3983,7 @@ int main(void) {
     } else {
       lv_area_t a; lv_obj_get_coords(ad, &a);
       const int before = g_walk_fails;
-      touch((a.x1 + a.x2) / 2, a.y2 + 12); pump(3); release(); pump(12);
+      touch_at((a.x1 + a.x2) / 2, a.y2 + SY(12)); pump(3); release(); pump(12);
       // STR_R_VT, the card's title, and not the lesson body: ADDR_HELP_B is
       // two sentences with a newline between them and must_show matches a
       // needle against one label's whole text, so the body can never match.
@@ -4024,7 +4047,7 @@ int main(void) {
     // ...and the address is still whole and unmoved. The mark is an addition
     // to the row, never a claim that takes the destination's place.
     must_show("paid before (address)",
-              "bc1qcr 8te4  \xE2\x80\xA6  80jy 8z30 6fyu");
+              ADDR_FOLD("bc1qcr", "8te4", "80jy", "8z30 6fyu"));
     // The recipient ROW, which is the control an owner presses now: one
     // layout at every count, and the card that used to be here is gone.
     // By name, for the reason the first address tap gives above.
@@ -4182,7 +4205,7 @@ int main(void) {
   // screenful". The end of the list is walked below.
   must_show("verify (5 cautions)", "800");            // the fee
   must_show("verify (5 cautions, address)",
-            "bc1qcr 8te4  \xE2\x80\xA6  80jy 8z30 6fyu");
+            ADDR_FOLD("bc1qcr", "8te4", "80jy", "8z30 6fyu"));
   // The input TOTAL, and it is a control. Above one coin the graph draws a
   // breakdown, so the sum goes on the caption line: 4 000 in, against 3 000 and
   // 800 and 200 out, is the only arithmetic that says whether the fee is the
@@ -4226,6 +4249,12 @@ int main(void) {
   touch(753, 123); pump(3); release(); pump(30);    // "?" -> WHY FLAGGED card
   save("/tmp/sim_sign_why.ppm");
   tap_str(STR_C_OK, 3, 6);     // OK closes the card
+#if KISS_NARROW
+  // The 3.5in deals five cautions onto stacked cards, and each OK uncovers the
+  // next one; BACK below is only reachable once the last card is closed.
+  for (int i = 0; i < 4 && find_label_text(lv_screen_active(), tr(STR_S_WHY_T)); i++)
+    tap_str(STR_C_OK, 3, 6);
+#endif
   tap_str(STR_C_BACK, 3, 6);     // BACK (leftmost) -> the list, page 2 kept
   save("/tmp/sim_sign_back_choose.ppm");            // the page, still on SD
   tap_str(STR_C_BACK, 3, 6);     // BACK -> home (the page IS the chooser now)
@@ -4272,7 +4301,7 @@ int main(void) {
   // destinations without naming them.
   touch(328, 282); pump(3); release(); pump(8);     // zzzz-MANY (row 2) -> verify
   save("/tmp/sim_sign_many.ppm");                   // 5 recipients, HOLD inert
-  must_show("many recipients", "bc1q00 8te4  \xE2\x80\xA6  80jy 8z30 6fyu");
+  must_show("many recipients", ADDR_FOLD("bc1q00", "8te4", "80jy", "8z30 6fyu"));
   // The locktime badge and the mark beside it. A badge nothing taps is a badge
   // no gate has an opinion about, and this one is the whole point of promoting
   // the fact off the DETAILS deck: the block is on the glass and what a block
@@ -4286,7 +4315,7 @@ int main(void) {
   touch(386, 40); pump(3); release(); pump(40);   // the card fades in
   save("/tmp/sim_sign_locktime.ppm");               // what a locktime IS
   must_show("locktime card", "locktime");
-  touch(400, WT_ACTION_Y + 20); pump(3); release(); pump(8);   // OK
+  touch_at(SX(400), WT_ACTION_Y + SY(20)); pump(3); release(); pump(8);   // OK
   if (kiss_sign_test_armed()) {
     printf("FAIL: HOLD TO SIGN was live with recipients still under the fold\n");
     return 1;
@@ -4303,7 +4332,7 @@ int main(void) {
     release(); pump(40);
   }
   save("/tmp/sim_sign_many_end.ppm");               // last recipient, HOLD live
-  must_show("many recipients (end)", "bc1q04 8te4  \xE2\x80\xA6  80jy 8z30 6fyu");
+  must_show("many recipients (end)", ADDR_FOLD("bc1q04", "8te4", "80jy", "8z30 6fyu"));
   if (!kiss_sign_test_armed()) {
     printf("FAIL: HOLD TO SIGN still inert after the list was read to its end\n");
     return 1;
@@ -4511,7 +4540,7 @@ int main(void) {
       } else {
         lv_area_t a;
         lv_obj_get_coords(fn, &a);
-        if (a.x1 < 0 || a.x2 > 799) {
+        if (a.x1 < 0 || a.x2 > SCREEN_W - 1) {
           printf("FAIL: receipt: filename runs %d..%d, off an 800px panel\n",
                  a.x1, a.x2);
           g_walk_fails++;
@@ -4942,7 +4971,7 @@ int main(void) {
   // without it -- and check_screen_coverage.py counts SCREENS, so a control
   // with no stop is a control with no opinion attached. Tapped from NO UNDO,
   // which is as far from BACKUP as the strip goes.
-  touch(150, WT_ACTION_Y + 26); pump(3); release(); pump(50);
+  touch_at(SX(150), WT_ACTION_Y + SY(26)); pump(3); release(); pump(50);
   save("/tmp/sim_settings_attn.ppm");               // -> SECURITY, the leftmost mark
   // The LEFTMOST lit dot, not BACKUP. The chip used to jump to BACKUP always,
   // on the strength of a comment saying both counted conditions lived there --
@@ -4954,7 +4983,7 @@ int main(void) {
   // cautions are simply pointed at where they stand. Captured raw rather than
   // saved, because the frame that proves it is mid pulse and a settled one is
   // by design identical to the stop above.
-  touch(150, WT_ACTION_Y + 26); pump(3); release(); pump(14);
+  touch_at(SX(150), WT_ACTION_Y + SY(26)); pump(3); release(); pump(14);
   shot_raw("sim_settings_attn_again.ppm");
   pump(40);
   set_tab(SET_SIGNER);
@@ -5080,8 +5109,9 @@ int main(void) {
     // photographs the cover and every later needle fails somewhere else.
     lv_text_get_size(&vs, v, wt_chrome23(v), 0, 0, LV_COORD_MAX,
                      LV_TEXT_FLAG_NONE);
-    // Row 0 carries a lamp, so the value starts 20 past DEF_VAL_X.
-    touch(48 + 238 + 20 + vs.x + 14 + 15, SET_DEF_Y(2, 0));
+    // Row 0 carries a lamp, so the value starts 20 past DEF_VAL_X. The
+    // measured width is on this board's canvas already; the offsets are not.
+    touch_at(SX(48 + 238 + 20) + vs.x + SX(14 + 15), SET_DEF_Y(2, 0));
     pump(3); release(); pump(8);
   }
   pump(25);                                          // the card animates in
@@ -5253,7 +5283,12 @@ int main(void) {
   // confirmation behind the button carries its amber qualifier -- the branch
   // that goes unreachable once step 9 has verified.
   set_tab(SET_NOUNDO);
+#if KISS_NARROW
+  // The card is 160 tall on the 3.5in and its action sits above this y.
+  tap_str(STR_I_ERASE_BTN, 3, 8);                   // ERASE SEED WORDS
+#else
   touch(200, SET_ROW_Y(3)); pump(3); release(); pump(8);  // ERASE SEED WORDS
+#endif
   save("/tmp/sim_endwords_unchecked.ppm");          // amber "paper never checked"
   tap_str(STR_C_CANCEL, 3, 8);   // CANCEL -> Settings, NO UNDO tab: a gate's
                                  // exit names the refusal, not the direction
@@ -5541,7 +5576,7 @@ int main(void) {
   def_row(3, 0);                                    // Firmware -> the update screen
   pump(FW_SETTLE);                                  // the body and the row arrive late
   save("/tmp/sim_settings_fw.ppm");                 // reached from settings, not directly
-  touch(WT_EXIT_X + 70, WT_ACTION_Y + 26); pump(3); release(); pump(8);  // BACK -> settings
+  touch_at(WT_EXIT_X + SX(70), WT_ACTION_Y + SY(26)); pump(3); release(); pump(8);  // BACK -> settings
   save("/tmp/sim_settings_fw_back.ppm");            // one settings page, rebuilt
 
   // LANGUAGE lives on the action band now, its label the active language's
@@ -5556,7 +5591,13 @@ int main(void) {
     // not 52: the 22nd locale needed an eighth row and 52 put it flush
     // with the panel edge. Both copies move together or the walk taps a
     // cell that is no longer there.
+#if KISS_NARROW
+    // The 3.5in grid has no heading: 156x31 cells from (6, 8), on the
+    // board's own canvas. The same hand copy, of that branch.
+    touch_at(6 + (li % 3) * 156 + 20, 8 + (li / 3) * 31 + 15);
+#else
     touch(16 + (li % 3) * 260 + 20, 76 + (li / 3) * 48 + 20);
+#endif
     pump(3); release(); pump(10);                   // settings rebuilt, same language
   }
 
@@ -5594,7 +5635,7 @@ int main(void) {
                      0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
     lv_text_get_size(&ms, LV_SYMBOL_LOOP, wt_font23(), 0, 0, LV_COORD_MAX,
                      LV_TEXT_FLAG_NONE);
-    touch(48 + 238 + vs.x + 14 + ms.x + 10 + 15, SET_DEF_Y(3, 1));
+    touch_at(SX(48 + 238) + vs.x + SX(14) + ms.x + SX(10 + 15), SET_DEF_Y(3, 1));
     pump(3); release(); pump(8);
   }
   save("/tmp/sim_settings_bip.ppm");                // the card, over the scrim
@@ -5616,7 +5657,7 @@ int main(void) {
                      0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
     lv_text_get_size(&ms, LV_SYMBOL_LOOP, wt_font23(), 0, 0, LV_COORD_MAX,
                      LV_TEXT_FLAG_NONE);
-    touch(48 + 238 + vs.x + 14 + ms.x + 10 + 15, SET_DEF_Y(3, 1));
+    touch_at(SX(48 + 238) + vs.x + SX(14) + ms.x + SX(10 + 15), SET_DEF_Y(3, 1));
     pump(3); release(); pump(8);
   }
   touch(60, 440); pump(3); release(); pump(8);      // scrim -> dismissed
@@ -6416,12 +6457,12 @@ int main(void) {
   {
     lv_obj_t *lbl = find_word_label(lv_screen_active());
     if (!lbl) { printf("FAIL: duress/draw: no printed word to draw on\n"); g_walk_fails++; }
-    lv_area_t b = { 250, 150, 550, 246 };
+    lv_area_t b = { SX(250), SY(150), SX(550), SY(246) };
     if (lbl) lv_obj_get_coords(lv_obj_get_parent(lbl), &b);
     const int uy = b.y2 - 4;                 // just under the word: underline
     for (int rep = 0; rep < 2; rep++) {
-      for (int x = b.x1 + 10; x <= b.x2 - 10; x += 40) {
-        touch(x, uy); pump(3);               // 3 frames/point: the indev reads ~30ms
+      for (int x = b.x1 + SX(10); x <= b.x2 - SX(10); x += SX(40)) {
+        touch_at(x, uy); pump(3);            // 3 frames/point: the indev reads ~30ms
         // Mid-stroke, finger still down. The only frame that can show the ink
         // AT ALL -- every other save here happens after a release, by which
         // point rehearse_reset has hidden it. It is also the only frame that
@@ -6796,7 +6837,12 @@ int main(void) {
   // a second door to the same room, and both ended at the same whole partition
   // erase.
   set_tab(SET_NOUNDO);
+#if KISS_NARROW
+  // The card is 160 tall on the 3.5in and its action sits above this y.
+  tap_str(STR_I_ERASE_BTN, 3, 8);                   // ERASE SEED WORDS
+#else
   touch(200, SET_ROW_Y(3)); pump(3); release(); pump(8);  // ERASE SEED WORDS
+#endif
   lv_refr_now(NULL); pump(2);
   save("/tmp/sim_wipe_confirm.ppm");                // fingerprint, the pair, HOLD
   must_show("erase/title", tr(STR_G_WIPEC_T));
@@ -7217,7 +7263,7 @@ int main(void) {
     lv_obj_t *hp = act_for(STR_G_FW_HOLD, "mid-slide");
     if (hp) {
       lv_area_t a; lv_obj_get_coords(hp, &a);
-      slide_at((a.x1 + a.x2) / 2, (a.y1 + a.y2) / 2, 165);
+      slide_at_measured((a.x1 + a.x2) / 2, (a.y1 + a.y2) / 2, 165);
       save("/tmp/sim_fw_hold_mid.ppm");             // fill part way, KEEP SLIDING
       // The RESTING label is gone, which is the swap this frame exists to
       // catch. KEEP SLIDING cannot be the needle: Italian and Norwegian

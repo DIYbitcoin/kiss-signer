@@ -25,6 +25,26 @@
 KISS_SIM_TMP="${KISS_SIM_TMP:-/tmp}"
 mkdir -p "$KISS_SIM_TMP"
 
+# Which board the binaries are built for. guition (the default) is the 800x480
+# canvas every command in the house rules assumes; ws35 is the 3.5in board's
+# 480x320. One scratch root per board: the binaries keep their names, and so
+# do the frames a walk saves, so a narrow build in a root the wide gates read
+# would be a silent swap. Every build script prints the board it built for.
+KISS_BOARD="${KISS_BOARD:-guition}"
+# KISS_ART_SRCS is the board's set of baked backdrops and KISS_SPRITES_SRC
+# its game sprites (main/CMakeLists.txt makes the same choice for the
+# device): the same pictures, drawn at each board's size by the same
+# generators, defining the same symbols.
+case "$KISS_BOARD" in
+    guition) KISS_BOARD_CFLAGS=""
+             KISS_ART_SRCS="main/menu_img.c main/menu_logo.c main/gameover_img.c main/kiss_img.c"
+             KISS_SPRITES_SRC="main/sprites.c" ;;
+    ws35)    KISS_BOARD_CFLAGS="-DKISS_BOARD_WS35=1"
+             KISS_ART_SRCS="main/menu_img_ws35.c main/menu_logo_ws35.c main/gameover_img_ws35.c main/kiss_img_ws35.c"
+             KISS_SPRITES_SRC="main/sprites_ws35.c" ;;
+    *) echo "sim: KISS_BOARD must be guition or ws35 (got '$KISS_BOARD')" >&2; exit 1 ;;
+esac
+
 # Is a scratch root still owned by a running walk? kiss_simpath.h writes
 # "<pid> <who>" into walk.lock and unlinks it at exit, so a file naming a live
 # pid is the only evidence of use that does not depend on mtime -- and mtime is

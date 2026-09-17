@@ -275,6 +275,40 @@ run "a walk tap that hits nothing" \
      && python3 tools/check_sim_taps.py --selftest \
      && python3 tools/check_sim_taps.py"
 
+# --- the 3.5in board --------------------------------------------------------
+# The same screens on the 480x320 canvas. Every gate that measures geometry
+# runs a second time with KISS_BOARD=ws35, in its own scratch so the two
+# boards' binaries and frames never meet (sim/sim_tmp.sh has the why).
+# English only, like the wide push lane above; the other locales are the
+# nightly's. The unit tests run too: the gesture floors scale with the canvas
+# and their tests prove the scaled numbers as well as the wide ones.
+WS="KISS_BOARD=ws35 KISS_SIM_TMP=\"\$KISS_SIM_TMP/ws35\""
+run "3.5in: unit tests" \
+    "$WS bash sim/build_test.sh && $WS \"\$KISS_SIM_TMP/ws35/kisstest\""
+# Advisory, like the walk below and for the same reason: the count is
+# printed and marked NOTE until it reads zero.
+run --note-if "English slot\(s\) fell" "3.5in: text fit (en, advisory)" \
+    "$WS bash sim/build_fitcheck.sh \
+     && ($WS FITCHECK_SELFTEST=1 SIM_LANG=en \"\$KISS_SIM_TMP/ws35/kissfit\" || true)"
+# No overlay text gate for the 3.5in yet: the camera preview has no transport
+# on that board, so its captions are drawn nowhere, and the gate would be
+# measuring strips against a lane no screen has. It comes in with the camera.
+# ADVISORY, for now. The 3.5in's English count is not at zero yet: the walk
+# reaches every stop and every tap lands (the two lines below prove that and
+# do fail), but the overlap gate still lists what the smaller lanes cut or
+# stack. The count is printed and marked NOTE rather than hidden; the day it
+# reads zero this line loses its "|| true" and the CI step its
+# continue-on-error, in one commit.
+# The builds sit OUTSIDE the "|| true": a walk that does not compile is a
+# failure, only its count is advisory.
+run --note-if "text overlap gate: [1-9]" "3.5in: screen walk (en, advisory)" \
+    "$WS bash sim/build_sim.sh && $WS bash sim/build_overlapcheck.sh \
+     && ($WS OVERLAPCHECK_LANGS=en bash sim/run_overlapcheck.sh || true)"
+run "3.5in: screens no gate sees" "$WS python3 tools/check_screen_coverage.py"
+run "3.5in: a walk tap that hits nothing" \
+    "$WS SIM_LANG=en \"\$KISS_SIM_TMP/ws35/fruitsim\" > \"\$KISS_SIM_TMP/ws35/sim_en.log\" \
+     && $WS python3 tools/check_sim_taps.py"
+
 # --- the table ------------------------------------------------------------
 echo
 echo "  ------------------------------------------------------------"

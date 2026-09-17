@@ -645,3 +645,62 @@ jobs:
           SDL_VIDEODRIVER=dummy /tmp/kissapp --frames 40 --shot /tmp/kissapp.ppm
           test -s /tmp/kissapp.ppm || { echo "FAIL: the app rendered nothing"; exit 1; }
           echo "ok: $(wc -c < /tmp/kissapp.ppm) bytes of frame"
+
+  # THE 3.5in BOARD, on its own runner: the same screens on a 480x320 canvas,
+  # every gate that measures geometry run again with KISS_BOARD=ws35. Its own
+  # job rather than more steps above because the binaries and the frames keep
+  # their names per board (sim/sim_tmp.sh), and because a narrow finding must
+  # never be mistaken for a wide one in the summary a person reads. English
+  # only, like the wide gates; tools/preflight.sh runs the same block by hand.
+  desktop-narrow:
+    runs-on: ubuntu-latest
+    env:
+      KISS_WERROR: 1
+      KISS_BOARD: ws35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: fetch LVGL for the sim (3.5in)
+        uses: ./.github/actions/fetch-lvgl
+
+      - name: unit tests (3.5in)
+        run: |
+          bash sim/build_test.sh
+          /tmp/kisstest
+
+      - name: sim smoke walk (3.5in, en)
+        run: |
+          bash sim/build_sim.sh
+          timeout 300 env SIM_LANG=en /tmp/fruitsim > /tmp/sim_en.log
+          tail -1 /tmp/sim_en.log
+
+      - name: simulator taps still hit something (3.5in)
+        if: always()
+        run: python3 tools/check_sim_taps.py
+
+      - name: every screen has a walk stop (3.5in, strict)
+        if: always()
+        env:
+          SCREENCOVER_STRICT: "1"
+        run: timeout 300 python3 tools/check_screen_coverage.py
+
+      # Advisory until the 3.5in's English count reaches zero, like the
+      # overlap gate below.
+      - name: button + explainer fit report (3.5in, en, advisory)
+        if: always()
+        continue-on-error: true
+        run: |
+          bash sim/build_fitcheck.sh
+          FITCHECK_SELFTEST=1 SIM_LANG=en /tmp/kissfit
+
+      # Advisory until the 3.5in's English count reaches zero (see the
+      # same note in tools/preflight.sh): the findings are printed, the job
+      # stays green. One commit removes this line when the count is zero.
+      - name: text overlap gate (3.5in, en, advisory)
+        if: always()
+        continue-on-error: true
+        run: OVERLAPCHECK_LANGS=en OVERLAPCHECK_STRICT=1 bash sim/run_overlapcheck.sh
+
+      # No overlay text gate here yet: the camera preview has no transport on
+      # this board, so its captions are drawn nowhere. It comes in with the
+      # camera, together with the two-strip subtitle its lane needs.

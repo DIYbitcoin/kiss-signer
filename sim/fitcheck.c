@@ -16,6 +16,7 @@
 #include "lvgl.h"
 #include "i18n.h"
 #include "kiss_theme.h"
+#include "kiss_board.h"
 
 // Every wt_body_font() call site in the UI: the copy it measures and the
 // (width, height) box it has to live inside. Keep in sync with the sources
@@ -27,34 +28,38 @@ typedef struct {
     int may_be_small;      // 1 = font14 is the accepted outcome here
 } slot_t;
 
+// Heights under one line of 23 (29px) are the floor face's boxes and stay as
+// written: the 14 face is the same pixels tall on both boards, so a box that
+// holds one of its lines does not shrink with the canvas. Every other box
+// scales with SY like the screen it models.
 static const slot_t SLOTS[] = {
     // kiss_setup.c:279 — amber line under the word grid
-    { "setup/paper-only", STR_I_WORDS_S,    700,  40 },
+    { "setup/paper-only", STR_I_WORDS_S,    SX(700), SY(40) },
     // kiss_info.c — "?" cards (155 with a diagram, 225 without; the
     // scan-key warning below pairs a short body with three visual facts).
     // The PAIRING one is gone with its card: that page's [ ? 2 ] opens
     // DESCRIPTOR and FINGERPRINT as term rows now, and a definition row is
     // measured by the TERM gate rather than by a slot here.
-    { "wallet/?fp",       STR_I_H_FP_B,     720, 155 },
-    { "wallet/?type",     STR_I_H_TYPE_B,   720, 225 },
+    { "wallet/?fp",       STR_I_H_FP_B,     SX(720), SY(155) },
+    { "wallet/?type",     STR_I_H_TYPE_B,   SX(720), SY(225) },
     // kiss_info.c:263,326 — full-screen warnings
-    { "wallet/sp-warn",   STR_R_SP_WARN_B,  700, 145 },
-    { "wallet/sp-find",   STR_R_SP_FACT_FIND,     482, 29 },
-    { "wallet/sp-spend",  STR_R_SP_FACT_NO_SPEND, 482, 29 },
-    { "wallet/sp-forever",STR_R_SP_FACT_FOREVER,  482, 29 },
+    { "wallet/sp-warn",   STR_R_SP_WARN_B,  SX(700), SY(145) },
+    { "wallet/sp-find",   STR_R_SP_FACT_FIND,     SX(482), SY(29) },
+    { "wallet/sp-spend",  STR_R_SP_FACT_NO_SPEND, SX(482), SY(29) },
+    { "wallet/sp-forever",STR_R_SP_FACT_FOREVER,  SX(482), SY(29) },
     // kiss_recv.c: the fitted full-width kind line on a verified silent-payment
     // address. This replaced the stale two-line SCAN KEY sub-line lane below.
-    { "recv/sp-badge",    STR_S_SP_BADGE,          700, 29 },
+    { "recv/sp-badge",    STR_S_SP_BADGE,          SX(700), SY(29) },
     // kiss_sign.c:355,394,966
-    { "sign/why",         -1,               720, 300 },   // composed below
-    { "sign/?address",    STR_S_ADDR_HELP_B, 720, 230 },
-    { "sign/?coins",      STR_S_COINS_HELP_B, 720, 230 },
+    { "sign/why",         -1,               SX(720), SY(300) },   // composed below
+    { "sign/?address",    STR_S_ADDR_HELP_B, SX(720), SY(230) },
+    { "sign/?coins",      STR_S_COINS_HELP_B, SX(720), SY(230) },
     // kiss_ui.c:469,769 — login warning + passphrase intro
     // The warn bodies render as ruled blocks split on their blank lines, so a
     // whole-key slot can only bound the single-claim key at the wide block's
     // width; the sliced no-passphrase pair is covered by the walk's three
     // rendered states instead.
-    { "login/warn",       STR_L_WARN_B,     690, 160 },
+    { "login/warn",       STR_L_WARN_B,     SX(690), SY(160) },
     // The why-block PAIRS that used to be measured here are gone: the
     // passphrase intro, the backup check, both blind draw screens, the dice
     // verdict and the checksum page all say their two claims as fact ROWS
@@ -63,9 +68,9 @@ static const slot_t SLOTS[] = {
     // walk (wt_sub_measure, measured as the label is built), not a body
     // budget here. Slots for them would measure a box no screen draws.
     // kiss_setup.c — wizard explainers
-    { "setup/checksum",   STR_W_CHECK_B,    704, 256 },
-    { "setup/verify-ok",  STR_W_VOK_B,      704, 190 },
-    { "setup/verify-bad", STR_W_VBAD_B,     704, 190 },
+    { "setup/checksum",   STR_W_CHECK_B,    SX(704), SY(256) },
+    { "setup/verify-ok",  STR_W_VOK_B,      SX(704), SY(190) },
+    { "setup/verify-bad", STR_W_VBAD_B,     SX(704), SY(190) },
     // The setup wizard's three storage cards. Settings used to share this
     // geometry and no longer does: its own chooser states each mode on a row
     // sub-line instead, measured further down as set/store-*.
@@ -73,28 +78,28 @@ static const slot_t SLOTS[] = {
     // normal builds. It is not: kiss_seed_sd_supported() returns true on
     // every build, and the unreachable disabled path was deleted, so the note
     // is now ordinary copy with nothing special about it.
-    { "storage/flash",    STR_W_KEEP_NOTE,        420, 87 },
-    { "storage/flash-enc",STR_W_FLASH_ENC_NOTE,   420, 87 },
-    { "storage/sd",       STR_W_SD_NOTE,          420, 87 },
-    { "storage/amnesic",  STR_W_AMNESIC_NOTE,     420, 87 },
-    { "storage/confirm-flash", STR_G_STORAGE_CONFIRM_FLASH_B,   704, 238 },
-    { "storage/confirm-sd",    STR_G_STORAGE_CONFIRM_SD_B,      704, 238 },
-    { "storage/confirm-amn",   STR_G_STORAGE_CONFIRM_AMNESIC_B, 704, 238 },
-    { "storage/ok",       STR_G_STORAGE_OK_FMT,       704, 230 },
-    { "storage/ok-amn",   STR_G_STORAGE_OK_AMNESIC_B, 704, 230 },
-    { "storage/fail-card",STR_G_STORAGE_FAIL_CARD_B,  704, 230 },
-    { "storage/fail-vfy", STR_G_STORAGE_FAIL_VERIFY_B,704, 230 },
-    { "storage/fail",     STR_G_STORAGE_FAIL_GENERIC_B,704,230 },
-    { "storage/cleanup",  STR_G_STORAGE_CLEANUP_B,    704, 230 },
-    { "storage/sd-missing",STR_W_SD_MISSING_B,         704, 226 },
-    { "storage/sd-corrupt",STR_W_SD_CORRUPT_B,         704, 226 },
-    { "storage/sd-io",    STR_W_SD_IO_B,              704, 226 },
+    { "storage/flash",    STR_W_KEEP_NOTE,        SX(420), SY(87) },
+    { "storage/flash-enc",STR_W_FLASH_ENC_NOTE,   SX(420), SY(87) },
+    { "storage/sd",       STR_W_SD_NOTE,          SX(420), SY(87) },
+    { "storage/amnesic",  STR_W_AMNESIC_NOTE,     SX(420), SY(87) },
+    { "storage/confirm-flash", STR_G_STORAGE_CONFIRM_FLASH_B,   SX(704), SY(238) },
+    { "storage/confirm-sd",    STR_G_STORAGE_CONFIRM_SD_B,      SX(704), SY(238) },
+    { "storage/confirm-amn",   STR_G_STORAGE_CONFIRM_AMNESIC_B, SX(704), SY(238) },
+    { "storage/ok",       STR_G_STORAGE_OK_FMT,       SX(704), SY(230) },
+    { "storage/ok-amn",   STR_G_STORAGE_OK_AMNESIC_B, SX(704), SY(230) },
+    { "storage/fail-card",STR_G_STORAGE_FAIL_CARD_B,  SX(704), SY(230) },
+    { "storage/fail-vfy", STR_G_STORAGE_FAIL_VERIFY_B,SX(704), SY(230) },
+    { "storage/fail",     STR_G_STORAGE_FAIL_GENERIC_B,SX(704), SY(230) },
+    { "storage/cleanup",  STR_G_STORAGE_CLEANUP_B,    SX(704), SY(230) },
+    { "storage/sd-missing",STR_W_SD_MISSING_B,         SX(704), SY(226) },
+    { "storage/sd-corrupt",STR_W_SD_CORRUPT_B,         SX(704), SY(226) },
+    { "storage/sd-io",    STR_W_SD_IO_B,              SX(704), SY(226) },
     // kiss_settings.c: the two wipe overlays
-    { "wipe/confirm",     STR_G_WIPEC_B,    704, 190 },
-    { "wipe/erased",      STR_G_ERASED_B,   704, 160 },
-    { "wipe/not-erased",  STR_G_NOERASE_B,  704, 160 },
+    { "wipe/confirm",     STR_G_WIPEC_B,    SX(704), SY(190) },
+    { "wipe/erased",      STR_G_ERASED_B,   SX(704), SY(160) },
+    { "wipe/not-erased",  STR_G_NOERASE_B,  SX(704), SY(160) },
     // amnesic mode: seed-QR import + passphrase-from-QR
-    { "setup/qr-bad",     STR_W_QRBAD_B,    704, 240 },
+    { "setup/qr-bad",     STR_W_QRBAD_B,    SX(704), SY(240) },
     // kiss_sign.c: the screens BEFORE and AFTER the detail page. The detail
     // page was swept first and these were missed, so the refusal to sign, the
     // two SD prompts and every instruction on the signed-QR page were still at
@@ -103,18 +108,18 @@ static const slot_t SLOTS[] = {
     // may_be_small: it renders at a FIXED chrome23, never on the ladder this
     // slot models -- a long translation ellipsises rather than shrinking,
     // and the sweep is where that gets caught and cut.
-    { "sign/point-cam",   STR_S_POINT_CAM,      704,  29, 1 },
-    { "sign/read-fail",   STR_S_READ_FAIL,      704, 232 },
-    { "sign/rm-confirm",  STR_S_RM_C_B,         704, 100 },
-    { "sign/not-psbt",    STR_S_NOT_PSBT,       704, 232 },
-    { "sign/scan-bad",    STR_S_SCAN_NOT_PSBT,  704, 232 },
-    { "sign/insert-card", STR_S_INSERT_CARD,    704, 116 },
-    { "sign/coord-save",  STR_S_COORD_SAVE,     704, 116 },
+    { "sign/point-cam",   STR_S_POINT_CAM,      SX(704), SY(29), 1 },
+    { "sign/read-fail",   STR_S_READ_FAIL,      SX(704), SY(232) },
+    { "sign/rm-confirm",  STR_S_RM_C_B,         SX(704), SY(100) },
+    { "sign/not-psbt",    STR_S_NOT_PSBT,       SX(704), SY(232) },
+    { "sign/scan-bad",    STR_S_SCAN_NOT_PSBT,  SX(704), SY(232) },
+    { "sign/insert-card", STR_S_INSERT_CARD,    SX(704), SY(116) },
+    { "sign/coord-save",  STR_S_COORD_SAVE,     SX(704), SY(116) },
     // kiss_sign.c sd_open — the one hint line at y=98, drawn at font14 by
     // design (may_be_small), one line wide as the whole content lane. The %d
     // pair expands to at most 2 digits each, no wider than the specifiers.
-    { "sign/files-more",  STR_S_FILES_MORE_FMT, 704, 29, 1 },
-    { "sign/qr-loop",     STR_S_QR_LOOP,        322,  29 },
+    { "sign/files-more",  STR_S_FILES_MORE_FMT, SX(704), SY(29), 1 },
+    { "sign/qr-loop",     STR_S_QR_LOOP,        SX(322), SY(29) },
     // kiss_sign.c glossary_cb() -- SIMPLE EXPLAINERS, eight definitions in a
     // 704x294 overlay. Registered at 232, not the 294 the screen allows: eight
     // lines at font23 is exactly 8 x 29, so the box IS the no-wrap condition
@@ -123,23 +128,23 @@ static const slot_t SLOTS[] = {
     // whole thing at font14 because enough definitions wrapped to overflow at
     // 23, and a definition that wraps mid-clause is the one place a glossary
     // must not be hard to read.
-    { "sign/glossary",    STR_S_GLOSSARY_B,     704, 232 },
-    { "sign/saved-note",  STR_S_SAVED_NOTE,     704,  90 },
+    { "sign/glossary",    STR_S_GLOSSARY_B,     SX(704), SY(232) },
+    { "sign/saved-note",  STR_S_SAVED_NOTE,     SX(704), SY(90) },
     // kiss_sign.c mo_start() -- the one sentence under the code in the
     // arrival motion. Its box is ONE line at the 23 rung, deliberately: the
     // code above it is mono34 and a font28 line under that competes with it
     // instead of captioning it. 29 is that line in the Latin faces; the call
     // site measures the ACTIVE locale's, which is taller in ja, ko and zh.
-    { "sign/mo-sent",     STR_S_MO_SENT,        704,  29 },
-    { "login/qr-warn",    STR_L_SCAN_WARN_B,704, 274 },
+    { "sign/mo-sent",     STR_S_MO_SENT,        SX(704), SY(29) },
+    { "login/qr-warn",    STR_L_SCAN_WARN_B,SX(704), SY(274) },
     // kiss_settings.c — the network row's sub-line on the SIGNER tab. It is a
     // ROW SUB now rather than a note floating in a gap between controls: one
     // line, font14 by the kit's own rule for row sub-lines, in the lane the
     // value chip leaves it (268..538 at the chip's 190px minimum).
     // may_be_small, because font14 here is the row idiom and not a budget
     // thrown away in code.
-    { "set/net-main",     STR_G_MAINNET_NOTE, 270, 19, 1 },
-    { "set/net-test",     STR_G_TESTNET_NOTE, 270, 19, 1 },
+    { "set/net-main",     STR_G_MAINNET_NOTE, SX(270), 19, 1 },
+    { "set/net-test",     STR_G_TESTNET_NOTE, SX(270), 19, 1 },
     // The same sub-lines, on the same 270px lane, for every row that states
     // what its value MEANS. They appear twice each: under the label on the
     // settings row, and again on the storage chooser, where the lane is wider
@@ -149,13 +154,13 @@ static const slot_t SLOTS[] = {
     // shipped reading "SD C...": the dropdown it lived in was 280px wide and
     // "on the card you carry" took the lane, leaving the NAME to ellipsise.
     // Nothing on that path had a box in this table.
-    { "set/store-flash",  STR_I_STORE_FLASH_SUB,     270, 19, 1 },
-    { "set/store-fl-enc", STR_I_STORE_FLASH_ENC_SUB, 270, 19, 1 },
-    { "set/store-sd",     STR_I_STORE_SD_SUB,        270, 19, 1 },
-    { "set/store-amn",    STR_I_STORE_AMN_SUB,       270, 19, 1 },
+    { "set/store-flash",  STR_I_STORE_FLASH_SUB,     SX(270), 19, 1 },
+    { "set/store-fl-enc", STR_I_STORE_FLASH_ENC_SUB, SX(270), 19, 1 },
+    { "set/store-sd",     STR_I_STORE_SD_SUB,        SX(270), 19, 1 },
+    { "set/store-amn",    STR_I_STORE_AMN_SUB,       SX(270), 19, 1 },
     // Persist, whose sub follows the STATE: what is kept, or that nothing is.
-    { "set/hist-on",      STR_I_HIST_SHORT,          270, 19, 1 },
-    { "set/hist-off",     STR_I_POP_NOTHING,         270, 19, 1 },
+    { "set/hist-on",      STR_I_HIST_SHORT,          SX(270), 19, 1 },
+    { "set/hist-off",     STR_I_POP_NOTHING,         SX(270), 19, 1 },
     // The NO UNDO tab is a CLAIM PAIR now, not one paragraph: two heads and
     // two bodies in two 340px columns, measured by wt_body_font2_head. Its old
     // single-paragraph key went with the shape, along with the caption beside
@@ -166,52 +171,55 @@ static const slot_t SLOTS[] = {
     // string is gone: it was the ADDRESS TYPE subtitle and, doing second duty,
     // the filler in a decoy session's duress slot. It told nobody anything the
     // three rows above already say. Neither box has a string to measure now.
-    { "set/create-note",  STR_G_CREATE_NOTE,  340, 34, 1 },
-    { "set/words-note",   STR_I_WORDS_BTN_NOTE,340,34, 1 },
+    { "set/create-note",  STR_G_CREATE_NOTE,  SX(340), SY(34), 1 },
+    { "set/words-note",   STR_I_WORDS_BTN_NOTE,SX(340), SY(34), 1 },
     // kiss_duress_ui.c ST_DONE: wt_why_body at y=250 under the two-ways
     // diagram, so the body has WT_CONTENT_BOTTOM - 250 = 148 to live in.
-    { "duress/done",      STR_GD_DONE_B,      700, 148, 0 },
+    { "duress/done",      STR_GD_DONE_B,      SX(700), SY(148), 0 },
     // kiss_recv.c / kiss_info.c — instructions the user has to act on
     // wt_screen() subtitles: one line, 704px wide, between title and content.
-    { "sub/receive",      STR_R_S,            704, 30, 0 },
-    { "sub/wallet",       STR_I_S,            340, 58, 0 },
-    { "sub/verify",       STR_R_VS,           704, 30, 0 },
-    { "sub/sp-warn",      STR_R_SP_WARN_S,    704, 30, 0 },
+    { "sub/receive",      STR_R_S,            SX(704), SY(30), 0 },
+    { "sub/wallet",       STR_I_S,            SX(340), SY(58), 0 },
+    { "sub/verify",       STR_R_VS,           SX(704), SY(30), 0 },
+    { "sub/sp-warn",      STR_R_SP_WARN_S,    SX(704), SY(30), 0 },
     // Every remaining wt_screen subtitle. One line at 23 or it drops to 14 --
     // the header geometry in wt_screen() is fixed, so the only lever here is
     // the length of the sentence.
-    { "sub/words",        STR_I_WORDS_S,      704, 30, 0 },
-    { "sub/setup",        STR_W_SETUP_S,      704, 30, 0 },
-    { "sub/write",        STR_W_WRITE_S,      704, 30, 0 },
+    { "sub/words",        STR_I_WORDS_S,      SX(704), SY(30), 0 },
+    { "sub/setup",        STR_W_SETUP_S,      SX(704), SY(30), 0 },
+    { "sub/write",        STR_W_WRITE_S,      SX(704), SY(30), 0 },
     // These two draw their own subtitle (mk_screen2 in kiss_setup.c) because
     // their first content sits well below the y=96 line, so they get the two
     // lines their copy was written for.
-    { "sub/rand",         STR_W_RAND_S,       704, 58, 0 },
-    { "sub/prove",        STR_W_PROVE_S,      704, 58, 0 },
+    { "sub/rand",         STR_W_RAND_S,       SX(704), SY(58), 0 },
+    { "sub/prove",        STR_W_PROVE_S,      SX(704), SY(58), 0 },
     // W_RNG_S is no longer a subtitle; it survives as the audit chooser row's
     // sub, where the CUT sink measures it as the label is built.
-    { "rng/src-sub",      STR_W_RNG_SRC_SUB,     480,  46, 1 },
+    { "rng/src-sub",      STR_W_RNG_SRC_SUB,     SX(480), SY(46), 1 },
     // 330, not 344: the block's rule bar eats 14px of body width. Height is
     // the pair budget (194) minus a measured one-line heading (35).
-    { "rng/retry",        STR_W_RNG_RETRY,       704,  34, 0 },
-    { "rng/pass-note",    STR_W_RNG_PASS_NOTE,   704,  34, 0 },
+    { "rng/retry",        STR_W_RNG_RETRY,       SX(704), SY(34), 0 },
+    { "rng/pass-note",    STR_W_RNG_PASS_NOTE,   SX(704), SY(34), 0 },
     // dice screens: never registered before the quality check landed, which is
     // how the samey nudge shipped unmeasured. The verdict subtitles are one
     // line on wt_screen and the verify note gets two card lines; the two
     // claims are fact rows and belong to CUT.
-    { "sub/dice",         STR_W_DICE_S,           704, 30, 0 },
-    { "sub/dice-uneven",  STR_W_DICE_UNEVEN_S,    704, 30, 0 },
-    { "sub/dice-pattern", STR_W_DICE_PATTERN_S,   704, 30, 0 },
-    { "setup/dice-verify",STR_W_DICE_VERIFY_NOTE, 564, 36, 1 },
-    { "sub/restore",      STR_W_RESTORE_S,    704, 30, 0 },
+    { "sub/dice",         STR_W_DICE_S,           SX(704), SY(30), 0 },
+    { "sub/dice-uneven",  STR_W_DICE_UNEVEN_S,    SX(704), SY(30), 0 },
+    { "sub/dice-pattern", STR_W_DICE_PATTERN_S,   SX(704), SY(30), 0 },
+    // The 3.5in keypad card gives the note its whole 386 px lane and a box two
+    // 14 px lines tall (kiss_setup.c, DICE_NOTE_H), not the scaled 338 x 24.
+    { "setup/dice-verify",STR_W_DICE_VERIFY_NOTE,
+      KISS_NARROW ? SX(704) - 36 : SX(564), KISS_NARROW ? 36 : SY(36), 1 },
+    { "sub/restore",      STR_W_RESTORE_S,    SX(704), SY(30), 0 },
     // cards mode (BLIND DRAW): subtitles, the method-row note and the
     // checksum page's one number line. The candidate word actions are dynamic
     // English BIP39 words and are deliberately not rows here.
-    { "sub/cards",        STR_W_CARDS_S,      704, 30, 0 },
-    { "sub/cksum",        STR_W_CKSUM_S,      704, 30, 0 },
-    { "sub/cards-pick",   STR_W_CARDS_PICK_S, 704, 30, 0 },
-    { "setup/cards-note", STR_W_CARDS_NOTE,   420, 87 },
-    { "setup/cksum-fit",  STR_W_CKSUM_FIT_FMT, 704, 20, 1 },
+    { "sub/cards",        STR_W_CARDS_S,      SX(704), SY(30), 0 },
+    { "sub/cksum",        STR_W_CKSUM_S,      SX(704), SY(30), 0 },
+    { "sub/cards-pick",   STR_W_CARDS_PICK_S, SX(704), SY(30), 0 },
+    { "setup/cards-note", STR_W_CARDS_NOTE,   SX(420), SY(87) },
+    { "setup/cksum-fit",  STR_W_CKSUM_FIT_FMT, SX(704), 20, 1 },
     // cards_help_cb() -- THE 2048 WORD LIST, three definitions in an icon grid.
     // Measured at the REAL cell lane, not the page: explain_grid deals two
     // columns, so each definition wraps inside 300px and gets pitch minus its
@@ -223,22 +231,22 @@ static const slot_t SLOTS[] = {
     // does. Copying the stricter proxy would have bought terser copy for no
     // reason. This is still the first setup wizard explainer with ANY fit
     // coverage -- the dice and entropy ones have none.
-    { "setup/cards-help", STR_W_CARDS_HELP_B,  300, 399 },
+    { "setup/cards-help", STR_W_CARDS_HELP_B,  SX(300), SY(399) },
     // the two verdict screens: five subtitles, one per rule. The five bodies
     // they used to pair with are single line fact values now.
-    { "sub/cards-same",   STR_W_CARDS_SAME_S,   704, 30, 0 },
-    { "sub/cards-period", STR_W_CARDS_PERIOD_S, 704, 30, 0 },
-    { "sub/cards-clust",  STR_W_CARDS_CLUST_S,  704, 30, 0 },
-    { "sub/cards-sorted", STR_W_CARDS_SORTED_S, 704, 30, 0 },
-    { "sub/cards-dup",    STR_W_CARDS_DUP_S,    704, 30, 0 },
-    { "sub/vfy-backup",   STR_W_VERIFY_S,     704, 30, 0 },
-    { "sub/qr-warn",      STR_L_SCAN_WARN_S,  704, 30, 0 },
+    { "sub/cards-same",   STR_W_CARDS_SAME_S,   SX(704), SY(30), 0 },
+    { "sub/cards-period", STR_W_CARDS_PERIOD_S, SX(704), SY(30), 0 },
+    { "sub/cards-clust",  STR_W_CARDS_CLUST_S,  SX(704), SY(30), 0 },
+    { "sub/cards-sorted", STR_W_CARDS_SORTED_S, SX(704), SY(30), 0 },
+    { "sub/cards-dup",    STR_W_CARDS_DUP_S,    SX(704), SY(30), 0 },
+    { "sub/vfy-backup",   STR_W_VERIFY_S,     SX(704), SY(30), 0 },
+    { "sub/qr-warn",      STR_L_SCAN_WARN_S,  SX(704), SY(30), 0 },
     // and the signing flow's own subtitles. The chooser, the file list and
     // the SD empty states swapped theirs for the trail, so only the signed
     // pages still carry one.
-    { "sub/qr-out",       STR_S_QR_SUB,       704, 30, 0 },
-    { "sub/done-sd",      STR_S_DONE_SD_SUB,  704, 58, 0 },  // own 2-line subtitle
-    { "sub/qr-fail",      STR_S_QR_FAIL_ENC,  704, 30, 0 },
+    { "sub/qr-out",       STR_S_QR_SUB,       SX(704), SY(30), 0 },
+    { "sub/done-sd",      STR_S_DONE_SD_SUB,  SX(704), SY(58), 0 },  // own 2-line subtitle
+    { "sub/qr-fail",      STR_S_QR_FAIL_ENC,  SX(704), SY(30), 0 },
     // Procedural, read once with the device in hand, and wedged into a 360px
     // column beside a QR. They auto-fit like everything else, so they grow if
     // the copy is ever shortened -- but font14 is the accepted answer today.
@@ -249,52 +257,72 @@ static const slot_t SLOTS[] = {
     // Under the QR on the address detail screen. This is the whole standing
     // privacy reminder now, so the zoomable smaller card gives it three lines
     // at font23.
-    { "recv/one-each",    STR_R_ONE_EACH,     308, 87, 0 },
-    { "pair/sparrow",     STR_I_NOTE_SPARROW, 360, 86, 1 },
-    { "pair/bluewallet",  STR_I_NOTE_BW,      360, 86, 1 },
-    { "pair/prove",       STR_I_PROVE,        360, 72, 1 },
+    { "recv/one-each",    STR_R_ONE_EACH,     SX(308), SY(87), 0 },
+#if KISS_NARROW
+    // kiss_info.c pair_instructions_cb, as the 3.5in cuts it: both notes on
+    // the card's 688 lane, in cards sized to them between 64 and 248. Each
+    // box is what is left once the two heads (28 each), the three 6 px gaps
+    // and the OTHER note's English lines are paid for: 56 for a path beside
+    // a three line proof, 74 for the proof beside a two line path.
+    { "pair/sparrow",     STR_I_NOTE_SPARROW, SX(688), 56, 1 },
+    { "pair/bluewallet",  STR_I_NOTE_BW,      SX(688), 56, 1 },
+    { "pair/prove",       STR_I_PROVE,        SX(688), 74, 1 },
+#else
+    { "pair/sparrow",     STR_I_NOTE_SPARROW, SX(360), SY(86), 1 },
+    { "pair/bluewallet",  STR_I_NOTE_BW,      SX(360), SY(86), 1 },
+    { "pair/prove",       STR_I_PROVE,        SX(360), SY(72), 1 },
+#endif
     // kiss_info.c — the note under each action
     // Raised out of a hardcoded font14 in the readability sweep. Listed here
     // so the boxes they were given are checked against every translation, not
     // just the English they were measured with.
-    { "login/cancel",     STR_L_CANCEL_SETUP_B, 500, 124 },
-    { "login/fail-setup", STR_L_FAIL_SETUP_B,   720,  58 },
-    { "login/fail-open",  STR_L_FAIL_OPEN_B,    720,  58 },
-    { "login/weak",       STR_L_WEAK_ACK,       640, 124 },
+    { "login/cancel",     STR_L_CANCEL_SETUP_B, KISS_NARROW ? 420 - 2 * SX(30) : SX(500), SY(124) },
+    { "login/fail-setup", STR_L_FAIL_SETUP_B,   SX(720), SY(58) },
+    { "login/fail-open",  STR_L_FAIL_OPEN_B,    SX(720), SY(58) },
+    { "login/weak",       STR_L_WEAK_ACK,       SX(640), KISS_NARROW ? 96 : SY(124) },
     // The keyboard caption when it is carrying state, not a field name: 486px
     // is what is left of the row once SCAN and SHOW take the right side.
-    { "login/cap-again",  STR_L_TYPE_AGAIN,     486,  58 },
-    { "login/cap-nomatch",STR_L_NO_MATCH,       486,  58 },
-    { "login/cap-badpass",STR_L_BACKUP_PASS_BAD,486,  58 },
-    { "login/cap-verify", STR_L_VERIFY_PASS,    486,  58 },
+    // On the 3.5in the lane ends 12 px short of SCAN (312), or of the eye
+    // (392) on the backup-password screens that have no SCAN.
+#if KISS_NARROW
+    { "login/cap-again",  STR_L_TYPE_AGAIN,     312 - 12 - SX(48), SY(58) },
+    { "login/cap-nomatch",STR_L_NO_MATCH,       312 - 12 - SX(48), SY(58) },
+    { "login/cap-badpass",STR_L_BACKUP_PASS_BAD,392 - 12 - SX(48), SY(58) },
+    { "login/cap-verify", STR_L_VERIFY_PASS,    392 - 12 - SX(48), SY(58) },
+#else
+    { "login/cap-again",  STR_L_TYPE_AGAIN,     SX(486), SY(58) },
+    { "login/cap-nomatch",STR_L_NO_MATCH,       SX(486), SY(58) },
+    { "login/cap-badpass",STR_L_BACKUP_PASS_BAD,SX(486), SY(58) },
+    { "login/cap-verify", STR_L_VERIFY_PASS,    SX(486), SY(58) },
+#endif
     // The scan page's right column: the safety sentence wraps freely in the
     // 356 lane above the band, so its budget is the room down to 398.
     // may_be_small for the same reason as sign/point-cam: it renders at a
     // FIXED mono18, not on the ladder, and the sweep owns the long locales.
-    { "scan/no-sign",     STR_N_NOTHING_SIGNED, 356, 166, 1 },
+    { "scan/no-sign",     STR_N_NOTHING_SIGNED, SX(356), SY(166), 1 },
     // ...and the three the other doors into that one screen carry, in the
     // identical box. The backup door reuses its load screen's note, which is
     // measured for a row there and gets its second home here.
-    { "scan/for-addr",    STR_N_FOR_ADDR,       356, 166, 1 },
-    { "scan/for-pass",    STR_N_FOR_PASS,       356, 166, 1 },
-    { "scan/for-backup",  STR_W_LOAD_SCAN_NOTE, 356, 166, 1 },
+    { "scan/for-addr",    STR_N_FOR_ADDR,       SX(356), SY(166), 1 },
+    { "scan/for-pass",    STR_N_FOR_PASS,       SX(356), SY(166), 1 },
+    { "scan/for-backup",  STR_W_LOAD_SCAN_NOTE, SX(356), SY(166), 1 },
     // kiss_recv.c sp_help_cb(): the sp1-vs-bc1p explainer overlay. Measured
     // with the raw "%s" in place, which is ~2px narrower per prefix than the
     // 3 to 4 characters that get substituted, so this reads slightly optimistic.
-    { "recv/sp-why",      STR_R_SP_WHY_B,       720, 238 },
-    { "wallet/sp-note",   STR_R_SP_EXPORT_NOTE, 360, 140 },
+    { "recv/sp-why",      STR_R_SP_WHY_B,       SX(720), SY(238) },
+    { "wallet/sp-note",   STR_R_SP_EXPORT_NOTE, SX(360), SY(140) },
     // Same string, second home: the note under SCAN KEY on the WALLET page.
     // That box is the tighter of the two, so measuring only the 360x140 one
     // let this render at 14 next to a PAIR COORDINATOR note at 23.
-    { "wallet/sp-btn",    STR_R_SP_EXPORT_NOTE, 340,  90 },
-    { "wallet/pair-note", STR_I_PAIR_BTN_NOTE,  340,  62 },
+    { "wallet/sp-btn",    STR_R_SP_EXPORT_NOTE, SX(340), SY(90) },
+    { "wallet/pair-note", STR_I_PAIR_BTN_NOTE,  SX(340), SY(62) },
     // The two word-count notes sit in the 80px gaps of a three-action stack (12
     // WORDS at y=150, 24 WORDS at 230, SCAN LOCKED QR at 310) in a 340px column.
     // Both run to three or four lines at 23 -- 87px and 116px -- so neither can
     // reach it without restacking the page or cutting the copy. Same situation
     // as the ADDRESS TYPE notes above, and recorded for the same reason.
-    { "setup/12-note",    STR_W_12_NOTE,        340,  76, 1 },
-    { "setup/24-note",    STR_W_24_NOTE,        340,  76, 1 },
+    { "setup/12-note",    STR_W_12_NOTE,        SX(340), SY(76), 1 },
+    { "setup/24-note",    STR_W_24_NOTE,        SX(340), SY(76), 1 },
 };
 #define NSLOT ((int)(sizeof SLOTS / sizeof SLOTS[0]))
 
@@ -555,7 +583,10 @@ static int row_label_budget(const row_t *r)
 static int slot_rung(const char *txt, int w, int h)
 {
     const lv_font_t *f = wt_body_font(txt, w, h);
-    return f == wt_font28() ? 28 : f == wt_font23() ? 23 : 14;
+    // Anything that is not 28 or 23 is the floor, whatever face the ladder
+    // chose for it (mono21 for ASCII). On the 3.5in the 23 name IS the 14
+    // face, so there it is the floor as well.
+    return f == wt_font28() ? 28 : (f == wt_font23() && !KISS_NARROW) ? 23 : 14;
 }
 
 // A wt_row label is font23 on ONE line, a sub is font14 on one line, and both
@@ -728,7 +759,7 @@ static int check_addr_marks(void)
         // screen's single raw caller is the exception, not the rule: the
         // receipt, the details rows and the receive screen all group first.
         wt_group4(ADDRS[i], grouped, sizeof grouped);
-        lit_chars(wt_addr_spans(scr, grouped, 700, wt_font_mono14()),
+        lit_chars(wt_addr_spans(scr, grouped, SX(700), wt_font_mono14()),
                   body, sizeof body);
         lit_chars(wt_addr_short(scr, ADDRS[i], wt_font_mono23()),
                   elided, sizeof elided);
@@ -787,8 +818,8 @@ static int check_addr_lift(void)
         }
     }
     // Above the 14 rung the accent alone marks the tail: lifting is a no-op.
-    lv_obj_t *a23 = wt_addr_spans(scr, A, 722, wt_font_mono23());
-    lv_obj_t *b23 = wt_addr_spans_lift(scr, A, 722, wt_font_mono23());
+    lv_obj_t *a23 = wt_addr_spans(scr, A, SX(722), wt_font_mono23());
+    lv_obj_t *b23 = wt_addr_spans_lift(scr, A, SX(722), wt_font_mono23());
     lv_obj_update_layout(a23);
     lv_obj_update_layout(b23);
     if (lv_obj_get_height(a23) != lv_obj_get_height(b23)) {
@@ -843,8 +874,11 @@ static int selftest(void)
         text_px(LONG, wt_font14()) > BUDGET);
     CHK("a short sub does not",
         text_px("ok", wt_font14()) <= BUDGET);
+    // On the 3.5in the two names are one face, so there they measure the
+    // same; the case says which board it is on rather than skipping.
     CHK("the same string measures wider at font23 than at font14",
-        text_px(LONG, wt_font23()) > text_px(LONG, wt_font14()));
+        KISS_NARROW ? text_px(LONG, wt_font23()) == text_px(LONG, wt_font14())
+                    : text_px(LONG, wt_font23()) > text_px(LONG, wt_font14()));
 
     // The backlogs. BOTH are a bare {NULL, NULL} sentinel now, so the live
     // lists can only answer "no" -- and a lookup hardcoded to `return false`
@@ -918,8 +952,8 @@ static int selftest(void)
 int main(int argc, char **argv)
 {
     lv_init();
-    static uint8_t buf[800 * 40 * 2];
-    lv_display_t *d = lv_display_create(800, 480);
+    static uint8_t buf[SCREEN_W * 40 * 2];
+    lv_display_t *d = lv_display_create(SCREEN_W, SCREEN_H);
     lv_display_set_color_format(d, LV_COLOR_FORMAT_RGB565);
     lv_display_set_buffers(d, buf, NULL, sizeof buf, LV_DISPLAY_RENDER_MODE_PARTIAL);
 
@@ -963,7 +997,17 @@ int main(int argc, char **argv)
             // Only font14 counts as a failure now. 23 is a real reading size,
             // and the notes wedged between controls can never reach 28.
             int rung = slot_rung(txt, SLOTS[i].w, SLOTS[i].h);
+#if KISS_NARROW
+            // The 3.5in has one body rung, the 14 face, so "fell to 14" says
+            // nothing there; what fails is copy that does not fit its box at
+            // that face, which is the same fault this gate names on the wide
+            // board one rung further down.
+            lv_point_t at;
+            lv_text_get_size(&at, txt, wt_font14(), 0, 0, SLOTS[i].w, LV_TEXT_FLAG_NONE);
+            int bad = at.y > SLOTS[i].h;
+#else
             int bad  = rung == 14 && !SLOTS[i].may_be_small;
+#endif
             if (bad) small++;
             // how far the copy overflows at 23 is what a translator must delete
             lv_point_t sz;

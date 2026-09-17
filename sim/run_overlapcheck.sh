@@ -112,7 +112,13 @@ worst=0
 died=""
 # The per-locale ceiling file, and the list of locales that broke it. Unset
 # OVERLAPCHECK_CEILINGS to run without one (which is what a bisect wants).
-ceilfile="${OVERLAPCHECK_CEILINGS:-sim/overlap_ceilings.txt}"
+# Each board has its own ceilings: the 3.5in's lanes are three fifths as wide,
+# so a locale's count there is a different number, measured separately.
+case "${KISS_BOARD:-guition}" in
+    ws35) default_ceilings=sim/overlap_ceilings_ws35.txt ;;
+    *)    default_ceilings=sim/overlap_ceilings.txt ;;
+esac
+ceilfile="${OVERLAPCHECK_CEILINGS:-$default_ceilings}"
 over=""
 unceiled=""
 total=0
