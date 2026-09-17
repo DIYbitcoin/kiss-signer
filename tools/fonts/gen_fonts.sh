@@ -125,6 +125,34 @@ for L in ja ko zh; do
     $FB -o "$OUT/font_kiss_${L}23.c"
 done
 
+# 18px: the 3.5in board's middle rung. Its canvas is 480x320, three fifths of
+# the 4.3in's width, so its composites are set at three fifths too (34 -> 23,
+# 28 -> 18, 23 -> 14; kiss_theme.c says why one rung down was not enough). 18
+# had a mono face already (below) and no localised one; all four scripts get
+# it, the full glyph set and the FontAwesome plane, for the same reasons 23
+# has them. The wide board never references these, so its image is unchanged.
+echo "== font_kiss_lat18"
+conv --size 18 \
+  --font "$LVF/Montserrat-Medium.ttf" -r "$LAT" \
+  --font "$LVF/FontAwesome5-Solid+Brands+Regular.woff" -r "$SYMS" \
+  --lv-fallback font_kiss_ja18 \
+  -o "$OUT/font_kiss_lat18.c"
+for L in ja ko zh; do
+  case $L in
+    ja) FB="--lv-fallback font_kiss_ko18" ;;
+    ko) FB="--lv-fallback font_kiss_zh18" ;;
+    zh) FB="" ;;
+  esac
+  echo "== font_kiss_${L}18"
+  FONT="$LVF/SourceHanSansSC-Normal.otf"
+  if [ "$L" = ja ]; then
+    FONT="$JP"
+  fi
+  conv --size 18 \
+    --font "$FONT" --symbols "$(cat glyphs_$L.txt)" \
+    $FB -o "$OUT/font_kiss_${L}18.c"
+done
+
 # 34px: page titles and primary buttons. LATIN/CYRILLIC ONLY, and the only size
 # in this project that does not exist for all four scripts.
 #
@@ -212,6 +240,10 @@ done
 echo "== font_kiss_num48"
 conv --size 48 --font "$MONO" -r 0x20 -r 0x2E -r 0x30-0x39 -r 0x41-0x46 \
   -o "$OUT/font_kiss_num48.c"
+# The same nineteen glyphs at the 3.5in board's size (three fifths of 48).
+echo "== font_kiss_num28"
+conv --size 28 --font "$MONO" -r 0x20 -r 0x2E -r 0x30-0x39 -r 0x41-0x46 \
+  -o "$OUT/font_kiss_num28.c"
 
 # lv_font_conv emits an extra blank line; normalize generated sources so
 # regeneration stays clean under git diff --check.

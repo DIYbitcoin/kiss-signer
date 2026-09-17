@@ -8,6 +8,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include "lvgl.h"
+#include "kiss_board.h"    // SCREEN_W/H and the SX/SY scale
 #include "kiss_defrow.h"   // the definition rows' lane arithmetic
 
 // fixed palette (identical to what every screen used before the kit)

@@ -12,6 +12,7 @@
 #include "lvgl.h"
 
 LV_FONT_DECLARE(font_kiss_lat14);
+LV_FONT_DECLARE(font_kiss_lat18);   // the 3.5in board's middle rung; see wt_font28()
 LV_FONT_DECLARE(font_kiss_lat23);   // home tile titles; CJK subset = tile words only
 LV_FONT_DECLARE(font_kiss_lat28);
 // Latin/Cyrillic only -- no ja/ko/zh sibling exists at 34. See wt_font34().
@@ -26,6 +27,10 @@ LV_FONT_DECLARE(font_kiss_mono23);
 LV_FONT_DECLARE(font_kiss_mono28);
 LV_FONT_DECLARE(font_kiss_mono34); // body-composite primary at the top rung
 LV_FONT_DECLARE(font_kiss_num48);   // 13 glyphs: digits, space, full stop
+LV_FONT_DECLARE(font_kiss_num28);   // the same glyphs at the 3.5in board's size
+LV_FONT_DECLARE(font_kiss_ja18);
+LV_FONT_DECLARE(font_kiss_ko18);
+LV_FONT_DECLARE(font_kiss_zh18);
 LV_FONT_DECLARE(font_kiss_ja23);
 LV_FONT_DECLARE(font_kiss_ko23);
 LV_FONT_DECLARE(font_kiss_zh23);
