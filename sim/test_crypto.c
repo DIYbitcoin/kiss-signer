@@ -13,6 +13,7 @@
 #include "qr_transport.h"
 #include "sign_vectors.h"   // golden signatures, independently computed (embit)
 #include "boot_sign_vectors.h"  // the two the device re-signs at boot
+#include "bip461_vectors.h"
 
 #include <wally_bip32.h>
 #include <wally_bip39.h>
@@ -750,6 +751,31 @@ static void test_one_script(int script, uint32_t purpose, const char *label,
 // signatures with the frozen rules. Here we check that it passes AND that the
 // vectors it pins actually discriminate: a golden vector a weaker rule also
 // satisfies would sit in the binary proving nothing.
+static void test_bip461(void) {
+    uint8_t key[32], msg[32], sig[64], expected[64], pub[33], der[72];
+    size_t written;
+    for (size_t i = 0; i < sizeof bip461_vectors / sizeof bip461_vectors[0]; ++i) {
+        chki("BIP461 decode key", wally_hex_to_bytes(bip461_vectors[i].key, key, 32, &written), WALLY_OK);
+        chki("BIP461 decode hash", wally_hex_to_bytes(bip461_vectors[i].msg, msg, 32, &written), WALLY_OK);
+        chki("BIP461 decode signature", wally_hex_to_bytes(bip461_vectors[i].sig, expected, 64, &written), WALLY_OK);
+        chki("BIP461 sign", wally_ec_sig_from_bytes(key, 32, msg, 32,
+             EC_FLAG_ECDSA | EC_FLAG_GRIND_R, sig, 64), WALLY_OK);
+        chkb("BIP461 independent exact bytes", memcmp(sig, expected, 64) == 0);
+        chkb("BIP461 low R", sig[0] < 0x80);
+        chki("BIP461 public key", wally_ec_public_key_from_private_key(key, 32, pub, 33), WALLY_OK);
+        chki("BIP461 verifies (including low S)", wally_ec_sig_verify(pub, 33, msg, 32,
+             EC_FLAG_ECDSA, sig, 64), WALLY_OK);
+        chki("BIP461 DER", wally_ec_sig_to_der(sig, 64, der, sizeof der, &written), WALLY_OK);
+        chkb("BIP461 DER at most 70 bytes", written <= 70);
+    }
+    memset(key, 0, sizeof key);
+    chkb("BIP461 rejects zero key", wally_ec_sig_from_bytes(key, 32, msg, 32,
+         EC_FLAG_ECDSA | EC_FLAG_GRIND_R, sig, 64) != WALLY_OK);
+    wally_hex_to_bytes("fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141", key, 32, &written);
+    chkb("BIP461 rejects curve order key", wally_ec_sig_from_bytes(key, 32, msg, 32,
+         EC_FLAG_ECDSA | EC_FLAG_GRIND_R, sig, 64) != WALLY_OK);
+}
+
 static void test_boot_sign_selftest(void) {
     chki("boot sign selftest rc", kiss_sign_selftest(), 0);
 
@@ -916,6 +942,7 @@ int main(int argc, char **argv) {
     fails += test_pq();
 
     test_boot_sign_selftest();
+    test_bip461();
     test_secp_randomize();
 
     uint8_t fp[4] = {0};

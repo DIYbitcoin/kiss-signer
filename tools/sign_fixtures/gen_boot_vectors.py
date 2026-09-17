@@ -87,20 +87,27 @@ class _Drbg:
         return out[:n]
 
 
-def _nonce_rfc6979(msg32, key32, ndata):
-    keydata = key32 + msg32 + (ndata if ndata is not None else b"")
-    return _Drbg(keydata).generate(32)
+def _nonce_rfc6979(msg32, key32, ndata, attempt=0):
+    # RFC6979 bits2octets, including the rare hash >= curve-order case.
+    keydata = key32 + _xb(int.from_bytes(msg32, "big") % N) + (ndata if ndata is not None else b"")
+    rng = _Drbg(keydata)
+    for _ in range(attempt + 1):
+        nonce = rng.generate(32)
+    return nonce
 
 
 def ecdsa_sign_grind(seckey, msg32):
     """(compact 64-byte r||s, grind counter). RFC6979 nonce ground for low R,
     S normalised low."""
     d = int.from_bytes(seckey, "big")
+    if len(seckey) != 32 or len(msg32) != 32 or not 0 < d < N:
+        raise ValueError("invalid ECDSA key or message")
     z = int.from_bytes(msg32, "big")
     counter = 0
     ndata = None
+    attempt = 0
     while True:
-        k = int.from_bytes(_nonce_rfc6979(msg32, seckey, ndata), "big")
+        k = int.from_bytes(_nonce_rfc6979(msg32, seckey, ndata, attempt), "big")
         if 0 < k < N:
             pt = _mul(G, k)
             r = pt[0] % N
@@ -111,8 +118,16 @@ def ecdsa_sign_grind(seckey, msg32):
                         s = N - s
                     if r < (1 << 255):      # first byte < 0x80: R is low
                         return _xb(r) + _xb(s), counter
-        counter += 1
-        ndata = counter.to_bytes(4, "little") + b"\x00" * 28
+                    counter += 1
+                    if counter >= 2**32:
+                        raise ValueError("grind counter exhausted")
+                    ndata = counter.to_bytes(4, "little") + b"\x00" * 28
+                    attempt = 0
+                    continue
+        # Invalid nonce/r/s retries advance the DRBG, not the grind counter.
+        attempt += 1
+        if attempt >= 2**32:
+            raise ValueError("nonce counter exhausted")
 
 
 # --- BIP340 reference signer (from the spec; independent of libsecp256k1) ---

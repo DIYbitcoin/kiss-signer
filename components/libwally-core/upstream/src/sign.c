@@ -381,7 +381,18 @@ int wally_ec_sig_from_bytes_aux(const unsigned char *priv_key, size_t priv_key_l
             secp256k1_ecdsa_recoverable_signature_serialize_compact(ctx, bytes_out_p, &recid, &sig_secp);
 
             if (!(flags & EC_FLAG_GRIND_R) || *bytes_out_p < 0x80) {
+                /* KISS: BIP461 fault check before releasing an ECDSA signature. */
+                secp256k1_ecdsa_signature check_sig;
+                secp256k1_pubkey check_pub;
+                int verified = secp256k1_ecdsa_recoverable_signature_convert(ctx, &check_sig, &sig_secp) &&
+                               secp256k1_ec_pubkey_create(ctx, &check_pub, priv_key) &&
+                               secp256k1_ecdsa_verify(ctx, &check_sig, bytes, &check_pub);
+                wally_clear_2(&check_sig, sizeof(check_sig), &check_pub, sizeof(check_pub));
                 wally_clear(&sig_secp, sizeof(sig_secp));
+                if (!verified) {
+                    wally_clear(bytes_out, len);
+                    return WALLY_ERROR;
+                }
                 /* Note the following assumes the key is compressed */
                 if (flags & EC_FLAG_RECOVERABLE)
                     bytes_out[0] = 27 + recid + 4;
@@ -390,6 +401,11 @@ int wally_ec_sig_from_bytes_aux(const unsigned char *priv_key, size_t priv_key_l
             }
             /* Increment nonce to grind for low-R */
             entropy_p = extra_entropy;
+            if (counter == UINT32_MAX) {
+                wally_clear(&sig_secp, sizeof(sig_secp));
+                wally_clear(bytes_out, len);
+                return WALLY_ERROR;
+            }
             ++counter;
             uint32_to_le_bytes(counter, entropy_p);
         }
