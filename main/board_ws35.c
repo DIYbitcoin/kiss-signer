@@ -1,6 +1,7 @@
 // The Waveshare ESP32-P4-WIFI6-Touch-LCD-3.5, and nothing else: an ST7796
-// over SPI at 320x480 portrait, an FT5x06 on the shared I2C bus, the backlight
-// PWM, and the same C6 held in reset on the same pad as the Guition. Facts
+// over SPI, its 320x480 glass turned to 480x320 landscape in the controller,
+// an FT5x06 on the shared I2C bus, the backlight PWM, and the same C6 held in
+// reset on the same pad as the Guition. Facts
 // from the board's schematic and Waveshare's own BSP, checked against Kern,
 // which runs on this exact board.
 //
@@ -58,6 +59,29 @@ static const char *TAG = "kiss";
 #define TOUCH_I2C_SDA  7
 #define TOUCH_RST_GPIO 29
 #define TOUCH_INT_GPIO 50   // wired, unused: the reader polls, as it does for the GT911
+
+// Landscape, in the controller. The BSP's correct PORTRAIT is MX=1 (mirror x)
+// with no swap; a rotation is that transposed (swap x/y) with one axis
+// flipped, which leaves exactly two upright landscapes: swap with neither
+// mirror, or swap with both. The other two swap combinations are mirrored
+// text. This is the first of the two; if the picture comes up upside down,
+// both mirrors go to 1 together.
+//
+// The touch controller reads the glass in its own portrait frame (x across
+// the short side, y down the long one), the frame the BSP's portrait picture
+// is drawn in. The same rotation in touch terms: canvas x is the glass's y,
+// canvas y is the glass's x flipped. The driver applies the mirrors FIRST, in
+// the glass's frame, and swaps AFTER (esp_lcd_touch.c), so the flip of the
+// canvas's y axis is spelled as a mirror of the glass's x. Spelled as
+// mirror_y it flips the other axis, and after the swap every touch lands
+// mirrored through the centre of the screen: that was the first flash of
+// this layout, where no tap or swipe found its target.
+#define LCD_SWAP_XY    1
+#define LCD_MIRROR_X   0
+#define LCD_MIRROR_Y   0
+#define TOUCH_SWAP_XY  1
+#define TOUCH_MIRROR_X 1
+#define TOUCH_MIRROR_Y 0
 
 static esp_lcd_panel_io_handle_t s_io;
 static esp_lcd_panel_handle_t s_panel;
@@ -203,7 +227,7 @@ lv_display_t *kiss_board_display_start(void) {
                                           .on_color_trans_done = spi_trans_done};
   ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)LCD_SPI_HOST, &io_cfg, &s_io));
   // vendor_config NULL: the component's own ST7796 init sequence. BGR and the
-  // colour inversion are the BSP's values for this glass; mirror x with them.
+  // colour inversion are the BSP's values for this glass.
   esp_lcd_panel_dev_config_t panel_cfg = {.reset_gpio_num = LCD_RST_GPIO,
                                           .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_BGR,
                                           .bits_per_pixel = 16};
@@ -211,9 +235,10 @@ lv_display_t *kiss_board_display_start(void) {
   ESP_ERROR_CHECK(esp_lcd_panel_reset(s_panel));
   ESP_ERROR_CHECK(esp_lcd_panel_init(s_panel));
   ESP_ERROR_CHECK(esp_lcd_panel_invert_color(s_panel, true));
-  ESP_ERROR_CHECK(esp_lcd_panel_mirror(s_panel, true, false));
+  ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(s_panel, LCD_SWAP_XY));
+  ESP_ERROR_CHECK(esp_lcd_panel_mirror(s_panel, LCD_MIRROR_X, LCD_MIRROR_Y));
   ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(s_panel, true));
-  ESP_LOGI(TAG, "ST7796 ready (SPI2 80MHz, %dx%d portrait)", SCREEN_W, SCREEN_H);
+  ESP_LOGI(TAG, "ST7796 ready (SPI2 80MHz, %dx%d landscape)", SCREEN_W, SCREEN_H);
 
   s_issue = xSemaphoreCreateMutex();
   s_cam_done = xSemaphoreCreateBinary();
@@ -274,10 +299,14 @@ void kiss_board_touch_start(void) {
   // The reset is a real pin here (the GT911's was not wired); INT stays
   // unused because the reader polls. Any axis flip found on glass goes into
   // these flags, never into platform_read_touch's map.
-  esp_lcd_touch_config_t tp_cfg = {.x_max = SCREEN_W, .y_max = SCREEN_H,
+  // x_max/y_max are the glass's own frame (portrait), which is the frame the
+  // driver mirrors in before it swaps; the flags are explained where they
+  // are defined.
+  esp_lcd_touch_config_t tp_cfg = {.x_max = KISS_PANEL_W, .y_max = KISS_PANEL_H,
                                    .rst_gpio_num = TOUCH_RST_GPIO, .int_gpio_num = GPIO_NUM_NC,
                                    .levels = {.reset = 0, .interrupt = 0},
-                                   .flags = {.swap_xy = 0, .mirror_x = 0, .mirror_y = 0}};
+                                   .flags = {.swap_xy = TOUCH_SWAP_XY, .mirror_x = TOUCH_MIRROR_X,
+                                             .mirror_y = TOUCH_MIRROR_Y}};
   if (esp_lcd_touch_new_i2c_ft5x06(tp_io, &tp_cfg, &s_touch) != ESP_OK) {
     ESP_LOGE(TAG, "FT5x06 init failed");
     s_touch = NULL;
@@ -289,8 +318,9 @@ void kiss_board_touch_start(void) {
 bool kiss_board_touch_ok(void) { return s_touch != NULL; }
 i2c_master_bus_handle_t kiss_board_i2c_bus(void) { return s_i2c_bus; }
 
-// Identity map: the panel is the canvas. The first point is logged once, raw,
-// so the axis orientation can be read off the serial log at the bench.
+// Identity map: the driver's flags already turned the point into the canvas.
+// The first point is logged once so the orientation can be read off the
+// serial log at the bench.
 bool platform_read_touch(int *x, int *y) {
   if (!s_touch) return false;
   esp_lcd_touch_read_data(s_touch);
@@ -300,7 +330,8 @@ bool platform_read_touch(int *x, int *y) {
     static bool logged;
     if (!logged) {
       logged = true;
-      ESP_LOGI(TAG, "touch: first point raw %u,%u", (unsigned)pt[0].x, (unsigned)pt[0].y);
+      ESP_LOGI(TAG, "touch: first point %u,%u on a %dx%d canvas", (unsigned)pt[0].x,
+               (unsigned)pt[0].y, SCREEN_W, SCREEN_H);
     }
     *x = pt[0].x;
     *y = pt[0].y;

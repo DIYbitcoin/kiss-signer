@@ -20,9 +20,13 @@
 
 #ifdef KISS_BOARD_WS35
 #define KISS_BOARD_NAME "Waveshare ESP32-P4-WIFI6-Touch-LCD-3.5"
-// The logical canvas IS the physical panel: portrait, no rotation.
-#define SCREEN_W 320
-#define SCREEN_H 480
+// LANDSCAPE, like the Guition: the owner holds both boards the same way. The
+// glass is 320x480 portrait; the ST7796 turns the picture in hardware (the
+// MADCTL swap board_ws35.c sets), so the canvas is 480x320 and no software
+// rotate runs on the way out. The panel numbers stay the glass's own, for the
+// camera transport.
+#define SCREEN_W 480
+#define SCREEN_H 320
 #define KISS_PANEL_W 320
 #define KISS_PANEL_H 480
 #define KISS_NARROW 1
