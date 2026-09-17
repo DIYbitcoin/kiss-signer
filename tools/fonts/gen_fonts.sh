@@ -245,9 +245,37 @@ echo "== font_kiss_num28"
 conv --size 28 --font "$MONO" -r 0x20 -r 0x2E -r 0x30-0x39 -r 0x41-0x46 \
   -o "$OUT/font_kiss_num28.c"
 
+# The 3.5in board's small faces, again, with STRONG autohinting, into
+# main/fonts_ws35/ under the same names. That glass has about 165 pixels to the
+# inch against the 4.3in's 217, and most of its text sits on 14 and 18 px, where
+# the default light hinting leaves a stroke smeared across two half-lit pixels.
+# Strong hinting snaps stems to whole pixels, so letters read crisper at those
+# sizes. The build takes these instead of the main/ faces on that board only
+# (main/CMakeLists.txt, sim/sim_tmp.sh), so the 4.3in's image is untouched. Strong
+# hinting drops kerning, which a monospace face has none of and Montserrat at
+# 14 to 23 px does not miss.
+W35="$OUT/fonts_ws35"
+mkdir -p "$W35"
+for SZ in 14 18 23; do
+  echo "== fonts_ws35/font_kiss_lat$SZ"
+  conv --size $SZ \
+    --font "$LVF/Montserrat-Medium.ttf" --autohint-strong -r "$LAT" \
+    --font "$LVF/FontAwesome5-Solid+Brands+Regular.woff" -r "$SYMS" \
+    --lv-fallback font_kiss_ja$SZ \
+    -o "$W35/font_kiss_lat$SZ.c"
+done
+for SZ in 14 18 21 23; do
+  echo "== fonts_ws35/font_kiss_mono$SZ"
+  conv --size $SZ --font "$MONO" --autohint-strong -r 0x20-0x7E -r 0xB7 -r 0x2022 -r 0x2026 \
+    -o "$W35/font_kiss_mono$SZ.c"
+done
+echo "== fonts_ws35/font_kiss_num28"
+conv --size 28 --font "$MONO" --autohint-strong -r 0x20 -r 0x2E -r 0x30-0x39 -r 0x41-0x46 \
+  -o "$W35/font_kiss_num28.c"
+
 # lv_font_conv emits an extra blank line; normalize generated sources so
 # regeneration stays clean under git diff --check.
-perl -0pi -e 's/\n+\z/\n/' "$OUT"/font_kiss_*.c
+perl -0pi -e 's/\n+\z/\n/' "$OUT"/font_kiss_*.c "$W35"/font_kiss_*.c
 
 ls -la "$OUT"/font_kiss_*.c
 echo "fonts generated"

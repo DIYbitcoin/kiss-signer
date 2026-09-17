@@ -44,6 +44,18 @@ case "$KISS_BOARD" in
              KISS_SPRITES_SRC="main/sprites_ws35.c" ;;
     *) echo "sim: KISS_BOARD must be guition or ws35 (got '$KISS_BOARD')" >&2; exit 1 ;;
 esac
+# KISS_FONT_SRCS: every face in main/, except that on the 3.5in the hinted small
+# faces in main/fonts_ws35/ stand in for the ones of the same name (the device
+# build makes the same swap). Left as a pattern on the wide board, so its
+# compile line is the one it always was.
+KISS_FONT_SRCS='main/font_kiss_*.c'
+if [ "$KISS_BOARD" = ws35 ]; then
+    KISS_FONT_SRCS=""
+    for f in main/font_kiss_*.c; do
+        [ -e "main/fonts_ws35/${f#main/}" ] && f="main/fonts_ws35/${f#main/}"
+        KISS_FONT_SRCS="$KISS_FONT_SRCS $f"
+    done
+fi
 
 # Is a scratch root still owned by a running walk? kiss_simpath.h writes
 # "<pid> <who>" into walk.lock and unlinks it at exit, so a file naming a live
