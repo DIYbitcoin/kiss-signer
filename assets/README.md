@@ -17,6 +17,17 @@ From the repo root, with the image venv on PATH (numpy + pillow):
 python3 assets/generators/game_bg.py                             # -> main/game_bg.{c,h}   (stdlib only, no venv)
 ```
 
+The 3.5in board's set is the same pictures at its own size (480x320, sprites
+at three fifths), written next to the wide files and compiled instead of them
+when the board is `ws35`; the headers are shared:
+
+```
+/tmp/spritevenv/bin/python assets/generators/convert_fruit.py --board ws35   # -> main/sprites_ws35.c
+/tmp/spritevenv/bin/python assets/generators/menu_mock.py --board ws35       # -> main/menu_img_ws35.c, main/menu_logo_ws35.c
+/tmp/spritevenv/bin/python assets/generators/gameover_mock.py --board ws35   # -> main/gameover_img_ws35.c
+/tmp/spritevenv/bin/python assets/generators/kiss_mock.py --board ws35       # -> main/kiss_img_ws35.c
+```
+
 Each generator resolves paths relative to its own location, so it works from any checkout.
 Always eyeball the `/tmp/*_mock.png` previews (and `/tmp/newfruit_sheet.png`) before flashing.
 

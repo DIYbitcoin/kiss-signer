@@ -2,9 +2,23 @@
 """LVGL sprites from the CC0 'Sprites Fruits' pack (OpenGameArt, public domain)
 + procedural apple/pineapple cross-sections, bomb, explosion, juice splat,
 droplet, hearts. Replaces the cartoon emoji fruit with realistic art."""
+import argparse
 import os
 import numpy as np
 from PIL import Image, ImageFilter
+
+# --board ws35 draws the same sprites at three fifths, the 3.5in canvas's
+# x scale (480 of 800), into main/sprites_ws35.c. The header is shared and
+# only written for the wide set. Every size floors the way SX() floors, so
+# main.c's SX(size) is the baked sprite's edge exactly.
+_ap = argparse.ArgumentParser()
+_ap.add_argument("--board", choices=["guition", "ws35"], default="guition")
+BOARD = _ap.parse_args().board
+SUF = "_ws35" if BOARD == "ws35" else ""
+
+
+def sz(S):
+    return S * 3 // 5 if BOARD == "ws35" else S
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PACK = os.path.join(ROOT, "assets/fruit-pack/Items")
@@ -183,31 +197,39 @@ def whole_img(name, efile, S):
     return round_melon(S) if name == "watermelon" else emo(efile, S)
 
 for name, efile, sec, S in ROSTER:
-    emit(name, whole_img(name, efile, S))
+    emit(name, whole_img(name, efile, sz(S)))
     if sec is not None:
-        split_halves(name, sec(S))
-    print("fruit", name, S)
+        split_halves(name, sec(sz(S)))
+    print("fruit", name, sz(S))
 
-emit("bomb", fit(Image.open(f"{EMO}/bomb.png"), 92))
-emit("explosion", fit(Image.open(f"{EMO}/collision.png"), 144))
-emit("splat", make_splat(110))
-_S = 16; _yy, _xx = np.mgrid[0:_S, 0:_S].astype(float)
+emit("bomb", fit(Image.open(f"{EMO}/bomb.png"), sz(92)))
+emit("explosion", fit(Image.open(f"{EMO}/collision.png"), sz(144)))
+emit("splat", make_splat(sz(110)))
+_S = sz(16); _yy, _xx = np.mgrid[0:_S, 0:_S].astype(float)
 _d = np.sqrt((_xx - (_S - 1) / 2) ** 2 + (_yy - (_S - 1) / 2) ** 2) / (_S / 2)
 _al = (np.clip((0.94 - _d) / 0.14, 0, 1) * 255).astype(np.uint8)
 emit("droplet", Image.fromarray(np.dstack([np.full((_S, _S, 3), 255, np.uint8), _al]), "RGBA"))
-emit("heart", heart(40, [232, 60, 60]))
-emit("heart_empty", heart(40, [86, 56, 60]))
+if BOARD == "ws35":
+    # Drawn at four times and scaled down: the heart is a hard-edged curve
+    # sampled on a pixel grid, and at 24 px the notch between its lobes fell
+    # between samples, so the 3.5in's hearts read as flat-topped shields.
+    emit("heart", heart(sz(40) * 4, [232, 60, 60]).resize((sz(40), sz(40)), Image.LANCZOS))
+    emit("heart_empty", heart(sz(40) * 4, [86, 56, 60]).resize((sz(40), sz(40)), Image.LANCZOS))
+else:
+    emit("heart", heart(sz(40), [232, 60, 60]))
+    emit("heart_empty", heart(sz(40), [86, 56, 60]))
 
 h += ["", "#ifdef __cplusplus", "}", "#endif", ""]
-open(f"{OUT}/sprites.c", "w").write("\n".join(c))
-open(f"{OUT}/sprites.h", "w").write("\n".join(h))
-print("bytes:", os.path.getsize(f"{OUT}/sprites.c"))
+open(f"{OUT}/sprites{SUF}.c", "w").write("\n".join(c))
+if BOARD == "guition":
+    open(f"{OUT}/sprites.h", "w").write("\n".join(h))
+print("bytes:", os.path.getsize(f"{OUT}/sprites{SUF}.c"))
 
 # verification sheet: whole fruit (top) + its cross-section (bottom), drawn at true relative sizes
 sheet = Image.new("RGBA", (len(ROSTER) * 122, 2 * 122 + 16), (18, 22, 28, 255))
 for i, (name, efile, sec, S) in enumerate(ROSTER):
-    sheet.alpha_composite(whole_img(name, efile, S), (i * 122 + 8, 8 + (120 - S) // 2))
+    sheet.alpha_composite(whole_img(name, efile, sz(S)), (i * 122 + 8, 8 + (120 - sz(S)) // 2))
     if sec is not None:
-        sheet.alpha_composite(sec(S), (i * 122 + 8, 130 + (120 - S) // 2))
-sheet.convert("RGB").save("/tmp/newfruit_sheet.png")
+        sheet.alpha_composite(sec(sz(S)), (i * 122 + 8, 130 + (120 - sz(S)) // 2))
+sheet.convert("RGB").save(f"/tmp/newfruit_sheet{SUF}.png")
 print("sheet saved")
