@@ -606,6 +606,12 @@ static void draw_hbar(uint16_t *fb, int fill, uint16_t base);
 // and a pixel outside it lands on a sink rather than past the scratch. The
 // rect is copied once per frame into plain statics, so a loop does not reload
 // four volatiles per pixel.
+// This frame's flip, read once per frame in show_frame. Both boards turn the
+// VIDEO by it; only the Guition also turns the chrome drawn over the video,
+// because there the panel is a framebuffer this file writes directly, while
+// the 3.5in's panel reflects everything sent to it.
+static bool s_fflip;
+
 #ifdef KISS_BOARD_WS35
 static int s_fx, s_fy, s_fw, s_fh;   // this frame's rect, canvas coordinates
 static uint16_t s_fb_sink;
@@ -627,7 +633,6 @@ static inline uint16_t *fb_px(uint16_t *fb, int px, int py)
 // The PPA's output does NOT come through here: it is written into the rect by
 // DMA, so the video turns by its rotation index and by the rect the map above
 // derives. Those are the only two other places.
-static bool s_fflip;                 // this frame's flip; read once, see show_frame
 static inline uint16_t *fb_px(uint16_t *fb, int px, int py)
 {
   if (s_fflip) { px = PANEL_W - 1 - px; py = PANEL_H - 1 - py; }
@@ -1518,13 +1523,19 @@ static void show_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
   // Half a pause, picture frozen but the decoder still reading, would be worse
   // than none: the screen would advance with no sign of why.
   if (s_paused) return;
-#ifdef KISS_BOARD_WS35
-  const int orient = s_orient;
-#else
   // Read ONCE per frame, beside the rect below and for the same reason: the
   // flip changes between camera sessions, never per pixel, and fb_px must not
   // reload a global for every store.
   s_fflip = kiss_flip_get();
+  // THE VIDEO TURNS ON BOTH BOARDS, and on the 3.5in that is not a doubling of
+  // the panel's own turn. The panel turn and the hand that turned the board
+  // cancel: the owner is looking at the canvas the right way up again, and
+  // everything drawn in canvas coordinates lands upright for them. The picture
+  // from the sensor is the one thing that is not drawn in those coordinates --
+  // the module turned with the board, so its frame arrived a half turn over --
+  // and the turn below is what puts it back. Read on the glass: with the flip
+  // on and the board held that way, the page read upright and the picture in
+  // the preview read upside down.
   // A 180 of the preview is +2 on the rotation with the mirror bit left
   // alone. That is exact rather than approximate: R180 is central, so it
   // commutes with the mirror whichever side of the turn the PPA applies it
@@ -1533,7 +1544,6 @@ static void show_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
   // frame was measured for come out bit-identical. The orientation finder's
   // dev cycler already walks all eight of these indices.
   const int orient = s_fflip ? ((s_orient & 4) | ((s_orient + 2) & 3)) : s_orient;
-#endif
   uint32_t cw, ch, ow, oh;
   float scale;
   if (!orient_geometry(w, h, &cw, &ch, &scale, &ow, &oh)) return;
