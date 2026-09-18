@@ -1223,6 +1223,34 @@ static int find_label_exact(lv_obj_t *o, const char *needle) {
   return 0;
 }
 
+// CUT SHORT BY THE KIT, as opposed to absent. LV_LABEL_LONG_DOT rewrites the
+// label's own text -- LVGL sets the cut letters aside and writes three dots in
+// their place -- so a word longer than its lane in one translation is
+// "ENKEL SK..." in the tree, and a lookup by the whole word finds nothing.
+//
+// A head of at least four bytes, FOLLOWED BY THE DOTS. The dots are what make
+// four bytes safe where must_show's half-needle head needs eight: a bare
+// prefix could be any label on the screen, a prefix the kit has visibly cut
+// short can only be a word that did not fit its lane.
+static bool label_draws_cut(const char *t, const char *needle) {
+  size_t lt = t ? strlen(t) : 0, ln = strlen(needle);
+  if (lt < 4 + 3 || strcmp(t + lt - 3, "...") != 0) return false;
+  const size_t head = lt - 3;
+  return head < ln && strncmp(t, needle, head) == 0;
+}
+
+static lv_obj_t *find_label_cut(lv_obj_t *o, const char *needle) {
+  if (!o || lv_obj_has_flag(o, LV_OBJ_FLAG_HIDDEN)) return NULL;
+  if (lv_obj_check_type(o, &lv_label_class) &&
+      label_draws_cut(lv_label_get_text(o), needle))
+    return o;
+  for (uint32_t i = 0; i < lv_obj_get_child_count(o); i++) {
+    lv_obj_t *r = find_label_cut(lv_obj_get_child(o, i), needle);
+    if (r) return r;
+  }
+  return NULL;
+}
+
 // A folded address that can be pressed. The DETAILS output rows carry one each
 // and their y moves with everything above them, so a locale whose fact rows run
 // taller pushes the list down and a hard coded tap lands on background. That is
@@ -1376,6 +1404,15 @@ static void must_show(const char *what, const char *needle) {
     return;
   }
   if (find_label_text(lv_screen_active(), needle)) return;
+  // The dots first, because they need no length: a short word the kit cut
+  // is as much a CUT finding as a sentence it cut, and the half-needle head
+  // below is under its eight byte floor for ENKEL SKANNING.
+  if (find_label_cut(lv_screen_active(), needle)) {
+    printf("note: %s: \"%s\" is on the screen ELLIPSISED -- the kit cut it "
+           "short, the needle passed on the head it drew, and the copy itself "
+           "is a CUT finding\n", what, needle);
+    return;
+  }
 
   // ELLIPSISED, not absent? The kit pins captions, values and sub-lines to
   // their lanes with LONG_DOT, so in any locale whose word is longer than
@@ -1591,6 +1628,10 @@ static int       s_bar_hits;
 // card. So a literal lookup requires the ancestor to have an event handler
 // WIRED to it -- which the key does, the "?" chip does, and a card never does.
 static bool      s_wired_only;
+// A second pass that also takes a label the kit cut short (label_draws_cut).
+// Only ever asked after the exact pass found nothing, so it cannot turn one
+// real control into an ambiguity with its own ellipsised neighbour.
+static bool      s_cut_ok;
 
 static void find_act(lv_obj_t *o, const char *txt)
 {
@@ -1602,9 +1643,10 @@ static void find_act(lv_obj_t *o, const char *txt)
         // The two spaces are load bearing. A bare suffix test matched CAMERA
         // AUDIT when the walk asked for AUDIT, which reads as an ambiguity
         // between two real controls and is really one wrong match.
-        const bool hit = t && lt >= ln && strcmp(t + (lt - ln), txt) == 0 &&
-                         (lt == ln || (lt >= ln + 2 &&
-                                       t[lt - ln - 1] == ' ' && t[lt - ln - 2] == ' '));
+        const bool exact = t && lt >= ln && strcmp(t + (lt - ln), txt) == 0 &&
+                           (lt == ln || (lt >= ln + 2 &&
+                                         t[lt - ln - 1] == ' ' && t[lt - ln - 2] == ' '));
+        const bool hit = exact || (s_cut_ok && label_draws_cut(t, txt));
         if (hit) {
             for (lv_obj_t *p = o; p; p = lv_obj_get_parent(p))
                 if (lv_obj_has_flag(p, LV_OBJ_FLAG_CLICKABLE) &&
@@ -1737,11 +1779,30 @@ static bool obj_ink_settled(lv_obj_t *o)
     return false;
 }
 
+// The second pass, and the note that says it was taken. A control whose word
+// the kit cut short is still the control: tapping it is what an owner reading
+// that locale would do, and missing it leaves the walk photographing the wrong
+// screen for every stop after -- one lane in one translation deciding whether
+// the rest of the walk is measured at all, which is the failure must_show's
+// head fallback already exists to stop. The cut itself stays a CUT finding in
+// the overlap gate.
+static void find_act_cut(const char *txt)
+{
+    s_cut_ok = true;
+    find_act(lv_screen_active(), txt);
+    s_cut_ok = false;
+    if (s_hit || s_bar_hits)
+        printf("note: tap \"%s\": the action is drawn ELLIPSISED -- tapped by "
+               "the head the kit drew, and the copy itself is a CUT finding\n",
+               txt);
+}
+
 static lv_obj_t *ctrl_for(const char *txt, const char *how)
 {
     s_hit = NULL; s_hits = 0; s_bar_hit = NULL; s_bar_hits = 0;
     s_wired_only = true;
     find_act(lv_screen_active(), txt);
+    if (!s_hit && !s_bar_hits) find_act_cut(txt);
     if (s_bar_hits >= 1) {
         if (s_bar_hits > 1)
             printf("note: %d actions say \"%s\"; taking the topmost\n", s_bar_hits, txt);
@@ -1775,6 +1836,7 @@ static lv_obj_t *act_for(int key, const char *how)
     s_hit = NULL; s_hits = 0; s_bar_hit = NULL; s_bar_hits = 0;
     s_wired_only = false;
     find_act(lv_screen_active(), txt);
+    if (!s_hit && !s_bar_hits) find_act_cut(txt);
     if (s_bar_hits >= 1) {
         if (s_bar_hits > 1)
             printf("note: %d actions say \"%s\"; taking the topmost\n", s_bar_hits, txt);
@@ -1957,6 +2019,40 @@ static void tap_label_exact(const char *txt)
     release();
     pump(10);
 }
+
+#if KISS_NARROW
+// The LAST label on the screen whose text contains `needle`, in paint order,
+// which is the one on top. A figure the screen states twice -- the hero and the
+// strand under it both read 0.00060000 -- is told apart by which was built
+// second, and a fixed coordinate cannot tell them apart on a canvas where the
+// strand's column moves with the locale.
+static void find_label_last(lv_obj_t *o, const char *needle, lv_obj_t **out)
+{
+    if (!o || lv_obj_has_flag(o, LV_OBJ_FLAG_HIDDEN)) return;
+    if (lv_obj_check_type(o, &lv_label_class)) {
+        const char *t = lv_label_get_text(o);
+        if (t && strstr(t, needle)) *out = o;
+    }
+    for (uint32_t i = 0; i < lv_obj_get_child_count(o); i++)
+        find_label_last(lv_obj_get_child(o, i), needle, out);
+}
+
+static void tap_label_last(const char *needle, int settle)
+{
+    lv_obj_t *l = NULL;
+    find_label_last(lv_screen_active(), needle, &l);
+    if (!l) {
+        printf("FAIL: no label containing \"%s\" to tap\n", needle);
+        g_walk_fails++;
+        return;
+    }
+    lv_area_t a; lv_obj_get_coords(l, &a);
+    touch_at((a.x1 + a.x2) / 2, (a.y1 + a.y2) / 2);
+    pump(3);
+    release();
+    pump(settle);
+}
+#endif
 
 // Tap a control by the text on it. Everything a walk taps this way survives a
 // layout change; everything it taps by pixel does not, and does not say so --
@@ -2737,7 +2833,9 @@ int main(void) {
   save("/tmp/sim_fp.ppm");                          // fingerprint reveal
   tap_str(STR_L_TAP_TO_OPEN, 3, 12);    // TAP TO OPEN -> hex noise decrypting
   save("/tmp/sim_fp_scramble.ppm");                 // mid-descramble, center of home screen
-  pump(50);                                         // code locks; glide to the chip begins
+  // 20 on the 3.5in, whose hand-off runs at half length (WT_MOTION_MS): at 50
+  // the chip had already faded in and there was nothing left in flight.
+  pump(KISS_NARROW ? 20 : 50);                      // code locks; glide to the chip begins
   save("/tmp/sim_fp_fly.ppm");                      // mid-glide
   pump(70);                                         // landed; chip + caption faded in
   save("/tmp/sim_home.ppm");
@@ -2904,7 +3002,10 @@ int main(void) {
       lock_to_menu();
       pump(4);
       quick_tap(); quick_tap();
-      pump(40);
+      // 50 on the 3.5in. Its hand-off runs at half length (WT_MOTION_MS), so at
+      // 40 the save landed mid crossfade instead of mid decrypt: the code and
+      // the chip it fades into, both lit on the same pixels.
+      pump(KISS_NARROW ? 50 : 40);
       uint8_t fp[4];
       kiss_ui_last_fp(fp);
       if (!(fp[0] || fp[1] || fp[2] || fp[3])) {
@@ -3496,7 +3597,13 @@ int main(void) {
   // The page's own [ ? 2 ], where the section chip beside SHOW TO used to be:
   // DESCRIPTOR and FINGERPRINT, the two words this page is about, as rows
   // that open. Pinned by its RIGHT edge to 752 on the chrome strip.
+#if KISS_NARROW
+  // On the title's row on the 3.5in, where the page moved it when the code
+  // took the strip row's left; the old point is BlueWallet's tab there.
+  touch_at(SX(752) - 20, 20); pump(3); release(); pump(30);
+#else
   touch(720, 85); pump(3); release(); pump(30);
+#endif
   save("/tmp/sim_pair_help.ppm");
   // By the VALUE: DESCRIPTOR is also the KEYS explainer's third caption
   // now, and a needle two keys share passes on whichever shows either.
@@ -3648,7 +3755,16 @@ int main(void) {
   must_show("btc unit", "0.00060000");   // the hero is what the recipient gets
   // A STRAND label, not the total: every figure on the device is the switch,
   // so the one at the end of the recipient strand has to work too.
+#if KISS_NARROW
+  // BY THE FIGURE on the 3.5in. The output column's x follows its widest row
+  // there (wt_bundle), so a locale with a long change label -- WECHSELGELD
+  // (MEINS) -- starts the column left of English's and this x landed on the
+  // mark beside the amount instead. The strand's figure is built after the
+  // hero's, so it is the last label reading it.
+  tap_label_last("0.00060000", 10);
+#else
   touch(505, 185); pump(3); release(); pump(10);
+#endif
   must_show("sats unit", "60 000");
 
   // NO COINS "?" any more. It defined "input" -- a glossary term, and the
@@ -4312,7 +4428,13 @@ int main(void) {
   // block, because that pair is the fact and the card one tap away teaches
   // the word. An English needle asserted the degraded form did not exist.
   must_show("locktime badge", "5127853");
+#if KISS_NARROW
+  // By the block number on the 3.5in. The badge shares the title line with a
+  // title of translated width, and ПОДПИСАТЬ put it right of this x.
+  tap_label_last("5127853", 40);                    // the card fades in
+#else
   touch(386, 40); pump(3); release(); pump(40);   // the card fades in
+#endif
   save("/tmp/sim_sign_locktime.ppm");               // what a locktime IS
   must_show("locktime card", "locktime");
   touch_at(SX(400), WT_ACTION_Y + SY(20)); pump(3); release(); pump(8);   // OK
@@ -4771,6 +4893,9 @@ int main(void) {
   // toggle nobody pressed. The word carries WT_FLAG_ACCENT when it is on.
   {
     lv_obj_t *w = find_label_obj_exact(lv_screen_active(), tr(STR_S_EASY_SCAN));
+    // The same word cut short by its chip is the same toggle, and the flag is
+    // on the label either way (see label_draws_cut).
+    if (!w) w = find_label_cut(lv_screen_active(), tr(STR_S_EASY_SCAN));
     if (!w || !lv_obj_has_flag(w, WT_FLAG_ACCENT)) {
       printf("FAIL: EASY SCAN came back OFF from the signature panel\n");
       g_walk_fails++;
@@ -4983,7 +5108,9 @@ int main(void) {
   // cautions are simply pointed at where they stand. Captured raw rather than
   // saved, because the frame that proves it is mid pulse and a settled one is
   // by design identical to the stop above.
-  touch_at(SX(150), WT_ACTION_Y + SY(26)); pump(3); release(); pump(14);
+  // The 3.5in's pulse runs at half length (WT_MOTION_MS), so its peak is half
+  // as far in; here and at the two raw shots below.
+  touch_at(SX(150), WT_ACTION_Y + SY(26)); pump(3); release(); pump(KISS_NARROW ? 7 : 14);
   shot_raw("sim_settings_attn_again.ppm");
   pump(40);
   set_tab(SET_SIGNER);
@@ -4992,12 +5119,12 @@ int main(void) {
   // at once, the arriving group coming in from the side of the strip the
   // finger moved towards while the one it replaces leaves the other way.
   // Written raw and not saved, for the reason shot_raw gives.
-  tap_str(SET_TAB_KEY[SET_DEVICE], 3, 10);
+  tap_str(SET_TAB_KEY[SET_DEVICE], 3, KISS_NARROW ? 5 : 10);
   shot_raw("sim_settings_mid.ppm");
   pump(50);                                         // and let it settle again
   // And the caution, at the top of its one pulse: 260ms after the row it
   // belongs to has landed, which on the first row of SECURITY is 480ms in.
-  tap_str(SET_TAB_KEY[SET_SECURITY], 3, 30);
+  tap_str(SET_TAB_KEY[SET_SECURITY], 3, KISS_NARROW ? 15 : 30);
   shot_raw("sim_settings_pulse.ppm");
   pump(50);
 
@@ -7224,7 +7351,9 @@ int main(void) {
     img[0] = 0xE9;
     img[32] = 0x32; img[33] = 0x54; img[34] = 0xCD; img[35] = 0xAB;
     memcpy(img + 32 + 16, "99.0.0", 6);
-    memcpy(img + 32 + 48, "kiss", 4);
+    // This board's project name, as a real image carries it: the scan skips
+    // an image built for the other board before it reads the version.
+    snprintf((char *)img + 32 + 48, 32, "%s", kiss_fw_running_project());
     FILE *fw = sd_fopen("kiss-signer-99.0.0.bin", "wb");
     if (fw) { fwrite(img, 1, sizeof img, fw); fclose(fw); }
   }
@@ -7392,7 +7521,7 @@ int main(void) {
     pad[0] = 0xE9;
     pad[32] = 0x32; pad[33] = 0x54; pad[34] = 0xCD; pad[35] = 0xAB;
     memcpy(pad + 32 + 16, "0.0.1", 5);
-    memcpy(pad + 32 + 48, "kiss", 4);
+    snprintf((char *)pad + 32 + 48, 32, "%s", kiss_fw_running_project());
     for (int i = 0; i < 30; i++) {
       char p[320];
       snprintf(p, sizeof p, "%s/a-crowd-%02d.bin", SIMSD, i);
@@ -7454,7 +7583,7 @@ int main(void) {
     memset(fx, 0, sizeof fx);
     fx[0] = 0xE9;
     fx[32] = 0x32; fx[33] = 0x54; fx[34] = 0xCD; fx[35] = 0xAB;
-    memcpy(fx + 32 + 48, "kiss", 4);
+    snprintf((char *)fx + 32 + 48, 32, "%s", kiss_fw_running_project());
 
     // 4a. older. The lamp says OLDER in amber, the arrow and the version go
     // amber with it, and the caution line appears.
@@ -7509,6 +7638,26 @@ int main(void) {
     save("/tmp/sim_fw_notfirmware.ppm");            // not firmware
     must_show("fw/not firmware", tr(STR_G_FW_BAD_H));
     sd_unlink("kiss-signer-junk.bin");
+
+    // 4d, and its opposite: a file that IS firmware, only not this device's.
+    // A real, newer image built for the OTHER board parses and would verify,
+    // and the scan refuses it on the descriptor's project name alone. The seam
+    // is asked for a build that can check a signature, as it already is here,
+    // because "cannot be checked" outranks every answer the card gives and
+    // would photograph that screen instead.
+    memset(fx + 32 + 48, 0, 32);
+    snprintf((char *)fx + 32 + 48, 32, "%s",
+             strcmp(kiss_fw_running_project(), "ws35_kiss_bringup") == 0
+                 ? "guition_kiss_bringup" : "ws35_kiss_bringup");
+    memcpy(fx + 32 + 16, "99.0.0", 7);
+    f = sd_fopen("kiss-signer-other.bin", "wb");
+    if (f) { fwrite(fx, 1, sizeof fx, f); fclose(f); }
+    kiss_fw_test_set_available(WFW_OK);
+    kiss_fw_ui_open(lv_screen_active(), NULL);
+    pump(FW_SETTLE);
+    save("/tmp/sim_fw_wrongdevice.ppm");            // built for the other device
+    must_show("fw/wrong device", tr(STR_G_FW_WRONG_H));
+    sd_unlink("kiss-signer-other.bin");
   }
 
   // 4e. a card with no image on it, which is not the same answer as no card.

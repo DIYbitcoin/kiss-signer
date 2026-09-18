@@ -3572,7 +3572,14 @@ int oc_selftest(void)
     bad += oc_selftest_ratio("WT_INK on WT_BG", 0xE8EEF7, 0x070A10, 16.9860);
     bad += oc_selftest_ratio("WT_MUT on WT_BG", 0x7A869C, 0x070A10, 5.3943);
     bad += oc_selftest_ratio("WT_DIM on WT_BG", 0x4C5666, 0x070A10, 2.6702);
+#if KISS_NARROW
+    // The 3.5in's WT_DIM clears the floor on purpose (kiss_theme.h), so the
+    // firing case keeps the grey it was lifted from.
+    bad += oc_selftest_faint("0x4C5666 on the page, fires", lv_color_hex(0x4C5666),
+                             false, true);
+#else
     bad += oc_selftest_faint("WT_DIM on the page, fires", WT_DIM, false, true);
+#endif
     bad += oc_selftest_faint("WT_INK on the page, clear", WT_INK, false, false);
     bad += oc_selftest_faint("WT_INK on a light card, fires", WT_INK, true, true);
     bad += oc_selftest_faint("WT_BG on a light card, clear", WT_BG, true, false);

@@ -409,6 +409,24 @@ lv_obj_t *kiss_info_help_card_open(lv_obj_t *parent, const char *title,
 // and the card that would have framed both bays goes instead. The white QR
 // card is the frame on this page, as it was before.
 #define PAIR_STRIP_Y     SY(62)   // the contract's 70, less the 8 the QR needs
+#if KISS_NARROW
+// THE 3.5in's CODE TAKES THE FULL HEIGHT. Under the strip the card had 190 px
+// of glass, and a 49 dot code needs 196 to draw at 4 px a dot, so the scaled
+// 158 drew this page's code -- the one with no fallback -- at 3, which reads
+// as grey noise at arm's length. The card runs from under the title to the
+// floor instead, the app tabs move into the bay they switch and the [ ? ] up
+// to the title's row (pair_screen). 200 px draws the code at 196 with 7 px of
+// white round it. The bay keeps the 216 px it had, 8 px of it past the right
+// margin: the steps' second line needs every one of them to stay on two lines
+// in Spanish.
+#define PAIR_QR_X        18
+#define PAIR_QR_Y        40
+#define PAIR_QR_CARD     210
+#define PAIR_QR_PX       200
+#define PAIR_RULE_X      (PAIR_QR_X + PAIR_QR_CARD + 8)
+#define PAIR_BAY_X       (PAIR_RULE_X + 7)
+#define PAIR_BAY_W       (SX(752) + 8 - PAIR_BAY_X)
+#else
 #define PAIR_QR_X        SX(48)
 #define PAIR_QR_Y        SY(96)
 #define PAIR_QR_CARD    SX(300)
@@ -416,6 +434,7 @@ lv_obj_t *kiss_info_help_card_open(lv_obj_t *parent, const char *title,
 #define PAIR_RULE_X     SX(372)
 #define PAIR_BAY_X      SX(392)
 #define PAIR_BAY_W      (SX(752) - PAIR_BAY_X)   // 360; the widest rung is 350
+#endif
 #define PAIR_RUNG_Y     SY(112)
 #define PAIR_RUNG_PITCH  SY(52)
 #define PAIR_TAIL_Y     SY(280)
@@ -752,10 +771,26 @@ static void pair_term_more(int id)
     wt_chrome_head(s_scr);
     wt_trail(s_scr, WT_ICON_WHAT, tr(STR_S_GLOSSARY_T), false);
 
-    wt_lbl(s_scr, tr(STR_T_WATCH_P2_HEAD), WT_LANE_X, SY(118), wt_font_mono28(),
-           WT_INK);
-    wt_lbl(s_scr, tr(STR_T_WATCH_P2_B), WT_LANE_X, SY(158),
-           wt_font_mono23(), WT_MUT);
+    // Both lines are translated, so each takes the guarded face: mono where
+    // the mono set draws every glyph, the locale's own face otherwise. A bare
+    // mono face drew Cyrillic and CJK as placeholder boxes. The paragraph
+    // wraps inside the lane rather than running off the glass, and the card
+    // below moves down by whatever the wrap adds.
+    const char *p2h = tr(STR_T_WATCH_P2_HEAD);
+    const char *p2b = tr(STR_T_WATCH_P2_B);
+    const lv_font_t *p2bf = wt_chrome23(p2b);
+    lv_obj_t *hl = wt_lbl(s_scr, p2h, WT_LANE_X, SY(118), wt_chrome28(p2h),
+                          WT_INK);
+    lv_obj_t *bl = wt_lbl(s_scr, p2b, WT_LANE_X, SY(158), p2bf, WT_MUT);
+    lv_obj_update_layout(hl);
+    lv_obj_update_layout(bl);
+    if (lv_obj_get_width(hl) > WT_LANE_W) lv_obj_set_width(hl, WT_LANE_W);
+    if (lv_obj_get_width(bl) > WT_LANE_W) {
+        lv_obj_set_width(bl, WT_LANE_W);
+        lv_obj_update_layout(bl);
+    }
+    int grow = lv_obj_get_height(bl) - lv_font_get_line_height(p2bf);
+    if (grow < 0) grow = 0;
     // FRAMED, because a descriptor is a VALUE and the chrome contract asks
     // every screen for something framed above the action row. It was four
     // lines of raw text on the page ground with a hundred pixels of nothing
@@ -780,12 +815,12 @@ static void pair_term_more(int id)
     // 12 px above and below the text on the 3.5in, not the scaled 14 and 15:
     // five lines of the descriptor put the card's edge 5 px over the band's
     // floor line, and this brings it to 10.
-    lv_obj_t *card = wt_card(s_scr, WT_LANE_X, SY(196), dw,
+    lv_obj_t *card = wt_card(s_scr, WT_LANE_X, SY(196) + grow, dw,
                              lv_obj_get_height(d) + 24);
     lv_obj_set_parent(d, card);
     lv_obj_set_pos(d, SX(24), 12);
 #else
-    lv_obj_t *card = wt_card(s_scr, WT_LANE_X, SY(196), dw,
+    lv_obj_t *card = wt_card(s_scr, WT_LANE_X, SY(196) + grow, dw,
                              lv_obj_get_height(d) + SY(44));
     lv_obj_set_parent(d, card);
     lv_obj_set_pos(d, SX(24), SY(22));
@@ -878,7 +913,10 @@ static void pair_band_claim(lv_obj_t *next_act, lv_obj_t *exit_act)
         rest = cjk + 3;
     }
     const char *one = rest && *rest ? head : txt;
-    const lv_font_t *f = wt_chrome18(one);
+    // The face is asked of the WHOLE string, both halves: they share one face
+    // and one line box, and a mono first half ("il voit chaque transaction.")
+    // took the second one ("il ne dépense jamais.") into boxes with it.
+    const lv_font_t *f = wt_chrome18(txt);
     const int lh = lv_font_get_line_height(f);
     const int n = rest && *rest ? 2 : 1;
     // Centred in the band the way wt_standing centres its own line, so the
@@ -951,10 +989,22 @@ static void pair_screen(void)
     // Both are new codepoints in the generated fonts (tools/fonts/gen_fonts.sh)
     // -- the set had a telephone HANDSET and nothing else device shaped, and a
     // handset is the glyph for placing a call.
+#if KISS_NARROW
+    // Words only in the bay: the two tabs with their marks are 213 px and the
+    // strip over the bay has 208; without them they are 176. The kit drops
+    // the marks itself when a strip is short of room, but this strip's room
+    // is decided below, after the kit has fitted it to its usual lane, so the
+    // page drops them.
+    const wt_tab_t ptabs[2] = {
+        { NULL, tr(STR_I_APP_DESKTOP), false, false },
+        { NULL, tr(STR_I_APP_MOBILE),  false, false },
+    };
+#else
     const wt_tab_t ptabs[2] = {
         { WT_ICON_DESKTOP, tr(STR_I_APP_DESKTOP), false, false },
         { WT_ICON_MOBILE,  tr(STR_I_APP_MOBILE),  false, false },
     };
+#endif
     s_pair_tabs = wt_tabs_flex(s_scr, ptabs, 2, s_pair_fmt, pair_fmt_cb);
     // PUSHED RIGHT, to the end of the lane the [ ? ] divider leaves -- which is
     // where the last tab lands on every strip with enough of them to fill the
@@ -977,8 +1027,42 @@ static void pair_screen(void)
     // Raised HERE and not in the contract: every other page on the strip has a
     // lane starting at 114 and nothing to clear. The [ ? ] moves with the tabs
     // or the row stops being a row.
+#if KISS_NARROW
+    // On the 3.5in the row splits instead of lifting. The code's card takes
+    // the strip row's left, so the tabs sit over the bay at its left edge,
+    // level with the steps they switch, and the [ ? ] -- which the bay has no
+    // room left for -- goes up to the title's row, still pinned by its right
+    // edge and centred on the title's capitals. Its divider holds it off tabs
+    // it no longer shares a row with, so it goes; the title is refitted to
+    // stop short of it.
+    if (s_pair_tabs) {
+        lv_obj_set_pos(s_pair_tabs, PAIR_BAY_X, PAIR_STRIP_Y);
+        lv_obj_set_width(s_pair_tabs, SX(752) - PAIR_BAY_X);
+        lv_obj_set_flex_align(s_pair_tabs, LV_FLEX_ALIGN_START,
+                              LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    }
+    if (ht) {
+        const int hx = lv_obj_get_style_x(ht, LV_PART_MAIN);
+        const uint32_t nk = lv_obj_get_child_count(s_scr);
+        for (uint32_t i = 0; i < nk; i++) {
+            lv_obj_t *c = lv_obj_get_child(s_scr, i);
+            if (c != ht && lv_obj_get_style_width(c, LV_PART_MAIN) == 1 &&
+                lv_obj_get_style_x(c, LV_PART_MAIN) == hx - 4 &&
+                lv_obj_get_style_y(c, LV_PART_MAIN) == SY(75))
+                lv_obj_add_flag(c, LV_OBJ_FLAG_HIDDEN);
+        }
+        lv_obj_t *cap = wt_screen_title(s_scr);
+        if (cap) {
+            lv_obj_update_layout(cap);
+            lv_obj_set_y(ht, lv_obj_get_y(cap) +
+                             (lv_obj_get_height(cap) - WT_BR_H) / 2);
+        }
+        wt_title_fit(s_scr, hx - SX(12) - SX(48));
+    }
+#else
     for (lv_obj_t *o = s_pair_tabs; o; o = (o == s_pair_tabs ? ht : NULL))
         lv_obj_set_y(o, PAIR_STRIP_Y);
+#endif
     // NO NETWORK BADGE. It sat at 672,30 and it is the third place the same
     // word appears on the way here: the home screen wears it, and the KEYS
     // page one step back carries it as the standing line on its action band,
@@ -1090,6 +1174,37 @@ static void pair_screen(void)
 static lv_obj_t *s_sp_key_lbl;
 static lv_obj_t *s_sp_key_qr;
 
+#if KISS_NARROW
+// A sentence in the action band's left lane, up to the control on its right:
+// two lines at the band's rung, centred on the band's height, dots only if a
+// translation outgrows both. A line break in the copy was set for a column
+// somewhere else and becomes a space here.
+static void band_note(lv_obj_t *scr, lv_obj_t *right_act, const char *txt)
+{
+    char one[256];
+    size_t n = 0;
+    for (const char *p = txt; *p && n + 1 < sizeof one; p++)
+        one[n++] = *p == '\n' ? ' ' : *p;
+    one[n] = 0;
+    int x1 = SX(592) - SX(12);
+    if (right_act) {
+        lv_obj_update_layout(right_act);
+        x1 = lv_obj_get_x(right_act) - SX(20);
+    }
+    const int w = x1 - WT_ACT_X;
+    const lv_font_t *f = wt_chrome18(one);
+    const int lh = lv_font_get_line_height(f);
+    lv_point_t sz;
+    lv_text_get_size(&sz, one, f, 0, 0, w, LV_TEXT_FLAG_NONE);
+    const int lines = sz.y > lh ? 2 : 1;
+    lv_obj_t *l = wt_lbl(scr, one, WT_ACT_X,
+                         WT_ACTION_Y + (WT_ACTION_H - lines * lh) / 2, f, WT_MUT);
+    lv_obj_set_width(l, w);
+    lv_obj_set_height(l, lines * lh);
+    lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+}
+#endif
+
 static void sp_key_wipe(void)
 {
     if (s_sp_key_lbl) {
@@ -1126,12 +1241,16 @@ static void sp_key_show(void *ud)
     // once. "watch only" is the gate's whole lesson and stays there.
     s_scr = wt_screen(s_parent, tr(STR_R_SP_SCAN_BTN), NULL);
     wt_chrome_head(s_scr);
+    lv_obj_t *trail_l;
     {
         char trail[96];
         snprintf(trail, sizeof trail, "%s / %s", tr(STR_I_T),
                  tr(STR_D_ONLINE_APP));
-        wt_trail(s_scr, WT_ICON_SECRET, trail, false);
+        trail_l = wt_trail(s_scr, WT_ICON_SECRET, trail, false);
     }
+#if !KISS_NARROW
+    (void)trail_l;
+#endif
 
     // The refusal is its OWN render, decided before anything is drawn. This
     // used to fall through the success path with the failure string in the
@@ -1164,7 +1283,15 @@ static void sp_key_show(void *ud)
     }
 
     lv_obj_t *qr = NULL;
+#if KISS_NARROW
+    // THE 3.5in's CODE TAKES THE FULL HEIGHT, as the pairing descriptor's
+    // does and for the same arithmetic: the key is 143 or 144 bytes, a 49 dot
+    // code, and the 190 px under the trail drew it at 3 px a dot. From under
+    // the title to the floor it draws at 4 with 7 px of white round it.
+    wt_qr_card(s_scr, &qr, PAIR_QR_X, PAIR_QR_Y, PAIR_QR_CARD, PAIR_QR_PX);
+#else
     wt_qr_card(s_scr, &qr, SX(48), SY(96), SX(300), SX(264));
+#endif
     if (qr)
         wt_qr_update(qr, key, (uint32_t)strlen(key));
     s_sp_key_qr = qr;
@@ -1183,11 +1310,52 @@ static void sp_key_show(void *ud)
     // font14 was using 78 of it, so the fix costs nothing but the empty band.
     // 360 wide at mono23 is 26 cells of 13.81px, and 144 characters wrap into
     // six lines of 25 -- 96 through 246, with the note moved down to meet it.
+#if KISS_NARROW
+    // The column beside the code, in the bay the pairing page uses. The trail
+    // heads it, since the code took the strip row's left. Its words have 184 px
+    // beside the mark there and need 268 in Turkish, so the trail wraps rather
+    // than losing its tail to dots, and the key starts under whatever height
+    // that took.
+    const int col_x = PAIR_BAY_X, col_w = SX(752) - PAIR_BAY_X;
+    int key_y = PAIR_QR_Y;
+    if (trail_l) {
+        const int32_t ti = lv_obj_get_index(trail_l);
+        lv_obj_t *mark = ti > 0 ? lv_obj_get_child(s_scr, ti - 1) : NULL;
+        int tx = col_x;
+        if (mark && lv_obj_check_type(mark, &lv_label_class) &&
+            strcmp(lv_label_get_text(mark), WT_ICON_SECRET) == 0) {
+            lv_obj_set_x(mark, col_x);
+            lv_obj_update_layout(mark);
+            tx = col_x + lv_obj_get_width(mark) + 10;
+        }
+        lv_obj_set_x(trail_l, tx);
+        lv_obj_set_width(trail_l, SX(752) - tx);
+        lv_obj_set_height(trail_l, LV_SIZE_CONTENT);
+        lv_label_set_long_mode(trail_l, LV_LABEL_LONG_WRAP);
+        lv_obj_update_layout(trail_l);
+        key_y = lv_obj_get_y(trail_l) + lv_obj_get_height(trail_l) + 8;
+    }
+    lv_obj_t *k = wt_lbl(s_scr, key, col_x, key_y, wt_font_mono23(), WT_INK);
+    lv_obj_set_width(k, col_w);
+#else
     lv_obj_t *k = wt_lbl(s_scr, key, SX(400), SY(96), wt_font_mono23(), WT_INK);
     lv_obj_set_width(k, SX(360));
+#endif
     lv_label_set_long_mode(k, LV_LABEL_LONG_WRAP);
     s_sp_key_lbl = k;
 
+#if KISS_NARROW
+    // 592, not WT_BACK_X: 160 wide, so 752-160 is flush.
+    lv_obj_t *done = wt_arrow_action(s_scr, tr(STR_C_DONE), true, false, SX(592),
+                                     WT_ACTION_Y, SX(160), true, sp_key_back_cb, NULL);
+    // The note is the band's on the 3.5in: with the trail wrapped over it, key
+    // and note together ran past the floor in half the locales. It is what the
+    // export lets a coordinator do -- a standing fact about this page, the
+    // kind of sentence PAIR COORDINATOR's band carries -- so it takes the band's
+    // empty left lane, in two lines. Its breaks were set for a 360 px column,
+    // so they become spaces and the band's own width decides.
+    band_note(s_scr, done, tr(STR_R_SP_EXPORT_NOTE));
+#else
     // Placed off the key's MEASURED height rather than a y decided in advance:
     // the wrap depends on where LVGL takes its breaks, and a hard 250 is how
     // the old layout ended up with a band of dead glass above it.
@@ -1198,6 +1366,7 @@ static void sp_key_show(void *ud)
 
     // 592, not WT_BACK_X: 160 wide, so 752-160 is flush.
     wt_arrow_action(s_scr, tr(STR_C_DONE), true, false, SX(592), WT_ACTION_Y, SX(160), true, sp_key_back_cb, NULL);
+#endif
 
     // The QR and the label hold their own copies now, so the stack one has no
     // reader left. Here rather than at a single exit, because there is none.
@@ -1813,6 +1982,19 @@ static int kef_check_cb(const char *pass, size_t len)
     return rc;
 }
 
+// The envelope's code. Sealed here it is 45 bytes for 12 words and 61 for 24,
+// and both are a 33 dot code. On the 3.5in the scaled 158 px drew that at 4 px
+// a dot inside 24 px of white; 176 draws it at 5 inside 9, and the card stays
+// clear of the fingerprint column and 6 px over the floor.
+#define KEF_QR_Y      SY(96)
+#if KISS_NARROW
+#define KEF_QR_CARD   184
+#define KEF_QR_PX     176
+#else
+#define KEF_QR_CARD   SX(300)
+#define KEF_QR_PX     SX(264)
+#endif
+
 static void kef_sd_cb(lv_event_t *e)
 {
     (void)e;
@@ -1854,7 +2036,7 @@ static void kef_sd_cb(lv_event_t *e)
         lv_obj_update_layout(s_kef_sd_chip);
     }
     lv_obj_set_pos(s_kef_sd_chip, SX(400),
-                   SY(96) + SX(300) - lv_obj_get_height(s_kef_sd_chip));
+                   KEF_QR_Y + KEF_QR_CARD - lv_obj_get_height(s_kef_sd_chip));
 #endif
 }
 
@@ -1874,7 +2056,7 @@ static void kef_show_screen(void)
     s_kef_sd_chip = NULL;
 
     lv_obj_t *qr = NULL;
-    wt_qr_card(s_scr, &qr, SX(48), SY(96), SX(300), SX(264));
+    wt_qr_card(s_scr, &qr, SX(48), KEF_QR_Y, KEF_QR_CARD, KEF_QR_PX);
     if (qr) wt_qr_update(qr, s_kef_env, (uint32_t)s_kef_env_len);
 
     // The fingerprint is the envelope's visible name: it says WHICH keys are

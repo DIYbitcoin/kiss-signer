@@ -198,12 +198,22 @@ bool kiss_ui_login_deadline_active(void) {
 #define KEY_SYM   "123"
 #define KEY_SYM2  "#+="
 #define KEY_ABC   "abc"
+#if KISS_NARROW
+// Dead glass, not a key: the 3.5in's thumb row puts one on each side of CANCEL
+// (see key_units). Hidden and disabled, so it draws nothing and a press on it
+// does nothing, and the label is one no handler below compares against.
+#define KEY_GAP   "gap"
+// One thumb row for all five planes; only its first key changes.
+#define THUMB_ROW(first) first, KEY_GAP, "CANCEL", KEY_GAP, " ", "OK", ""
+#else
+#define THUMB_ROW(first) first, "CANCEL", " ", "OK", ""
+#endif
 
 static const char *MAP_LOWER[] = {
     "q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "\n",
     "a", "s", "d", "f", "g", "h", "j", "k", "l", "\n",
     KEY_SHIFT, "z", "x", "c", "v", "b", "n", "m", LV_SYMBOL_BACKSPACE, "\n",
-    KEY_SYM, "CANCEL", " ", "OK", ""};
+    THUMB_ROW(KEY_SYM)};
 // Two upper planes, identical keys. One-shot drops back to lowercase after a
 // single character; CAPS stays until tapped again. The lower and upper planes
 // now share a shift GLYPH, so the difference between them is carried by the
@@ -212,12 +222,12 @@ static const char *MAP_UPPER[] = {
     "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "\n",
     "A", "S", "D", "F", "G", "H", "J", "K", "L", "\n",
     KEY_SHIFT, "Z", "X", "C", "V", "B", "N", "M", LV_SYMBOL_BACKSPACE, "\n",
-    KEY_SYM, "CANCEL", " ", "OK", ""};
+    THUMB_ROW(KEY_SYM)};
 static const char *MAP_CAPS[] = {
     "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "\n",
     "A", "S", "D", "F", "G", "H", "J", "K", "L", "\n",
     KEY_CAPS, "Z", "X", "C", "V", "B", "N", "M", LV_SYMBOL_BACKSPACE, "\n",
-    KEY_SYM, "CANCEL", " ", "OK", ""};
+    THUMB_ROW(KEY_SYM)};
 // two symbol planes so ALL 32 ASCII punctuation chars are reachable (spec:
 // passphrase = printable ASCII; an untypeable char = an unrecoverable wallet).
 // This is why the letter planes say "123" and not "123" alone would do: the
@@ -226,32 +236,45 @@ static const char *MAP_SYM[] = {
     "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "\n",
     "!", "@", "#", "$", "%", "&", "(", ")", "?", "\n",
     KEY_SYM2, "-", "_", "=", "+", ".", ",", "/", LV_SYMBOL_BACKSPACE, "\n",
-    KEY_ABC, "CANCEL", " ", "OK", ""};
+    THUMB_ROW(KEY_ABC)};
 static const char *MAP_SYM2[] = {
     "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "\n",
     "\"", "'", ":", ";", "[", "]", "{", "}", "*", "\n",
     KEY_SYM, "<", ">", "\\", "|", "`", "~", "^", LV_SYMBOL_BACKSPACE, "\n",
-    KEY_ABC, "CANCEL", " ", "OK", ""};
+    THUMB_ROW(KEY_ABC)};
 
 #if KISS_NARROW
-// Key widths in units on the 3.5in, where the gap across a row is 12 px (see
-// KB_GAP_X). The third row gives shift and backspace 3 units against 2 per
-// letter: at 1 each, that gap leaves 42 px keys and #+= fills one to 4 px of
-// either edge. The thumb row is 123 2, CANCEL 3, space 4, OK 3 of 12: at
-// 1/1/3/1 CANCEL was 75 px round a 65 px word and OK had no room for U REDU,
-// and the space bar is still the widest key. key_rect reads the same table.
+// Key widths in units on the 3.5in. The third row gives shift and backspace 3
+// units against 2 per letter: at 1 each, #+= fills its key to 4 px of either
+// edge.
+//
+// The thumb row is 123 4, gap 1, CANCEL 6, gap 1, space 8, OK 6 of 26. CANCEL
+// throws away what was typed -- in setup, a seed's only passphrase -- and it
+// sat one gap from 123 and the space bar, the two keys a thumb reaches for
+// most in that row. A gap wide enough to separate it was a gap every letter
+// paid for too, so the gaps shrank to 6 px and CANCEL alone has dead glass
+// beside it: a hidden, disabled key each side (KEY_GAP), about 30 px from the
+// edge of 123 or space to the edge of CANCEL where a press does nothing. The
+// ids after 123 move up by the first gap, so CANCEL is 30 and OK 33 here.
+// key_rect reads the same table.
+#define KB_THUMB_N 6
+#define KB_ID_OK   33
 static int key_units(uint32_t id) {
-  static const uint8_t thumb[] = {2, 3, 4, 3};
+  static const uint8_t thumb[KB_THUMB_N] = {4, 1, 6, 1, 8, 6};
   if (id == 19 || id == 27) return 3;
   if (id > 19 && id < 27) return 2;
-  if (id >= 28 && id <= 31) return thumb[id - 28];
+  if (id >= 28 && id < 28 + KB_THUMB_N) return thumb[id - 28];
   return 1;
 }
+static bool key_is_gap(uint32_t id) { return id == 29 || id == 31; }
+#else
+#define KB_ID_OK   31
 #endif
 
 // every plane keeps the same 10/9/9/4 button layout, so key_rect() and the
-// id-based ctrls (space #30 width, OK #31 accent) hold on all of them; ctrls
-// are re-asserted anyway since LVGL may reset them on map change
+// id-based ctrls (space #30 width, OK #31 accent; on the 3.5in the thumb row's
+// widths and gaps, OK #33) hold on all of them; ctrls are re-asserted anyway
+// since LVGL may reset them on map change
 static void kb_plane(lv_obj_t *kb, const char **map) {
   lv_buttonmatrix_set_map(kb, map);
   // hold-to-repeat ONLY on backspace (id 27 on every plane): a slow press on a
@@ -259,12 +282,16 @@ static void kb_plane(lv_obj_t *kb, const char **map) {
   lv_buttonmatrix_set_button_ctrl_all(kb, LV_BUTTONMATRIX_CTRL_NO_REPEAT);
   lv_buttonmatrix_clear_button_ctrl(kb, 27, LV_BUTTONMATRIX_CTRL_NO_REPEAT);
 #if KISS_NARROW
-  for (uint32_t id = 19; id <= 31; id++)      // see key_units
+  for (uint32_t id = 19; id < 28 + KB_THUMB_N; id++) {   // see key_units
     lv_buttonmatrix_set_button_width(kb, id, key_units(id));
+    if (key_is_gap(id))
+      lv_buttonmatrix_set_button_ctrl(kb, id, LV_BUTTONMATRIX_CTRL_HIDDEN |
+                                              LV_BUTTONMATRIX_CTRL_DISABLED);
+  }
 #else
   lv_buttonmatrix_set_button_width(kb, 30, 3);
 #endif
-  lv_buttonmatrix_set_button_ctrl(kb, 31, LV_BUTTONMATRIX_CTRL_CHECKED);
+  lv_buttonmatrix_set_button_ctrl(kb, KB_ID_OK, LV_BUTTONMATRIX_CTRL_CHECKED);
   // Shift is id 19 (10 + 9 keys before it). Lower and upper share a glyph, so
   // the lit key is the whole difference between "the next letter is a capital"
   // and "it is not". Assert it on every plane swap rather than trusting LVGL to
@@ -325,29 +352,31 @@ void kiss_ui_drop_indev_for_test(void) {
 // 3.5in header fit below.
 #define KB_X 0
 #if KISS_NARROW
-// 110..315 on the 3.5in, the same bottom as the scaled 105..315, which buys
-// the header above it 5 px (see PILL_Y). Rows stay 45 px.
-#define KB_Y 110
-#define KB_H 205
-// 12 px across, 6 down. At 6 across, CANCEL sat 6 px from 123 and from the
-// space bar in the thumb row. LVGL hands half of each gap to the keys beside
-// it as hit area, so the top row keeps its 48 px pitch and only the drawn
-// keys narrow.
-#define KB_GAP_X 12
-#define KB_GAP_Y 6
+// 104..320 on the 3.5in: down to the glass's own edge, and 6 px higher than
+// the 110 it started at, which the header can spare -- the counter row ends
+// at 100 (see COUNT_Y). Rows are 49 px, from 45.
+#define KB_Y 104
+#define KB_H 216
+// 6 px across, 5 down, 2 of pad. The gaps were 12 across to keep CANCEL clear
+// of its neighbours, which cost every letter 6 px of key; CANCEL has its own
+// dead glass now (see key_units), so the letters get the width back: 42 px
+// keys on the top row, from 37.
+#define KB_GAP_X 6
+#define KB_GAP_Y 5
+#define KB_PAD   2
 #else
 #define KB_Y SY(158)
 #define KB_H SY(316)
 #endif
 #define KB_W SCREEN_W
-#define KB_PAD SX(6)
 #if !KISS_NARROW
+#define KB_PAD SX(6)
 #define KB_GAP_X KB_PAD
 #define KB_GAP_Y KB_PAD
 #endif
 
 #if KISS_NARROW
-// The 3.5in header, above a keyboard that starts at KB_Y (110). Scaled, the
+// The 3.5in header, above a keyboard that starts at KB_Y (104). Scaled, the
 // SCAN and eye pills were 26 px tall and 5 px apart, the entry sat 61..84 and
 // the counter row at 88 put its descenders 3 px off the top key row. The
 // pills grow to 32 px with 12 px between them, the entry rises to 48, and the
@@ -1809,8 +1838,8 @@ static void show_fingerprint(void) {
   lv_anim_t pa;
   lv_anim_init(&pa);
   lv_anim_set_var(&pa, box);
-  lv_anim_set_duration(&pa, 260);
-  lv_anim_set_delay(&pa, 40);
+  lv_anim_set_duration(&pa, WT_MOTION_MS(260));   // half on the 3.5in's SPI panel
+  lv_anim_set_delay(&pa, WT_MOTION_MS(40));
   lv_anim_set_path_cb(&pa, lv_anim_path_ease_out);
   lv_anim_set_exec_cb(&pa, fp_pop_ty_cb);
   lv_anim_set_values(&pa, SY(22), 0);
@@ -1872,10 +1901,11 @@ static void show_fingerprint(void) {
 
 // geometry of button `id` in the shared 10/9/9/4 layout (space = 3 units wide)
 static void key_rect(uint32_t id, int *x, int *y, int *w, int *h) {
-  static const uint8_t row_first[] = {0, 10, 19, 28, 32};
 #if KISS_NARROW
-  static const uint8_t row_units[] = {10, 9, 20, 12};   // sums of key_units
+  static const uint8_t row_first[] = {0, 10, 19, 28, 28 + KB_THUMB_N};
+  static const uint8_t row_units[] = {10, 9, 20, 26};   // sums of key_units
 #else
+  static const uint8_t row_first[] = {0, 10, 19, 28, 32};
   static const uint8_t row_units[] = {10, 9, 9, 6};
 #endif
   int r = 3;
@@ -1957,7 +1987,7 @@ static void key_flash(uint32_t id) {
   lv_anim_set_exec_cb(&s_kflash_a, kflash_opa);
   lv_anim_set_path_cb(&s_kflash_a, lv_anim_path_ease_out);
   lv_anim_set_values(&s_kflash_a, 110, 0);
-  lv_anim_set_duration(&s_kflash_a, 190);
+  lv_anim_set_duration(&s_kflash_a, WT_MOTION_MS(190));
   lv_anim_start(&s_kflash_a);
 }
 
@@ -2005,7 +2035,9 @@ static void pop_show(const char *ch, uint32_t id) {
   lv_anim_set_path_cb(&s_pop_a, lv_anim_path_ease_out);
   lv_anim_set_exec_cb(&s_pop_a, pop_ty);
   lv_anim_set_values(&s_pop_a, SY(10), -SY(6));      // starts low, lifts off the key
-  lv_anim_set_duration(&s_pop_a, 190);
+  // The lift at half length on the 3.5in; how long the callout STAYS is the
+  // timer below, which is a window and keeps its 300ms.
+  lv_anim_set_duration(&s_pop_a, WT_MOTION_MS(190));
   lv_anim_start(&s_pop_a);
 
   key_flash(id);
@@ -2469,11 +2501,18 @@ void kiss_login_open(void (*unlocked_cb)(void)) {
   // button ids 29 and 31; slot 33 is the space key, width 3, and must keep
   // its single space). kb_cb compares against the same tr() pointers, so the
   // matches are exact. CAPS used to keep the static literals, so caps lock
-  // showed "CANCEL"/"OK" in every locale (hr-HR: OTKAŽI / U REDU).
-  MAP_LOWER[32] = MAP_UPPER[32] = MAP_CAPS[32] = MAP_SYM[32] = MAP_SYM2[32] =
-      tr(STR_C_CANCEL);
-  MAP_LOWER[34] = MAP_UPPER[34] = MAP_CAPS[34] = MAP_SYM[34] = MAP_SYM2[34] =
-      tr(STR_C_OK);
+  // showed "CANCEL"/"OK" in every locale (hr-HR: OTKAŽI / U REDU). On the
+  // 3.5in a gap key stands before each of CANCEL and the space, so the slots
+  // are 33 and 36.
+#if KISS_NARROW
+  enum { SLOT_CANCEL = 33, SLOT_OK = 36 };
+#else
+  enum { SLOT_CANCEL = 32, SLOT_OK = 34 };
+#endif
+  MAP_LOWER[SLOT_CANCEL] = MAP_UPPER[SLOT_CANCEL] = MAP_CAPS[SLOT_CANCEL] =
+      MAP_SYM[SLOT_CANCEL] = MAP_SYM2[SLOT_CANCEL] = tr(STR_C_CANCEL);
+  MAP_LOWER[SLOT_OK] = MAP_UPPER[SLOT_OK] = MAP_CAPS[SLOT_OK] =
+      MAP_SYM[SLOT_OK] = MAP_SYM2[SLOT_OK] = tr(STR_C_OK);
 
   s_login = lv_obj_create(lv_screen_active());
   lv_obj_remove_style_all(s_login);
@@ -2624,11 +2663,12 @@ void kiss_login_open(void (*unlocked_cb)(void)) {
   lv_obj_set_pos(s_kb, 0, KISS_NARROW ? KB_Y : SY(158));
   lv_obj_set_style_bg_color(s_kb, BG_COL, 0);
   lv_obj_set_style_border_width(s_kb, 0, 0);
-  lv_obj_set_style_pad_all(s_kb, SX(6), 0);
 #if KISS_NARROW
+  lv_obj_set_style_pad_all(s_kb, KB_PAD, 0);
   lv_obj_set_style_pad_column(s_kb, KB_GAP_X, 0);   // see KB_GAP_X
   lv_obj_set_style_pad_row(s_kb, KB_GAP_Y, 0);
 #else
+  lv_obj_set_style_pad_all(s_kb, SX(6), 0);
   lv_obj_set_style_pad_gap(s_kb, 6, 0);
 #endif
   // keys: big, dark, readable

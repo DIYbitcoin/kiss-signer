@@ -4,8 +4,77 @@
 # two never share a number, because a lane there is three fifths of a lane
 # here and every count is measured on its own glass.
 #
-# SHRINK ONLY, like the wide file. English is deliberately absent: it has no
-# allowance and the push lane keeps it at zero. The other locales are absent
-# too, until the first full sweep on this board measures them: a locale with
-# no line and findings fails the runner, which is the honest state for a
-# board whose translations have not been walked yet.
+# SHRINK ONLY, like the wide file. The runner refuses any number that goes UP
+# and prints a nudge for any that has come down. English is deliberately
+# absent: it has no allowance. On this board it is not at zero yet, and the
+# push lane (desktop-tests.yml, desktop-narrow) reports it as advisory until
+# it is, which is why the nightly locale-overlap.yml job for this board lists
+# the twenty one translations and not English.
+#
+# THE FIRST MEASUREMENT, and what it took to get one. The first sweep of this
+# board had no count for fourteen of the twenty one translations, because
+# their walks failed: the walk tapped a strand figure and a locktime badge at
+# the wide canvas's x, which the 3.5in's layout had moved, and it asked for
+# EASY SCAN, TILFÆLDIGHED and ALEATORIEDADE by words the kit had ellipsised in
+# their lanes. A walk that fails prints no summary, and a walk that taps the
+# wrong thing photographs the wrong screen for every stop after it. Every
+# number below is from a walk that passed and reached the end.
+#
+# Nor are they the first counts those walks gave. That sweep came to 686
+# findings across the translations and English, and the largest share was one
+# fault: the [ ? ] explainers hung their facts from the band by a one line per
+# row sum, so a translated caption or a wrapped value put the last row under
+# the band. With that and the other 3.5in layout faults the sweep turned up
+# fixed in the kit, the setup and settings screens and the walk, the same
+# screens come to 431. What is left is the class the wide file carries: copy
+# longer than its lane on a canvas three fifths as wide, reported as the CUT,
+# DOTS and FIT findings that name the string, plus screens this measurement
+# did not change (the sign flow's arrival and caution cards, the QR screens,
+# the descriptor page).
+#
+# AND THEY CAME DOWN AGAIN, 431 to 368 with English's 7 unchanged, and not
+# one finding in any locale is new. The descriptor terms page, the receive
+# lamp, the silent payment path and the scan status had been set in the
+# ASCII-only mono faces whatever the string, so Cyrillic, CJK and accented
+# words drew as placeholder boxes; each now takes its face per string. The
+# rest is lanes measured instead of assumed on this canvas: the signed card's
+# captions, EASY SCAN's word, the caution sentences beside I UNDERSTAND, the
+# third control on the held-signature and receive bands, the title beside
+# SIGNED ALREADY, the input total between the graph's captions, the refusal
+# body under a two line verdict, the scan note and the duress intro's middle
+# control. Twelve of the drop are TECHNICAL term lines no longer clipped at
+# their box.
+#
+# The larger QR codes that moved text on the pairing, scan key, silent
+# payment and signed screens raised no count: the same sweep on the tree
+# before these fixes gave exactly the numbers this file held.
+#
+# Measured on 2026-09-17 with:
+#
+#   KISS_BOARD=ws35 KISS_SIM_TMP=/tmp/kiss-fix4sim/oc2 \
+#     KISS_SIM_TMP_MINS=2880 OVERLAPCHECK_LANGS="en cs-CZ da-DK de es-ES \
+#     es-MX fr hr-HR hu-HU it ja ko nb-NO nl pl pt-BR pt-PT ru sv-SE tr vi \
+#     zh-CN" bash sim/run_overlapcheck.sh
+#
+# Same rule as the wide file: from here the numbers only go down.
+cs-CZ 12
+da-DK 11
+de 22
+es-ES 13
+es-MX 13
+fr 25
+hr-HR 16
+hu-HU 19
+it 17
+ja 14
+ko 7
+nb-NO 14
+nl 22
+pl 29
+pt-BR 21
+pt-PT 18
+ru 38
+sv-SE 13
+tr 10
+vi 18
+zh-CN 9

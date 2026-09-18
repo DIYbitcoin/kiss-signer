@@ -271,6 +271,28 @@ static lv_obj_t *diagram_box(int y)
 }
 
 #if KISS_NARROW
+// An arrow action's word without its tracking, the box shrunk to match and a
+// right-anchored action kept on its right edge. Both callers pass the screen's
+// forward action on the left and its exit, arrow first, on the right.
+static void band_untrack(lv_obj_t *act, bool exit_side)
+{
+    lv_obj_t *arrow = lv_obj_get_child(act, 0), *w = lv_obj_get_child(act, 1);
+    if (!arrow || !w || !lv_obj_check_type(w, &lv_label_class)) return;
+    const lv_font_t *f = lv_obj_get_style_text_font(w, LV_PART_MAIN);
+    const char *txt = lv_label_get_text(w);
+    lv_point_t was, now;
+    lv_text_get_size(&was, txt, f,
+                     lv_obj_get_style_text_letter_space(w, LV_PART_MAIN), 0,
+                     LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    lv_text_get_size(&now, txt, f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    const int d = was.x - now.x;
+    if (d <= 0) return;
+    lv_obj_set_style_text_letter_space(w, 0, 0);
+    if (!exit_side) lv_obj_align(arrow, LV_ALIGN_LEFT_MID, now.x + SX(12), 0);
+    lv_obj_set_width(act, lv_obj_get_width(act) - d);
+    if (exit_side) lv_obj_set_x(act, lv_obj_get_x(act) + d);
+}
+
 // FORGET MY SWIPE between the screen's action and its exit on the 3.5in band.
 // At a fixed x it sat 25 px from one neighbour and 17 from the other in
 // English and ran into NOT NOW's arrow the moment either word grew. Centred in
@@ -283,10 +305,10 @@ static lv_obj_t *diagram_box(int y)
 static void band_between(lv_obj_t *mid, lv_obj_t *left, lv_obj_t *right)
 {
     lv_obj_update_layout(s_scr);
-    const int l = lv_obj_get_x(left) + lv_obj_get_width(left)
-                  - lv_obj_get_style_pad_right(left, LV_PART_MAIN);
-    const int r = lv_obj_get_x(right)
-                  + lv_obj_get_style_pad_left(right, LV_PART_MAIN);
+    int l = lv_obj_get_x(left) + lv_obj_get_width(left)
+            - lv_obj_get_style_pad_right(left, LV_PART_MAIN);
+    int r = lv_obj_get_x(right)
+            + lv_obj_get_style_pad_left(right, LV_PART_MAIN);
     const int pb = LV_MAX(0, SCREEN_H - (WT_ACTION_Y + WT_ACTION_H));
     lv_obj_set_style_pad_bottom(mid, pb, 0);
     lv_obj_set_height(mid, WT_ACTION_H + pb);
@@ -298,6 +320,26 @@ static void band_between(lv_obj_t *mid, lv_obj_t *left, lv_obj_t *right)
     }
     if (word && lv_obj_get_width(mid) + 2 * 12 > r - l) {
         lv_obj_add_flag(mark, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_update_layout(mid);
+    }
+    // ...and last, the word takes two lines in the room that is left, with
+    // both neighbours giving up their tracking first to widen it. Russian and
+    // Swedish still ran ЗАБЫТЬ МОЙ ЖЕСТ and GLÖM MITT DRAG into both arrows
+    // with nothing else to give. The two lines stand a few pixels taller than
+    // the row, so the box lets them draw rather than clip.
+    if (word && lv_obj_get_width(mid) + 2 * 12 > r - l) {
+        band_untrack(left, false);
+        band_untrack(right, true);
+        lv_obj_update_layout(s_scr);
+        l = lv_obj_get_x(left) + lv_obj_get_width(left)
+            - lv_obj_get_style_pad_right(left, LV_PART_MAIN);
+        r = lv_obj_get_x(right) + lv_obj_get_style_pad_left(right, LV_PART_MAIN);
+    }
+    if (word && lv_obj_get_width(mid) + 2 * 12 > r - l && r - l > 2 * 12) {
+        lv_obj_set_width(word, r - l - 2 * 12);
+        lv_label_set_long_mode(word, LV_LABEL_LONG_WRAP);
+        lv_obj_set_style_text_align(word, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_add_flag(mid, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
         lv_obj_update_layout(mid);
     }
     lv_obj_set_pos(mid, l + (r - l - lv_obj_get_width(mid)) / 2, WT_ACTION_Y);

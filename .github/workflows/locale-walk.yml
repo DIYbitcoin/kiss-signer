@@ -29,6 +29,14 @@
 #
 # It does NOT gate anything. It runs nightly, and when it goes red somebody
 # reads it -- the same standing as reproducible-build.yml.
+#
+# BOTH BOARDS. The 3.5in draws the same screens on a canvas three fifths as
+# wide, so a label that fits the Guition in every locale is ellipsised there,
+# and a walk that taps or asserts by that label derails on the smaller board
+# alone. The first sweep of the 3.5in found exactly that in fourteen locales
+# the wide walk passed: a strand figure tapped at a fixed x the column had
+# moved away from, and a chip word cut short. So each locale walks twice, one
+# leg per board, and the legs name their board wherever a person reads them.
 name: locale walk
 
 on:
@@ -42,7 +50,7 @@ on:
 # makes two separate workflows queue instead of taking the runners at once.
 #
 # On a quiet night they never meet: the clocks are an hour apart and this
-# walk's 21 legs are capped at 25 minutes each. It is for the nights that are
+# walk's legs are capped at 25 minutes each. It is for the nights that are
 # not quiet -- a cron the scheduler holds, or a workflow_dispatch fired while
 # the other is still going.
 #
@@ -59,11 +67,17 @@ jobs:
     # roughly three times the English walk. Twenty one of them in parallel is
     # what the matrix below is for; this ceiling is per job.
     timeout-minutes: 25
+    name: walk (${{ matrix.board }}, ${{ matrix.lang }})
     strategy:
       fail-fast: false
       matrix:
+        # guition is the 800x480 canvas every other lane assumes; ws35 is the
+        # 3.5in's 480x320 (sim/sim_tmp.sh builds the right one from KISS_BOARD).
+        board: [guition, ws35]
         lang: [en, cs-CZ, da-DK, de, es-ES, es-MX, fr, hr-HR, hu-HU, it, ja,
                ko, nb-NO, nl, pl, pt-BR, pt-PT, ru, sv-SE, tr, vi, zh-CN]
+    env:
+      KISS_BOARD: ${{ matrix.board }}
     steps:
       - uses: actions/checkout@v4
 
@@ -79,10 +93,11 @@ jobs:
 
       # Its own scratch root, so the matrix legs cannot fight each other over
       # the fake card, the captured frames or the binary. Unset it is /tmp,
-      # which is what every local command assumes.
+      # which is what every local command assumes. Per board as well as per
+      # locale: the binary and the frames keep their names on both boards.
       - name: screen walk
         env:
-          KISS_SIM_TMP: /tmp/walk-${{ matrix.lang }}
+          KISS_SIM_TMP: /tmp/walk-${{ matrix.board }}-${{ matrix.lang }}
         run: |
           mkdir -p "$KISS_SIM_TMP"
           bash sim/build_sim.sh
@@ -98,17 +113,17 @@ jobs:
       - name: report
         if: always()
         env:
-          KISS_SIM_TMP: /tmp/walk-${{ matrix.lang }}
+          KISS_SIM_TMP: /tmp/walk-${{ matrix.board }}-${{ matrix.lang }}
         run: |
           n=$(grep -c '^FAIL' "$KISS_SIM_TMP/walk.log" || true)
-          echo "${{ matrix.lang }}: $n failing assertion(s)"
+          echo "${{ matrix.board }} ${{ matrix.lang }}: $n failing assertion(s)"
           grep -m5 '^FAIL' "$KISS_SIM_TMP/walk.log" || true
 
       - name: keep the frames from a red run
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: frames-${{ matrix.lang }}
-          path: /tmp/walk-${{ matrix.lang }}/*.ppm
+          name: frames-${{ matrix.board }}-${{ matrix.lang }}
+          path: /tmp/walk-${{ matrix.board }}-${{ matrix.lang }}/*.ppm
           retention-days: 7
           if-no-files-found: ignore

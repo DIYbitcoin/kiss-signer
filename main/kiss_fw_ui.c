@@ -62,11 +62,11 @@ static lv_obj_t *s_band;
 #if KISS_NARROW
 // On the 3.5in 76 and 240 scale to 50px rows from 160, and the second one ran
 // to 264: "checked before anything is written" sat on the band's rule. A 14px
-// caption over an 18px value, stepped down for its "?" chip, needs 48 with the
-// descenders clear of the rule under it. Both rules sit 4 above their row, so
-// the block runs 140..244, and the caution line moves up 10 to stay clear of
-// the first rule.
-#define FW_ROW_H     48
+// caption over an 18px value, stepped down for its "?" chip, needs 51 with the
+// descenders clear of the rule under it -- 48 until the chip became a 26 px
+// ring. Both rules sit 4 above their row, so the block runs 140..250, and the
+// caution line moves up 10 to stay clear of the first rule.
+#define FW_ROW_H     51
 #define FW_ROW1_Y    144
 #define FW_ROW1_RULE 4
 #define FW_CAUTION_Y 118
@@ -417,17 +417,20 @@ static void fw_mark_after_cap(lv_obj_t *row, lv_event_cb_t cb)
     // font14 when this was written and is font23 now, and a hand offset that
     // looked right against the first sat 8px high against the second.
     lv_obj_t *chip = wt_help_chip(row, 0, 0, wt_accent(), cb, NULL);
-    lv_obj_set_pos(chip, WT_LINE_PAD + lv_obj_get_width(cap) + SX(10),
-                   WT_LINE_CAP_Y + (lv_obj_get_height(cap) - SY(30)) / 2);
 #if KISS_NARROW
-    // On the 3.5in the 18px chip centred on a 19px caption ends one pixel
-    // above the value's ascenders, so the mark and the answer touch. The value
-    // steps down 3 to give the mark 4px of air; FW_ROW_H carries the 3.
+    lv_obj_set_pos(chip, WT_LINE_PAD + lv_obj_get_width(cap) + SX(10),
+                   WT_LINE_CAP_Y + (lv_obj_get_height(cap) - WT_HELP_CHIP_D) / 2);
+    // On the 3.5in the 26px ring centred on an 18px caption hangs 4px into the
+    // value's line, so the mark and the answer touch. The value steps down 6
+    // to give the mark 4px of air; FW_ROW_H carries the 6.
     for (uint32_t i = 0; i < n; i++) {
         lv_obj_t *v = lv_obj_get_child(row, i);
         if (lv_obj_get_user_data(v) == WT_LINE_VAL_TAG)
-            lv_obj_set_y(v, lv_obj_get_style_y(v, LV_PART_MAIN) + 3);
+            lv_obj_set_y(v, lv_obj_get_style_y(v, LV_PART_MAIN) + 6);
     }
+#else
+    lv_obj_set_pos(chip, WT_LINE_PAD + lv_obj_get_width(cap) + SX(10),
+                   WT_LINE_CAP_Y + (lv_obj_get_height(cap) - SY(30)) / 2);
 #endif
 }
 
@@ -448,14 +451,15 @@ static void result_back_cb(lv_event_t *e)
 // READ THE CARD AGAIN, from a screen that is only there because reading it
 // answered badly.
 //
-// Four of the six refusals below are about the card and not about the image on
-// it: no card, no image, an image too big for the slot kept for it, a file that
-// is not one of ours. Every one of them is fixed at the slot -- reseat it, put
-// the release on it, swap it -- and the screen offered BACK to the section home
-// and nothing else, with "open this screen again" written in the body as the
-// route. A rescan IS reopening the screen: fw_screen re-runs kiss_fw_scan and
-// rebuilds from the answer, which is exactly what the post-install failure
-// screen has always done under the word BACK.
+// Five of the seven refusals below are about the card and not about the image
+// on it: no card, no image, an image too big for the slot kept for it, a file
+// that is not one of ours, an image built for the other device. Every one of
+// them is fixed at the slot -- reseat it, put the release on it, swap it -- and
+// the screen offered BACK to the section home and nothing else, with "open
+// this screen again" written in the body as the route. A rescan IS reopening
+// the screen: fw_screen re-runs kiss_fw_scan and rebuilds from the answer,
+// which is exactly what the post-install failure screen has always done under
+// the word BACK.
 //
 // Not on the other two. ALREADY RUNNING is not a fault and has nothing to try;
 // a build with no key to check a signature with cannot be talked into having
@@ -483,6 +487,7 @@ static void result_screen(int rc)
              : rc == WFW_ERR_PQ_REJECTED ? tr(STR_G_FW_FAIL_PQ_B)
              : rc == WFW_ERR_CARD_GONE   ? tr(STR_G_FW_FAIL_CARD_B)
              : rc == WFW_ERR_UNSIGNED    ? tr(STR_G_FW_UNSIGNED_B)
+             : rc == WFW_ERR_WRONG_BOARD ? tr(STR_G_FW_WRONG_B)
              :                             tr(STR_G_FW_FAIL_WRITE_B);
     }
 
@@ -605,7 +610,7 @@ static void result_screen(int rc)
         wt_arrow_action(s_scr, act, false, true, WT_ACT_X, WT_ACTION_Y, 0,
                         false, restart_cb, NULL);
     } else {
-        // The rescan the six refusals now carry, on the screen that has been
+        // The rescan the card refusals now carry, on the screen that has been
         // doing it all along under the word BACK. Naming it leaves the corner
         // free to be an exit, which is what the corner is everywhere else.
         wt_arrow_action(s_scr, tr(STR_C_TRY_AGAIN), false, true, WT_ACT_X,
@@ -849,12 +854,12 @@ static void install_cb(lv_event_t *e)
 
 // ---- 2. nothing to install -------------------------------------------------
 
-// All six refusals share one shape, so the page never rearranges itself around
-// which thing went wrong.
+// All seven refusals share one shape, so the page never rearranges itself
+// around which thing went wrong.
 //
 // Exactly one of them is not a fault. "Already running" means the owner did
 // everything right and there is nothing to do, and it wears the accent and a
-// tick where the other five wear WT_WARN and a warning triangle. Painting a
+// tick where the other six wear WT_WARN and a warning triangle. Painting a
 // non-problem in the caution colour is the thing this redesign exists to fix.
 static void nothing_to_install(int rc)
 {
@@ -866,6 +871,7 @@ static void nothing_to_install(int rc)
     case WFW_ERR_TOO_BIG:  h = tr(STR_G_FW_BIG_H);      b = tr(STR_G_FW_BIG_B);      break;
     case WFW_ERR_UNSIGNED: h = tr(STR_G_FW_UNSIGNED_H); b = tr(STR_G_FW_UNSIGNED_B); break;
     case WFW_ERR_SAME:     h = tr(STR_G_FW_SAME_H);     b = tr(STR_G_FW_SAME_B);     break;
+    case WFW_ERR_WRONG_BOARD: h = tr(STR_G_FW_WRONG_H); b = tr(STR_G_FW_WRONG_B);    break;
     default:               h = tr(STR_G_FW_BAD_H);      b = tr(STR_G_FW_BAD_B);      break;
     }
     if (rc == WFW_ERR_SAME) {
@@ -873,7 +879,7 @@ static void nothing_to_install(int rc)
         // not in SYMS and the fonts are not being rebuilt for it. A tick is
         // honest here in a way it is not on the offer -- the scan HAS run and
         // its answer is "you already have this" -- and it is the one mark on
-        // the six that is not a warning.
+        // the seven that is not a warning.
         glyph = LV_SYMBOL_OK;
         col   = wt_accent();
     } else {
@@ -882,7 +888,7 @@ static void nothing_to_install(int rc)
     }
 
     // The GLYPH keeps the warning colour and the HEADLINE takes the accent:
-    // amber is a mark colour, and these six screens are read.
+    // amber is a mark colour, and these seven screens are read.
     lv_obj_t *g = wt_lbl(s_scr, glyph, FW_TXT_X, SY(124), wt_font23(), col);
     if (rc == WFW_ERR_SAME) lv_obj_add_flag(g, WT_FLAG_ACCENT);
     lv_obj_update_layout(g);

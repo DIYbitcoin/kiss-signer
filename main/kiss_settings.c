@@ -2417,7 +2417,11 @@ static void tab_noundo(void)
     // own red wash and the hold behind the action are what say irreversible.
     const int by = SY(22) + lv_font_get_line_height(wt_font28()) + SY(8);
     {
+        // One face for both captions, and the mono one only when BOTH have
+        // every glyph in it: asking the first alone drew BEHÄLT and PAMIĘTA
+        // as empty boxes.
         const lv_font_t *cf = wt_chrome23(tr(STR_I_ERASE_H1));
+        if (cf == wt_font_mono23()) cf = wt_chrome23(tr(STR_I_ERASE_H2));
         wt_fact_t facts[2] = {
             { .cap = tr(STR_I_ERASE_H1), .val = tr(STR_I_ERASE_B1),
               .icon = WT_ICON_ERASE, .cap_font = cf },
@@ -2622,8 +2626,14 @@ void kiss_settings_open(lv_obj_t *parent)
 
     // BACK takes the bottom RIGHT corner as an ARROW rather than a pill, and
     // it is still what builds the action bar the attention chip stands on.
+#if KISS_NARROW
+    lv_obj_t *back =
+        wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, SX(592),
+                        WT_ACTION_Y, SX(160), true, settings_back_cb, NULL);
+#else
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, SX(592),
                     WT_ACTION_Y, SX(160), true, settings_back_cb, NULL);
+#endif
 
     // Opposite it, and only when there is something to say. No "all good" chip:
     // a badge that is always there is a badge nobody reads.
@@ -2669,8 +2679,20 @@ void kiss_settings_open(lv_obj_t *parent)
         // On the 3.5in the band is 480 wide and 512 scaled put the globe
         // against the attention action's arrow; 600 leaves the exit's corner
         // its 30 px and the attention its lane.
+#if KISS_NARROW
+        // ...and never past where BACK's own word begins, which a translated
+        // BACK moves left: QUAY LẠI started under TIẾNG VIỆT's last letter.
+        {
+            int right = SX(600);
+            const int bx = lv_obj_get_style_x(back, LV_PART_MAIN) - SX(24);
+            if (bx < right) right = bx;
+            lv_obj_set_pos(lang, right - lv_obj_get_width(lang),
+                           WT_ACTION_Y + (WT_ACTION_H - SY(40)) / 2);
+        }
+#else
         lv_obj_set_pos(lang, (KISS_NARROW ? SX(600) : SX(512)) - lv_obj_get_width(lang),
                        WT_ACTION_Y + (WT_ACTION_H - SY(40)) / 2);
+#endif
         lv_obj_set_ext_click_area(lang, 8);
     }
 

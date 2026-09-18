@@ -953,6 +953,24 @@ static void words_screen(void)
     // 13 on the 3.5in, centred on the "?" beside it: at the scaled 20 the chip
     // hung below the title row and ended 4 px over the subtitle it spans.
     lv_obj_set_pos(okc, SX(706) - lv_obj_get_width(okc), KISS_NARROW ? 13 : SY(30));
+#if KISS_NARROW
+    // ...and on that line the title ends before the chip does begin. The lane
+    // above was sized against the "?" alone, and a translated chip is wider
+    // than MATCHES: ZAPIŠITE OVE RIJEČI ran its cursor into "slaže se". The
+    // title re-fits to what the chip leaves, the block after it included.
+    {
+        lv_obj_t *t = wt_screen_title(s_scr);
+        if (t) {
+            lv_point_t ts;
+            lv_text_get_size(&ts, lv_label_get_text(t),
+                             lv_obj_get_style_text_font(t, 0),
+                             lv_obj_get_style_text_letter_space(t, 0), 0,
+                             LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+            const int room = SX(706) - lv_obj_get_width(okc) - SX(48) - SX(32);
+            if (ts.x > room) wt_title_fit(s_scr, room);
+        }
+    }
+#endif
 
     const int first = s_wpage * WORDS_PER_PAGE;
     int on = s_count - first;
@@ -1596,14 +1614,21 @@ static void ent_mix_help_cb(lv_event_t *e)
 // wide board spreads over 270. Scaled, both source captions ran off their
 // cards' right edge, each note lost its descenders to the card's bottom border,
 // the bar sat on the caption's baseline and the equation card crossed the band.
-// So: the preview keeps the wide board's 3:2 and its share of the width at
-// 150x100, its corner marks level with the sources' top at 86; the sources are
-// two open blocks with no box to pad, caption, bar and a two line note; and the
-// equation card closes the same column at 212..248.
+// So: the preview takes the width the source column leaves it, its corner
+// marks level with the sources' top at 86; the sources are two open blocks
+// with no box to pad, caption, bar and a two line note; and the equation card
+// closes the same column at 212..248.
+//
+// 156x99, where it was 150x100. Taller would push the readiness line under it
+// further toward the band, and its longest translations already need five
+// lines there; 156 puts the right marks 6 px short of the captions, and every
+// pixel of it is a pixel more for that line to wrap in. 99 is exact at 3/16
+// with the sensor turned a quarter, so the picture is 528x832 of the sensor
+// (camera_spike.c, orient_geometry), where the fixed 2x crop showed 200x300.
 #define ENT_CAM_X   SX(48)
 #define ENT_CAM_Y   91
-#define ENT_CAM_W   150
-#define ENT_CAM_H   100
+#define ENT_CAM_W   156
+#define ENT_CAM_H   99
 #define ENT_SRC_Y   86
 #define ENT_SRC_GAP  5
 #define ENT_CARD_H  58
@@ -1659,6 +1684,21 @@ static lv_obj_t *ent_card(int y, int cap, int note, bool full, lv_obj_t **out_ca
 #endif
     lv_obj_t *c = wt_lbl(card, tr(cap), pad_x, cap_y, wt_font14(), MUT_COL);
     lv_obj_set_style_text_letter_space(c, 1, 0);
+#if KISS_NARROW
+    // Held to the column. Flush, the caption still ran past the panel's edge
+    // in Russian -- ИСТОЧНИК 1 and its three spaces before КУДА НАВОДИТЕ -- so
+    // it gives its tracking first and then elides inside the column rather
+    // than off the glass.
+    {
+        lv_point_t cs;
+        lv_text_get_size(&cs, tr(cap), wt_font14(), 1, 0, LV_COORD_MAX,
+                         LV_TEXT_FLAG_NONE);
+        if (cs.x > ENT_COL_W) lv_obj_set_style_text_letter_space(c, 0, 0);
+        lv_obj_set_width(c, ENT_COL_W);
+        lv_obj_set_height(c, lv_font_get_line_height(wt_font14()));
+        lv_label_set_long_mode(c, LV_LABEL_LONG_DOT);
+    }
+#endif
     // No bit count here, deliberately. Both source cards used to carry "128
     // bits" in this corner and the tap screen budgets its 64 taps at 128 too,
     // with the equation below joining them 1 + 2 + 3. Three 128s and two plus
@@ -1929,25 +1969,40 @@ static void method_screen(void)
 #define DICE_CARD_H   SY(298)
 #endif
 #define DICE_LANE     (DICE_CARD_W - 36)   // 18px inset each side: 668
+#if KISS_NARROW
+// The 3.5in's keys run to 8 px of the card's inside edges with 5 px between
+// them: 63 px faces from 61, 198 px coin sides from 194. Scaled, the wide
+// board's 18 px inset and 10 px gaps came to 11 and 6, which a thumb pays for
+// in key and gets back as nothing.
+#define DICE_KEY_X      8
+#define DICE_KEY_W     63   // (420 - 2*8 - 5*5) / 6, in the card's 420 inside
+#define DICE_KEY_H     42
+#define DICE_KEY_GAP    5
+#define DICE_KEY_W2   198   // (420 - 2*8 - 8) / 2
+#define DICE_KEY_GAP2   8
+#else
+#define DICE_KEY_X    SX(18)
 #define DICE_KEY_W    SX(103)   // (668 - 5*10) / 6
-#define DICE_KEY_H     (KISS_NARROW ? 38 : SY(60))
+#define DICE_KEY_H     SY(60)
 #define DICE_KEY_GAP   SX(10)
 // Base 2 spends the four key slots a coin does not need on the two it does:
 // 18..342 and 362..686, the same lane the six keys fill. 128 taps is a long
 // session and a 324px key is the difference between it being one.
 #define DICE_KEY_W2   SX(324)   // (668 - 20) / 2
 #define DICE_KEY_GAP2  SX(20)
+#endif
 // The rows, top to bottom, with what each one costs. Every gap here was spent
 // buying the note below a readable size: it was a font14 sentence in a 44px
 // band, which is the bug this file's house rules name four times over.
 #if KISS_NARROW
 // The same rows in the 3.5in card, each packed to the face it holds rather
-// than scaled from the wide canvas's: keys 8..46, tracks 52..76, counts 77..94,
+// than scaled from the wide canvas's: keys 8..50, tracks 54..76, counts 77..94,
 // tally 96..118, and the note from 124 with a box that holds two lines, so a
-// longer locale wraps instead of landing on the hash.
+// longer locale wraps instead of landing on the hash. The keys took their 4 px
+// from the tracks, which still stand twice the fair share at 22.
 #define DICE_KEY_Y       8
-#define DICE_BAR_TOP    52
-#define DICE_BAR_H      24
+#define DICE_BAR_TOP    54
+#define DICE_BAR_H      22
 #else
 #define DICE_KEY_Y     SY(16)   // keys   16..76
 #define DICE_BAR_TOP   SY(84)   // tracks 84..128
@@ -2445,6 +2500,25 @@ static void dice_screen_build(void)
         lv_obj_set_style_opa(lv_obj_get_child(s_dice_mode[i], 0),
                              on ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
     }
+#if KISS_NARROW
+    // The pair packs against the right margin when the fixed x's would stack
+    // it: TERNINGER is five letters longer than DICE, and MØNT's tick was
+    // drawn over its last two. The title then fits to what the pair leaves,
+    // the way it fit to 436 when the pair started there.
+    {
+        lv_obj_update_layout(s_dice_mode[0]);
+        lv_obj_update_layout(s_dice_mode[1]);
+        const int w0 = lv_obj_get_width(s_dice_mode[0]);
+        const int w1 = lv_obj_get_width(s_dice_mode[1]);
+        const int gap = SX(24);
+        if (SX(500) + w0 + gap > SX(630) || SX(630) + w1 > SX(752)) {
+            const int x1 = SX(752) - w1, x0 = x1 - gap - w0;
+            lv_obj_set_x(s_dice_mode[0], x0);
+            lv_obj_set_x(s_dice_mode[1], x1);
+            wt_title_fit(s_scr, x0 - SX(48) - SX(24));
+        }
+    }
+#endif
 
     s_dice_card = wt_card(s_scr, DICE_CARD_X, DICE_CARD_Y, DICE_CARD_W, DICE_CARD_H);
 
@@ -2471,7 +2545,7 @@ static void dice_screen_build(void)
     // the one line written for the reader who is going to recompute it.
     for (int i = 0; i < faces; i++) {
         lv_obj_t *k = lv_button_create(s_dice_card);
-        lv_obj_set_pos(k, SX(18) + i * pitch, DICE_KEY_Y);
+        lv_obj_set_pos(k, DICE_KEY_X + i * pitch, DICE_KEY_Y);
         lv_obj_set_size(k, kw, DICE_KEY_H);
         lv_obj_add_event_cb(k, dice_key_cb, LV_EVENT_CLICKED, (void *)(intptr_t)(i + 1));
         lv_obj_t *lbl = lv_label_create(k);
@@ -2487,9 +2561,9 @@ static void dice_screen_build(void)
 
     // the live histogram under the keys, one exact count under each column
     dice_bars_make(s_dice_card, faces, dice_bar_w(),
-                   SX(18) + (kw - dice_bar_w()) / 2, pitch, DICE_BAR_TOP);
+                   DICE_KEY_X + (kw - dice_bar_w()) / 2, pitch, DICE_BAR_TOP);
     for (int i = 0; i < faces; i++) {
-        s_dice_cnt[i] = wt_lbl(s_dice_card, "0", SX(18) + i * pitch,
+        s_dice_cnt[i] = wt_lbl(s_dice_card, "0", DICE_KEY_X + i * pitch,
                                DICE_CNT_Y, wt_font23(), MUT_COL);
         lv_obj_set_width(s_dice_cnt[i], kw);
         lv_obj_set_style_text_align(s_dice_cnt[i], LV_TEXT_ALIGN_CENTER, 0);
@@ -2500,8 +2574,10 @@ static void dice_screen_build(void)
     // the verdict chip (hidden until the floor) and the "?" that explains it
     s_dice_chip = wt_state_chip(s_dice_card, "", WARN_COL);
     lv_obj_add_flag(s_dice_chip, LV_OBJ_FLAG_HIDDEN);
-    wt_help_chip(s_dice_card, DICE_CARD_W - SX(44), DICE_TALLY_Y - 2, MUT_COL,
-                 dice_help_cb, NULL);
+    // Less the grow: the ring grows about the wide chip's centre, and its right
+    // edge has to keep the chip's own margin from the card's, not half of it.
+    wt_help_chip(s_dice_card, DICE_CARD_W - SX(44) - WT_HELP_CHIP_GROW,
+                 DICE_TALLY_Y - 2, MUT_COL, dice_help_cb, NULL);
 
     // wt_note, not wt_lbl at font14. This is the sentence that tells a doubter
     // the number below is theirs to check, and it was set to the smallest face
@@ -2670,7 +2746,8 @@ static void entropy_screen(void)
     lv_obj_t *eqc = wt_card(s_scr, ENT_COL_X,
                             ENT_SRC_Y + 2 * ENT_CARD_H + 2 * ENT_SRC_GAP,
                             ENT_COL_W, ENT_EQ_H);
-    wt_help_chip(eqc, ENT_COL_W - SX(42), SY(13), MUT_COL, ent_mix_help_cb, NULL);
+    wt_help_chip(eqc, ENT_COL_W - SX(42) - WT_HELP_CHIP_GROW, SY(13), MUT_COL,
+                 ent_mix_help_cb, NULL);   // less the grow: see the dice card's
 
     // A flex column parent, because wt_diagram_row takes its y from the layout.
     // Width stops short of the chip so a long translated result chip cannot
@@ -2766,11 +2843,26 @@ static void entropy_screen(void)
 }
 
 // ---- restore: letter keyboard + wordlist autocomplete ----
+#if KISS_NARROW
+// CANCEL throws every typed word away with no second question, and as a full
+// width bottom row it sat one 6 px gap under all eight keys a thumb types on
+// above it, backspace included. On the 3.5in it takes the left quarter of its
+// row, under z and x -- the two rarest first letters in the list, x starting
+// none -- and the rest of the row is a hidden, disabled key: dead glass under
+// c to backspace, where a slipped press does nothing at all.
+#define RESTORE_GAP "gap"
+#define RESTORE_ID_CANCEL 27
+#define RESTORE_ID_GAP    28
+#endif
 static const char *RESTORE_MAP[] = {
     "q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "\n",
     "a", "s", "d", "f", "g", "h", "j", "k", "l", "\n",
     "z", "x", "c", "v", "b", "n", "m", LV_SYMBOL_BACKSPACE, "\n",
+#if KISS_NARROW
+    "CANCEL", RESTORE_GAP, "",
+#else
     "CANCEL", "",
+#endif
 };
 
 static void restore_refresh(void)
@@ -2864,7 +2956,15 @@ static void restore_screen(void)
               s_verify ? tr(STR_W_VERIFY_S)
                        : tr(STR_W_RESTORE_S));
 
+#if KISS_NARROW
+    // The 3.5in's keys take the height, so the word and its suggestions close
+    // up above them: the word on the content line under the subtitle, the
+    // suggestions 4 px under it at 34 tall, and the keyboard from 128. Scaled,
+    // this block ran to 140 and left four rows of 35 px keys under it.
+    s_word_lbl = mk_lbl("", SX(48), SY(96), wt_font28(), INK_COL);
+#else
     s_word_lbl = mk_lbl("", SX(48), SY(108), wt_font28(), INK_COL);
+#endif
 
     // Bare words, the way every phone keyboard offers its suggestions. No
     // mark, so the word label keeps child index 0 for the accept callback
@@ -2880,20 +2980,36 @@ static void restore_screen(void)
                                   restore_accept_cb, NULL);
         lv_obj_set_style_text_font(lv_obj_get_child(s_sug[i], 0),
                                    wt_font28(), 0);
-        lv_obj_set_height(s_sug[i], SY(54));
+        lv_obj_set_height(s_sug[i], KISS_NARROW ? 34 : SY(54));
         lv_obj_set_ext_click_area(s_sug[i], 14);
-        lv_obj_set_pos(s_sug[i], SX(48) + i * SX(250), SY(156));
+        lv_obj_set_pos(s_sug[i], SX(48) + i * SX(250), KISS_NARROW ? 90 : SY(156));
         lv_obj_add_flag(s_sug[i], LV_OBJ_FLAG_HIDDEN);
     }
 
     lv_obj_t *kb = lv_buttonmatrix_create(s_scr);
     lv_buttonmatrix_set_map(kb, RESTORE_MAP);
+#if KISS_NARROW
+    // 128 to the glass's bottom edge, with 2 px of pad and 5 px gaps: rows of
+    // 43 px from 35, and 43 px keys across the top row from 42.
+    lv_buttonmatrix_set_button_width(kb, RESTORE_ID_CANCEL, 5);
+    lv_buttonmatrix_set_button_width(kb, RESTORE_ID_GAP, 15);
+    lv_buttonmatrix_set_button_ctrl(kb, RESTORE_ID_GAP,
+                                    LV_BUTTONMATRIX_CTRL_HIDDEN |
+                                    LV_BUTTONMATRIX_CTRL_DISABLED);
+    lv_obj_set_size(kb, SCREEN_W, SCREEN_H - 128);
+    lv_obj_set_pos(kb, 0, 128);
+    lv_obj_set_style_bg_color(kb, BG_COL, 0);
+    lv_obj_set_style_border_width(kb, 0, 0);
+    lv_obj_set_style_pad_all(kb, 2, 0);
+    lv_obj_set_style_pad_gap(kb, 5, 0);
+#else
     lv_obj_set_size(kb, SCREEN_W, SY(250));
     lv_obj_set_pos(kb, 0, SY(224));
     lv_obj_set_style_bg_color(kb, BG_COL, 0);
     lv_obj_set_style_border_width(kb, 0, 0);
     lv_obj_set_style_pad_all(kb, SX(6), 0);
     lv_obj_set_style_pad_gap(kb, 6, 0);
+#endif
     lv_obj_set_style_bg_color(kb, KEY_COL, LV_PART_ITEMS);
     lv_obj_set_style_text_color(kb, INK_COL, LV_PART_ITEMS);
     lv_obj_set_style_text_font(kb, wt_font28(), LV_PART_ITEMS);
@@ -3001,8 +3117,8 @@ static void cards_intro_screen(void)
     // where the 11 come from or why the device gets the 1; that is what opens
     // from here.
     // Centred on the equation's line on the 3.5in rather than 8 px from the top.
-    wt_help_chip(card, SX(704) - SX(44), KISS_NARROW ? 12 : SY(12), MUT_COL,
-                 cards_help_cb, NULL);
+    wt_help_chip(card, SX(704) - SX(44) - WT_HELP_CHIP_GROW, KISS_NARROW ? 12 : SY(12),
+                 MUT_COL, cards_help_cb, NULL);   // less the grow: see the dice card's
 
     // How the draw is made, and the one way it stops being a draw -- as rows
     // under the equation, the same shape every explainer on the device wears
@@ -3459,7 +3575,8 @@ static void count_screen(void)
         // branch nothing takes.
         lv_obj_t *hc = wt_card(s_scr, WT_CHOICE_X, SY(306), WT_CHOICE_W, SY(76));
         wt_note(hc, tr(STR_W_SEED_HELP), SX(16), SY(22), WT_CHOICE_W - SX(32) - SX(34), SY(34));
-        wt_help_chip(hc, WT_CHOICE_W - SX(44), SY(23), MUT_COL, whatseed_count_cb, NULL);
+        wt_help_chip(hc, WT_CHOICE_W - SX(44) - WT_HELP_CHIP_GROW, SY(23), MUT_COL,
+                     whatseed_count_cb, NULL);   // less the grow: see the dice card's
         lv_obj_add_flag(hc, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_add_event_cb(hc, whatseed_count_cb, LV_EVENT_CLICKED, NULL);
     }
@@ -3710,8 +3827,12 @@ static void choose_screen(void)
         // line and the mark with 11 px above and below.
         lv_obj_t *hc = wt_card(s_scr, WT_CHOICE_X, WT_CHOICE_Y(1) + WT_CHOICE_H + 8,
                                WT_CHOICE_W, 42);
-        wt_note(hc, tr(STR_W_SEED_HELP), SX(16), 12, WT_CHOICE_W - SX(32) - SX(34), SY(34));
-        wt_help_chip(hc, WT_CHOICE_W - SX(44), 11, MUT_COL, whatseed_cb, NULL);
+        // The note stops 4 px short of the ring, which is 8 px wider than the
+        // lane the wide chip leaves it.
+        wt_note(hc, tr(STR_W_SEED_HELP), SX(16), 12,
+                WT_CHOICE_W - SX(32) - SX(34) - 2 * WT_HELP_CHIP_GROW, SY(34));
+        wt_help_chip(hc, WT_CHOICE_W - SX(44) - WT_HELP_CHIP_GROW, 11, MUT_COL,
+                     whatseed_cb, NULL);   // less the grow: see the dice card's
 #else
         lv_obj_t *hc = wt_card(s_scr, WT_CHOICE_X, SY(306), WT_CHOICE_W, SY(76));
         wt_note(hc, tr(STR_W_SEED_HELP), SX(16), SY(22), WT_CHOICE_W - SX(32) - SX(34), SY(34));
@@ -4111,12 +4232,35 @@ static void sd_problem_screen(int rc)
 
     // TRY AGAIN at 48, the recovery path in the middle, the way out in the
     // corner -- the same three-up lane split the boxes used.
-    wt_arrow_action(s_scr, tr(STR_C_TRY_AGAIN), false, true, WT_ACT_X,
-                    WT_ACTION_Y, SX(240), false, sd_retry_cb, NULL);
-    wt_arrow_action(s_scr, tr(STR_W_RESTORE_FROM_WORDS), false, false, SX(310),
-                    WT_ACTION_Y, SX(280), false, sd_recover_cb, NULL);
-    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_EXIT_X,
-                    WT_ACTION_Y, SX(140), true, sd_problem_back_cb, NULL);
+    lv_obj_t *retry =
+        wt_arrow_action(s_scr, tr(STR_C_TRY_AGAIN), false, true, WT_ACT_X,
+                        WT_ACTION_Y, SX(240), false, sd_retry_cb, NULL);
+    lv_obj_t *mid =
+        wt_arrow_action(s_scr, tr(STR_W_RESTORE_FROM_WORDS), false, false,
+                        SX(310), WT_ACTION_Y, SX(280), false, sd_recover_cb,
+                        NULL);
+    lv_obj_t *back =
+        wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_EXIT_X,
+                        WT_ACTION_Y, SX(140), true, sd_problem_back_cb, NULL);
+#if !KISS_NARROW
+    (void)retry; (void)mid; (void)back;
+#else
+    // The middle one is CENTRED between its neighbours where its fixed x would
+    // meet either of them. Three content-sized words on a 424 px band have the
+    // room, but not at the wide canvas's x: POKUŠAJ PONOVNO ran into OBNOVI.
+    // Measured from the words, not the boxes -- the corners' boxes are padded
+    // out to the panel edges.
+    {
+        lv_obj_update_layout(s_scr);
+        const int l = lv_obj_get_x(retry) + lv_obj_get_width(retry) -
+                      lv_obj_get_style_pad_right(retry, LV_PART_MAIN);
+        const int r = lv_obj_get_x(back) +
+                      lv_obj_get_style_pad_left(back, LV_PART_MAIN);
+        const int mx = lv_obj_get_x(mid), mw = lv_obj_get_width(mid);
+        if (mx < l + SX(20) || mx + mw > r - SX(20))
+            lv_obj_set_x(mid, l + (r - l - mw) / 2);
+    }
+#endif
 }
 
 void kiss_setup_open_load(lv_obj_t *parent, void (*done_cb)(void))

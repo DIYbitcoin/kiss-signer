@@ -11,6 +11,12 @@
 # So sim/overlap_ceilings.txt records what each locale has today and the
 # runner refuses any number that goes UP. The debt is visible, it cannot grow,
 # and every commit that cuts copy gets asked to lower the file.
+#
+# The 3.5in is a second job against its own file, sim/overlap_ceilings_ws35.txt,
+# because a locale's count on a canvas three fifths as wide is a different
+# number and the runner picks the file from KISS_BOARD. Its own job rather than
+# a matrix leg, so the two boards' logs are never one scroll a person has to
+# split by eye.
 name: locale overlap
 
 on:
@@ -50,5 +56,41 @@ jobs:
           OVERLAPCHECK_STRICT: '1'
           OVERLAPCHECK_LANGS: >-
             en cs-CZ da-DK de es-ES es-MX fr hr-HR hu-HU it ja ko nb-NO nl
+            pl pt-BR pt-PT ru sv-SE tr vi zh-CN
+        run: bash sim/run_overlapcheck.sh
+
+  overlap-narrow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      KISS_BOARD: ws35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: generated tables match the JSONs
+        run: |
+          python3 tools/gen_i18n.py
+          git diff --exit-code -- main/i18n_keys.h main/i18n_tables.c
+
+      - uses: ./.github/actions/fetch-lvgl
+
+      # The twenty one translations and not English. On this board English
+      # still has findings of its own, and it has no ceiling by design: the
+      # push lane (desktop-tests.yml, desktop-narrow) reports it on every
+      # commit, advisory until its count reaches zero. Listed here it would
+      # turn this nightly red every night for the reason that lane already
+      # prints, and a gate that is red for a reason nobody is acting on is a
+      # gate nobody reads. The day English reaches zero on the 3.5in it joins
+      # this list, and the push lane's step stops being advisory.
+      #
+      # And no OVERLAPCHECK_STRICT, for the same reason. It changes only the
+      # walk's own exit code, and the runner's accent sweep walks in ENGLISH:
+      # with English's findings it exits non-zero with no ROLE finding, which
+      # the runner rightly reads as a dead walk. The ceilings, the dead walk
+      # check, the heap and the contrast verdicts all run without it.
+      - name: overlap gate, 3.5in, twenty one translations
+        env:
+          OVERLAPCHECK_LANGS: >-
+            cs-CZ da-DK de es-ES es-MX fr hr-HR hu-HU it ja ko nb-NO nl
             pl pt-BR pt-PT ru sv-SE tr vi zh-CN
         run: bash sim/run_overlapcheck.sh

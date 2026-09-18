@@ -126,6 +126,8 @@ static int s_coins_chip_x = 24;   // measured off the caption; see verify_screen
 // so a caption too long would have come back from an abandoned hold cut mid
 // codepoint. The desktop build never said a word.
 static char s_graph_cap_rest[160];
+// The graph caption reserved only SIGNED, not ALL n COINS SIGNED (3.5in only).
+static bool s_cap_short;
 // DETAILS and BACK, NULL terminated, so the signing state can stand them down
 // without knowing what else is on the row.
 static lv_obj_t *s_inert[3];
@@ -787,9 +789,9 @@ static void sig_fp_open_cb(lv_event_t *e)
 static int s_sig_val_x, s_sig_val_y;
 static const lv_font_t *s_sig_val_f;
 
-// round_chip's diameter. Not exported by the kit, and the pair has to be
-// measured before it is drawn so a right aligned caller knows where to start.
-#define SIG_CHIP_D SX(30)
+// round_chip's diameter. The pair has to be measured before it is drawn so a
+// right aligned caller knows where to start.
+#define SIG_CHIP_D WT_HELP_CHIP_D
 
 // The signature code and the "?" that opens its panel, as one pair.
 //
@@ -824,7 +826,10 @@ static void sig_value_pair(lv_obj_t *par, int x, int y, bool from_qr,
     }
     // Centred on the value's line rather than sharing its top: the ring is
     // 30px and a mono21 line is 26, so one y for both sat the chip a rung low.
-    wt_help_chip(par, cx, y + (lv_font_get_line_height(f) - SIG_CHIP_D) / 2,
+    // The ring's corner is placed, so the kit's grow is added back and the
+    // pair measures what it draws (see WT_HELP_CHIP_GROW).
+    wt_help_chip(par, cx + WT_HELP_CHIP_GROW,
+                 y + WT_HELP_CHIP_GROW + (lv_font_get_line_height(f) - SIG_CHIP_D) / 2,
                  wt_accent(), sig_fp_open_cb, from_qr ? (void *)1 : NULL);
 }
 
@@ -875,6 +880,53 @@ static void done_summary(int y)
         const int lane = (i ? SX(704) : cells[1].x) - cells[i].x - SX(20);
         if (vs.x > lane) vf = wt_font28();
     }
+    // The CAPTIONS get the same treatment, because on this card they are the
+    // wider half: IL DESTINATARIO RICEVE ran under the scissors and COMMISSIONE
+    // DI RETE off the card's edge. Each lane ends at the next column's mark or
+    // at the card's inner edge. Both captions give up their tracking together
+    // when either needs it; one that still does not fit wraps, and the pair
+    // starts higher and the amounts drop a rung so the rule under them stays.
+    int cap_ls = 2, cap_y = SY(18), val_y = SY(44);
+    int cap_lane[2];
+    bool cap_wrap[2] = { false, false };
+    {
+        int lines = 1;
+        for (int i = 0; i < 2; i++)
+            cap_lane[i] = (i ? SX(704) - SX(20) : cells[1].x - SX(12))
+                          - (cells[i].x + SX(30));
+        for (int pass = 0; pass < 2; pass++) {
+            bool over = false;
+            for (int i = 0; i < 2; i++) {
+                const char *cp = tr(cells[i].str);
+                lv_point_t cs;
+                lv_text_get_size(&cs, cp, wt_chrome18(cp), cap_ls, 0,
+                                 LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+                if (cs.x > cap_lane[i]) over = true;
+            }
+            if (!over) break;
+            if (pass == 0) cap_ls = 0;
+        }
+        for (int i = 0; i < 2; i++) {
+            const char *cp = tr(cells[i].str);
+            const lv_font_t *cf = wt_chrome18(cp);
+            lv_point_t cs;
+            lv_text_get_size(&cs, cp, cf, cap_ls, 0, cap_lane[i],
+                             LV_TEXT_FLAG_NONE);
+            const int n = cs.y / lv_font_get_line_height(cf);
+            if (n > 1) {
+                cap_wrap[i] = true;
+                if (n > lines) lines = n;
+                const int bottom = SY(6) + cs.y;
+                if (bottom > val_y) val_y = bottom;
+            }
+        }
+        if (lines > 1) {
+            cap_y = SY(6);
+            // The amounts' line box has to end above the rule at SY(104).
+            if (val_y + lv_font_get_line_height(vf) > SY(104) - 2)
+                vf = wt_font28();
+        }
+    }
 #endif
     for (int i = 0; i < 2; i++) {
         char a[40], b[64];
@@ -887,16 +939,34 @@ static void done_summary(int y)
         // set rungs below the words it belongs to, and these two sat at font14
         // beside a caption that has moved to 17 and an amount that has moved
         // to 34. Nothing on either exit screen reads below the 17px rung now.
-        lv_obj_t *ic = wt_lbl(c, cells[i].icon, cells[i].x, SY(20), wt_font23(),
+        lv_obj_t *ic = wt_lbl(c, cells[i].icon, cells[i].x,
+#if KISS_NARROW
+                              cap_y + SY(20) - SY(18),
+#else
+                              SY(20),
+#endif
+                              wt_font23(),
                               wt_accent());
         lv_obj_add_flag(ic, WT_FLAG_ACCENT);
         const char *cp = tr(cells[i].str);
+#if KISS_NARROW
+        lv_obj_t *cl = wt_lbl(c, cp, cells[i].x + SX(30), cap_y, wt_chrome18(cp),
+                              MUT_COL);
+        lv_obj_set_style_text_letter_space(cl, cap_ls, 0);
+        if (cap_wrap[i]) {
+            lv_obj_set_width(cl, cap_lane[i]);
+            lv_label_set_long_mode(cl, LV_LABEL_LONG_WRAP);
+        }
+        const int vy = val_y;
+#else
         lv_obj_t *cl = wt_lbl(c, cp, cells[i].x + SX(30), SY(18), wt_chrome18(cp),
                               MUT_COL);
         lv_obj_set_style_text_letter_space(cl, 2, 0);
+        const int vy = SY(44);
+#endif
         wt_fmt_amount(cells[i].sats, a, sizeof a);
         snprintf(b, sizeof b, "%s %s", a, wt_denom_unit());
-        lv_obj_t *v = wt_lbl(c, b, cells[i].x, SY(44), vf, INK_COL);
+        lv_obj_t *v = wt_lbl(c, b, cells[i].x, vy, vf, INK_COL);
         wt_denom_bind(v);
     }
 
@@ -1051,7 +1121,10 @@ static void signed_title_row(void)
 // A pair of captions on the baseline says "and these are its details", which
 // is what these are.
 #define DONE_TAIL_CAP_Y  SY(300)
-#define DONE_TAIL_VAL_Y  SY(326)
+// 5 px lower on the 3.5in: the "?" ring beside the code is 26 px on a 14 px
+// face's 18 px line, and centred on it at the scaled 217 its top met the
+// caption's capitals.
+#define DONE_TAIL_VAL_Y  (KISS_NARROW ? 222 : SY(326))
 
 static void done_tail(const char *outname)
 {
@@ -1416,7 +1489,13 @@ static void held_screen(lv_obj_t *parent, const char *why, bool was_qr)
     lv_obj_get_coords(other, &oa);
     if (oa.x2 + 24 > qa.x1) {
         int nx = qa.x1 - 24 - lv_obj_get_width(other);
-        int floor_x = WT_ACT_X + lv_obj_get_width(again) + 24;
+        // Off TRY AGAIN's drawn right edge, not WT_ACT_X plus its box width:
+        // on the 3.5in a band action's box starts at the panel edge to widen
+        // its target, so the width counted that margin twice and held this
+        // control 28 px right of where the gap ends -- onto DISCARD's arrow.
+        lv_area_t ga;
+        lv_obj_get_coords(again, &ga);
+        int floor_x = ga.x2 + 1 + 24;
         if (nx < floor_x) nx = floor_x;
         lv_obj_set_x(other, nx);
     }
@@ -1739,6 +1818,19 @@ static lv_obj_t *mo_lbl(const char *buf, int x, int y, const lv_font_t *f,
     lv_obj_set_style_text_letter_space(l, ls, 0);
     lv_obj_set_pos(l, x, y);
     return l;
+}
+
+// The slide's label after the gesture is spent: SIGNING, then SIGNED. The kit
+// picked its face for the words it shows while being dragged, so a later word
+// the mono set cannot draw (SIGNÉE) takes the sans face the kit would have
+// used. Nothing is under the finger by now, so the swap cannot move a track.
+static void sign_lbl_say(const char *txt)
+{
+    if (!s_sign_lbl) return;
+    if (lv_obj_get_style_text_font(s_sign_lbl, LV_PART_MAIN) == wt_font_mono23() &&
+        wt_chrome23(txt) != wt_font_mono23())
+        lv_obj_set_style_text_font(s_sign_lbl, wt_font23(), 0);
+    lv_label_set_text(s_sign_lbl, txt);
 }
 
 // mono14 where the words fit the mono set, and the guarded sans rung where
@@ -2150,7 +2242,7 @@ static void do_sign_cb(lv_timer_t *t)
         // has no plural machinery and the rest of it dodges the problem the
         // same way, by parenthesising the count or not printing one.
         static char done_buf[64];
-        if (s_sum.n_in == 1) {
+        if (s_sum.n_in == 1 || s_cap_short) {
             snprintf(done_buf, sizeof done_buf, "%s", tr(STR_S_SIGNED_T));
         } else {
             snprintf(done_buf, sizeof done_buf, tr(STR_S_ALL_SIGNED_FMT),
@@ -2160,7 +2252,7 @@ static void do_sign_cb(lv_timer_t *t)
         lv_obj_set_style_text_color(s_graph_cap, wt_accent(), 0);
         lv_obj_add_flag(s_graph_cap, WT_FLAG_ACCENT);
     }
-    if (s_sign_lbl) lv_label_set_text(s_sign_lbl, tr(STR_S_SIGNED_T));
+    sign_lbl_say(tr(STR_S_SIGNED_T));
     s_signed_len = sw;
     lv_timer_create(finish_sign_cb, REVEAL_MS, NULL);
 }
@@ -2263,7 +2355,7 @@ static void slide_complete(void)
     // holding was the bar disappearing -- and the answer to that is now the
     // LOCK, which arrives on the thing the finger moved and stays there.
     if (s_sign_lbl) {
-        lv_label_set_text(s_sign_lbl, tr(STR_S_SIGNING));
+        sign_lbl_say(tr(STR_S_SIGNING));
         // The arrow promised travel and the travel is spent: SIGNING is a
         // state, not a direction, so the word stands alone.
         lv_obj_t *par = lv_obj_get_parent(s_sign_lbl);
@@ -3074,6 +3166,23 @@ static void cautions_screen(void)
         // clipped away to nothing.
         lv_obj_set_height(ctl, SG_BAR_H);
         lv_obj_align(ctl, LV_ALIGN_RIGHT_MID, -SG_PAD, 0);
+#if KISS_NARROW
+        // The sentence ends where the control begins, measured: the fixed
+        // lane was sized for I UNDERSTAND, and JEG FORSTÅR is wider, so the
+        // caution ran under its tick. One still too long for its lane takes
+        // the row's two lines rather than the control's pixels.
+        lv_obj_update_layout(ctl);
+        lv_obj_update_layout(t);
+        const int t_lane = lv_obj_get_x(ctl) - SX(12) - SX(52);
+        if (lv_obj_get_width(t) > t_lane) {
+            lv_obj_set_width(t, t_lane);
+            lv_label_set_long_mode(t, LV_LABEL_LONG_WRAP);
+            lv_obj_update_layout(t);
+            int ty = (SG_ROW_H - lv_obj_get_height(t)) / 2;
+            if (ty < 0) ty = 0;
+            lv_obj_set_y(t, ty);
+        }
+#endif
         if (i) sg_rule(SX(24), y - 2, SX(752), 1);
         y += SG_ROW_H + (KISS_NARROW ? 3 : 4);
     }
@@ -3194,6 +3303,16 @@ static void verify_screen(lv_obj_t *parent)
             lv_obj_update_layout(w);
             int ww = lv_obj_get_width(w);
             lv_obj_set_pos(w, fr - ww, KISS_NARROW ? SG_HDR_Y(w) : SY(33));
+#if KISS_NARROW
+            // This badge is never dropped, so on a line too short for both
+            // the TITLE gives way, a rung at a time: ПОДПИСАТЬ and its cursor
+            // ran into УЖЕ ПОДПИСАНО. fx is re-measured for the chain after it.
+            if (tl && fx > fr - ww) {
+                wt_title_fit(s_scr, fr - ww - SX(30) - SX(48));
+                lv_obj_update_layout(tl);
+                fx = SX(48) + lv_obj_get_width(tl) + SX(30);
+            }
+#endif
             fr -= ww + 12;
         }
         // THE NETWORK, and only when it is not mainnet. It was half of an
@@ -3592,7 +3711,15 @@ static void verify_screen(lv_obj_t *parent)
         lv_obj_set_size(vr, SX(4), rh < SY(40) ? SY(40) : rh);
         lv_obj_set_style_bg_color(vr, STOP_COL, 0);
         lv_obj_set_style_bg_opa(vr, LV_OPA_COVER, 0);
-        int by = stop_y + (rh < SY(40) ? SY(40) : rh) + (KISS_NARROW ? 8 : SY(20));
+#if KISS_NARROW
+        // A verdict that wraps costs the body its last line: FALSCHE KOPPLUNG
+        // ran 10 px under the floor. The two gaps under it close to 4 then,
+        // which is exactly that line; a one line verdict keeps 8 and 10.
+        const bool stop_tight = rh > lv_font_get_line_height(wt_font28());
+        int by = stop_y + (rh < SY(40) ? SY(40) : rh) + (stop_tight ? 4 : 8);
+#else
+        int by = stop_y + (rh < SY(40) ? SY(40) : rh) + SY(20);
+#endif
 
         // The one refusal an ordinary owner trips, and the one this screen can
         // answer without inventing anything: both halves of the failed compare
@@ -3642,7 +3769,11 @@ static void verify_screen(lv_obj_t *parent)
                 body = tr(STR_S_STOP_FP_B);
             }
             lv_obj_update_layout(card);
-            by += lv_obj_get_height(card) + (KISS_NARROW ? 10 : 20);
+#if KISS_NARROW
+            by += lv_obj_get_height(card) + (stop_tight ? 4 : 10);
+#else
+            by += lv_obj_get_height(card) + 20;
+#endif
         }
         if (body) {
             wt_body_para(s_scr, body, by);
@@ -4204,6 +4335,8 @@ static void verify_screen(lv_obj_t *parent)
         // amount of looking at the English screen would have.
         lv_obj_update_layout(lc);
         int capw = lv_obj_get_width(lc);
+        int capw_short = capw;         // the same, without ALL n COINS SIGNED
+        s_cap_short = false;
         {
             char alt[64];
             const char *cands[3];
@@ -4216,6 +4349,7 @@ static void verify_screen(lv_obj_t *parent)
                 lv_text_get_size(&p, cands[c], wt_font23(), 2, 0,
                                  LV_COORD_MAX, LV_TEXT_FLAG_NONE);
                 if (p.x > capw) capw = p.x;
+                if (c < 2 && p.x > capw_short) capw_short = p.x;
             }
         }
         // ---- the input total, at the rung the outputs are read at ----------
@@ -4322,6 +4456,21 @@ static void verify_screen(lv_obj_t *parent)
         // capw is the WIDEST the left caption will ever be -- it becomes
         // SIGNING and then ALL n COINS SIGNED -- so the centre does not move
         // when the word under the finger changes.
+#if KISS_NARROW
+        // ...except where reserving ALL n COINS SIGNED leaves the figure no
+        // room even bare: in Russian the total landed on OUTPUTS. The caption
+        // then says SIGNED alone when the signature lands -- every strand is
+        // in the accent by then and the count is on the line before it -- and
+        // only that shorter word is reserved.
+        {
+            const int bare = tot_w - tot_unit_w - tot_cap_w;
+            if (tot_w && SX(24) + capw + 12 + bare > out_x - 12 &&
+                SX(24) + capw_short + 12 + bare <= out_x - 12) {
+                capw = capw_short;
+                s_cap_short = true;
+            }
+        }
+#endif
         // SX(24) on the 3.5in, where the caption actually starts: the bare 24
         // spent 10 px of a middle slot that has none to spare.
         const int mid_l = (KISS_NARROW ? SX(24) : 24) + capw + 12, mid_r = out_x - 12;
@@ -4871,7 +5020,8 @@ static lv_obj_t *dtab_meta(lv_obj_t *row, const char *icon, const char *txt,
     lv_obj_set_style_text_color(ic, col, 0);
     lv_obj_t *l = lv_label_create(ln);
     lv_label_set_text(l, txt);
-    lv_obj_set_style_text_font(l, wt_font_mono18(), 0);
+    // Guarded: a silent payment input's line carries the translated badge.
+    lv_obj_set_style_text_font(l, wt_chrome18(txt), 0);
     lv_obj_set_style_text_color(l, col, 0);
     return ln;
 }
@@ -5045,8 +5195,26 @@ static void dtab_flag_row(lv_obj_t *p, int *y, int pitch, const char *icon,
     lv_obj_set_width(h, SX(728) - SX(40) - SX(40));
     lv_obj_set_height(h, lv_font_get_line_height(wt_font23()));
     lv_label_set_long_mode(h, LV_LABEL_LONG_DOT);
+#if KISS_NARROW
+    // Four 26 px rings stacked at a pitch of 28 on the 3.5in, centred on their
+    // lines. A ring's usual 12 px of reach would lie over the ring below it,
+    // and LVGL hands a shared point to the object made last, so the lower half
+    // of every "?" opened the next row's card. Each ring reaches half the gap
+    // and no further, and the WHOLE LINE takes the tap instead: the words
+    // reach half the pitch up and down, so the four lines tile the column
+    // with nothing shared and a thumb has the row, not a 26 px circle, to hit.
+    const int flh = lv_font_get_line_height(wt_font23());
+    lv_obj_add_flag(h, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_ext_click_area(h, (pitch - flh) / 2);
+    lv_obj_add_event_cb(h, det_term_cb, LV_EVENT_CLICKED, (void *)(uintptr_t)term);
+    lv_obj_t *chip = wt_help_chip(p, SX(24) + SX(728) - SX(26),
+                                  *y + WT_HELP_CHIP_GROW + (flh - WT_HELP_CHIP_D) / 2,
+                                  MUT_COL, det_term_cb, (void *)(uintptr_t)term);
+    lv_obj_set_ext_click_area(chip, (pitch - WT_HELP_CHIP_D) / 2);
+#else
     wt_help_chip(p, SX(24) + SX(728) - SX(26), *y - 2, MUT_COL, det_term_cb,
                  (void *)(uintptr_t)term);
+#endif
     *y += pitch;
 }
 
@@ -5058,16 +5226,20 @@ static void dtab_tx(lv_obj_t *p)
     char buf[256], gt[96];
     int ry = DT_TOP;
     lv_obj_t *sec = wt_section(p, tr(STR_S_D_TXID), SX(24), ry);
-    wt_help_chip(p, SX(24) + SX(728) - SX(26), ry - 2, MUT_COL, det_term_cb,
-                 (void *)(uintptr_t)DT_TXID);
 #if KISS_NARROW
+    // The ring's top on the heading's, not 4 px above it: grown about the
+    // scaled chip it rose into the tab strip's lane.
+    wt_help_chip(p, SX(24) + SX(728) - SX(26), ry - 2 + WT_HELP_CHIP_GROW, MUT_COL,
+                 det_term_cb, (void *)(uintptr_t)DT_TXID);
     // Under the heading's MEASURED box on the 3.5in. The scaled 16 is less
     // than the heading's own 17, so TRANSACTION ID sat a pixel into the id.
-    // The 3.5in's gaps in this column are 1 px of box: each face's own leading
-    // already leaves 9 to 11 px between the blocks' glyphs, and every pixel
-    // saved here goes to the pitch of the four "?" rows below.
-    ry += det_h(sec) + 1;
+    // The 3.5in's gaps in this column are no box at all: each face's own
+    // leading already leaves 8 to 10 px between the blocks' glyphs, and every
+    // pixel saved here goes to the pitch of the four "?" rows below.
+    ry += det_h(sec);
 #else
+    wt_help_chip(p, SX(24) + SX(728) - SX(26), ry - 2, MUT_COL, det_term_cb,
+                 (void *)(uintptr_t)DT_TXID);
     (void)sec;
     ry += SY(24);
 #endif
@@ -5075,7 +5247,7 @@ static void dtab_tx(lv_obj_t *p)
     lv_obj_t *tx = wt_lbl(p, gt, SX(24), ry, wt_font_mono18(), INK_COL);
     lv_obj_set_width(tx, SX(728) - SX(34));
     lv_label_set_long_mode(tx, LV_LABEL_LONG_WRAP);
-    ry += det_h(tx) + (KISS_NARROW ? 1 : 8);
+    ry += det_h(tx) + (KISS_NARROW ? 0 : 8);
 
     // The same total in the other unit, at 28 and in ink: it is the number a
     // holder reads off the glass and compares against the coordinator, which
@@ -5084,7 +5256,7 @@ static void dtab_tx(lv_obj_t *p)
     snprintf(buf, sizeof buf, "= %s %s", gt, wt_denom_unit_alt());
     lv_obj_t *bt = wt_lbl(p, buf, SX(24), ry, wt_font28(), INK_COL);
     wt_denom_bind(bt);
-    ry += det_h(bt) + (KISS_NARROW ? 3 : 10);
+    ry += det_h(bt) + (KISS_NARROW ? 0 : 10);
 
     // The flag rows: each head is the whole fact (wt_split_colon reads the
     // head:tail shape the locales already write; the tail lives on the "?"
@@ -5114,11 +5286,14 @@ static void dtab_tx(lv_obj_t *p)
 #if KISS_NARROW
     // The four rows share what is left above the floor. At the scaled pitch
     // the last one and its "?" ran 12 px past it; the pitch gives before the
-    // type does, and never below 5 px between one "?" ring and the next.
+    // type does, and never below 2 px between one "?" ring and the next --
+    // the rings are centred on their lines, so the last one's foot is 4 px
+    // under its words and that is what has to clear the floor.
     {
-        const int fit = (WT_CONTENT_BOTTOM - 2 - SY(3) - ry - flh) / 3;
+        const int foot = (WT_HELP_CHIP_D - flh) / 2;
+        const int fit = (WT_CONTENT_BOTTOM - ry - flh - foot) / 3;
         if (fit < pitch) pitch = fit;
-        if (pitch < SX(30) + 5) pitch = SX(30) + 5;
+        if (pitch < WT_HELP_CHIP_D + 2) pitch = WT_HELP_CHIP_D + 2;
     }
 #endif
     dtab_flag_row(p, &ry, pitch, LV_SYMBOL_CUT, fee_line, DT_FEE);
@@ -5206,11 +5381,37 @@ static void qr_tick(lv_timer_t *t)
 // (re)create the out-encoder for the current mode. Easy-scan halves the data
 // per frame (sparser QR = bigger modules at the same 288px) and the loop slows
 // below — for phone cameras that never lock onto the default loop.
+//
+// THE 3.5in CUTS UR FRAMES SMALLER. Its card holds a 206 px code, and a
+// module is drawn at a whole number of pixels, so a frame's QR version IS its
+// dot size: 49 dots (version 8, 152 bytes) is the most that still draws at
+// 4 px, and 41 (version 6, 106 bytes) the most at 5. A UR part spends up to
+// 65 characters on its prefix, sequence numbers, lengths and checksums, two
+// per byte of the fragment on top, once the loop has run past part 10000 on
+// a transaction at the signed ceiling. 42 bytes is the largest fragment whose
+// every part stays inside version 8, and 20 the largest inside version 6, so
+// EASY SCAN still halves the data and draws its dots a pixel bigger. The price
+// is frames: a phone waits for more of them instead of resolving 2 px dots.
+// pMofN keeps its wide sizes: 100 characters is version 7 and 50 is version
+// 4, which draw at 4 and 6 px here already.
+#if KISS_NARROW
+#define QR_OUT_UR_FRAG     42
+#define QR_OUT_UR_FRAG_EZ  20
+#else
+#define QR_OUT_UR_FRAG_EZ  60
+#endif
 static int qr_enc_start(void)
 {
     int fmt = (s_qr_fmt == QRT_FMT_PMOFN) ? QRT_FMT_PMOFN : QRT_FMT_UR;
-    qrt_encoder_t *ne = qrt_encoder_new_frag(fmt, s_out, s_out_len,
-        s_qr_ez ? (fmt == QRT_FMT_PMOFN ? 50 : 60) : 0);
+    // 0 is qr_transport's own size: 100 characters for pMofN, and 120 bytes
+    // for UR on the wide board. Only the 3.5in overrides the default UR one,
+    // and a wide build writing "0 : 0" is a condition with identical branches,
+    // which the device compiler refuses.
+    int frag = s_qr_ez ? (fmt == QRT_FMT_PMOFN ? 50 : QR_OUT_UR_FRAG_EZ) : 0;
+#if KISS_NARROW
+    if (!s_qr_ez && fmt != QRT_FMT_PMOFN) frag = QR_OUT_UR_FRAG;
+#endif
+    qrt_encoder_t *ne = qrt_encoder_new_frag(fmt, s_out, s_out_len, frag);
     if (!ne) return -1;
     if (s_qenc) qrt_encoder_free(s_qenc);
     s_qenc = ne;
@@ -5310,7 +5511,13 @@ static void qr_out_screen(size_t sw, bool rebuild)
         return;
     }
 
+#if KISS_NARROW
+    // No subtitle on the 3.5in: its line is the band's here (see the foot of
+    // this function), because the code needs the rows it stood on.
+    mk_screen(parent, tr(STR_S_SIGNED_T), NULL);
+#else
     mk_screen(parent, tr(STR_S_SIGNED_T), tr(STR_S_QR_SUB));
+#endif
     // The tick, without the padlock pair the SD screen carries -- see
     // signed_title_row for why this page leaves it off.
     signed_title_row();
@@ -5324,10 +5531,19 @@ static void qr_out_screen(size_t sw, bool rebuild)
     // is the control -- it has been tappable since the zoom existed -- and a
     // cue pinned outside the lane was the page pointing at a second one. The
     // square itself is the affordance here; the sub line says to scan it.
-    // 66 on the 3.5in, not 64: the subtitle's descenders end at 59 and the
-    // card's white began 5 px under them. The card still ends 8 over the floor.
-    wt_qr_card_bare(s_scr, &s_qr_img, SX(48), KISS_NARROW ? 66 : SY(96),
-                    SX(302), SX(274));
+#if KISS_NARROW
+    // THE FULL HEIGHT on the 3.5in, from under the title to 2 px over the
+    // floor. Scaled to 181 px under the subtitle, the code was 164: 2 px a dot
+    // for a default frame and 3 for EASY SCAN, which a phone reads as grey.
+    // 206 px is 4 a dot for the default frame and 5 for EASY SCAN at the
+    // fragment sizes qr_enc_start picks for this board, with 10 and 5 px of
+    // white round them. The subtitle's rows were the price, so its sentence
+    // moved to the band. The card still ends left of x=240, where the arrival
+    // motion's dismissing press lands.
+    wt_qr_card_bare(s_scr, &s_qr_img, 18, 36, 216, 206);
+#else
+    wt_qr_card_bare(s_scr, &s_qr_img, SX(48), SY(96), SX(302), SX(274));
+#endif
 
     int n = qrt_encoder_parts(s_qenc);
 
@@ -5400,16 +5616,51 @@ static void qr_out_screen(size_t sw, bool rebuild)
         lv_text_get_size(&es, ez, wt_font23(), 2, 0, LV_COORD_MAX,
                          LV_TEXT_FLAG_NONE);
         const lv_font_t *ef = es.x <= lane ? wt_font23() : wt_chrome18(ez);
+#if KISS_NARROW
+        // Both rungs are the same 14 px here, so the rung down above buys
+        // nothing and SNADNÉ SKENOVÁNÍ still wore dots. The TRACKING gives way
+        // instead, 2 to 1 to 0, in the body face and then in the guarded one,
+        // and a word still wider takes two lines in a row grown to hold them.
+        // Dots never: this is the only word on the control.
+        const lv_font_t *ez_f[2] = { wt_font23(), wt_chrome18(ez) };
+        int ez_ls = 0;
+        bool ez_one = false;
+        lv_point_t ew;
+        for (int k = 0; k < 2 && !ez_one; k++) {
+            for (int ls = 2; ls >= 0; ls--) {
+                lv_text_get_size(&ew, ez, ez_f[k], ls, 0, LV_COORD_MAX,
+                                 LV_TEXT_FLAG_NONE);
+                if (ew.x <= lane) {
+                    ef = ez_f[k];
+                    ez_ls = ls;
+                    ez_one = true;
+                    break;
+                }
+            }
+        }
+        const int ez_h = ez_one ? lv_font_get_line_height(ef)
+                                : 2 * lv_font_get_line_height(ef);
+        const int ez_row_h = ez_one ? SY(56) : ez_h + 4;
+        lv_obj_set_height(row, ez_row_h);
+        s_ez_word = wt_lbl(row, ez, SX(18), (ez_row_h - ez_h) / 2, ef, INK_COL);
+        lv_obj_set_style_text_letter_space(s_ez_word, ez_ls, 0);
+        lv_obj_set_width(s_ez_word, lane);
+        lv_obj_set_height(s_ez_word, ez_h);
+        lv_label_set_long_mode(s_ez_word, ez_one ? LV_LABEL_LONG_DOT
+                                                 : LV_LABEL_LONG_WRAP);
+#else
         s_ez_word = wt_lbl(row, ez, SX(18), (SY(56) - lv_font_get_line_height(ef)) / 2,
                            ef, INK_COL);
         lv_obj_set_style_text_letter_space(s_ez_word, 2, 0);
         lv_obj_set_width(s_ez_word, lane);
         lv_obj_set_height(s_ez_word, lv_font_get_line_height(ef));
         lv_label_set_long_mode(s_ez_word, LV_LABEL_LONG_DOT);
+#endif
 
         lv_obj_t *track = lv_obj_create(row);
         lv_obj_remove_style_all(track);
-        lv_obj_set_pos(track, SX(322) - SX(18) - EZ_TRACK_W, (SY(56) - EZ_TRACK_H) / 2);
+        lv_obj_set_pos(track, SX(322) - SX(18) - EZ_TRACK_W,
+                       (lv_obj_get_style_height(row, LV_PART_MAIN) - EZ_TRACK_H) / 2);
         lv_obj_set_size(track, EZ_TRACK_W, EZ_TRACK_H);
         lv_obj_set_style_radius(track, EZ_TRACK_H / 2, 0);
         lv_obj_set_style_bg_color(track, WT_KEY, 0);
@@ -5433,7 +5684,11 @@ static void qr_out_screen(size_t sw, bool rebuild)
     // The artefact at the foot: what this device made, and the one thing on
     // the page to hold against a second signer.
     const char *scap = tr(STR_S_SIG_FP_CAP);
-    lv_obj_t *sc = mk_lbl(scap, SX(430), SY(314), wt_chrome18(scap), MUT_COL);
+    // 5 px higher on the 3.5in, for the same ring DONE_TAIL_VAL_Y makes room
+    // for; below the code there is only the floor, and the gap above to EASY
+    // SCAN was 18.
+    lv_obj_t *sc = mk_lbl(scap, SX(430), KISS_NARROW ? 204 : SY(314),
+                          wt_chrome18(scap), MUT_COL);
     lv_obj_set_style_text_letter_space(sc, 2, 0);
     sig_value_pair(s_scr, SX(430), SY(342), true, wt_font_mono23());
     // Where the motion flies the code to, on this board's canvas. SX and SY are
@@ -5442,8 +5697,47 @@ static void qr_out_screen(size_t sw, bool rebuild)
     s_sig_val_y = SY(342);
     s_sig_val_f = wt_font_mono23();
 
+#if KISS_NARROW
+    lv_obj_t *done = wt_arrow_action(s_scr, tr(STR_C_DONE), false, true, SX(592),
+                                     WT_ACTION_Y, SX(160), true, close_cb, NULL);
+    // The subtitle's sentence, in the band's empty left lane: what to do with
+    // the square, beside the control that ends the page once it is done. Two
+    // lines at the band's own rung, cut after the comma where it has one, and
+    // clear of DONE's word by the 12 px every band sentence keeps.
+    {
+        const char *sub = tr(STR_S_QR_SUB);
+        const char *cut = strstr(sub, ", ");
+        char head[96];
+        const char *rest = NULL;
+        if (cut && (size_t)(cut - sub) + 1 < sizeof head) {
+            size_t k = (size_t)(cut - sub) + 1;          // the comma stays
+            memcpy(head, sub, k);
+            head[k] = 0;
+            rest = cut + 2;
+        }
+        const char *one = rest ? head : sub;
+        // Asked of the whole sentence, not the half before the comma: both
+        // lines share this face, and an accented letter in the second half
+        // would otherwise be drawn in a mono face that has none.
+        const lv_font_t *f = wt_chrome18(sub);
+        const int lh = lv_font_get_line_height(f);
+        const int nl = rest ? 2 : 1;
+        lv_obj_update_layout(done);
+        const int w = lv_obj_get_x(done) - SX(20) - WT_ACT_X;
+        const char *line[2] = { one, rest };
+        for (int i = 0; i < nl; i++) {
+            lv_obj_t *l = wt_lbl(s_scr, line[i], WT_ACT_X,
+                                 WT_ACTION_Y + (WT_ACTION_H - nl * lh) / 2 + i * lh,
+                                 f, MUT_COL);
+            lv_obj_set_width(l, w);
+            lv_obj_set_height(l, lh);
+            lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+        }
+    }
+#else
     wt_arrow_action(s_scr, tr(STR_C_DONE), false, true, SX(592), WT_ACTION_Y, SX(160),
                     true, close_cb, NULL);
+#endif
     s_part_i = 0;
     qr_tick(NULL);                               // first part right away
 }

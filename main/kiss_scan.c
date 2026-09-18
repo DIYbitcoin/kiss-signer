@@ -128,11 +128,15 @@ static void cancel_cb(lv_event_t *e)
     // region stays live anyway because it costs nothing and it keeps working
     // for anyone who learned the camera close convention while the pill still
     // sat up here.
+    //
+    // Scaled with the canvas, like main.c's twin of this test. Unscaled on the
+    // 3.5in the corner reached 30 px down into the live preview, so a tap on
+    // the picture's top edge closed the scanner.
     lv_indev_t *indev = lv_event_get_indev(e);
     if (indev) {
         lv_point_t p;
         lv_indev_get_point(indev, &p);
-        if (p.x >= 200 || p.y >= 110) return;
+        if (p.x >= SX(200) || p.y >= SY(110)) return;
     }
     cancel_now();
 }
@@ -334,22 +338,35 @@ void kiss_scan_open_raw(lv_obj_t *parent, kiss_scan_task_t task,
 }
 
 // ---- geometry ----
-// The viewfinder keeps the rect the camera was device tested on; everything
-// around it is on the chrome contract now. The can/cannot cards that used to
-// crowd the right column moved to the SIGN page's SCAN QR tab, where they
-// can be read before the camera is even open -- what is left here is the
-// picture, the one line that changes while you wait, and the way out.
+// The viewfinder keeps the rect the Guition's camera was device tested on;
+// everything around it is on the chrome contract now. The can/cannot cards
+// that used to crowd the right column moved to the SIGN page's SCAN QR tab,
+// where they can be read before the camera is even open -- what is left here
+// is the picture, the one line that changes while you wait, and the way out.
 #define SCN_CAM_X SX(48)
 #if KISS_NARROW
 // 6 lower on the 3.5in. The corner brackets are drawn 5 px outside the box,
 // and at the scaled 74 their top arms sat 2 px under the header's hairline;
-// at 80 they clear it by 8 and the bottom arms still end 45 above the floor.
+// at 80 they clear it by 8.
 #define SCN_CAM_Y (SY(112) + 6)
 #else
 #define SCN_CAM_Y SY(112)
 #endif
 #define SCN_CAM_W SX(300)
+#if KISS_NARROW
+// 162 tall on the 3.5in, not the scaled 125, which on the glass read as a slot
+// too small to aim through. The empty rows under the old box were the room:
+// the bottom arms end at 80 + 162 + 5 = 247, the same air above the band's
+// edge at 254 as the top arms keep under the hairline. The width stays at 180
+// because with the sensor turned a quarter that is its whole 960 px side at
+// 3/16, and 162 is exact at that scale, so the picture is 864x960 of the
+// sensor (camera_spike.c, orient_geometry). A wider box would only magnify:
+// past 180 the scale has to rise and the view gets narrower, and the column
+// beside it gives up width its longest notes need.
+#define SCN_CAM_H 162
+#else
 #define SCN_CAM_H SY(188)
+#endif
 
 // The rect, for anything outside this file that has to put something in the
 // same place. Below the #defines on purpose -- there is nowhere earlier it
@@ -364,11 +381,58 @@ void kiss_scan_view_rect(int *x, int *y, int *w, int *h)
 #define SCN_COL_X SX(396)
 #define SCN_COL_W SX(356)
 
+// The face is picked per STRING, at every change. The status line wears half
+// a dozen translated states (zu groß, démarrage caméra...) and the hint wears
+// both a translated instruction and the camera driver's own text; a face
+// chosen once from one of them drew the others in the ASCII-only mono set.
+static void scan_line_set(lv_obj_t *l, const char *txt, int lines, bool big)
+{
+    const lv_font_t *f = big ? wt_chrome28(txt) : wt_chrome18(txt);
+    lv_obj_set_style_text_font(l, f, 0);
+    lv_obj_set_height(l, lines * lv_font_get_line_height(f));
+    lv_label_set_text(l, txt);
+}
+
+#if KISS_NARROW
+// The note under the status, placed after every change to the hint. On the
+// 3.5in a long translation of it ran 20 px past the floor (de, ru) from its
+// fixed row. It keeps that row while it fits and otherwise rises by what it
+// overruns -- into the hint's rows while the hint is empty, and never above
+// the lines a camera failure actually wrote there.
+static lv_obj_t *s_note;
+static void scan_note_place(void)
+{
+    if (!s_note || !s_hint) return;
+    const char *ht = lv_label_get_text(s_hint);
+    const bool empty = !ht || !*ht;
+    // An empty hint holds no rows, so its box does not lie across the note.
+    const lv_font_t *hf = lv_obj_get_style_text_font(s_hint, LV_PART_MAIN);
+    const int hlh = lv_font_get_line_height(hf);
+    int hint_h = 0;
+    if (!empty) {
+        lv_point_t hs;
+        lv_text_get_size(&hs, ht, hf, 0, 0, SCN_COL_W, LV_TEXT_FLAG_NONE);
+        hint_h = hs.y > 2 * hlh ? 2 * hlh : hs.y;
+    }
+    lv_obj_set_height(s_hint, empty ? 0 : 2 * hlh);
+    lv_obj_update_layout(s_note);
+    const int nh = lv_obj_get_height(s_note);
+    const int top = empty ? SY(168) : SY(168) + hint_h + 6;
+    int y = SY(232);
+    if (y + nh > WT_CONTENT_BOTTOM) y = WT_CONTENT_BOTTOM - nh;
+    if (y < top) y = top;
+    lv_obj_set_y(s_note, y);
+}
+#endif
+
 static void scan_status(const char *state, const char *hint)
 {
     if (!s_prog || !s_hint) return;
-    if (state) lv_label_set_text(s_prog, state);
-    if (hint)  lv_label_set_text(s_hint, hint);
+    if (state) scan_line_set(s_prog, state, 1, true);
+    if (hint)  scan_line_set(s_hint, hint, 2, false);
+#if KISS_NARROW
+    scan_note_place();
+#endif
 }
 
 static void scan_open_common(lv_obj_t *parent, kiss_scan_task_t task)
@@ -399,25 +463,21 @@ static void scan_open_common(lv_obj_t *parent, kiss_scan_task_t task)
     // that answers "can this rob me" -- de-boxed, on the glass, the way every
     // converted page carries its claims.
     s_prog = lv_label_create(s_scr);
-    lv_label_set_text(s_prog, tr(STR_N_STARTING));
     lv_obj_set_style_text_color(s_prog, INK_COL, 0);
-    lv_obj_set_style_text_font(s_prog, wt_chrome28(tr(STR_N_WAIT_QR)), 0);
     lv_obj_set_pos(s_prog, SCN_COL_X, SY(124));
     lv_obj_set_width(s_prog, SCN_COL_W);
-    lv_obj_set_height(s_prog, lv_font_get_line_height(wt_chrome28(tr(STR_N_WAIT_QR))));
     lv_label_set_long_mode(s_prog, LV_LABEL_LONG_DOT);
+    scan_line_set(s_prog, tr(STR_N_STARTING), 1, true);
 
     // The camera-failure path writes the driver status here: technical
     // metadata, two lines, height pinned so the longest retry instruction
     // degrades inside its box instead of past the column's edge.
     s_hint = lv_label_create(s_scr);
-    lv_label_set_text(s_hint, "");
     lv_obj_set_style_text_color(s_hint, MUT_COL, 0);
-    lv_obj_set_style_text_font(s_hint, wt_chrome18(tr(STR_N_RETRY)), 0);
     lv_obj_set_pos(s_hint, SCN_COL_X, SY(168));
     lv_obj_set_width(s_hint, SCN_COL_W);
-    lv_obj_set_height(s_hint, 2 * lv_font_get_line_height(wt_chrome18(tr(STR_N_RETRY))));
     lv_label_set_long_mode(s_hint, LV_LABEL_LONG_DOT);
+    scan_line_set(s_hint, "", 2, false);
 
     // The sentence that answers "can this rob me", in the words of the door it
     // was opened by. The backup one is the note its own load screen already
@@ -436,6 +496,9 @@ static void scan_open_common(lv_obj_t *parent, kiss_scan_task_t task)
     lv_obj_set_pos(note, SCN_COL_X, SY(232));
     lv_obj_set_width(note, SCN_COL_W);
     lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
+#if KISS_NARROW
+    s_note = note;
+#endif
 
     scan_status(NULL, NULL);
 

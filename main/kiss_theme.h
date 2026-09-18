@@ -11,10 +11,28 @@
 #include "kiss_board.h"    // SCREEN_W/H and the SX/SY scale
 #include "kiss_defrow.h"   // the definition rows' lane arithmetic
 
+// MOTION ON THE 3.5in RUNS AT HALF LENGTH. Its ST7796 is fed over SPI at about
+// 10 MB/s, 30 whole frames a second at best and fewer while a pane of rows is
+// moving, so a 260 ms slide there is seven or eight pictures: it does not glide,
+// it steps, and the page feels slow to answer. Halved, the same curve arrives
+// in the frames the panel can actually show. For transitions, staggers and
+// fades only -- never for a window that is a promise (a hold, a pause that
+// banks a slide, how long a typed character stays bare), which keeps its
+// length on every board. The wide board's numbers pass through untouched.
+#define WT_MOTION_MS(ms) (KISS_NARROW ? (ms) / 2 : (ms))
+
 // fixed palette (identical to what every screen used before the kit)
+//
+// THE 3.5in's TWO GREYS ARE LIGHTER. Its type is three fifths of the wide
+// board's, so a muted caption there is a 14 px face and owes 4.5:1, and the
+// ST7796 renders a dark grey darker than any monitor the sim is looked at on.
+// 0x4C5666 measured 2.6:1 on every surface it sits on and 0x7A869C 2.8:1
+// under a pressed row. The pair keeps its order, one step apart: WT_DIM at
+// 4.5:1 or better on everything up to a key's fill, WT_MUT at 7:1 on the page
+// and still under MONO's accent, WT_INK over both.
 #define WT_BG   lv_color_hex(0x070A10)
 #define WT_INK  lv_color_hex(0xE8EEF7)
-#define WT_MUT  lv_color_hex(0x7A869C)
+#define WT_MUT  lv_color_hex(KISS_NARROW ? 0x909CB1 : 0x7A869C)
 #define WT_KEY  lv_color_hex(0x10141D)
 #define WT_OK   lv_color_hex(0x35D07F)   // status semantics: never themed
 // AMBER IS A MARK COLOUR. The caution GLYPH keeps it and so does a breathing
@@ -44,7 +62,8 @@
 #define WT_HAIR  lv_color_hex(0x1E2531)  // 1px rule where a surface meets the page
 #define WT_PANEL lv_color_hex(0x0A0E15)  // explainer cards, any raised block
 #define WT_DIV   lv_color_hex(0x1A2130)  // divider between rows inside one panel
-#define WT_DIM   lv_color_hex(0x4C5666)  // ink for something present but inert
+#define WT_DIM   lv_color_hex(KISS_NARROW ? 0x747F92 : 0x4C5666)  // ink for something
+                                         // present but inert (3.5in: see WT_MUT)
 #define WT_EDGE  lv_color_hex(0x2A3346)  // border of a recessed or inert control
 
 // accent themes = the dots on the baked home art. MONO keeps the shipped look.
@@ -375,6 +394,14 @@ const char *wt_sim_title_key(int id);
 // One visual language for anonymous "?" affordances: a 30px circle with a
 // 54px effective hit target. `color` carries warning semantics when needed;
 // size, border and press feedback remain identical everywhere.
+//
+// 26 on the 3.5in, not the scaled 18, with a 50px target: a finger does not
+// scale. x and y are still the wide canvas's chip, and the ring grows about
+// its centre by WT_HELP_CHIP_GROW each way (see round_chip). A caller that
+// measures the pair it draws beside measures WT_HELP_CHIP_D, never SX(30),
+// and one placing the real ring's corner adds the grow back.
+#define WT_HELP_CHIP_D (KISS_NARROW ? 26 : SX(30))
+#define WT_HELP_CHIP_GROW ((WT_HELP_CHIP_D - SX(30)) / 2)
 lv_obj_t *wt_help_chip(lv_obj_t *parent, int x, int y, lv_color_t color,
                        lv_event_cb_t cb, void *ud);
 
@@ -995,7 +1022,7 @@ lv_obj_t *wt_tabs(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
 // border, so it cross-fades over the same span rather than snapping at either
 // end. Safe to call while a previous slide is still running: it takes the
 // highlight from wherever it currently IS.
-#define WT_TAB_MS 200
+#define WT_TAB_MS WT_MOTION_MS(200)
 void wt_tabs_select(lv_obj_t *hl, int from, int to, bool stop);
 
 // The one line under a group of wide rows, at font23 in the page's margin.

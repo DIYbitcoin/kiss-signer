@@ -839,8 +839,9 @@ static void menu_intro(void) {
     lv_anim_set_var(&a, s_logo_lt[i]);
     lv_anim_set_exec_cb(&a, logo_y_cb);
     lv_anim_set_values(&a, logo_lt_y[i] - SY(320), logo_lt_y[i]);
-    lv_anim_set_duration(&a, 420);
-    lv_anim_set_delay(&a, 40 + i * 55);
+    // Half length on the 3.5in's SPI panel, fruit and all (WT_MOTION_MS).
+    lv_anim_set_duration(&a, WT_MOTION_MS(420));
+    lv_anim_set_delay(&a, WT_MOTION_MS(40 + i * 55));
     lv_anim_set_path_cb(&a, lv_anim_path_overshoot);
     lv_anim_start(&a);
   }
@@ -855,15 +856,15 @@ static void menu_intro(void) {
     lv_anim_set_var(&a, s_menu_fruit[i]);
     lv_anim_set_exec_cb(&a, logo_y_cb);
     lv_anim_set_values(&a, menu_fruit_y[i] + SY(26), menu_fruit_y[i]);
-    lv_anim_set_duration(&a, 300);
-    lv_anim_set_delay(&a, 1060 + i * 90);
+    lv_anim_set_duration(&a, WT_MOTION_MS(300));
+    lv_anim_set_delay(&a, WT_MOTION_MS(1060 + i * 90));
     lv_anim_set_path_cb(&a, lv_anim_path_overshoot);
     lv_anim_set_ready_cb(&a, fruit_hop_done);
     lv_anim_start(&a);
     lv_anim_set_ready_cb(&a, NULL);
     lv_anim_set_exec_cb(&a, anim_opa_cb);
     lv_anim_set_values(&a, 0, 255);
-    lv_anim_set_duration(&a, 220);
+    lv_anim_set_duration(&a, WT_MOTION_MS(220));
     lv_anim_set_path_cb(&a, lv_anim_path_linear);
     lv_anim_start(&a);
   }
@@ -1283,8 +1284,10 @@ static void fp_fly_glide(void) {
   lv_anim_t a;
   lv_anim_init(&a);
   lv_anim_set_var(&a, s_fp_fly);
-  lv_anim_set_duration(&a, 560);
-  lv_anim_set_delay(&a, 140);                 // a beat to read the locked code
+  // The whole hand-off at half length on the 3.5in (WT_MOTION_MS): the beat to
+  // read the code, the glide and both crossfades keep their order and overlap.
+  lv_anim_set_duration(&a, WT_MOTION_MS(560));
+  lv_anim_set_delay(&a, WT_MOTION_MS(140));   // a beat to read the locked code
   lv_anim_set_path_cb(&a, lv_anim_path_ease_in_out);
   lv_anim_set_exec_cb(&a, fly_x_cb);
 #if KISS_NARROW
@@ -1305,8 +1308,8 @@ static void fp_fly_glide(void) {
   // last stretch: flier fades out...
   lv_anim_set_exec_cb(&a, anim_opa_cb);
   lv_anim_set_values(&a, 255, 0);
-  lv_anim_set_duration(&a, 200);
-  lv_anim_set_delay(&a, 140 + 400);
+  lv_anim_set_duration(&a, WT_MOTION_MS(200));
+  lv_anim_set_delay(&a, WT_MOTION_MS(140 + 400));
   lv_anim_set_path_cb(&a, lv_anim_path_linear);
   lv_anim_set_ready_cb(&a, fly_del_cb);
   lv_anim_start(&a);
@@ -1315,8 +1318,8 @@ static void fp_fly_glide(void) {
   lv_anim_set_ready_cb(&a, NULL);
   lv_anim_set_var(&a, s_fp_chip);
   lv_anim_set_values(&a, 0, 255);
-  lv_anim_set_duration(&a, 240);
-  lv_anim_set_delay(&a, 140 + 380);
+  lv_anim_set_duration(&a, WT_MOTION_MS(240));
+  lv_anim_set_delay(&a, WT_MOTION_MS(140 + 380));
   lv_anim_start(&a);
   lv_anim_set_var(&a, s_fp_cap);
   lv_anim_start(&a);
@@ -1401,7 +1404,9 @@ static void fp_fly_start(void) {
   lv_obj_clear_flag(s_fp_cap, LV_OBJ_FLAG_HIDDEN);
   s_fp_scr_step = 0;
   if (s_fp_scr_tmr) lv_timer_delete(s_fp_scr_tmr);
-  s_fp_scr_tmr = lv_timer_create(fp_scramble_cb, 45, NULL);  // ~540ms decrypt, then glide
+  // ~540ms decrypt, then glide; ~360ms on the 3.5in, whose twelve steps still
+  // each get a frame of their own at 30ms.
+  s_fp_scr_tmr = lv_timer_create(fp_scramble_cb, KISS_NARROW ? 30 : 45, NULL);
 }
 
 static void kiss_start(void);
@@ -1594,8 +1599,8 @@ static void tiles_settle(void) {
     lv_anim_t a;
     lv_anim_init(&a);
     lv_anim_set_var(&a, label);
-    lv_anim_set_delay(&a, 120 + i * 70);
-    lv_anim_set_duration(&a, 260);
+    lv_anim_set_delay(&a, WT_MOTION_MS(120 + i * 70));   // half on the 3.5in
+    lv_anim_set_duration(&a, WT_MOTION_MS(260));
     lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
     lv_anim_set_exec_cb(&a, fly_y_cb);
     lv_anim_set_values(&a, base - SY(12), base);

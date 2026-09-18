@@ -178,7 +178,14 @@ static const slot_t SLOTS[] = {
     { "duress/done",      STR_GD_DONE_B,      SX(700), SY(148), 0 },
     // kiss_recv.c / kiss_info.c — instructions the user has to act on
     // wt_screen() subtitles: one line, 704px wide, between title and content.
+#if KISS_NARROW
+    // ...except RECEIVE's silent payment page on the 3.5in, where the QR takes
+    // the subtitle's rows and the sentence heads the right column instead:
+    // kiss_recv.c sp_addr_open, the address's 221 px lane, three lines of 19.
+    { "sub/receive",      STR_R_S,            221, 57, 0 },
+#else
     { "sub/receive",      STR_R_S,            SX(704), SY(30), 0 },
+#endif
     { "sub/wallet",       STR_I_S,            SX(340), SY(58), 0 },
     { "sub/verify",       STR_R_VS,           SX(704), SY(30), 0 },
     { "sub/sp-warn",      STR_R_SP_WARN_S,    SX(704), SY(30), 0 },
@@ -244,7 +251,11 @@ static const slot_t SLOTS[] = {
     // and the signing flow's own subtitles. The chooser, the file list and
     // the SD empty states swapped theirs for the trail, so only the signed
     // pages still carry one.
+#if !KISS_NARROW
+    // Not on the 3.5in: the sentence is two fixed lines in the action band
+    // there (kiss_sign.c qr_out_screen), and no fit helper measures it.
     { "sub/qr-out",       STR_S_QR_SUB,       SX(704), SY(30), 0 },
+#endif
     { "sub/done-sd",      STR_S_DONE_SD_SUB,  SX(704), SY(58), 0 },  // own 2-line subtitle
     { "sub/qr-fail",      STR_S_QR_FAIL_ENC,  SX(704), SY(30), 0 },
     // Procedural, read once with the device in hand, and wedged into a 360px
@@ -310,7 +321,11 @@ static const slot_t SLOTS[] = {
     // with the raw "%s" in place, which is ~2px narrower per prefix than the
     // 3 to 4 characters that get substituted, so this reads slightly optimistic.
     { "recv/sp-why",      STR_R_SP_WHY_B,       SX(720), SY(238) },
+#if !KISS_NARROW
+    // Not on the 3.5in, where SCAN KEY's note is two fixed lines in the action
+    // band (kiss_info.c band_note) rather than a fitted note beside the QR.
     { "wallet/sp-note",   STR_R_SP_EXPORT_NOTE, SX(360), SY(140) },
+#endif
     // Same string, second home: the note under SCAN KEY on the WALLET page.
     // That box is the tighter of the two, so measuring only the 360x140 one
     // let this render at 14 next to a PAIR COORDINATOR note at 23.

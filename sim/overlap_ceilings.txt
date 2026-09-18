@@ -65,24 +65,32 @@
 # at 483px of a 470px budget.
 #
 # Same rule as every line above: from here it only goes down.
+#
+# TWELVE CAME DOWN, measured on the full twenty two locale sweep with
+# OVERLAPCHECK_STRICT set. A TECHNICAL term line whose label is set in a
+# taller face than its term no longer has that label clipped at the box
+# (eleven locales on the key's terms page, Croatian on the derivation path
+# card), and the descriptor's second page stopped running its Turkish
+# sentence off the glass. Japanese and Chinese had also been sitting under
+# their numbers before this; they take the measurement too.
 cs-CZ 7
 da-DK 15
 de 30
-es-ES 27
-es-MX 27
+es-ES 26
+es-MX 26
 fr 28
-hr-HR 15
-hu-HU 23
+hr-HR 14
+hu-HU 22
 it 15
-ja 10
-ko 4
+ja 8
+ko 3
 nb-NO 12
 nl 33
 pl 24
-pt-BR 15
-pt-PT 17
-ru 31
+pt-BR 14
+pt-PT 16
+ru 30
 sv-SE 24
-tr 14
-vi 15
-zh-CN 12
+tr 12
+vi 14
+zh-CN 9
