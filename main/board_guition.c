@@ -96,6 +96,7 @@ static const st7701_lcd_init_cmd_t st7701_lcd_cmds[] = {
 static esp_lcd_panel_io_handle_t s_io;
 static esp_lcd_panel_handle_t s_panel;
 static esp_lcd_touch_handle_t s_touch;
+static esp_lcd_panel_io_handle_t s_tp_io;  // the GT911's own IO: see the reader's pre-check
 
 static i2c_master_bus_handle_t s_i2c_bus;  // shared touch bus; camera SCCB probes it too
 
@@ -448,6 +449,7 @@ void kiss_board_touch_start(void) {
   esp_lcd_panel_io_i2c_config_t tp_io_cfg = ESP_LCD_TOUCH_IO_I2C_GT911_CONFIG();
   esp_lcd_panel_io_handle_t tp_io = NULL;
   if (esp_lcd_new_panel_io_i2c(bus, &tp_io_cfg, &tp_io) != ESP_OK) return;
+  s_tp_io = tp_io;                       // kept for the pre-check in the reader
   esp_lcd_touch_config_t tp_cfg = {.x_max = LCD_H_RES, .y_max = LCD_V_RES,
                                    .rst_gpio_num = GPIO_NUM_NC, .int_gpio_num = GPIO_NUM_NC,
                                    .flags = {.swap_xy = 0, .mirror_x = 0, .mirror_y = 0}};
@@ -462,10 +464,53 @@ void kiss_board_touch_start(void) {
 bool kiss_board_touch_ok(void) { return s_touch != NULL; }
 i2c_master_bus_handle_t kiss_board_i2c_bus(void) { return s_i2c_bus; }
 
-// device touch: read the GT911 controller
-bool platform_read_touch(int *x, int *y) {
+// ONE read of the GT911, and kiss_touch.c's sampler is the only caller. It used
+// to be platform_read_touch itself, called from game_tick and from kiss_ui.c's
+// indev, and that was the bug: this controller's ready flag is a one shot that
+// every read clears, and the driver's read_data leaves the last points in place
+// when it finds no new frame, so two readers on a repaint's clock turned a
+// double tap into one long press. kiss_touch.c has the whole account.
+//
+// ASK THE READY FLAG FIRST, and this is not tidiness either. The driver's
+// read_data writes 0 to the buffer-status register even when it just read that
+// register and found bit 7 CLEAR -- an acknowledgement of nothing. A frame the
+// controller publishes in the gap between that read and that write is
+// acknowledged without ever being read, and at 100 kHz that gap is most of a
+// millisecond. The GT911 flags the LIFT exactly once and then goes quiet until
+// the next finger, so the frame eaten is most often the release -- and read_data
+// does not invalidate its stored points when it finds nothing new, so what is
+// left behind is a finger that never comes up until somebody touches the glass
+// again. One tap in the void, and the whole gesture merged into whatever
+// follows it.
+//
+// The window is a fraction of a millisecond, and it is a fraction PER POLL, so
+// the risk scales with the polling rate rather than with anything about the
+// finger: at the repaint's handful of polls a second it is a lift in a few
+// hundred, and at kiss_touch.c's 100 Hz it would be a lift in ten or twenty.
+// Reading the register here and calling the driver only when it has
+// something to hand over closes it outright: a poll that finds bit 7 clear now
+// writes nothing at all, so a frame arriving a microsecond later is still there
+// next time.
+//
+// Skipping read_data is the right answer for that poll as well as a safe one.
+// This controller reports a LEVEL -- each frame is a complete statement of how
+// many fingers there are -- and get_data does not invalidate on the GT911, so a
+// poll that reads nothing new answers with the last frame, which is the level
+// that still stands. A failed status read falls through to the plain read, which
+// is exactly the behaviour this replaces.
+//
+// Not in the driver's own file: managed_components carries a .component_hash and
+// is rebuilt from dependencies.lock, so a fix there is a fix that disappears.
+#define GT911_BUF_STATUS_REG 0x814E   // bit 7: a frame is ready, host clears it
+bool kiss_board_touch_point(int *x, int *y) {
   if (!s_touch) return false;
-  esp_lcd_touch_read_data(s_touch);
+  bool fresh = true;
+  if (s_tp_io) {
+    uint8_t st = 0;
+    if (esp_lcd_panel_io_rx_param(s_tp_io, GT911_BUF_STATUS_REG, &st, 1) == ESP_OK)
+      fresh = (st & 0x80) != 0;
+  }
+  if (fresh) esp_lcd_touch_read_data(s_touch);
   // esp_lcd_touch_get_coordinates is deprecated (removed in component v2.0.0);
   // esp_lcd_touch_get_data returns the same points in a struct array.
   esp_lcd_touch_point_data_t pt[1];
@@ -504,6 +549,13 @@ bool platform_read_touch(int *x, int *y) {
 // is no command to land in the middle of a transfer. The flip arrives from a
 // click handler on the LVGL task, which is the only task that runs rot_flush,
 // and the camera task reads the flag once per frame into a local.
+//
+// The touch sampler is a third reader of it (kiss_touch.c runs
+// kiss_board_touch_point on its own task), so one 10 ms sample either side of
+// the tap that turns the screen can be mapped the old way. A bool store is
+// atomic on this chip, so the window is one stale point and never a half
+// written one; the same window exists on the 3.5in, where the mirrors are
+// driver flags the sampler reads instead.
 bool kiss_flip_get(void) { return s_flip; }
 
 void kiss_flip_set(bool on, bool repaint)

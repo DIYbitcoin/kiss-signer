@@ -806,6 +806,16 @@ static void start_game(void) {
   for (int i = 0; i < 3; i++) lv_obj_clear_flag(s_hearts[i], LV_OBJ_FLAG_HIDDEN);
 }
 
+#ifdef SIMULATOR
+// Is a round of Fruit Island running. The walk asks because the corner
+// shortcut has to stop start_game() as well as answer the pair: a first tap
+// that launched a round would leave ST_MENU before the second tap arrived, and
+// the collector is skipped in ST_PLAY. That is a state, not a picture -- the
+// HUD's score is a label reading "0" on a screen where nothing else is written,
+// so a frame check would pass on an empty menu too.
+bool sim_game_playing(void) { return s_state == ST_PLAY; }
+#endif
+
 // menu intro: the logo letters (each carrying its own shadow) drop in from above,
 // staggered left->right, and land with an overshoot bounce; the accent fruit then
 // hop up into place and keep floating gently (the only idle motion on the menu)
@@ -3515,6 +3525,10 @@ void app_main(void) {
   kiss_board_display_start();
   kiss_board_backlight_on();
   kiss_board_touch_start();
+  // The controller's only reader, on its own 100 Hz clock. Before build_game,
+  // because the first LVGL pass already polls the seam, and the point of it is
+  // that the seam stops being polled on the repaint's clock.
+  kiss_touch_start();
   // After the display, because switching the entropy source on reconfigures
   // ADC1 and the analog i2c clock, and the panel's LDO comes up through the
   // same analog block. Nothing needs randomness before a screen exists, so

@@ -270,6 +270,17 @@ run "screens no gate sees" "python3 tools/check_screen_coverage.py"
 # hole because it has a "sim smoke walk" step whose whole job is this, and the
 # comment on that step says so. Same shape as check_links.py, which this script
 # listed and never ran -- a gate that cannot fail is not a gate.
+
+# COLD BOOT, and BEFORE the walk below rather than after it: the binary sweeps
+# the scratch's frames as it starts, so a cold run afterwards would take the
+# frames the tap gate is about to read. A process per mode because a run can only
+# be cold once -- sim/sim_main.c's cold_corner() says what each mode asks, what
+# it cost to run them here and what is still left to the glass. Mode 2 is the
+# reported bug; mode 1 passes with or without the fix, so the loop is the gate
+# and no single mode is.
+run "the corner shortcut from a cold boot" \
+    "for m in 1 2 3 4 5 6; do SIM_LANG=en KISS_COLD_CORNER=\$m \
+       \"\$KISS_SIM_TMP/fruitsim\" || exit 1; done"
 run "a walk tap that hits nothing" \
     "SIM_LANG=en \"\$KISS_SIM_TMP/fruitsim\" > \"\$KISS_SIM_TMP/sim_en.log\" \
      && python3 tools/check_sim_taps.py --selftest \
@@ -308,6 +319,9 @@ run --note-if "text overlap gate: [1-9]" "3.5in: screen walk (en, advisory)" \
     "$WS bash sim/build_sim.sh && $WS bash sim/build_overlapcheck.sh \
      && ($WS OVERLAPCHECK_LANGS=en bash sim/run_overlapcheck.sh || true)"
 run "3.5in: screens no gate sees" "$WS python3 tools/check_screen_coverage.py"
+run "3.5in: the corner shortcut from a cold boot" \
+    "for m in 1 2 3 4 5 6; do $WS SIM_LANG=en KISS_COLD_CORNER=\$m \
+       \"\$KISS_SIM_TMP/ws35/fruitsim\" || exit 1; done"
 run "3.5in: a walk tap that hits nothing" \
     "$WS SIM_LANG=en \"\$KISS_SIM_TMP/ws35/fruitsim\" > \"\$KISS_SIM_TMP/ws35/sim_en.log\" \
      && $WS python3 tools/check_sim_taps.py"

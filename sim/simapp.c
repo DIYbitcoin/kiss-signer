@@ -41,6 +41,7 @@
 #endif
 
 #include "kiss_board.h"
+#include "kiss_touch.h"   // the same touch cache the board reads through
 #define HRES SCREEN_W
 #define VRES SCREEN_H
 
@@ -61,19 +62,31 @@ static uint16_t g_fb[HRES * VRES];
 // LVGL indev: main/main.c's game_tick() samples platform_read_touch() directly,
 // so the fruit game and the KISS unlock stroke never reach LVGL at all. Feed
 // the seam, not the widget layer, and both halves see the same finger.
+//
+// This is the raw LEVEL and the only writer of it is set_touch, which posts
+// every change into the touch cache in the same statement.
 static int  g_tx, g_ty;
 static bool g_pressed;
 
+// ...and through the same cache the board reads through (main/kiss_touch.h), so
+// driving this window exercises the replay the collector lives on rather than a
+// stand-in for it. The mouse button is the raw LEVEL; the collector is handed
+// the edges it has not been shown and the indev is handed the level, exactly as
+// on glass. Click twice inside one repaint here and the corner pair behaves the
+// way it does on the board.
 bool platform_read_touch(int *x, int *y) {
-    if (!g_pressed) return false;
-    *x = g_tx; *y = g_ty;
-    return true;
+    return kiss_touch_edge(x, y, lv_tick_get());
 }
+
+bool platform_read_touch_ui(int *x, int *y) { return kiss_touch_level(x, y); }
 
 static void set_touch(int x, int y, int down) {
     if (x < 0) x = 0; if (x >= HRES) x = HRES - 1;
     if (y < 0) y = 0; if (y >= VRES) y = VRES - 1;
     g_tx = x; g_ty = y; g_pressed = down ? true : false;
+    // One state change in, the way a sampler that never misses a frame would
+    // post it. No debounce: a mouse button does not lose contact with the glass.
+    kiss_touch_post(g_pressed, g_tx, g_ty, lv_tick_get());
 }
 
 // UPSIDE DOWN (kiss_board.h) turns the picture HERE, which is this program's
@@ -270,8 +283,10 @@ static bool kiss_script_step(void)
     if (g_kiss_hold > 0) { g_kiss_hold--; return true; }
     int16_t x = g_kiss[g_kiss_at][0], y = g_kiss[g_kiss_at][1];
     g_kiss_at++;
-    if (x == KP_END) { g_kiss_at = -1; g_pressed = false; return false; }
-    if (x == KP_UP)  { g_pressed = false; g_kiss_hold = 2; return true; }
+    // Lift through set_touch, never by dropping the flag on its own: the level
+    // and the cache's edge count are one statement (main/kiss_touch.h).
+    if (x == KP_END) { g_kiss_at = -1; set_touch(g_tx, g_ty, 0); return false; }
+    if (x == KP_UP)  { set_touch(g_tx, g_ty, 0); g_kiss_hold = 2; return true; }
     set_touch(x, y, 1);
     return true;
 }
@@ -406,7 +421,7 @@ static bool path_step(void) {
         return true;
     }
     if (g_btn_down) return true;               // held still: keep reporting it
-    g_pressed = false;
+    set_touch(g_tx, g_ty, 0);
     return false;
 }
 

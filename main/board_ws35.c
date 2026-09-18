@@ -268,7 +268,10 @@ void kiss_flip_set(bool on, bool repaint)
     // Software flags, not registers: the FT5x06 registers no hardware setter,
     // so these two calls write tp->config.flags and return. That also honours
     // the rule at the touch config below -- an axis flip lives in the flags,
-    // never in platform_read_touch's map.
+    // never in the reader's map. esp_lcd_touch_get_data applies them on
+    // whichever task is reading, which is now kiss_touch.c's sampler: one
+    // 10 ms sample either side of this can be mapped the old way, the same
+    // one-point window the 4.3in's s_flip has.
     esp_lcd_touch_set_mirror_x(s_touch, on ? TOUCH_FLIP_MIRROR_X : TOUCH_MIRROR_X);
     esp_lcd_touch_set_mirror_y(s_touch, on ? TOUCH_FLIP_MIRROR_Y : TOUCH_MIRROR_Y);
   }
@@ -435,7 +438,7 @@ void kiss_board_touch_start(void) {
   if (esp_lcd_new_panel_io_i2c(bus, &tp_io_cfg, &tp_io) != ESP_OK) return;
   // The reset is a real pin here (the GT911's was not wired); INT stays
   // unused because the reader polls. Any axis flip found on glass goes into
-  // these flags, never into platform_read_touch's map.
+  // these flags, never into kiss_board_touch_point's map.
   // x_max/y_max are the glass's own frame (portrait), which is the frame the
   // driver mirrors in before it swaps; the flags are explained where they
   // are defined.
@@ -460,7 +463,15 @@ i2c_master_bus_handle_t kiss_board_i2c_bus(void) { return s_i2c_bus; }
 // both ways up.
 // The first point is logged once so the orientation can be read off the
 // serial log at the bench.
-bool platform_read_touch(int *x, int *y) {
+//
+// ONE read of the FT5x06, and kiss_touch.c's sampler is the only caller. It
+// used to be platform_read_touch itself, read from game_tick and from
+// kiss_ui.c's indev, which is the same defect the 4.3in had wearing the
+// opposite sign: this driver's get_xy zeroes the point as it hands it out, so
+// the controller is a one shot here as well. And a lift between two reads of a
+// repaint-paced reader was lost on both boards, which is what turned the
+// corner double tap into one press. kiss_touch.c has the whole account.
+bool kiss_board_touch_point(int *x, int *y) {
   if (!s_touch) return false;
   esp_lcd_touch_read_data(s_touch);
   esp_lcd_touch_point_data_t pt[1];

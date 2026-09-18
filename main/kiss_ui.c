@@ -303,12 +303,19 @@ static void kb_plane(lv_obj_t *kb, const char **map) {
 }
 
 // ---- LVGL pointer indev over the same touch seam the game uses ----
-extern bool platform_read_touch(int *x, int *y);
-
+//
+// The seam's UI entry point, not the game's, and the split is about what each
+// reader wants out of the one cached sample (main/kiss_touch.h). An indev is
+// shown a LEVEL every pass and builds its own presses, clicks and gestures out
+// of the sequence, so a level is all this one is given. game_tick's entry point
+// replays the edges a slow pass slept through, because it classifies taps
+// itself; replaying those into an indev would be a click at a coordinate the
+// finger had already left -- a phantom key on the passphrase keyboard, from a
+// contact that happened on another screen.
 static void indev_read(lv_indev_t *indev, lv_indev_data_t *data) {
   (void)indev;
   int x = 0, y = 0;
-  if (platform_read_touch(&x, &y)) {
+  if (platform_read_touch_ui(&x, &y)) {
     data->state = LV_INDEV_STATE_PRESSED;
     data->point.x = x;
     data->point.y = y;

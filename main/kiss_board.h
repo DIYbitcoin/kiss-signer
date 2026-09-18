@@ -82,7 +82,18 @@
 
 // The touch read is the platform seam: the device reads its controller, the
 // simulator feeds scripted input.
-bool platform_read_touch(int *x, int *y);
+//
+// TWO ENTRY POINTS, and they ask two different questions of the same cached
+// sample (main/kiss_touch.h). main.c's game_tick classifies taps itself, so it
+// is handed the EDGES a slow pass slept through -- one per call, each at the
+// point its own contact had. kiss_ui.c's pointer indev builds its own presses,
+// clicks and gestures out of a LEVEL it is shown every pass, so it is handed
+// exactly that and no history: a replayed edge reaches it as a click at a place
+// the finger has already left. One function cannot answer both questions, which
+// is why the pair is here instead of one name. Both simulators serve them the
+// same way the board does.
+bool platform_read_touch(int *x, int *y);      // main.c: the game and the collector
+bool platform_read_touch_ui(int *x, int *y);   // kiss_ui.c: the LVGL pointer indev
 
 // ---- UPSIDE DOWN -------------------------------------------------------
 // One runtime truth for the three surfaces that have to turn TOGETHER: the
@@ -121,6 +132,17 @@ void kiss_board_log_info(void);
 lv_display_t *kiss_board_display_start(void);
 void kiss_board_backlight_on(void);
 void kiss_board_touch_start(void);
+// ...and then the sampler over it, which is where both readers above get their
+// answers from (main/kiss_touch.c). After touch_start, because it needs the
+// controller handle to exist, and before build_game, because the first LVGL
+// pass already reads the seam.
+void kiss_touch_start(void);
+// ONE raw read of the controller, mapped to canvas coordinates, board private
+// in everything but linkage: kiss_touch.c's sampler is its only caller, and
+// keeping it the only caller is the fix. Each board's flip lives in here or in
+// the driver flags behind it, so what comes back is what the owner is looking
+// at either way up.
+bool kiss_board_touch_point(int *x, int *y);
 // Did the touch controller answer at init. It is one of the four gates that
 // decide whether a freshly installed image gets to keep its slot.
 bool kiss_board_touch_ok(void);

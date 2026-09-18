@@ -45,6 +45,7 @@ void kiss_begin_setup(void);  // main.c: the REPLACE WALLET door into the wizard
 // a one-time panel rotation at boot), 480x320 on the 3.5in. The walk's scripted
 // points are written in the wide canvas and scaled in touch().
 #include "kiss_board.h"
+#include "kiss_touch.h"   // the same touch cache the board reads through
 #define HRES SCREEN_W
 #define VRES SCREEN_H
 
@@ -64,9 +65,20 @@ static long g_flush_max;    // largest single flush area
 
 // platform seam: the game reads "touch" from here
 //
+// THROUGH THE SAME CACHE THE BOARD READS THROUGH (main/kiss_touch.h), which is
+// the only way a gate on this side can see the thing that was wrong. g_pressed
+// stays the raw LEVEL a script sets and clears -- the controller is the one part
+// of the seam nothing here can model -- and the two readers below are served
+// exactly as they are on glass: the collector gets the edges it has not been
+// shown, replayed at each contact's own point and dropped once they are too old
+// to be an input, and the indev gets the level. Both taps of a double tap
+// landing inside one LVGL pass is then a thing the walk can actually script:
+// two touch/release pairs with no pump between them, which is what a repaint
+// long enough to hide the lift looks like from the collector's side.
+//
 // NOT reflected when the device is upside down, and that is the honest
-// composition rather than a gap. On glass the reflection in platform_read_touch
-// exists to UNDO the one in the picture: the owner sees a control at the
+// composition rather than a gap. On glass the reflection in the board's touch
+// map exists to UNDO the one in the picture: the owner sees a control at the
 // physical spot its canvas position reflects to, and the touch map turns that
 // spot back into the canvas position. Here there is no physical frame -- the
 // walk's taps are canvas points, taken from the object tree -- so the two
@@ -75,8 +87,17 @@ static long g_flush_max;    // largest single flush area
 // the one that matters most: display flipped without touch is an owner whose
 // drawn unlock word stops matching (kiss_gword.c).
 bool platform_read_touch(int *x, int *y) {
-  if (g_pressed) { *x = g_tx; *y = g_ty; return true; }
-  return false;
+  return kiss_touch_edge(x, y, lv_tick_get());
+}
+
+bool platform_read_touch_ui(int *x, int *y) { return kiss_touch_level(x, y); }
+
+// The scripted level, posted the way a sampler that never misses a frame would
+// post it: one edge per state change, at the point the script named. There is no
+// debounce on this side because there is nothing to debounce -- a flag does not
+// lose contact with the glass.
+static void post_touch(void) {
+  kiss_touch_post(g_pressed, g_tx, g_ty, lv_tick_get());
 }
 
 // crypto seam: the sim has no libwally; fake a passphrase-dependent fingerprint
@@ -1176,10 +1197,10 @@ void sim_home_status(const char *msg);   // main.c (SIMULATOR): bottom-center st
 // prefix block and the two lit tail blocks and nothing else (wt_addr_short).
 #define ADDR_FOLD(pfx, blk, mid, tail) \
   (KISS_NARROW ? pfx "  \xE2\x80\xA6  " tail : pfx " " blk "  \xE2\x80\xA6  " mid " " tail)
-static void touch(int x, int y) { g_tx = SX(x); g_ty = SY(y); g_pressed = true; }
+static void touch(int x, int y) { g_tx = SX(x); g_ty = SY(y); g_pressed = true; post_touch(); }
 // A point already on THIS board's canvas: one read off a control's coords, or
 // composed from WT_ constants, which are scaled where they are defined.
-static void touch_at(int x, int y) { g_tx = x; g_ty = y; g_pressed = true; }
+static void touch_at(int x, int y) { g_tx = x; g_ty = y; g_pressed = true; post_touch(); }
 
 // Does any label on the live screen contain this text? The verify screen is the
 // one place in the app where a missing string is a security defect rather than
@@ -1503,7 +1524,7 @@ static void must_not_show(const char *what, const char *needle) {
   printf("FAIL: %s: screen shows \"%s\" and must not\n", what, needle);
   g_walk_fails++;
 }
-static void release(void) { g_pressed = false; }
+static void release(void) { g_pressed = false; post_touch(); }
 
 // ---- SETTINGS, direction 1b: five section tabs ----------------------------
 // Every tap into this page is expressed here rather than as thirty numbers
@@ -2429,6 +2450,24 @@ static void quick_tap(void)
   touch(40, 40); pump(3); release(); pump(6);
 }
 
+// The same tap with nothing reading the seam between its press and its lift:
+// what a repaint long enough to hide the lift looks like from the collector's
+// side, which is the bug as it was reported from the glass. The touch cache
+// counts the contact and hands it over one edge per pass afterwards
+// (main/kiss_touch.h); before that existed the two taps arrived as one press.
+static void tap_unseen(int x, int y)
+{
+  touch(x, y); release();
+}
+
+// The clock moving with nothing reading the seam at all: the firmware update
+// writes its image on the LVGL task with the panel blacked, and a long modal
+// does the same for shorter. Whatever was tapped during it stops being an input.
+static void reader_asleep(int ms)
+{
+  lv_tick_inc((uint32_t)ms);
+}
+
 // kiss_lock() sets s_gest_swallow so the rest of the closing tap cannot
 // become the first stroke of a word, and it clears on the next lift. Without a
 // throwaway lift the K's spine is eaten and the word never completes. The
@@ -2651,6 +2690,153 @@ static void sim_fixture_reset(void) {
   }
 }
 
+// ---- the corner shortcut, from a COLD BOOT --------------------------------
+//
+// THE ONE STATE THE WALK CANNOT BE IN. Reported from the glass: from a cold
+// boot two taps in the top left corner of the game did nothing at all, and
+// after one unlock by drawing the word they worked for the rest of the
+// session. The walk already covers the pair, but only behind lock_to_menu(),
+// which is a RE-lock: a session has been opened and closed, kiss_lock() has
+// run, the LVGL indev exists, and every flag the collector reads has been
+// through a cycle. Nothing had ever asked the corner a question on a device
+// that had just been switched on.
+//
+// ITS OWN PROCESS, for the same reason the safe-mode harness in main() is one,
+// and this one was measured rather than assumed. It was written as a walk stop
+// first, at the only genuinely cold moment the walk has -- right after the
+// first menu capture -- and the cost of two taps there was 133 of 599 frames
+// moved on the 4.3in, 240 on the 3.5in, and tools/check_sim_taps.py red on the
+// 3.5in with sim_login_shown equal to sim_login_caret. None of that is the
+// stop's fault: the FIRST press of a run seeds the game's xorshift from its
+// tick and its point (rng_seed in main/main.c), and the menu fruit, the accent
+// motes, the fingerprint scramble and the caret blink are all phased off
+// lv_tick. A tap at the cold moment moves both for the rest of the run, and a
+// stop that reddens a gate is not a stop.
+//
+// WHAT THIS CANNOT PROVE, said plainly, because the line moved. The reported
+// bug had two halves. The state half is the collector, the swallow flags and
+// the pair detector, and it is checked below. The other half was the SEAM: on
+// glass the controller is a one shot, it was polled on the repaint's clock, and
+// the lift between the two taps was lost so they arrived as one press. The
+// bookkeeping that keeps that lift is now compiled on this side too
+// (main/kiss_touch.h) and MODE 2 below drives it, so what is left to the glass
+// is the controller itself -- the 100 Hz sampler, the lift debounce, the GT911's
+// ready-flag pre-check, and whether a finger really behaves the way the
+// datasheet says. Those stay a hardware verdict on both boards.
+//
+// FIVE MODES, one process each, because a run can only be cold once. Each is
+// the same corner shortcut asked a different way, and between them they hold
+// down every rule the cache has:
+//   1  a tap per pass, the way a panel that is keeping up delivers them. The
+//      only mode that can check the FIRST tap on its own -- it has to arm the
+//      pair without starting a round.
+//   2  both taps inside ONE pass, which is the bug as it was reported. Nothing
+//      reads the seam between the press and the lift, twice over. This is the
+//      mode that fails if the collector is handed a level instead of edges;
+//      mode 1 passes either way, which is why it is not enough on its own.
+//   3  three taps inside one pass: a backlog deeper than it is allowed to be.
+//      The newest two are kept, so the pair still answers and nothing absurd
+//      comes out of the trim.
+//   4  two taps inside one pass at DIFFERENT places, middle first. Each has to
+//      arrive where it was made: the middle tap starts a round, and the corner
+//      tap behind it is then ignored because the collector is skipped in ST_PLAY.
+//      Replay both at the live point instead and they both land in the corner,
+//      the pair fires and a signer opens on a device nobody asked one of -- so
+//      this mode wants the round and NO signer.
+//   5  mode 2's input with the reader asleep over it. A backlog older than the
+//      cap is not an input any more and nothing at all may happen.
+static int cold_corner(int mode)
+{
+  extern bool sim_game_playing(void);   // main/main.c, simulator only
+  // What this mode's input is supposed to produce.
+  const bool want_signer = (mode != 4 && mode != 5 && mode != 6);
+  const bool want_round = (mode == 4);
+  build_game();
+  pump(130);                            // the settled menu a cold device shows
+  if (sim_game_playing()) {
+    printf("FAIL: a cold boot landed in Fruit Island\n");
+    g_walk_fails++;
+  }
+  if (mode == 1) {
+    // One tap in the corner ARMS the pair and must not start a round: a first
+    // tap that launched Fruit Island would leave ST_MENU before the second
+    // arrived, and the collector is skipped in ST_PLAY. quick_tap's 40,40 is
+    // inside the CW_QT_BOX corner on both canvases.
+    quick_tap();
+    if (sim_game_playing()) {
+      printf("FAIL: the first cold corner tap started Fruit Island\n");
+      g_walk_fails++;
+    }
+    quick_tap();
+    pump(KISS_NARROW ? 50 : 40);        // the hand-off, as the warm stop waits it out
+  } else {
+    if (mode == 4) {
+      tap_unseen(400, 240);             // the middle: a plain "tap to play"
+      tap_unseen(40, 40);
+    } else {
+      tap_unseen(40, 40); tap_unseen(40, 40);
+      if (mode == 3) tap_unseen(40, 40);
+    }
+    // THE INDEV IS NOT REPLAYED TO, and this is where that is cheap to pin: a
+    // backlog is standing right now, so a reader wired to the edges would
+    // answer "pressed" here while the scripted finger is up. The whole fix for
+    // a phantom press on a freshly opened signer is which of the two answers
+    // kiss_ui.c is given, and nothing else in this tree asks.
+    {
+      int ux = 0, uy = 0;
+      if (platform_read_touch_ui(&ux, &uy)) {
+        printf("FAIL: the UI reader was handed a queued press at %d,%d\n", ux, uy);
+        g_walk_fails++;
+      }
+    }
+    // Long enough that the whole backlog has aged out, and well past CW_QT_MS
+    // so the two taps could not pair even if they were delivered.
+    if (mode == 5) reader_asleep(1000);
+    // MODE 6 is mode 5 with the reader having read ONE pass first, so it is
+    // already part way through the backlog when the stall begins. The age
+    // question has to be asked again for the contacts that arrive after it,
+    // or a tap a second old is replayed at full age -- and on this screen that
+    // opens a signer.
+    if (mode == 6) {
+      pump(1);
+      tap_unseen(40, 40); tap_unseen(40, 40);
+      reader_asleep(1000);
+    }
+    // The hand-off, plus the passes the replay itself costs: one edge reaches
+    // the collector per pass, so a pair is four before the door even opens.
+    pump(KISS_NARROW ? 60 : 50);
+  }
+  if (sim_game_playing() != want_round) {
+    printf("FAIL: Fruit Island %s running after the cold taps\n",
+           want_round ? "is not" : "is");
+    g_walk_fails++;
+  }
+  uint8_t fp[4];
+  kiss_ui_last_fp(fp);
+  bool opened = fp[0] || fp[1] || fp[2] || fp[3];
+  if (opened != want_signer) {
+    printf("FAIL: the cold corner taps %s a signer\n",
+           want_signer ? "opened nothing instead of" : "opened");
+    g_walk_fails++;
+  }
+  // The spare, not the passphrase route: the same property the warm stop pins.
+  must_not_show("cold-corner/no-keyboard", tr(STR_L_TYPE_PROMPT));
+  // And no finger left behind on whatever is on screen now. A replay handed a
+  // press it never gets to take back holds the indev down on the screen the
+  // door just drew, which is the shape of every phantom this layer can produce.
+  int hx = 0, hy = 0;
+  if (platform_read_touch_ui(&hx, &hy)) {
+    printf("FAIL: a press was left on the glass at %d,%d\n", hx, hy);
+    g_walk_fails++;
+  }
+  // No frame saved. This process shares the scratch with the walk, and a
+  // picture written here would land among the walk's numbered frames for
+  // tools/check_sim_taps.py to compare against its neighbours.
+  printf("COLDCORNER\t%d\t%s\n", mode, g_walk_fails ? "FAIL" : "ok");
+  printf("sim done\n");
+  return g_walk_fails ? 1 : 0;
+}
+
 int main(void) {
   // Before anything touches the fake card. Two walks on one scratch invent
   // failures rather than colliding loudly; see kiss_simpath.h.
@@ -2721,6 +2907,22 @@ int main(void) {
            kiss_settings_load_status_name((kiss_settings_load_status_t)raw));
     printf("sim done\n");
     return g_walk_fails ? 1 : 0;
+  }
+
+  // The corner shortcut on a device that has just been switched on, in the mode
+  // the variable names -- 1, 2 or 3, and the long note above cold_corner() says
+  // what each one drives, what it cost to run it here and what it still cannot
+  // prove. Its own process. Run it BEFORE any walk whose frames are going to be
+  // read: the sweep above has already run by the time it gets here.
+  const char *cold = getenv("KISS_COLD_CORNER");
+  if (cold && *cold) {
+    char *end = NULL;
+    long mode = strtol(cold, &end, 10);
+    if (!end || *end || mode < 1 || mode > 6) {
+      fprintf(stderr, "bad KISS_COLD_CORNER mode: %s\n", cold);
+      return 1;
+    }
+    return cold_corner((int)mode);
   }
 
   build_game();

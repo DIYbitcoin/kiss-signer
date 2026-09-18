@@ -238,6 +238,17 @@ jobs:
         if: always()
         run: |
           bash sim/build_sim.sh
+          # The corner shortcut on a device that has just been switched on, a
+          # process per mode and all of them BEFORE the walk: the binary sweeps
+          # the scratch's frames as it starts, and the tap gate below reads the
+          # walk's. The long note on sim/sim_main.c's cold_corner() says what
+          # each mode asks, why none of this can be a walk stop, and which half
+          # of the seam still needs the glass.
+          for m in 1 2 3 4 5 6; do
+            timeout 120 env SIM_LANG=en KISS_COLD_CORNER=$m /tmp/fruitsim \
+              > /tmp/cold_corner_$m.log
+            tail -2 /tmp/cold_corner_$m.log
+          done
           for L in en; do
             echo "== SIM_LANG=$L =="
             timeout 300 env SIM_LANG=$L /tmp/fruitsim > /tmp/sim_$L.log
@@ -671,6 +682,13 @@ jobs:
       - name: sim smoke walk (3.5in, en)
         run: |
           bash sim/build_sim.sh
+          # A process per mode; sim/sim_main.c's cold_corner() says what each
+          # one asks of the corner and of the touch cache under it.
+          for m in 1 2 3 4 5 6; do
+            timeout 120 env SIM_LANG=en KISS_COLD_CORNER=$m /tmp/fruitsim \
+              > /tmp/cold_corner_$m.log
+            tail -2 /tmp/cold_corner_$m.log
+          done
           timeout 300 env SIM_LANG=en /tmp/fruitsim > /tmp/sim_en.log
           tail -1 /tmp/sim_en.log
 

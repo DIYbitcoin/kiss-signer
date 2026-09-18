@@ -42,6 +42,8 @@ int test_kef(void);
 int test_duress(void);
 int test_gword(void);
 int test_coverword(void);
+// sim/test_touch.c -- the touch cache's edges, points and age cap
+int test_touch(void);
 int test_rehearse(void);
 // sim/test_passedit.c: insert/delete at the passphrase caret
 int test_passedit(void);
@@ -930,6 +932,7 @@ int main(int argc, char **argv) {
     fails += test_duress();
     fails += test_gword();
     fails += test_coverword();
+    fails += test_touch();
     fails += test_rehearse();
     fails += test_passedit();
     fails += test_tapent();
