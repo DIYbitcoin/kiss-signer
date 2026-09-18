@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#070a10">
     <meta
       name="description"
-      content="Install KISS Signer firmware on a Guition JC4880P443C ESP32-P4 device over Web Serial."
+      content="Install KISS Signer firmware on a Guition 4.3in or Waveshare 3.5in ESP32-P4 board over Web Serial."
     >
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://diybitcoin.github.io/kiss-signer/">
@@ -93,13 +93,30 @@
           </li>
           <li>
             <h3>Install</h3>
-            <p>Tick the box, press the button, pick the port. About a minute.</p>
+            <p>Choose your board, tick the box, press the button, pick the port. About a minute.</p>
           </li>
           <li>
             <h3>Power cycle</h3>
             <p>Unplug, wait three seconds, plug back in. You land on FRUIT&nbsp;ISLAND.</p>
           </li>
         </ol>
+
+        <!-- Asked before anything is hashed. Both boards are ESP32-P4, so the
+             browser cannot tell them apart and would flash either image onto
+             either board; the answer picks the one image and manifest the
+             rest of this card checks and offers. The ids match
+             tools/release_boards.sh. -->
+        <div class="board-pick" id="board-pick" role="radiogroup" aria-labelledby="board-pick-title">
+          <strong id="board-pick-title">Which board is it?</strong>
+          <label class="ack-row">
+            <input type="radio" name="board" value="guition">
+            <span><b>Guition 4.3in</b>, the JC4880P443C. The larger screen, 800 by 480.</span>
+          </label>
+          <label class="ack-row">
+            <input type="radio" name="board" value="ws35">
+            <span><b>Waveshare 3.5in</b>, the ESP32-P4-WIFI6-Touch-LCD-3.5. The smaller screen, 480 by 320.</span>
+          </label>
+        </div>
 
         <div class="verify-line">
           <div class="verify-light pending" id="verify-light"></div>
@@ -122,7 +139,13 @@
             Connect and install (checking&hellip;)
           </button>
 
-          <esp-web-install-button id="install-button" class="is-hidden" manifest="installer/manifest.json">
+          <!-- No manifest attribute here: app.js sets it to the picked board's
+               manifest once that board's image has checked out. A copy of an
+               older app.js still sitting in a browser cache knows nothing of
+               the board question and would otherwise open this button onto
+               the Guition's manifest whatever board was picked; with nothing
+               named, the button has nothing to flash. -->
+          <esp-web-install-button id="install-button" class="is-hidden">
             <button slot="activate" class="flash-button" type="button">
               Connect and install
             </button>

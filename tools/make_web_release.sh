@@ -6,6 +6,14 @@
 #   * firmware/kiss-signer-<version>.bin.minisig        (minisign, if key exists)
 #   * manifest.json / release.json                      (rewritten in place)
 #
+# Those are the Guition 4.3in's names, and they are what they always were. Every
+# other board in tools/release_boards.sh gets the same set with its suffix
+# before the extension -- kiss-signer-<version>-ws35.bin,
+# kiss-signer-<version>-ws35-update.bin, manifest-ws35.json -- and its own entry
+# under "boards" in release.json. One image and one hash per board; the install
+# page asks which board before it hashes or offers anything.
+# KISS_RELEASE_BOARDS="guition" publishes the Guition alone.
+#
 # Signing, the typical bitcoin-project way (see docs/installer/SIGNING.md):
 #   * GPG (primary, community convention): detached armor signature over the
 #     SHA256SUMS manifest. Uses your default key, or GPG_KEY_ID if set.
@@ -14,6 +22,31 @@
 # Without keys the release is emitted unsigned and labeled so.
 set -e
 cd "$(dirname "$0")/.."
+. tools/release_boards.sh
+
+# The boards this release carries, in the table's order whatever order they were
+# asked for in, so SHA256SUMS and release.json list them the same way every
+# time. The Guition cannot be left out: release.json's top-level browserFirmware,
+# manifest.json and kiss-signer-<version>.bin are its names, and every page and
+# script that already links them has to go on getting its image.
+WANT_BOARDS=" ${KISS_RELEASE_BOARDS:-$KISS_RELEASE_BOARD_IDS} "
+for b in $WANT_BOARDS; do
+    if ! kiss_board_profile "$b"; then
+        echo "KISS_RELEASE_BOARDS: no board called '$b' (known: $KISS_RELEASE_BOARD_IDS)"
+        exit 2
+    fi
+done
+RELEASE_BOARDS=""
+for b in $KISS_RELEASE_BOARD_IDS; do
+    case "$WANT_BOARDS" in *" $b "*) RELEASE_BOARDS="$RELEASE_BOARDS $b" ;; esac
+done
+case " $RELEASE_BOARDS " in
+    *" guition "*) ;;
+    *) echo "KISS_RELEASE_BOARDS='${KISS_RELEASE_BOARDS}' leaves out the Guition,"
+       echo "whose file names every existing link to a release uses."
+       exit 2 ;;
+esac
+echo "boards in this release:$RELEASE_BOARDS"
 
 MINISIGN_KEY="${MINISIGN_KEY:-$HOME/.kiss-signer/minisign.key}"
 # The post quantum release key. Secret half here and nowhere else, exactly like
@@ -150,20 +183,27 @@ if [ -z "$ALLOW_DIRTY" ] && [ -n "$(git status --porcelain)" ]; then
     exit 1
 fi
 
-# 1. fresh verified release build
-tools/build_release.sh
+# 1. fresh verified release build, one per board, each run with every check
+# build_release.sh has. KISS_BOARD is set every time, so a value left exported
+# from simulator work cannot decide which board this builds.
+for b in $RELEASE_BOARDS; do
+    KISS_BOARD="$b" tools/build_release.sh
+done
 
 # Fail closed on an unsigned app. A device can never accept it as an SD
 # update, and everything below this line -- the hash manifest, the GPG
 # signature, the install page -- would dress it up as a release anyway.
 # build_release.sh clears the marker at its start and writes it only under
 # KISS_UNSIGNED=1, so here it can only describe the build just made.
-if [ -f build-release/UNSIGNED ]; then
-    echo "FAIL: build-release/UNSIGNED exists - this build carries no signature."
-    echo "      Publishing would GPG-sign and serve an image no device accepts"
-    echo "      as an update. Build with the signing key present, then rerun."
-    exit 1
-fi
+for b in $RELEASE_BOARDS; do
+    kiss_board_profile "$b"
+    if [ -f "$BOARD_BUILD/UNSIGNED" ]; then
+        echo "FAIL: $BOARD_BUILD/UNSIGNED exists - this build carries no signature."
+        echo "      Publishing would GPG-sign and serve an image no device accepts"
+        echo "      as an update. Build with the signing key present, then rerun."
+        exit 1
+    fi
+done
 
 VERSION=$(cat VERSION)
 # A bare short hash, NOT `git describe`, for the same reason build_release.sh
@@ -186,114 +226,38 @@ GIT_REV=$(git rev-parse --short HEAD 2>/dev/null || echo nogit)
 git diff --quiet HEAD 2>/dev/null || GIT_REV="$GIT_REV-dirty"
 # Clean, beginner-readable filename: just the version. The exact commit lives
 # inside release.json and on the device Settings screen for verifiers.
-NAME="kiss-signer-${VERSION}.bin"
+#
+# board_files <id> sets the board's profile and its three published names. The
+# Guition's suffix is empty, so its names are the ones every release has had.
+board_files() {
+    kiss_board_profile "$1"
+    NAME="kiss-signer-${VERSION}${BOARD_SUFFIX}.bin"
+    UPDATE_NAME="kiss-signer-${VERSION}${BOARD_SUFFIX}-update.bin"
+    MANIFEST_NAME="manifest${BOARD_SUFFIX}.json"
+}
 OUT="docs/installer"
 mkdir -p "$OUT/firmware"
 
-# 2. merge every part of the build into one offset-0 image.
-# The offsets come out of the build, never out of this file. They used to be
-# typed here, and enabling rollback added an ota_data partition at 0x10000 and
-# moved the app to 0x20000: a merge still writing the app at 0x10000 would lay
-# it over the slot the bootloader reads to choose which app to run, and publish
-# that as the one click install. manifest.json flashes this merged image at
-# offset 0, so whatever is wrong here is wrong for every web installer user.
-# The install docs promise a DIRECT esptool part flash never writes the wallet
-# area: nvs must stay a gap in flasher_args.json, not a part. (The merged image
-# below is different -- merge-bin fills gaps, so flashing it at offset 0 does
-# erase the wallet, which is what the README's warning is about.) If a part
-# ever grows into the nvs range, that promise and this check both break here,
-# loudly, instead of in a user's wallet.
-"$PY" - <<'PY'
-import csv, json, os, sys
-nvs = None
-for row in csv.reader(open("partitions.csv")):
-    if row and row[0].strip() == "nvs":
-        nvs = (int(row[3].strip(), 16), int(row[4].strip(), 16))
-        break
-if not nvs:
-    sys.exit("FAIL: partitions.csv has no nvs row")
-lo, hi = nvs[0], nvs[0] + nvs[1]
-d = json.load(open("build-release/flasher_args.json"))["flash_files"]
-for off, f in d.items():
-    start = int(off, 16)
-    end = start + os.path.getsize("build-release/" + f)
-    if start < hi and end > lo:
-        sys.exit(f"FAIL: flash part {f} at {off} overlaps nvs "
-                 f"[{lo:#x},{hi:#x}) - a direct flash would write the wallet area")
-print(f"PASS: no flash part touches nvs [{lo:#x},{hi:#x})")
-PY
+# One line per board for the Python blocks below, which cannot source the
+# table: id|merged image|update image|manifest|build dir|app|name|model.
+RELEASE_ROWS=""
+for b in $RELEASE_BOARDS; do
+    board_files "$b"
+    RELEASE_ROWS="$RELEASE_ROWS$b|$NAME|$UPDATE_NAME|$MANIFEST_NAME|$BOARD_BUILD|$BOARD_APP|$BOARD_NAME|$BOARD_MODEL
+"
+done
+# Every board the table knows, in this release or not, for the one page that
+# has to say "not in this release" rather than keep a previous release's hash.
+TABLE_ROWS=""
+for b in $KISS_RELEASE_BOARD_IDS; do
+    kiss_board_profile "$b"
+    TABLE_ROWS="$TABLE_ROWS$b|$BOARD_NAME
+"
+done
 
-MERGE_PARTS=$("$PY" - <<'PY'
-import json
-d = json.load(open("build-release/flasher_args.json"))["flash_files"]
-for off, f in sorted(d.items(), key=lambda kv: int(kv[0], 16)):
-    print(off, "build-release/" + f)
-PY
-)
-# Unquoted on purpose: each offset and path has to arrive as its own argument.
-"$PY" -m esptool --chip esp32p4 merge-bin -o "$OUT/firmware/$NAME" \
-  --flash-mode dio --flash-freq 80m --flash-size 16MB \
-  $MERGE_PARTS
-
-# 2.2 the SD update image.
-#
-# The merged image above is the ONLY thing this script published, and the device
-# cannot use it. kiss_fw_desc_parse looks for the esp_app_desc magic 32 bytes
-# into the file, which is where it sits in an APPLICATION image; a merged
-# offset-0 image has the bootloader there, so the card was scanned, the magic
-# did not match, and every published build was reported as "nothing to install".
-# The FIRMWARE screen shipped with no artifact it could ever accept.
-#
-# This is the same signed app the SHA256SUMS below already hashed as
-# "application" -- build_release.sh signs it in place, so no second signing
-# happens here and none should.
-UPDATE_NAME="kiss-signer-${VERSION}-update.bin"
-cp build-release/guition_kiss_bringup.bin "$OUT/firmware/$UPDATE_NAME"
-
-# Verify the PUBLISHED copy, not its source: this is the file a card gets,
-# and this check fails if signing was skipped, the cp above ever gains a
-# transform, or a later step rewrites the file in place.
-if ! uvx --from esptool espsecure verify-signature \
-     --version 2 --keyfile docs/installer/kiss_ota_pub.pem \
-     "$OUT/firmware/$UPDATE_NAME" >/dev/null 2>&1; then
-  echo "FAIL: $OUT/firmware/$UPDATE_NAME does not verify against"
-  echo "      docs/installer/kiss_ota_pub.pem"
-  exit 1
-fi
-echo "PASS: $UPDATE_NAME verifies against the published public key"
-
-# The descriptor the device will look for, checked HERE rather than discovered
-# on a card. Same offset and magic as main/kiss_fw.c; a build that stops
-# matching it must fail the release, not ship an image the FIRMWARE screen
-# silently refuses.
-UPDATE="$OUT/firmware/$UPDATE_NAME" "$PY" - <<'PY'
-import os, struct, sys
-p = os.environ["UPDATE"]
-hdr = open(p, "rb").read(80)
-if len(hdr) < 80:
-    sys.exit(f"FAIL: {p} is too short to hold an app descriptor")
-magic, = struct.unpack_from("<I", hdr, 32)
-if magic != 0xABCD5432:
-    sys.exit(f"FAIL: {p} has no esp_app_desc magic at offset 32 "
-             f"(got {magic:#010x}) - the SD updater would refuse it")
-ver = hdr[48:80].split(b"\0")[0].decode("ascii", "replace")
-if not ver:
-    sys.exit(f"FAIL: {p} has an empty version string; kiss_fw_desc_parse "
-             "refuses that rather than ordering it below everything")
-print(f"PASS: {os.path.basename(p)} carries app descriptor v{ver}")
-PY
-
-# ---- the second signature ----
-#
-# An SLH-DSA-SHA2-128s signature over the update image, appended as an 8 KB
-# trailer the device holds back rather than writes. Both signatures have to
-# check out before anything becomes bootable, and this one does not rest on an
-# elliptic curve -- which is the point of it, because the ECDSA key above is
-# the single thing standing between a quantum adversary and firmware every
-# signer would install and trust.
-#
-# After the ECDSA verify, never before: espsecure looks at the file as a whole,
-# and the trailer is not part of the image it signed.
+# The post quantum key, and the header that carries its public half into the
+# firmware, are one key and one header for every board, so they are checked
+# once, before the first board's images are made.
 if [ ! -f "$KISS_PQ_KEY" ]; then
   echo "FAIL: post quantum release key not found at $KISS_PQ_KEY"
   echo "      Mint it once:  bash sim/build_pqtool.sh && /tmp/pq_tool keygen $KISS_PQ_KEY"
@@ -315,6 +279,138 @@ if ! diff -q <("$PQ_TOOL" header "$KISS_PQ_KEY") main/pq_release_pubkey.h >/dev/
   echo "        $PQ_TOOL header $KISS_PQ_KEY > main/pq_release_pubkey.h"
   exit 1
 fi
+
+# Steps 2 to 2.5 run once per board, each on its own build directory and under
+# its own names, and every check in them runs for every image.
+for BOARD in $RELEASE_BOARDS; do
+board_files "$BOARD"
+BUILD="$BOARD_BUILD"
+echo
+echo "== $BOARD_NAME: $BUILD -> $OUT/firmware/$NAME =="
+
+# 2. merge every part of the build into one offset-0 image.
+# The offsets come out of the build, never out of this file. They used to be
+# typed here, and enabling rollback added an ota_data partition at 0x10000 and
+# moved the app to 0x20000: a merge still writing the app at 0x10000 would lay
+# it over the slot the bootloader reads to choose which app to run, and publish
+# that as the one click install. manifest.json flashes this merged image at
+# offset 0, so whatever is wrong here is wrong for every web installer user.
+# The install docs promise a DIRECT esptool part flash never writes the wallet
+# area: nvs must stay a gap in flasher_args.json, not a part. (The merged image
+# below is different -- merge-bin fills gaps, so flashing it at offset 0 does
+# erase the wallet, which is what the README's warning is about.) If a part
+# ever grows into the nvs range, that promise and this check both break here,
+# loudly, instead of in a user's wallet.
+BUILD="$BUILD" "$PY" - <<'PY'
+import csv, json, os, sys
+build = os.environ["BUILD"]
+nvs = None
+for row in csv.reader(open("partitions.csv")):
+    if row and row[0].strip() == "nvs":
+        nvs = (int(row[3].strip(), 16), int(row[4].strip(), 16))
+        break
+if not nvs:
+    sys.exit("FAIL: partitions.csv has no nvs row")
+lo, hi = nvs[0], nvs[0] + nvs[1]
+d = json.load(open(f"{build}/flasher_args.json"))["flash_files"]
+for off, f in d.items():
+    start = int(off, 16)
+    end = start + os.path.getsize(f"{build}/{f}")
+    if start < hi and end > lo:
+        sys.exit(f"FAIL: flash part {f} at {off} overlaps nvs "
+                 f"[{lo:#x},{hi:#x}) - a direct flash would write the wallet area")
+print(f"PASS: no flash part touches nvs [{lo:#x},{hi:#x})")
+PY
+
+MERGE_PARTS=$(BUILD="$BUILD" "$PY" - <<'PY'
+import json, os
+build = os.environ["BUILD"]
+d = json.load(open(f"{build}/flasher_args.json"))["flash_files"]
+for off, f in sorted(d.items(), key=lambda kv: int(kv[0], 16)):
+    print(off, f"{build}/{f}")
+PY
+)
+# Unquoted on purpose: each offset and path has to arrive as its own argument.
+"$PY" -m esptool --chip esp32p4 merge-bin -o "$OUT/firmware/$NAME" \
+  --flash-mode dio --flash-freq 80m --flash-size 16MB \
+  $MERGE_PARTS
+
+# 2.2 the SD update image.
+#
+# The merged image above is the ONLY thing this script published, and the device
+# cannot use it. kiss_fw_desc_parse looks for the esp_app_desc magic 32 bytes
+# into the file, which is where it sits in an APPLICATION image; a merged
+# offset-0 image has the bootloader there, so the card was scanned, the magic
+# did not match, and every published build was reported as "nothing to install".
+# The FIRMWARE screen shipped with no artifact it could ever accept.
+#
+# This is the same signed app the SHA256SUMS below already hashed as
+# "application" -- build_release.sh signs it in place, so no second signing
+# happens here and none should.
+cp "$BUILD/$BOARD_APP.bin" "$OUT/firmware/$UPDATE_NAME"
+
+# Verify the PUBLISHED copy, not its source: this is the file a card gets,
+# and this check fails if signing was skipped, the cp above ever gains a
+# transform, or a later step rewrites the file in place.
+if ! uvx --from esptool espsecure verify-signature \
+     --version 2 --keyfile docs/installer/kiss_ota_pub.pem \
+     "$OUT/firmware/$UPDATE_NAME" >/dev/null 2>&1; then
+  echo "FAIL: $OUT/firmware/$UPDATE_NAME does not verify against"
+  echo "      docs/installer/kiss_ota_pub.pem"
+  exit 1
+fi
+echo "PASS: $UPDATE_NAME verifies against the published public key"
+
+# The descriptor the device will look for, checked HERE rather than discovered
+# on a card. Same offset and magic as main/kiss_fw.c; a build that stops
+# matching it must fail the release, not ship an image the FIRMWARE screen
+# silently refuses.
+#
+# And the board, read out of the same descriptor, in both published images:
+# project_name is <board>_kiss_bringup, so a file published under one board's
+# name that carries the other board's firmware is refused here. The device's
+# own updater compares versions, not boards, so a swapped update image would
+# install, and the merged image is what the install page flashes. For the
+# merged image the app is read at the offset flasher_args.json gives it.
+UPDATE="$OUT/firmware/$UPDATE_NAME" MERGED="$OUT/firmware/$NAME" \
+BUILD="$BUILD" APP="$BOARD_APP" "$PY" - <<'PY'
+import json, os, struct, sys
+app = os.environ["APP"]
+flash = json.load(open(f"{os.environ['BUILD']}/flasher_args.json"))
+app_off = int(flash["app"]["offset"], 16)
+for p, base in ((os.environ["UPDATE"], 0), (os.environ["MERGED"], app_off)):
+    with open(p, "rb") as f:
+        f.seek(base)
+        hdr = f.read(112)
+    if len(hdr) < 112:
+        sys.exit(f"FAIL: {p} is too short to hold an app descriptor at {base:#x}")
+    magic, = struct.unpack_from("<I", hdr, 32)
+    if magic != 0xABCD5432:
+        sys.exit(f"FAIL: {p} has no esp_app_desc magic at {base + 32:#x} "
+                 f"(got {magic:#010x}) - the SD updater would refuse it")
+    ver = hdr[48:80].split(b"\0")[0].decode("ascii", "replace")
+    if not ver:
+        sys.exit(f"FAIL: {p} has an empty version string; kiss_fw_desc_parse "
+                 "refuses that rather than ordering it below everything")
+    proj = hdr[80:112].split(b"\0")[0].decode("ascii", "replace")
+    if proj != app:
+        sys.exit(f"FAIL: {p} carries {proj!r} firmware, and it is published "
+                 f"as the {app} image")
+    print(f"PASS: {os.path.basename(p)} carries app descriptor v{ver} for {proj}")
+PY
+
+# ---- the second signature ----
+#
+# An SLH-DSA-SHA2-128s signature over the update image, appended as an 8 KB
+# trailer the device holds back rather than writes. Both signatures have to
+# check out before anything becomes bootable, and this one does not rest on an
+# elliptic curve -- which is the point of it, because the ECDSA key above is
+# the single thing standing between a quantum adversary and firmware every
+# signer would install and trust.
+#
+# After the ECDSA verify, never before: espsecure looks at the file as a whole,
+# and the trailer is not part of the image it signed. The key itself and the
+# header were checked above, once, before the first board.
 
 # And the IMAGE has to carry it, which is a different question. The check above
 # compares two files on disk, so a header regenerated after the build passes it
@@ -342,23 +438,27 @@ if ! "$PQ_TOOL" verify "$KISS_PQ_KEY" "$OUT/firmware/$UPDATE_NAME"; then
 fi
 echo "PASS: $UPDATE_NAME carries a post quantum signature that verifies"
 
-# drop stale firmware images so the served folder only holds this release
-find "$OUT/firmware" -name 'kiss-signer-*.bin*' \
-  ! -name "$NAME*" ! -name "$UPDATE_NAME*" -delete
-
-# 2.5 manifest.json, BEFORE SHA256SUMS so the signature can cover it.
+# 2.5 the board's manifest, BEFORE SHA256SUMS so the signature can cover it.
 # esp-web-tools flashes every part of the matching build at its own offset, so
 # an unsigned manifest is arbitrary bytes at an arbitrary offset that a passing
 # gpg --verify still calls good. Its contents depend only on the version, never
 # on the signing outcome, so it can be written this early. release.json cannot:
 # it records whether signing succeeded, so it stays in step 5 and out of the
 # signed manifest, exactly like the offline zip.
-NAME="$NAME" VERSION="$VERSION" GIT_REV="$GIT_REV" "$PY" - <<'PY'
+#
+# One manifest per board, because both boards are ESP32-P4 and esp-web-tools
+# picks a build by chip family alone: two builds in one manifest would be
+# flashed by whichever it met first. The page chooses the manifest instead,
+# from the board the reader picked. The board name rides in "name", which is
+# what esp-web-tools' own dialog shows at the moment of pressing install.
+NAME="$NAME" VERSION="$VERSION" GIT_REV="$GIT_REV" MANIFEST_NAME="$MANIFEST_NAME" \
+BOARD_NAME="$BOARD_NAME" "$PY" - <<'PY'
 import json, os
 out = "docs/installer"
 name, version, rev = os.environ["NAME"], os.environ["VERSION"], os.environ["GIT_REV"]
+manifest = os.environ["MANIFEST_NAME"]
 json.dump({
-    "name": "KISS Signer",
+    "name": f"KISS Signer ({os.environ['BOARD_NAME']})",
     "version": f"{version}-{rev}",
     "new_install_prompt_erase": True,
     "new_install_improv_wait_time": 0,
@@ -367,33 +467,56 @@ json.dump({
         "improv": False,
         "parts": [{"path": f"firmware/{name}", "offset": 0}],
     }],
-}, open(f"{out}/manifest.json", "w"), indent=2)
-print(f"wrote {out}/manifest.json")
+}, open(f"{out}/{manifest}", "w"), indent=2)
+print(f"wrote {out}/{manifest}")
 PY
+done   # every board in the release
+
+# drop stale firmware images and manifests so the served folder only holds
+# this release: every board's names in it are kept, nothing else.
+KEEP=()
+for b in $RELEASE_BOARDS; do
+    board_files "$b"
+    KEEP+=(! -name "$NAME*" ! -name "$UPDATE_NAME*")
+done
+find "$OUT/firmware" -name 'kiss-signer-*.bin*' "${KEEP[@]}" -delete
+KEEP=()
+for b in $RELEASE_BOARDS; do
+    board_files "$b"
+    KEEP+=(! -name "$MANIFEST_NAME")
+done
+find "$OUT" -maxdepth 1 -name 'manifest*.json' "${KEEP[@]}" -delete
 
 # 3. SHA256SUMS first (it is what GPG signs, bitcoin-release style)
-NAME="$NAME" UPDATE_NAME="$UPDATE_NAME" "$PY" - <<'PY'
+RELEASE_ROWS="$RELEASE_ROWS" "$PY" - <<'PY'
 import hashlib, os
 out = "docs/installer"
-name, update = os.environ["NAME"], os.environ["UPDATE_NAME"]
+FIELDS = ("id", "file", "update", "manifest", "build", "app", "name", "model")
+rows = [dict(zip(FIELDS, line.split("|")))
+        for line in os.environ["RELEASE_ROWS"].splitlines() if line]
 def sha(p): return hashlib.sha256(open(p, "rb").read()).hexdigest()
 with open(f"{out}/SHA256SUMS", "w") as f:
-    # Canonical two-space lines and NOTHING else. Annotated lines used to
-    # ride along here ("hash  path  (bootloader)"), and to sha256sum -c the
-    # annotation is part of the filename: under --ignore-missing -- the exact
-    # command the README gives -- every annotated line was silently skipped,
-    # on every release since the format shipped. Only files a user downloads
-    # belong here, under the names they download them as (GitHub Release
-    # assets sit flat beside SHA256SUMS); build-tree provenance lives in
-    # release.json's sourceParts, which carries offsets and sizes as well.
-    f.write(f"{sha(f'{out}/firmware/{name}')}  {name}\n")
-    # The SD update image, under the name it is published as. Same bytes as
-    # the app inside the merged image above, but nobody downloading a card
-    # image should have to know that to check what they downloaded.
-    f.write(f"{sha(f'{out}/firmware/{update}')}  {update}\n")
-    # The flash list itself. Without this line the signature covers what gets
-    # flashed but not the instructions for flashing it.
-    f.write(f"{sha(f'{out}/manifest.json')}  manifest.json\n")
+    # One board after another, each in the order a Guition-only release has
+    # always listed its files, so that release's SHA256SUMS keeps its shape.
+    for r in rows:
+        name, update, manifest = r["file"], r["update"], r["manifest"]
+        # Canonical two-space lines and NOTHING else. Annotated lines used
+        # to ride along here ("hash  path  (bootloader)"), and to sha256sum -c
+        # the annotation is part of the filename: under --ignore-missing --
+        # the exact command the README gives -- every annotated line was
+        # silently skipped, on every release since the format shipped. Only
+        # files a user downloads belong here, under the names they download
+        # them as (GitHub Release assets sit flat beside SHA256SUMS);
+        # build-tree provenance lives in release.json's sourceParts, which
+        # carries offsets and sizes as well.
+        f.write(f"{sha(f'{out}/firmware/{name}')}  {name}\n")
+        # The SD update image, under the name it is published as. Same bytes
+        # as the app inside the merged image above, but nobody downloading a
+        # card image should have to know that to check what they downloaded.
+        f.write(f"{sha(f'{out}/firmware/{update}')}  {update}\n")
+        # The flash list itself. Without this line the signature covers what
+        # gets flashed but not the instructions for flashing it.
+        f.write(f"{sha(f'{out}/{manifest}')}  {manifest}\n")
 print(f"wrote {out}/SHA256SUMS")
 PY
 
@@ -404,7 +527,10 @@ PY
 # how the annotated format stayed green for its whole life.
 SUMS_STAGE=$(mktemp -d)
 cp "$OUT/SHA256SUMS" "$SUMS_STAGE/"
-cp "$OUT/firmware/$NAME" "$OUT/firmware/$UPDATE_NAME" "$OUT/manifest.json" "$SUMS_STAGE/"
+for b in $RELEASE_BOARDS; do
+    board_files "$b"
+    cp "$OUT/firmware/$NAME" "$OUT/firmware/$UPDATE_NAME" "$OUT/$MANIFEST_NAME" "$SUMS_STAGE/"
+done
 (
   cd "$SUMS_STAGE"
   if command -v sha256sum >/dev/null 2>&1; then CHK="sha256sum"; else CHK="shasum -a 256"; fi
@@ -431,29 +557,33 @@ fi
 
 MINISIGNED=0
 if command -v minisign >/dev/null && [ -f "$MINISIGN_KEY" ]; then
-    minisign -S -s "$MINISIGN_KEY" -m "$OUT/firmware/$NAME" \
-      -t "kiss-signer $VERSION $GIT_REV" -x "$OUT/firmware/$NAME.minisig"
+    for b in $RELEASE_BOARDS; do
+        board_files "$b"
+        minisign -S -s "$MINISIGN_KEY" -m "$OUT/firmware/$NAME" \
+          -t "kiss-signer $VERSION $GIT_REV" -x "$OUT/firmware/$NAME.minisig"
+        echo "minisign: $OUT/firmware/$NAME.minisig"
+    done
     MINISIGNED=1
-    echo "minisign: $OUT/firmware/$NAME.minisig"
 fi
 
-# 5. release.json (manifest.json is step 2.5, inside the signature)
-GPGSIGNED=$GPGSIGNED MINISIGNED=$MINISIGNED NAME="$NAME" VERSION="$VERSION" \
+# 5. release.json (the manifests are step 2.5, inside the signature)
+GPGSIGNED=$GPGSIGNED MINISIGNED=$MINISIGNED RELEASE_ROWS="$RELEASE_ROWS" VERSION="$VERSION" \
 GIT_REV="$GIT_REV" PUBKEY_FILE="$PUBKEY_FILE" GPG_PUB_FILE="$GPG_PUB_FILE" \
 GPG_FPR="$GPG_FPR" \
 "$PY" - <<'PY'
 import hashlib, json, os, re, datetime
 
 out = "docs/installer"
-name, version, rev = os.environ["NAME"], os.environ["VERSION"], os.environ["GIT_REV"]
+version, rev = os.environ["VERSION"], os.environ["GIT_REV"]
+FIELDS = ("id", "file", "update", "manifest", "build", "app", "name", "model")
+rows = [dict(zip(FIELDS, line.split("|")))
+        for line in os.environ["RELEASE_ROWS"].splitlines() if line]
 gpg_signed = os.environ["GPGSIGNED"] == "1"
 mini_signed = os.environ["MINISIGNED"] == "1"
 signed = gpg_signed or mini_signed
 
 def sha(p):
     return hashlib.sha256(open(p, "rb").read()).hexdigest()
-
-full = f"{out}/firmware/{name}"
 
 # Same source as the merge above: what release.json tells a verifier the image
 # is made of has to be what the image is actually made of, and a hand written
@@ -463,12 +593,40 @@ LABELS = {
     "partition-table.bin":  "partition table",
     "ota_data_initial.bin": "ota data",
 }
-parts = [
-    (LABELS.get(f.rsplit("/", 1)[-1], "application"), "build-release/" + f, int(off, 16))
-    for off, f in sorted(
-        json.load(open("build-release/flasher_args.json"))["flash_files"].items(),
-        key=lambda kv: int(kv[0], 16))
-]
+def source_parts(build):
+    return [
+        {"name": LABELS.get(f.rsplit("/", 1)[-1], "application"),
+         "sourcePath": f"{build}/{f}", "offset": int(off, 16),
+         "size": os.path.getsize(f"{build}/{f}"), "sha256": sha(f"{build}/{f}")}
+        for off, f in sorted(
+            json.load(open(f"{build}/flasher_args.json"))["flash_files"].items(),
+            key=lambda kv: int(kv[0], 16))
+    ]
+
+# One entry per board: its name, the manifest the page hands esp-web-tools,
+# the one image the page hashes and flashes, and what that image is made of.
+boards = []
+for r in rows:
+    full = f"{out}/firmware/{r['file']}"
+    entry = {
+        "id": r["id"],
+        "name": r["name"],
+        "model": r["model"],
+        "manifest": r["manifest"],
+        "browserFirmware": {
+            "path": f"firmware/{r['file']}", "offset": 0,
+            "size": os.path.getsize(full), "sha256": sha(full),
+        },
+        "sourceParts": source_parts(r["build"]),
+    }
+    if mini_signed:
+        entry["signaturePath"] = f"firmware/{r['file']}.minisig"
+    boards.append(entry)
+
+# The fields release.json carried before there was a second board stay, and
+# stay the Guition's, so a page or a script that already reads them keeps
+# getting the image it always got. The page reads "boards" when it is there.
+legacy = next(b for b in boards if b["id"] == "guition")
 
 
 # manifest.json is written in step 2.5 so SHA256SUMS can cover it. Do not move
@@ -493,7 +651,7 @@ if gpg_signed:
     if os.path.exists(os.environ["GPG_PUB_FILE"]):
         auth["gpgPublicKeyPath"] = os.path.basename(os.environ["GPG_PUB_FILE"])
 if mini_signed:
-    auth["signaturePath"] = f"firmware/{name}.minisig"
+    auth["signaturePath"] = legacy["signaturePath"]
     pub = os.environ["PUBKEY_FILE"]
     if os.path.exists(pub):
         auth["publicKey"] = open(pub).read().strip().splitlines()[-1]
@@ -504,7 +662,7 @@ if not signed:
 json.dump({
     "schema": 1,
     "product": "KISS Signer",
-    "board": "Guition JC4880P443C",
+    "board": legacy["model"],
     "chipFamily": "ESP32-P4",
     "version": version,
     "commit": rev,
@@ -512,22 +670,16 @@ json.dump({
     "generated": datetime.date.today().isoformat(),
     "authenticity": auth,
     "flash": {"mode": "dio", "frequency": "80m", "size": "16MB"},
-    "browserFirmware": {
-        "path": f"firmware/{name}", "offset": 0,
-        "size": os.path.getsize(full), "sha256": sha(full),
-    },
-    "sourceParts": [
-        {"name": label, "sourcePath": p, "offset": off,
-         "size": os.path.getsize(p), "sha256": sha(p)}
-        for label, p, off in parts
-    ],
+    "browserFirmware": legacy["browserFirmware"],
+    "sourceParts": legacy["sourceParts"],
+    "boards": boards,
     "warnings": [
         "This is a beta build, not a final funds build.",
         "Do not erase flash on a device that holds a wallet unless you intentionally want to wipe it.",
         "After flashing, unplug the device, wait about 3 seconds, then plug it back in.",
     ],
 }, open(f"{out}/release.json", "w"), indent=2)
-print(f"wrote {out}/manifest.json + release.json (authenticity: {status})")
+print(f"wrote {out}/release.json for {len(boards)} board(s) (authenticity: {status})")
 PY
 
 # 5.5 re-bake docs/verify-release.html against the release just written.
@@ -535,24 +687,54 @@ PY
 # live inside it rather than be fetched. A stale bake is worse than no page: it
 # would call a genuine download corrupt, or stay green for the previous release.
 # tools/check_installer_version.py fails the build if these drift.
-VERSION="$VERSION" "$PY" - <<'PY'
-import json, os, pathlib, re
+#
+# Every board the table knows gets its slot rewritten, including a board this
+# release does not carry: its slot is emptied and says so, because a slot left
+# alone would go on vouching for the previous release's image. The Guition's
+# variables keep their old names (EXPECT, EXPECT_SIZE, EXPECT_NAME); another
+# board's carry its id (EXPECT_WS35, ...). A slot that is not in the page, or is
+# there twice, stops the release rather than being skipped.
+VERSION="$VERSION" TABLE_ROWS="$TABLE_ROWS" "$PY" - <<'PY'
+import json, os, pathlib, re, sys
 
 version = os.environ["VERSION"]
 page = pathlib.Path("docs/verify-release.html")
 if page.is_file():
     rel = json.loads(pathlib.Path("docs/installer/release.json").read_text())
-    bf = rel["browserFirmware"]
-    name = pathlib.PurePosixPath(bf["path"]).name
+    by_id = {b["id"]: b for b in rel["boards"]}
     t = page.read_text()
-    t = re.sub(r'var EXPECT = "[0-9a-f]*";', f'var EXPECT = "{bf["sha256"]}";', t)
-    t = re.sub(r'var EXPECT_SIZE = \d+;', f'var EXPECT_SIZE = {bf["size"]};', t)
-    t = re.sub(r'var EXPECT_NAME = "[^"]*";', f'var EXPECT_NAME = "{name}";', t)
-    t = re.sub(r'<span class="mono">kiss-signer-[^<]*</span>',
-               f'<span class="mono">{name}</span>', t)
-    t = re.sub(r'Expected for <b>[^<]*</b>:\s*\n?\s*<span class="mono">[0-9a-f]*</span>',
-               f'Expected for <b>{rel["version"]}</b>:\n        '
-               f'<span class="mono">{bf["sha256"]}</span>', t)
+    for line in os.environ["TABLE_ROWS"].splitlines():
+        if not line:
+            continue
+        bid, label = line.split("|")
+        var = "EXPECT" + ("" if bid == "guition" else "_" + bid.upper())
+        bf = by_id[bid]["browserFirmware"] if bid in by_id else None
+        digest = bf["sha256"] if bf else ""
+        size = bf["size"] if bf else 0
+        name = pathlib.PurePosixPath(bf["path"]).name if bf else ""
+        if bf:
+            row = (f'{label}, <span class="mono">{name}</span>:\n'
+                   f'        <span class="mono">{digest}</span>')
+        else:
+            row = f"{label}: no image in this release"
+        counts = []
+        for pattern, value in (
+            (rf'var {var} = "[0-9a-f]*";', f'var {var} = "{digest}";'),
+            (rf'var {var}_SIZE = \d+;', f'var {var}_SIZE = {size};'),
+            (rf'var {var}_NAME = "[^"]*";', f'var {var}_NAME = "{name}";'),
+        ):
+            t, n = re.subn(pattern, lambda m, v=value: v, t)
+            counts.append(n)
+        t, n = re.subn(rf'(<p class="mut expect" data-board="{bid}">).*?(</p>)',
+                       lambda m, r=row: m.group(1) + r + m.group(2), t, flags=re.S)
+        counts.append(n)
+        if counts != [1, 1, 1, 1]:
+            sys.exit(f"FAIL: docs/verify-release.html has no single slot for the "
+                     f"{label} image ({var}: {counts}); nothing was re-baked")
+    t, n = re.subn(r'Expected for <b>[^<]*</b>',
+                   lambda m: f'Expected for <b>{rel["version"]}</b>', t)
+    if n != 1:
+        sys.exit("FAIL: docs/verify-release.html has no single 'Expected for' line")
     page.write_text(t)
     print("re-baked docs/verify-release.html")
 
@@ -613,7 +795,10 @@ else
 fi
 
 echo
-echo "web release ready: $OUT/firmware/$NAME"
+for b in $RELEASE_BOARDS; do
+    board_files "$b"
+    echo "web release ready: $OUT/firmware/$NAME ($BOARD_NAME)"
+done
 echo "offline installer: $ZIP"
 [ "$GPGSIGNED" = "1" ] && echo "                   $ZIP.asc"
 [ "$GPGSIGNED" = "1" ] || echo "REMINDER: set up the GPG release key before the first public release."

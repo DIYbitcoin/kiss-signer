@@ -13,6 +13,14 @@ The version is hardcoded in four places. This checks all four agree with
 VERSION, the same discipline already applied to screenshots by
 tools/gen_docs_shots.py --check.
 
+A release carries one image per board. release.json lists them under
+"boards", and a release made before that list existed describes the Guition
+alone at its top level, which is still read that way. Every board's image has
+to exist, hash to what release.json says, be listed with that hash in
+SHA256SUMS, and have a manifest that flashes it and nothing else -- and the
+top-level fields, which older links and scripts read, have to stay the
+Guition's.
+
 Hand editing the version strings does NOT fix a mismatch. The sha256 and size
 in release.json describe a specific binary and docs/app.js verifies against
 them, so editing the version alone produces a page that fails its own hash
@@ -36,6 +44,7 @@ preventing.
 Exit 0 when the site is consistent, 1 when it would offer a stale binary.
 """
 
+import hashlib
 import json
 import pathlib
 import re
@@ -45,6 +54,68 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 INSTALLER = ROOT / "docs" / "installer"
 BADGE = ROOT / "docs" / "readme" / "badge-version.svg"
 INDEX = ROOT / "docs" / "index.html"
+
+
+# The one form a manifest name may take: release.json hands it to the page, and
+# the page turns it into a URL, so anything else is refused on both sides.
+MANIFEST_RE = re.compile(r"^manifest[\w-]*\.json$")
+DIGEST_RE = re.compile(r"\b[0-9a-f]{64}\b")
+
+
+def release_boards(release: dict) -> list:
+    """The boards a release.json describes: its "boards" list, or the Guition
+    alone for a release made before that list existed."""
+    boards = release.get("boards")
+    if boards is None:
+        return [{"id": "guition", "manifest": "manifest.json",
+                 "browserFirmware": release.get("browserFirmware") or {}}]
+    return boards if isinstance(boards, list) else []
+
+
+def expect_var(board_id: str) -> str:
+    """The verify page's variable for a board's hash. The Guition's kept the
+    name it had when it was the only one."""
+    return "EXPECT" if board_id == "guition" else "EXPECT_" + board_id.upper()
+
+
+def verify_page_problems(text: str, boards: list) -> list:
+    """What docs/verify-release.html bakes, held against the release's boards.
+
+    A board in the release needs its hash, size and file name in the script and
+    in its line at the foot of the page. A board the page has a slot for and the
+    release does not carry needs that slot empty: left alone it would go on
+    passing the previous release's image as a match.
+    """
+    problems = []
+    by_id = {b.get("id"): b for b in boards}
+    slots = re.findall(r'<p class="mut expect" data-board="([\w-]+)">(.*?)</p>',
+                       text, flags=re.S)
+    slot_text = dict(slots)
+    for bid, board in by_id.items():
+        bf = board.get("browserFirmware") or {}
+        name = pathlib.PurePosixPath(bf.get("path", "")).name
+        var = expect_var(bid)
+        for decl in (f'var {var} = "{bf.get("sha256")}";',
+                     f'var {var}_SIZE = {bf.get("size")};',
+                     f'var {var}_NAME = "{name}";'):
+            if decl not in text:
+                problems.append(f"docs/verify-release.html lacks `{decl}` "
+                                f"from release.json")
+        line = slot_text.get(bid)
+        if line is None:
+            problems.append(f"docs/verify-release.html has no expected-hash line "
+                            f"for board {bid!r}")
+        elif bf.get("sha256", "-") not in line or name not in line:
+            problems.append(f"docs/verify-release.html's line for board {bid!r} "
+                            f"does not show {name} and its hash")
+    for bid, line in slots:
+        if bid in by_id:
+            continue
+        var = expect_var(bid)
+        if f'var {var} = "";' not in text or DIGEST_RE.search(line):
+            problems.append(f"docs/verify-release.html still carries a hash for "
+                            f"board {bid!r}, which this release has no image for")
+    return problems
 
 
 def install_button_live() -> bool:
@@ -90,6 +161,7 @@ def is_commit(rev: str) -> bool:
 
 def selftest() -> int:
     bad = 0
+    count = 0
     cases = [
         ("real markup is a live button",
          '<esp-web-install-button manifest="m.json"></esp-web-install-button>',
@@ -108,6 +180,7 @@ def selftest() -> int:
         ok = got == want
         print("  %-52s %s (%s)" % (name, "ok" if ok else "FAILED", got))
         bad += not ok
+        count += 1
 
     # The version rule the manifest is held to: a prefix match, because the
     # generator writes "<version>-<commit>".
@@ -122,6 +195,7 @@ def selftest() -> int:
         ok = got == want
         print("  %-52s %s (%s)" % (name, "ok" if ok else "FAILED", got))
         bad += not ok
+        count += 1
 
     for name, rev, want in [
         ("a bare short hash is a commit", "bdcfa7be", True),
@@ -133,9 +207,188 @@ def selftest() -> int:
         ok = got == want
         print("  %-52s %s (%s)" % (name, "ok" if ok else "FAILED", got))
         bad += not ok
+        count += 1
 
-    print("installer version selftest: %d cases, %d broken" % (len(cases) + 7, bad))
+    # The two shapes of release.json. Reading the old one as "no boards" would
+    # make every check below it pass on nothing.
+    guition_fw = {"path": "firmware/kiss-signer-1.bin", "offset": 0,
+                  "size": 3, "sha256": "a" * 64}
+    ws35_fw = {"path": "firmware/kiss-signer-1-ws35.bin", "offset": 0,
+               "size": 4, "sha256": "b" * 64}
+    for name, release, want in [
+        ("a release without a boards list is the Guition",
+         {"browserFirmware": guition_fw}, [("guition", "manifest.json")]),
+        ("a boards list is read as it stands",
+         {"browserFirmware": guition_fw, "boards": [
+             {"id": "guition", "manifest": "manifest.json", "browserFirmware": guition_fw},
+             {"id": "ws35", "manifest": "manifest-ws35.json", "browserFirmware": ws35_fw}]},
+         [("guition", "manifest.json"), ("ws35", "manifest-ws35.json")]),
+    ]:
+        got = [(b["id"], b["manifest"]) for b in release_boards(release)]
+        ok = got == want
+        print("  %-52s %s (%s)" % (name, "ok" if ok else "FAILED", got))
+        bad += not ok
+        count += 1
+
+    # The verify page, in the three states a board's slot can be in.
+    def page(ws35_hash, ws35_line):
+        return (f'var EXPECT = "{"a" * 64}";\nvar EXPECT_SIZE = 3;\n'
+                f'var EXPECT_NAME = "kiss-signer-1.bin";\n'
+                f'var EXPECT_WS35 = "{ws35_hash}";\n'
+                f'var EXPECT_WS35_SIZE = {4 if ws35_hash else 0};\n'
+                f'var EXPECT_WS35_NAME = "{"kiss-signer-1-ws35.bin" if ws35_hash else ""}";\n'
+                f'<p class="mut expect" data-board="guition">Guition, '
+                f'<span class="mono">kiss-signer-1.bin</span>: {"a" * 64}</p>\n'
+                f'<p class="mut expect" data-board="ws35">{ws35_line}</p>\n')
+    one = [{"id": "guition", "browserFirmware": guition_fw}]
+    two = one + [{"id": "ws35", "browserFirmware": ws35_fw}]
+    for name, text, boards, want in [
+        ("a page baked for both boards passes",
+         page("b" * 64, "Waveshare, kiss-signer-1-ws35.bin: " + "b" * 64), two, 0),
+        ("an absent board with an empty slot passes",
+         page("", "Waveshare: no image in this release"), one, 0),
+        ("an absent board still showing a hash is caught",
+         page("b" * 64, "Waveshare, kiss-signer-1-ws35.bin: " + "b" * 64), one, 1),
+        ("a release board the page never baked is caught",
+         page("", "Waveshare: no image in this release"), two, 2),
+    ]:
+        got = len(verify_page_problems(text, boards)) >= 1
+        ok = got == bool(want)
+        print("  %-52s %s (%s)" % (name, "ok" if ok else "FAILED", got))
+        bad += not ok
+        count += 1
+
+    print("installer version selftest: %d cases, %d broken" % (count, bad))
     return 1 if bad else 0
+
+
+def board_problems(release: dict, boards: list, version: str) -> list:
+    """Every board's image against release.json and SHA256SUMS, and the
+    top-level fields against the Guition's entry."""
+    problems = []
+    if not boards:
+        return ["release.json lists no boards"]
+    ids = [b.get("id") for b in boards]
+    if len(set(ids)) != len(ids):
+        problems.append(f"release.json lists a board twice: {ids}")
+    if "guition" not in ids:
+        problems.append("release.json has no Guition entry, and its top-level "
+                        "fields are the Guition's")
+    for key in ("manifest",):
+        values = [b.get(key) for b in boards]
+        if len(set(values)) != len(values):
+            problems.append(f"two boards share a {key}: {values}")
+    paths = [(b.get("browserFirmware") or {}).get("path") for b in boards]
+    if len(set(paths)) != len(paths):
+        problems.append(f"two boards share a firmware image: {paths}")
+
+    if "boards" in release:
+        guition = next((b for b in boards if b.get("id") == "guition"), {})
+        if guition.get("browserFirmware") != release.get("browserFirmware"):
+            problems.append("release.json's top-level browserFirmware is not the "
+                            "Guition entry's, and older links read it as the Guition's")
+        if guition.get("manifest") != "manifest.json":
+            problems.append("the Guition's manifest is not manifest.json, the URL "
+                            "every existing link to the installer uses")
+
+    sums = {}
+    sums_path = INSTALLER / "SHA256SUMS"
+    if sums_path.is_file():
+        for line in sums_path.read_text().splitlines():
+            fields = line.split("  ", 1)
+            if len(fields) == 2:
+                sums[fields[1].strip()] = fields[0]
+
+    for board in boards:
+        bid = board.get("id")
+        bf = board.get("browserFirmware") or {}
+        path = bf.get("path")
+        if not isinstance(path, str) or "//" in path or path.startswith("/"):
+            problems.append(f"board {bid!r} has no relative browserFirmware.path")
+            continue
+        if not MANIFEST_RE.match(str(board.get("manifest"))):
+            problems.append(f"board {bid!r} names manifest {board.get('manifest')!r}")
+        image = INSTALLER / path
+        if not image.is_file():
+            problems.append(f"release.json names {path} for board {bid!r}, "
+                            f"which does not exist")
+            continue
+        # The file the page hashes, against the numbers the page hashes it
+        # against. A mismatch here is a page that refuses a genuine download.
+        blob = image.read_bytes()
+        digest = hashlib.sha256(blob).hexdigest()
+        if len(blob) != bf.get("size"):
+            problems.append(f"{path} is {len(blob)} bytes, release.json says {bf.get('size')}")
+        if digest != bf.get("sha256"):
+            problems.append(f"{path} hashes to {digest}, release.json says {bf.get('sha256')}")
+        asset = pathlib.PurePosixPath(path).name
+        if sums and sums.get(asset) != digest:
+            problems.append(f"SHA256SUMS does not list {asset} with its hash")
+    return problems
+
+
+def manifest_problems(board: dict, version: str) -> list:
+    """One board's manifest: VERSION, one build, one part, and that part the
+    board's own image at the board's own offset."""
+    problems = []
+    name = board.get("manifest")
+    if not MANIFEST_RE.match(str(name)):
+        return problems            # reported by board_problems
+    manifest_path = INSTALLER / name
+    try:
+        manifest = json.loads(manifest_path.read_text())
+    except FileNotFoundError:
+        return [f"{manifest_path.relative_to(ROOT)} is missing"]
+    except json.JSONDecodeError as exc:
+        return [f"{manifest_path.relative_to(ROOT)} is not valid JSON: {exc}"]
+
+    # esp-web-tools shows this string in its own dialog, and the generator
+    # writes "<version>-<git describe>", so match the prefix rather than
+    # the whole value.
+    manifest_version = manifest.get("version", "")
+    if not manifest_version.startswith(version):
+        problems.append(
+            f"{name} version is {manifest_version!r}, "
+            f"which does not start with {version!r}"
+        )
+
+    # Shape, not just version. esp-web-tools flashes EVERY part of the
+    # matching build at its own offset. manifest.json IS hashed by
+    # SHA256SUMS now, but the hash proves the bytes, not that the shape is
+    # sane -- a signed manifest with an appended part is still arbitrary
+    # bytes at an arbitrary offset. docs/app.js refuses this at flash
+    # time; this refuses it at review time, where a JSON hunk with no
+    # hash in it is easy to wave through.
+    builds = manifest.get("builds")
+    if not isinstance(builds, list) or len(builds) != 1:
+        problems.append(
+            f"{name} declares {len(builds) if isinstance(builds, list) else 'no'} "
+            "builds, expected exactly 1"
+        )
+        return problems
+    parts = builds[0].get("parts")
+    if not isinstance(parts, list) or len(parts) != 1:
+        problems.append(
+            f"{name} declares {len(parts) if isinstance(parts, list) else 'no'} "
+            "flash parts, expected exactly 1"
+        )
+    elif not isinstance(parts[0].get("path"), str) or "//" in parts[0]["path"]:
+        problems.append(
+            f"{name} part path {parts[0].get('path')!r} is not a "
+            "relative path inside docs/installer"
+        )
+    else:
+        # The page refuses a manifest that flashes anything but the board's
+        # own image; so does this, before the page ever has to.
+        bf = board.get("browserFirmware") or {}
+        if bf and (parts[0]["path"] != bf.get("path") or
+                   parts[0].get("offset") != bf.get("offset")):
+            problems.append(
+                f"{name} flashes {parts[0]['path']} at {parts[0].get('offset')}, "
+                f"and release.json gives board {board.get('id')!r} "
+                f"{bf.get('path')} at {bf.get('offset')}"
+            )
+    return problems
 
 
 def main() -> int:
@@ -153,6 +406,7 @@ def main() -> int:
     except json.JSONDecodeError as exc:
         problems.append(f"{release_path.relative_to(ROOT)} is not valid JSON: {exc}")
 
+    boards = []
     if release is not None:
         if release.get("version") != version:
             problems.append(
@@ -168,6 +422,17 @@ def main() -> int:
         elif not (INSTALLER / firmware).is_file():
             problems.append(f"release.json names {firmware}, which does not exist")
 
+        boards = release_boards(release)
+        problems += board_problems(release, boards, version)
+        # A board the release carries that the install page cannot select is an
+        # image nobody can flash from the site.
+        if INDEX.is_file():
+            page = re.sub(r"<!--.*?-->", "", INDEX.read_text(), flags=re.DOTALL)
+            for board in boards:
+                if f'name="board" value="{board.get("id")}"' not in page:
+                    problems.append(f"docs/index.html has no choice for board "
+                                    f"{board.get('id')!r}, which release.json carries")
+
         # The commit the page shows a verifier, beside the firmware hash. It
         # has to be the string the device's own Settings line carries, or the
         # two disagree about one build and the verifier has no way to tell
@@ -180,68 +445,21 @@ def main() -> int:
                 f"git describe string naming an older tag."
             )
 
-    manifest_path = INSTALLER / "manifest.json"
-    try:
-        manifest = json.loads(manifest_path.read_text())
-    except FileNotFoundError:
-        problems.append(f"{manifest_path.relative_to(ROOT)} is missing")
-    except json.JSONDecodeError as exc:
-        problems.append(f"{manifest_path.relative_to(ROOT)} is not valid JSON: {exc}")
-    else:
-        # esp-web-tools shows this string in its own dialog, and the generator
-        # writes "<version>-<git describe>", so match the prefix rather than
-        # the whole value.
-        manifest_version = manifest.get("version", "")
-        if not manifest_version.startswith(version):
-            problems.append(
-                f"manifest.json version is {manifest_version!r}, "
-                f"which does not start with {version!r}"
-            )
-
-        # Shape, not just version. esp-web-tools flashes EVERY part of the
-        # matching build at its own offset. manifest.json IS hashed by
-        # SHA256SUMS now, but the hash proves the bytes, not that the shape is
-        # sane -- a signed manifest with an appended part is still arbitrary
-        # bytes at an arbitrary offset. docs/app.js refuses this at flash
-        # time; this refuses it at review time, where a JSON hunk with no
-        # hash in it is easy to wave through.
-        builds = manifest.get("builds")
-        if not isinstance(builds, list) or len(builds) != 1:
-            problems.append(
-                f"manifest.json declares {len(builds) if isinstance(builds, list) else 'no'} "
-                "builds, expected exactly 1"
-            )
-        else:
-            parts = builds[0].get("parts")
-            if not isinstance(parts, list) or len(parts) != 1:
-                problems.append(
-                    f"manifest.json declares {len(parts) if isinstance(parts, list) else 'no'} "
-                    "flash parts, expected exactly 1"
-                )
-            elif not isinstance(parts[0].get("path"), str) or "//" in parts[0]["path"]:
-                problems.append(
-                    f"manifest.json part path {parts[0].get('path')!r} is not a "
-                    "relative path inside docs/installer"
-                )
+    # One manifest per board, each checked the same way the Guition's always
+    # was. A release.json that could not be read still has manifest.json to
+    # hold to VERSION.
+    for board in boards or [{"id": "guition", "manifest": "manifest.json",
+                             "browserFirmware": {}}]:
+        problems += manifest_problems(board, version)
 
     # docs/verify-release.html bakes the expected hash, size and filename so it
     # works over file:// from the offline bundle with no network. A baked value
     # that drifts is worse than no page at all: it tells someone their genuine
     # download is corrupt, or worse, stays green for the previous release.
     verify_page = ROOT / "docs" / "verify-release.html"
-    if verify_page.is_file():
+    if verify_page.is_file() and release is not None:
         text = verify_page.read_text()
-        rel = json.loads((INSTALLER / "release.json").read_text())["browserFirmware"]
-        for var, value in (
-            ("EXPECT", f'"{rel["sha256"]}"'),
-            ("EXPECT_SIZE", str(rel["size"])),
-            ("EXPECT_NAME", f'"{pathlib.PurePosixPath(rel["path"]).name}"'),
-        ):
-            if f"var {var} = {value};" not in text:
-                problems.append(
-                    f"docs/verify-release.html {var} does not match release.json "
-                    f"({value})"
-                )
+        problems += verify_page_problems(text, boards)
         if version not in text:
             problems.append(f"docs/verify-release.html does not name {version!r}")
 

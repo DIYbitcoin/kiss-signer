@@ -153,9 +153,10 @@
       <div class="card" style="margin-top:22px">
         <h2>1. Does the file match</h2>
         <p class="mut" style="margin-top:0">
-          Drop <span class="mono">kiss-signer-0.1.0-beta10.bin</span> here. It is hashed on this page,
-          in your browser. Nothing is uploaded, and this works with no network at
-          all.
+          Drop the firmware file for your board here. Each board has its own,
+          and the expected hash for each is at the bottom of this page. It is
+          hashed on this page, in your browser. Nothing is uploaded, and this
+          works with no network at all.
         </p>
         <label id="drop">
           <input type="file" id="file" hidden>
@@ -204,18 +205,32 @@
         </p>
       </div>
 
+      <!-- One line per board, rewritten by tools/make_web_release.sh through
+           the data-board attribute, and a board the release does not carry
+           says so rather than keeping an older release's hash. -->
       <p class="mut" style="margin-top:22px">
         Expected for <b>0.1.0-beta10</b>:
-        <span class="mono">3acd0073f2598bd449e4289b0bd10986baf8b655e0f6997fb3f6cd7c3b3ca783</span>
       </p>
+      <p class="mut expect" data-board="guition">Guition 4.3in, <span class="mono">kiss-signer-0.1.0-beta10.bin</span>:
+        <span class="mono">3acd0073f2598bd449e4289b0bd10986baf8b655e0f6997fb3f6cd7c3b3ca783</span></p>
+      <p class="mut expect" data-board="ws35">Waveshare 3.5in: no image in this release</p>
     </main>
 
     <script>
       // Self contained on purpose: this page must open over file:// from the
       // offline bundle with no network. Same SHA256 the audit check page uses.
+      // One image per board. The Guition's keep the names they always had; an
+      // empty hash is a board this release carries no image for.
       var EXPECT = "3acd0073f2598bd449e4289b0bd10986baf8b655e0f6997fb3f6cd7c3b3ca783";
       var EXPECT_SIZE = 5181440;
       var EXPECT_NAME = "kiss-signer-0.1.0-beta10.bin";
+      var EXPECT_WS35 = "";
+      var EXPECT_WS35_SIZE = 0;
+      var EXPECT_WS35_NAME = "";
+      var IMAGES = [
+        { board: "Guition 4.3in", sha256: EXPECT, size: EXPECT_SIZE, name: EXPECT_NAME },
+        { board: "Waveshare 3.5in", sha256: EXPECT_WS35, size: EXPECT_WS35_SIZE, name: EXPECT_WS35_NAME }
+      ].filter(function (image) { return image.sha256; });
 
       var K = [
         0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1,
@@ -298,18 +313,31 @@
           say("hashing", "mut", f.size.toLocaleString() + " bytes");
           f.arrayBuffer().then(function (buf) {
             var got = toHex(sha256(new Uint8Array(buf)));
-            if (got === EXPECT && buf.byteLength === EXPECT_SIZE) {
-              say("MATCH", "ok", got);
-            } else if (got === EXPECT) {
+            var hit = IMAGES.filter(function (image) { return image.sha256 === got; })[0];
+            // The file's own name picks which image it is meant to be, so a
+            // mismatch is reported against that one hash rather than a list.
+            var meant = IMAGES.filter(function (image) { return image.name === f.name; })[0] ||
+                        (IMAGES.length === 1 ? IMAGES[0] : null);
+            if (hit && buf.byteLength === hit.size) {
+              say("MATCH", "ok", got + "\n\nthe " + hit.board + " image, " + hit.name);
+            } else if (hit) {
               say("DOES NOT MATCH", "bad",
                   "hash agrees but the size is " + buf.byteLength +
-                  ", expected " + EXPECT_SIZE);
+                  ", expected " + hit.size);
+            } else if (meant) {
+              say("DOES NOT MATCH", "bad",
+                  "this file:  " + got + "\nexpected:   " + meant.sha256 +
+                  (f.name !== meant.name
+                    ? "\n\nthis is " + f.name + ", the release is " + meant.name
+                    : "\n\nDo not flash this file."));
             } else {
               say("DOES NOT MATCH", "bad",
-                  "this file:  " + got + "\nexpected:   " + EXPECT +
-                  (f.name !== EXPECT_NAME
-                    ? "\n\nthis is " + f.name + ", the release is " + EXPECT_NAME
-                    : "\n\nDo not flash this file."));
+                  "this file:  " + got + "\n" +
+                  IMAGES.map(function (image) {
+                    return "expected:   " + image.sha256 + "  (" + image.board + ")";
+                  }).join("\n") +
+                  "\n\nthis is " + f.name + ", the release is " +
+                  IMAGES.map(function (image) { return image.name; }).join(" or "));
             }
           });
         });

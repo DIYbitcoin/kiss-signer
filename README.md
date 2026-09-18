@@ -179,6 +179,10 @@ firmware download just because it is attached to a release.
 ```sh
 tools/build_release.sh
 shasum -a 256 build-release/guition_kiss_bringup.bin
+
+# the Waveshare 3.5in
+KISS_BOARD=ws35 tools/build_release.sh
+shasum -a 256 build-release-ws35/ws35_kiss_bringup.bin
 ```
 
 For a device that will hold real coins, `tools/build_encrypted_release.sh`

@@ -22,6 +22,12 @@ reproduce the fault.
 
     python3 tools/check_fw_version.py [build-dir ...]      # default: build
 
+The image is the one the build directory's own flasher_args.json names, so a
+directory holding the 3.5in board's ws35_kiss_bringup.bin is read as surely as
+one holding guition_kiss_bringup.bin. A directory named on the command line has
+to hold an image: the release lane names the directory it just built, and
+"nothing to check" there is a gate that passed without looking.
+
 Exit 0 when every directory checked agrees with VERSION.
 """
 import json
@@ -39,7 +45,19 @@ VER_LEN = 32
 PROJ_OFF = 48         # char project_name[32]
 PROJ_LEN = 32
 
+# What a build directory is assumed to hold when it has no flasher_args.json to
+# say otherwise: the Guition's image, the only one there was before the 3.5in.
 BIN_NAME = "guition_kiss_bringup.bin"
+
+
+def image_name(build_dir):
+    """The app image this build directory holds, by its own flasher_args.json."""
+    try:
+        with open(os.path.join(build_dir, "flasher_args.json"), encoding="utf-8") as f:
+            name = (json.load(f).get("app") or {}).get("file")
+    except (OSError, ValueError):
+        name = None
+    return name or BIN_NAME
 
 
 def field(blob, off, length):
@@ -141,6 +159,23 @@ def selftest():
     finally:
         os.unlink(short)
 
+    # The image name. A hard-coded Guition name read the 3.5in's build
+    # directory as holding nothing, and nothing-to-check passes.
+    d = tempfile.mkdtemp()
+    try:
+        with open(os.path.join(d, "flasher_args.json"), "w") as fh:
+            json.dump({"app": {"offset": "0x20000", "file": "ws35_kiss_bringup.bin"}}, fh)
+        check("the image is the one flasher_args.json names",
+              image_name(d), "ws35_kiss_bringup.bin")
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+    d = tempfile.mkdtemp()
+    try:
+        check("a directory with no flasher_args.json is the Guition's",
+              image_name(d), BIN_NAME)
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
     # The compile_commands half, in the three quotings the define survives in.
     d = tempfile.mkdtemp()
     try:
@@ -160,7 +195,7 @@ def selftest():
     finally:
         shutil.rmtree(d, ignore_errors=True)
 
-    print("fw version selftest: 5 cases, %d broken" % bad)
+    print("fw version selftest: 7 cases, %d broken" % bad)
     return 1 if bad else 0
 
 
@@ -171,15 +206,21 @@ def main(argv):
     with open(os.path.join(root, "VERSION"), encoding="utf-8") as f:
         want = f.readline().strip()
 
-    dirs = argv[1:] or ["build"]
+    named = argv[1:]
+    dirs = named or ["build"]
     checked = 0
     fails = 0
 
     for d in dirs:
-        path = os.path.join(root, d, BIN_NAME) if not os.path.isabs(d) \
-            else os.path.join(d, BIN_NAME)
+        build_dir = d if os.path.isabs(d) else os.path.join(root, d)
+        name = image_name(build_dir)
+        path = os.path.join(build_dir, name)
         if not os.path.exists(path):
-            print(f"skip: {d}/{BIN_NAME} is not built")
+            if named:
+                print(f"FAIL: {d}/{name} is not built, and {d} was named to be checked")
+                fails += 1
+            else:
+                print(f"skip: {d}/{name} is not built")
             continue
         checked += 1
         got, err = descriptor_version(path)
@@ -207,7 +248,7 @@ def main(argv):
 
     if not checked:
         print("nothing to check: no build directory holds a firmware image")
-        return 0
+        return 1 if fails else 0
     print(f"firmware version gate: {checked} build dir(s), {fails} failure(s)")
     return 1 if fails else 0
 

@@ -1094,6 +1094,19 @@ h2 {
   flex: none;
 }
 
+/* The board question on the install card: its two answers are ack rows, kept
+   close together so they read as one choice rather than two more steps. */
+.board-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.board-pick > strong {
+  color: var(--ink);
+  font-weight: 500;
+}
+
 .install-actions {
   display: flex;
   align-items: center;

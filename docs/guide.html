@@ -1635,7 +1635,8 @@
         <h2>Check the download before you trust it</h2>
         <p>Everything for a release sits on the GitHub Releases tab:</p>
         <ul>
-          <li><code>kiss-signer-&lt;version&gt;.bin</code> &mdash; the firmware</li>
+          <li><code>kiss-signer-&lt;version&gt;.bin</code> &mdash; the firmware, for the Guition 4.3in</li>
+          <li><code>kiss-signer-&lt;version&gt;-ws35.bin</code> &mdash; the firmware for the Waveshare 3.5in, in a release that carries it</li>
           <li><code>SHA256SUMS</code> &mdash; its hashes</li>
           <li><code>SHA256SUMS.asc</code> &mdash; the signature over those hashes</li>
           <li><code>kiss_signer_pgp.asc</code> &mdash; the key that signed them</li>
@@ -1665,6 +1666,7 @@ sha256sum --ignore-missing -c SHA256SUMS         # Linux</code></pre>
         <h3>Windows</h3>
         <p>
           Hash with <code>Get-FileHash firmware\kiss-signer-&lt;version&gt;.bin</code>
+          (<code>-ws35.bin</code> on the Waveshare 3.5in)
           in PowerShell and compare against <code>SHA256SUMS</code> by eye. Verify the
           signature with <a href="https://gpg4win.org">Gpg4win</a>.
         </p>
@@ -1687,6 +1689,12 @@ sha256sum --ignore-missing -c SHA256SUMS         # Linux</code></pre>
           From the <a href="https://github.com/DIYbitcoin/kiss-signer/releases/latest">latest
           release</a>, drop the file ending <strong>-update.bin</strong> in the
           top level of an SD card. That is the whole preparation.
+        </p>
+        <p>
+          Each board has its own: <code>-ws35-update.bin</code> is the Waveshare
+          3.5in&rsquo;s, the other one the Guition 4.3in&rsquo;s. The device
+          checks the signatures and the version, not which board a file was
+          built for, so take your board&rsquo;s.
         </p>
         <div class="note">
           Take <code>-update.bin</code>, not the plain <code>.bin</code>. The
@@ -1732,6 +1740,9 @@ sha256sum --ignore-missing -c SHA256SUMS         # Linux</code></pre>
 # check the download first, the same check as the page before this one
 shasum -a 256 --ignore-missing -c SHA256SUMS
 
+# your board's image: kiss-signer-&lt;version&gt;.bin on the Guition 4.3in,
+# kiss-signer-&lt;version&gt;-ws35.bin on the Waveshare 3.5in
+
 esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
   --before default-reset --after no-reset write-flash \
   --flash-mode dio --flash-size 16MB --flash-freq 80m \
@@ -1759,8 +1770,8 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         <p>
           From the <a href="https://github.com/DIYbitcoin/kiss-signer/releases/latest">latest
           release</a>, take <strong>kiss-signer-&lt;version&gt;-offline.zip</strong>,
-          about 6.5&nbsp;MB. It holds the firmware, the install page and this
-          guide. Nothing in it reaches out.
+          under 10&nbsp;MB. It holds the firmware for every board the release
+          carries, the install page and this guide. Nothing in it reaches out.
         </p>
         <p>
           Check it before you trust it. The zip has its own signature, and the
