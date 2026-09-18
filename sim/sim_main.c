@@ -7891,10 +7891,17 @@ int main(void) {
     // is asked for a build that can check a signature, as it already is here,
     // because "cannot be checked" outranks every answer the card gives and
     // would photograph that screen instead.
+    // Named per board rather than "not me, so the other one": with a third
+    // board that pick would name a board at random.
+#if defined(KISS_BOARD_GUITION)
+#define SIM_OTHER_PROJECT "ws35_kiss_bringup"
+#elif defined(KISS_BOARD_WS35)
+#define SIM_OTHER_PROJECT "guition_kiss_bringup"
+#else
+#error "name another board's image for the wrong-device frame"
+#endif
     memset(fx + 32 + 48, 0, 32);
-    snprintf((char *)fx + 32 + 48, 32, "%s",
-             strcmp(kiss_fw_running_project(), "ws35_kiss_bringup") == 0
-                 ? "guition_kiss_bringup" : "ws35_kiss_bringup");
+    snprintf((char *)fx + 32 + 48, 32, "%s", SIM_OTHER_PROJECT);
     memcpy(fx + 32 + 16, "99.0.0", 7);
     f = sd_fopen("kiss-signer-other.bin", "wb");
     if (f) { fwrite(fx, 1, sizeof fx, f); fclose(f); }

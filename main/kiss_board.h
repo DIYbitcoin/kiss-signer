@@ -5,20 +5,58 @@
 // on the device and by -DKISS_BOARD_WS35 on the desktop; nothing detects a
 // board at runtime.
 //
-// Two boards, two files: board_guition.c and board_ws35.c. Each is compiled
-// only into its own image, so neither carries a dead arm of the other, and the
-// -Werror lint set compiles every line it ships.
+// One board, one file: board_guition.c, board_ws35.c. Each is compiled only
+// into its own image, so none carries a dead arm of another, and the -Werror
+// lint set compiles every line it ships.
+//
+// EVERY BOARD IS NAMED. A test that names one board and lets `#else` stand for
+// "the other one" was true while there were two, and the day a third arrives it
+// silently hands that board the Guition's arm. So the block below lists each
+// board and ends in #error, and code outside this header does not ask which
+// board it is at all: it asks the question it actually has, through the
+// capability macros each arm defines (KISS_PANEL_SPI, KISS_PANEL_SWROT, and the
+// rest the guard at the end of the block names). Where no capability fits -- a
+// number measured on one board's glass -- the test lists the boards and ends in
+// #error too.
 #pragma once
 #include <stdbool.h>
 
 #ifdef ESP_PLATFORM
 #include "sdkconfig.h"
+#if defined(CONFIG_KISS_BOARD_GUITION) && !defined(KISS_BOARD_GUITION)
+#define KISS_BOARD_GUITION 1
+#endif
 #if defined(CONFIG_KISS_BOARD_WS35) && !defined(KISS_BOARD_WS35)
 #define KISS_BOARD_WS35 1
 #endif
+#else
+// The desktop builds take the board from -DKISS_BOARD_<ID>=1 (sim/sim_tmp.sh),
+// and no flag at all means the 4.3in, as every sim command in the house rules
+// and the browser build assume. A default is not a fallback: a board that
+// passes its own flag can never land here.
+#if !defined(KISS_BOARD_GUITION) && !defined(KISS_BOARD_WS35)
+#define KISS_BOARD_GUITION 1
+#endif
 #endif
 
-#ifdef KISS_BOARD_WS35
+#if defined(KISS_BOARD_GUITION) + defined(KISS_BOARD_WS35) != 1
+#error "exactly one KISS_BOARD_<ID> must be defined (main/Kconfig.projbuild, sim/sim_tmp.sh)"
+#endif
+
+// What each arm defines beyond its name and size:
+//   KISS_BOARD_ID          the id every build file uses: -DKISS_BOARD=<id>,
+//                          sdkconfig.<id>, <id>_kiss_bringup
+//   KISS_PANEL_SPI         1 when the panel is reached over SPI and holds the
+//                          only copy of the picture (the camera composes into a
+//                          scratch and blits it); 0 for a DPI panel whose two
+//                          framebuffers the camera takes over while it previews
+//   KISS_PANEL_SWROT       1 when the glass is portrait and the flush turns the
+//                          landscape canvas a quarter in software, so panel
+//                          coordinates are not canvas coordinates
+//   KISS_CAM_ORIENT_LOG    1 while the camera's orientation is still being read
+//                          off the glass: every session logs it
+#if defined(KISS_BOARD_WS35)
+#define KISS_BOARD_ID "ws35"
 #define KISS_BOARD_NAME "Waveshare ESP32-P4-WIFI6-Touch-LCD-3.5"
 // LANDSCAPE, like the Guition: the owner holds both boards the same way. The
 // glass is 320x480 portrait; the ST7796 turns the picture in hardware (the
@@ -49,7 +87,11 @@
 // documents that. The camera logs both when it starts.
 #define KISS_CAM_ORIENT 1
 #define KISS_CAM_RAW_MIRRORED 0
-#else
+#define KISS_PANEL_SPI 1
+#define KISS_PANEL_SWROT 0
+#define KISS_CAM_ORIENT_LOG 1
+#elif defined(KISS_BOARD_GUITION)
+#define KISS_BOARD_ID "guition"
 #define KISS_BOARD_NAME "Guition JC4880P443C"
 // LOGICAL UI canvas: the whole game is LANDSCAPE. The device reaches this via
 // a one-time boot rotation (the flush in board_guition.c turns each region
@@ -64,6 +106,22 @@
 // space: the orientation finder's result (camera_spike.c has its history).
 #define KISS_CAM_ORIENT 4
 #define KISS_CAM_RAW_MIRRORED 1
+#define KISS_PANEL_SPI 0
+#define KISS_PANEL_SWROT 1
+#define KISS_CAM_ORIENT_LOG 0
+#else
+#error "no arm for this board in main/kiss_board.h"
+#endif
+
+// The build has no -Wundef (main/CMakeLists.txt says why), so an `#if` on a
+// macro an arm forgot reads 0 and takes whichever arm 0 selects. A new board
+// that leaves one of these out is stopped here instead.
+#if !defined(KISS_BOARD_ID) || !defined(KISS_BOARD_NAME) || !defined(SCREEN_W) || \
+    !defined(SCREEN_H) || !defined(KISS_PANEL_W) || !defined(KISS_PANEL_H) ||   \
+    !defined(KISS_NARROW) || !defined(KISS_CAM_ORIENT) ||                       \
+    !defined(KISS_CAM_RAW_MIRRORED) || !defined(KISS_PANEL_SPI) ||              \
+    !defined(KISS_PANEL_SWROT) || !defined(KISS_CAM_ORIENT_LOG)
+#error "a board arm in main/kiss_board.h leaves a capability undefined"
 #endif
 
 // THE UI IS DRAWN ONCE, ON THE WIDE CANVAS. Every length in the screens and
@@ -148,7 +206,7 @@ bool kiss_board_touch_point(int *x, int *y);
 bool kiss_board_touch_ok(void);
 // The I2C bus the touch controller lives on; the camera's SCCB shares it.
 i2c_master_bus_handle_t kiss_board_i2c_bus(void);
-#ifdef KISS_BOARD_WS35
+#if KISS_PANEL_SPI
 // The one door onto the SPI panel, shared by LVGL and the camera. x2 and y2
 // are exclusive, esp_lcd's convention, and they are canvas coordinates: the
 // controller turns the glass, so a canvas rect is a panel rect. `px` is

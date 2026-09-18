@@ -17,11 +17,8 @@
 // the board it was compiled as. A single default for both would have the 3.5in
 // walk calling the Guition's image its own.
 #ifndef KISS_PROJECT_STR
-#ifdef KISS_BOARD_WS35
-#define KISS_PROJECT_STR "ws35_kiss_bringup"
-#else
-#define KISS_PROJECT_STR "guition_kiss_bringup"
-#endif
+#include "kiss_board.h"
+#define KISS_PROJECT_STR KISS_BOARD_ID "_kiss_bringup"
 #endif
 
 #ifdef ESP_PLATFORM

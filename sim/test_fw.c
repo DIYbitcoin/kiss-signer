@@ -12,6 +12,7 @@
 #include <string.h>
 #include <sys/stat.h>
 
+#include "kiss_board.h"
 #include "kiss_fw.h"
 #include "kiss_pqsig.h"
 #include "platform_sd.h"
@@ -270,15 +271,21 @@ int test_fw(void)
     // be newer than anything running. The project name in its descriptor is
     // the only thing that says it is not this device's firmware: the scan asks
     // first, and install asks again.
-    const char *const other = strcmp(me, "ws35_kiss_bringup") == 0
-                            ? "guition_kiss_bringup" : "ws35_kiss_bringup";
-#ifdef KISS_BOARD_WS35
-    ok("the 3.5in sim runs as the 3.5in build",
-       strcmp(me, "ws35_kiss_bringup") == 0);
-#else
-    ok("the Guition sim runs as the Guition build",
-       strcmp(me, "guition_kiss_bringup") == 0);
-#endif
+    //
+    // Every board the tree builds, so the case holds for each of them rather
+    // than for whichever one a two-way pick happened to name. A board missing
+    // from this list fails the first check instead of testing against nothing.
+    static const char *const boards[] = { "guition_kiss_bringup", "ws35_kiss_bringup" };
+    const size_t nboards = sizeof boards / sizeof boards[0];
+    bool listed = false;
+    const char *other = NULL;
+    for (size_t i = 0; i < nboards; i++) {
+        if (strcmp(boards[i], me) == 0) listed = true;
+        else if (!other) other = boards[i];
+    }
+    ok("the sim runs as its own board's build",
+       strcmp(me, KISS_BOARD_ID "_kiss_bringup") == 0 && listed && other != NULL);
+    if (!other) other = "no_other_board";
 
     // Alone on the card: refused in its own words, not as "not firmware", and
     // named, so the screen is about the file that is actually there.
@@ -289,6 +296,19 @@ int test_fw(void)
     ok("the other board's image is refused as the other board's",
        rc == WFW_ERR_WRONG_BOARD && got.status == WFW_ERR_WRONG_BOARD &&
        strcmp(got.name, "fw-other.bin") == 0 && strcmp(got.project, other) == 0);
+    for (size_t i = 0; i < nboards; i++) {
+        if (strcmp(boards[i], me) == 0) continue;
+        wipe_card();
+        mk_image_head(big, sizeof big, 0xABCD5432u, "99.0.0", boards[i]);
+        put("fw-other.bin", big, sizeof big);
+        rc = kiss_fw_scan(&got);
+        char what[96];
+        snprintf(what, sizeof what, "%s is refused on this board", boards[i]);
+        ok(what, rc == WFW_ERR_WRONG_BOARD && strcmp(got.project, boards[i]) == 0);
+    }
+    wipe_card();
+    mk_image_head(big, sizeof big, 0xABCD5432u, "99.0.0", other);
+    put("fw-other.bin", big, sizeof big);
 
     // Beside a file that is not an image, sorting ahead of it. The junk says
     // nothing about what the owner has to do; the other board's image does.
