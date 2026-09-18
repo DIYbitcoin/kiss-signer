@@ -110,15 +110,21 @@ echo
 
 worst=0
 died=""
-# The per-locale ceiling file, and the list of locales that broke it. Unset
-# OVERLAPCHECK_CEILINGS to run without one (which is what a bisect wants).
+# The per-locale ceiling file, and the list of locales that broke it. Point
+# OVERLAPCHECK_CEILINGS at /dev/null to run without one (which is what a
+# bisect wants).
 # Each board has its own ceilings: the 3.5in's lanes are three fifths as wide,
 # so a locale's count there is a different number, measured separately.
+# A board with no row, or a row whose file is missing, stops here: read from
+# nowhere, every locale would pass as unceiled, and a board measured against
+# another board's numbers would pass on the wrong ones.
 case "${KISS_BOARD:-guition}" in
-    ws35) default_ceilings=sim/overlap_ceilings_ws35.txt ;;
-    *)    default_ceilings=sim/overlap_ceilings.txt ;;
+    guition) default_ceilings=sim/overlap_ceilings.txt ;;
+    ws35)    default_ceilings=sim/overlap_ceilings_ws35.txt ;;
+    *) echo "text overlap gate: no ceilings row for KISS_BOARD=$KISS_BOARD" >&2; exit 1 ;;
 esac
 ceilfile="${OVERLAPCHECK_CEILINGS:-$default_ceilings}"
+[ -e "$ceilfile" ] || { echo "text overlap gate: no ceilings file $ceilfile" >&2; exit 1; }
 over=""
 unceiled=""
 total=0
