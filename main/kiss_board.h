@@ -17,7 +17,7 @@
 // capability macros each arm defines (KISS_PANEL_SPI, KISS_PANEL_SWROT, and the
 // rest the guard at the end of the block names). Where no capability fits -- a
 // number measured on one board's glass -- the test lists the boards and ends in
-// #error too.
+// #error too. tools/check_board_switch.py holds that line.
 #pragma once
 #include <stdbool.h>
 

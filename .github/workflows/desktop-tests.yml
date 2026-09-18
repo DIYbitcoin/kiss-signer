@@ -108,6 +108,14 @@ jobs:
         run: |
           GATECHECK_SELFTEST=1 python3 tools/check_gates.py
 
+      # main/kiss_board.h is the one place that asks which board this is.
+      # A test elsewhere that names one board and lets `#else` stand for the
+      # rest hands a new board the Guition's arm without a word.
+      - name: no board test falls through to another board's arm
+        if: always()
+        run: |
+          python3 tools/check_board_switch.py --selftest
+
       # Two readers for the burn recipe. The scheme checker reads the signature
       # block an image carries and holds it against the config that built it,
       # which no verify step did; the eFuse checker reads the fuses a board has

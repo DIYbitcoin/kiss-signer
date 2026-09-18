@@ -183,6 +183,9 @@ run "the published notes match the changelog" \
 # in a box big enough to hold it, is invisible to every other check here.
 run "a translation that says too much" "I18NBLOAT_SELFTEST=1 python3 tools/check_i18n_bloat.py"
 run "a checker nothing runs" "GATECHECK_SELFTEST=1 python3 tools/check_gates.py"
+# A board test that names one board and lets every other fall into its #else:
+# the way a third board silently gets the Guition's framebuffer map.
+run "a board test that falls through" "python3 tools/check_board_switch.py --selftest"
 # The lane this script claimed to cover and did not. It was absent because it
 # read the FILESYSTEM and so passed on any machine with a component fetch on
 # it, which made it a check nobody could fail locally and CI failed for six
