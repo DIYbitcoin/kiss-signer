@@ -17,7 +17,9 @@ if(CONFIG_KISS_BOARD_WS35)
     set(KISS_F_MONO21 "fonts_ws35/font_kiss_mono21.c")
     set(KISS_F_MONO23 "fonts_ws35/font_kiss_mono23.c")
     set(KISS_F_NUM28 "fonts_ws35/font_kiss_num28.c")
-else()
+elseif(CONFIG_KISS_BOARD_GUITION OR CMAKE_BUILD_EARLY_EXPANSION)
+    # The early pass collects requirements before any CONFIG_ symbol exists,
+    # and the source list it sees is not the one that gets built.
     set(KISS_BOARD_SRC "board_guition.c")
     # In this order, with game_bg.c where it always was: the link order is
     # the source order, and the Guition image is held byte-identical.
@@ -31,6 +33,8 @@ else()
     set(KISS_F_MONO21 "font_kiss_mono21.c")
     set(KISS_F_MONO23 "font_kiss_mono23.c")
     set(KISS_F_NUM28 "font_kiss_num28.c")
+else()
+    message(FATAL_ERROR "no source list for this board in main/CMakeLists.txt")
 endif()
 
 idf_component_register(
@@ -133,12 +137,18 @@ target_compile_definitions(${COMPONENT_LIB} PRIVATE KISS_PROJECT_STR="${CMAKE_PR
 # pass, which runs this file once to collect requirements before any CONFIG_
 # symbol exists; in the real pass they are guaranteed to be visible.
 if(NOT CMAKE_BUILD_EARLY_EXPANSION)
-    if(KISS_BOARD STREQUAL "ws35" AND NOT CONFIG_KISS_BOARD_WS35)
-        message(FATAL_ERROR "KISS_BOARD=ws35 but the sdkconfig is not the ws35 profile: "
-                            "delete the build directory's sdkconfig and reconfigure")
-    elseif(KISS_BOARD STREQUAL "guition" AND CONFIG_KISS_BOARD_WS35)
-        message(FATAL_ERROR "the committed sdkconfig has been switched to the ws35 profile; "
-                            "it must stay the Guition profile")
+    # Every board, not one against the other: CONFIG_KISS_BOARD_<ID> is a
+    # Kconfig choice, so exactly one is set, and it has to be this one.
+    string(TOUPPER "${KISS_BOARD}" _kiss_board_uc)
+    if(NOT CONFIG_KISS_BOARD_${_kiss_board_uc})
+        if(KISS_BOARD STREQUAL "guition")
+            message(FATAL_ERROR "the committed sdkconfig has been switched to another board's "
+                                "profile; it must stay the Guition profile")
+        else()
+            message(FATAL_ERROR "KISS_BOARD=${KISS_BOARD} but the sdkconfig is not the "
+                                "${KISS_BOARD} profile: delete the build directory's "
+                                "sdkconfig and reconfigure")
+        endif()
     endif()
     # Both camera sensors answer at SCCB address 0x36, so an image carrying
     # both drivers would let esp_video's auto-detect pick one by chip-ID

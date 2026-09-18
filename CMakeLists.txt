@@ -21,13 +21,19 @@ set(KISS_BOARD "guition" CACHE STRING "board profile: guition (default) or ws35"
 if(NOT KISS_BOARD MATCHES "^(guition|ws35)$")
     message(FATAL_ERROR "KISS_BOARD=${KISS_BOARD}: this tree knows guition and ws35")
 endif()
-if(KISS_BOARD STREQUAL "ws35")
+# The Guition is the one board whose profile IS the committed sdkconfig. Every
+# other board is that plus its own fragment, sdkconfig.<id>, which must exist:
+# without it the layers would build the Guition's profile under another name.
+if(NOT KISS_BOARD STREQUAL "guition")
+    if(NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/sdkconfig.${KISS_BOARD}")
+        message(FATAL_ERROR "KISS_BOARD=${KISS_BOARD} has no sdkconfig.${KISS_BOARD}")
+    endif()
     if(NOT SDKCONFIG)
         set(SDKCONFIG "${CMAKE_BINARY_DIR}/sdkconfig")
     endif()
     if(NOT SDKCONFIG_DEFAULTS)
         set(SDKCONFIG_DEFAULTS
-            "${CMAKE_CURRENT_LIST_DIR}/sdkconfig.defaults;${CMAKE_CURRENT_LIST_DIR}/sdkconfig;${CMAKE_CURRENT_LIST_DIR}/sdkconfig.ws35")
+            "${CMAKE_CURRENT_LIST_DIR}/sdkconfig.defaults;${CMAKE_CURRENT_LIST_DIR}/sdkconfig;${CMAKE_CURRENT_LIST_DIR}/sdkconfig.${KISS_BOARD}")
     endif()
 endif()
 

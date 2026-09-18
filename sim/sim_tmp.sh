@@ -31,6 +31,9 @@ mkdir -p "$KISS_SIM_TMP"
 # do the frames a walk saves, so a narrow build in a root the wide gates read
 # would be a silent swap. Every build script prints the board it built for.
 KISS_BOARD="${KISS_BOARD:-guition}"
+# Every board the simulator builds, in the order tools/preflight.sh runs their
+# lanes. The case below has a row for each, and anything else stops the build.
+KISS_SIM_BOARD_IDS="guition ws35"
 # KISS_ART_SRCS is the board's set of baked backdrops and KISS_SPRITES_SRC
 # its game sprites (main/CMakeLists.txt makes the same choice for the
 # device): the same pictures, drawn at each board's size by the same
@@ -38,21 +41,23 @@ KISS_BOARD="${KISS_BOARD:-guition}"
 case "$KISS_BOARD" in
     guition) KISS_BOARD_CFLAGS=""
              KISS_ART_SRCS="main/menu_img.c main/menu_logo.c main/gameover_img.c main/kiss_img.c"
-             KISS_SPRITES_SRC="main/sprites.c" ;;
+             KISS_SPRITES_SRC="main/sprites.c"
+             KISS_FONT_DIR="" ;;
     ws35)    KISS_BOARD_CFLAGS="-DKISS_BOARD_WS35=1"
              KISS_ART_SRCS="main/menu_img_ws35.c main/menu_logo_ws35.c main/gameover_img_ws35.c main/kiss_img_ws35.c"
-             KISS_SPRITES_SRC="main/sprites_ws35.c" ;;
-    *) echo "sim: KISS_BOARD must be guition or ws35 (got '$KISS_BOARD')" >&2; exit 1 ;;
+             KISS_SPRITES_SRC="main/sprites_ws35.c"
+             KISS_FONT_DIR="main/fonts_ws35" ;;
+    *) echo "sim: KISS_BOARD must be one of: $KISS_SIM_BOARD_IDS (got '$KISS_BOARD')" >&2; exit 1 ;;
 esac
-# KISS_FONT_SRCS: every face in main/, except that on the 3.5in the hinted small
-# faces in main/fonts_ws35/ stand in for the ones of the same name (the device
-# build makes the same swap). Left as a pattern on the wide board, so its
-# compile line is the one it always was.
+# KISS_FONT_SRCS: every face in main/, except that a board with a KISS_FONT_DIR
+# has the faces in it stand in for the ones of the same name (the 3.5in's hinted
+# small faces; the device build makes the same swap). Left as a pattern on a
+# board without one, so the wide board's compile line is the one it always was.
 KISS_FONT_SRCS='main/font_kiss_*.c'
-if [ "$KISS_BOARD" = ws35 ]; then
+if [ -n "$KISS_FONT_DIR" ]; then
     KISS_FONT_SRCS=""
     for f in main/font_kiss_*.c; do
-        [ -e "main/fonts_ws35/${f#main/}" ] && f="main/fonts_ws35/${f#main/}"
+        [ -e "$KISS_FONT_DIR/${f#main/}" ] && f="$KISS_FONT_DIR/${f#main/}"
         KISS_FONT_SRCS="$KISS_FONT_SRCS $f"
     done
 fi
