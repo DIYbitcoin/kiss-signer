@@ -91,9 +91,10 @@ The screens are written once, on the wide canvas, and scaled by `SX()` and
 `SY()` from `main/kiss_board.h`; on the Guition both fold to the number
 itself, and `tools/preflight.sh` runs the whole gate block a second time for
 the 3.5in. A wide frame that changes under a 3.5in edit is a bug in the edit.
-The 3.5in's walk, taps and coverage are blocking; its fit and overlap counts
-are printed as NOTE until English reads zero there, and the line that makes
-them blocking is one commit away from the day it does.
+The 3.5in's walk, taps, coverage and on-video overlay text (`kissosd`, on its
+own 384 px lane) are blocking; its fit and overlap counts are printed as NOTE
+until English reads zero there, and the line that makes them blocking is one
+commit away from the day it does.
 
 `-B /project/build-docker` rather than a path in the container's own `/tmp`:
 with `--rm` the container filesystem goes when the run ends, so a build

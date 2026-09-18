@@ -290,9 +290,12 @@ run "3.5in: unit tests" \
 run --note-if "English slot\(s\) fell" "3.5in: text fit (en, advisory)" \
     "$WS bash sim/build_fitcheck.sh \
      && ($WS FITCHECK_SELFTEST=1 SIM_LANG=en \"\$KISS_SIM_TMP/ws35/kissfit\" || true)"
-# No overlay text gate for the 3.5in yet: the camera preview has no transport
-# on that board, so its captions are drawn nowhere, and the gate would be
-# measuring strips against a lane no screen has. It comes in with the camera.
+# The overlay text gate on the 3.5in's own lane: 384 px, the 18 px subtitle
+# rung, and the second strip a subtitle breaks into when even 14 px will not
+# hold it on one line. Not advisory: it went green with the camera transport
+# that draws these captions, and a caption that overflows is one that lies.
+run "3.5in: on-video overlay text (build)" "$WS bash sim/build_osdcheck.sh"
+run "3.5in: on-video overlay text (en)" "$WS SIM_LANG=en \"\$KISS_SIM_TMP/ws35/kissosd\""
 # ADVISORY, for now. The 3.5in's English count is not at zero yet: the walk
 # reaches every stop and every tap lands (the two lines below prove that and
 # do fail), but the overlap gate still lists what the smaller lanes cut or

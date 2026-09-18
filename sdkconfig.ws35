@@ -15,7 +15,9 @@ CONFIG_KISS_BOARD_WS35=y
 # of the two drivers may be compiled in; main/CMakeLists.txt refuses both. The
 # RAW10 1280x960 binning mode is the one Kern runs this sensor in on this
 # board. The ISP pipeline controller stays inherited (=n): that was an OV02C10
-# entropy finding (sdkconfig.defaults) and step 1.5 re-measures it here.
+# entropy finding (sdkconfig.defaults), and it holds for this sensor on its own
+# account, which runs its exposure on chip and gives the controller no tuning
+# to work from (components/esp_cam_sensor/VENDOR.kiss.md section 5).
 CONFIG_CAMERA_OV02C10=n
 CONFIG_CAMERA_OV5647=y
 CONFIG_CAMERA_OV5647_MIPI_RAW8_800X800_50FPS=n

@@ -701,6 +701,12 @@ jobs:
         continue-on-error: true
         run: OVERLAPCHECK_LANGS=en OVERLAPCHECK_STRICT=1 bash sim/run_overlapcheck.sh
 
-      # No overlay text gate here yet: the camera preview has no transport on
-      # this board, so its captions are drawn nowhere. It comes in with the
-      # camera, together with the two-strip subtitle its lane needs.
+      # The overlay text gate on this board's 384 px lane, with the 18 px
+      # subtitle rung and the two-strip subtitle it needs (osd_strips.h). It
+      # came in with the camera transport that draws those captions, and it
+      # blocks: unlike the two gates above it has no count to work down.
+      - name: overlay text gate (3.5in, en)
+        if: always()
+        run: |
+          bash sim/build_osdcheck.sh
+          SIM_LANG=en /tmp/kissosd

@@ -11,6 +11,7 @@
 #include "kiss_board.h"   // SX: the lane is 640 on the wide canvas
 
 #include <stdbool.h>
+#include <stddef.h>
 
 #include "lvgl.h"
 #include "osd_text.h"
@@ -22,8 +23,21 @@ enum { OSD_SEARCH, OSD_SEEN, OSD_STUCK, OSD_CUTOFF, OSD_READ,
 
 // The lane a caption gets: 800px of landscape width, less the overscan insets
 // the panel's own bezel eats. Inherited from the generator, which fitted its
-// TrueType size down until the text cleared it.
+// TrueType size down until the text cleared it. 384 on the 3.5in.
 #define OSD_MAX_W SX(640)
+
+// How many strips a subtitle may take. One on the Guition, where every
+// subtitle in every locale fits its lane at the ladder's floor. Two on the
+// 3.5in, where the lane is 384 px and the floor is already 14: English's
+// entropy caption is 480 px there on one line and Hungarian's 579, and no
+// smaller face exists to step down to. So a subtitle that does not fit breaks
+// into two lines at the word that leaves the longer one shortest, and the
+// second strip is drawn under the first.
+#if KISS_NARROW
+#define OSD_SUB_LINES 2
+#else
+#define OSD_SUB_LINES 1
+#endif
 
 // Muting, which the baked art used to carry in its own alpha and a composed
 // strip cannot: a composed strip is full coverage, because that is what the
@@ -53,8 +67,23 @@ const scan_osd_strip_t *osd_of(void);           // localized, for "12 of 34"
 // The fitting ladder, exposed so sim/osdcheck.c can gate the same choice this
 // makes rather than a guess at it. Titles walk 34 -> 28 -> 23, subtitles
 // 23 -> 14, both measured unwrapped against OSD_MAX_W in the active locale.
+// On the 3.5in those names are its 23, 18 and 14 px faces, and a subtitle
+// starts one rung higher, at 18, when it fits there whole.
 const lv_font_t *osd_title_font(const char *txt);
 const lv_font_t *osd_sub_font(const char *txt);
+
+#if OSD_SUB_LINES > 1
+// A subtitle as the overlay composes it at font f: `one` and `two`, each NUL
+// terminated within cap bytes, with `two` empty when the line fits whole.
+// Exposed for the same reason as the ladder, so the gate measures the lines
+// that are drawn. OSD_SUB_CAP holds every overlay string in every locale.
+#define OSD_SUB_CAP 192
+void osd_sub_lines(const char *txt, const lv_font_t *f, char *one, char *two,
+                   size_t cap);
+
+// The second strip of a subtitle that broke, NULL for one that did not.
+const scan_osd_strip_t *osd_sub2(int state);
+#endif
 
 // The i18n key each state draws, so the gate can walk the real strings instead
 // of a copy of the list that drifts. -1 means the state has no second line.

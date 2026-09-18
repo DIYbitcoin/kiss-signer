@@ -180,12 +180,22 @@ static bool spi_trans_done(esp_lcd_panel_io_handle_t io, esp_lcd_panel_io_event_
 
 // x2, y2 exclusive: esp_lcd's convention. `px` must already be in the panel's
 // byte order and written back from the cache.
-void kiss_board_blit(int x1, int y1, int x2, int y2, const void *px, bool cam) {
+//
+// A transfer that was never queued never completes, so its ring entry is taken
+// back before anyone else can issue, and the caller is told. Left in the ring,
+// it would hand the NEXT completion to the wrong client: LVGL waiting forever
+// on a flush_ready the camera swallowed, or the camera waking on LVGL's. The
+// likeliest refusal is the SPI driver failing to copy a PSRAM buffer into
+// internal DMA memory, which is why the camera sends in bands.
+bool kiss_board_blit(int x1, int y1, int x2, int y2, const void *px, bool cam) {
   xSemaphoreTake(s_issue, portMAX_DELAY);
   s_ring[s_wr++ & 15] = cam ? WHO_CAM : WHO_LVGL;
-  esp_lcd_panel_draw_bitmap(s_panel, x1, y1, x2, y2, px);
+  esp_err_t err = esp_lcd_panel_draw_bitmap(s_panel, x1, y1, x2, y2, px);
+  if (err != ESP_OK) s_wr--;
   xSemaphoreGive(s_issue);
+  if (err != ESP_OK) return false;
   if (cam) xSemaphoreTake(s_cam_done, portMAX_DELAY);
+  return true;
 }
 
 // The panel keeps its own picture, so a flash write cannot starve it the way
@@ -197,19 +207,20 @@ void kiss_panel_black(void)
   static uint16_t s_black[SCREEN_W * 16] __attribute__((aligned(64)));
   if (!s_panel) return;
   for (int y = 0; y < SCREEN_H; y += 16)
-    kiss_board_blit(0, y, SCREEN_W, y + 16, s_black, true);
+    (void)kiss_board_blit(0, y, SCREEN_W, y + 16, s_black, true);
 }
 
 // Identity geometry: the canvas is the panel. The one transformation is the
 // byte order -- the ST7796 wants big-endian RGB565 and LVGL renders little --
 // swapped in place before the DMA reads the buffer.
 static void spi_flush(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map) {
-  (void)disp;
   uint32_t n = (uint32_t)lv_area_get_width(area) * (uint32_t)lv_area_get_height(area);
   lv_draw_sw_rgb565_swap(px_map, n);
   esp_cache_msync(px_map, n * 2, ESP_CACHE_MSYNC_FLAG_DIR_C2M | ESP_CACHE_MSYNC_FLAG_UNALIGNED);
-  kiss_board_blit(area->x1, area->y1, area->x2 + 1, area->y2 + 1, px_map, false);
-  // flush_ready happens in spi_trans_done when the DMA completes
+  // flush_ready happens in spi_trans_done when the DMA completes, or here when
+  // nothing was sent and nothing will
+  if (!kiss_board_blit(area->x1, area->y1, area->x2 + 1, area->y2 + 1, px_map, false))
+    lv_display_flush_ready(disp);
 }
 
 static void lv_tick_cb(void *a) { (void)a; lv_tick_inc(2); }
@@ -256,7 +267,9 @@ static const st7796_lcd_init_cmd_t s_panel_init[] = {
 lv_display_t *kiss_board_display_start(void) {
   spi_bus_config_t bus = {.sclk_io_num = LCD_CLK_GPIO, .mosi_io_num = LCD_MOSI_GPIO,
                           .miso_io_num = -1, .quadwp_io_num = -1, .quadhd_io_num = -1,
-                          // the largest single transfer the camera will ever issue
+                          // a whole canvas in one transfer, the most either
+                          // client could ask for; the camera sends its preview
+                          // in bands anyway (camera_spike.c says why)
                           .max_transfer_sz = SCREEN_W * SCREEN_H * 2};
   ESP_ERROR_CHECK(spi_bus_initialize(LCD_SPI_HOST, &bus, SPI_DMA_CH_AUTO));
   esp_lcd_panel_io_spi_config_t io_cfg = {.dc_gpio_num = LCD_DC_GPIO, .cs_gpio_num = LCD_CS_GPIO,
@@ -290,8 +303,9 @@ lv_display_t *kiss_board_display_start(void) {
   // The GRAM holds power-on noise, the SPI analogue of clearing the DPI
   // framebuffers once.
   kiss_panel_black();
-  // No framebuffers to hand over: the camera refuses to start until its own
-  // transport lands (step 1.5).
+  // No framebuffers to hand over. The camera composes each frame in its own
+  // scratch and sends the preview rect through kiss_board_blit; the handle
+  // only tells it the display is up.
   camera_spike_set_panel(s_panel, NULL, NULL);
 
   lv_init();

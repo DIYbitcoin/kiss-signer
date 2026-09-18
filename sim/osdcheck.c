@@ -195,6 +195,11 @@ static void compare_one(const char *txt, const lv_font_t *f, const char *what,
 // up proving that a copy of the ladder agrees with itself. A clipped overlay
 // line is a caption that lies, and 640px is exactly the kind of budget that is
 // comfortable in English and tight in German.
+//
+// The 3.5in's lane is 384px and a subtitle there may break into two strips
+// (OSD_SUB_LINES), so it measures each line osd_sub_lines hands the composer:
+// a subtitle passes when both of its lines fit, and a second strip that still
+// overflows fails like any other.
 static void width_one(const char *txt, const lv_font_t *f, const char *what,
                       const char *lang)
 {
@@ -263,8 +268,27 @@ static int osdcheck_run(void)
             int sk = osd_sub_key(st);
             if (sk < 0) continue;
             const char *s = tr(sk);
+#if OSD_SUB_LINES > 1
+            // Past the buffer the composer keeps only what fits it, and
+            // measuring that would pass a caption that has lost its end.
+            if (strlen(s) >= OSD_SUB_CAP) {
+                printf("FAIL [%s] subtitle: %zu bytes, over the %d the "
+                       "overlay composes \"%s\"\n",
+                       code, strlen(s), OSD_SUB_CAP - 1, s);
+                g_fail++;
+            }
+            char one[OSD_SUB_CAP], two[OSD_SUB_CAP];
+            osd_sub_lines(s, osd_sub_font(s), one, two, sizeof one);
+            width_one(one, osd_sub_font(s), two[0] ? "subtitle 1/2" : "subtitle", code);
+            fit_checked++;
+            if (two[0]) {
+                width_one(two, osd_sub_font(s), "subtitle 2/2", code);
+                fit_checked++;
+            }
+#else
             width_one(s, osd_sub_font(s), "subtitle", code);
             fit_checked++;
+#endif
         }
         const char *of = tr(STR_C_OSD_OF);
         width_one(of, wt_font34(), "of", code);

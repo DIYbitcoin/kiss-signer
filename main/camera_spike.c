@@ -9,6 +9,13 @@
 // LVGL is bypassed while live; on stop the whole screen is invalidated so LVGL
 // repaints the wallet UI back into the current framebuffer.
 //
+// The 3.5in has no framebuffer to flip: its ST7796 holds the picture in its own
+// GRAM behind one SPI bus that LVGL also draws through. So there the PPA renders
+// into a scratch buffer the size of the preview rect, the overlays are drawn
+// into that, and the rect crosses the bus through kiss_board_blit, the door
+// board_ws35.c keeps for both. Every preview is a rect on that board, the
+// whole canvas included, and LVGL goes on painting everywhere else.
+//
 // This is throwaway proof-of-stream code; the real QR pipeline is step 6.
 #ifndef SIMULATOR
 
@@ -24,6 +31,7 @@
 
 #include "driver/ppa.h"
 #include "esp_cache.h"
+#include "esp_heap_caps.h"
 #include "esp_lcd_panel_ops.h"
 #include "esp_log.h"
 #include "esp_timer.h"
@@ -47,14 +55,33 @@
 
 static const char *TAG = "camspike";
 
-#define OV02C10_SCCB_ADDR 0x36   // the sensor Guition ships on this board's ribbon
+// Both boards' sensors answer at 0x36 on the touch bus, which is why exactly
+// one driver is ever compiled in (main/CMakeLists.txt).
+#define CAM_SCCB_ADDR 0x36
+#ifdef KISS_BOARD_WS35
+#define CAM_SENSOR "OV5647"      // on the 3.5in's ribbon, as Kern runs it
+#else
+#define CAM_SENSOR "OV02C10"     // the sensor Guition ships on this board's ribbon
+#endif
 #define CAM_BUF_NUM 2
 // Native panel geometry, from the board. On the Guition (portrait 480x800)
 // the PPA renders camera frames directly in panel orientation, so no LVGL or
-// rotate work happens per frame; the 3.5in board has no framebuffer to render
-// into and refuses to start until its own transport lands.
+// rotate work happens per frame.
+//
+// On the 3.5in these are the glass's portrait numbers, 320x480, and nothing is
+// ever rendered into that shape: they are the frame the chrome below is laid
+// out in, the same frame as the Guition's, and fb_px turns it into the
+// landscape scratch. OUT_W/OUT_H are where the picture itself lands, which on
+// the 3.5in is the canvas, already landscape in the controller.
 #define PANEL_W KISS_PANEL_W
 #define PANEL_H KISS_PANEL_H
+#ifdef KISS_BOARD_WS35
+#define OUT_W SCREEN_W
+#define OUT_H SCREEN_H
+#else
+#define OUT_W PANEL_W
+#define OUT_H PANEL_H
+#endif
 
 typedef struct {
   int fd;
@@ -72,8 +99,17 @@ static char s_status[96] = "CAM: not started";
 static volatile bool s_task_err;     // stream task died unexpectedly (not via stop)
 
 static esp_lcd_panel_handle_t s_panel;
+#ifdef KISS_BOARD_WS35
+// The one buffer the picture is composed in: the PPA's output, the overlays
+// drawn over it, then byte swapped and sent. Canvas sized, 64-byte aligned in
+// PSRAM, because the PPA refuses an output buffer that is not aligned to the
+// cache line, and allocated once so no preview rect can outgrow it.
+static uint16_t *s_scratch;
+static size_t s_scratch_len;
+#else
 static uint16_t *s_fb[2];            // both DPI framebuffers (flip targets)
 static int s_fb_wr;                  // framebuffer the PPA writes next
+#endif
 static ppa_client_handle_t s_ppa;
 static uint32_t s_frames;
 static int64_t s_t0;
@@ -81,12 +117,24 @@ static int64_t s_t0;
 // Orientation finder (dev): tap the top-right corner while live cycles
 // rot{0,90,180,270} x mirror. 0..7: (idx%4)*90 degrees, idx>=4 = mirrored.
 // The old LVGL-path winner ("8/8" = rot270+mirror in logical space) composes with
-// the logical->panel rotation to rot0+mirror in panel space = index 4.
-static int s_orient = 4;
+// the logical->panel rotation to rot0+mirror in panel space = index 4, which
+// is the Guition's KISS_CAM_ORIENT. The 3.5in's is its own (kiss_board.h).
+static int s_orient = KISS_CAM_ORIENT;
 // Zoom ladder: explicit crop + exact N/16 scale per level. Level 0 shows (nearly)
 // the FULL sensor letterboxed; deeper levels fill the screen with smaller crops.
 #define ZOOM_LEVELS 6
 typedef struct { uint16_t bw, bh; uint8_t n16; } zoom_lvl_t;
+#ifdef KISS_BOARD_WS35
+// The same ladder for a 1280x960 sensor and a 480x320 landscape canvas, where
+// rot 0/180 needs no turn at all. L0 is the whole sensor letterboxed at 5/16;
+// L1 fills the width; each level after crops tighter at a clean N/16. A
+// quarter turn stands the sensor's long side across the short canvas, so that
+// row starts from the crop that exactly fills it.
+static const zoom_lvl_t s_zoom_tab[2][ZOOM_LEVELS] = {
+    {{1280, 960, 5}, {1280, 848, 6}, {960, 640, 8}, {768, 512, 10}, {640, 424, 12}, {480, 320, 16}},
+    {{640, 960, 8}, {512, 768, 10}, {424, 640, 12}, {320, 480, 16}, {256, 384, 20}, {160, 240, 32}},
+};
+#else
 static const zoom_lvl_t s_zoom_tab[2][ZOOM_LEVELS] = {
     // rot 0/180 (the camera module is mounted 90deg to the landscape screen, so
     // fullscreen fill can only use ~30% of the sensor width — physics of the
@@ -98,6 +146,7 @@ static const zoom_lvl_t s_zoom_tab[2][ZOOM_LEVELS] = {
     // rot 90/270: landscape crops (rotated into the portrait panel)
     {{1280, 720, 9}, {800, 480, 16}, {640, 384, 20}, {400, 240, 32}, {320, 192, 40}, {200, 120, 64}},
 };
+#endif
 static int s_zoom = 0;               // DEFAULT = #1 = most zoomed out = widest usable view
 static volatile int s_clear_pending; // fbs to blank before blit (zoom/orient change)
 static volatile int s_osd_frames;    // frames left to show the on-video digits
@@ -116,7 +165,19 @@ static volatile int s_osd_frames;    // frames left to show the on-video digits
 // rect's origin and centres inside its size, so the fullscreen modes are the
 // same arithmetic with the full panel in it; left at zero they would centre the
 // picture at a negative offset and put the reticle in the corner.
-static volatile int s_vp_x = 0, s_vp_y = 0, s_vp_w = PANEL_W, s_vp_h = PANEL_H;
+//
+// On the 3.5in the "panel" rect is a canvas rect: the controller turns the
+// glass (board_ws35.c's MADCTL swap), so a UI x is a panel x and a UI y a
+// panel y, and the rect and its landscape twin hold the same numbers. The
+// whole panel there is the whole canvas, SCREEN_W x SCREEN_H.
+#ifdef KISS_BOARD_WS35
+#define VP_W0 SCREEN_W
+#define VP_H0 SCREEN_H
+#else
+#define VP_W0 PANEL_W
+#define VP_H0 PANEL_H
+#endif
+static volatile int s_vp_x = 0, s_vp_y = 0, s_vp_w = VP_W0, s_vp_h = VP_H0;
 // The same rect in LANDSCAPE space, kept because the reticle and every other
 // overlay primitive already draw in landscape coordinates. Storing both means
 // neither the drawing code nor the blit code has to convert.
@@ -124,6 +185,27 @@ static volatile int s_vp_lx = 0, s_vp_ly = 0, s_vp_lw = PANEL_H, s_vp_lh = PANEL
 static bool s_vp_on;
 static volatile bool s_paused;   // see camera_spike_pause
 
+#ifdef KISS_BOARD_WS35
+// Nothing to pin and nothing to flip. The panel keeps what LVGL last drew in its
+// own GRAM, so the next frame simply lands on the rect; until it does, the
+// viewfinder the screen drew there is what shows.
+void camera_spike_set_preview_rect(int x, int y, int w, int h)
+{
+  if (w <= 0 || h <= 0) {                    // restore the whole-canvas default
+    s_vp_on = false;
+    s_vp_x = 0; s_vp_y = 0; s_vp_w = VP_W0; s_vp_h = VP_H0;
+    s_vp_lx = 0; s_vp_ly = 0; s_vp_lw = PANEL_H; s_vp_lh = PANEL_W;
+    return;
+  }
+  if (x < 0) { w += x; x = 0; }
+  if (y < 0) { h += y; y = 0; }
+  if (x + w > SCREEN_W) w = SCREEN_W - x;
+  if (y + h > SCREEN_H) h = SCREEN_H - y;
+  s_vp_x = x; s_vp_y = y; s_vp_w = w; s_vp_h = h;
+  s_vp_lx = x; s_vp_ly = y; s_vp_lw = w; s_vp_lh = h;
+  s_vp_on = (w > 0 && h > 0);
+}
+#else
 void camera_spike_set_preview_rect(int x, int y, int w, int h)
 {
   if (w <= 0 || h <= 0) {                    // restore the full-panel default
@@ -160,6 +242,7 @@ void camera_spike_set_preview_rect(int x, int y, int w, int h)
     lv_obj_invalidate(lv_screen_active());
   }
 }
+#endif
 
 // The one state in which LVGL must not paint: video on, and no preview rect, so
 // the picture covers all 480x800. With a rect set, LVGL owns the panel and the
@@ -169,10 +252,22 @@ void camera_spike_set_preview_rect(int x, int y, int w, int h)
 // itself was right; asking it from a flush callback was not, because LVGL flushes
 // in full-width bands and the caller could only accept or drop a whole band. See
 // the comment in rot_flush (main.c) for the failure that produced.
+//
+// Never on the 3.5in. There LVGL and the video share one bus rather than one
+// buffer, and a flush LVGL skipped would be a region the panel never gets back:
+// its GRAM is the only copy. So LVGL keeps flushing around every preview, the
+// whole-canvas one included, and the video's next frame takes its rect back.
+#ifdef KISS_BOARD_WS35
+bool camera_spike_owns_panel(void)
+{
+  return false;
+}
+#else
 bool camera_spike_owns_panel(void)
 {
   return s_cam.streaming && !s_vp_on;
 }
+#endif
 
 // Freeze the picture without tearing the pipeline down. The stream task keeps
 // dequeuing V4L2 buffers, so the sensor stays warm and resuming costs one frame,
@@ -183,7 +278,9 @@ bool camera_spike_owns_panel(void)
 // help card opened over the scan screen was painted over inside the preview rect
 // while the decoder went on reading QR codes behind it: the screen could advance
 // to a transaction the reader never asked to scan, from a card explaining what a
-// transaction is. Pausing is what makes an overlay mean what it looks like.
+// transaction is. Pausing is what makes an overlay mean what it looks like. The
+// 3.5in's video reaches the glass past LVGL too, over the shared bus instead of
+// through a framebuffer, so the same holds there.
 //
 // Volatile and unguarded on purpose: one bool, written by the LVGL task and read
 // by the stream task, and neither cares which frame the change lands on.
@@ -200,7 +297,8 @@ void camera_spike_pause(bool on)
 // at HALF resolution (device-proven: half-res decodes where full-res chokes on
 // sensor line artifacts, and it's 4x cheaper). The gray copy un-mirrors the
 // image — the raw sensor is mirrored, and a mirrored QR locates but never
-// decodes. See memory: qr-scan-camera-recipe.
+// decodes. See memory: qr-scan-camera-recipe. That is the OV02C10; whether a
+// board's sensor reads out mirrored is KISS_CAM_RAW_MIRRORED (kiss_board.h).
 #define SCAN_EVERY 3
 // k_quirc caps images at K_QUIRC_MAX_IMAGE_DIM (1280); the sensor frame is
 // 1288 wide, so the (pre-halving) crop is centered. 0.6% FOV loss.
@@ -213,7 +311,8 @@ static volatile int s_scan_seen, s_scan_total;
 static volatile int s_scan_found;    // frames left to show "QR located" (yellow)
 // How much of the decoded frame the located code fills, in 1/256ths, or 0 if
 // the last locate came from the whole-sensor pass (see scan_decode) and so
-// cannot be compared with what the panel is showing. Drives the reticle.
+// cannot be compared with what the panel is showing. Drives the reticle. On
+// the 3.5in it is a share of the picture's short side, from either pass.
 static volatile int s_qr_fill;
 static volatile int s_scan_osd = OSD_SEARCH;   // which baked strip to draw
 static uint32_t s_scan_att;
@@ -320,7 +419,14 @@ void camera_scan_progress(int seen, int total) {
 // output. Prime, and coprime with the 1288 pixel row pitch, so the lattice
 // walks instead of landing on the same columns every frame.
 #define ENT_SUB_STRIDE  227
+#ifdef KISS_BOARD_WS35
+// The OV5647's 1280x960 is 1,228,800 pixels, about 5414 at this stride, and
+// 227 is coprime with 1280 as well. Held at 4200 the walk would stop three
+// quarters of the way down and never sample the bottom of the view.
+#define ENT_SUB_MAX     5500
+#else
 #define ENT_SUB_MAX     4200
+#endif
 
 static void *s_bus_saved;
 static volatile bool s_ent_mode;
@@ -427,15 +533,61 @@ static void ent_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
 
 // in-video chrome geometry (bands + bar), shared by scan and entropy modes;
 // drawing helpers live further down with the rest of the chrome.
+//
+// Every length here is a Guition panel pixel, and the 3.5in takes the same
+// layout onto its 320x480 portrait frame. A panel x runs ACROSS the landscape
+// screen, so it scales with the canvas height; a panel y runs ALONG it, so it
+// scales with the width. Both fold to the number itself on the Guition.
+#define ACROSS(v) SY(v)
+#define ALONG(v)  SX(v)
+#ifdef KISS_BOARD_WS35
+// Deeper than a straight scale of the Guition's band, because a subtitle that
+// does not fit this lane on one line takes two strips (osd_strips.h), and a
+// title and two subtitle rows are 63 px here. Landscape rows 14..87, the first
+// text row at 20.
+#define BAND_TOP_X0 232
+#define BAND_TOP_X1 306
+#define STRIP_TOP_PX 299
+#else
 #define BAND_TOP_X0 375     // panel x range of the landscape-top band (deep
 #define BAND_TOP_X1 451     // enough for a title + subtitle strip)
-#define BAND_BOT_X0 34      // landscape-bottom band
-#define BAND_BOT_X1 100
-#define BAR_PX0     52      // bar rows inside the bottom band
-#define BAR_THICK   22
-#define BAR_LEN     560
 #define STRIP_TOP_PX 443    // panel x of a top-band strip's first text row
+#endif
+#define BAND_BOT_X0 ACROSS(34)      // landscape-bottom band
+#define BAND_BOT_X1 ACROSS(100)
+#define BAR_PX0     ACROSS(52)      // bar rows inside the bottom band
+#define BAR_THICK   ACROSS(22)
+#define BAR_LEN     ALONG(560)
 static void draw_hbar(uint16_t *fb, int fill, uint16_t base);
+
+// Where a chrome pixel lives. On the Guition the frame IS the panel's
+// framebuffer, so a pixel is fb[py * PANEL_W + px] exactly as it always was,
+// and the bounds each primitive already checks are the whole of its safety.
+//
+// On the 3.5in the frame is the scratch, which holds only the preview rect and
+// holds it landscape: panel (px, py) is canvas (py, PANEL_W - 1 - px), the
+// Guition's own rotation run backwards, offset by the rect and indexed with
+// the rect's width as its stride. The panel bounds the primitives check are
+// the canvas there, wider than a column's rect, so the rect test lives here
+// and a pixel outside it lands on a sink rather than past the scratch. The
+// rect is copied once per frame into plain statics, so a loop does not reload
+// four volatiles per pixel.
+#ifdef KISS_BOARD_WS35
+static int s_fx, s_fy, s_fw, s_fh;   // this frame's rect, canvas coordinates
+static uint16_t s_fb_sink;
+
+static inline uint16_t *fb_px(uint16_t *fb, int px, int py)
+{
+  const int x = py - s_fx, y = (PANEL_W - 1 - px) - s_fy;
+  if (x < 0 || x >= s_fw || y < 0 || y >= s_fh) return &s_fb_sink;
+  return &fb[y * s_fw + x];
+}
+#else
+static inline uint16_t *fb_px(uint16_t *fb, int px, int py)
+{
+  return &fb[py * PANEL_W + px];
+}
+#endif
 
 // How much has been gathered, not how good the current frame is. It fills as
 // the holder holds, faster on a messy scene than on a wall, and turns green
@@ -468,6 +620,12 @@ static void draw_ent_bar(uint16_t *fb) {
 // section 4 says why. With nothing else driving the sensor there is nothing
 // for this to fight, and without it scanning is blurrier than it was before
 // any of the camera work started.
+//
+// The OV5647 on the 3.5in answers the same control with something else: its
+// driver maps V4L2_CID_EXPOSURE to the sensor's own auto exposure TARGET, and
+// cannot read it back, so this halves the default target (0x50) instead of a
+// line count, and the sensor's on-chip AEC shortens exposure to meet it. The
+// same intent by the only lever that driver offers; VENDOR.kiss.md section 5.
 static int32_t s_exp_saved = -1;
 
 static void scan_exposure(bool on) {
@@ -563,8 +721,13 @@ bool camera_spike_check_died(void) {
 
 void camera_spike_set_panel(esp_lcd_panel_handle_t panel, void *fb0, void *fb1) {
   s_panel = panel;
+#ifdef KISS_BOARD_WS35
+  (void)fb0;                           // an SPI panel has none to hand over
+  (void)fb1;
+#else
   s_fb[0] = fb0;
   s_fb[1] = fb1;
+#endif
 }
 
 const char *camera_spike_cycle_orientation(void) {
@@ -601,11 +764,34 @@ static bool orient_geometry(uint32_t w, uint32_t h, uint32_t *cw, uint32_t *ch,
   // column would eat most of it.
   if (s_vp_on) {
     // Fill the rect exactly, and derive the crop from it rather than from a
-    // table: the output size is whatever the screen asked for, so the crop is
-    // that at 2x and the scale is a clean 8/16. If the sensor cannot give 2x
-    // (a rect wider than half the frame) fall back to 1:1, which always can.
+    // table: the output size is whatever the screen asked for. On the Guition
+    // the crop is that at 2x and the scale is a clean 8/16; if the sensor
+    // cannot give 2x (a rect wider than half the frame) it falls back to 1:1,
+    // which always can.
     *ow = (uint32_t)s_vp_w;
     *oh = (uint32_t)s_vp_h;
+#ifdef KISS_BOARD_WS35
+    // The 3.5in's rect is the canvas's, and the sensor may sit a quarter turn
+    // from it (KISS_CAM_ORIENT), in which case the crop that fills the rect is
+    // the rect stood on its side. The Guition's rect is always drawn at rot0.
+    //
+    // Not 2x here: a 2x crop of a 180 px rect is under a third of the sensor's
+    // width, and the preview read as a zoomed-in slit. So the widest crop that
+    // still fills the rect exactly: the smallest N for which crop = rect *
+    // 16/N fits the sensor and is a whole number of pixels on both sides. The
+    // PPA truncates its N/16 output to whole pixels and leaves the rest of the
+    // block unwritten, so an inexact crop would show a stale edge. N = 16 is
+    // the 1:1 crop, which fits whenever the rect does.
+    const bool turn = (s_orient % 2) == 1;
+    const uint32_t bw = turn ? *oh : *ow, bh = turn ? *ow : *oh;
+    uint32_t n = 1;
+    for (; n <= 16; n++)
+      if ((16 * bw) % n == 0 && (16 * bh) % n == 0 &&
+          16 * bw / n <= w && 16 * bh / n <= h)
+        break;
+    if (n > 16) return false;
+    *cw = 16 * bw / n; *ch = 16 * bh / n; *scale = (float)n / 16.0f;
+#else
     if (*ow * 2 <= w && *oh * 2 <= h) {
       *cw = *ow * 2; *ch = *oh * 2; *scale = 8 / 16.0f;
     } else if (*ow <= w && *oh <= h) {
@@ -613,6 +799,7 @@ static bool orient_geometry(uint32_t w, uint32_t h, uint32_t *cw, uint32_t *ch,
     } else {
       return false;
     }
+#endif
     return true;
   }
   bool quarter = (s_orient % 2) == 1;  // 90/270 swaps output dims
@@ -623,7 +810,7 @@ static bool orient_geometry(uint32_t w, uint32_t h, uint32_t *cw, uint32_t *ch,
     uint32_t sw = L->bw * L->n16 / 16, sh = L->bh * L->n16 / 16;
     *cw = L->bw; *ch = L->bh; *scale = L->n16 / 16.0f;
     if (quarter) { *ow = sh; *oh = sw; } else { *ow = sw; *oh = sh; }
-    if (*ow > PANEL_W || *oh > PANEL_H) continue;
+    if (*ow > OUT_W || *oh > OUT_H) continue;
     return true;
   }
   return false;
@@ -650,13 +837,14 @@ static void blit_a4(uint16_t *fb, const scan_osd_strip_t *s, int cx, int cy,
       if (!a) continue;
       int py = cy + ux;
       if (py < 0 || py >= PANEL_H) continue;
-      uint16_t d = fb[py * PANEL_W + px];
+      uint16_t *p = fb_px(fb, px, py);
+      uint16_t d = *p;
       int aa = a * 17 * dim / 255;             // 0..255
       int r = (d >> 11) & 31, g = (d >> 5) & 63, b = d & 31;
       r += ((31 - r) * aa) >> 8;
       g += ((63 - g) * aa) >> 8;
       b += ((31 - b) * aa) >> 8;
-      fb[py * PANEL_W + px] = (uint16_t)((r << 11) | (g << 5) | b);
+      *p = (uint16_t)((r << 11) | (g << 5) | b);
     }
   }
 }
@@ -676,12 +864,13 @@ static void lrect_blend_rgb(uint16_t *fb, int lx, int ly, int lw, int lh,
     if (px < 0 || px >= PANEL_W) continue;
     for (int xx = lx; xx < lx + lw; xx++) {
       if (xx < 0 || xx >= PANEL_H) continue;
-      uint16_t d = fb[xx * PANEL_W + px];
+      uint16_t *p = fb_px(fb, px, xx);
+      uint16_t d = *p;
       int r = (d >> 11) & 31, g = (d >> 5) & 63, b = d & 31;
       r += ((tr - r) * aa) / 256;
       g += ((tg - g) * aa) / 256;
       b += ((tb - b) * aa) / 256;
-      fb[xx * PANEL_W + px] = (uint16_t)((r << 11) | (g << 5) | b);
+      *p = (uint16_t)((r << 11) | (g << 5) | b);
     }
   }
 }
@@ -692,7 +881,10 @@ static void lrect_blend(uint16_t *fb, int lx, int ly, int lw, int lh, uint8_t a)
 }
 
 // Camera-app viewfinder: four corner brackets marking the region that is
-// actually DECODED, so "fill the brackets" is true advice.
+// actually DECODED, so "fill the brackets" is true advice. Not on the 3.5in,
+// whose preview shows most of the sensor: there the aimed pass is the centre
+// 640x480 at 1:1, smaller than the brackets, and a code that fills them is
+// read by the half-resolution wide pass.
 //
 // It used to be a 260x260 box tucked between the two OSD bands, chosen to look
 // tidy. That quietly instructed the one thing that cannot work on a dense code:
@@ -711,8 +903,8 @@ static void lrect_blend(uint16_t *fb, int lx, int ly, int lw, int lh, uint8_t a)
 // periods are in thirtieths of a second. Kept as named frame counts rather
 // than milliseconds because s_frames is the only clock this path has.
 #define BRK_BREATH_F 60     // 2s: brackets breathe while searching
-#define BRK_HALF     225    // half the guide box, when nothing is located
-#define BRK_HALF_MIN 95     // never close tighter than this, however small the code
+#define BRK_HALF     SY(225)  // half the guide box, when nothing is located
+#define BRK_HALF_MIN SY(95)   // never close tighter than this, however small the code
 
 // Where the brackets are now, eased toward where the located code says they
 // should be. Eased rather than snapped because the fill estimate jitters by a
@@ -730,14 +922,22 @@ static void draw_brackets(uint16_t *fb) {
   // it follows the picture rather than being dropped with the text chrome LVGL
   // took over.
   const int cx = s_vp_lx + s_vp_lw / 2, cy = s_vp_ly + s_vp_lh / 2;
-  const int arm = s_vp_on ? 26 : 44, t = s_vp_on ? 3 : 4;
+  // Lengths scale with the canvas's short side, so the 3.5in's smaller column
+  // keeps the Guition's proportions; stroke widths do not, or they vanish.
+  const int arm = s_vp_on ? SY(26) : SY(44), t = s_vp_on ? 3 : 4;
   // Half the guide box, and how tight it may close. Fullscreen keeps its
   // measured 225/95; a column derives them from its own short side, with a 6px
   // margin so the corner arms never cross the border LVGL drew around it.
   const int brk_half = s_vp_on
       ? (s_vp_lw < s_vp_lh ? s_vp_lw : s_vp_lh) / 2 - 6 : BRK_HALF;
-  const int brk_min = s_vp_on ? arm + 8 : BRK_HALF_MIN;
+  const int brk_min = s_vp_on ? arm + SY(8) : BRK_HALF_MIN;
   bool found = s_scan_found > 0;
+#ifdef KISS_BOARD_WS35
+  // The scan bar that counts "located" back down is never drawn beside a
+  // preview rect, and the fill is now set by every pass that locates. Without
+  // this the guide stays shut at the last code's size after the code is gone.
+  if (s_vp_on && found && --s_scan_found <= 0) s_qr_fill = 0;
+#endif
 
   // Closing in on the code is the whole "it found it" gesture. s_qr_fill is
   // how much of the frame the code occupies; the guide follows it down, with a
@@ -784,7 +984,7 @@ static void draw_brackets(uint16_t *fb) {
   // same two-rectangle primitive as the corners, so they cost the same
   // nothing per frame.
   {
-    const int in = s_vp_on ? 12 : 22, arm2 = s_vp_on ? 14 : 26, t2 = 2;
+    const int in = s_vp_on ? SY(12) : SY(22), arm2 = s_vp_on ? SY(14) : SY(26), t2 = 2;
     uint8_t a2 = (uint8_t)(a > 6 ? a - 4 : 2);
     for (int sx = -1; sx <= 1; sx += 2)
       for (int sy = -1; sy <= 1; sy += 2) {
@@ -792,7 +992,7 @@ static void draw_brackets(uint16_t *fb) {
         lrect_blend(fb, sx < 0 ? x : x - arm2, y - t2 / 2, arm2, t2, a2);
         lrect_blend(fb, x - t2 / 2, sy < 0 ? y : y - arm2, t2, arm2, a2);
       }
-    const int tick = 26;
+    const int tick = SY(26);
     lrect_blend(fb, cx - t2 / 2, cy - half, t2, tick, a2);          // top
     lrect_blend(fb, cx - t2 / 2, cy + half - tick, t2, tick, a2);   // bottom
     lrect_blend(fb, cx - half, cy - t2 / 2, tick, t2, a2);          // left
@@ -813,14 +1013,19 @@ static void draw_brackets(uint16_t *fb) {
 // screen edge = the last panel rows; segments run along panel x. Inset well away
 // from the edge — the panel has 30-50px of overscan hidden behind the bezel.
 static void draw_zoom_bar(uint16_t *fb) {
-  const int seg_w = 40, seg_h = 12, gap = 10;
+  const int seg_w = ACROSS(40), seg_h = ALONG(12), gap = ACROSS(10);
   const int total = ZOOM_LEVELS * seg_w + (ZOOM_LEVELS - 1) * gap;
-  const int x0 = (PANEL_W - total) / 2, y0 = PANEL_H - 90;
+  const int x0 = (PANEL_W - total) / 2, y0 = PANEL_H - ALONG(90);
   for (int s = 0; s < ZOOM_LEVELS; s++) {
     uint16_t col = (s <= s_zoom) ? 0xFFFF : 0x39E7;   // filled vs dim gray
     for (int y = 0; y < seg_h; y++) {
+#ifdef KISS_BOARD_WS35
+      for (int x = 0; x < seg_w; x++)
+        *fb_px(fb, x0 + s * (seg_w + gap) + x, y0 + y) = col;
+#else
       uint16_t *row = fb + (y0 + y) * PANEL_W + x0 + s * (seg_w + gap);
       for (int x = 0; x < seg_w; x++) row[x] = col;
+#endif
     }
   }
 }
@@ -830,20 +1035,27 @@ static void draw_zoom_bar(uint16_t *fb) {
 // raw pixels — LVGL is suppressed while video is live.
 static void darken_band(uint16_t *fb, int x0, int x1) {
   static uint8_t keep[128];           // 256-x darkening factor per band column
-  const int bw = x1 - x0, edge = 12;
+  const int bw = x1 - x0, edge = ACROSS(12);
   for (int x = 0; x < bw && x < 128; x++) {
     int din = (x < bw - 1 - x) ? x : bw - 1 - x;    // distance to band edge
     int f = din < edge ? 159 * (din + 1) / (edge + 1) : 159;   // 62% max
     keep[x] = (uint8_t)(256 - f - 1);
   }
   for (int y = 0; y < PANEL_H; y++) {
+#ifndef KISS_BOARD_WS35
     uint16_t *row = fb + y * PANEL_W;
+#endif
     for (int x = x0; x < x1; x++) {
-      uint16_t c = row[x];
+#ifdef KISS_BOARD_WS35
+      uint16_t *p = fb_px(fb, x, y);   // a panel row is a canvas column here
+#else
+      uint16_t *p = &row[x];
+#endif
+      uint16_t c = *p;
       int k = keep[x - x0];
       int r = (((c >> 11) & 31) * k) >> 8, g = (((c >> 5) & 63) * k) >> 8,
           b = ((c & 31) * k) >> 8;
-      row[x] = (uint16_t)((r << 11) | (g << 5) | b);
+      *p = (uint16_t)((r << 11) | (g << 5) | b);
     }
   }
 }
@@ -869,6 +1081,10 @@ static void darken_band(uint16_t *fb, int x0, int x1) {
 // So anything a reader needs SENTENCES for belongs on a screen they are not
 // mid task on. What earns a place here is what they need while pointing:
 // what the device is looking for, and whether it has found it.
+//
+// The 3.5in's lane can break a subtitle in two (osd_strips.h), and its second
+// strip goes straight under the first: the line height is the leading, as in
+// a wrapped label, and the band there is deep enough for all three rows.
 static void draw_osd_strip(uint16_t *fb, int idx) {
   const scan_osd_strip_t *t = osd_title(idx);
   if (!t) return;
@@ -876,6 +1092,12 @@ static void draw_osd_strip(uint16_t *fb, int idx) {
   const scan_osd_strip_t *s = osd_sub(idx);
   if (s)
     blit_a4(fb, s, STRIP_TOP_PX - t->h - 2, (PANEL_H - s->w) / 2, OSD_DIM_SUB);
+#if OSD_SUB_LINES > 1
+  const scan_osd_strip_t *s2 = s ? osd_sub2(idx) : NULL;
+  if (s2)
+    blit_a4(fb, s2, STRIP_TOP_PX - t->h - 2 - s->h, (PANEL_H - s2->w) / 2,
+            OSD_DIM_SUB);
+#endif
 }
 
 // The live Shannon estimate as digits, in the free end of the bottom band past
@@ -893,7 +1115,7 @@ static void draw_osd_strip(uint16_t *fb, int idx) {
 // Spacing is wider than it looks. A composed glyph strip is exactly its advance
 // width, where a baked one carried a pixel of padding on each side, so the
 // tracking that used to come free from the art has to be asked for here.
-#define ENT_TRACK 5
+#define ENT_TRACK ALONG(5)
 static void draw_ent_digits(uint16_t *fb)
 {
     static int disp;                    // eased like the bar, or it is a blur
@@ -905,10 +1127,10 @@ static void draw_ent_digits(uint16_t *fb)
     const scan_osd_strip_t *g_lo = osd_digit(lo), *g_dot = osd_dot();
     if (!g_mid || !g_lo || !g_dot) return;
 
-    const int cx = 98;                  // glyph top row, inside the bottom band
+    const int cx = ACROSS(98);          // glyph top row, inside the bottom band
     int w = g_mid->w + ENT_TRACK + g_dot->w + ENT_TRACK + g_lo->w;
     if (hi && g_hi) w += g_hi->w + ENT_TRACK;
-    int cy = PANEL_H - 14 - w;          // right aligned to the band's far end
+    int cy = PANEL_H - ALONG(14) - w;   // right aligned to the band's far end
 
     if (hi && g_hi) {
         blit_a4(fb, g_hi, cx, cy, OSD_DIM_FULL);
@@ -944,17 +1166,17 @@ static void draw_read_line(uint16_t *fb, int seen, int total) {
     if (total >= 10) gi[n++] = total / 10;
     gi[n++] = total % 10;
   }
-  int tw = strip->w + 14;
+  int tw = strip->w + ALONG(14);
   for (int i = 0; i < n; i++) {
     const scan_osd_strip_t *g = gi[i] == -2 ? of
                               : gi[i] >= 0  ? osd_digit(gi[i]) : NULL;
-    tw += gi[i] == -1 ? 10 : g ? g->w + ENT_TRACK : 0;
+    tw += gi[i] == -1 ? ALONG(10) : g ? g->w + ENT_TRACK : 0;
   }
   int cy = (PANEL_H - tw) / 2;
   blit_a4(fb, strip, STRIP_TOP_PX, cy, OSD_DIM_FULL);
-  cy += strip->w + 14;
+  cy += strip->w + ALONG(14);
   for (int i = 0; i < n; i++) {
-    if (gi[i] == -1) { cy += 10; continue; }
+    if (gi[i] == -1) { cy += ALONG(10); continue; }
     const scan_osd_strip_t *g = gi[i] == -2 ? of : osd_digit(gi[i]);
     if (!g) continue;
     blit_a4(fb, g, STRIP_TOP_PX, cy, OSD_DIM_FULL);
@@ -964,7 +1186,7 @@ static void draw_read_line(uint16_t *fb, int seen, int total) {
 
 // Rounded track + inset rounded fill (landscape-horizontal, drawn in panel
 // coords: length runs along panel y, thickness along panel x).
-#define BAR_INS 4
+#define BAR_INS ACROSS(4)
 // The gate tick mark that used to be drawn here went with the entropy meter's
 // pass threshold. Both bars this draws are progress now, and progress bars do
 // not mark a point partway along themselves.
@@ -974,11 +1196,17 @@ static void draw_hbar(uint16_t *fb, int fill, uint16_t base) {
   // track: rounded dark pill
   for (int i = 0; i < BAR_LEN; i++) {
     int dc = i < R ? R - i : i >= BAR_LEN - R ? i - (BAR_LEN - 1 - R) : 0;
+#ifndef KISS_BOARD_WS35
     uint16_t *col0 = fb + (cy0 + i) * PANEL_W + BAR_PX0;
+#endif
     for (int t = 0; t < BAR_THICK; t++) {
       int dt = t - R;
       if (dc && dt * dt + dc * dc > R * R) continue;
+#ifdef KISS_BOARD_WS35
+      *fb_px(fb, BAR_PX0 + t, cy0 + i) = 0x18E3;
+#else
       col0[t] = 0x18E3;
+#endif
     }
   }
   // fill: brighter rounded pill inset in the track, gentle ramp along it
@@ -995,11 +1223,17 @@ static void draw_hbar(uint16_t *fb, int fill, uint16_t base) {
       if (g > 63) g = 63;
       if (b > 31) b = 31;
       uint16_t c = (uint16_t)((r << 11) | (g << 5) | b);
+#ifndef KISS_BOARD_WS35
       uint16_t *col0 = fb + (cy0 + BAR_INS + i) * PANEL_W + BAR_PX0 + BAR_INS;
+#endif
       for (int t = 0; t < BAR_THICK - 2 * BAR_INS; t++) {
         int dt = t - R2;
         if (dc && dt * dt + dc * dc > R2 * R2) continue;
+#ifdef KISS_BOARD_WS35
+        *fb_px(fb, BAR_PX0 + BAR_INS + t, cy0 + BAR_INS + i) = c;
+#else
         col0[t] = c;
+#endif
       }
     }
   }
@@ -1014,9 +1248,9 @@ static void draw_scan_bar(uint16_t *fb) {
   if (found) s_scan_found--;
 
   const int cy0 = (PANEL_H - BAR_LEN) / 2;
-  const int L = BAR_LEN - 2 * BAR_INS, gap = 5;
+  const int L = BAR_LEN - 2 * BAR_INS, gap = ALONG(5);
   int segw = tot > 1 ? (L - gap * (tot - 1)) / tot : 0;
-  if (tot > 1 && segw >= 8) {           // segmented: one pill per part
+  if (tot > 1 && segw >= ALONG(8)) {    // segmented: one pill per part
     draw_hbar(fb, 0, 0);                // track only
     const int R2 = (BAR_THICK - 2 * BAR_INS) / 2;
     for (int s = 0; s < tot; s++) {
@@ -1024,11 +1258,17 @@ static void draw_scan_bar(uint16_t *fb) {
       int y0 = cy0 + BAR_INS + s * (segw + gap);
       for (int i = 0; i < segw; i++) {
         int dc = i < R2 ? R2 - i : i >= segw - R2 ? i - (segw - 1 - R2) : 0;
+#ifndef KISS_BOARD_WS35
         uint16_t *col0 = fb + (y0 + i) * PANEL_W + BAR_PX0 + BAR_INS;
+#endif
         for (int t = 0; t < BAR_THICK - 2 * BAR_INS; t++) {
           int dt = t - R2;
           if (dc && dt * dt + dc * dc > R2 * R2) continue;
+#ifdef KISS_BOARD_WS35
+          *fb_px(fb, BAR_PX0 + BAR_INS + t, y0 + i) = c;
+#else
           col0[t] = c;
+#endif
         }
       }
     }
@@ -1040,21 +1280,29 @@ static void draw_scan_bar(uint16_t *fb) {
     draw_hbar(fb, BAR_LEN / 10, 0xFF20);
   } else {                              // searching: soft traveling shimmer
     draw_hbar(fb, 0, 0);
-    int pos = (int)((s_frames * 5) % (uint32_t)(BAR_LEN + 160)) - 80;
-    for (int i = pos - 40; i < pos + 40; i++) {
-      if (i < BAR_INS + 4 || i >= BAR_LEN - BAR_INS - 4) continue;
+    const int SHIM = ALONG(40);                       // half the glint
+    int pos = (int)((s_frames * ALONG(5)) % (uint32_t)(BAR_LEN + ALONG(160))) - ALONG(80);
+    for (int i = pos - SHIM; i < pos + SHIM; i++) {
+      if (i < BAR_INS + ALONG(4) || i >= BAR_LEN - BAR_INS - ALONG(4)) continue;
       int d = i - pos;
-      int a = (40 - (d < 0 ? -d : d)) / 6;            // 0..6 of 15
+      int a = (SHIM - (d < 0 ? -d : d)) / (SHIM / 6);  // 0..6 of 15
       if (a <= 0) continue;
+#ifndef KISS_BOARD_WS35
       uint16_t *col0 = fb + (cy0 + i) * PANEL_W + BAR_PX0 + BAR_INS;
+#endif
       int aa = a * 17;
       for (int t = 0; t < BAR_THICK - 2 * BAR_INS; t++) {
-        uint16_t dpx = col0[t];
+#ifdef KISS_BOARD_WS35
+        uint16_t *p = fb_px(fb, BAR_PX0 + BAR_INS + t, cy0 + i);
+#else
+        uint16_t *p = &col0[t];
+#endif
+        uint16_t dpx = *p;
         int r = (dpx >> 11) & 31, g = (dpx >> 5) & 63, b = dpx & 31;
         r += ((31 - r) * aa) >> 8;
         g += ((63 - g) * aa) >> 8;
         b += ((31 - b) * aa) >> 8;
-        col0[t] = (uint16_t)((r << 11) | (g << 5) | b);
+        *p = (uint16_t)((r << 11) | (g << 5) | b);
       }
     }
   }
@@ -1084,7 +1332,9 @@ static void scan_decode(const uint8_t *frame, uint32_t w, uint32_t h) {
   // Now attempts alternate:
   //   AIMED - exactly the rectangle orient_geometry gives the preview, at 1:1.
   //           What you see is what gets decoded. At default zoom that is
-  //           480x728, so a filled code is ~4 px/module at version 25.
+  //           480x728, so a filled code is ~4 px/module at version 25. The
+  //           3.5in's preview crop is most of the sensor, so its aimed pass is
+  //           the centre 640x480 of that crop instead.
   //   WIDE  - the whole sensor, as before, downsampled into the same buffer.
   //           Keeps a code that is outside the brackets readable, and keeps the
   //           half-res path that qr-scan-camera-recipe records as the workhorse
@@ -1095,7 +1345,26 @@ static void scan_decode(const uint8_t *frame, uint32_t w, uint32_t h) {
   // scan loop, and a failed image alloc is the hang this project has already
   // paid for once.
   uint32_t sw, sh;
+#ifdef KISS_BOARD_WS35
+  // The preview's crop and scale, read once: the aimed window sits inside the
+  // crop, and the reticle's fill is measured against the picture it draws on.
+  uint32_t vcw = 0, vch = 0, vow = 0, voh = 0;
+  float vsc = 0;
+  const bool geo = orient_geometry(w, h, &vcw, &vch, &vsc, &vow, &voh);
+#endif
   if (s_scan_att & 1) {
+#ifdef KISS_BOARD_WS35
+    // On the 3.5in the preview shows most of the sensor (864x960 on the scan
+    // screen), so the preview's own crop squeezed into this buffer would be the
+    // wide pass again at nearly the same half resolution. The aimed pass is the
+    // crop's centre at 1:1 instead, as much of it as the buffer holds: the
+    // full-resolution read of the middle of the reticle, for a small or dense
+    // code, beside the half-resolution read of everything.
+    sw = geo ? vcw : w;
+    sh = geo ? vch : h;
+    if (sw > (uint32_t)qw) sw = (uint32_t)qw;
+    if (sh > (uint32_t)qh) sh = (uint32_t)qh;
+#else
     uint32_t cw, ch, ow, oh;
     float sc;
     if (orient_geometry(w, h, &cw, &ch, &sc, &ow, &oh)) {
@@ -1103,6 +1372,7 @@ static void scan_decode(const uint8_t *frame, uint32_t w, uint32_t h) {
     } else {
       sw = w; sh = h;
     }
+#endif
   } else {
     sw = w > SCAN_MAX_DIM ? (uint32_t)SCAN_MAX_DIM : w;
     sh = h > SCAN_MAX_DIM ? (uint32_t)SCAN_MAX_DIM : h;
@@ -1119,8 +1389,13 @@ static void scan_decode(const uint8_t *frame, uint32_t w, uint32_t h) {
   for (int y = 0; y < qh; y++, img += qw) {
     const uint16_t *row = src + (size_t)(oy + ((uint32_t)y * stepy >> 16)) * w + ox;
     uint32_t fx = 0;
+#if KISS_CAM_RAW_MIRRORED
     for (int x = 0; x < qw; x++, fx += stepx)   // reversed write = un-mirror the sensor
       img[qw - 1 - x] = (uint8_t)((row[fx >> 16] >> 3) & 0xFC);
+#else
+    for (int x = 0; x < qw; x++, fx += stepx)   // the sensor reads out unmirrored
+      img[x] = (uint8_t)((row[fx >> 16] >> 3) & 0xFC);
+#endif
   }
   k_quirc_end(s_quirc, false);
   int cnt = k_quirc_count(s_quirc);
@@ -1147,6 +1422,28 @@ static void scan_decode(const uint8_t *frame, uint32_t w, uint32_t h) {
       // measured there describes a different picture than the one on screen
       // and would close the brackets onto nothing.
       if (i == 0) {
+#ifdef KISS_BOARD_WS35
+        // Both passes, on the 3.5in, because neither window is the picture:
+        // the aimed one is smaller than the reticle and the wide one larger
+        // than the preview. A size carries across windows once it is in sensor
+        // pixels (decoder pixels times this pass's step), then canvas pixels at
+        // the preview's N/16, as a share of the picture's short side, which is
+        // the side the reticle is drawn on. A code's larger extent, so a
+        // quarter turn changes nothing.
+        int minx = res.corners[0].x, maxx = minx;
+        int miny = res.corners[0].y, maxy = miny;
+        for (int c = 1; c < 4; c++) {
+          if (res.corners[c].x < minx) minx = res.corners[c].x;
+          if (res.corners[c].x > maxx) maxx = res.corners[c].x;
+          if (res.corners[c].y < miny) miny = res.corners[c].y;
+          if (res.corners[c].y > maxy) maxy = res.corners[c].y;
+        }
+        const int ex = (int)((int64_t)(maxx - minx) * (int64_t)sw / qw);
+        const int ey = (int)((int64_t)(maxy - miny) * (int64_t)sh / qh);
+        const int n16 = (int)(vsc * 16.0f + 0.5f);
+        const int side = (int)(vow < voh ? vow : voh);
+        s_qr_fill = (geo && side > 0) ? (ex > ey ? ex : ey) * n16 * 16 / side : 0;
+#else
         if (s_scan_att & 1) {
           int minx = res.corners[0].x, maxx = minx;
           int miny = res.corners[0].y, maxy = miny;
@@ -1162,6 +1459,7 @@ static void scan_decode(const uint8_t *frame, uint32_t w, uint32_t h) {
         } else {
           s_qr_fill = 0;
         }
+#endif
       }
       if (err == K_QUIRC_SUCCESS && res.data.payload_len > 0) {
         decoded = true;
@@ -1215,6 +1513,16 @@ static void show_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
   uint32_t cw, ch, ow, oh;
   float scale;
   if (!orient_geometry(w, h, &cw, &ch, &scale, &ow, &oh)) return;
+#ifdef KISS_BOARD_WS35
+  // The scratch holds this frame's rect and nothing else. The rect is read once
+  // here for everything below, fb_px included; if a screen moved it between
+  // orient_geometry and now, the sizes disagree and the frame is dropped
+  // rather than rendered into the wrong shape.
+  uint16_t *fb = s_scratch;
+  if (!fb) return;
+  s_fx = s_vp_x; s_fy = s_vp_y; s_fw = s_vp_w; s_fh = s_vp_h;
+  if (s_fw <= 0 || s_fh <= 0 || (int)ow > s_fw || (int)oh > s_fh) return;
+#else
   // Two-column mode pins framebuffer 0 and never flips: a flip would swap in the
   // buffer LVGL did NOT just paint, so the column beside the video would
   // alternate between the layout and whatever was there a frame ago. Writing the
@@ -1235,6 +1543,7 @@ static void show_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
       esp_cache_msync(fb, PANEL_W * PANEL_H * 2, ESP_CACHE_MSYNC_FLAG_DIR_C2M);
     }
   }
+#endif
   ppa_srm_oper_config_t op = {
       .in = {
           .buffer = frame,
@@ -1247,6 +1556,16 @@ static void show_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
           .srm_cm = PPA_SRM_COLOR_MODE_RGB565,
       },
       .out = {
+#ifdef KISS_BOARD_WS35
+          // The scratch is the rect, so the picture centres in it from zero.
+          .buffer = fb,
+          .buffer_size = s_scratch_len,
+          .pic_w = (uint32_t)s_fw,
+          .pic_h = (uint32_t)s_fh,
+          .block_offset_x = (uint32_t)(s_fw - (int)ow) / 2,
+          .block_offset_y = (uint32_t)(s_fh - (int)oh) / 2,
+          .srm_cm = PPA_SRM_COLOR_MODE_RGB565,
+#else
           .buffer = fb,
           .buffer_size = PANEL_W * PANEL_H * 2,
           .pic_w = PANEL_W,
@@ -1256,6 +1575,7 @@ static void show_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
           .block_offset_x = s_vp_x + (s_vp_w - (int)ow) / 2,
           .block_offset_y = s_vp_y + (s_vp_h - (int)oh) / 2,
           .srm_cm = PPA_SRM_COLOR_MODE_RGB565,
+#endif
       },
       .rotation_angle = rot[s_orient % 4],
       .scale_x = scale,
@@ -1267,6 +1587,24 @@ static void show_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
     ESP_LOGW(TAG, "PPA blit failed");
     return;
   }
+#ifdef KISS_BOARD_WS35
+  // What the picture does not cover is written black on every frame, not once
+  // on a change: the scratch went out byte swapped last time, and an overlay
+  // blended onto a leftover pixel would blend onto the wrong colour. That is
+  // also why s_clear_pending has no work to do on this board.
+  if ((int)ow < s_fw || (int)oh < s_fh) {
+    const int bx = (s_fw - (int)ow) / 2, by = (s_fh - (int)oh) / 2;
+    for (int y = 0; y < s_fh; y++) {
+      uint16_t *row = fb + y * s_fw;
+      if (y < by || y >= by + (int)oh) {
+        memset(row, 0, (size_t)s_fw * 2);
+      } else {
+        memset(row, 0, (size_t)bx * 2);
+        memset(row + bx + (int)ow, 0, (size_t)(s_fw - bx - (int)ow) * 2);
+      }
+    }
+  }
+#endif
   // The reticle is the exception, and it draws in BOTH modes: it is the only
   // thing on this screen that says the device is looking, its primitives already
   // work in landscape coordinates, and draw_brackets takes its centre and travel
@@ -1280,7 +1618,8 @@ static void show_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
     if (s_scan_mode || s_ent_mode) {    // cinematic bands carry all the chrome
       darken_band(fb, BAND_TOP_X0, BAND_TOP_X1);
       darken_band(fb, BAND_BOT_X0, BAND_BOT_X1);
-      blit_a4(fb, osd_title(OSD_CLOSE), 449, 22, OSD_DIM_CLOSE);  // top-left
+      blit_a4(fb, osd_title(OSD_CLOSE), ACROSS(449), ALONG(22),   // top-left
+              OSD_DIM_CLOSE);
     }
     if (s_scan_mode) {
       draw_scan_bar(fb);
@@ -1301,11 +1640,40 @@ static void show_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
     if (s_osd_frames > 0) {             // orientation (left) / zoom (right) level
       s_osd_frames--;                   // digits, real type, inset from overscan
       if (s_orient + 1 <= 9)
-        blit_a4(fb, osd_digit(s_orient + 1), 430, 66, OSD_DIM_FULL);
+        blit_a4(fb, osd_digit(s_orient + 1), ACROSS(430), ALONG(66), OSD_DIM_FULL);
       if (s_zoom + 1 <= 9)
-        blit_a4(fb, osd_digit(s_zoom + 1), 430, 660, OSD_DIM_FULL);
+        blit_a4(fb, osd_digit(s_zoom + 1), ACROSS(430), ALONG(660), OSD_DIM_FULL);
     }
   }
+#ifdef KISS_BOARD_WS35
+  {
+    // Out over the bus. The ST7796 takes big-endian RGB565, as LVGL's flush
+    // sends it, so the scratch is swapped in place; written back from the cache
+    // for the DMA; and sent synchronously, which is what makes the scratch
+    // ours again for the next frame and keeps the video from queueing ahead of
+    // the panel. The rect is canvas coordinates, and those are the panel's.
+    //
+    // In bands no bigger than one of LVGL's own 48-line flushes. The scratch
+    // is PSRAM, and the SPI driver copies a PSRAM buffer into internal DMA
+    // memory for every transfer: a band is a copy the size LVGL's flush is
+    // known to get, where the whole canvas at once asks for 300 KB of
+    // internal RAM that is not there. The scan screen's rect is one band.
+    const size_t n = (size_t)s_fw * (size_t)s_fh;
+    lv_draw_sw_rgb565_swap(fb, (uint32_t)n);
+    esp_cache_msync(fb, n * 2, ESP_CACHE_MSYNC_FLAG_DIR_C2M | ESP_CACHE_MSYNC_FLAG_UNALIGNED);
+    const int band = SCREEN_W * 48 / s_fw;
+    for (int y = 0; y < s_fh; y += band) {
+      const int y2 = y + band < s_fh ? y + band : s_fh;
+      if (!kiss_board_blit(s_fx, s_fy + y, s_fx + s_fw, s_fy + y2, fb + y * s_fw, true)) {
+        static uint32_t refused;
+        if ((refused++ % 60) == 0)
+          ESP_LOGW(TAG, "preview band refused by the panel transport (%u so far)",
+                   (unsigned)refused);
+        break;
+      }
+    }
+  }
+#else
   if (s_vp_on) {
     // Push just the rect, and do NOT flip: framebuffer 0 is the one being
     // scanned out and the one LVGL is painting the other columns into, so the
@@ -1319,6 +1687,7 @@ static void show_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
     esp_lcd_panel_draw_bitmap(s_panel, 0, 0, PANEL_W, PANEL_H, fb);
     s_fb_wr ^= 1;
   }
+#endif
   s_frames++;
   // decode AFTER the flip so the preview stays smooth between attempts; the
   // V4L2 buffer is only re-queued once show_frame returns, so `frame` is ours
@@ -1363,11 +1732,17 @@ static void stream_task(void *arg) {
 
 static bool cam_init(i2c_master_bus_handle_t bus) {
   if (!bus) { set_status("CAM: no I2C bus"); return false; }
+#ifdef KISS_BOARD_WS35
+  // No framebuffers on an SPI panel: the display has to be up, and the scratch
+  // allocated below is the camera's own.
+  if (!s_panel) { set_status("CAM: no panel"); return false; }
+#else
   if (!s_panel || !s_fb[0] || !s_fb[1]) { set_status("CAM: no panel FBs"); return false; }
+#endif
 
   // Guition demo confirms: camera SCCB shares the touch I2C bus (GPIO7/8)
-  if (i2c_master_probe(bus, OV02C10_SCCB_ADDR, 100) == ESP_OK)
-    ESP_LOGI(TAG, "OV02C10 SCCB found on touch I2C bus (0x36)");
+  if (i2c_master_probe(bus, CAM_SCCB_ADDR, 100) == ESP_OK)
+    ESP_LOGI(TAG, CAM_SENSOR " SCCB found on touch I2C bus (0x36)");
   else
     ESP_LOGW(TAG, "no SCCB ack at 0x36 on touch bus - trying init anyway");
 
@@ -1418,6 +1793,19 @@ static bool cam_init(i2c_master_bus_handle_t bus) {
     set_status("CAM: PPA client failed");
     return false;
   }
+#ifdef KISS_BOARD_WS35
+  // Once, at the whole canvas's size, and kept like the V4L2 buffers: every
+  // rect a screen can ask for fits it, and nothing is allocated per session.
+  // Size and address both on the 64-byte cache line, which the PPA checks.
+  if (!s_scratch) {
+    s_scratch_len = ((size_t)SCREEN_W * SCREEN_H * 2 + 63) & ~(size_t)63;
+    s_scratch = heap_caps_aligned_alloc(64, s_scratch_len, MALLOC_CAP_SPIRAM);
+    if (!s_scratch) {
+      set_status("CAM: preview buffer alloc failed");
+      return false;
+    }
+  }
+#endif
 
   uint32_t cw, ch, ow, oh;
   float sc;
@@ -1477,6 +1865,21 @@ static bool cam_start(void) {
     return false;
   }
   s_cam.streaming = true;
+#ifdef KISS_BOARD_WS35
+  // The two values kiss_board.h sets for how the sensor sits, and the crop and
+  // scale that fill the rect, every session, so whoever is looking at the
+  // glass can match what they see to a number.
+  {
+    uint32_t cw = 0, ch = 0, ow = 0, oh = 0;
+    float sc = 0;
+    orient_geometry(s_cam.w, s_cam.h, &cw, &ch, &sc, &ow, &oh);
+    ESP_LOGI(TAG, "orientation: KISS_CAM_ORIENT %d (rot %d%s), KISS_CAM_RAW_MIRRORED %d; "
+                  "preview %dx%d at %d,%d from a %ux%u crop at %d/16",
+             s_orient, (s_orient % 4) * 90, s_orient >= 4 ? " + mirror" : "",
+             KISS_CAM_RAW_MIRRORED, (int)s_vp_w, (int)s_vp_h, (int)s_vp_x, (int)s_vp_y,
+             (unsigned)cw, (unsigned)ch, (int)(sc * 16.0f + 0.5f));
+  }
+#endif
   return true;
 }
 
@@ -1495,7 +1898,7 @@ static void cam_stop(void) {
   // otherwise hand the next scan a camera that never draws.
   s_paused = false;
   s_vp_on = false;
-  s_vp_x = 0; s_vp_y = 0; s_vp_w = PANEL_W; s_vp_h = PANEL_H;
+  s_vp_x = 0; s_vp_y = 0; s_vp_w = VP_W0; s_vp_h = VP_H0;
   s_vp_lx = 0; s_vp_ly = 0; s_vp_lw = PANEL_H; s_vp_lh = PANEL_W;
 }
 
@@ -1513,8 +1916,19 @@ bool camera_scan_start(void *bus_v, void (*on_decode)(const char *, size_t)) {
     // Fixed, because a zoom change must never trigger an allocation inside the
     // scan loop. k_quirc puts images in PSRAM first (k_malloc_large), so 480x728
     // is affordable; a failed image alloc is not something to risk mid-scan.
+#ifdef KISS_BOARD_WS35
+    // Not on the 3.5in, whose L0 is the whole 1280x960 sensor: 1.2 megapixels
+    // a pass, three and a half times the Guition's, on the task that also
+    // sends every frame. Every scan screen there sets a preview rect showing
+    // most of the sensor, so the aimed pass is the centre 640x480 of it at 1:1
+    // (scan_decode) and the wide pass is the whole sensor at exactly half
+    // resolution, the recipe the wide pass was written for.
+    int cw = 640;
+    int ch = 480;
+#else
     int cw = (int)s_zoom_tab[0][0].bw;
     int ch = (int)s_zoom_tab[0][0].bh;
+#endif
     if (cw > SCAN_MAX_DIM) cw = SCAN_MAX_DIM;
     if (ch > SCAN_MAX_DIM) ch = SCAN_MAX_DIM;
     if (cw > (int)s_cam.w) cw = (int)s_cam.w;

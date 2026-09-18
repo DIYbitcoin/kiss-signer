@@ -23,13 +23,32 @@
 // LANDSCAPE, like the Guition: the owner holds both boards the same way. The
 // glass is 320x480 portrait; the ST7796 turns the picture in hardware (the
 // MADCTL swap board_ws35.c sets), so the canvas is 480x320 and no software
-// rotate runs on the way out. The panel numbers stay the glass's own, for the
-// camera transport.
+// rotate runs on the way out. The panel numbers stay the glass's own: the
+// camera's overlay is laid out in that portrait frame, as on the Guition.
 #define SCREEN_W 480
 #define SCREEN_H 320
 #define KISS_PANEL_W 320
 #define KISS_PANEL_H 480
 #define KISS_NARROW 1
+// The OV5647's frame against this canvas: a rotation index (0..3, quarter
+// turns counter-clockwise, the PPA's direction) plus 4 when the preview is
+// mirrored, and whether the raw frame arrives mirrored, which the QR decoder
+// has to undo because a mirrored code locates and never reads.
+//
+// Turned a quarter. At 0 the picture reads on the glass as turned a quarter to
+// the right, and the vendors predict exactly that: Kern and Waveshare's
+// examples show this sensor unturned on the glass's portrait frame (MADCTL
+// MX), and this board turns that frame a quarter into landscape (MADCTL MV,
+// the same turn the touch mapping in board_ws35.c is proven on), so the
+// picture has to turn back by one. Unmirrored: the driver's mode table sets
+// the sensor's own mirror bit and Kern reads QR codes from that frame with no
+// un-mirror, and a turn cannot change handedness. One quarter from 0 is either
+// upright or upside down, so upside down here means 3. Upright with text
+// reading backwards means a raw mirror of 1 with 5 or 7: which of the two
+// depends on whether the PPA mirrors before or after it turns, and nothing
+// documents that. The camera logs both when it starts.
+#define KISS_CAM_ORIENT 1
+#define KISS_CAM_RAW_MIRRORED 0
 #else
 #define KISS_BOARD_NAME "Guition JC4880P443C"
 // LOGICAL UI canvas: the whole game is LANDSCAPE. The device reaches this via
@@ -41,6 +60,10 @@
 #define KISS_PANEL_W 480
 #define KISS_PANEL_H 800
 #define KISS_NARROW 0
+// The OV02C10 reads out mirrored, and rot0 plus the mirror is upright in panel
+// space: the orientation finder's result (camera_spike.c has its history).
+#define KISS_CAM_ORIENT 4
+#define KISS_CAM_RAW_MIRRORED 1
 #endif
 
 // THE UI IS DRAWN ONCE, ON THE WIDE CANVAS. Every length in the screens and
@@ -79,10 +102,13 @@ bool kiss_board_touch_ok(void);
 i2c_master_bus_handle_t kiss_board_i2c_bus(void);
 #ifdef KISS_BOARD_WS35
 // The one door onto the SPI panel, shared by LVGL and the camera. x2 and y2
-// are exclusive, esp_lcd's convention. `px` is already in the panel's byte
-// order and written back from the cache. LVGL's calls return at once and the
-// DMA-done callback hands the buffer back; a camera call (cam) returns when
-// the transfer is complete, so its buffer is free again.
-void kiss_board_blit(int x1, int y1, int x2, int y2, const void *px, bool cam);
+// are exclusive, esp_lcd's convention, and they are canvas coordinates: the
+// controller turns the glass, so a canvas rect is a panel rect. `px` is
+// already in the panel's byte order and written back from the cache. LVGL's
+// calls return at once and the DMA-done callback hands the buffer back; a
+// camera call (cam) returns when the transfer is complete, so its buffer is
+// free again. False when the driver refused the transfer: nothing was sent
+// and no completion will follow, so an LVGL caller owes its own flush_ready.
+bool kiss_board_blit(int x1, int y1, int x2, int y2, const void *px, bool cam);
 #endif
 #endif

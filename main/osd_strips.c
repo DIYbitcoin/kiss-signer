@@ -51,11 +51,75 @@ const lv_font_t *osd_title_font(const char *txt)
 const lv_font_t *osd_sub_font(const char *txt)
 {
     if (!txt || !*txt) return wt_font23();
+#if KISS_NARROW
+    // wt_font28 is the 3.5in's 18 px face. Its 23 and 14 are the same 14 px,
+    // so without this rung a subtitle there had one size and no ladder, and
+    // one that fits at 18 reads better over moving video than at the floor.
+    if (fits(txt, wt_font28())) return wt_font28();
+#endif
     return fits(txt, wt_font23()) ? wt_font23() : wt_font14();
 }
 
+#if OSD_SUB_LINES > 1
+void osd_sub_lines(const char *txt, const lv_font_t *f, char *one, char *two,
+                   size_t cap)
+{
+    one[0] = two[0] = 0;
+    if (!txt || !f || cap < 2) return;
+    size_t n = strlen(txt);
+    // Longer than the buffer is longer than any overlay string: keep what
+    // fits, cut at a character boundary so no half a glyph is composed.
+    if (n >= cap) {
+        n = cap - 1;
+        while (n && ((unsigned char)txt[n] & 0xC0) == 0x80) n--;
+    }
+    memcpy(one, txt, n);
+    one[n] = 0;
+    if (fits(one, f)) return;
+
+    // Every break is measured as it would be drawn, and the one whose longer
+    // half is shortest wins, so the two lines come out near equal rather
+    // than one full line and a word. Spaces first. Only when no space leaves
+    // both halves inside the lane, a CJK line or one very long word, does any
+    // character boundary compete.
+    lv_coord_t best = LV_COORD_MAX;
+    size_t cut = 0, next = 0;
+    for (int anywhere = 0; anywhere < 2 && best > OSD_MAX_W; anywhere++) {
+        for (size_t i = 1; i < n; i++) {
+            size_t c, nx;
+            if (!anywhere) {
+                if (one[i] != ' ') continue;
+                c = i;
+                nx = i + 1;
+                while (c && one[c - 1] == ' ') c--;
+                while (one[nx] == ' ') nx++;
+                if (!c || !one[nx]) continue;
+            } else {
+                if (((unsigned char)one[i] & 0xC0) == 0x80) continue;
+                c = nx = i;
+            }
+            lv_point_t a, b;
+            char keep = one[c];
+            one[c] = 0;
+            lv_text_get_size(&a, one, f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_EXPAND);
+            one[c] = keep;
+            lv_text_get_size(&b, one + nx, f, 0, 0, LV_COORD_MAX,
+                             LV_TEXT_FLAG_EXPAND);
+            lv_coord_t w = a.x > b.x ? a.x : b.x;
+            if (w < best) { best = w; cut = c; next = nx; }
+        }
+    }
+    if (!cut) return;                   // nowhere to break: one clipped line
+    memcpy(two, one + next, n - next + 1);
+    one[cut] = 0;
+}
+#endif
+
 static scan_osd_strip_t s_title[SCAN_OSD_N];
 static scan_osd_strip_t s_sub[SCAN_OSD_N];
+#if OSD_SUB_LINES > 1
+static scan_osd_strip_t s_sub2[SCAN_OSD_N];
+#endif
 static scan_osd_strip_t s_digit[10];
 static scan_osd_strip_t s_dot;
 static scan_osd_strip_t s_of;
@@ -77,6 +141,14 @@ const scan_osd_strip_t *osd_sub(int state)
     if (!s_open || state < 0 || state >= SCAN_OSD_N) return NULL;
     return ready(&s_sub[state]);
 }
+
+#if OSD_SUB_LINES > 1
+const scan_osd_strip_t *osd_sub2(int state)
+{
+    if (!s_open || state < 0 || state >= SCAN_OSD_N) return NULL;
+    return ready(&s_sub2[state]);
+}
+#endif
 
 const scan_osd_strip_t *osd_digit(int d)
 {
@@ -101,7 +173,15 @@ bool osd_strips_open(void)
         osd_text_strip(t, tf, OSD_MAX_W, &s_title[i]);
         if (s_keys[i].s >= 0) {
             const char *sub = tr(s_keys[i].s);
+#if OSD_SUB_LINES > 1
+            const lv_font_t *sf = osd_sub_font(sub);
+            char one[OSD_SUB_CAP], two[OSD_SUB_CAP];
+            osd_sub_lines(sub, sf, one, two, sizeof one);
+            osd_text_strip(one, sf, OSD_MAX_W, &s_sub[i]);
+            if (two[0]) osd_text_strip(two, sf, OSD_MAX_W, &s_sub2[i]);
+#else
             osd_text_strip(sub, osd_sub_font(sub), OSD_MAX_W, &s_sub[i]);
+#endif
         }
     }
 
@@ -131,6 +211,9 @@ void osd_strips_close(void)
     for (int i = 0; i < SCAN_OSD_N; i++) {
         osd_text_free(&s_title[i]);
         osd_text_free(&s_sub[i]);
+#if OSD_SUB_LINES > 1
+        osd_text_free(&s_sub2[i]);
+#endif
     }
     for (int d = 0; d < 10; d++) osd_text_free(&s_digit[d]);
     osd_text_free(&s_dot);

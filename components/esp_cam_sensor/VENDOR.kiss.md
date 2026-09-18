@@ -132,6 +132,44 @@ Two suspects, neither confirmed, both cheap to test when someone picks this up:
 The AWB half was never separately assessed, because the exposure fault made
 every frame too dark to judge white balance on.
 
+## 5. OV5647 on the 3.5in: nothing changed, and the controller stays off
+
+Nothing in this component changes for the Waveshare 3.5in board either. Its
+camera is an OV5647, selected in [sdkconfig.ws35](../../sdkconfig.ws35) in the
+upstream `MIPI_2lane_24Minput_RAW10_1280x960_binning_45fps` mode, the one Kern
+runs on the same board, and every register it writes is upstream's.
+
+`CONFIG_ESP_VIDEO_ENABLE_ISP_PIPELINE_CONTROLLER` stays `n` for this sensor
+as a decision of its own, not only because the board profile inherits it:
+
+- The sensor meters itself. `ov5647_set_format` resets it and never writes
+  `0x3503`, so exposure and gain stay under the chip's own AEC and AGC, with
+  the target window `ov5647_set_AE_target` writes (0x50) and the banding
+  filter on top. Section 4's problem, a sensor holding one fixed exposure for
+  the whole session, does not arise.
+- The controller would have nothing to run on. `ov5647_default.json` carries
+  no `agc` and no `awb` section, and `ov5647_isp_info[]` has no `tline_ns`, the
+  gap section 3 filled for OV02C10.
+
+Three consequences, all still to be read on glass:
+
+- `V4L2_CID_EXPOSURE` is not a line count here. esp_video maps it to
+  `ESP_CAM_SENSOR_EXPOSURE_VAL`, which this driver implements as the on-chip
+  AE target (2..235, default 0x50) and cannot read back. `scan_exposure` in
+  [main/camera_spike.c](../../main/camera_spike.c) therefore halves the target
+  while scanning, 0x50 to 0x28, and the sensor meets it with a shorter
+  exposure in good light and less gain in poor light. The scan preview is
+  meant to be darker than the entropy page's.
+- No white balance gains are programmed without the controller, so colour is
+  the sensor's raw balance. The QR decoder reads the green channel and the
+  entropy meter a histogram of RGB565 values, and neither needs colour to be
+  right; but the entropy floor and target in camera_spike.c were set against
+  OV02C10 frames and have not been measured on this sensor.
+- The mode table sets `0x5000` to `0xff`, which turns on the sensor's own lens
+  correction at its default coefficients. Those were not measured for this
+  lens either, so how much of the vignetting note below holds on the 3.5in
+  is unmeasured.
+
 ## Not changed, and why
 
 - **No gamma LUT written from firmware.** An earlier plan had us programming a
