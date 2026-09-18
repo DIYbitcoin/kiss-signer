@@ -132,6 +132,8 @@
   "G_FW_WHY_H": "ecdsa + post kwantowo",
   "G_FW_WRITING_FMT": "ZAPISUJĘ %s",
   "G_FW_WRITING_T": "ZAPIS OPROGRAMOWANIA",
+  "G_FW_WRONG_B": "ten obraz zbudowano dla innego urządzenia. to nie jest wersja dla tego urządzenia.",
+  "G_FW_WRONG_H": "nie to urządzenie",
   "G_HELP_BODY": "Słowa odzyskiwania + fraza dostępu = twoje klucze.",
   "G_HELP_F1C": "PĘTLA",
   "G_HELP_F1V": "dotknij, by zmienić",

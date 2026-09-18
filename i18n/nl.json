@@ -132,6 +132,8 @@
   "G_FW_WHY_H": "ecdsa + post quantum",
   "G_FW_WRITING_FMT": "SCHRIJFT %s",
   "G_FW_WRITING_T": "FIRMWARE SCHRIJVEN",
+  "G_FW_WRONG_B": "dit bestand is gemaakt voor een ander apparaat. het is niet de versie voor dit apparaat.",
+  "G_FW_WRONG_H": "verkeerd apparaat",
   "G_HELP_BODY": "Herstelwoorden + passphrase = je sleutels.",
   "G_HELP_F1C": "DE LUS",
   "G_HELP_F1V": "tik om te wisselen",

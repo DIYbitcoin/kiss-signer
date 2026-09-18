@@ -51,6 +51,14 @@ enum {
     // same bytes was missing or wrong. Separate from WFW_ERR_REJECTED so the
     // screen can say which lock did not open.
     WFW_ERR_PQ_REJECTED = -11,
+    // An image built for the OTHER board. Both boards build from this tree and
+    // check an image against the same release keys, so the Guition's image on
+    // a 3.5in card passes both signature checks -- it really is a KISS
+    // release -- and is still firmware for a panel, touch controller and
+    // camera that are not there. The one field that tells the two apart is the
+    // descriptor's project_name, which project() sets per board, so it is
+    // compared at the scan and again on the handle install is about to write.
+    WFW_ERR_WRONG_BOARD = -12,
 };
 
 typedef struct {
@@ -69,6 +77,11 @@ typedef struct {
 // device; the compiled in string in the sim.
 const char *kiss_fw_running_version(void);
 
+// Which board this firmware was built for, in the words the app descriptor
+// uses: "guition_kiss_bringup" or "ws35_kiss_bringup". Read off the running
+// app on device; the sim answers for the board it was compiled as.
+const char *kiss_fw_running_project(void);
+
 // 0 when this build can verify an image signature, WFW_ERR_UNSIGNED when it
 // cannot. A build made without the release signing key has no key to check
 // against, and rather than quietly installing whatever it is handed, the update
@@ -78,6 +91,10 @@ int kiss_fw_available(void);
 // Find the image on the card and judge it. Fills *out even when it returns an
 // error, so the screen can name the file it is refusing instead of saying
 // nothing was found. Returns out->status.
+//
+// An image built for the other board is never chosen, whatever its version.
+// A card holding nothing else answers WFW_ERR_WRONG_BOARD rather than
+// WFW_ERR_UNREADABLE: the file IS firmware, just not this device's.
 int kiss_fw_scan(wfw_image_t *out);
 
 // Semver with a prerelease tail, which is what the VERSION file carries

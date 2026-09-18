@@ -13,6 +13,16 @@
 #ifndef KISS_VERSION_STR
 #define KISS_VERSION_STR "0.0.0-sim"
 #endif
+// ...and without its project name, so the sim takes the one project() gives
+// the board it was compiled as. A single default for both would have the 3.5in
+// walk calling the Guition's image its own.
+#ifndef KISS_PROJECT_STR
+#ifdef KISS_BOARD_WS35
+#define KISS_PROJECT_STR "ws35_kiss_bringup"
+#else
+#define KISS_PROJECT_STR "guition_kiss_bringup"
+#endif
+#endif
 
 #ifdef ESP_PLATFORM
 #include "esp_app_desc.h"
@@ -141,6 +151,25 @@ const char *kiss_fw_running_version(void)
 #else
     return KISS_VERSION_STR;
 #endif
+}
+
+const char *kiss_fw_running_project(void)
+{
+#ifdef ESP_PLATFORM
+    const esp_app_desc_t *d = esp_app_get_description();
+    return d && d->project_name[0] ? d->project_name : KISS_PROJECT_STR;
+#else
+    return KISS_PROJECT_STR;
+#endif
+}
+
+// Was this image built for the board it is about to run on? Every release of
+// the Guition has carried guition_kiss_bringup since the first commit, so a
+// genuine older Guition release still reads as this board's and is offered as
+// the downgrade it is.
+static bool this_board(const char *proj)
+{
+    return proj && strcmp(proj, kiss_fw_running_project()) == 0;
 }
 
 #ifndef ESP_PLATFORM
@@ -277,9 +306,10 @@ int kiss_fw_scan(wfw_image_t *out)
     // narrowed. WFW_SCAN_MAX is far past any card an owner builds by hand now,
     // and where it is not, the screen says how many were looked at out of how
     // many are there.
-    int best = -1;
+    int best = -1, wrong = -1;
     size_t blen = 0;
     char bver[WFW_VER_LEN] = {0}, bproj[WFW_VER_LEN] = {0};
+    char wproj[WFW_VER_LEN] = {0};
     for (int i = 0; i < n; i++) {
         size_t len = 0;
         platform_sd_file *f = platform_sd_open(names[i], &len);
@@ -294,6 +324,20 @@ int kiss_fw_scan(wfw_image_t *out)
         if (kiss_fw_desc_parse(hdr, got, ver, sizeof ver, proj, sizeof proj) != 0)
             continue;
 
+        // The other board's image, skipped before its version is even looked
+        // at. It parses and it would verify, so nothing downstream objects:
+        // this is where it gets caught. Skipped rather than judged, so a card
+        // carrying both boards' releases offers this board's even when the
+        // other one is newer, and remembered, so a card carrying only the
+        // other board's says so instead of calling it "not firmware".
+        if (!this_board(proj)) {
+            if (wrong < 0) {
+                wrong = i;
+                snprintf(wproj, sizeof wproj, "%s", proj);
+            }
+            continue;
+        }
+
         if (best >= 0 && kiss_fw_version_cmp(ver, bver) <= 0)
             continue;
 
@@ -301,6 +345,16 @@ int kiss_fw_scan(wfw_image_t *out)
         blen = len;
         snprintf(bver,  sizeof bver,  "%s", ver);
         snprintf(bproj, sizeof bproj, "%s", proj);
+    }
+
+    // Files were there and none of them is this board's. Named after the
+    // other board's image when there was one, because that is the refusal the
+    // owner can act on: the file is firmware, only for the other device.
+    if (best < 0 && wrong >= 0) {
+        snprintf(out->name, sizeof out->name, "%.*s",
+                 (int)(sizeof out->name - 1), names[wrong]);
+        snprintf(out->project, sizeof out->project, "%s", wproj);
+        return out->status = WFW_ERR_WRONG_BOARD;
     }
 
     // Files were there, none of them an app image.
@@ -358,6 +412,10 @@ int kiss_fw_install(const wfw_image_t *img, wfw_progress_fn cb, void *ud)
     if (!img || !img->name[0]) return WFW_ERR_UNREADABLE;
     int avail = kiss_fw_available();
     if (avail != WFW_OK) return avail;
+    // The scan never offers the other board's image, so this only fires on a
+    // wfw_image_t that did not come from it. Above the sim seam, so the host
+    // tests reach it; the card itself is asked again below.
+    if (!this_board(img->project)) return WFW_ERR_WRONG_BOARD;
 
 #ifndef ESP_PLATFORM
     // No flash to write and no key to check with, so the outcome is whatever
@@ -412,12 +470,23 @@ int kiss_fw_install(const wfw_image_t *img, wfw_progress_fn cb, void *ud)
         first < WFW_DESC_MIN) {
         free(buf); free(ps); platform_sd_close(f); return WFW_ERR_CARD_GONE;
     }
+    // The board is asked of those same bytes, and answered in its own words. A
+    // card that now holds the other board's image under the offered name is
+    // still a card that changed, but "the card stopped responding" would send
+    // the owner to reseat a card that is fine and hold the slide over the same
+    // wrong file.
     {
         char ver[WFW_VER_LEN], proj[WFW_VER_LEN];
+        int why = WFW_OK;
         if (kiss_fw_desc_parse(buf, first, ver, sizeof ver,
-                                 proj, sizeof proj) != 0 ||
-            strcmp(ver, img->version) != 0 || strcmp(proj, img->project) != 0) {
-            free(buf); free(ps); platform_sd_close(f); return WFW_ERR_CARD_GONE;
+                                 proj, sizeof proj) != 0)
+            why = WFW_ERR_CARD_GONE;
+        else if (!this_board(proj))
+            why = WFW_ERR_WRONG_BOARD;
+        else if (strcmp(ver, img->version) != 0 || strcmp(proj, img->project) != 0)
+            why = WFW_ERR_CARD_GONE;
+        if (why != WFW_OK) {
+            free(buf); free(ps); platform_sd_close(f); return why;
         }
     }
 

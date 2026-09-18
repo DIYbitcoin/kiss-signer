@@ -132,6 +132,8 @@
   "G_FW_WHY_H": "ecdsa + pós quântico",
   "G_FW_WRITING_FMT": "GRAVANDO %s",
   "G_FW_WRITING_T": "GRAVANDO FIRMWARE",
+  "G_FW_WRONG_B": "esta imagem foi feita para outro dispositivo. não é a versão deste dispositivo.",
+  "G_FW_WRONG_H": "dispositivo errado",
   "G_HELP_BODY": "Palavras de recuperação + passphrase = suas chaves.",
   "G_HELP_F1C": "O CICLO",
   "G_HELP_F1V": "toque para trocar",

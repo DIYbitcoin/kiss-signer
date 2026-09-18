@@ -132,6 +132,8 @@
   "G_FW_WHY_H": "ecdsa + 耐量子",
   "G_FW_WRITING_FMT": "%s を書き込み中",
   "G_FW_WRITING_T": "書き込み中",
+  "G_FW_WRONG_B": "このファイルは別の端末用に作られました。この端末のものではありません。",
+  "G_FW_WRONG_H": "端末が違います",
   "G_HELP_BODY": "シードフレーズ + パスフレーズ = あなたの鍵。",
   "G_HELP_F1C": "切り替え",
   "G_HELP_F1V": "押すと変わる",

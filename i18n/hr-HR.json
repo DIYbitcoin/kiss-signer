@@ -132,6 +132,8 @@
   "G_FW_WHY_H": "ecdsa + post kvantno",
   "G_FW_WRITING_FMT": "ZAPISUJEM %s",
   "G_FW_WRITING_T": "PISANJE FIRMVERA",
+  "G_FW_WRONG_B": "ova slika je izrađena za drugi uređaj. nije verzija za ovaj uređaj.",
+  "G_FW_WRONG_H": "pogrešan uređaj",
   "G_HELP_BODY": "Riječi za oporavak + kodna fraza = vaši ključevi.",
   "G_HELP_F1C": "PETLJA",
   "G_HELP_F1V": "dodirnite za promjenu",

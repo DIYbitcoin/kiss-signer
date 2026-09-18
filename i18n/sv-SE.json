@@ -132,6 +132,8 @@
   "G_FW_WHY_H": "ecdsa + post kvant",
   "G_FW_WRITING_FMT": "SKRIVER %s",
   "G_FW_WRITING_T": "SKRIVER FIRMWARE",
+  "G_FW_WRONG_B": "den här filen är byggd för en annan enhet. det är inte versionen för den här enheten.",
+  "G_FW_WRONG_H": "fel enhet",
   "G_HELP_BODY": "Seed-ord + lösenfras = dina nycklar.",
   "G_HELP_F1C": "SLINGAN",
   "G_HELP_F1V": "tryck för att växla",

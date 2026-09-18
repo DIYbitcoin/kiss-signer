@@ -132,6 +132,8 @@
   "G_FW_WHY_H": "ecdsa + 양자 이후",
   "G_FW_WRITING_FMT": "%s 쓰는 중",
   "G_FW_WRITING_T": "펌웨어 쓰는 중",
+  "G_FW_WRONG_B": "이 파일은 다른 기기용으로 만들어졌습니다. 이 기기의 버전이 아닙니다.",
+  "G_FW_WRONG_H": "다른 기기용",
   "G_HELP_BODY": "시드 문구 + 패스프레이즈 = 당신의 키.",
   "G_HELP_F1C": "돌기",
   "G_HELP_F1V": "눌러서 바꾸기",

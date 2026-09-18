@@ -132,6 +132,8 @@
   "G_FW_WHY_H": "ecdsa + post kuantum",
   "G_FW_WRITING_FMT": "%s YAZILIYOR",
   "G_FW_WRITING_T": "YAZILIM YAZILIYOR",
+  "G_FW_WRONG_B": "bu imaj başka bir cihaz için derlendi. bu cihazın sürümü değil.",
+  "G_FW_WRONG_H": "yanlış cihaz",
   "G_HELP_BODY": "Kurtarma kelimeleri + passphrase = anahtarlarınız.",
   "G_HELP_F1C": "DÖNGÜ",
   "G_HELP_F1V": "değiştirmek için dokun",

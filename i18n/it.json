@@ -132,6 +132,8 @@
   "G_FW_WHY_H": "ecdsa + post quantistico",
   "G_FW_WRITING_FMT": "SCRITTURA DI %s",
   "G_FW_WRITING_T": "SCRITTURA FIRMWARE",
+  "G_FW_WRONG_B": "questa immagine è stata creata per un altro dispositivo. non è la versione per questo dispositivo.",
+  "G_FW_WRONG_H": "dispositivo sbagliato",
   "G_HELP_BODY": "Parole di recupero + passphrase = le tue chiavi.",
   "G_HELP_F1C": "IL GIRO",
   "G_HELP_F1V": "tocca per cambiare",

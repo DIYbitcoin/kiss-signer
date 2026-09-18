@@ -132,6 +132,8 @@
   "G_FW_WHY_H": "ecdsa + 后量子",
   "G_FW_WRITING_FMT": "正在写入 %s",
   "G_FW_WRITING_T": "正在写入",
+  "G_FW_WRONG_B": "这个文件是为另一台设备做的，不是这台设备的版本。",
+  "G_FW_WRONG_H": "设备不对",
   "G_HELP_BODY": "助记词 + 密码短语 = 你的密钥。",
   "G_HELP_F1C": "循环",
   "G_HELP_F1V": "点一下就换",

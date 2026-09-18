@@ -132,6 +132,8 @@
   "G_FW_WHY_H": "ecdsa + post quantique",
   "G_FW_WRITING_FMT": "ÉCRITURE DE %s",
   "G_FW_WRITING_T": "ÉCRITURE DU FIRMWARE",
+  "G_FW_WRONG_B": "cette image a été faite pour un autre appareil. ce n'est pas la version pour cet appareil.",
+  "G_FW_WRONG_H": "mauvais appareil",
   "G_HELP_BODY": "Mots de récupération + phrase secrète = vos clés.",
   "G_HELP_F1C": "LA BOUCLE",
   "G_HELP_F1V": "toucher pour changer",

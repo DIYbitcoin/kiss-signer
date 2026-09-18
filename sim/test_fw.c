@@ -89,7 +89,7 @@ static void wipe_card(void)
     static const char *const junk[] = {
         "fw-new.bin", "fw-old.bin", "fw-same.bin", "aaa-notimage.bin",
         "huge.bin", "short.bin", "0-old.bin", "z-new.bin", "z-real.bin",
-        "tiny.bin", "exact.bin", NULL
+        "tiny.bin", "exact.bin", "fw-other.bin", NULL
     };
     for (int i = 0; junk[i]; i++) {
         char p[256];
@@ -179,6 +179,11 @@ int test_fw(void)
        strlen(ver) == 31);
 
     // ---- scan over the sim card ----
+    //
+    // Every fixture below carries THIS board's project name. The scan skips an
+    // image built for the other board before it reads the version, so a
+    // fixture named anything else is a test of that refusal and nothing else.
+    const char *const me = kiss_fw_running_project();
     platform_sd_test_set_present(1);
     if (platform_sd_mount() != 0) {
         printf("FAIL: sim card would not mount\n");
@@ -198,7 +203,7 @@ int test_fw(void)
     // Sorting puts aaa-notimage.bin first, so finding the real image proves the
     // descriptor picks the file rather than the name.
     static uint8_t big[FIX_LEN];
-    mk_image_head(big, sizeof big, 0xABCD5432u, "99.0.0", "kiss");
+    mk_image_head(big, sizeof big, 0xABCD5432u, "99.0.0", me);
     put("fw-new.bin", big, sizeof big);
     int rc = kiss_fw_scan(&got);
     ok("newer image found past a decoy",
@@ -209,12 +214,12 @@ int test_fw(void)
     // Older and same are reported as their own outcomes, not as OK and not as
     // unreadable: the screen presents each differently.
     wipe_card();
-    mk_image_head(big, sizeof big, 0xABCD5432u, "0.0.1", "kiss");
+    mk_image_head(big, sizeof big, 0xABCD5432u, "0.0.1", me);
     put("fw-old.bin", big, sizeof big);
     ok("older image reported older", kiss_fw_scan(&got) == WFW_ERR_OLDER && got.cmp < 0);
 
     wipe_card();
-    mk_image_head(big, sizeof big, 0xABCD5432u, kiss_fw_running_version(), "kiss");
+    mk_image_head(big, sizeof big, 0xABCD5432u, kiss_fw_running_version(), me);
     put("fw-same.bin", big, sizeof big);
     ok("same version reported same", kiss_fw_scan(&got) == WFW_ERR_SAME && got.cmp == 0);
 
@@ -225,9 +230,9 @@ int test_fw(void)
     // the card drop a genuine, correctly signed OLD build under a name that
     // sorts first and have the device offer it as the update.
     wipe_card();
-    mk_image_head(big, sizeof big, 0xABCD5432u, "0.0.1", "kiss");
+    mk_image_head(big, sizeof big, 0xABCD5432u, "0.0.1", me);
     put("0-old.bin", big, sizeof big);
-    mk_image_head(big, sizeof big, 0xABCD5432u, "99.0.0", "kiss");
+    mk_image_head(big, sizeof big, 0xABCD5432u, "99.0.0", me);
     put("z-new.bin", big, sizeof big);
     rc = kiss_fw_scan(&got);
     ok("newest image wins, not the first name",
@@ -237,9 +242,9 @@ int test_fw(void)
     // ...and the same the other way round, so the answer is the version and not
     // some new fixed preference for the last name instead of the first.
     wipe_card();
-    mk_image_head(big, sizeof big, 0xABCD5432u, "99.0.0", "kiss");
+    mk_image_head(big, sizeof big, 0xABCD5432u, "99.0.0", me);
     put("0-old.bin", big, sizeof big);
-    mk_image_head(big, sizeof big, 0xABCD5432u, "0.0.1", "kiss");
+    mk_image_head(big, sizeof big, 0xABCD5432u, "0.0.1", me);
     put("z-new.bin", big, sizeof big);
     rc = kiss_fw_scan(&got);
     ok("newest image wins whichever name it has",
@@ -250,13 +255,103 @@ int test_fw(void)
     // must not be skipped because something unparsable sorted ahead of it.
     wipe_card();
     put("aaa-notimage.bin", junk, sizeof junk);
-    mk_image_head(big, sizeof big, 0xABCD5432u, "0.0.1", "kiss");
+    mk_image_head(big, sizeof big, 0xABCD5432u, "0.0.1", me);
     put("fw-old.bin", big, sizeof big);
-    mk_image_head(big, sizeof big, 0xABCD5432u, "99.0.0", "kiss");
+    mk_image_head(big, sizeof big, 0xABCD5432u, "99.0.0", me);
     put("fw-new.bin", big, sizeof big);
     rc = kiss_fw_scan(&got);
     ok("junk on the card changes nothing",
        rc == WFW_OK && strcmp(got.name, "fw-new.bin") == 0);
+
+    // ---- the other board's image ----------------------------------------
+    //
+    // Both boards build from one tree and check an image against the same
+    // release keys, so one built for the other board parses, verifies and can
+    // be newer than anything running. The project name in its descriptor is
+    // the only thing that says it is not this device's firmware: the scan asks
+    // first, and install asks again.
+    const char *const other = strcmp(me, "ws35_kiss_bringup") == 0
+                            ? "guition_kiss_bringup" : "ws35_kiss_bringup";
+#ifdef KISS_BOARD_WS35
+    ok("the 3.5in sim runs as the 3.5in build",
+       strcmp(me, "ws35_kiss_bringup") == 0);
+#else
+    ok("the Guition sim runs as the Guition build",
+       strcmp(me, "guition_kiss_bringup") == 0);
+#endif
+
+    // Alone on the card: refused in its own words, not as "not firmware", and
+    // named, so the screen is about the file that is actually there.
+    wipe_card();
+    mk_image_head(big, sizeof big, 0xABCD5432u, "99.0.0", other);
+    put("fw-other.bin", big, sizeof big);
+    rc = kiss_fw_scan(&got);
+    ok("the other board's image is refused as the other board's",
+       rc == WFW_ERR_WRONG_BOARD && got.status == WFW_ERR_WRONG_BOARD &&
+       strcmp(got.name, "fw-other.bin") == 0 && strcmp(got.project, other) == 0);
+
+    // Beside a file that is not an image, sorting ahead of it. The junk says
+    // nothing about what the owner has to do; the other board's image does.
+    put("aaa-notimage.bin", junk, sizeof junk);
+    rc = kiss_fw_scan(&got);
+    ok("wrong board outranks unreadable",
+       rc == WFW_ERR_WRONG_BOARD && strcmp(got.name, "fw-other.bin") == 0);
+
+    // A descriptor with no project name at all is not this board's either.
+    wipe_card();
+    mk_image_head(big, sizeof big, 0xABCD5432u, "99.0.0", NULL);
+    put("fw-other.bin", big, sizeof big);
+    ok("an image naming no board is not this board's",
+       kiss_fw_scan(&got) == WFW_ERR_WRONG_BOARD);
+
+    // Both boards' releases on one card, the other one NEWER and sorting
+    // first. Newest wins only among this board's images, so the answer is this
+    // board's older release rather than the other board's newer one.
+    wipe_card();
+    mk_image_head(big, sizeof big, 0xABCD5432u, "99.0.0", other);
+    put("fw-other.bin", big, sizeof big);
+    mk_image_head(big, sizeof big, 0xABCD5432u, "50.0.0", me);
+    put("z-new.bin", big, sizeof big);
+    rc = kiss_fw_scan(&got);
+    ok("this board's image wins over the other board's newer one",
+       rc == WFW_OK && strcmp(got.name, "z-new.bin") == 0 &&
+       strcmp(got.version, "50.0.0") == 0 && strcmp(got.project, me) == 0);
+    ok("both were opened", got.examined == 2 && got.on_card == 2);
+
+    // ...and when this board's image is the one already running, that is the
+    // answer: the other board's newer image does not turn "already running"
+    // into an offer or into a refusal about the wrong device.
+    wipe_card();
+    mk_image_head(big, sizeof big, 0xABCD5432u, "99.0.0", other);
+    put("fw-other.bin", big, sizeof big);
+    mk_image_head(big, sizeof big, 0xABCD5432u, kiss_fw_running_version(), me);
+    put("fw-same.bin", big, sizeof big);
+    ok("the other board's image does not mask already running",
+       kiss_fw_scan(&got) == WFW_ERR_SAME && strcmp(got.name, "fw-same.bin") == 0);
+
+    // Install asks again. A wfw_image_t naming the other board is refused
+    // even by a build that can verify, before the seam that stands in for the
+    // write -- so this is the check itself answering, not the seam.
+    wipe_card();
+    mk_image_head(big, sizeof big, 0xABCD5432u, "99.0.0", other);
+    put("fw-other.bin", big, sizeof big);
+    kiss_fw_scan(&got);
+    kiss_fw_test_set_available(WFW_OK);
+    kiss_fw_test_set_install(WFW_OK, 0);
+    ok("install refuses the other board's image",
+       kiss_fw_install(&got, NULL, NULL) == WFW_ERR_WRONG_BOARD);
+    {
+        // The same struct naming this board reaches the seam, which is what
+        // proves the refusal above was the board check. The card is not asked
+        // here: re-reading the handle before the write is device code, and the
+        // one half of this refusal a host cannot reach.
+        wfw_image_t mine = got;
+        snprintf(mine.project, sizeof mine.project, "%s", me);
+        ok("install lets this board's image through to the write",
+           kiss_fw_install(&mine, NULL, NULL) == WFW_OK);
+    }
+    kiss_fw_test_set_available(WFW_ERR_UNSIGNED);   // leave the seams as found
+    kiss_fw_test_set_install(WFW_ERR_UNSIGNED, 0);
 
     // Too big outranks the version: it is a fact about this device.
     wipe_card();
@@ -264,7 +359,7 @@ int test_fw(void)
         size_t huge = 0x7F0000 + KISS_PQSIG_TRAILER_LEN + 1;
         uint8_t *hb = calloc(1, huge);
         if (hb) {
-            mk_image_head(hb, WFW_DESC_MIN, 0xABCD5432u, "99.0.0", "kiss");
+            mk_image_head(hb, WFW_DESC_MIN, 0xABCD5432u, "99.0.0", me);
             put("huge.bin", hb, huge);
             free(hb);
             ok("oversized image refused before any write",
@@ -281,7 +376,7 @@ int test_fw(void)
     wipe_card();
     {
         static uint8_t tiny[KISS_PQSIG_TRAILER_LEN];
-        mk_image_head(tiny, sizeof tiny, 0xABCD5432u, "99.0.0", "kiss");
+        mk_image_head(tiny, sizeof tiny, 0xABCD5432u, "99.0.0", me);
         put("tiny.bin", tiny, sizeof tiny);
         ok("a file no bigger than its own trailer is refused",
            kiss_fw_scan(&got) == WFW_ERR_UNREADABLE);
@@ -296,7 +391,7 @@ int test_fw(void)
         size_t exact = (size_t)0x7F0000 + KISS_PQSIG_TRAILER_LEN;
         uint8_t *eb = calloc(1, exact);
         if (eb) {
-            mk_image_head(eb, WFW_DESC_MIN, 0xABCD5432u, "99.0.0", "kiss");
+            mk_image_head(eb, WFW_DESC_MIN, 0xABCD5432u, "99.0.0", me);
             put("exact.bin", eb, exact);
             free(eb);
             int erc = kiss_fw_scan(&got);
@@ -316,7 +411,7 @@ int test_fw(void)
     // A read that fails mid file must not look like a clean end of file.
     {
         static uint8_t s[WFW_DESC_MIN * 2];
-        mk_image_head(s, sizeof s, 0xABCD5432u, "99.0.0", "kiss");
+        mk_image_head(s, sizeof s, 0xABCD5432u, "99.0.0", me);
         put("short.bin", s, sizeof s);
         size_t len = 0;
         platform_sd_file *f = platform_sd_open("short.bin", &len);
@@ -336,7 +431,7 @@ int test_fw(void)
     // The sim has no flash and no key, so install must refuse rather than
     // pretend. This is also what a device build without the release key does.
     wipe_card();
-    mk_image_head(big, sizeof big, 0xABCD5432u, "99.0.0", "kiss");
+    mk_image_head(big, sizeof big, 0xABCD5432u, "99.0.0", me);
     put("fw-new.bin", big, sizeof big);
     kiss_fw_scan(&got);
     ok("install refuses without a verifying build",
@@ -353,9 +448,9 @@ int test_fw(void)
     // real image sat unopened. The signature check cannot object: the image
     // really is ours.
     wipe_card();
-    mk_image_head(big, sizeof big, 0xABCD5432u, "99.0.0", "kiss");
+    mk_image_head(big, sizeof big, 0xABCD5432u, "99.0.0", me);
     put("z-real.bin", big, sizeof big);      // sorts last, on purpose
-    mk_image_head(big, sizeof big, 0xABCD5432u, "0.0.1", "kiss");
+    mk_image_head(big, sizeof big, 0xABCD5432u, "0.0.1", me);
     for (int i = 0; i < 12; i++) {
         char nm[32];
         snprintf(nm, sizeof nm, "a-decoy-%02d.bin", i);

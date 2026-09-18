@@ -132,6 +132,8 @@
   "G_FW_WHY_H": "ecdsa + hậu lượng tử",
   "G_FW_WRITING_FMT": "ĐANG GHI %s",
   "G_FW_WRITING_T": "ĐANG GHI FIRMWARE",
+  "G_FW_WRONG_B": "bản này được dựng cho một thiết bị khác. đây không phải bản cho thiết bị này.",
+  "G_FW_WRONG_H": "sai thiết bị",
   "G_HELP_BODY": "Cụm từ khôi phục + cụm mật khẩu = khóa của bạn.",
   "G_HELP_F1C": "VÒNG LẶP",
   "G_HELP_F1V": "chạm để đổi",

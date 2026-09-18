@@ -132,6 +132,8 @@
   "G_FW_WHY_H": "ecdsa + post kvante",
   "G_FW_WRITING_FMT": "SKRIVER %s",
   "G_FW_WRITING_T": "SKRIVER FASTVARE",
+  "G_FW_WRONG_B": "denne filen er laget for en annen enhet. det er ikke versjonen for denne enheten.",
+  "G_FW_WRONG_H": "feil enhet",
   "G_HELP_BODY": "Gjenopprettingsord + passordfrase = nøklene dine.",
   "G_HELP_F1C": "LØKKEN",
   "G_HELP_F1V": "trykk for å bytte",
