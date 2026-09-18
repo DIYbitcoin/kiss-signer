@@ -343,6 +343,12 @@ static int s_scan_w, s_scan_h;       // decoder dims (half of the cropped sensor
 static volatile bool s_scan_mode;
 static volatile int s_scan_seen, s_scan_total;
 static volatile int s_scan_found;    // frames left to show "QR located" (yellow)
+// The full-resolution window in PREVIEW pixels, shortest side, recorded by the
+// aimed pass. The reticle is capped by it so that filling the guide means a
+// code the aimed pass can read at 1:1 -- which is what the guide has always
+// claimed and what a preview showing most of the sensor stopped delivering.
+// Zero until the first aimed pass of a session.
+static volatile int s_aim_box;
 // How much of the decoded frame the located code fills, in 1/256ths, or 0 if
 // the last locate came from the whole-sensor pass (see scan_decode) and so
 // cannot be compared with what the panel is showing. Drives the reticle. On
@@ -809,30 +815,43 @@ const char *camera_spike_zoom(int dir) {
 // smaller than the panel at the letterbox levels.
 static bool orient_geometry(uint32_t w, uint32_t h, uint32_t *cw, uint32_t *ch,
                             float *scale, uint32_t *ow, uint32_t *oh) {
-  // Two-column mode has one fixed crop and scale sized to the preview rect, and
+  // Two-column mode has one crop and scale sized to the preview rect, and
   // ignores the zoom ladder: zoom and the orientation finder are dev
-  // affordances on the fullscreen preview, and a letterbox bar inside a 300px
-  // column would eat most of it.
+  // affordances on the fullscreen preview, and a letterbox bar inside the
+  // preview column would eat most of it.
   if (s_vp_on) {
     // Fill the rect exactly, and derive the crop from it rather than from a
-    // table: the output size is whatever the screen asked for. On the Guition
-    // the crop is that at 2x and the scale is a clean 8/16; if the sensor
-    // cannot give 2x (a rect wider than half the frame) it falls back to 1:1,
-    // which always can.
+    // table: the output size is whatever the screen asked for.
     *ow = (uint32_t)s_vp_w;
     *oh = (uint32_t)s_vp_h;
-#ifdef KISS_BOARD_WS35
-    // The 3.5in's rect is the canvas's, and the sensor may sit a quarter turn
-    // from it (KISS_CAM_ORIENT), in which case the crop that fills the rect is
-    // the rect stood on its side. The Guition's rect is always drawn at rot0.
+    // The widest crop that still fills the rect exactly: the smallest N in
+    // 1..16 for which crop = rect * 16/N fits the sensor and is a whole number
+    // of pixels on both sides. The PPA truncates its N/16 output to whole
+    // pixels and leaves the rest of the block unwritten, so an inexact crop
+    // would show a stale edge. N = 16 is the 1:1 crop, which fits whenever the
+    // rect does, so the loop always terminates on a rect the panel can hold.
     //
-    // Not 2x here: a 2x crop of a 180 px rect is under a third of the sensor's
-    // width, and the preview read as a zoomed-in slit. So the widest crop that
-    // still fills the rect exactly: the smallest N for which crop = rect *
-    // 16/N fits the sensor and is a whole number of pixels on both sides. The
-    // PPA truncates its N/16 output to whole pixels and leaves the rest of the
-    // block unwritten, so an inexact crop would show a stale edge. N = 16 is
-    // the 1:1 crop, which fits whenever the rect does.
+    // The rule used to be "crop exactly 2x the rect, scale a flat 8/16", which
+    // is this loop stopped early at N = 8. On the 3.5in that showed about a
+    // fifth of the sensor's width and the preview read as a zoomed-in slit. On
+    // the 4.3in it is what N comes out as anyway for a 300 px wide rect, so
+    // WIDENING THAT BOARD IS THE RECT'S JOB, not this loop's: see SCN_CAM_W in
+    // kiss_scan.c for the box that reaches 6/16.
+    //
+    // Two things this fixes beyond the 3.5in. It is EXACT at every one of the
+    // eight orientation indices -- the 2x rule ignored the turn, so a quarter
+    // turn in a rect asked the PPA for a block the rect could not hold and the
+    // picture landed outside it. And the two boards now answer the same
+    // question with the same code.
+    //
+    // ONE rule, and the single per-board difference in it belongs to the
+    // PANEL, not to the sensor: at a quarter turn the PPA hands back the
+    // scaled crop with its sides swapped, so the crop that fills the rect is
+    // the rect stood on its side. The 3.5in's sensor sits a quarter turn from
+    // its canvas (KISS_CAM_ORIENT 1), so that is its every-frame case; the
+    // 4.3in's rect arrives here already transposed by vp_map_from_landscape --
+    // it is a PANEL rect there -- and is drawn at rot 0 with a mirror (index
+    // 4), so it reaches a quarter only through the dev orientation cycler.
     const bool turn = (s_orient % 2) == 1;
     const uint32_t bw = turn ? *oh : *ow, bh = turn ? *ow : *oh;
     uint32_t n = 1;
@@ -842,15 +861,6 @@ static bool orient_geometry(uint32_t w, uint32_t h, uint32_t *cw, uint32_t *ch,
         break;
     if (n > 16) return false;
     *cw = 16 * bw / n; *ch = 16 * bh / n; *scale = (float)n / 16.0f;
-#else
-    if (*ow * 2 <= w && *oh * 2 <= h) {
-      *cw = *ow * 2; *ch = *oh * 2; *scale = 8 / 16.0f;
-    } else if (*ow <= w && *oh <= h) {
-      *cw = *ow; *ch = *oh; *scale = 1.0f;
-    } else {
-      return false;
-    }
-#endif
     return true;
   }
   bool quarter = (s_orient % 2) == 1;  // 90/270 swaps output dims
@@ -931,11 +941,16 @@ static void lrect_blend(uint16_t *fb, int lx, int ly, int lw, int lh, uint8_t a)
   lrect_blend_rgb(fb, lx, ly, lw, lh, a, 31, 63, 31);
 }
 
-// Camera-app viewfinder: four corner brackets marking the region that is
-// actually DECODED, so "fill the brackets" is true advice. Not on the 3.5in,
-// whose preview shows most of the sensor: there the aimed pass is the centre
-// 640x480 at 1:1, smaller than the brackets, and a code that fills them is
-// read by the half-resolution wide pass.
+// Camera-app viewfinder: four corner brackets inside the picture, so "fill the
+// brackets" is advice that can be followed and that lands the code inside what
+// gets decoded.
+//
+// They used to mark the region that is actually decoded, and on the fullscreen
+// preview they still sit inside it. Beside a text column they no longer bound
+// the FULL-RESOLUTION window on either board: the preview there shows most of
+// the sensor, the aimed pass is the centre of that crop at 1:1 (scan_decode),
+// and that window is narrower than the brackets. A code filling them is read by
+// the half-resolution wide pass, which covers the whole preview and more.
 //
 // It used to be a 260x260 box tucked between the two OSD bands, chosen to look
 // tidy. That quietly instructed the one thing that cannot work on a dense code:
@@ -968,7 +983,7 @@ static void draw_brackets(uint16_t *fb) {
   // whole landscape screen, so the fullscreen numbers below are the same
   // expression. In two-column mode the reticle keeps every behaviour it has --
   // the breathing while searching, the ease toward the located code, the close
-  // on acquire -- inside the 300px column instead of across the panel. That
+  // on acquire -- inside the preview column instead of across the panel. That
   // gesture is the one thing on this screen that says the device is looking, so
   // it follows the picture rather than being dropped with the text chrome LVGL
   // took over.
@@ -979,16 +994,23 @@ static void draw_brackets(uint16_t *fb) {
   // Half the guide box, and how tight it may close. Fullscreen keeps its
   // measured 225/95; a column derives them from its own short side, with a 6px
   // margin so the corner arms never cross the border LVGL drew around it.
-  const int brk_half = s_vp_on
+  int brk_half = s_vp_on
       ? (s_vp_lw < s_vp_lh ? s_vp_lw : s_vp_lh) / 2 - 6 : BRK_HALF;
+  // AND NO WIDER THAN WHAT IS READ AT 1:1. The box shows most of the sensor
+  // now, and the decoder's buffer reads a window inside it, so a guide drawn
+  // to the box would be telling the holder to frame a code the aimed pass
+  // cannot see -- the same instruction the 260px fullscreen guide gave before
+  // it was measured, which is on record above as the reason a dense code
+  // "never read until they ignored the guide". Filling this one means 1:1.
+  if (s_vp_on && s_aim_box > 0 && brk_half > s_aim_box / 2) brk_half = s_aim_box / 2;
   const int brk_min = s_vp_on ? arm + SY(8) : BRK_HALF_MIN;
   bool found = s_scan_found > 0;
-#ifdef KISS_BOARD_WS35
   // The scan bar that counts "located" back down is never drawn beside a
-  // preview rect, and the fill is now set by every pass that locates. Without
-  // this the guide stays shut at the last code's size after the code is gone.
+  // preview rect (it is LVGL's job in the column), and the fill is set by every
+  // pass that locates. Without this the guide stays shut at the last code's
+  // size after the code is gone. Fullscreen still counts down in draw_scan_bar,
+  // which is why this asks for a rect.
   if (s_vp_on && found && --s_scan_found <= 0) s_qr_fill = 0;
-#endif
 
   // Closing in on the code is the whole "it found it" gesture. s_qr_fill is
   // how much of the frame the code occupies; the guide follows it down, with a
@@ -1343,49 +1365,60 @@ static void scan_decode(const uint8_t *frame, uint32_t w, uint32_t h) {
   // worked.
   //
   // Now attempts alternate:
-  //   AIMED - exactly the rectangle orient_geometry gives the preview, at 1:1.
-  //           What you see is what gets decoded. At default zoom that is
-  //           480x728, so a filled code is ~4 px/module at version 25. The
-  //           3.5in's preview crop is most of the sensor, so its aimed pass is
-  //           the centre 640x480 of that crop instead.
+  //   AIMED - the CENTRE of the rectangle orient_geometry gives the preview, at
+  //           1:1, as much of it as the decoder buffer holds. On the fullscreen
+  //           preview the default crop IS the buffer (480x728), so there the
+  //           aimed window is the whole picture and a filled code is ~4
+  //           px/module at version 25.
   //   WIDE  - the whole sensor, as before, downsampled into the same buffer.
   //           Keeps a code that is outside the brackets readable, and keeps the
   //           half-res path that qr-scan-camera-recipe records as the workhorse
   //           when sensor line artifacts spoil a full-res read.
+  //
+  // Beside a text column it is a centre WINDOW on both boards, and it has to
+  // be. A preview rect now shows most of the sensor there (864x960 on the
+  // 3.5in's scan screen, 728x728 on the 4.3in's), so squeezing the preview's
+  // whole crop into this buffer would be the wide pass a second time at nearly
+  // the same resolution -- two passes reading one picture. The centre at 1:1 is
+  // a full-resolution read of the middle of the reticle, for a small or distant
+  // code, beside the half-resolution read of everything.
+  //
+  // THE TRADE, said plainly, because on the 4.3in's scan screen this is new:
+  // the full-resolution window is smaller than the box. On the 4.3in it is the
+  // middle 480x728 sensor px of a 728x728 crop, which at 6/16 is 180 px of the
+  // 273 px box; on the 3.5in it is 640x480 of an 864x960 crop, 90 px of a 162
+  // px box. The RETICLE IS CAPPED TO IT (draw_brackets), so filling the guide
+  // still means what it has always meant: a code the aimed pass reads at 1:1.
+  // On the 4.3in that is 480 sensor px across, about 4.1 px per module at
+  // version 25, against the 376 px a code filling the old 300x188 box got.
+  // What the wide pass is left carrying is everything BETWEEN the guide and
+  // the edge of the picture, which is where a multipart transfer's low-version
+  // frames live and where they read perfectly well.
   //
   // The decoder buffer is fixed at the default crop's size and never resized:
   // re-allocating it on a zoom change is an allocation that can fail inside the
   // scan loop, and a failed image alloc is the hang this project has already
   // paid for once.
   uint32_t sw, sh;
-#ifdef KISS_BOARD_WS35
   // The preview's crop and scale, read once: the aimed window sits inside the
   // crop, and the reticle's fill is measured against the picture it draws on.
   uint32_t vcw = 0, vch = 0, vow = 0, voh = 0;
   float vsc = 0;
   const bool geo = orient_geometry(w, h, &vcw, &vch, &vsc, &vow, &voh);
-#endif
   if (s_scan_att & 1) {
-#ifdef KISS_BOARD_WS35
-    // On the 3.5in the preview shows most of the sensor (864x960 on the scan
-    // screen), so the preview's own crop squeezed into this buffer would be the
-    // wide pass again at nearly the same half resolution. The aimed pass is the
-    // crop's centre at 1:1 instead, as much of it as the buffer holds: the
-    // full-resolution read of the middle of the reticle, for a small or dense
-    // code, beside the half-resolution read of everything.
     sw = geo ? vcw : w;
     sh = geo ? vch : h;
     if (sw > (uint32_t)qw) sw = (uint32_t)qw;
     if (sh > (uint32_t)qh) sh = (uint32_t)qh;
-#else
-    uint32_t cw, ch, ow, oh;
-    float sc;
-    if (orient_geometry(w, h, &cw, &ch, &sc, &ow, &oh)) {
-      sw = cw; sh = ch;
+    // The window's shortest side in preview pixels, for the reticle. Shortest
+    // rather than per-axis, because a square guide can only promise the
+    // smaller one, and it needs no knowledge of which way the PPA turns.
+    if (geo) {
+      const uint32_t shortest = sw < sh ? sw : sh;
+      s_aim_box = (int)(shortest * (uint32_t)(int)(vsc * 16.0f + 0.5f) / 16);
     } else {
-      sw = w; sh = h;
+      s_aim_box = 0;
     }
-#endif
   } else {
     sw = w > SCAN_MAX_DIM ? (uint32_t)SCAN_MAX_DIM : w;
     sh = h > SCAN_MAX_DIM ? (uint32_t)SCAN_MAX_DIM : h;
@@ -1425,24 +1458,24 @@ static void scan_decode(const uint8_t *frame, uint32_t w, uint32_t h) {
         if (res.corners[c].x < M || res.corners[c].x >= qw - M ||
             res.corners[c].y < M || res.corners[c].y >= qh - M)
           cut = true;
-      // How much of the frame the located code fills, in 1/256ths, for the
+      // How much of the PICTURE the located code fills, in 1/256ths, for the
       // reticle to close in on. Size only, not position: a centred box needs
       // no knowledge of which way the PPA rotates, while tracking an off-centre
       // code would, and that is not checkable anywhere in this tree.
-      //
-      // ONLY from an odd attempt. Even attempts decode the whole sensor
-      // downsampled while the panel is showing a tighter crop, so a fraction
-      // measured there describes a different picture than the one on screen
-      // and would close the brackets onto nothing.
       if (i == 0) {
-#ifdef KISS_BOARD_WS35
-        // Both passes, on the 3.5in, because neither window is the picture:
-        // the aimed one is smaller than the reticle and the wide one larger
-        // than the preview. A size carries across windows once it is in sensor
-        // pixels (decoder pixels times this pass's step), then canvas pixels at
-        // the preview's N/16, as a share of the picture's short side, which is
-        // the side the reticle is drawn on. A code's larger extent, so a
-        // quarter turn changes nothing.
+        // Both passes, because neither window is the picture: the aimed one is
+        // smaller than the reticle and the wide one larger than the preview. A
+        // size carries across windows once it is in sensor pixels (decoder
+        // pixels times this pass's step), then canvas pixels at the preview's
+        // N/16, as a share of the picture's short side, which is the side the
+        // reticle is drawn on. A code's larger extent, so a quarter turn
+        // changes nothing.
+        //
+        // This replaced a fraction-of-the-decoder-buffer measure taken only on
+        // the aimed attempt. That was right while the aimed window WAS the
+        // preview crop and wrong the moment it became a window inside it: the
+        // fraction then described the middle of the picture rather than the
+        // picture, and the reticle would have closed onto nothing.
         int minx = res.corners[0].x, maxx = minx;
         int miny = res.corners[0].y, maxy = miny;
         for (int c = 1; c < 4; c++) {
@@ -1456,23 +1489,6 @@ static void scan_decode(const uint8_t *frame, uint32_t w, uint32_t h) {
         const int n16 = (int)(vsc * 16.0f + 0.5f);
         const int side = (int)(vow < voh ? vow : voh);
         s_qr_fill = (geo && side > 0) ? (ex > ey ? ex : ey) * n16 * 16 / side : 0;
-#else
-        if (s_scan_att & 1) {
-          int minx = res.corners[0].x, maxx = minx;
-          int miny = res.corners[0].y, maxy = miny;
-          for (int c = 1; c < 4; c++) {
-            if (res.corners[c].x < minx) minx = res.corners[c].x;
-            if (res.corners[c].x > maxx) maxx = res.corners[c].x;
-            if (res.corners[c].y < miny) miny = res.corners[c].y;
-            if (res.corners[c].y > maxy) maxy = res.corners[c].y;
-          }
-          int fw = (maxx - minx) * 256 / qw, fh = (maxy - miny) * 256 / qh;
-          bool quarter = (s_orient % 2) == 1;   // 90/270 swap width and height
-          s_qr_fill = quarter ? (fh > fw ? fh : fw) : (fw > fh ? fw : fh);
-        } else {
-          s_qr_fill = 0;
-        }
-#endif
       }
       if (err == K_QUIRC_SUCCESS && res.data.payload_len > 0) {
         decoded = true;
@@ -1941,22 +1957,23 @@ bool camera_scan_start(void *bus_v, void (*on_decode)(const char *, size_t)) {
   if (s_cam.streaming) cam_stop();               // spike preview was live: restart clean
   if (!s_cam.inited && !cam_init(bus)) return false;
   if (!s_quirc) {
-    // Size the decoder to the DEFAULT PREVIEW CROP, at 1:1, and never resize
+    // Size the decoder to the DEFAULT FULLSCREEN CROP, at 1:1, and never resize
     // it. That is what makes the aimed attempt in scan_decode full-resolution:
-    // at zoom L0 the preview shows a 480x728 slice of the sensor, so a code
-    // filling the short axis arrives as ~480 px instead of the 240 it would get
-    // from the old half-of-the-whole-frame buffer.
+    // at zoom L0 the fullscreen preview shows a 480x728 slice of the sensor, so
+    // a code filling the short axis arrives as ~480 px instead of the 240 it
+    // would get from the old half-of-the-whole-frame buffer. Beside a text
+    // column the same buffer is the centre window of a much wider crop, and
+    // this size is then the whole budget the aimed pass has to spend.
     //
     // Fixed, because a zoom change must never trigger an allocation inside the
     // scan loop. k_quirc puts images in PSRAM first (k_malloc_large), so 480x728
     // is affordable; a failed image alloc is not something to risk mid-scan.
 #ifdef KISS_BOARD_WS35
-    // Not on the 3.5in, whose L0 is the whole 1280x960 sensor: 1.2 megapixels
-    // a pass, three and a half times the Guition's, on the task that also
-    // sends every frame. Every scan screen there sets a preview rect showing
-    // most of the sensor, so the aimed pass is the centre 640x480 of it at 1:1
-    // (scan_decode) and the wide pass is the whole sensor at exactly half
-    // resolution, the recipe the wide pass was written for.
+    // Not the 3.5in's L0, which is the whole 1280x960 sensor: 1.2 megapixels a
+    // pass, three and a half times the 4.3in's, on the task that also sends
+    // every frame. 640x480 is that board's budget, and its wide pass then reads
+    // the whole sensor at exactly half resolution, the recipe the wide pass was
+    // written for.
     int cw = 640;
     int ch = 480;
 #else
@@ -1978,6 +1995,13 @@ bool camera_scan_start(void *bus_v, void (*on_decode)(const char *, size_t)) {
   }
   s_scan_osd = OSD_SEARCH;
   s_scan_stuck = 0;                                // fresh scan, fresh patience
+  // The reticle too, or it opens where the last session's code closed it: the
+  // usual exit from this screen is a successful decode, which leaves the guide
+  // shut and "located" still counting down.
+  s_scan_found = 0;
+  s_qr_fill = 0;
+  s_aim_box = 0;
+  s_brk_half = BRK_HALF;
   s_paused = false;                                // and a camera that draws
   s_scan_seen = 0;
   s_scan_total = 0;

@@ -338,11 +338,13 @@ void kiss_scan_open_raw(lv_obj_t *parent, kiss_scan_task_t task,
 }
 
 // ---- geometry ----
-// The viewfinder keeps the rect the Guition's camera was device tested on;
-// everything around it is on the chrome contract now. The can/cannot cards
-// that used to crowd the right column moved to the SIGN page's SCAN QR tab,
-// where they can be read before the camera is even open -- what is left here
-// is the picture, the one line that changes while you wait, and the way out.
+// The viewfinder keeps its column and its top edge; its SIZE has changed on the
+// 4.3in since the camera was device tested here, and SCN_CAM_W carries the
+// arithmetic. Everything around it is on the chrome contract now. The
+// can/cannot cards that used to crowd the right column moved to the SIGN page's
+// SCAN QR tab, where they can be read before the camera is even open -- what is
+// left here is the picture, the one line that changes while you wait, and the
+// way out.
 #define SCN_CAM_X SX(48)
 #if KISS_NARROW
 // 6 lower on the 3.5in. The corner brackets are drawn 5 px outside the box,
@@ -352,7 +354,32 @@ void kiss_scan_open_raw(lv_obj_t *parent, kiss_scan_task_t task,
 #else
 #define SCN_CAM_Y SY(112)
 #endif
+#if KISS_NARROW
 #define SCN_CAM_W SX(300)
+#else
+// 273 SQUARE on the 4.3in, where this was 300x188, and the reason is the
+// camera's MOUNTING rather than taste. The module sits a quarter turn to the
+// landscape screen (camera_spike.c, the zoom ladder's note), so the sensor's
+// 1288 px width is shown down the box's HEIGHT and its 728 px height across the
+// box's WIDTH. orient_geometry then takes the widest crop that fills the box
+// exactly at some N/16, and N is pinned from below by the width: the crop needs
+// 16*W/N <= 728 rows, so a 300 wide box cannot go under 8/16 whatever its
+// height, and 8/16 of a 188 tall box is the 376x600 crop it had -- 29% of the
+// sensor's width, and a largest-square-subject of 376 px, half of what the
+// sensor can give.
+//
+// A SQUARE box is what unlocks it, and 273 is the size that lands exactly on
+// the sensor's short side: 16*273 = 4368 = 6 * 728, so N = 6 and the crop is
+// 728x728 -- the full height of the frame and 56.5% of its width, centred. The
+// largest square subject goes 376 -> 728 sensor px, all 728 of the short side,
+// and square is the right shape to spend the room on because a QR is square and
+// the reticle already is.
+//
+// It fits with the air the 3.5in keeps: bottom arms at 112 + 273 + 5 = 390,
+// eight clear of the content floor at 398, and the right arms end at 326, well
+// short of the text column at 396.
+#define SCN_CAM_W SX(273)
+#endif
 #if KISS_NARROW
 // 162 tall on the 3.5in, not the scaled 125, which on the glass read as a slot
 // too small to aim through. The empty rows under the old box were the room:
@@ -365,7 +392,7 @@ void kiss_scan_open_raw(lv_obj_t *parent, kiss_scan_task_t task,
 // beside it gives up width its longest notes need.
 #define SCN_CAM_H 162
 #else
-#define SCN_CAM_H SY(188)
+#define SCN_CAM_H SCN_CAM_W          // square: see SCN_CAM_W for why, and why 273
 #endif
 
 // The rect, for anything outside this file that has to put something in the

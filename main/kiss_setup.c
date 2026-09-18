@@ -1637,6 +1637,22 @@ static void ent_mix_help_cb(lv_event_t *e)
 #define ENT_BAR_W   ENT_COL_W
 #define ENT_EQ_H    36
 #else
+// 300x200 lands on 8/16 under the widest-crop rule, so the picture is 400x600
+// of the 1288x728 frame -- exactly what the fixed 2x crop gave it before the
+// rule existed, because 8/16 IS 2x. The scan screen was reshaped to reach a
+// wider scale (kiss_scan.c, SCN_CAM_W) and this box is NOT, and the reason is
+// the line under it rather than the arithmetic.
+//
+// The arithmetic first: the module sits a quarter turn to the screen, so the
+// crop needs 16*W/N <= 728 rows and it is the WIDTH that pins N from below.
+// 273 wide reaches 6/16 at 273x201 -- a 536x728 crop, the sensor's whole height
+// instead of 82% of it. What that costs is 27 px off the readiness line beside
+// the dot, whose longest translations already need several wrapped lines in the
+// 62 px between this box and the content floor. And it buys nothing measurable:
+// the entropy accumulator subsamples the RAW frame at a fixed stride
+// (camera_spike.c, ENT_SUB_STRIDE) and never the preview crop, so what the crop
+// leaves out is still being weighed. Here the preview only has to show that the
+// camera is alive and pointed at something.
 #define ENT_CAM_X   SX(48)                  // the preview column, landscape UI space
 #define ENT_CAM_Y   SY(128)
 #define ENT_CAM_W   SX(300)
