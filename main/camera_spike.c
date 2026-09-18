@@ -58,10 +58,12 @@ static const char *TAG = "camspike";
 // Both boards' sensors answer at 0x36 on the touch bus, which is why exactly
 // one driver is ever compiled in (main/CMakeLists.txt).
 #define CAM_SCCB_ADDR 0x36
-#ifdef KISS_BOARD_WS35
+#if defined(CONFIG_CAMERA_OV5647)
 #define CAM_SENSOR "OV5647"      // on the 3.5in's ribbon, as Kern runs it
-#else
+#elif defined(CONFIG_CAMERA_OV02C10)
 #define CAM_SENSOR "OV02C10"     // the sensor Guition ships on this board's ribbon
+#else
+#error "no camera sensor is enabled in this board's sdkconfig"
 #endif
 #define CAM_BUF_NUM 2
 // Native panel geometry, from the board. On the Guition (portrait 480x800)
@@ -75,7 +77,7 @@ static const char *TAG = "camspike";
 // the 3.5in is the canvas, already landscape in the controller.
 #define PANEL_W KISS_PANEL_W
 #define PANEL_H KISS_PANEL_H
-#ifdef KISS_BOARD_WS35
+#if !KISS_PANEL_SWROT
 #define OUT_W SCREEN_W
 #define OUT_H SCREEN_H
 #else
@@ -99,7 +101,7 @@ static char s_status[96] = "CAM: not started";
 static volatile bool s_task_err;     // stream task died unexpectedly (not via stop)
 
 static esp_lcd_panel_handle_t s_panel;
-#ifdef KISS_BOARD_WS35
+#if KISS_PANEL_SPI
 // The one buffer the picture is composed in: the PPA's output, the overlays
 // drawn over it, then byte swapped and sent. Canvas sized, 64-byte aligned in
 // PSRAM, because the PPA refuses an output buffer that is not aligned to the
@@ -124,7 +126,7 @@ static int s_orient = KISS_CAM_ORIENT;
 // the FULL sensor letterboxed; deeper levels fill the screen with smaller crops.
 #define ZOOM_LEVELS 6
 typedef struct { uint16_t bw, bh; uint8_t n16; } zoom_lvl_t;
-#ifdef KISS_BOARD_WS35
+#if defined(KISS_BOARD_WS35)
 // The same ladder for a 1280x960 sensor and a 480x320 landscape canvas, where
 // rot 0/180 needs no turn at all. L0 is the whole sensor letterboxed at 5/16;
 // L1 fills the width; each level after crops tighter at a clean N/16. A
@@ -134,7 +136,7 @@ static const zoom_lvl_t s_zoom_tab[2][ZOOM_LEVELS] = {
     {{1280, 960, 5}, {1280, 848, 6}, {960, 640, 8}, {768, 512, 10}, {640, 424, 12}, {480, 320, 16}},
     {{640, 960, 8}, {512, 768, 10}, {424, 640, 12}, {320, 480, 16}, {256, 384, 20}, {160, 240, 32}},
 };
-#else
+#elif defined(KISS_BOARD_GUITION)
 static const zoom_lvl_t s_zoom_tab[2][ZOOM_LEVELS] = {
     // rot 0/180 (the camera module is mounted 90deg to the landscape screen, so
     // fullscreen fill can only use ~30% of the sensor width — physics of the
@@ -146,6 +148,8 @@ static const zoom_lvl_t s_zoom_tab[2][ZOOM_LEVELS] = {
     // rot 90/270: landscape crops (rotated into the portrait panel)
     {{1280, 720, 9}, {800, 480, 16}, {640, 384, 20}, {400, 240, 32}, {320, 192, 40}, {200, 120, 64}},
 };
+#else
+#error "measured on each board's glass: add this board's value"
 #endif
 static int s_zoom = 0;               // DEFAULT = #1 = most zoomed out = widest usable view
 static volatile int s_clear_pending; // fbs to blank before blit (zoom/orient change)
@@ -170,7 +174,7 @@ static volatile int s_osd_frames;    // frames left to show the on-video digits
 // glass (board_ws35.c's MADCTL swap), so a UI x is a panel x and a UI y a
 // panel y, and the rect and its landscape twin hold the same numbers. The
 // whole panel there is the whole canvas, SCREEN_W x SCREEN_H.
-#ifdef KISS_BOARD_WS35
+#if !KISS_PANEL_SWROT
 #define VP_W0 SCREEN_W
 #define VP_H0 SCREEN_H
 #else
@@ -185,7 +189,7 @@ static volatile int s_vp_lx = 0, s_vp_ly = 0, s_vp_lw = PANEL_H, s_vp_lh = PANEL
 static bool s_vp_on;
 static volatile bool s_paused;   // see camera_spike_pause
 
-#ifdef KISS_BOARD_WS35
+#if KISS_PANEL_SPI && !KISS_PANEL_SWROT
 // Nothing to pin and nothing to flip. The panel keeps what LVGL last drew in its
 // own GRAM, so the next frame simply lands on the rect; until it does, the
 // viewfinder the screen drew there is what shows.
@@ -211,7 +215,7 @@ void camera_spike_set_preview_rect(int x, int y, int w, int h)
 // border LVGL drew around it, so the two stay in step with no arithmetic.
 // See camera_spike.h for why this is a function rather than an absence.
 void camera_spike_flip_refresh(void) { }
-#else
+#elif !KISS_PANEL_SPI && KISS_PANEL_SWROT
 // The UI-to-panel map, alone in a function because it has two callers now:
 // the screen that sets a rect, and the board layer when the device is turned
 // over. The LANDSCAPE rect is the truth and the panel rect is derived from
@@ -276,6 +280,8 @@ void camera_spike_set_preview_rect(int x, int y, int w, int h)
     lv_obj_invalidate(lv_screen_active());
   }
 }
+#else
+#error "no preview map for this panel: see KISS_PANEL_SPI and KISS_PANEL_SWROT"
 #endif
 
 // The one state in which LVGL must not paint: video on, and no preview rect, so
@@ -291,7 +297,7 @@ void camera_spike_set_preview_rect(int x, int y, int w, int h)
 // buffer, and a flush LVGL skipped would be a region the panel never gets back:
 // its GRAM is the only copy. So LVGL keeps flushing around every preview, the
 // whole-canvas one included, and the video's next frame takes its rect back.
-#ifdef KISS_BOARD_WS35
+#if KISS_PANEL_SPI
 bool camera_spike_owns_panel(void)
 {
   return false;
@@ -459,13 +465,15 @@ void camera_scan_progress(int seen, int total) {
 // output. Prime, and coprime with the 1288 pixel row pitch, so the lattice
 // walks instead of landing on the same columns every frame.
 #define ENT_SUB_STRIDE  227
-#ifdef KISS_BOARD_WS35
+#if defined(CONFIG_CAMERA_OV5647)
 // The OV5647's 1280x960 is 1,228,800 pixels, about 5414 at this stride, and
 // 227 is coprime with 1280 as well. Held at 4200 the walk would stop three
 // quarters of the way down and never sample the bottom of the view.
 #define ENT_SUB_MAX     5500
-#else
+#elif defined(CONFIG_CAMERA_OV02C10)
 #define ENT_SUB_MAX     4200
+#else
+#error "no camera sensor is enabled in this board's sdkconfig"
 #endif
 
 static void *s_bus_saved;
@@ -580,7 +588,7 @@ static void ent_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
 // scales with the width. Both fold to the number itself on the Guition.
 #define ACROSS(v) SY(v)
 #define ALONG(v)  SX(v)
-#ifdef KISS_BOARD_WS35
+#if defined(KISS_BOARD_WS35)
 // Deeper than a straight scale of the Guition's band, because a subtitle that
 // does not fit this lane on one line takes two strips (osd_strips.h), and a
 // title and two subtitle rows are 63 px here. Landscape rows 14..87, the first
@@ -588,10 +596,12 @@ static void ent_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
 #define BAND_TOP_X0 232
 #define BAND_TOP_X1 306
 #define STRIP_TOP_PX 299
-#else
+#elif defined(KISS_BOARD_GUITION)
 #define BAND_TOP_X0 375     // panel x range of the landscape-top band (deep
 #define BAND_TOP_X1 451     // enough for a title + subtitle strip)
 #define STRIP_TOP_PX 443    // panel x of a top-band strip's first text row
+#else
+#error "measured on each board's glass: add this board's value"
 #endif
 #define BAND_BOT_X0 ACROSS(34)      // landscape-bottom band
 #define BAND_BOT_X1 ACROSS(100)
@@ -618,7 +628,7 @@ static void draw_hbar(uint16_t *fb, int fill, uint16_t base);
 // the 3.5in's panel reflects everything sent to it.
 static bool s_fflip;
 
-#ifdef KISS_BOARD_WS35
+#if KISS_PANEL_SPI && !KISS_PANEL_SWROT
 static int s_fx, s_fy, s_fw, s_fh;   // this frame's rect, canvas coordinates
 static uint16_t s_fb_sink;
 
@@ -628,7 +638,7 @@ static inline uint16_t *fb_px(uint16_t *fb, int px, int py)
   if (x < 0 || x >= s_fw || y < 0 || y >= s_fh) return &s_fb_sink;
   return &fb[y * s_fw + x];
 }
-#else
+#elif !KISS_PANEL_SPI && KISS_PANEL_SWROT
 // UPSIDE DOWN, and this one line is the whole of the overlay half of it. Every
 // constant in this file and every primitive below is written in the panel
 // frame the unflipped quarter turn produces, and a 180 of that picture is a
@@ -644,6 +654,8 @@ static inline uint16_t *fb_px(uint16_t *fb, int px, int py)
   if (s_fflip) { px = PANEL_W - 1 - px; py = PANEL_H - 1 - py; }
   return &fb[py * PANEL_W + px];
 }
+#else
+#error "no preview map for this panel: see KISS_PANEL_SPI and KISS_PANEL_SWROT"
 #endif
 
 // How much has been gathered, not how good the current frame is. It fills as
@@ -778,7 +790,7 @@ bool camera_spike_check_died(void) {
 
 void camera_spike_set_panel(esp_lcd_panel_handle_t panel, void *fb0, void *fb1) {
   s_panel = panel;
-#ifdef KISS_BOARD_WS35
+#if KISS_PANEL_SPI
   (void)fb0;                           // an SPI panel has none to hand over
   (void)fb1;
 #else
@@ -1563,7 +1575,7 @@ static void show_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
   uint32_t cw, ch, ow, oh;
   float scale;
   if (!orient_geometry(w, h, &cw, &ch, &scale, &ow, &oh)) return;
-#ifdef KISS_BOARD_WS35
+#if KISS_PANEL_SPI
   // The scratch holds this frame's rect and nothing else. The rect is read once
   // here for everything below, fb_px included; if a screen moved it between
   // orient_geometry and now, the sizes disagree and the frame is dropped
@@ -1606,7 +1618,7 @@ static void show_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
           .srm_cm = PPA_SRM_COLOR_MODE_RGB565,
       },
       .out = {
-#ifdef KISS_BOARD_WS35
+#if KISS_PANEL_SPI
           // The scratch is the rect, so the picture centres in it from zero.
           .buffer = fb,
           .buffer_size = s_scratch_len,
@@ -1637,7 +1649,7 @@ static void show_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
     ESP_LOGW(TAG, "PPA blit failed");
     return;
   }
-#ifdef KISS_BOARD_WS35
+#if KISS_PANEL_SPI
   // What the picture does not cover is written black on every frame, not once
   // on a change: the scratch went out byte swapped last time, and an overlay
   // blended onto a leftover pixel would blend onto the wrong colour. That is
@@ -1695,7 +1707,7 @@ static void show_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
         blit_a4(fb, osd_digit(s_zoom + 1), ACROSS(430), ALONG(660), OSD_DIM_FULL);
     }
   }
-#ifdef KISS_BOARD_WS35
+#if KISS_PANEL_SPI
   {
     // Out over the bus. The ST7796 takes big-endian RGB565, as LVGL's flush
     // sends it, so the scratch is swapped in place; written back from the cache
@@ -1782,7 +1794,7 @@ static void stream_task(void *arg) {
 
 static bool cam_init(i2c_master_bus_handle_t bus) {
   if (!bus) { set_status("CAM: no I2C bus"); return false; }
-#ifdef KISS_BOARD_WS35
+#if KISS_PANEL_SPI
   // No framebuffers on an SPI panel: the display has to be up, and the scratch
   // allocated below is the camera's own.
   if (!s_panel) { set_status("CAM: no panel"); return false; }
@@ -1843,7 +1855,7 @@ static bool cam_init(i2c_master_bus_handle_t bus) {
     set_status("CAM: PPA client failed");
     return false;
   }
-#ifdef KISS_BOARD_WS35
+#if KISS_PANEL_SPI
   // Once, at the whole canvas's size, and kept like the V4L2 buffers: every
   // rect a screen can ask for fits it, and nothing is allocated per session.
   // Size and address both on the 64-byte cache line, which the PPA checks.
@@ -1915,7 +1927,7 @@ static bool cam_start(void) {
     return false;
   }
   s_cam.streaming = true;
-#ifdef KISS_BOARD_WS35
+#if KISS_CAM_ORIENT_LOG
   // The two values kiss_board.h sets for how the sensor sits, and the crop and
   // scale that fill the rect, every session, so whoever is looking at the
   // glass can match what they see to a number.
@@ -1968,7 +1980,7 @@ bool camera_scan_start(void *bus_v, void (*on_decode)(const char *, size_t)) {
     // Fixed, because a zoom change must never trigger an allocation inside the
     // scan loop. k_quirc puts images in PSRAM first (k_malloc_large), so 480x728
     // is affordable; a failed image alloc is not something to risk mid-scan.
-#ifdef KISS_BOARD_WS35
+#if defined(KISS_BOARD_WS35)
     // Not the 3.5in's L0, which is the whole 1280x960 sensor: 1.2 megapixels a
     // pass, three and a half times the 4.3in's, on the task that also sends
     // every frame. 640x480 is that board's budget, and its wide pass then reads
@@ -1976,9 +1988,11 @@ bool camera_scan_start(void *bus_v, void (*on_decode)(const char *, size_t)) {
     // written for.
     int cw = 640;
     int ch = 480;
-#else
+#elif defined(KISS_BOARD_GUITION)
     int cw = (int)s_zoom_tab[0][0].bw;
     int ch = (int)s_zoom_tab[0][0].bh;
+#else
+#error "measured on each board's glass: add this board's value"
 #endif
     if (cw > SCAN_MAX_DIM) cw = SCAN_MAX_DIM;
     if (ch > SCAN_MAX_DIM) ch = SCAN_MAX_DIM;
