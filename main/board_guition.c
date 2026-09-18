@@ -218,6 +218,7 @@ void kiss_panel_black(void)
 }
 static uint16_t *s_rotbuf;   // pre-rotated region, handed to the hardware blitter (DMA source)
 static lv_display_t *s_disp; // for flush_ready from the DMA-done callback
+static bool s_flip;          // upside down: rot_flush turns the other way (kiss_board.h)
 
 static void lv_tick_cb(void *a) { (void)a; lv_tick_inc(2); }
 
@@ -239,6 +240,22 @@ static bool dpi_trans_done(esp_lcd_panel_handle_t p, esp_lcd_dpi_panel_event_dat
 // we rotate each region 90deg into s_rotbuf, then let the SAME fast DMA blit the portrait build used
 // push it to the panel (CPU pixel writes to the live framebuffer tore on moving content).
 // Mapping (90deg CW): logical (lx,ly) -> panel (px,py) = (479-ly, lx).
+//
+// UPSIDE DOWN (kiss_board.h) is the same quarter turn the OTHER way: logical
+// (lx,ly) -> (ly, 799-lx). The 180 composes into the rotation that was
+// already happening rather than adding a pass, so it costs nothing
+// measurable -- the same store count into the same buffer, the inner loop
+// striding by -ah instead of +ah -- and nothing new is allocated.
+//
+// The alternative was esp_lcd_panel_mirror: this board's vendor table never
+// sends 0x36, so the ST7701 component's SDIR/ML write would be a clean delta,
+// and it would turn the camera's PPA output and its CPU overlays for free
+// because the beam would read the framebuffer backwards. It is not taken
+// because nothing establishes that this glass honours SDIR/ML in DPI mode at
+// all (the vendor init writes 0xCC, a BK0 register some sequences use for
+// scan direction and this driver never touches), and reversing the gate scan
+// against an 8/166 porch pair could shift the picture by a line or two. The
+// software route is the one that can be reasoned about away from the glass.
 static void rot_flush(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map) {
   (void)disp;
   // While the camera owns the WHOLE panel (the dev preview, and any mode with no
@@ -286,6 +303,22 @@ static void rot_flush(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map
     st_t0 = now;
   }
 #endif
+  // Read ONCE per flush, not per pixel: the flip is applied from a click
+  // handler on the LVGL task, the same task this runs on, so it cannot change
+  // underneath the loop -- but a global in the inner loop is a reload the
+  // compiler cannot drop.
+  const bool flip = s_flip;
+  if (flip) {
+    for (int ly = area->y1; ly <= area->y2; ly++) {
+      int j = ly - area->y1;
+      for (int lx = area->x1; lx <= area->x2; lx++)
+        s_rotbuf[(area->x2 - lx) * ah + j] = *src++;
+    }
+    // panel rect: x in [y1 .. y2], y in [799-x2 .. 799-x1]
+    esp_lcd_panel_draw_bitmap(s_panel, area->y1, (LCD_V_RES - 1) - area->x2,
+                              area->y2 + 1, LCD_V_RES - area->x1, s_rotbuf);
+    return;                 // flush_ready in dpi_trans_done, as below
+  }
   for (int ly = area->y1; ly <= area->y2; ly++) {
     int j = area->y2 - ly;
     for (int lx = area->x1; lx <= area->x2; lx++)
@@ -440,9 +473,52 @@ bool platform_read_touch(int *x, int *y) {
   if (esp_lcd_touch_get_data(s_touch, pt, &cnt, 1) == ESP_OK && cnt > 0) {
     // raw GT911 is portrait (x:0..479, y:0..799); map to the logical 800x480 landscape.
     // Must match the 90deg mapping in rot_flush. Flip if it feels mirrored.
+    //
+    // ...and upside down is rot_flush's other quarter turn read backwards,
+    // which is both canvas axes reflected. Written HERE rather than in the
+    // GT911's flags because the driver mirrors as `x_max - x` and not
+    // `x_max - 1 - x`, so a flag flip would hand back a point one pixel
+    // outside the canvas on whichever axis it was spelled against.
+    if (s_flip) {
+      *x = (LCD_V_RES - 1) - pt[0].y;
+      *y = pt[0].x;
+      return true;
+    }
     *x = pt[0].y;
     *y = (LCD_H_RES - 1) - pt[0].x;
     return true;
   }
   return false;
+}
+
+// ---- upside down (kiss_board.h) ----
+//
+// Three surfaces, one bool. The glass is rot_flush's direction; the touch map
+// is the reflection above; the camera is camera_spike.c, which does not go
+// through rot_flush at all -- the PPA writes the framebuffer by DMA and the
+// CPU overlays write it directly -- so it reads this flag itself and turns
+// its own three parts (the rotation index, the preview rect's UI-to-panel
+// map, and the single door every overlay pixel already passes through).
+//
+// No serialisation is needed on this board, unlike the 3.5in's MADCTL: there
+// is no command to land in the middle of a transfer. The flip arrives from a
+// click handler on the LVGL task, which is the only task that runs rot_flush,
+// and the camera task reads the flag once per frame into a local.
+bool kiss_flip_get(void) { return s_flip; }
+
+void kiss_flip_set(bool on, bool repaint)
+{
+  s_flip = on;
+  camera_spike_flip_refresh();     // the preview rect is mapped, so it moves
+  if (!repaint) return;
+  // The finger is up by the time a CLICKED handler runs, but LVGL's indev
+  // still holds the press point and the gesture accumulator, both measured in
+  // canvas coordinates that have just been reflected. main.c arms the same
+  // guard for the same class of problem when a screen opens under a finger.
+  for (lv_indev_t *d = lv_indev_get_next(NULL); d; d = lv_indev_get_next(d))
+    lv_indev_wait_release(d);
+  // Both framebuffers, because the flush alternates between them and the one
+  // not being painted still holds the old picture the right way up.
+  kiss_panel_black();
+  lv_obj_invalidate(lv_screen_active());
 }

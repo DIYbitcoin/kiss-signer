@@ -84,6 +84,32 @@
 // simulator feeds scripted input.
 bool platform_read_touch(int *x, int *y);
 
+// ---- UPSIDE DOWN -------------------------------------------------------
+// One runtime truth for the three surfaces that have to turn TOGETHER: the
+// picture on the glass, the touch map, and the camera's preview with its
+// overlays. Turning one without the others is the failure that matters --
+// the unlock is a drawn WORD and its recogniser is deliberately
+// orientation-sensitive (kiss_gword.c), so a display flipped without its
+// touch is an owner whose enrolled word stops matching, on a device with no
+// keyboard to fall back to.
+//
+// Neither board has a motion sensor, so nothing here is automatic: it is a
+// control the owner taps when they want the cable coming out of the other
+// side, and the byte behind it is remembered the way the theme's is.
+//
+// Declared HERE, beside platform_read_touch, because that is already the one
+// seam this header declares for the device and the desktop both, and the
+// touch reader is one of the three things that turns. Each board applies the
+// flip at the SAME seam it applies its existing quarter turn -- the
+// controller's address map on the 3.5in, the rotating flush on the 4.3in --
+// so the two compose by construction rather than by arithmetic written twice.
+//
+// `repaint` is false at boot, where nothing has been drawn yet and the first
+// frame is still on its way, and true from the control, where the glass is
+// already holding a picture that has just become the wrong way up.
+bool kiss_flip_get(void);
+void kiss_flip_set(bool on, bool repaint);
+
 #ifdef ESP_PLATFORM
 #include "lvgl.h"
 #include "driver/i2c_master.h"

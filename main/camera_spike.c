@@ -51,7 +51,7 @@
 #include "i18n.h"
 #include "osd_strips.h"
 #include "kiss_theme.h"   // wt_lock_565: the reticle's acquire colour
-#include "kiss_board.h"   // KISS_PANEL_W/H: the panel the frames land on
+#include "kiss_board.h"   // KISS_PANEL_W/H and kiss_flip_get: the panel the frames land on
 
 static const char *TAG = "camspike";
 
@@ -205,7 +205,50 @@ void camera_spike_set_preview_rect(int x, int y, int w, int h)
   s_vp_lx = x; s_vp_ly = y; s_vp_lw = w; s_vp_lh = h;
   s_vp_on = (w > 0 && h > 0);
 }
+
+// Nothing to re-derive: the rect IS the canvas rect, and the controller's
+// mirror reinterprets it for the video exactly as it does for the viewfinder
+// border LVGL drew around it, so the two stay in step with no arithmetic.
+// See camera_spike.h for why this is a function rather than an absence.
+void camera_spike_flip_refresh(void) { }
 #else
+// The UI-to-panel map, alone in a function because it has two callers now:
+// the screen that sets a rect, and the board layer when the device is turned
+// over. The LANDSCAPE rect is the truth and the panel rect is derived from
+// it, which is what makes a flip unable to leave the two disagreeing.
+static void vp_map_from_landscape(void)
+{
+  const int x = s_vp_lx, y = s_vp_ly, w = s_vp_lw, h = s_vp_lh;
+  if (kiss_flip_get()) {
+    // rot_flush's other quarter turn, read the same way: UI y becomes panel x
+    // directly, and UI x becomes panel y reflected.
+    s_vp_x = y;
+    s_vp_w = h;
+    s_vp_y = (PANEL_H - 1) - (x + w - 1);
+    s_vp_h = w;
+  } else {
+    // UI x -> panel y directly; UI y -> panel x reflected, so the far edge of the
+    // UI rect becomes the near edge of the panel rect.
+    s_vp_y = x;
+    s_vp_h = w;
+    s_vp_x = (PANEL_W - 1) - (y + h - 1);
+    s_vp_w = h;
+  }
+  if (s_vp_x < 0) { s_vp_w += s_vp_x; s_vp_x = 0; }
+  if (s_vp_y < 0) { s_vp_h += s_vp_y; s_vp_y = 0; }
+  if (s_vp_x + s_vp_w > PANEL_W) s_vp_w = PANEL_W - s_vp_x;
+  if (s_vp_y + s_vp_h > PANEL_H) s_vp_h = PANEL_H - s_vp_y;
+}
+
+void camera_spike_flip_refresh(void)
+{
+  // The full-panel default is its own reflection, so there is nothing to
+  // move; a rect is a rectangle off centre and there is.
+  if (!s_vp_on) return;
+  vp_map_from_landscape();
+  s_clear_pending = 2;          // the rect moved: blank what it left behind
+}
+
 void camera_spike_set_preview_rect(int x, int y, int w, int h)
 {
   if (w <= 0 || h <= 0) {                    // restore the full-panel default
@@ -215,16 +258,7 @@ void camera_spike_set_preview_rect(int x, int y, int w, int h)
     return;
   }
   s_vp_lx = x; s_vp_ly = y; s_vp_lw = w; s_vp_lh = h;
-  // UI x -> panel y directly; UI y -> panel x reflected, so the far edge of the
-  // UI rect becomes the near edge of the panel rect.
-  s_vp_y = x;
-  s_vp_h = w;
-  s_vp_x = (PANEL_W - 1) - (y + h - 1);
-  s_vp_w = h;
-  if (s_vp_x < 0) { s_vp_w += s_vp_x; s_vp_x = 0; }
-  if (s_vp_y < 0) { s_vp_h += s_vp_y; s_vp_y = 0; }
-  if (s_vp_x + s_vp_w > PANEL_W) s_vp_w = PANEL_W - s_vp_x;
-  if (s_vp_y + s_vp_h > PANEL_H) s_vp_h = PANEL_H - s_vp_y;
+  vp_map_from_landscape();
   s_vp_on = (s_vp_w > 0 && s_vp_h > 0);
   s_clear_pending = 2;                       // blank the new rect, not the panel
   // Pin framebuffer 0 and make it the one being scanned out, because from here
@@ -583,8 +617,20 @@ static inline uint16_t *fb_px(uint16_t *fb, int px, int py)
   return &fb[y * s_fw + x];
 }
 #else
+// UPSIDE DOWN, and this one line is the whole of the overlay half of it. Every
+// constant in this file and every primitive below is written in the panel
+// frame the unflipped quarter turn produces, and a 180 of that picture is a
+// 180 of each of its pixels -- so reflecting here turns the cinematic bands,
+// the progress bars, the reticle, the zoom ladder AND the composed text
+// strips' own content, in one place, instead of seven copies of a sign.
+//
+// The PPA's output does NOT come through here: it is written into the rect by
+// DMA, so the video turns by its rotation index and by the rect the map above
+// derives. Those are the only two other places.
+static bool s_fflip;                 // this frame's flip; read once, see show_frame
 static inline uint16_t *fb_px(uint16_t *fb, int px, int py)
 {
+  if (s_fflip) { px = PANEL_W - 1 - px; py = PANEL_H - 1 - py; }
   return &fb[py * PANEL_W + px];
 }
 #endif
@@ -1019,13 +1065,8 @@ static void draw_zoom_bar(uint16_t *fb) {
   for (int s = 0; s < ZOOM_LEVELS; s++) {
     uint16_t col = (s <= s_zoom) ? 0xFFFF : 0x39E7;   // filled vs dim gray
     for (int y = 0; y < seg_h; y++) {
-#ifdef KISS_BOARD_WS35
       for (int x = 0; x < seg_w; x++)
         *fb_px(fb, x0 + s * (seg_w + gap) + x, y0 + y) = col;
-#else
-      uint16_t *row = fb + (y0 + y) * PANEL_W + x0 + s * (seg_w + gap);
-      for (int x = 0; x < seg_w; x++) row[x] = col;
-#endif
     }
   }
 }
@@ -1042,15 +1083,10 @@ static void darken_band(uint16_t *fb, int x0, int x1) {
     keep[x] = (uint8_t)(256 - f - 1);
   }
   for (int y = 0; y < PANEL_H; y++) {
-#ifndef KISS_BOARD_WS35
-    uint16_t *row = fb + y * PANEL_W;
-#endif
     for (int x = x0; x < x1; x++) {
-#ifdef KISS_BOARD_WS35
-      uint16_t *p = fb_px(fb, x, y);   // a panel row is a canvas column here
-#else
-      uint16_t *p = &row[x];
-#endif
+      // Through fb_px on both boards: it is where the 3.5in's rect and the
+      // Guition's flip live, and a row pointer past it turns half the picture.
+      uint16_t *p = fb_px(fb, x, y);
       uint16_t c = *p;
       int k = keep[x - x0];
       int r = (((c >> 11) & 31) * k) >> 8, g = (((c >> 5) & 63) * k) >> 8,
@@ -1196,17 +1232,10 @@ static void draw_hbar(uint16_t *fb, int fill, uint16_t base) {
   // track: rounded dark pill
   for (int i = 0; i < BAR_LEN; i++) {
     int dc = i < R ? R - i : i >= BAR_LEN - R ? i - (BAR_LEN - 1 - R) : 0;
-#ifndef KISS_BOARD_WS35
-    uint16_t *col0 = fb + (cy0 + i) * PANEL_W + BAR_PX0;
-#endif
     for (int t = 0; t < BAR_THICK; t++) {
       int dt = t - R;
       if (dc && dt * dt + dc * dc > R * R) continue;
-#ifdef KISS_BOARD_WS35
       *fb_px(fb, BAR_PX0 + t, cy0 + i) = 0x18E3;
-#else
-      col0[t] = 0x18E3;
-#endif
     }
   }
   // fill: brighter rounded pill inset in the track, gentle ramp along it
@@ -1223,17 +1252,10 @@ static void draw_hbar(uint16_t *fb, int fill, uint16_t base) {
       if (g > 63) g = 63;
       if (b > 31) b = 31;
       uint16_t c = (uint16_t)((r << 11) | (g << 5) | b);
-#ifndef KISS_BOARD_WS35
-      uint16_t *col0 = fb + (cy0 + BAR_INS + i) * PANEL_W + BAR_PX0 + BAR_INS;
-#endif
       for (int t = 0; t < BAR_THICK - 2 * BAR_INS; t++) {
         int dt = t - R2;
         if (dc && dt * dt + dc * dc > R2 * R2) continue;
-#ifdef KISS_BOARD_WS35
         *fb_px(fb, BAR_PX0 + BAR_INS + t, cy0 + BAR_INS + i) = c;
-#else
-        col0[t] = c;
-#endif
       }
     }
   }
@@ -1258,17 +1280,10 @@ static void draw_scan_bar(uint16_t *fb) {
       int y0 = cy0 + BAR_INS + s * (segw + gap);
       for (int i = 0; i < segw; i++) {
         int dc = i < R2 ? R2 - i : i >= segw - R2 ? i - (segw - 1 - R2) : 0;
-#ifndef KISS_BOARD_WS35
-        uint16_t *col0 = fb + (y0 + i) * PANEL_W + BAR_PX0 + BAR_INS;
-#endif
         for (int t = 0; t < BAR_THICK - 2 * BAR_INS; t++) {
           int dt = t - R2;
           if (dc && dt * dt + dc * dc > R2 * R2) continue;
-#ifdef KISS_BOARD_WS35
           *fb_px(fb, BAR_PX0 + BAR_INS + t, y0 + i) = c;
-#else
-          col0[t] = c;
-#endif
         }
       }
     }
@@ -1287,16 +1302,9 @@ static void draw_scan_bar(uint16_t *fb) {
       int d = i - pos;
       int a = (SHIM - (d < 0 ? -d : d)) / (SHIM / 6);  // 0..6 of 15
       if (a <= 0) continue;
-#ifndef KISS_BOARD_WS35
-      uint16_t *col0 = fb + (cy0 + i) * PANEL_W + BAR_PX0 + BAR_INS;
-#endif
       int aa = a * 17;
       for (int t = 0; t < BAR_THICK - 2 * BAR_INS; t++) {
-#ifdef KISS_BOARD_WS35
         uint16_t *p = fb_px(fb, BAR_PX0 + BAR_INS + t, cy0 + i);
-#else
-        uint16_t *p = &col0[t];
-#endif
         uint16_t dpx = *p;
         int r = (dpx >> 11) & 31, g = (dpx >> 5) & 63, b = dpx & 31;
         r += ((31 - r) * aa) >> 8;
@@ -1510,6 +1518,22 @@ static void show_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
   // Half a pause, picture frozen but the decoder still reading, would be worse
   // than none: the screen would advance with no sign of why.
   if (s_paused) return;
+#ifdef KISS_BOARD_WS35
+  const int orient = s_orient;
+#else
+  // Read ONCE per frame, beside the rect below and for the same reason: the
+  // flip changes between camera sessions, never per pixel, and fb_px must not
+  // reload a global for every store.
+  s_fflip = kiss_flip_get();
+  // A 180 of the preview is +2 on the rotation with the mirror bit left
+  // alone. That is exact rather than approximate: R180 is central, so it
+  // commutes with the mirror whichever side of the turn the PPA applies it
+  // (nothing documents which, and for a 180 it cannot matter), and it
+  // preserves PARITY -- so `quarter`, the zoom ladder's row and the crop this
+  // frame was measured for come out bit-identical. The orientation finder's
+  // dev cycler already walks all eight of these indices.
+  const int orient = s_fflip ? ((s_orient & 4) | ((s_orient + 2) & 3)) : s_orient;
+#endif
   uint32_t cw, ch, ow, oh;
   float scale;
   if (!orient_geometry(w, h, &cw, &ch, &scale, &ow, &oh)) return;
@@ -1577,10 +1601,10 @@ static void show_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
           .srm_cm = PPA_SRM_COLOR_MODE_RGB565,
 #endif
       },
-      .rotation_angle = rot[s_orient % 4],
+      .rotation_angle = rot[orient % 4],
       .scale_x = scale,
       .scale_y = scale,
-      .mirror_x = (s_orient >= 4),
+      .mirror_x = (orient >= 4),
       .mode = PPA_TRANS_MODE_BLOCKING,
   };
   if (ppa_do_scale_rotate_mirror(s_ppa, &op) != ESP_OK) {

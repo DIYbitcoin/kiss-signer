@@ -45,6 +45,22 @@ const char *camera_spike_status(void);
 // the whole 480x320 canvas, sent as a rect like any other.
 void camera_spike_set_preview_rect(int x, int y, int w, int h);
 
+// The device turned over (kiss_board.h): re-derive whatever the camera holds
+// in PANEL coordinates from the landscape rect it was given. The board layer
+// calls it from kiss_flip_set, so the rect can never be left mapped for the
+// orientation the device has just stopped being in.
+//
+// A no-op on the 3.5in, and that is the whole difference between the two
+// boards here: there the flip is the controller's address map, so the preview
+// and its overlays cross it on the way out and every number stays what it
+// was. On the Guition the picture is composed in the framebuffer BEFORE the
+// beam reads it, so the camera turns its own three parts.
+//
+// Today the flip lives on Settings and no camera runs there, so this is
+// called between sessions rather than during one. Nothing enforces that, and
+// this is what makes it not matter.
+void camera_spike_flip_refresh(void);
+
 // True only while the live preview covers the WHOLE panel, which is the one
 // state in which LVGL must not paint. With a preview rect set, LVGL paints
 // everywhere and the video reclaims its rectangle on the next frame. Never true

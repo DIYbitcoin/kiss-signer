@@ -24,6 +24,7 @@
 #include "kiss_gword.h"
 #include "kiss_fw_ui.h"   // SD firmware update: the screens this page opens
 #include "kiss_theme.h"
+#include "kiss_board.h"   // kiss_flip_get/set: the chrome column's 180 control
 #include "kiss_ui.h"   // kiss_build_id_apply: the shared build-identity line
 #include "kiss_usage.h"   // clear the receive-index history on wipe
 #include "kiss_payee.h"   // ...and who this wallet has paid
@@ -304,6 +305,7 @@ kiss_settings_load_status_t kiss_settings_load(void)
     uint8_t ps = 1;               // the signer saves what it saves, unless told not
     uint8_t hs = 0;               // [ ? ] never opened until a byte says it was
     uint8_t rs = 0;               // ...and the same for a row that grows
+    uint8_t fp = 0;               // the right way up, until the owner says otherwise
     err = nvs_open("kiss", NVS_READONLY, &h);
     if (err == ESP_ERR_NVS_NOT_FOUND) {
         // A genuinely blank partition has no namespace yet. That is the one
@@ -319,7 +321,8 @@ kiss_settings_load_status_t kiss_settings_load(void)
                   get_optional_u8(h, "lang", &lg) &&
                   get_optional_u8(h, "prst", &ps) &&
                   get_optional_u8(h, "hlps", &hs) &&
-                  get_optional_u8(h, "rows", &rs);
+                  get_optional_u8(h, "rows", &rs) &&
+                  get_optional_u8(h, "flip", &fp);
         nvs_close(h);
         if (!ok)
             return WSETTINGS_LOAD_NVS_READ_FAILED;
@@ -330,6 +333,13 @@ kiss_settings_load_status_t kiss_settings_load(void)
     // failure that could otherwise make a configured wallet look factory-new.
     kiss_set_network(tn);
     kiss_set_script(sc);
+    // Upside down, before the first frame. app_main brings the display and
+    // the touch controller up and calls build_game -- which is what calls
+    // this -- and only reaches lv_refr_now afterwards, over a panel that
+    // display_start has already cleared. So no repaint is asked for: there is
+    // nothing on the glass yet to be the wrong way up, and the first frame
+    // that leaves is already turned.
+    kiss_flip_set(fp != 0, false);
     wt_accent_set(ac);
     wt_denom_set(dn);
     i18n_set_lang(lg);
@@ -1320,6 +1330,26 @@ static void theme_cb(lv_event_t *e)
     // every tab is accent inked, so a rebuild is both simpler and more honest
     // than repainting the control that was tapped.
     settings_reopen();
+}
+
+// ---- upside down ----
+// The theme's idiom, minus the rebuild. A flip does not move one pixel of the
+// LAYOUT -- it is applied after layout, to the picture on its way out -- so
+// there is nothing here for settings_reopen or wt_accent_restyle to correct.
+// Set the truth, write the byte, and let the board turn the glass, the touch
+// map and the camera preview from that one value (kiss_board.h).
+//
+// The persist switch is INHERITED from store_u8 rather than excepted: with
+// PERSIST off the flip applies to this session and the next boot comes up the
+// way the device was last told to remember, which is what every other
+// preference on this page does. "prst" is the only byte that has to be able
+// to record its own position.
+static void flip_cb(lv_event_t *e)
+{
+    (void)e;
+    const bool on = !kiss_flip_get();
+    kiss_flip_set(on, true);
+    store_u8("flip", (uint8_t)(on ? 1 : 0));
 }
 
 static void close_cb(lv_event_t *e)
@@ -2599,6 +2629,14 @@ void kiss_settings_open(lv_obj_t *parent)
     // breathe (motion 19) is what teaches [ ? ] here, plus the stroke past
     // NO UNDO that now lands on it.
     wt_help_tab(s_scr, NULL, settings_what_cb, NULL);
+
+    // UPSIDE DOWN goes between the title and the theme swatch, which is where
+    // it was asked for and also where it belongs: the two controls in this
+    // column are the two that change the page you are standing on rather than
+    // taking you anywhere else. Built FIRST because wt_theme_tab is the call
+    // that fits the title, and the title's lane is what the PAIR of them
+    // leave -- see wt_chrome_head_lane.
+    wt_flip_tab(s_scr, flip_cb, NULL);
 
     // DECIDED: the theme moved off the action band into the chrome column above [ ? ].
     // It spent a version as a wordless chip in the header, one as a row on the

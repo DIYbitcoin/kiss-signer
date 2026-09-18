@@ -76,11 +76,25 @@ static void set_touch(int x, int y, int down) {
     g_tx = x; g_ty = y; g_pressed = down ? true : false;
 }
 
+// UPSIDE DOWN (kiss_board.h) turns the picture HERE, which is this program's
+// stand-in for the glass: g_fb goes to the SDL texture and to the screenshot
+// writer, and nothing reads it back by canvas coordinates -- unlike the
+// scripted walk's framebuffer, where the ink check does and the reflection
+// therefore has to wait until the file is written. So it can live in the
+// flush, which is also where the Guition's own 180 lives.
+//
+// map_pointer reflects to match, and has to: the window is showing a turned
+// picture, so a click at window (x,y) is a press on whatever canvas pixel was
+// drawn there. Picture one way, pointer back the other, is exactly the pair
+// the device has to get right as well -- and here it can be driven by hand.
 static void flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px) {
     uint16_t *p = (uint16_t *)px;
+    const bool flip = kiss_flip_get();
     for (int y = area->y1; y <= area->y2; y++)
         for (int x = area->x1; x <= area->x2; x++, p++)
-            if (x >= 0 && x < HRES && y >= 0 && y < VRES) g_fb[y * HRES + x] = *p;
+            if (x >= 0 && x < HRES && y >= 0 && y < VRES)
+                g_fb[flip ? (VRES - 1 - y) * HRES + (HRES - 1 - x)
+                          : y * HRES + x] = *p;
     lv_display_flush_ready(disp);
 }
 
@@ -399,7 +413,12 @@ static bool path_step(void) {
 // Window coordinates -> the 800x480 panel. The strip below it is not the panel,
 // so a press down there never reaches the signer.
 static void map_pointer(int wx, int wy) {
-    path_extend(wx / g_scale, wy / g_scale);
+    int x = wx / g_scale, y = wy / g_scale;
+    // The window shows the flush's picture, so when that is turned the press
+    // has to be turned back before anything measures it in canvas space. See
+    // flush_cb.
+    if (kiss_flip_get()) { x = HRES - 1 - x; y = VRES - 1 - y; }
+    path_extend(x, y);
 }
 static bool in_panel(int wx, int wy) { return wy / g_scale < VRES; }
 static void render(void);

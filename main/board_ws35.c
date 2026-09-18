@@ -82,6 +82,22 @@ static const char *TAG = "kiss";
 #define TOUCH_SWAP_XY  1
 #define TOUCH_MIRROR_X 1
 #define TOUCH_MIRROR_Y 0
+// ...and UPSIDE DOWN is the other upright landscape the paragraph above
+// names: the swap stays, both mirrors go together. So the flip on this board
+// is one register, and the same fact in touch terms is the two flags
+// exchanging their values -- a reflection of both canvas axes is a reflection
+// of both glass axes, whichever order the driver applies them in.
+//
+// To one pixel, which is worth knowing before anybody measures it on glass.
+// The driver mirrors as `x_max - x`, not `x_max - 1 - x`, so the map here has
+// always handed back canvas y = 320 at the glass's x = 0 -- one past a 0..319
+// canvas. Flipped, the same single-pixel overhang moves to canvas x = 480 at
+// the glass's y = 0. It is relocated, not introduced, and the flip is exact
+// everywhere else.
+#define LCD_FLIP_MIRROR_X   1
+#define LCD_FLIP_MIRROR_Y   1
+#define TOUCH_FLIP_MIRROR_X 0
+#define TOUCH_FLIP_MIRROR_Y 1
 
 static esp_lcd_panel_io_handle_t s_io;
 static esp_lcd_panel_handle_t s_panel;
@@ -208,6 +224,68 @@ void kiss_panel_black(void)
   if (!s_panel) return;
   for (int y = 0; y < SCREEN_H; y += 16)
     (void)kiss_board_blit(0, y, SCREEN_W, y + 16, s_black, true);
+}
+
+// ---- upside down (kiss_board.h) ----
+//
+// The whole turn is MADCTL, which is why this board's half of the feature is
+// four lines and the Guition's is not. MX/MY are a global map on the address
+// space rather than a per-region transform, so a window at canvas x1..x2
+// lands at W-1-x2 .. W-1-x1 and is filled from its far end: LVGL's 48-line
+// bands and the camera's preview bands reassemble into one coherent 180 with
+// no arithmetic anywhere downstream. Nothing in camera_spike.c changes on
+// this board for exactly that reason -- the preview, its reticle and its
+// overlay text all cross the mirror on their way out.
+//
+// It matters that the factory table's MADCTL 0x48 was left out of
+// s_panel_init (see the note there): the driver latches any MADCTL it sees in
+// a vendor table into its saved value, so with 0x48 in place the base would
+// be MX=1 and this delta would compose from a mirrored landscape.
+//
+// SERIALISED ON s_issue, and not for tidiness. The mirror is sent with
+// tx_param over the same SPI device as the pixels, and a MADCTL that lands
+// between a queued CASET/RASET and its RAMWR reinterprets the address window
+// underneath the data that is being written -- a garbage rectangle, not a
+// tear. Holding s_issue makes it atomic against any blit's issue, and the
+// io's own tx_param drains the queued transfers before it sends, so the
+// in-flight RAMWR is waited out inside the call. Two tasks can be issuing
+// here (LVGL's flush and the camera's bands on core 1), which is the other
+// half of the same reason.
+static bool s_flip;
+
+bool kiss_flip_get(void) { return s_flip; }
+
+void kiss_flip_set(bool on, bool repaint)
+{
+  s_flip = on;
+  if (s_panel) {
+    xSemaphoreTake(s_issue, portMAX_DELAY);
+    esp_lcd_panel_mirror(s_panel, on ? LCD_FLIP_MIRROR_X : LCD_MIRROR_X,
+                         on ? LCD_FLIP_MIRROR_Y : LCD_MIRROR_Y);
+    xSemaphoreGive(s_issue);
+  }
+  if (s_touch) {
+    // Software flags, not registers: the FT5x06 registers no hardware setter,
+    // so these two calls write tp->config.flags and return. That also honours
+    // the rule at the touch config below -- an axis flip lives in the flags,
+    // never in platform_read_touch's map.
+    esp_lcd_touch_set_mirror_x(s_touch, on ? TOUCH_FLIP_MIRROR_X : TOUCH_MIRROR_X);
+    esp_lcd_touch_set_mirror_y(s_touch, on ? TOUCH_FLIP_MIRROR_Y : TOUCH_MIRROR_Y);
+  }
+  // A no-op on this board, and called anyway so the two board files keep the
+  // same shape: whatever the camera holds in panel coordinates is re-derived
+  // from one place, whichever board is holding it.
+  camera_spike_flip_refresh();
+  if (!repaint) return;
+  // The GRAM holds the ONLY copy of the picture, so until every pixel is
+  // rewritten the owner is looking at the last frame upside down. Black
+  // first, then a full invalidate: a partial repaint of the control that was
+  // tapped would leave the rest of the page inverted, which is the same
+  // argument camera_spike_owns_panel() makes about a skipped flush.
+  for (lv_indev_t *d = lv_indev_get_next(NULL); d; d = lv_indev_get_next(d))
+    lv_indev_wait_release(d);
+  kiss_panel_black();
+  lv_obj_invalidate(lv_screen_active());
 }
 
 // Identity geometry: the canvas is the panel. The one transformation is the
@@ -377,7 +455,9 @@ void kiss_board_touch_start(void) {
 bool kiss_board_touch_ok(void) { return s_touch != NULL; }
 i2c_master_bus_handle_t kiss_board_i2c_bus(void) { return s_i2c_bus; }
 
-// Identity map: the driver's flags already turned the point into the canvas.
+// Identity map: the driver's flags already turned the point into the canvas,
+// and the flip is in those flags too (kiss_flip_set), so this stays identity
+// both ways up.
 // The first point is logged once so the orientation can be read off the
 // serial log at the bench.
 bool platform_read_touch(int *x, int *y) {

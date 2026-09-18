@@ -63,6 +63,17 @@ static long g_flush_n;      // number of flush calls
 static long g_flush_max;    // largest single flush area
 
 // platform seam: the game reads "touch" from here
+//
+// NOT reflected when the device is upside down, and that is the honest
+// composition rather than a gap. On glass the reflection in platform_read_touch
+// exists to UNDO the one in the picture: the owner sees a control at the
+// physical spot its canvas position reflects to, and the touch map turns that
+// spot back into the canvas position. Here there is no physical frame -- the
+// walk's taps are canvas points, taken from the object tree -- so the two
+// reflections would cancel and the only thing they could do is disagree.
+// Whether the device's pair actually cancels is a hardware verdict, and it is
+// the one that matters most: display flipped without touch is an owner whose
+// drawn unlock word stops matching (kiss_gword.c).
 bool platform_read_touch(int *x, int *y) {
   if (g_pressed) { *x = g_tx; *y = g_ty; return true; }
   return false;
@@ -1042,12 +1053,21 @@ int  oc_selftest(void);
 
 // RGB565 framebuffer to a binary P6 PPM. Shared by the walk's checkpoints and
 // by the animation capture, so both are literally the same pixels.
+//
+// THIS is where the flip is applied, and not in flush_cb, because g_fb is the
+// CANVAS and the PPM is the glass. obj_has_ink reads g_fb by an object's own
+// canvas coordinates to prove a control is actually painting something, and
+// ctrl_for calls it before every tap the walk makes by name -- so a reflected
+// g_fb would have the walk looking for ink in the opposite corner of the
+// screen from the control it just found in the tree. A 180 of the picture is
+// the index read backwards, which is the whole of it (kiss_board.h).
 static bool write_ppm(const char *path) {
   FILE *f = fopen(path, "wb");
   if (!f) return false;
+  const bool flip = kiss_flip_get();
   fprintf(f, "P6\n%d %d\n255\n", HRES, VRES);
   for (int i = 0; i < HRES * VRES; i++) {
-    uint16_t c = g_fb[i];
+    uint16_t c = g_fb[flip ? HRES * VRES - 1 - i : i];
     unsigned char r = ((c >> 11) & 0x1F) * 255 / 31;
     unsigned char g = ((c >> 5) & 0x3F) * 255 / 63;
     unsigned char b = (c & 0x1F) * 255 / 31;
@@ -5806,6 +5826,30 @@ int main(void) {
   touch(670, 240); pump(3); release(); pump(6);     // Settings again
   set_tab(SET_DEVICE);
   head_theme(); head_theme();                       // ORANGE, then back to MONO
+
+  // UPSIDE DOWN, the other control in that chrome column. Tapped BY ITS WORD
+  // and not by a coordinate: the chip's box is fixed on both boards (it hangs
+  // off the widest theme name, so the accent cannot move it), but a pixel tap
+  // is what silently breaks, and this one goes through ctrl_for -- which also
+  // proves the label is painting real ink rather than two placeholder boxes,
+  // the exact failure a mono face would give it.
+  //
+  // WHAT THESE THREE FRAMES ARE AND ARE NOT. The picture turns, the layout
+  // does not: the flip is applied after layout, so overlapcheck and fitcheck
+  // measure the same tree at all three stops and neither can say whether the
+  // device really turns over. The three device transforms are in board_*.c
+  // and camera_spike.c, which this build does not compile. What the frames DO
+  // settle is that the control exists, is reachable by its word in every
+  // locale, that the value it sets reaches a repaint, and that a second tap
+  // brings the page back: the middle frame is the first one read backwards,
+  // pixel for pixel, apart from what was still animating between the two --
+  // the tab strip's attention dots and this chip's own tap feedback.
+  save("/tmp/sim_settings_upright.ppm");            // the pair of chrome controls
+  must_show("flip chip", "180\xC2\xB0");
+  tap_lbl("180\xC2\xB0", 3, 8);
+  save("/tmp/sim_settings_flipped.ppm");            // the whole page, turned over
+  tap_lbl("180\xC2\xB0", 3, 8);                     // and back, by the same word
+  save("/tmp/sim_settings_unflipped.ppm");          // the right way up again
 
   // NETWORK, the first row on the SIGNER tab, MAINNET -> TESTNET -> SIGNET.
   // MAINNET first in the cycle is deliberate: the very NEXT tap off it turns

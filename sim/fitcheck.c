@@ -1245,17 +1245,26 @@ int main(int argc, char **argv)
     // -- and this check is what sized that chip down to 44, because de's title
     // needs 269px to hold font28.
     //
-    // Direction 1b moved all three into rows on the DEVICE tab, so Settings
-    // gets the full lane again. The rest of this table covers every explicit
-    // narrowed-title call plus RECEIVE's silent-payment help chip, whose lane
-    // is now narrowed to match the identical fingerprint arrangement.
+    // Direction 1b moved all three into rows on the DEVICE tab, and this table
+    // then said Settings got the full 704 lane back. IT DID NOT, and it had
+    // not for as long as the theme control has been in that chrome column:
+    // wt_theme_tab narrows the title itself, to 501 on the wide board and 287
+    // on the 3.5in, so the one slot this check was written for was 203px
+    // optimistic -- on the one gate that can SEE a title quietly dropping a
+    // rung, because the overlap gate cannot (a smaller title overlaps
+    // nothing).
+    //
+    // So it is not a corrected number, which would go stale again the next
+    // time something joins that column -- and something just has, the 180
+    // control. A lane of 0 means ASK THE KIT: wt_chrome_head_lane is the
+    // expression wt_theme_tab itself uses, and there is now one of it.
     {
         static const struct {
             const char *surface;
             int key, lane;
             bool chrome;
         } TITLE_SLOTS[] = {
-            { "set/main",    STR_G_T,          704, true  },
+            { "set/main",    STR_G_T,            0, true  },   // 0 = ask the kit
             { "recv/sp",     STR_S_SP_BADGE,   640, true  },
             { "setup/prove", STR_W_PROVE_T,    436, true  },
             { "setup/taps",  STR_W_ENT_TAP_T,  436, true  },
@@ -1273,7 +1282,9 @@ int main(int argc, char **argv)
                 i18n_set_lang(l);
                 const char *txt = tr(TITLE_SLOTS[t].key);
                 int ls = 0;
-                const lv_font_t *picked = title_pick(txt, TITLE_SLOTS[t].lane,
+                const int lane = TITLE_SLOTS[t].lane ? TITLE_SLOTS[t].lane
+                                                     : wt_chrome_head_lane();
+                const lv_font_t *picked = title_pick(txt, lane,
                                                      TITLE_SLOTS[t].chrome, &ls);
                 if (title_is_smallest(picked)) {
                     lv_point_t sz;
@@ -1281,7 +1292,7 @@ int main(int argc, char **argv)
                                      LV_TEXT_FLAG_NONE);
                     printf("  title %-11s %-6s smallest  %dpx / %dpx  FAIL\n",
                            TITLE_SLOTS[t].surface, i18n_lang_info(l)->code,
-                           sz.x, TITLE_SLOTS[t].lane);
+                           sz.x, lane);
                     title_small++;
                 }
             }

@@ -341,6 +341,38 @@ static int rnd_range(int a, int b) { return a + (int)rnd(b - a + 1); }
 void kiss_backlight_set(int on) { (void)on; }
 void kiss_backlight_level(int pct) { (void)pct; }
 void kiss_panel_black(void) { }
+
+// UPSIDE DOWN (kiss_board.h), and a REAL bool rather than a no-op: the
+// SETTING is what the desktop can hold. The walk taps the control, the value
+// changes, the screen repaints, and the frame that gets written comes out
+// turned -- sim/sim_main.c reflects it at the one seam that stands for glass.
+//
+// WHAT THE DESKTOP DOES NOT PROVE, which is most of it, written here because
+// this is the stub a reader of the feature arrives at first:
+//
+//  - Nothing about the three device transforms. board_guition.c's rotating
+//    flush, board_ws35.c's MADCTL and touch flags, and camera_spike.c are in
+//    neither sim link line (sim/build_sim.sh, sim/build_simapp.sh), so no
+//    desktop build compiles a line of any of them.
+//  - Nothing about persistence. store_u8 is a no-op under SIMULATOR and
+//    kiss_settings_load applies nothing here, so "remembered across reboots"
+//    is a hardware verdict rather than a test.
+//  - Nothing about the LAYOUT either, and that is the useful half: every
+//    geometry gate -- overlapcheck, fitcheck, osdcheck, the coverage checker
+//    -- reads the object tree and the string metrics, never the pixels. The
+//    flip is applied AFTER layout, so it cannot move one of their numbers.
+//    That is why the CONTROL is measured on both canvases and the turn is
+//    not: a flip cannot break a lane, by construction.
+static bool s_flip;
+bool kiss_flip_get(void) { return s_flip; }
+void kiss_flip_set(bool on, bool repaint)
+{
+  s_flip = on;
+  // On the device the panel is blacked and the screen invalidated because the
+  // glass holds the only copy, now the wrong way up. Here the invalidate is
+  // the whole job: it is what makes the next captured frame the turned one.
+  if (repaint && lv_screen_active()) lv_obj_invalidate(lv_screen_active());
+}
 #endif  // !SIMULATOR
 
 // ---------------- entities ----------------

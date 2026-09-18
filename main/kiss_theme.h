@@ -1339,6 +1339,28 @@ lv_obj_t *wt_help_tab_n(lv_obj_t *scr, const char *hint, int unread,
 // repaints the page you are standing on. It narrows the title's lane and moves
 // the cursor to match, so a caller adds nothing but the callback.
 lv_obj_t *wt_theme_tab(lv_obj_t *scr, lv_event_cb_t cb, void *ud);
+// UPSIDE DOWN, on the theme's own rung and one gap to its left: the cycle
+// mark and "180 degrees". Tapping it turns the whole device over -- the glass,
+// the touch map and the camera preview, all from one runtime truth in
+// kiss_board.h -- and tapping it again turns it back, so either board can be
+// held with its cable coming out of the other side.
+//
+// Built BEFORE wt_theme_tab, which is the call that fits the title: the lane
+// below is what the PAIR of them leaves, so the title shrinks around both
+// exactly as it shrank around the theme control alone.
+//
+// It does not change appearance when tapped, and that is the theme control's
+// own argument rather than an omission: what the tap changes is the PAGE, so
+// the page is the only honest indicator -- and a chip that had to state which
+// way up it was would be stating it the wrong way up half the time.
+lv_obj_t *wt_flip_tab(lv_obj_t *scr, lv_event_cb_t cb, void *ud);
+// What the chrome column leaves the title on the page carrying both of those
+// controls. A number nobody has to keep in step by hand: sim/fitcheck.c is
+// the one gate that can see a title quietly dropping a rung -- the overlap
+// gate cannot, because a smaller title overlaps nothing -- and it held a
+// copied 704 that the theme control had already made wrong by 203px. It asks
+// the kit now.
+int wt_chrome_head_lane(void);
 // Whether [ ? ] has ever been opened. RAM here, one NVS byte in settings:
 // kiss_settings_load restores it at boot via _set, and the hook (registered
 // once, at boot) is how the first open reaches the store without the theme

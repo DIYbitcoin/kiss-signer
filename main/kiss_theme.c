@@ -4725,6 +4725,120 @@ lv_obj_t *wt_help_tab_n(lv_obj_t *scr, const char *hint, int unread,
     return b;
 }
 
+// ---- the chrome column's shared arithmetic ------------------------------
+// Three things hang off the same right edge now -- [ ? ], the theme control
+// and the flip chip -- and the title gets what they leave. Written once here
+// because the alternative already went wrong once: sim/fitcheck.c carried a
+// COPY of this number and the theme control had made it 203px optimistic, on
+// the one gate that can see a title silently dropping a rung.
+//
+// The widest of the four theme NAMES, not the one that happens to be on. A
+// lane cut to MONO is a lane CYPHERPINK grows into, and it would make the
+// title's own type size depend on which colour was picked -- the page
+// re-fitting itself every time somebody taps one.
+static int acc_name_widest(void)
+{
+    const lv_font_t *nf = wt_font_mono21();
+    int widest = 0;
+    for (int i = 0; i < WT_ACC_N; i++) {
+        lv_point_t as;
+        lv_text_get_size(&as, WT_ACC_NAMES[i], nf, 1, 0, LV_COORD_MAX,
+                         LV_TEXT_FLAG_NONE);
+        if (as.x > widest) widest = as.x;
+    }
+    return widest;
+}
+
+// The flip chip's label, and why it is a C literal rather than a string key.
+//
+// A numeral and the degree sign are not COPY: they say the same thing in all
+// twenty two locales, so a translated key would be twenty two identical
+// strings and one more thing to keep in step. It could not be one anyway --
+// tools/check_mono_glyphs.py allows ASCII plus three punctuation marks across
+// i18n/*.json, and U+00B0 is outside that set, so "180 degrees" in en.json
+// fails the gate on sight in every locale.
+//
+// THE FACE IS THE PART TO GET RIGHT, and wt_font_mono21 -- what the theme
+// name beside it wears -- is the wrong answer. The bare mono accessors are
+// deliberately chain-free (see the paragraph above them), and IoskeleyMono
+// carries 0x20-0x7E and three marks: no degree sign, and no FontAwesome. Set
+// in mono21 this label draws two placeholder boxes, identically in the
+// simulator, which is the blind spot that paragraph names twice. wt_font23 is
+// the mono-PRIMARY composite, so 180 stays fixed pitch and only the mark and
+// the degree sign resolve out of the Latin fallback -- which every locale has,
+// because the CJK faces are chained BEHIND lat23 and not in front of it. It
+// needs no mono_can guard for the same reason: the guard exists for the bare
+// accessors. One rung above the theme's name because the composite ladder has
+// no 21, which is a smaller mismatch than a proportional face on a mono row.
+//
+// LV_SYMBOL_LOOP is the mark this device already spends on exactly this: "the
+// tap resolves HERE, now; the value advances to the next one in its set".
+//
+// TWO spaces between them, which is wt_icon_text's own form and is load
+// bearing rather than typographic: the walk's find_act matches a label by its
+// tail and demands two spaces in front of it, so one space here is a control
+// no gate could tap by its word -- and tapping it by a pixel is what the walk
+// says silently breaks.
+#define WT_FLIPTAB_TXT LV_SYMBOL_LOOP "  180\xC2\xB0"
+#define WT_FLIPTAB_PAD SX(10)   // a word action's own column pad, either side
+
+static int flip_tab_w(void)
+{
+    lv_point_t s;
+    lv_text_get_size(&s, WT_FLIPTAB_TXT, wt_font23(), 1, 0, LV_COORD_MAX,
+                     LV_TEXT_FLAG_NONE);
+    return s.x + 2 * WT_FLIPTAB_PAD;
+}
+
+// Where the flip chip's left edge sits. Computed from the widest theme name
+// and NOT from the theme control's live left edge, because accent_walk moves
+// that edge -- 84px on the wide board between MONO and CYPHERPINK -- and a
+// chip anchored to it would jump across the header every time somebody tapped
+// a colour.
+static int flip_tab_x(void)
+{
+    int x = WT_THEMETAB_RIGHT
+            - (WT_THEMETAB_SW + WT_THEMETAB_GAP + acc_name_widest())
+            - WT_THEMETAB_GAP - flip_tab_w();
+    // Both boxes take the same 6px of slop, and the gap between them scales
+    // with the canvas while the slop does not. Where twice the slop is wider
+    // than the gap -- the 3.5in, by one pixel -- the two hit areas would share
+    // a column and a press landing there would be ambiguous, so the chip moves
+    // left by the difference instead.
+    const int share = 2 * SY(6) - WT_THEMETAB_GAP;
+    if (share > 0) x -= share;
+    return x;
+}
+
+int wt_chrome_head_lane(void)
+{
+    // The 24 is the gap the title has always been given here, and it is bare
+    // rather than SX for the same reason it always was.
+    return flip_tab_x() - 24 - WT_LANE_X;
+}
+
+lv_obj_t *wt_flip_tab(lv_obj_t *scr, lv_event_cb_t cb, void *ud)
+{
+    lv_obj_t *b = lv_obj_create(scr);
+    lv_obj_remove_style_all(b);
+    lv_obj_set_pos(b, flip_tab_x(), SY(10));
+    lv_obj_set_size(b, flip_tab_w(), SY(40));
+    lv_obj_add_flag(b, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(b, LV_OBJ_FLAG_SCROLLABLE);
+    // The same 6 the theme box takes, and the same clearance it buys: 4..56,
+    // two clear of the 58 where [ ? ]'s own ext area begins.
+    lv_obj_set_ext_click_area(b, SY(6));
+    wt_tap_feedback(b);
+    // INK, like the theme's name and the title: the cursor is the accent's one
+    // appearance in this column, and a mark that changed colour with the theme
+    // would be saying something about the theme.
+    lv_obj_t *l = wt_lbl(b, WT_FLIPTAB_TXT, 0, 0, wt_font23(), WT_INK);
+    lv_obj_set_style_text_letter_space(l, 1, 0);
+    lv_obj_align(l, LV_ALIGN_CENTER, 0, 0);
+    if (cb) lv_obj_add_event_cb(b, cb, LV_EVENT_CLICKED, ud);
+    return b;
+}
+
 // The theme control: a colour SWATCH and the theme's own name, in the chrome
 // column directly above [ ? ], pinned by the same right edge at 752.
 //
@@ -4761,18 +4875,11 @@ lv_obj_t *wt_theme_tab(lv_obj_t *scr, lv_event_cb_t cb, void *ud)
     const int sw = WT_THEMETAB_SW, gap = WT_THEMETAB_GAP, ch = SY(40), ty = SY(10);
     const int cw = sw + gap + ns.x;
     const int tx = WT_THEMETAB_RIGHT - cw;
-    // The title's lane is measured against the WIDEST of the four names, not
-    // this one. A lane cut to MONO is a lane CYPHERPINK grows into, and it
-    // would make the title's own type size depend on which theme is on -- the
-    // page re-fitting itself every time somebody taps a colour.
-    int widest = 0;
-    for (int i = 0; i < WT_ACC_N; i++) {
-        lv_point_t as;
-        lv_text_get_size(&as, WT_ACC_NAMES[i], nf, 1, 0, LV_COORD_MAX,
-                         LV_TEXT_FLAG_NONE);
-        if (as.x > widest) widest = as.x;
-    }
-    const int lane = (WT_THEMETAB_RIGHT - (sw + gap + widest)) - 24 - WT_LANE_X;
+    // The title's lane is what this control and the flip chip beside it leave,
+    // measured against the WIDEST of the four names rather than this one --
+    // see wt_chrome_head_lane, which is where that arithmetic lives now that
+    // a gate reads it too.
+    const int lane = wt_chrome_head_lane();
 
     lv_obj_t *b = lv_obj_create(scr);
     lv_obj_remove_style_all(b);
