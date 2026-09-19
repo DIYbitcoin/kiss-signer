@@ -3,7 +3,6 @@
 # drivers it names.
 if(CONFIG_KISS_BOARD_WS35)
     set(KISS_BOARD_SRC "board_ws35.c")
-    set(KISS_CAMERA_SRC "camera_spike.c")
     # The baked backdrops drawn at this board's 480x320 by the same
     # generators (--board ws35). Same symbols, same headers, one set per image.
     set(KISS_ART_SRCS "menu_img_ws35.c" "menu_logo_ws35.c" "gameover_img_ws35.c" "game_bg.c" "kiss_img_ws35.c")
@@ -22,7 +21,6 @@ elseif(CONFIG_KISS_BOARD_GUITION OR CMAKE_BUILD_EARLY_EXPANSION)
     # The early pass collects requirements before any CONFIG_ symbol exists,
     # and the source list it sees is not the one that gets built.
     set(KISS_BOARD_SRC "board_guition.c")
-    set(KISS_CAMERA_SRC "camera_spike.c")
     # In this order, with game_bg.c where it always was: the link order is
     # the source order, and the Guition image is held byte-identical.
     set(KISS_ART_SRCS "menu_img.c" "menu_logo.c" "gameover_img.c" "game_bg.c" "kiss_img.c")
@@ -37,9 +35,6 @@ elseif(CONFIG_KISS_BOARD_GUITION OR CMAKE_BUILD_EARLY_EXPANSION)
     set(KISS_F_NUM28 "font_kiss_num28.c")
 elseif(CONFIG_KISS_BOARD_JC1060)
     set(KISS_BOARD_SRC "board_jc1060.c")
-    # No camera path is written for this board's landscape framebuffer yet:
-    # camera_none.c answers camera_spike.h with refusals until it is.
-    set(KISS_CAMERA_SRC "camera_none.c")
     # The same pictures drawn at 1024x600 by the same generators (--board
     # jc1060), defining the same symbols.
     set(KISS_ART_SRCS "menu_img_jc1060.c" "menu_logo_jc1060.c" "gameover_img_jc1060.c" "game_bg.c" "kiss_img_jc1060.c")
@@ -59,7 +54,7 @@ else()
 endif()
 
 idf_component_register(
-    SRCS "main.c" ${KISS_BOARD_SRC} "kiss_touch.c" ${KISS_SPRITES_SRC} ${KISS_ART_SRCS} "kiss_art.c" "kiss_art_rle.c" "kiss_crypto.c" "kiss_psbt.c" "kiss_sp.c" "kiss_ui.c" "kiss_theme.c" "kiss_terms.c" "kiss_info.c" "kiss_recv.c" "kiss_sign.c" "kiss_scan.c" "kiss_settings.c" "kiss_fw.c" "kiss_fw_ui.c" "kiss_pqsig.c" "kiss_setup.c" "kiss_duress.c" "kiss_gword.c" "kiss_coverword.c" "kiss_duress_ui.c" "kiss_word_ui.c" "kiss_seed.c" "kiss_seed_sd.c" "kiss_kef.c" "kiss_kef_crypto.c" "kiss_pbkdf2.c" "kiss_cryptobench.c" "kiss_usage.c" "kiss_payee.c" "kiss_backup.c" "kiss_tapent.c" "kiss_dice.c" "kiss_dice_q.c" "kiss_rngq.c" "kiss_rngaudit.c" "kiss_cards_q.c" "kiss_lastword.c" "kiss_rehearse.c" "i18n.c" "i18n_tables.c" ${KISS_F_LAT14} ${KISS_F_LAT23} "font_kiss_lat28.c" "font_kiss_lat34.c" ${KISS_F_MONO14} ${KISS_F_MONO18} ${KISS_F_MONO21} ${KISS_F_MONO23} "font_kiss_mono28.c" "font_kiss_mono34.c" "font_kiss_num48.c" "font_kiss_ja23.c" "font_kiss_ko23.c" "font_kiss_zh23.c" "flag_imgs.c" "font_kiss_ja14.c" "font_kiss_ja28.c" "font_kiss_ko14.c" "font_kiss_ko28.c" "font_kiss_zh14.c" "font_kiss_zh28.c" "qr_transport.c" "platform_sd.c" ${KISS_CAMERA_SRC} "osd_text.c" "osd_strips.c" ${KISS_F_LAT18} "font_kiss_ja18.c" "font_kiss_ko18.c" "font_kiss_zh18.c" ${KISS_F_NUM28} ${KISS_F_EXTRA}
+    SRCS "main.c" ${KISS_BOARD_SRC} "kiss_touch.c" ${KISS_SPRITES_SRC} ${KISS_ART_SRCS} "kiss_art.c" "kiss_art_rle.c" "kiss_crypto.c" "kiss_psbt.c" "kiss_sp.c" "kiss_ui.c" "kiss_theme.c" "kiss_terms.c" "kiss_info.c" "kiss_recv.c" "kiss_sign.c" "kiss_scan.c" "kiss_settings.c" "kiss_fw.c" "kiss_fw_ui.c" "kiss_pqsig.c" "kiss_setup.c" "kiss_duress.c" "kiss_gword.c" "kiss_coverword.c" "kiss_duress_ui.c" "kiss_word_ui.c" "kiss_seed.c" "kiss_seed_sd.c" "kiss_kef.c" "kiss_kef_crypto.c" "kiss_pbkdf2.c" "kiss_cryptobench.c" "kiss_usage.c" "kiss_payee.c" "kiss_backup.c" "kiss_tapent.c" "kiss_dice.c" "kiss_dice_q.c" "kiss_rngq.c" "kiss_rngaudit.c" "kiss_cards_q.c" "kiss_lastword.c" "kiss_rehearse.c" "i18n.c" "i18n_tables.c" ${KISS_F_LAT14} ${KISS_F_LAT23} "font_kiss_lat28.c" "font_kiss_lat34.c" ${KISS_F_MONO14} ${KISS_F_MONO18} ${KISS_F_MONO21} ${KISS_F_MONO23} "font_kiss_mono28.c" "font_kiss_mono34.c" "font_kiss_num48.c" "font_kiss_ja23.c" "font_kiss_ko23.c" "font_kiss_zh23.c" "flag_imgs.c" "font_kiss_ja14.c" "font_kiss_ja28.c" "font_kiss_ko14.c" "font_kiss_ko28.c" "font_kiss_zh14.c" "font_kiss_zh28.c" "qr_transport.c" "platform_sd.c" "camera_spike.c" "osd_text.c" "osd_strips.c" ${KISS_F_LAT18} "font_kiss_ja18.c" "font_kiss_ko18.c" "font_kiss_zh18.c" ${KISS_F_NUM28} ${KISS_F_EXTRA}
     INCLUDE_DIRS "."
     REQUIRES esp_system spi_flash app_update esp_driver_gpio esp_driver_ledc esp_driver_i2c esp_lcd esp_lcd_st7701 esp_lcd_st7796 esp_lcd_jd9165 esp_lcd_touch esp_lcd_touch_gt911 esp_lcd_touch_ft5x06 esp_timer esp_driver_ppa esp_mm libwally-core esp_video fatfs sdmmc esp_driver_sdmmc cUR k_quirc slhdsa nvs_flash bootloader_support efuse
 )

@@ -123,9 +123,9 @@
 #define KISS_PANEL_W 1024
 #define KISS_PANEL_H 600
 #define KISS_NARROW 0
-// The camera path is not written for this board yet (it builds camera_none.c),
-// so these two are the 4.3in's, the same OV02C10 turned away from the owner
-// the same way, and are read off this glass when that path lands.
+// The 4.3in's two, the same OV02C10 turned away from the owner the same way:
+// a first guess until this glass says otherwise, which is why KISS_CAM_ORIENT_LOG
+// prints them every session.
 #define KISS_CAM_ORIENT 4
 #define KISS_CAM_RAW_MIRRORED 1
 #define KISS_PANEL_SPI 0

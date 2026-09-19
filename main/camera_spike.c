@@ -77,6 +77,14 @@ static const char *TAG = "camspike";
 // the 3.5in is the canvas, already landscape in the controller.
 #define PANEL_W KISS_PANEL_W
 #define PANEL_H KISS_PANEL_H
+// The frame the in-video chrome is laid out in: the landscape canvas stood on
+// its side, which is the 4.3in's panel. Written against it once, and fb_px
+// carries it to wherever the pixels really are. On the 4.3in and the 3.5in
+// these are their PANEL_W/PANEL_H; on the 7in, whose glass is landscape, they
+// are not, and a loop bounded by the panel there would draw the chrome across
+// a frame of the wrong shape.
+#define OSD_W SCREEN_H
+#define OSD_H SCREEN_W
 #if !KISS_PANEL_SWROT
 #define OUT_W SCREEN_W
 #define OUT_H SCREEN_H
@@ -148,6 +156,17 @@ static const zoom_lvl_t s_zoom_tab[2][ZOOM_LEVELS] = {
     // rot 90/270: landscape crops (rotated into the portrait panel)
     {{1280, 720, 9}, {800, 480, 16}, {640, 384, 20}, {400, 240, 32}, {320, 192, 40}, {200, 120, 64}},
 };
+#elif defined(KISS_BOARD_JC1060)
+// The 4.3in's sensor onto a 1024x600 canvas that is landscape in the glass.
+// At rot 0/180 the sensor's long side lies along the canvas's, so L0 is very
+// nearly the whole sensor with thin bars, and every level after it fills the
+// canvas to within 4 px at a clean N/16. At a quarter turn the long side
+// stands across the short canvas, so that row starts from the crop that
+// fills its height, as the 3.5in's does.
+static const zoom_lvl_t s_zoom_tab[2][ZOOM_LEVELS] = {
+    {{1248, 720, 13}, {1088, 640, 15}, {816, 480, 20}, {544, 320, 30}, {408, 240, 40}, {272, 160, 60}},
+    {{960, 720, 10}, {480, 720, 20}, {320, 544, 30}, {240, 408, 40}, {160, 272, 60}, {120, 204, 80}},
+};
 #else
 #error "measured on each board's glass: add this board's value"
 #endif
@@ -185,7 +204,7 @@ static volatile int s_vp_x = 0, s_vp_y = 0, s_vp_w = VP_W0, s_vp_h = VP_H0;
 // The same rect in LANDSCAPE space, kept because the reticle and every other
 // overlay primitive already draw in landscape coordinates. Storing both means
 // neither the drawing code nor the blit code has to convert.
-static volatile int s_vp_lx = 0, s_vp_ly = 0, s_vp_lw = PANEL_H, s_vp_lh = PANEL_W;
+static volatile int s_vp_lx = 0, s_vp_ly = 0, s_vp_lw = OSD_H, s_vp_lh = OSD_W;
 static bool s_vp_on;
 static volatile bool s_paused;   // see camera_spike_pause
 
@@ -198,7 +217,7 @@ void camera_spike_set_preview_rect(int x, int y, int w, int h)
   if (w <= 0 || h <= 0) {                    // restore the whole-canvas default
     s_vp_on = false;
     s_vp_x = 0; s_vp_y = 0; s_vp_w = VP_W0; s_vp_h = VP_H0;
-    s_vp_lx = 0; s_vp_ly = 0; s_vp_lw = PANEL_H; s_vp_lh = PANEL_W;
+    s_vp_lx = 0; s_vp_ly = 0; s_vp_lw = OSD_H; s_vp_lh = OSD_W;
     return;
   }
   if (x < 0) { w += x; x = 0; }
@@ -215,11 +234,29 @@ void camera_spike_set_preview_rect(int x, int y, int w, int h)
 // border LVGL drew around it, so the two stay in step with no arithmetic.
 // See camera_spike.h for why this is a function rather than an absence.
 void camera_spike_flip_refresh(void) { }
-#elif !KISS_PANEL_SPI && KISS_PANEL_SWROT
+#elif !KISS_PANEL_SPI
 // The UI-to-panel map, alone in a function because it has two callers now:
 // the screen that sets a rect, and the board layer when the device is turned
 // over. The LANDSCAPE rect is the truth and the panel rect is derived from
 // it, which is what makes a flip unable to leave the two disagreeing.
+#if !KISS_PANEL_SWROT
+// The 7in's framebuffer is the canvas, so the panel rect is the UI rect, and
+// upside down is a half turn of it about the middle of the glass: the same
+// half turn board_jc1060.c gives everything LVGL draws.
+static void vp_map_from_landscape(void)
+{
+  int x = s_vp_lx, y = s_vp_ly, w = s_vp_lw, h = s_vp_lh;
+  if (x < 0) { w += x; x = 0; }
+  if (y < 0) { h += y; y = 0; }
+  if (x + w > SCREEN_W) w = SCREEN_W - x;
+  if (y + h > SCREEN_H) h = SCREEN_H - y;
+  if (kiss_flip_get()) {
+    x = SCREEN_W - x - w;
+    y = SCREEN_H - y - h;
+  }
+  s_vp_x = x; s_vp_y = y; s_vp_w = w; s_vp_h = h;
+}
+#else
 static void vp_map_from_landscape(void)
 {
   const int x = s_vp_lx, y = s_vp_ly, w = s_vp_lw, h = s_vp_lh;
@@ -243,6 +280,7 @@ static void vp_map_from_landscape(void)
   if (s_vp_x + s_vp_w > PANEL_W) s_vp_w = PANEL_W - s_vp_x;
   if (s_vp_y + s_vp_h > PANEL_H) s_vp_h = PANEL_H - s_vp_y;
 }
+#endif
 
 void camera_spike_flip_refresh(void)
 {
@@ -257,8 +295,8 @@ void camera_spike_set_preview_rect(int x, int y, int w, int h)
 {
   if (w <= 0 || h <= 0) {                    // restore the full-panel default
     s_vp_on = false;
-    s_vp_x = 0; s_vp_y = 0; s_vp_w = PANEL_W; s_vp_h = PANEL_H;
-    s_vp_lx = 0; s_vp_ly = 0; s_vp_lw = PANEL_H; s_vp_lh = PANEL_W;
+    s_vp_x = 0; s_vp_y = 0; s_vp_w = VP_W0; s_vp_h = VP_H0;
+    s_vp_lx = 0; s_vp_ly = 0; s_vp_lw = OSD_H; s_vp_lh = OSD_W;
     return;
   }
   s_vp_lx = x; s_vp_ly = y; s_vp_lw = w; s_vp_lh = h;
@@ -600,6 +638,13 @@ static void ent_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
 #define BAND_TOP_X0 375     // panel x range of the landscape-top band (deep
 #define BAND_TOP_X1 451     // enough for a title + subtitle strip)
 #define STRIP_TOP_PX 443    // panel x of a top-band strip's first text row
+#elif defined(KISS_BOARD_JC1060)
+// The 4.3in's band, measured from the same edge: the top of the landscape
+// screen is the far end of the chrome frame's x, and a band scaled from zero
+// would slide off it toward the middle of the picture.
+#define BAND_TOP_X0 ((OSD_W - 1) - ACROSS(104))
+#define BAND_TOP_X1 ((OSD_W - 1) - ACROSS(28))
+#define STRIP_TOP_PX ((OSD_W - 1) - ACROSS(36))
 #else
 #error "measured on each board's glass: add this board's value"
 #endif
@@ -653,6 +698,17 @@ static inline uint16_t *fb_px(uint16_t *fb, int px, int py)
 {
   if (s_fflip) { px = PANEL_W - 1 - px; py = PANEL_H - 1 - py; }
   return &fb[py * PANEL_W + px];
+}
+#elif !KISS_PANEL_SPI && !KISS_PANEL_SWROT
+// The 7in: the chrome frame is the 4.3in's portrait one and the framebuffer is
+// the landscape canvas, so a chrome pixel is the 4.3in's quarter turn run
+// backwards, as on the 3.5in, into a buffer the whole canvas wide. Upside down
+// is then a half turn of the canvas, for the reason given above.
+static inline uint16_t *fb_px(uint16_t *fb, int px, int py)
+{
+  int x = py, y = (OSD_W - 1) - px;
+  if (s_fflip) { x = SCREEN_W - 1 - x; y = SCREEN_H - 1 - y; }
+  return &fb[y * PANEL_W + x];
 }
 #else
 #error "no preview map for this panel: see KISS_PANEL_SPI and KISS_PANEL_SWROT"
@@ -903,13 +959,13 @@ static void blit_a4(uint16_t *fb, const scan_osd_strip_t *s, int cx, int cy,
   if (!s || !s->a4) return;                   // a strip that failed to compose
   for (int uy = 0; uy < s->h; uy++) {
     int px = cx - uy;
-    if (px < 0 || px >= PANEL_W) continue;
+    if (px < 0 || px >= OSD_W) continue;
     for (int ux = 0; ux < s->w; ux++) {
       int i = uy * s->w + ux;
       uint8_t a = (i & 1) ? (s->a4[i >> 1] & 0x0F) : (s->a4[i >> 1] >> 4);
       if (!a) continue;
       int py = cy + ux;
-      if (py < 0 || py >= PANEL_H) continue;
+      if (py < 0 || py >= OSD_H) continue;
       uint16_t *p = fb_px(fb, px, py);
       uint16_t d = *p;
       int aa = a * 17 * dim / 255;             // 0..255
@@ -933,10 +989,10 @@ static void lrect_blend_rgb(uint16_t *fb, int lx, int ly, int lw, int lh,
                             uint8_t a, int tr, int tg, int tb) {
   int aa = a * 17;
   for (int yy = ly; yy < ly + lh; yy++) {
-    int px = (PANEL_W - 1) - yy;
-    if (px < 0 || px >= PANEL_W) continue;
+    int px = (OSD_W - 1) - yy;
+    if (px < 0 || px >= OSD_W) continue;
     for (int xx = lx; xx < lx + lw; xx++) {
-      if (xx < 0 || xx >= PANEL_H) continue;
+      if (xx < 0 || xx >= OSD_H) continue;
       uint16_t *p = fb_px(fb, px, xx);
       uint16_t d = *p;
       int r = (d >> 11) & 31, g = (d >> 5) & 63, b = d & 31;
@@ -1100,7 +1156,7 @@ static void draw_brackets(uint16_t *fb) {
 static void draw_zoom_bar(uint16_t *fb) {
   const int seg_w = ACROSS(40), seg_h = ALONG(12), gap = ACROSS(10);
   const int total = ZOOM_LEVELS * seg_w + (ZOOM_LEVELS - 1) * gap;
-  const int x0 = (PANEL_W - total) / 2, y0 = PANEL_H - ALONG(90);
+  const int x0 = (OSD_W - total) / 2, y0 = OSD_H - ALONG(90);
   for (int s = 0; s < ZOOM_LEVELS; s++) {
     uint16_t col = (s <= s_zoom) ? 0xFFFF : 0x39E7;   // filled vs dim gray
     for (int y = 0; y < seg_h; y++) {
@@ -1121,7 +1177,7 @@ static void darken_band(uint16_t *fb, int x0, int x1) {
     int f = din < edge ? 159 * (din + 1) / (edge + 1) : 159;   // 62% max
     keep[x] = (uint8_t)(256 - f - 1);
   }
-  for (int y = 0; y < PANEL_H; y++) {
+  for (int y = 0; y < OSD_H; y++) {
     for (int x = x0; x < x1; x++) {
       // Through fb_px on both boards: it is where the 3.5in's rect and the
       // Guition's flip live, and a row pointer past it turns half the picture.
@@ -1163,14 +1219,14 @@ static void darken_band(uint16_t *fb, int x0, int x1) {
 static void draw_osd_strip(uint16_t *fb, int idx) {
   const scan_osd_strip_t *t = osd_title(idx);
   if (!t) return;
-  blit_a4(fb, t, STRIP_TOP_PX, (PANEL_H - t->w) / 2, OSD_DIM_FULL);
+  blit_a4(fb, t, STRIP_TOP_PX, (OSD_H - t->w) / 2, OSD_DIM_FULL);
   const scan_osd_strip_t *s = osd_sub(idx);
   if (s)
-    blit_a4(fb, s, STRIP_TOP_PX - t->h - 2, (PANEL_H - s->w) / 2, OSD_DIM_SUB);
+    blit_a4(fb, s, STRIP_TOP_PX - t->h - 2, (OSD_H - s->w) / 2, OSD_DIM_SUB);
 #if OSD_SUB_LINES > 1
   const scan_osd_strip_t *s2 = s ? osd_sub2(idx) : NULL;
   if (s2)
-    blit_a4(fb, s2, STRIP_TOP_PX - t->h - 2 - s->h, (PANEL_H - s2->w) / 2,
+    blit_a4(fb, s2, STRIP_TOP_PX - t->h - 2 - s->h, (OSD_H - s2->w) / 2,
             OSD_DIM_SUB);
 #endif
 }
@@ -1205,7 +1261,7 @@ static void draw_ent_digits(uint16_t *fb)
     const int cx = ACROSS(98);          // glyph top row, inside the bottom band
     int w = g_mid->w + ENT_TRACK + g_dot->w + ENT_TRACK + g_lo->w;
     if (hi && g_hi) w += g_hi->w + ENT_TRACK;
-    int cy = PANEL_H - ALONG(14) - w;   // right aligned to the band's far end
+    int cy = OSD_H - ALONG(14) - w;   // right aligned to the band's far end
 
     if (hi && g_hi) {
         blit_a4(fb, g_hi, cx, cy, OSD_DIM_FULL);
@@ -1247,7 +1303,7 @@ static void draw_read_line(uint16_t *fb, int seen, int total) {
                               : gi[i] >= 0  ? osd_digit(gi[i]) : NULL;
     tw += gi[i] == -1 ? ALONG(10) : g ? g->w + ENT_TRACK : 0;
   }
-  int cy = (PANEL_H - tw) / 2;
+  int cy = (OSD_H - tw) / 2;
   blit_a4(fb, strip, STRIP_TOP_PX, cy, OSD_DIM_FULL);
   cy += strip->w + ALONG(14);
   for (int i = 0; i < n; i++) {
@@ -1266,7 +1322,7 @@ static void draw_read_line(uint16_t *fb, int seen, int total) {
 // pass threshold. Both bars this draws are progress now, and progress bars do
 // not mark a point partway along themselves.
 static void draw_hbar(uint16_t *fb, int fill, uint16_t base) {
-  const int cy0 = (PANEL_H - BAR_LEN) / 2;
+  const int cy0 = (OSD_H - BAR_LEN) / 2;
   const int R = BAR_THICK / 2;
   // track: rounded dark pill
   for (int i = 0; i < BAR_LEN; i++) {
@@ -1308,7 +1364,7 @@ static void draw_scan_bar(uint16_t *fb) {
   bool found = s_scan_found > 0;
   if (found) s_scan_found--;
 
-  const int cy0 = (PANEL_H - BAR_LEN) / 2;
+  const int cy0 = (OSD_H - BAR_LEN) / 2;
   const int L = BAR_LEN - 2 * BAR_INS, gap = ALONG(5);
   int segw = tot > 1 ? (L - gap * (tot - 1)) / tot : 0;
   if (tot > 1 && segw >= ALONG(8)) {    // segmented: one pill per part
@@ -1961,7 +2017,7 @@ static void cam_stop(void) {
   s_paused = false;
   s_vp_on = false;
   s_vp_x = 0; s_vp_y = 0; s_vp_w = VP_W0; s_vp_h = VP_H0;
-  s_vp_lx = 0; s_vp_ly = 0; s_vp_lw = PANEL_H; s_vp_lh = PANEL_W;
+  s_vp_lx = 0; s_vp_ly = 0; s_vp_lw = OSD_H; s_vp_lh = OSD_W;
 }
 
 bool camera_scan_start(void *bus_v, void (*on_decode)(const char *, size_t)) {
@@ -1991,6 +2047,12 @@ bool camera_scan_start(void *bus_v, void (*on_decode)(const char *, size_t)) {
 #elif defined(KISS_BOARD_GUITION)
     int cw = (int)s_zoom_tab[0][0].bw;
     int ch = (int)s_zoom_tab[0][0].bh;
+#elif defined(KISS_BOARD_JC1060)
+    // The 4.3in's buffer, not this board's L0: the same sensor, so the same
+    // budget reads a code at the same resolution, and the 7in's L0 is nearly
+    // the whole sensor, two and a half times the pixels on every pass.
+    int cw = 480;
+    int ch = 728;
 #else
 #error "measured on each board's glass: add this board's value"
 #endif
