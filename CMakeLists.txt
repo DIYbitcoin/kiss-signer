@@ -37,6 +37,17 @@ if(NOT KISS_BOARD STREQUAL "guition")
     endif()
 endif()
 
+# The component manager asks the registry for newer versions on every
+# configure. dependencies.lock already fixes every version this build uses, so
+# the answer can only ever be advice -- except that the manager also reads the
+# `if:` rules of the newer versions it finds, and when one names a Kconfig
+# symbol our pinned components do not define it reruns configure until it
+# gives up with a FATAL_ERROR. esp_video 2.5.0 did exactly that on 2026-09-19
+# and every build of every commit here stopped at configure. What the registry
+# published today must not decide whether yesterday's tree builds. Set before
+# the include, which runs the manager, and inherited by the process it spawns.
+set(ENV{IDF_COMPONENT_CHECK_NEW_VERSION} 0)
+
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
 # The VERSION file, read ONCE. It becomes PROJECT_VER, which lands in the
