@@ -4,21 +4,26 @@
 droplet, hearts. Replaces the cartoon emoji fruit with realistic art."""
 import argparse
 import os
+import sys
 import numpy as np
 from PIL import Image, ImageFilter
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from boards import BOARDS, DESIGN_W, per_board
 
-# --board ws35 draws the same sprites at three fifths, the 3.5in canvas's
-# x scale (480 of 800), into main/sprites_ws35.c. The header is shared and
-# only written for the wide set. Every size floors the way SX() floors, so
-# main.c's SX(size) is the baked sprite's edge exactly.
+# --board <id> draws the same sprites at that board's x scale (boards.py):
+# three fifths on the 3.5in (480 of 800), 1.28 on the 7in (1024 of 800), into
+# main/sprites<suffix>.c. The header is shared and only written for the wide
+# set. Every size floors the way SX() floors, so main.c's SX(size) is the
+# baked sprite's edge exactly.
 _ap = argparse.ArgumentParser()
-_ap.add_argument("--board", choices=["guition", "ws35"], default="guition")
+_ap.add_argument("--board", choices=sorted(BOARDS), default="guition")
 BOARD = _ap.parse_args().board
-SUF = "_ws35" if BOARD == "ws35" else ""
+W = BOARDS[BOARD].w
+SUF = BOARDS[BOARD].suffix
 
 
 def sz(S):
-    return S * 3 // 5 if BOARD == "ws35" else S
+    return S * W // DESIGN_W
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PACK = os.path.join(ROOT, "assets/fruit-pack/Items")
@@ -209,27 +214,30 @@ _S = sz(16); _yy, _xx = np.mgrid[0:_S, 0:_S].astype(float)
 _d = np.sqrt((_xx - (_S - 1) / 2) ** 2 + (_yy - (_S - 1) / 2) ** 2) / (_S / 2)
 _al = (np.clip((0.94 - _d) / 0.14, 0, 1) * 255).astype(np.uint8)
 emit("droplet", Image.fromarray(np.dstack([np.full((_S, _S, 3), 255, np.uint8), _al]), "RGBA"))
-if BOARD == "ws35":
-    # Drawn at four times and scaled down: the heart is a hard-edged curve
-    # sampled on a pixel grid, and at 24 px the notch between its lobes fell
-    # between samples, so the 3.5in's hearts read as flat-topped shields.
-    emit("heart", heart(sz(40) * 4, [232, 60, 60]).resize((sz(40), sz(40)), Image.LANCZOS))
-    emit("heart_empty", heart(sz(40) * 4, [86, 56, 60]).resize((sz(40), sz(40)), Image.LANCZOS))
-else:
-    emit("heart", heart(sz(40), [232, 60, 60]))
-    emit("heart_empty", heart(sz(40), [86, 56, 60]))
+# How many times over the hearts are drawn before they are scaled down to
+# size. The heart is a hard-edged curve sampled on a pixel grid, and at the
+# 3.5in's 24 px the notch between its lobes fell between samples, so its
+# hearts read as flat-topped shields until they were drawn at four times.
+# The 4.3in's 40 px hearts were always drawn directly, and the 7in's 51 px
+# ones have more pixels for the notch, not fewer.
+HEART_OVER = per_board(BOARD, {"guition": 1, "ws35": 4, "jc1060": 1})
+for _nm, _col in (("heart", [232, 60, 60]), ("heart_empty", [86, 56, 60])):
+    _hi = heart(sz(40) * HEART_OVER, _col)
+    emit(_nm, _hi if HEART_OVER == 1 else _hi.resize((sz(40), sz(40)), Image.LANCZOS))
 
 h += ["", "#ifdef __cplusplus", "}", "#endif", ""]
 open(f"{OUT}/sprites{SUF}.c", "w").write("\n".join(c))
-if BOARD == "guition":
+if not SUF:
     open(f"{OUT}/sprites.h", "w").write("\n".join(h))
 print("bytes:", os.path.getsize(f"{OUT}/sprites{SUF}.c"))
 
-# verification sheet: whole fruit (top) + its cross-section (bottom), drawn at true relative sizes
-sheet = Image.new("RGBA", (len(ROSTER) * 122, 2 * 122 + 16), (18, 22, 28, 255))
+# verification sheet: whole fruit (top) + its cross-section (bottom), drawn at true relative sizes.
+# A cell is 122 px until the biggest fruit needs more: the 7in's pineapple is 143.
+CELL = max(122, max(sz(S) for *_, S in ROSTER) + 10)
+sheet = Image.new("RGBA", (len(ROSTER) * CELL, 2 * CELL + 16), (18, 22, 28, 255))
 for i, (name, efile, sec, S) in enumerate(ROSTER):
-    sheet.alpha_composite(whole_img(name, efile, sz(S)), (i * 122 + 8, 8 + (120 - sz(S)) // 2))
+    sheet.alpha_composite(whole_img(name, efile, sz(S)), (i * CELL + 8, 8 + (CELL - 2 - sz(S)) // 2))
     if sec is not None:
-        sheet.alpha_composite(sec(sz(S)), (i * 122 + 8, 130 + (120 - sz(S)) // 2))
+        sheet.alpha_composite(sec(sz(S)), (i * CELL + 8, CELL + 8 + (CELL - 2 - sz(S)) // 2))
 sheet.convert("RGB").save(f"/tmp/newfruit_sheet{SUF}.png")
 print("sheet saved")

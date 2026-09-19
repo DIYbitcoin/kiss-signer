@@ -10,39 +10,47 @@ Two independent visual systems:
   * STATUS light  — a Block/Verify/Warn safety guide, bottom-left. Green = ready / just
     saved, Yellow = default "go slow & verify", Red = stop · read · back up.
 
-    kiss_mock.py                 # the Guition: main/kiss_img.{c,h}, main/tile_lbls.{c,h}
-    kiss_mock.py --board ws35    # the Waveshare 3.5in: main/kiss_img_ws35.c only
+    kiss_mock.py                  # the Guition: main/kiss_img.{c,h}, main/tile_lbls.{c,h}
+    kiss_mock.py --board ws35     # the Waveshare 3.5in: main/kiss_img_ws35.c only
+    kiss_mock.py --board jc1060   # the Guition 7in: main/kiss_img_jc1060.c only
 
-The 3.5in file defines the same img_wallet against the same kiss_img.h, drawn
-at 480x320; main/CMakeLists.txt compiles one of the two into an image, never
-both. It gets no header and no label strips of its own: kiss_img.h is shared,
-and main.c takes only TILE_LBL_Y from tile_lbls.h, which the wide run writes.
-Bake whichever .c was written with tools/bake_art.py afterwards.
+Each other board's file defines the same img_wallet against the same
+kiss_img.h, drawn at its own canvas (480x320, 1024x600); main/CMakeLists.txt
+compiles one of them into an image, never two. None gets a header or label
+strips of its own: kiss_img.h is shared, and main.c takes only TILE_LBL_Y from
+tile_lbls.h, which the wide run writes. Bake whichever .c was written with
+tools/bake_art.py afterwards.
 """
 import argparse
 import os
+import sys
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from boards import BOARDS, DESIGN_W, DESIGN_H
 
 # THE ART IS DRAWN ONCE, ON THE WIDE CANVAS. Every length below is written for
-# 800x480, and a smaller board scales it here exactly as main/kiss_board.h
-# scales the live chrome that sits on top of it: X for an x or a width, Y for
-# a y or a height, integer floor, so the baked skeleton lands under the live
-# frames to the pixel. On the wide board both fold to the number itself, and
+# 800x480, and a board of any other size scales it here exactly as
+# main/kiss_board.h scales the live chrome that sits on top of it: X for an x
+# or a width, Y for a y or a height, integer floor, so the baked skeleton
+# lands under the live frames to the pixel. On the wide board both fold to the number itself, and
 # nothing there can move. A width is scaled apart from its position and the
 # edge is their sum, never the scaled sum. Square things (icons, dots, the
 # kiss mark, the grid pitch) take X on both axes, as the live frames do.
-# Strokes, blur and type step down by the y-scale (2/3 on the 3.5in), never
-# the x-scale (3/5), which would thin a 3px stroke to 1; type stops at 10px.
-DW, DH = 800, 480                      # the design canvas
-BOARDS = {"guition": (800, 480), "ws35": (480, 320)}
+# Strokes, blur and type step by the y-scale (2/3 on the 3.5in, 5/4 on the
+# 7in), never the x-scale (3/5), which would thin a 3px stroke to 1; type
+# stops at 10px.
+DW, DH = DESIGN_W, DESIGN_H            # the design canvas
 ap = argparse.ArgumentParser(description=__doc__,
                              formatter_class=argparse.RawDescriptionHelpFormatter)
 ap.add_argument("--board", choices=sorted(BOARDS), default="guition",
                 help="which board's canvas to draw on (default: guition)")
 ARGS = ap.parse_args()
-W, H = BOARDS[ARGS.board]
-SUFFIX = "" if ARGS.board == "guition" else "_" + ARGS.board
+W, H = BOARDS[ARGS.board].w, BOARDS[ARGS.board].h
+SUFFIX = BOARDS[ARGS.board].suffix
+# main.c's KISS_NARROW. It keys the live tiles, the chip and the KISS rule, so
+# the skeleton baked under them takes the same arm.
+NARROW = BOARDS[ARGS.board].narrow
 
 
 def X(v):
@@ -57,11 +65,11 @@ def TILE_X(i):
     """A home tile's left edge. The 3.5in's tiles are a little wider than three
     fifths (102 px, 8 px apart) so its 18 px tile words keep their margins; the
     firmware's HOME_TILE_X says the same numbers."""
-    return 24 + i * 110 if ARGS.board == "ws35" else X(50) + i * X(180)
+    return 24 + i * 110 if NARROW else X(50) + i * X(180)
 
 
 def TILE_W():
-    return 102 if ARGS.board == "ws35" else X(161)
+    return 102 if NARROW else X(161)
 
 
 def S(v):
@@ -171,12 +179,25 @@ KISS_MARK_POS = (X(210), Y(68) - KISS_MARK_SIZE // 2)
 BY = Y(DH - 46)  # bottom-row baseline for the status / theme indicators
 
 
-def live_boxes_ws35(d, struct):
-    """The 3.5in's corner brackets and KISS rule, drawn in the live objects' own
+# The KISS rule's top row, as main.c places the live one: 64 on a narrow
+# board, where the rule moved two rows down to sit between the lifted word and
+# the lowered tagline, and SY(94) on a wide one.
+RULE_Y = 64 if NARROW else Y(94)
+
+
+def live_boxes(d, struct):
+    """The corner brackets and the KISS rule, drawn in the live objects' own
     boxes (main.c: the corners at SX(24)/SX(744) by SY(24)/SY(424), SX(32)
-    square with 3 px rims; the rule at SX(46), 64, SX(143) by 3). Scaled from
-    the wide strokes, the bottom brackets baked two rows under the live ones and
-    read doubled, and the rule baked where it no longer sits."""
+    square with 3 px rims; the rule at SX(46), RULE_Y, SX(143) by 3).
+
+    Every canvas but the design one draws them this way. The strokes in
+    accent_art are the 4.3in's committed picture, a row off its live boxes in
+    places, and they stay, because that picture is held byte for byte. Scaled
+    onto any other canvas they drift further: on the 3.5in the bottom brackets
+    baked two rows under the live ones and read doubled and the rule baked
+    where it no longer sits, and on the 7in the rule baked two rows off, every
+    bracket's level arm one row off and the left brackets' upright arms two
+    columns in."""
     k = X(32)
     for bx, by, dx, dy in [(X(24), Y(24), 1, 1), (X(744), Y(24), -1, 1),
                            (X(24), Y(424), 1, -1), (X(744), Y(424), -1, -1)]:
@@ -184,7 +205,7 @@ def live_boxes_ws35(d, struct):
         vx = bx if dx > 0 else bx + k - 3
         d.rectangle([bx, hy, bx + k - 1, hy + 2], fill=struct)
         d.rectangle([vx, by, vx + 2, by + k - 1], fill=struct)
-    d.rectangle([X(46), 64, X(46) + X(143) - 1, 66], fill=struct)
+    d.rectangle([X(46), RULE_Y, X(46) + X(143) - 1, RULE_Y + 2], fill=struct)
 
 
 def accent_art(d, struct, theme_col, status_col, status=True, parts="all",
@@ -200,8 +221,8 @@ def accent_art(d, struct, theme_col, status_col, status=True, parts="all",
     theme_dot=False skips the baked dot+name (live indicator owns that corner)."""
     tw = 160
     if parts in ("all", "frames"):
-        if ARGS.board == "ws35":
-            live_boxes_ws35(d, struct)
+        if (W, H) != (DW, DH):
+            live_boxes(d, struct)
         else:
             for (ox, oy, dx, dy) in [(26, 26, 1, 1), (DW - 26, 26, -1, 1), (26, DH - 26, 1, -1), (DW - 26, DH - 26, -1, -1)]:
                 d.line([(X(ox), Y(oy)), (X(ox) + dx * X(26), Y(oy))], fill=struct, width=S(3))
@@ -211,7 +232,7 @@ def accent_art(d, struct, theme_col, status_col, status=True, parts="all",
             # inclusive right edge is the scaled position plus the scaled size less
             # one, never the scaled sum, which can land a pixel past the live frame.
             d.line([(X(46), Y(96)), (X(46) + X(143) - 1, Y(96))], fill=struct, width=S(3))
-        if ARGS.board == "ws35":
+        if NARROW:
             # the firmware's HOME_CHIP_* box: wider for its 23 px code
             d.rounded_rectangle([300, 22, 300 + 140 - 1, 22 + 36 - 1],
                                 X(10), outline=struct, width=S(2))
@@ -225,7 +246,7 @@ def accent_art(d, struct, theme_col, status_col, status=True, parts="all",
     if parts in ("all", "icons"):
         for i in range(4):
             x0 = TILE_X(i)
-            cx = x0 + TILE_W() / 2 if ARGS.board == "ws35" else x0 + X(tw) / 2
+            cx = x0 + TILE_W() / 2 if NARROW else x0 + X(tw) / 2
             ICONS[i][2](d, cx, Y(212), X(46), struct)
     # status light pill (bottom-left) — preview sheet only, see status=False
     if status:
@@ -290,8 +311,8 @@ def render(active, status="caution", fp=None, grid_a=44, bake_chip=True,
     # four below, and main.c drops the rule between them two: the rule sat 2 px
     # under the word and 3 px over the tagline. It keeps 6 px from each now,
     # and the tagline's descenders still end 13 px above the tiles.
-    d.text((X(44), 27 if ARGS.board == "ws35" else Y(44)), "KISS", font=font(44), fill=INK)
-    if ARGS.board == "ws35":
+    d.text((X(44), 27 if NARROW else Y(44)), "KISS", font=font(44), fill=INK)
+    if NARROW:
         # The 3.5in draws the tagline in the firmware's own mono face at the
         # smallest size its screens set text at, and a step brighter: scaled
         # like the rest it was 10 px Menlo in the muted grey, which the bench

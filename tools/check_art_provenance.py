@@ -29,7 +29,8 @@ That is the whole claim, and it is the claim that was missing.
 
 SHARED SOURCES COUNT. scene.py draws the backdrop for both menu_mock.py and
 gameover_mock.py, so it is part of both their source hashes: a change there
-moves two pictures and neither generator's own file would show it.
+moves two pictures and neither generator's own file would show it. boards.py,
+the table of boards every --board generator reads, counts the same way.
 
 A GENERATOR NOT LISTED HERE IS A FINDING. That is the class fix rather than
 the instance: six scripts were writing into main/ with nothing watching them
@@ -56,17 +57,21 @@ MANIFEST = GENDIR / "provenance.json"
 # needs numpy to tell you numpy is missing helps nobody. A generator whose
 # list is empty writes only to /tmp or is a shared module.
 OUTPUTS = {
-    "convert_fruit.py": [],
+    "boards.py":        [],
+    "convert_fruit.py": ["main/sprites.c", "main/sprites.h",
+                         "main/sprites_ws35.c", "main/sprites_jc1060.c"],
     "flag_imgs.py":     ["main/flag_imgs.c", "main/flag_imgs.h"],
     "game_bg.py":       ["main/game_bg.c", "main/game_bg.h"],
     "gameover_mock.py": ["main/gameover_img.c", "main/gameover_img.h",
-                         "main/gameover_img_ws35.c"],
+                         "main/gameover_img_ws35.c",
+                         "main/gameover_img_jc1060.c"],
     "kiss_mock.py":     ["main/kiss_img.c", "main/kiss_img.h",
                          "main/tile_lbls.c", "main/tile_lbls.h",
-                         "main/kiss_img_ws35.c"],
+                         "main/kiss_img_ws35.c", "main/kiss_img_jc1060.c"],
     "menu_mock.py":     ["main/menu_img.c", "main/menu_img.h",
                          "main/menu_logo.c", "main/menu_logo.h",
-                         "main/menu_img_ws35.c", "main/menu_logo_ws35.c"],
+                         "main/menu_img_ws35.c", "main/menu_logo_ws35.c",
+                         "main/menu_img_jc1060.c", "main/menu_logo_jc1060.c"],
     "og_card.py":       ["docs/media/og-preview.png"],
     "scene.py":         [],
 }
@@ -83,8 +88,9 @@ def sha(path: Path) -> str:
 def siblings(gen: Path, gendir: Path) -> list:
     """Modules this generator imports from its own directory, sorted.
 
-    One level deep on purpose: the only shared module here is scene.py, and
-    a transitive walk would be machinery with nothing to walk.
+    One level deep on purpose: the shared modules here, scene.py and
+    boards.py, import nothing from this directory themselves, and a
+    transitive walk would be machinery with nothing to walk.
     """
     try:
         tree = ast.parse(gen.read_text(encoding="utf-8"))

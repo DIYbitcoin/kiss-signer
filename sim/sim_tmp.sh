@@ -48,8 +48,8 @@ case "$KISS_BOARD" in
              KISS_SPRITES_SRC="main/sprites_ws35.c"
              KISS_FONT_DIR="main/fonts_ws35" ;;
     jc1060)  KISS_BOARD_CFLAGS="-DKISS_BOARD_JC1060=1"
-             KISS_ART_SRCS="main/menu_img.c main/menu_logo.c main/gameover_img.c main/kiss_img.c"
-             KISS_SPRITES_SRC="main/sprites.c"
+             KISS_ART_SRCS="main/menu_img_jc1060.c main/menu_logo_jc1060.c main/gameover_img_jc1060.c main/kiss_img_jc1060.c"
+             KISS_SPRITES_SRC="main/sprites_jc1060.c"
              KISS_FONT_DIR="" ;;
     *) echo "sim: KISS_BOARD must be one of: $KISS_SIM_BOARD_IDS (got '$KISS_BOARD')" >&2; exit 1 ;;
 esac

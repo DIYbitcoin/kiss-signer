@@ -17,9 +17,10 @@ From the repo root, with the image venv on PATH (numpy + pillow):
 python3 assets/generators/game_bg.py                             # -> main/game_bg.{c,h}   (stdlib only, no venv)
 ```
 
-The 3.5in board's set is the same pictures at its own size (480x320, sprites
-at three fifths), written next to the wide files and compiled instead of them
-when the board is `ws35`; the headers are shared:
+Every other board's set is the same pictures at its own size, written next to
+the wide files and compiled instead of them when the build is for that board;
+the headers are shared. `assets/generators/boards.py` lists the boards and
+their canvases. The 3.5in's is 480x320, sprites at three fifths:
 
 ```
 /tmp/spritevenv/bin/python assets/generators/convert_fruit.py --board ws35   # -> main/sprites_ws35.c
@@ -27,6 +28,22 @@ when the board is `ws35`; the headers are shared:
 /tmp/spritevenv/bin/python assets/generators/gameover_mock.py --board ws35   # -> main/gameover_img_ws35.c
 /tmp/spritevenv/bin/python assets/generators/kiss_mock.py --board ws35       # -> main/kiss_img_ws35.c
 ```
+
+The 7in's is 1024x600, sprites at 1.28 times:
+
+```
+/tmp/spritevenv/bin/python assets/generators/convert_fruit.py --board jc1060   # -> main/sprites_jc1060.c
+/tmp/spritevenv/bin/python assets/generators/menu_mock.py --board jc1060       # -> main/menu_img_jc1060.c, main/menu_logo_jc1060.c
+/tmp/spritevenv/bin/python assets/generators/gameover_mock.py --board jc1060   # -> main/gameover_img_jc1060.c
+/tmp/spritevenv/bin/python assets/generators/kiss_mock.py --board jc1060       # -> main/kiss_img_jc1060.c
+```
+
+Then bake what was written, naming the files, so nothing else is touched:
+`python3 tools/bake_art.py main/sprites_jc1060.c main/menu_img_jc1060.c ...`.
+A board's run writes only its own files. Record the result with
+`python3 tools/check_art_provenance.py --update`, after checking that the
+diff it makes to `assets/generators/provenance.json` moves no other board's
+hashes.
 
 Each generator resolves paths relative to its own location, so it works from any checkout.
 Always eyeball the `/tmp/*_mock.png` previews (and `/tmp/newfruit_sheet.png`) before flashing.
@@ -37,6 +54,8 @@ Always eyeball the `/tmp/*_mock.png` previews (and `/tmp/newfruit_sheet.png`) be
 - `generators/menu_mock.py` — baked 480x800 menu scene (RGB565). Uses `emoji/` fruit accents.
 - `generators/gameover_mock.py` — baked game-over scene + NEW BEST ribbon. Uses `emoji/` accents.
 - `generators/scene.py` — the shared synthwave backdrop both mock generators import. Not run directly.
+- `generators/boards.py` — the boards the art is drawn for and each one's canvas, which every
+  `--board` generator reads. Not run directly.
 - `generators/kiss_mock.py` — baked 800x480 home screen (RGB565) plus the tile labels beside it.
   Uses `twemoji/1f48b.png`.
 - `generators/flag_imgs.py` — one RGB565A8 flag per language that has one, and the lookup table in

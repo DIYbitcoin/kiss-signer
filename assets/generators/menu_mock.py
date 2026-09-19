@@ -8,11 +8,12 @@ their drop SHADOWS, and the letters land exactly on them. The screensaver backdr
 (img_saver) keeps the full logo baked -- it never animates there.
 
 `--board ws35` draws the same picture on the 3.5in board's 480x320 canvas and writes
-main/menu_img_ws35.c + main/menu_logo_ws35.c instead: the same symbols, sharing the
-wide files' headers, because only one board's files are ever compiled in. Every length
-below is written in 800x480 design units and goes through X()/Y(), the same floor
-scaling main/kiss_board.h applies to the live chrome with SX()/SY(), so the baked
-skeleton lands under the live frames on both boards."""
+main/menu_img_ws35.c + main/menu_logo_ws35.c instead, and `--board jc1060` draws it on
+the 7in's 1024x600 into the _jc1060 pair: the same symbols, sharing the wide files'
+headers, because only one board's files are ever compiled in. Every length below is
+written in 800x480 design units and goes through X()/Y(), the same floor scaling
+main/kiss_board.h applies to the live chrome with SX()/SY(), so the baked skeleton
+lands under the live frames on every board (boards.py lists them)."""
 import argparse
 import os
 import sys
@@ -20,13 +21,15 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from scene import synthwave_scene, fill_holes
+from boards import BOARDS, per_board
 
 ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-ap.add_argument("--board", choices=("guition", "ws35"), default="guition",
-                help="guition: 800x480 (default); ws35: 480x320, writes the *_ws35.c files")
+ap.add_argument("--board", choices=sorted(BOARDS), default="guition",
+                help="guition: 800x480 (default); ws35: 480x320; jc1060: 1024x600. "
+                     "A board other than guition writes its own suffixed .c files")
 BOARD = ap.parse_args().board
-W, H = (480, 320) if BOARD == "ws35" else (800, 480)
-SUF = "_ws35" if BOARD == "ws35" else ""   # the 3.5in board's files sit beside the wide ones
+W, H = BOARDS[BOARD].w, BOARDS[BOARD].h
+SUF = BOARDS[BOARD].suffix   # a board's own files sit beside the wide ones
 CX = W // 2
 
 
@@ -41,7 +44,7 @@ def Y(v):
 
 
 def FS(v):
-    """A font size: 2/3 on the 3.5in board, never under 10 px."""
+    """A font size: the vertical scale (2/3 on the 3.5in, 5/4 on the 7in), never under 10 px."""
     return max(10, Y(v))
 
 
@@ -70,7 +73,10 @@ def seal_counters(m):
     """The 3.5in's plate, with every pixel the outside cannot reach made solid.
     fill_holes fills only the enclosed pixels under half coverage; at 2/3 scale
     the counters of A, D and R keep a scatter of part-covered pixels, and the
-    drop shadow showed through them as dark specks and a grey seam in the D."""
+    drop shadow showed through them as dark specks and a grey seam in the D.
+    Scaled up to the 7in the same pixels drew a grey outline inside the A and
+    the D, and its plates are sealed too. The 4.3in's plates stay fill_holes'
+    alone, because its picture is held byte for byte (SEAL below)."""
     a = np.array(m)
     free = a < 255
     reach = np.zeros_like(free)
@@ -88,6 +94,10 @@ def seal_counters(m):
         reach = grow
     a[free & ~reach] = 255
     return Image.fromarray(a)
+
+
+# Whether the logo plates are sealed as well as filled: see seal_counters.
+SEAL = per_board(BOARD, {"guition": False, "ws35": True, "jc1060": True})
 
 
 # ---- sky gradient (sunset), vertical ----
@@ -130,7 +140,7 @@ def draw_logo(dst, txt, size, cy, top, bot, shadow_only=False):
     plate = Image.new("L", (W, PAD), 0)
     ImageDraw.Draw(plate).text((x, y), txt, font=f, fill=255, stroke_width=SW(9), stroke_fill=255)
     plate = fill_holes(plate)
-    if BOARD == "ws35":
+    if SEAL:
         plate = seal_counters(plate)
     tmp = Image.new("RGBA", (W, PAD), (0, 0, 0, 0))
     sh = Image.new("RGBA", (W, PAD), (0, 0, 0, 0))
@@ -159,7 +169,7 @@ def letter_sprites(txt, size, cy, top, bot):
         p = Image.new("L", (W, PAD), 0)
         ImageDraw.Draw(p).text((x + adv, y), ch, font=f, fill=255, stroke_width=SW(9), stroke_fill=255)
         p = fill_holes(p)
-        plates.append(seal_counters(p) if BOARD == "ws35" else p)
+        plates.append(seal_counters(p) if SEAL else p)
     out = []
     for i, ch in enumerate(txt):
         adv = d.textlength(txt[:i], font=f)
@@ -183,15 +193,21 @@ def letter_sprites(txt, size, cy, top, bot):
     return out
 
 
-L1 = ("FRUIT", 92, 86, (255, 196, 64), (244, 96, 40))
-L2 = ("ISLAND", 82, 166, (255, 196, 64), (244, 96, 40))
-if BOARD == "ws35":
-    # Type scales by 2/3 here but the width by 3/5, so the scaled logo came out
-    # wider than its place: its rim sat 3 px under the top edge, FRUIT's rim ran
-    # into ISLAND's, and the cherries and grapes touched the I and the D. A step
-    # smaller, 9 px off the top and 4 px between the two words' rims.
-    L1 = ("FRUIT", 81, 96, (255, 196, 64), (244, 96, 40))
-    L2 = ("ISLAND", 72, 182, (255, 196, 64), (244, 96, 40))
+# The two logo lines, (word, design size, design centre y, top, bottom colour).
+# The 3.5in's type scales by 2/3 but its width by 3/5, so the scaled logo came
+# out wider than its place: its rim sat 3 px under the top edge, FRUIT's rim ran
+# into ISLAND's, and the cherries and grapes touched the I and the D. There it
+# is a step smaller, 9 px off the top and 4 px between the two words' rims. The
+# 7in scales 5/4 down and 1.28 across, so the wide rows have room to spare, and
+# it starts from them until its own glass says otherwise.
+L1, L2 = per_board(BOARD, {
+    "guition": (("FRUIT", 92, 86, (255, 196, 64), (244, 96, 40)),
+                ("ISLAND", 82, 166, (255, 196, 64), (244, 96, 40))),
+    "ws35": (("FRUIT", 81, 96, (255, 196, 64), (244, 96, 40)),
+             ("ISLAND", 72, 182, (255, 196, 64), (244, 96, 40))),
+    "jc1060": (("FRUIT", 92, 86, (255, 196, 64), (244, 96, 40)),
+               ("ISLAND", 82, 166, (255, 196, 64), (244, 96, 40))),
+})
 
 # ---- screensaver backdrop: scene + FULL logo, no UI chrome ----
 logo_full = img.copy()
@@ -207,13 +223,18 @@ letters = letter_sprites(*L1) + letter_sprites(*L2)
 
 # ---- fruit accents flanking the logo: live sprites too (hop in after the letters,
 # then float gently), so the backdrop stays bare here ----
-FRUIT_AT = [("cherries", (150, 64), 92), ("grapes", (560, 60), 90),
-            ("watermelon", (172, 176), 80), ("strawberry", (566, 184), 76)]
-if BOARD == "ws35":
-    # Out from the smaller logo and down with it: over their whole idle drift
-    # (8 px up, 4 px either side) the cherries and grapes keep 13 px from its rim.
-    FRUIT_AT = [("cherries", (132, 70), 92), ("grapes", (566, 66), 90),
-                ("watermelon", (160, 184), 80), ("strawberry", (572, 190), 76)]
+# (emoji, design position, design size). The 3.5in's sit out from its smaller
+# logo and down with it: over their whole idle drift (8 px up, 4 px either
+# side) the cherries and grapes keep 13 px from its rim. The 7in's logo is the
+# wide one scaled, and so are its fruit.
+FRUIT_AT = per_board(BOARD, {
+    "guition": [("cherries", (150, 64), 92), ("grapes", (560, 60), 90),
+                ("watermelon", (172, 176), 80), ("strawberry", (566, 184), 76)],
+    "ws35": [("cherries", (132, 70), 92), ("grapes", (566, 66), 90),
+             ("watermelon", (160, 184), 80), ("strawberry", (572, 190), 76)],
+    "jc1060": [("cherries", (150, 64), 92), ("grapes", (560, 60), 90),
+               ("watermelon", (172, 176), 80), ("strawberry", (566, 184), 76)],
+})
 fruits = []
 for nm, pos, sz in FRUIT_AT:
     fr = Image.open(f"{EMO}/{nm}.png").convert("RGBA")
@@ -282,8 +303,8 @@ def rgb565a8(im):
     return np.concatenate([px, a[..., 3].astype(np.uint8).reshape(-1)])
 
 
-# The headers belong to the wide files: the 3.5in files define the same symbols and
-# include the same headers, so a board run writes only its two .c files.
+# The headers belong to the wide files: every other board's files define the same
+# symbols and include the same headers, so a board run writes only its two .c files.
 OUT = os.path.join(ROOT, "main")
 with open(OUT + "/menu_img%s.c" % SUF, "w") as f:
     f.write('#include "lvgl.h"\n\n')

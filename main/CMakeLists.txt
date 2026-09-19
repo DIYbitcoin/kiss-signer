@@ -40,10 +40,10 @@ elseif(CONFIG_KISS_BOARD_JC1060)
     # No camera path is written for this board's landscape framebuffer yet:
     # camera_none.c answers camera_spike.h with refusals until it is.
     set(KISS_CAMERA_SRC "camera_none.c")
-    # The 4.3in's art and faces until this board's own are drawn. The screens
-    # scale to 1024x600 already; the baked backdrops and sprites do not.
-    set(KISS_ART_SRCS "menu_img.c" "menu_logo.c" "gameover_img.c" "game_bg.c" "kiss_img.c")
-    set(KISS_SPRITES_SRC "sprites.c")
+    # The same pictures drawn at 1024x600 by the same generators (--board
+    # jc1060), defining the same symbols.
+    set(KISS_ART_SRCS "menu_img_jc1060.c" "menu_logo_jc1060.c" "gameover_img_jc1060.c" "game_bg.c" "kiss_img_jc1060.c")
+    set(KISS_SPRITES_SRC "sprites_jc1060.c")
     set(KISS_F_LAT14 "font_kiss_lat14.c")
     set(KISS_F_LAT18 "font_kiss_lat18.c")
     set(KISS_F_LAT23 "font_kiss_lat23.c")

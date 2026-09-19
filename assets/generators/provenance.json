@@ -1,10 +1,23 @@
 {
-  "convert_fruit.py": {
-    "source_sha256": "fa649a46e5f7cba98a007dae99ca0b90341072770831381f659dc9492ff4b158",
+  "boards.py": {
+    "source_sha256": "794f8a59bacf34503b6f8f7f7142f0bf0d01498bf4f528a2803ee54a2b4e2433",
     "sources": [
-      "convert_fruit.py"
+      "boards.py"
     ],
     "writes": {}
+  },
+  "convert_fruit.py": {
+    "source_sha256": "8a43f7890f88c55506a2bc3aafb49d9b345f53b556a3ad62b936ba0918c4b33d",
+    "sources": [
+      "convert_fruit.py",
+      "boards.py"
+    ],
+    "writes": {
+      "main/sprites.c": "3de01510ac4fd09ac9bf994a1dd504548688ba0c20c6ede132275db7c21d9a20",
+      "main/sprites.h": "46ea3eec29ada2fd92751de70497ab09d8b289051d1846fdbe0a9c1f82df219a",
+      "main/sprites_jc1060.c": "4321991922c42ed00d718643f2b6a2b51c0b9cca3fef85be9274977d8246a844",
+      "main/sprites_ws35.c": "001467149d726be9a7d09c8f1e4f9dd03462f4bf81c6f2d1c6a5bc6a00bf5b6f"
+    }
   },
   "flag_imgs.py": {
     "source_sha256": "eb4d173334c010f327b971b900a1506aab00d16cdd04052f33776a319a1c7e42",
@@ -27,42 +40,49 @@
     }
   },
   "gameover_mock.py": {
-    "source_sha256": "a18637ca83cbfc5b73f0eac2d9610f69844970979bd94861fea12f4e6ab740f3",
+    "source_sha256": "dca63cdd36db3349f4296c79125c0cc81e6708cb58eeae55e61decea4b13539c",
     "sources": [
       "gameover_mock.py",
+      "boards.py",
       "scene.py"
     ],
     "writes": {
       "main/gameover_img.c": "21f91049de4e51e07ba17bfffda0908c5d8ef5092c51e8d39d39640d4105cd38",
       "main/gameover_img.h": "ba72281f340a08b5cbfbca20089b5f4ec51e96f4b8c97c9ac97adcc1370ebd89",
+      "main/gameover_img_jc1060.c": "7b91d9403a98aed25d648c6fd274f34f683294fc0a598ac66c7a06c6f7a7e323",
       "main/gameover_img_ws35.c": "b154f0c77f9daf4cc9d2e88fdfdbf0ffc25b16cd703ae4933959ffd484ecb518"
     }
   },
   "kiss_mock.py": {
-    "source_sha256": "c981f5b88c7b03140cc175f8d8e98ede141f28f054f1ba0a06b2c09d08fad27d",
+    "source_sha256": "9b1a3f5e62406fa08f67daf4a65a9e354a44913a0acede49b8ffcaca26590011",
     "sources": [
-      "kiss_mock.py"
+      "kiss_mock.py",
+      "boards.py"
     ],
     "writes": {
       "main/kiss_img.c": "21bf174cfcea26a9b657c83cf90eb1b246fc897b780ffb2e58fc7cbda2baaa2b",
       "main/kiss_img.h": "14b01ecc19dbef89407e645700507da1b45281edd4383f185c84a931eb91e901",
+      "main/kiss_img_jc1060.c": "c4a68c4b01f92f62e9b9416bd085cb729a68695f11313e97dd597b1f164faa7b",
       "main/kiss_img_ws35.c": "0f66ba8eaf6d29398d934a757d51bfec27d66e229870f0aa2564606aebc99424",
       "main/tile_lbls.c": "1441b0ae70038a981d45f094cc5958677184097b0443fdcf08d0525d5d4a7f33",
       "main/tile_lbls.h": "e1a9c650a1243c3c5485fc302621abe45daded58612a356c6fc4da4b77dfa6c3"
     }
   },
   "menu_mock.py": {
-    "source_sha256": "e98accd038336b68d61924f3a242e0b43c098d7af5ffb1b77ceb5a472aab72ed",
+    "source_sha256": "eb0118ebe395a0814fe3a507818f7b6f79dc28a4c3be8ad281c9cbb9f4650c24",
     "sources": [
       "menu_mock.py",
+      "boards.py",
       "scene.py"
     ],
     "writes": {
       "main/menu_img.c": "1764994d27745516f12b35dc7cb7c9e42656d5a56085904eaafe556039eb7f46",
       "main/menu_img.h": "dc02a5da631e52d7f7fa358f78512f85a6c60c1a481afb26b3c2bac7b3b018c8",
+      "main/menu_img_jc1060.c": "7bc3610afeb3f8d59eb64770b5a028c48a74d89df45ad7c6702c0e9f63362ef2",
       "main/menu_img_ws35.c": "0627ec082364f924702a743739463a0d587dd5ab6f39ea0da41071c835ef0afc",
       "main/menu_logo.c": "a81e27b824ed8da10d9257c8c81d4babd0f50b64290bdb3e91d6c7bb62fba831",
       "main/menu_logo.h": "07235df5c402005f77c76d40f03a99d497056d8176711501e95a446a602b0318",
+      "main/menu_logo_jc1060.c": "1d569900879de1a1997f0414110c098f970a840eec3e88197c32d81fa4e860e4",
       "main/menu_logo_ws35.c": "112e4b05fd3b5ebd46a6cd9c5c2b1bd7714b00c33b62d226e131bc7ee78cfd69"
     }
   },

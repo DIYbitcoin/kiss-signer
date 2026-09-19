@@ -5,12 +5,13 @@
 Dynamic score/best numbers are overlaid as LVGL labels; card/label coords stay in sync with
 show_game_over() in main.c (over_lbl y=240, best y=316, newbest y=128).
 
-Two boards, one drawing. Every length below is the wide 800x480 number and X()/Y()
+Every board, one drawing. Every length below is the wide 800x480 number and X()/Y()
 floor it onto the canvas exactly as SX()/SY() in main/kiss_board.h do, so the baked
-card, pill and ribbon sit under the live labels and hit boxes on either board.
-`--board ws35` draws the same picture at 480x320 into main/gameover_img_ws35.c,
-which defines the same symbols under the wide header; without the flag the output
-is the wide file, byte for byte."""
+card, pill and ribbon sit under the live labels and hit boxes on each board.
+`--board ws35` draws the same picture at 480x320 into main/gameover_img_ws35.c, and
+`--board jc1060` at 1024x600 into main/gameover_img_jc1060.c; each defines the same
+symbols under the wide header. Without the flag the output is the wide file, byte
+for byte. boards.py lists the boards."""
 import argparse
 import os
 import sys
@@ -18,14 +19,19 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from scene import synthwave_scene, fill_holes
+from boards import BOARDS, DESIGN_W, DESIGN_H, per_board
 
 ap = argparse.ArgumentParser(description="GAME OVER backdrop and NEW BEST ribbon")
-ap.add_argument("--board", choices=["guition", "ws35"], default="guition",
-                help="guition draws 800x480 (default); ws35 draws 480x320")
+ap.add_argument("--board", choices=sorted(BOARDS), default="guition",
+                help="guition draws 800x480 (default); ws35 draws 480x320; "
+                     "jc1060 draws 1024x600")
 BOARD = ap.parse_args().board
-DW, DH = 800, 480                        # the design canvas every number below is written for
-W, H = (480, 320) if BOARD == "ws35" else (DW, DH)
-SUFFIX = "_ws35" if BOARD == "ws35" else ""
+DW, DH = DESIGN_W, DESIGN_H              # the design canvas every number below is written for
+W, H = BOARDS[BOARD].w, BOARDS[BOARD].h
+SUFFIX = BOARDS[BOARD].suffix
+# main.c's KISS_NARROW: the card's live rows (OVER_*) are pixels on a narrow
+# board and scaled design numbers on a wide one, and the card follows them.
+NARROW = BOARDS[BOARD].narrow
 CX = W // 2
 ROUND = "/System/Library/Fonts/Supplemental/Arial Rounded Bold.ttf"
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -69,7 +75,9 @@ def seal_counters(m):
     """The 3.5in's title plate, with every pixel the outside cannot reach made
     solid. fill_holes fills only the enclosed pixels under half coverage; at 2/3
     scale the O kept a ring of part-covered pixels and the shadow drew through
-    it as a dotted ellipse inside the letter."""
+    it as a dotted ellipse inside the letter. Scaled up to the 7in the O drew
+    the same ellipse, and its plate is sealed too. The 4.3in's plate stays
+    fill_holes' alone, because its picture is held byte for byte (SEAL below)."""
     a = np.array(m)
     free = a < 255
     reach = np.zeros_like(free)
@@ -87,6 +95,10 @@ def seal_counters(m):
         reach = grow
     a[free & ~reach] = 255
     return Image.fromarray(a)
+
+
+# Whether the title plate is sealed as well as filled: see seal_counters.
+SEAL = per_board(BOARD, {"guition": False, "ws35": True, "jc1060": True})
 
 
 # ---- synthwave scene (same hero as the menu), blurred + dimmed so the card pops ----
@@ -123,7 +135,7 @@ def logo_line(txt, size, cy, top, bot):
     plate = Image.new("L", (W, PAD), 0)
     ImageDraw.Draw(plate).text((x, y), txt, font=f, fill=255, stroke_width=LW(9), stroke_fill=255)
     plate = fill_holes(plate)
-    if BOARD == "ws35":
+    if SEAL:
         plate = seal_counters(plate)
     sh = Image.new("RGBA", (W, PAD), (0, 0, 0, 0))
     sh.paste((0, 0, 0, 160), (0, Y(7)), plate)
@@ -137,18 +149,18 @@ def logo_line(txt, size, cy, top, bot):
     img.alpha_composite(tmp, (0, Y(cy) - Y(100)))
 
 
-if BOARD == "ws35":
-    # Type scales by 2/3 and the width by 3/5, so the scaled title ran 6 px into
-    # the MENU pill and its rim sat 4 px under the top edge. 40 px here, its rim
-    # 8 px down, ending 14 px short of the pill.
-    logo_line("GAME OVER", 60, 80, (255, 209, 96), (231, 116, 44))
-else:
-    logo_line("GAME OVER", 66, 82, (255, 209, 96), (231, 116, 44))  # single line: fits landscape, no top clip
+# The title's design size and centre y. The 3.5in's type scales by 2/3 and its
+# width by 3/5, so the scaled title ran 6 px into the MENU pill and its rim sat
+# 4 px under the top edge; there it is 40 px, its rim 8 px down, ending 14 px
+# short of the pill. The 7in starts from the wide row: one line fits landscape
+# with no top clip, and its type scales less than its width does.
+TITLE = per_board(BOARD, {"guition": (66, 82), "ws35": (60, 80), "jc1060": (66, 82)})
+logo_line("GAME OVER", *TITLE, (255, 209, 96), (231, 116, 44))
 
 # ---- score card (frame + SCORE label + divider; numbers overlaid at runtime) ----
 card = Image.new("RGBA", (W, H), (0, 0, 0, 0)); cd = ImageDraw.Draw(card)
 x0, y0, x1, y1 = CX - X(165), Y(202), CX + X(165), Y(352)
-if BOARD == "ws35":
+if NARROW:
     # The card's rows in pixels, one stack with main.c's OVER_* numbers: SCORE,
     # the score in Montserrat 40 (digits 153..181), the rule at 188, BEST in
     # Montserrat 28 (195..215). Scaled, the score sat on the rule and BEST ran
@@ -160,7 +172,7 @@ card = Image.alpha_composite(card, sh.filter(ImageFilter.GaussianBlur(BL(7)))); 
 cd.rounded_rectangle([x0, y0, x1, y1], X(28), fill=(30, 22, 18, 235), outline=(236, 184, 84), width=LW(4))
 fs = ImageFont.truetype(ROUND, PT(28))
 bb = cd.textbbox((0, 0), "SCORE", font=fs, stroke_width=LW(2))
-if BOARD == "ws35":
+if NARROW:
     cd.text(((W - (bb[2] - bb[0])) / 2, y0 + 8 - bb[1]), "SCORE", font=fs, fill=(236, 200, 120), stroke_width=LW(2), stroke_fill=(0, 0, 0))
     cd.line([x0 + X(44), 188, x1 - X(44), 188], fill=(236, 184, 84, 140), width=LW(2))
 else:
@@ -182,22 +194,28 @@ bd.text(((W - (tb[2] - tb[0])) / 2, by0 + Y(14)), "PLAY AGAIN", font=fb, fill=(2
 img.alpha_composite(btn)
 
 # ---- fruit accents flanking the title (cherries nudged clear of the MENU pill) ----
-ACCENTS = [("watermelon", (150, 56), 90), ("cherries", (545, 96), 88)]
-if BOARD == "ws35":
-    # Off the title, one each side of the ribbon: the melon sat on the G, and
-    # the cherries now keep 19 px under the MENU pill and 24 off the ribbon.
-    ACCENTS = [("watermelon", (144, 100), 90), ("cherries", (568, 96), 88)]
+# (emoji, design position, design size). The 3.5in's are off its title, one
+# each side of the ribbon: the melon sat on the G, and the cherries there keep
+# 19 px under the MENU pill and 24 off the ribbon. The 7in's start as the wide ones.
+ACCENTS = per_board(BOARD, {
+    "guition": [("watermelon", (150, 56), 90), ("cherries", (545, 96), 88)],
+    "ws35": [("watermelon", (144, 100), 90), ("cherries", (568, 96), 88)],
+    "jc1060": [("watermelon", (150, 56), 90), ("cherries", (545, 96), 88)],
+})
 for nm, pos, sz in ACCENTS:
     fr = Image.open(f"{EMO}/{nm}.png").convert("RGBA"); fr.thumbnail((X(sz), X(sz)), Image.LANCZOS)
     img.alpha_composite(fr, (X(pos[0]), Y(pos[1])))
 
 # ---- MENU button (top-right, card style; inset for panel overscan) ----
 # hit region lives in main.c game_tick ST_OVER tap handling -- keep in sync
-mx0, my0, mx1, my1 = X(612), Y(30), X(752), Y(84)
-if BOARD == "ws35":
-    # Out to the corner, level with the title: where it scaled to, the pill
-    # covered the R. Any tap off PLAY AGAIN goes to the menu, so no hit box moves.
-    mx0, my0, mx1, my1 = 380, 11, 464, 45
+# The 3.5in's is out in the corner, level with its title, in pixels: where it
+# scaled to, the pill covered the R. Any tap off PLAY AGAIN goes to the menu, so
+# no hit box moves with it. The 7in's is the wide pill scaled.
+mx0, my0, mx1, my1 = per_board(BOARD, {
+    "guition": (X(612), Y(30), X(752), Y(84)),
+    "ws35": (380, 11, 464, 45),
+    "jc1060": (X(612), Y(30), X(752), Y(84)),
+})
 mb = Image.new("RGBA", (W, H), (0, 0, 0, 0))
 msh = Image.new("RGBA", (W, H), (0, 0, 0, 0))
 ImageDraw.Draw(msh).rounded_rectangle([mx0, my0 + Y(6), mx1, my1 + Y(6)], X(27), fill=(0, 0, 0, 120))
@@ -266,7 +284,7 @@ print("wrote gameover_img%s.c (%dx%d + newbest %dx%d)" % (SUFFIX, W, H, nbr.widt
 prev = base.convert("RGBA"); pd = ImageDraw.Draw(prev)
 fnum = ImageFont.truetype(ROUND, PT(58))
 bb = pd.textbbox((0, 0), "47", font=fnum)
-if BOARD == "ws35":   # glyph tops where main.c's OVER_* rows put them
+if NARROW:   # glyph tops where main.c's OVER_* rows put them
     fnum = ImageFont.truetype(ROUND, 40)
     bb = pd.textbbox((0, 0), "47", font=fnum)
     pd.text(((W - (bb[2] - bb[0])) / 2, 153 - bb[1]), "47", font=fnum, fill=(255, 255, 255))
@@ -274,10 +292,10 @@ else:
     pd.text(((W - (bb[2] - bb[0])) / 2, y0 + Y(38)), "47", font=fnum, fill=(255, 255, 255))
 fbest = ImageFont.truetype(ROUND, PT(28))
 bb = pd.textbbox((0, 0), "BEST  58", font=fbest)
-if BOARD == "ws35":
+if NARROW:
     pd.text(((W - (bb[2] - bb[0])) / 2, 195 - bb[1]), "BEST  58", font=fbest, fill=(236, 200, 120))
 else:
     pd.text(((W - (bb[2] - bb[0])) / 2, y0 + Y(112)), "BEST  58", font=fbest, fill=(236, 200, 120))
-prev.alpha_composite(nbr, ((W - nbr.width) // 2, 60 if BOARD == "ws35" else Y(128)))
+prev.alpha_composite(nbr, ((W - nbr.width) // 2, 60 if NARROW else Y(128)))
 prev.convert("RGB").save("/tmp/gameover_mock%s.png" % SUFFIX)
 print("saved preview /tmp/gameover_mock%s.png" % SUFFIX)

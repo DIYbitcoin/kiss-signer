@@ -55,6 +55,13 @@ FILES = [
     "main/kiss_img_ws35.c",
     "main/menu_logo_ws35.c",
     "main/sprites_ws35.c",
+    # The 7in's: the same pictures drawn at 1024x600, and sprites at 1.28
+    # times (--board jc1060), on the same terms.
+    "main/menu_img_jc1060.c",
+    "main/gameover_img_jc1060.c",
+    "main/kiss_img_jc1060.c",
+    "main/menu_logo_jc1060.c",
+    "main/sprites_jc1060.c",
 ]
 
 HEADERS = [
@@ -63,6 +70,11 @@ HEADERS = [
     "main/kiss_img.h",
     "main/sprites.h",
     "main/menu_logo.h",
+    "main/menu_img.h",
+    "main/gameover_img.h",
+    "main/kiss_img.h",
+    "main/menu_logo.h",
+    "main/sprites.h",
     "main/menu_img.h",
     "main/gameover_img.h",
     "main/kiss_img.h",
@@ -209,7 +221,9 @@ def c_bytes(data, indent="  "):
     return "\n".join(lines)
 
 
-def bake_file(path, check):
+def bake_file(path, stem, check):
+    """Bake one file in place. `stem` names the art table it contributes,
+    which is the wide file's name whichever board's copy this is."""
     rel = os.path.relpath(path, REPO)
     txt = open(path, encoding="utf-8", errors="surrogateescape").read()
     if MARK in txt:
@@ -271,9 +285,6 @@ def bake_file(path, check):
     # 3. the table this file contributes to art_unpack_all. A board's own
     # copy of a file contributes under the wide file's name: the header
     # declares one table, and one file is compiled in per image.
-    stem = os.path.splitext(os.path.basename(path))[0]
-    if stem.endswith("_ws35"):
-        stem = stem[:-len("_ws35")]
     rows = []
     for addr, name, _cf in dscs:
         blk, payload, raw_len = enc[name]
@@ -324,6 +335,11 @@ def main():
         if unknown:
             print("bake_art: not a baked file: %s" % ", ".join(sorted(unknown)))
             return 1
+    # zip() would drop a file that has no header beside it without a word,
+    # and a file that is never baked ships its pixels raw.
+    if len(FILES) != len(HEADERS):
+        print("bake_art: %d files but %d headers" % (len(FILES), len(HEADERS)))
+        return 1
     total = 0
     for c, h in zip(FILES, HEADERS):
         if only and c not in only:
@@ -332,14 +348,13 @@ def main():
         if not os.path.isfile(cp):
             print(f"  {c}: not present, skipped")
             continue
-        saved = bake_file(cp, check)
+        # The header is the wide file's, whichever board's copy this is, so
+        # its name is the table's name: no board's suffix is spelled here.
+        stem = os.path.splitext(os.path.basename(h))[0]
+        saved = bake_file(cp, stem, check)
         if saved is None:
             continue
         total += saved
-        # The header is the wide file's, whichever board's copy was baked.
-        stem = os.path.splitext(os.path.basename(c))[0]
-        if stem.endswith("_ws35"):
-            stem = stem[:-len("_ws35")]
         bake_header(hp, stem, check)
     print(f"\nflash saved: {total:,} B ({total / 1048576.0:.2f} MB)")
     return 0
