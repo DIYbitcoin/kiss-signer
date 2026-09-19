@@ -5542,7 +5542,7 @@ static void qr_out_screen(size_t sw, bool rebuild)
     // motion's dismissing press lands.
     wt_qr_card_bare(s_scr, &s_qr_img, 18, 36, 216, 206);
 #else
-    wt_qr_card_bare(s_scr, &s_qr_img, SX(48), SY(96), SX(302), SX(274));
+    wt_qr_card_bare(s_scr, &s_qr_img, SX(48), SY(96), SQ(302), SQ(274));
 #endif
 
     int n = qrt_encoder_parts(s_qenc);

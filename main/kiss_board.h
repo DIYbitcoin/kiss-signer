@@ -160,6 +160,12 @@
 #define KISS_DESIGN_H 480
 #define SX(v) ((v) * SCREEN_W / KISS_DESIGN_W)
 #define SY(v) ((v) * SCREEN_H / KISS_DESIGN_H)
+// A square's side, scaled by whichever axis grew less, so a square that fits
+// the design canvas fits every canvas. Both axes are 1 on the 4.3in and the
+// smaller is SX on the 3.5in, so there it is the SX it always was. On the 7in
+// the smaller is SY: a QR card sized by SX there grew 1.28 into 1.25 of room,
+// and the signed code's bottom edge ran under the floor.
+#define SQ(v) (SX(v) < SY(v) ? SX(v) : SY(v))
 // 1 on the board whose canvas IS the design canvas, the 4.3in: the one board
 // where SX and SY are the identity, and so the one board a FORECAST about
 // another board's lanes is asked from. Not the same question as !KISS_NARROW,

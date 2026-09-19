@@ -865,7 +865,7 @@ static void sp_addr_open(lv_obj_t *parent) {
     s_sp_top = SP_QR_Y + lv_obj_get_height(sub) + 4;
   }
 #else
-  wt_qr_card(s_scr, &s_qr, SX(44), SY(96), SX(304), SX(280));
+  wt_qr_card(s_scr, &s_qr, SX(44), SY(96), SQ(304), SQ(280));
 #endif
 
   // Same refusal contract as recv_refresh: this QR exists to be scanned by
@@ -1503,7 +1503,7 @@ static void recv_tab_build(void) {
     wt_qr_card(p, &s_qr, X, SY(120), 138, 116);
     const int foot = recv_foot_y();
 #else
-    wt_qr_card(p, &s_qr, X, SY(120), SX(216), SX(180));
+    wt_qr_card(p, &s_qr, X, SY(120), SQ(216), SQ(180));
 #endif
     lv_obj_t *hit = lv_obj_create(p);
     lv_obj_remove_style_all(hit);

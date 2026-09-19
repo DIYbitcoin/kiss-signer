@@ -429,8 +429,8 @@ lv_obj_t *kiss_info_help_card_open(lv_obj_t *parent, const char *title,
 #else
 #define PAIR_QR_X        SX(48)
 #define PAIR_QR_Y        SY(96)
-#define PAIR_QR_CARD    SX(300)
-#define PAIR_QR_PX      SX(264)
+#define PAIR_QR_CARD    SQ(300)
+#define PAIR_QR_PX      SQ(264)
 #define PAIR_RULE_X     SX(372)
 #define PAIR_BAY_X      SX(392)
 #define PAIR_BAY_W      (SX(752) - PAIR_BAY_X)   // 360; the widest rung is 350
@@ -1290,7 +1290,7 @@ static void sp_key_show(void *ud)
     // the title to the floor it draws at 4 with 7 px of white round it.
     wt_qr_card(s_scr, &qr, PAIR_QR_X, PAIR_QR_Y, PAIR_QR_CARD, PAIR_QR_PX);
 #else
-    wt_qr_card(s_scr, &qr, SX(48), SY(96), SX(300), SX(264));
+    wt_qr_card(s_scr, &qr, SX(48), SY(96), SQ(300), SQ(264));
 #endif
     if (qr)
         wt_qr_update(qr, key, (uint32_t)strlen(key));
@@ -1991,8 +1991,8 @@ static int kef_check_cb(const char *pass, size_t len)
 #define KEF_QR_CARD   184
 #define KEF_QR_PX     176
 #else
-#define KEF_QR_CARD   SX(300)
-#define KEF_QR_PX     SX(264)
+#define KEF_QR_CARD   SQ(300)
+#define KEF_QR_PX     SQ(264)
 #endif
 
 static void kef_sd_cb(lv_event_t *e)
