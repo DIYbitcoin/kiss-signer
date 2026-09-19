@@ -3898,7 +3898,12 @@ lv_obj_t *wt_arrow_action(lv_obj_t *scr, const char *txt, bool back,
     const char *arrow = back ? WT_ICON_ARR_L : WT_ICON_ARR_R;
     lv_text_get_size(&ls, txt, f, WT_TRACK, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
     lv_text_get_size(&as, arrow, af, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-    const int cw = ls.x + 12 + as.x;
+    // The box has to hold the gap the labels are drawn at below, SX(12). It
+    // was a bare 12, which is that gap on the 4.3in and three pixels short of
+    // it on the 7in, where every word lost its last three pixels to the box.
+    // Never less than 12: the 3.5in's box was cleared on glass at 12 and its
+    // SX(12) is 7.
+    const int cw = ls.x + LV_MAX(12, SX(12)) + as.x;
 
     lv_obj_t *p = lv_obj_create(scr);
     lv_obj_remove_style_all(p);
