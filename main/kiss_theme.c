@@ -4072,6 +4072,49 @@ static const lv_font_t *chrome28(const char *s)
     return mono_can(s) ? wt_font_mono28() : nat28();
 }
 
+// THE WRAP LANE, which on the 7in is not the canvas lane. Its lanes are SX
+// of the 4.3in's, 1.28 times as wide, and its faces are one rung up -- but a
+// rung up is not 1.28 times as wide. LVGL advances a glyph by whole pixels
+// (lv_font_fmt_txt.c rounds adv_w), so the mono pitch goes 13 -> 16,
+// 14 -> 17 and 17 -> 20 at the three paragraph rungs: 1.23, 1.21 and 1.18.
+// 690 holds 40 characters of mono28 and 883 holds 44 of mono34, so every
+// line broke further right than the line the copy was written against, and
+// English that ends cleanly on the 4.3in ended on a stub here: "go first."
+// alone under a full line on the fee page, and five paragraphs like it.
+//
+// So a mono paragraph wraps at the width that holds exactly the characters
+// the 4.3in's `w` holds at the same name, w times this pitch over that one,
+// and never wider than the `lane` the layout gave it. Its line count, and
+// with it every fit, rung and widow verdict already taken on the 4.3in,
+// carries over as it is.
+//
+// `lane` comes back untouched on every other board, and for any text that
+// is not all mono: those glyphs come from the proportional faces, there is
+// no one pitch to scale by, and WIDOW, the check that caught this, is
+// English only. Keyed on the face, so a CJK locale's wt_font28() -- the
+// mono28 composite on both boards -- would read as the 23 rung; no CJK
+// paragraph passes mono_can, so none gets that far.
+static int wrap_w(const lv_font_t *f, const char *txt, int lane, int w)
+{
+#if WT_TYPE_UP
+    static const struct { const lv_font_t *here, *there; } rung[] = {
+        { &WT_MONO28, &font_kiss_mono28 },
+        { &WT_MONO23, &font_kiss_mono23 },
+        { &WT_MONO21, &font_kiss_mono21 },
+    };
+    if (!f || !mono_can(txt)) return lane;
+    for (size_t i = 0; i < sizeof rung / sizeof rung[0]; i++) {
+        if (f->dsc != rung[i].here->dsc) continue;
+        const int up = lv_font_get_glyph_width(f, 'n', 0);
+        const int dn = lv_font_get_glyph_width(rung[i].there, 'n', 0);
+        return (up > 0 && dn > 0) ? LV_MIN(lane, w * up / dn) : lane;
+    }
+#else
+    (void)f; (void)txt; (void)w;
+#endif
+    return lane;
+}
+
 void wt_chrome_head(lv_obj_t *scr)
 {
     lv_obj_t *t = wt_screen_title(scr);
@@ -4325,8 +4368,8 @@ lv_obj_t *wt_tabs_flex(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
     // 140 ellipsised two of its three labels in a lane with 120px to spare.
     // So measure first: if every label plus the bracket keep fits the 620,
     // nothing is capped; only when the strip genuinely overflows does each
-    // oversized label fall back to its fair share. 30 is two brackets and
-    // their pads. No minimum air between tabs: the brackets ARE the
+    // oversized label fall back to its fair share. The keep is two brackets
+    // and their pads. No minimum air between tabs: the brackets ARE the
     // separation.
     //
     // The MARK, when the strip has room for it. This strip dropped every
@@ -4338,7 +4381,28 @@ lv_obj_t *wt_tabs_flex(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
     // The strip's lane, 620 on the wide canvas; every measure below is
     // against it, never against the number.
     const int lane = SX(620);
-    const int keep = SX(30) * n;
+    // The tab's own column, the one set on every tab below. The keep and the
+    // mark's share are both made of it, so they are read from the same name.
+    const int col = SX(4);
+#if KISS_NARROW || KISS_DESIGN_CANVAS
+    // The 3.5in and the 4.3in keep their numbers. The flat 30 and 4 are the
+    // 4.3in's 11 px brackets and 4 px column, exactly what the measure below
+    // comes to there, and the 3.5in's row is measured again by tabs_flex_fit
+    // once it is drawn: the one decision these still make there -- whether
+    // the marks are drawn at all -- is its tested layout.
+    const int keep = SX(30) * n, icol = 4;
+#else
+    // The keep, MEASURED: both brackets in the face they are drawn in, and
+    // the column on either side of the word; a mark adds its width and one
+    // more column. The 7in draws its brackets a rung up and its column at 5:
+    // its 30 came out right by coincidence, its 4 did not, and the three
+    // marked receive tabs overran the lane by 3 px and lost the outer
+    // brackets at both ends.
+    lv_point_t lbs, rbs;
+    lv_text_get_size(&lbs, "[", bf, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    lv_text_get_size(&rbs, "]", bf, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    const int keep = (lbs.x + rbs.x + 2 * col) * n, icol = col;
+#endif
     int need = keep, ineed = 0;
     for (int i = 0; i < n; i++) {
         lv_point_t ls;
@@ -4349,7 +4413,7 @@ lv_obj_t *wt_tabs_flex(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
             lv_point_t is;
             lv_text_get_size(&is, tabs[i].icon, wt_font23(), 0, 0,
                              LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-            ineed += is.x + 4;
+            ineed += is.x + icol;   // the mark and its own column
         }
     }
     const bool icons = ineed > 0 && need + ineed <= lane;
@@ -4378,7 +4442,7 @@ lv_obj_t *wt_tabs_flex(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
         lv_obj_set_flex_flow(b, LV_FLEX_FLOW_ROW);
         lv_obj_set_flex_align(b, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
                               LV_FLEX_ALIGN_CENTER);
-        lv_obj_set_style_pad_column(b, SX(4), 0);
+        lv_obj_set_style_pad_column(b, col, 0);
         lv_obj_set_user_data(b, (void *)(intptr_t)(t->stop ? 1 : 0));
 
         wt_lbl(b, "[", 0, 0, bf, wt_accent());
@@ -5100,15 +5164,17 @@ static const lv_font_t *explain_head_font(const char *s, int w)
 
 // The paragraph rung: 28, two lines at 690, one rung down if it needs three.
 // Two lines is not a layout preference -- the facts under it are pinned at
-// 200 and a third line is what walks into them.
+// 200 and a third line is what walks into them. `w` is the 4.3in's lane,
+// measured at the width wrap_w() will draw it.
 static const lv_font_t *explain_para_font(const char *s, int w, int lines)
 {
     if (!s || !*s) return chrome28(s);
     const lv_font_t *f = chrome28(s);
+    const int lane = wrap_w(f, s, SX(w), w);
     lv_point_t sz;
-    lv_text_get_size(&sz, s, f, 0, 0, w, LV_TEXT_FLAG_NONE);
+    lv_text_get_size(&sz, s, f, 0, 0, lane, LV_TEXT_FLAG_NONE);
     if (sz.y <= lines * lv_font_get_line_height(f)) return f;
-    WT_FIT_GAVE_UP("para", s, w, lines * lv_font_get_line_height(f));
+    WT_FIT_GAVE_UP("para", s, lane, lines * lv_font_get_line_height(f));
     return chrome23(s);
 }
 
@@ -5151,6 +5217,16 @@ static lv_obj_t *body_spans_hi(lv_obj_t *par, const char *txt, int x, int y,
 // with its lower half in the moat. Scaled, three rows end at 249.
 #define WT_FACT_PAD (KISS_NARROW ? SY(14) : 14)
 
+// The mark's column: how far a caption sits right of its row's icon. 38 is
+// the 4.3in's icon at the 28 face with a few pixels of air. The mark rides the
+// caption's rung, and on the 7in that rung is the 34 face, a 43px icon: a bare
+// 38 put every caption 5px into its own mark -- SIGN, SETTINGS, the dice
+// warning and the firmware writing screen, all through this one row. Scaled
+// it is 48 there. Never less than 38: the 3.5in was cleared on glass at 38 and
+// its SX(38) is 22. One name, because facts_block_h has to lay the row out
+// exactly as wt_facts_in draws it.
+#define WT_FACT_MARK_W LV_MAX(38, SX(38))
+
 #if KISS_NARROW
 // THE BLOCK AS wt_facts_in WILL BUILD IT, on the lane. The sum of one line per
 // row is the wide canvas's answer and it is short twice on the 3.5in: a value
@@ -5170,7 +5246,7 @@ static int facts_block_h(const wt_fact_t *facts, int n, int pad)
                          0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
         if (cs.x > WT_FACT_CAP_W - 4) block_small = true;
     }
-    const int cap_x = marks ? WT_LANE_X + 38 : WT_LANE_X;
+    const int cap_x = marks ? WT_LANE_X + WT_FACT_MARK_W : WT_LANE_X;
     const int vx = cap_x + WT_FACT_CAP_W + 14;
     const int vw = WT_LANE_X + WT_LANE_W - vx;
     int h = 0;
@@ -5297,19 +5373,20 @@ static void explain_to(lv_obj_t *scr, const char *headline, const char *para,
         else if (top + 2 * lh > bottom)
             para_lines = 1;
     }
-    const lv_font_t *pf = explain_para_font(para, SX(690), para_lines);
+    const lv_font_t *pf = explain_para_font(para, 690, para_lines);
 #else
-    const lv_font_t *pf = explain_para_font(para, SX(690), 2);
+    const lv_font_t *pf = explain_para_font(para, 690, 2);
 #endif
+    const int pw = wrap_w(pf, para, SX(690), 690);
     // ONE path, highlight or not. This used to be two: a spangroup when the
     // page named a term and a plain label otherwise, and the accent stop was
     // added to neither -- which is why every [ ? ] page on the device was
     // missing it while the twelve takeover pages had it. A paragraph is a
     // paragraph.
-    body_spans_hi(scr, para, WT_LANE_X, WT_EXPLAIN_PARA_Y, pf, SX(690), hi);
+    body_spans_hi(scr, para, WT_LANE_X, WT_EXPLAIN_PARA_Y, pf, pw, hi);
     lv_point_t ps;
-    lv_text_get_size(&ps, para, pf, 0, 0, SX(690), LV_TEXT_FLAG_NONE);
-    wt_widow_measure(para, pf, SX(690));
+    lv_text_get_size(&ps, para, pf, 0, 0, pw, LV_TEXT_FLAG_NONE);
+    wt_widow_measure(para, pf, pw);
 
     // The facts start where the paragraph ends, and never above the line TWO
     // paragraph lines would reach: the caption lane holds still whether this
@@ -5401,7 +5478,7 @@ int wt_facts_in(lv_obj_t *par, int x, int y, int w,
     bool marks = false;
     for (int i = 0; i < n && facts; i++)
         if (facts[i].icon) marks = true;
-    const int cap_x = marks ? x + 38 : x;
+    const int cap_x = marks ? x + WT_FACT_MARK_W : x;
 #if KISS_NARROW
     // ONE caption rung for the block. Each caption stepping down on its own
     // put NO PASSPHRASE a rung under PASSPHRASE directly beneath it, which
@@ -7664,6 +7741,8 @@ const char *wt_split_colon(const char *line, char *head, size_t head_len)
 // payment card 19px past WT_CONTENT_BOTTOM in five locales.
 #define EXP_RULE_W   SX(14)
 #define EXP_FULL_TXT (EXP_FULL_W - EXP_RULE_W)
+// The same lane as the 4.3in draws it: what wrap_w() holds a line to.
+#define EXP_FULL_TXT_W (704 - 14)
 
 typedef struct {
     const char *p[EXP_MAX_PARA];
@@ -8181,7 +8260,8 @@ exp_paras_t ps;
 
     for (int r = 0; r < rungs; r++) {
         const lv_font_t *cand = ladder[r];
-        const int hf = exp_height(&ps, 0, ps.count, cand, EXP_FULL_TXT);
+        const int lane = wrap_w(cand, body, EXP_FULL_TXT, EXP_FULL_TXT_W);
+        const int hf = exp_height(&ps, 0, ps.count, cand, lane);
         if (hf <= room) { f = cand; used = hf; break; }
 
         // Nothing fits at the floor either: keep the floor, clamp, and SAY SO,
@@ -8192,7 +8272,7 @@ exp_paras_t ps;
         if (r == rungs - 1) {
             f = cand;
             used = room;
-            WT_FIT_GAVE_UP("body", body, EXP_FULL_TXT, room);
+            WT_FIT_GAVE_UP("body", body, lane, room);
         }
     }
 
@@ -8235,14 +8315,15 @@ exp_paras_t ps;
     // what the house rules say to do about it.
     //
     // The gap is exp_height's own model of a blank line, so the ladder above
-    // measured exactly what is drawn here.
+    // measured exactly what is drawn here, at the lane it measured.
+    const int lane = wrap_w(f, body, EXP_FULL_TXT, EXP_FULL_TXT_W);
     int py = y;
     const int gap = lv_font_get_line_height(f);
     for (int i = 0; i < ps.count; i++) {
         char one[640];
         exp_join(&ps, i, i + 1, one, sizeof one);
-        lv_obj_t *p = body_spans(par, one, SX(48), py, f, EXP_FULL_TXT);
-        wt_widow_measure(one, f, EXP_FULL_TXT);
+        lv_obj_t *p = body_spans(par, one, SX(48), py, f, lane);
+        wt_widow_measure(one, f, lane);
         lv_obj_update_layout(p);
         py += lv_obj_get_height(p) + gap;
     }
@@ -9095,9 +9176,17 @@ void wt_diagram_pair(lv_obj_t *parent)
 #define AG_SG_W  SX(200)    // this signer, landscape like the real panel
 #define AG_SG_H  SY(120)
 #define AG_BAND  SY(120)    // the machines' shared vertical band (the signer's)
-#define AG_LBL_Y (AG_BAND + 12)
+// The names' line under the band: 12 clear of it and 24 tall, which is the
+// 4.3in's mono18 (22) with two to spare. It scales with the rest of the
+// figure on the 7in, which names the machines a rung up in mono23, 25 tall:
+// at a bare 24 the figure cut the last pixel row off both names. Never under
+// the literal, because the 3.5in's scaled band (16) is shorter than its
+// mono14 (18).
+#define AG_LBL_GAP LV_MAX(12, SY(12))
+#define AG_LBL_H   LV_MAX(24, SY(24))
+#define AG_LBL_Y (AG_BAND + AG_LBL_GAP)
 #define AG_W     (AG_CO_X + AG_CO_W + AG_GAP + AG_SG_W + 40)
-#define AG_H     (AG_LBL_Y + 24)
+#define AG_H     (AG_LBL_Y + AG_LBL_H)
 
 // A QR mark drawn rather than typed: three finder squares and a scatter of
 // modules, s pixels on a side. The font's QR glyph tops out at 28px, which
@@ -9304,9 +9393,25 @@ lv_obj_t *wt_diagram_airgap(lv_obj_t *parent)
 // The lane the input amounts are right aligned in, measured from the widest of
 // them and clamped. 104 is frame 2c's lane, 206 is frame 3a's, where the group
 // row carries a count and a total on one line.
+//
+// The cap scales on the 7in, whose rows are set a rung up: at a bare 206
+// "16 more inputs" ran 57 px past the graph's left edge there. Never under
+// 206, because the 3.5in reins its lane in at its own junction instead (see
+// wt_bundle).
 #define BLANE_MIN SY(104)
-#define BLANE_MAX 206
+#define BLANE_MAX LV_MAX(206, SX(206))
 #define BLANE_GAP  SY(16)
+// The gap between an input row's words and its figure. bundle_row pads by it
+// and the lane measure in wt_bundle adds it, so it is one number. It was two,
+// a scaled pad and a bare 8 in the measure, and on the 7in (SX(8) is 10)
+// every labelled row came out 2 px wider than its lane: right aligned, TOTAL
+// started 2 px left of the graph. A bare 8 on the 3.5in, where SX(8) is 4 and
+// a group row read "16 more inputs2 749 257" -- a word run into a figure.
+#if KISS_NARROW
+#define BROW_PAD 8
+#else
+#define BROW_PAD SX(8)
+#endif
 // Points per curve. The longest strand spans 210px, so 16 puts a vertex every
 // ~14px; with line_rounded the joins disappear at this stroke width.
 #define BSEG SX(16)
@@ -9480,13 +9585,7 @@ static lv_obj_t *bundle_row(lv_obj_t *box, int x, int y, int w, bool end)
     // row that clips nothing still answers that question, with its own
     // unscrollable self, for a column that scrolls perfectly well.
     lv_obj_add_flag(r, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
-#if KISS_NARROW
-    // 8, which is what wt_bundle's lane measure already adds. Scaled to 4, a
-    // group row read "16 more inputs2 749 257" -- a word run into a figure.
-    lv_obj_set_style_pad_column(r, 8, 0);
-#else
-    lv_obj_set_style_pad_column(r, SX(8), 0);
-#endif
+    lv_obj_set_style_pad_column(r, BROW_PAD, 0);
     lv_obj_set_pos(r, x, y);
     return r;
 }
@@ -9734,7 +9833,7 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
         if (in[i].label) {
             lv_text_get_size(&ts, in[i].label, wt_font14(), 0, 0, LV_COORD_MAX,
                              LV_TEXT_FLAG_NONE);
-            wid += ts.x + 8;                  // + bundle_row's pad_column
+            wid += ts.x + BROW_PAD;           // + bundle_row's pad_column
         }
         if (wid > lane) lane = wid;
     }
@@ -9873,8 +9972,8 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
                              LV_TEXT_FLAG_NONE);
             lv_text_get_size(&ls, in[i].label, wt_font14(), 0, 0, LV_COORD_MAX,
                              LV_TEXT_FLAG_NONE);
-            if (as.x + 8 + ls.x > lane) {
-                words_w = LV_MAX(lane - as.x - 8, 0);
+            if (as.x + BROW_PAD + ls.x > lane) {
+                words_w = LV_MAX(lane - as.x - BROW_PAD, 0);
                 wt_sub_measure("label", in[i].label, wt_font14(), 0, words_w);
             }
         }
