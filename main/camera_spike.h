@@ -68,6 +68,12 @@ void camera_spike_flip_refresh(void);
 // skipped there would be a region the glass never got back.
 bool camera_spike_owns_panel(void);
 
+// The 7in only (camera_spike.c says why): a flush holds this across its copy
+// into the framebuffer and the write back, so no camera frame lands between.
+// Defined on no other board, which is why nothing else calls it.
+void camera_spike_fb_lock(void);
+void camera_spike_fb_unlock(void);
+
 // Freeze the preview WITHOUT tearing the pipeline down: the stream task keeps
 // dequeuing frames but stops blitting and stops decoding, so LVGL owns the whole
 // panel and no QR can land behind an overlay. Resuming costs one frame, where a

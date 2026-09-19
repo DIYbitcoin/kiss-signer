@@ -39,6 +39,7 @@
 #include "esp_video_init.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/semphr.h"
 #include "linux/videodev2.h"
 
 #include <math.h>
@@ -119,6 +120,30 @@ static size_t s_scratch_len;
 #else
 static uint16_t *s_fb[2];            // both DPI framebuffers (flip targets)
 static int s_fb_wr;                  // framebuffer the PPA writes next
+#endif
+#if !KISS_PANEL_SPI && !KISS_PANEL_SWROT
+// The 7in's framebuffer has two writers that meet in the same cache lines.
+// LVGL's flush is a CPU copy into it (board_jc1060.c), which sits dirty in the
+// cache until the driver writes it back; the PPA, before it writes a frame,
+// INVALIDATES the rows it covers, the whole width of them, text column
+// included (ppa_srm.c: "Invalidate out_buffer extended window"). A band LVGL
+// had copied but not yet written back was thrown away, and what showed in its
+// place was whatever the memory held before: small black blocks that moved
+// with whatever LVGL was redrawing. The 4.3in never had this, because its
+// flush is the PPA's own rotate, a DMA with nothing held in the cache.
+//
+// So the two take turns. A flush is its copy and its write back together, and
+// a frame is its blank, its blit, its chrome and its write back together, and
+// neither starts inside the other.
+static SemaphoreHandle_t s_fb_mux;
+static StaticSemaphore_t s_fb_mux_buf;
+void camera_spike_fb_lock(void) { if (s_fb_mux) xSemaphoreTake(s_fb_mux, portMAX_DELAY); }
+void camera_spike_fb_unlock(void) { if (s_fb_mux) xSemaphoreGive(s_fb_mux); }
+#define FB_LOCK()   camera_spike_fb_lock()
+#define FB_UNLOCK() camera_spike_fb_unlock()
+#else
+#define FB_LOCK()   ((void)0)
+#define FB_UNLOCK() ((void)0)
 #endif
 static ppa_client_handle_t s_ppa;
 static uint32_t s_frames;
@@ -308,11 +333,13 @@ void camera_spike_set_preview_rect(int x, int y, int w, int h)
   // first: it holds whatever a previous fullscreen session left behind, and
   // flipping to that would show a stale frame until LVGL repaints over it.
   if (s_vp_on && s_fb[0] && s_panel) {
+    FB_LOCK();
     memset(s_fb[0], 0, (size_t)PANEL_W * PANEL_H * 2);
     esp_cache_msync(s_fb[0], (size_t)PANEL_W * PANEL_H * 2,
                     ESP_CACHE_MSYNC_FLAG_DIR_C2M);
     esp_lcd_panel_draw_bitmap(s_panel, 0, 0, PANEL_W, PANEL_H, s_fb[0]);
     s_fb_wr = 0;
+    FB_UNLOCK();
     // The wallet screen under the video has to repaint into the buffer we just
     // flipped to; nothing else would ask it to.
     lv_obj_invalidate(lv_screen_active());
@@ -852,6 +879,9 @@ void camera_spike_set_panel(esp_lcd_panel_handle_t panel, void *fb0, void *fb1) 
 #else
   s_fb[0] = fb0;
   s_fb[1] = fb1;
+#endif
+#if !KISS_PANEL_SPI && !KISS_PANEL_SWROT
+  if (!s_fb_mux) s_fb_mux = xSemaphoreCreateMutexStatic(&s_fb_mux_buf);
 #endif
 }
 
@@ -1647,6 +1677,7 @@ static void show_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
   // live buffer can tear, but only inside the preview rect, which is video.
   uint16_t *fb = s_vp_on ? s_fb[0] : s_fb[s_fb_wr];
   if (!fb) return;
+  FB_LOCK();                          // until the frame is written back
   if (s_clear_pending > 0) {          // zoom/orientation changed: blank stale bars.
     s_clear_pending--;                // CPU writes land in cache; the scanout reads
     if (s_vp_on) {                    // PSRAM directly -> write back explicitly
@@ -1702,6 +1733,7 @@ static void show_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
       .mode = PPA_TRANS_MODE_BLOCKING,
   };
   if (ppa_do_scale_rotate_mirror(s_ppa, &op) != ESP_OK) {
+    FB_UNLOCK();
     ESP_LOGW(TAG, "PPA blit failed");
     return;
   }
@@ -1805,6 +1837,7 @@ static void show_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
     esp_lcd_panel_draw_bitmap(s_panel, 0, 0, PANEL_W, PANEL_H, fb);
     s_fb_wr ^= 1;
   }
+  FB_UNLOCK();
 #endif
   s_frames++;
   // decode AFTER the flip so the preview stays smooth between attempts; the

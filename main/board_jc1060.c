@@ -232,14 +232,22 @@ static void jc_flush(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map)
   const int w = area->x2 - area->x1 + 1;
   const int h = area->y2 - area->y1 + 1;
   const size_t n = (size_t)w * (size_t)h;
+  // The driver copies the band in with the CPU and writes it back before it
+  // returns; a camera frame arriving between the two would throw the copy
+  // away (camera_spike.c, at camera_spike_fb_lock). The staging copy into
+  // s_blitbuf is outside, because nothing else touches it.
   if (s_flip) {
     for (size_t i = 0; i < n; i++) s_blitbuf[n - 1 - i] = src[i];
+    camera_spike_fb_lock();
     esp_lcd_panel_draw_bitmap(s_panel, (LCD_H_RES - 1) - area->x2, (LCD_V_RES - 1) - area->y2,
                               LCD_H_RES - area->x1, LCD_V_RES - area->y1, s_blitbuf);
+    camera_spike_fb_unlock();
     return;                 // flush_ready in dpi_trans_done
   }
   memcpy(s_blitbuf, src, n * sizeof(uint16_t));
+  camera_spike_fb_lock();
   esp_lcd_panel_draw_bitmap(s_panel, area->x1, area->y1, area->x2 + 1, area->y2 + 1, s_blitbuf);
+  camera_spike_fb_unlock();
 }
 
 lv_display_t *kiss_board_display_start(void) {
