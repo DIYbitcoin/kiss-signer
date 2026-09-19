@@ -1147,6 +1147,31 @@ static void check_slices(bool pressed) {
 
 static bool read_touch(int *x, int *y) { return platform_read_touch(x, y); }
 
+#if KISS_BLADE_LANDING
+// A NEW STROKE STARTS WHERE THE FINGER LANDED. The blade is fed one point per
+// pass, the newest the sampler holds, so whatever the finger did between
+// landing and the first pass never reaches it: that pass draws no segment, and
+// the first segment tested starts wherever the finger had got to by then. A
+// swipe that lands ON a fruit starts past it. The landing point stands in for
+// the pass before, which is what check_slices assumes of the point behind the
+// newest, and the fruit is swept back one tick to meet it.
+//
+// Dropping what was left of the last stroke is the other half. After a lift
+// update_blade drains one point per pass, and a new press appended to those
+// joined the two strokes with a segment nobody drew, which cut whatever lay
+// between them, the bomb included. The fewer passes a board runs a second, the
+// more of the old trail a quick second swipe still finds there.
+static void blade_land(void) {
+  int ox, oy;
+  s_trail_count = 0;
+  if (platform_touch_origin(&ox, &oy)) {
+    s_trail[0].x = ox;
+    s_trail[0].y = oy;
+    s_trail_count = 1;
+  }
+}
+#endif
+
 static void update_blade(int tx, int ty, bool pressed) {
   if (pressed) {
     if (s_trail_count < TRAIL_LEN) {
@@ -2932,6 +2957,9 @@ static void game_tick(lv_timer_t *t) {
   if (s_frenzy_ms > 0) {
     s_frenzy_ms = (s_frenzy_ms > TICK_MS) ? s_frenzy_ms - TICK_MS : 0;
   }
+#if KISS_BLADE_LANDING
+  if (pressed && !s_prev_press) blade_land();   // ahead of update_blade's point
+#endif
   s_prev_press = pressed;
 
   update_blade(tx, ty, pressed);

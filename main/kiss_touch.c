@@ -81,6 +81,10 @@ static const char *TAG = "kiss";
 // normal one. The cost is every release arriving up to 40 ms late, which is far
 // inside CW_QT_MS (800 ms for the second tap) and inside LVGL's click timing.
 #define UP_SAMPLES 4
+#else
+// The desktop builds name their board with -DKISS_BOARD_<ID>, and the header is
+// what turns that into KISS_BLADE_LANDING below. The device has it from above.
+#include "kiss_board.h"
 #endif
 
 // How many recent contacts keep a point of their own. A reader can be
@@ -104,6 +108,9 @@ static uint32_t s_ups;     // lift edges since boot
 static struct {
   int x, y;
   uint32_t ended;          // when its lift was recorded, ms; meaningless while live
+#if KISS_BLADE_LANDING
+  int x0, y0;              // where it came down: the game's blade starts there
+#endif
 } s_pt[PT_N];
 
 // What the replaying reader has been shown. downs - ups == (held ? 1 : 0),
@@ -123,6 +130,10 @@ void kiss_touch_post(bool down, int x, int y, uint32_t now_ms)
     if (!s_down) {
       s_down = true;
       s_downs++;
+#if KISS_BLADE_LANDING
+      s_pt[s_downs & PT_MASK].x0 = x;
+      s_pt[s_downs & PT_MASK].y0 = y;
+#endif
     }
     s_pt[s_downs & PT_MASK].x = x;
     s_pt[s_downs & PT_MASK].y = y;
@@ -324,3 +335,29 @@ bool platform_read_touch_ui(int *x, int *y)
   return p;
 }
 #endif  // ESP_PLATFORM
+
+#if KISS_BLADE_LANDING
+// Where the contact the gesture reader is being shown came down, for the game's
+// blade (main.c, blade_land). The seat's contact and not the newest one: during
+// a replay the two differ, and the landing has to belong to the contact whose
+// points the reader is being handed. False when the seat holds none, and on
+// the device when the sampler never started and the readers fell back to the
+// controller, which keeps no landing to give. Here and not beside the sims'
+// platform_read_touch, so the desktop builds read the same state the board does.
+bool platform_touch_origin(int *x, int *y)
+{
+#ifdef ESP_PLATFORM
+  if (!s_live) return false;
+  portENTER_CRITICAL(&s_mux);
+#endif
+  bool held = s_seat.held;
+  if (held) {
+    *x = s_pt[s_seat.downs & PT_MASK].x0;
+    *y = s_pt[s_seat.downs & PT_MASK].y0;
+  }
+#ifdef ESP_PLATFORM
+  portEXIT_CRITICAL(&s_mux);
+#endif
+  return held;
+}
+#endif

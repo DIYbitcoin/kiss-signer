@@ -58,6 +58,11 @@
 //                          coordinates are not canvas coordinates
 //   KISS_CAM_ORIENT_LOG    1 while the camera's orientation is still being read
 //                          off the glass: every session logs it
+//   KISS_BLADE_LANDING     1 when the game's blade starts each stroke at the point
+//                          the contact came down (main/kiss_touch.c keeps it),
+//                          and drops what was left of the last stroke, rather
+//                          than starting where the first game pass found the
+//                          finger
 #if defined(KISS_BOARD_WS35)
 #define KISS_BOARD_ID "ws35"
 #define KISS_BOARD_NAME "Waveshare ESP32-P4-WIFI6-Touch-LCD-3.5"
@@ -93,6 +98,7 @@
 #define KISS_PANEL_SPI 1
 #define KISS_PANEL_SWROT 0
 #define KISS_CAM_ORIENT_LOG 1
+#define KISS_BLADE_LANDING 0
 #elif defined(KISS_BOARD_GUITION)
 #define KISS_BOARD_ID "guition"
 #define KISS_BOARD_NAME "Guition JC4880P443C"
@@ -112,6 +118,7 @@
 #define KISS_PANEL_SPI 0
 #define KISS_PANEL_SWROT 1
 #define KISS_CAM_ORIENT_LOG 0
+#define KISS_BLADE_LANDING 0
 #elif defined(KISS_BOARD_JC1060)
 #define KISS_BOARD_ID "jc1060"
 #define KISS_BOARD_NAME "Guition JC1060P470C"
@@ -131,6 +138,12 @@
 #define KISS_PANEL_SPI 0
 #define KISS_PANEL_SWROT 0
 #define KISS_CAM_ORIENT_LOG 1
+// Nothing in the landing is particular to this board. It is on here only
+// because the 4.3in and the 3.5in images are held unchanged until their own
+// glass has played it, and what it buys grows with the game pass. This board
+// draws 1.6 times the 4.3in's pixels, so its pass is expected to be the
+// longest of the three; that is a model, and the pass has not been measured.
+#define KISS_BLADE_LANDING 1
 #else
 #error "no arm for this board in main/kiss_board.h"
 #endif
@@ -142,7 +155,8 @@
     !defined(SCREEN_H) || !defined(KISS_PANEL_W) || !defined(KISS_PANEL_H) ||   \
     !defined(KISS_NARROW) || !defined(KISS_CAM_ORIENT) ||                       \
     !defined(KISS_CAM_RAW_MIRRORED) || !defined(KISS_PANEL_SPI) ||              \
-    !defined(KISS_PANEL_SWROT) || !defined(KISS_CAM_ORIENT_LOG)
+    !defined(KISS_PANEL_SWROT) || !defined(KISS_CAM_ORIENT_LOG) ||              \
+    !defined(KISS_BLADE_LANDING)
 #error "a board arm in main/kiss_board.h leaves a capability undefined"
 #endif
 
@@ -186,6 +200,10 @@
 // same way the board does.
 bool platform_read_touch(int *x, int *y);      // main.c: the game and the collector
 bool platform_read_touch_ui(int *x, int *y);   // kiss_ui.c: the LVGL pointer indev
+#if KISS_BLADE_LANDING
+// Where the contact platform_read_touch is holding came down (main/kiss_touch.c).
+bool platform_touch_origin(int *x, int *y);
+#endif
 
 // ---- UPSIDE DOWN -------------------------------------------------------
 // One runtime truth for the three surfaces that have to turn TOGETHER: the
