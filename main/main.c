@@ -585,6 +585,26 @@ static float diff_progress(void) {
 // the 3.5in's 320px canvas takes root(2/3) of the wide speed to put the same
 // arc on its glass instead of throwing fruit off the top where nothing can
 // cut them.
+//
+// The 7in scales the WHOLE throw instead, the way SX and SY scale its
+// screens: every speed, pull, lane and wave position in the game is a length
+// in the 4.3in's pixels. Left unscaled there, an apple thrown at 15..18 px a
+// tick peaked at 0.32..0.56 of the 600 px height where the 4.3in's peaks at
+// 0.46..0.75 of 480, and the slowest watermelon topped out with its bottom
+// edge on the glass's. Speed and pull scaled by the same 1.25 scale the apex
+// by 1.25, because it is v*v/2g, and leave the time to the top alone, because
+// that is v/g: the same arc in proportion, in the same number of ticks.
+// Across, 1.28 does the same for the reach. Bare on the other two boards, so
+// they preprocess to the tokens they always did. That is safe only because
+// every use below is a whole operand where it lands: a literal, a name, a
+// product, or the whole right side of an assignment.
+#if KISS_NARROW || KISS_DESIGN_CANVAS
+#define THROW_X(v) v
+#define THROW_Y(v) v
+#else
+#define THROW_X(v) SX(v)
+#define THROW_Y(v) SY(v)
+#endif
 static int launch_speed(float p) {
 #if KISS_NARROW
   return (int)(rnd_range(15 + (int)(p * 5), 18 + (int)(p * 9)) * 0.8165f);
@@ -592,7 +612,7 @@ static int launch_speed(float p) {
   return rnd_range(15 + (int)(p * 5), 18 + (int)(p * 9));
 #endif
 }
-static float fruit_gravity(float p) { return GRAVITY * (0.70f + 0.30f * p); }
+static float fruit_gravity(float p) { return THROW_Y(GRAVITY * (0.70f + 0.30f * p)); }
 
 // Uniform rnd() produces visible runs (e.g. three oranges in a row). Pick a
 // fruit that differs from the last two -> feels varied without being rigged.
@@ -609,13 +629,13 @@ static int pick_fruit(void) {
 static float s_wave_x[8];
 static int s_wave_xn;
 static float pick_spawn_x(void) {
-  float x = rnd_range(70, SCREEN_W - 70);
+  float x = rnd_range(THROW_X(70), SCREEN_W - THROW_X(70));
   for (int tries = 0; tries < 10; tries++) {
     bool ok = true;
     for (int i = 0; i < s_wave_xn; i++)
-      if (fabsf(x - s_wave_x[i]) < 96.0f) { ok = false; break; }  // lanes >= 96px apart
+      if (fabsf(x - s_wave_x[i]) < THROW_X(96.0f)) { ok = false; break; }  // lanes >= 96px apart in the 4.3in's pixels
     if (ok) break;
-    x = rnd_range(70, SCREEN_W - 70);
+    x = rnd_range(THROW_X(70), SCREEN_W - THROW_X(70));
   }
   if (s_wave_xn < 8) s_wave_x[s_wave_xn++] = x;
   return x;
@@ -660,6 +680,9 @@ static int live_fruit(void) {
   return n;
 }
 
+// vx and vy are in the 4.3in's pixels a tick, like every throw that calls
+// this, and are scaled to the canvas here, where every fruit is born. x is
+// the canvas's own already: each caller places it against SCREEN_W.
 static void spawn_fruit_at(int idx, bool gold, float x, float vx, float vy) {
   // The bomb is the threat, so it always gets its slot. Fruit are what flood.
   if (!DEFS[idx].bomb && live_fruit() >= MAX_LIVE_FRUIT) return;
@@ -674,8 +697,8 @@ static void spawn_fruit_at(int idx, bool gold, float x, float vx, float vy) {
   e->size = d->size;
   e->x = x;
   e->y = SCREEN_H + d->size;
-  e->vx = vx;
-  e->vy = vy;
+  e->vx = THROW_X(vx);
+  e->vy = THROW_Y(vy);
   e->rot = (float)rnd(360);
   e->av = (float)rnd_range(-d->spin, d->spin);
   if (e->av == 0.0f) e->av = 1.0f;
@@ -731,8 +754,11 @@ static void spawn_juice(float x, float y, uint32_t col, int n) {
     e->size = SX(16);                      // the droplet's edge, baked per board
     e->x = x;
     e->y = y;
-    e->vx = cosf(a) * sp;
-    e->vy = sinf(a) * sp - 3.0f;
+    // In the 4.3in's pixels a tick, like the debris pull that brings it
+    // down. Left unscaled against that scaled pull, the 7in's spray rose
+    // to about 0.63 of the share of the glass it reaches on the 4.3in.
+    e->vx = THROW_X(cosf(a) * sp);
+    e->vy = THROW_Y(sinf(a) * sp - 3.0f);
     e->obj = make_droplet(col);
     place(e);
   }
@@ -1021,10 +1047,10 @@ static void slice(ent_t *e, float bdx, float bdy) {
     float nx = -bdy, ny = bdx;                  // unit normal to the cut
     const float SEP = 7.0f;
     spawn_half(d->hl, d->hsize, e->x - nx*6, e->y - ny*6,
-               e->vx - nx*SEP, e->vy*0.6f - ny*SEP,
+               e->vx - THROW_X(nx*SEP), e->vy*0.6f - THROW_Y(ny*SEP),
                ang, -(float)rnd_range(2, 5));
     spawn_half(d->hr, d->hsize, e->x + nx*6, e->y + ny*6,
-               e->vx + nx*SEP, e->vy*0.6f + ny*SEP,
+               e->vx + THROW_X(nx*SEP), e->vy*0.6f + THROW_Y(ny*SEP),
                ang,  (float)rnd_range(2, 5));
     spawn_juice(e->x, e->y, d->juice, 1);   // it already threw two halves
   }
@@ -2915,7 +2941,7 @@ static void game_tick(lv_timer_t *t) {
   for (int i = 0; i < MAX_ENT; i++) {
     ent_t *e = &s_ent[i];
     if (!e->active) continue;
-    e->vy += (e->kind == K_FRUIT) ? fg : GRAVITY * 1.7f;  // debris falls faster -> clears the play area sooner
+    e->vy += (e->kind == K_FRUIT) ? fg : THROW_Y(GRAVITY * 1.7f);  // debris falls faster -> clears the play area sooner
     if (e->av != 0.0f) {
       e->rot += e->av;
       if (e->rot >= 360.0f) e->rot -= 360.0f;
@@ -2984,25 +3010,25 @@ static void spawn_tick(lv_timer_t *t) {
     case WV_ARC: {                             // thrown left to right
       for (int i = 0; i < 3; i++)
         spawn_fruit_at(pick_fruit(), false,
-                       140.0f + i * ((SCREEN_W - 280.0f) / 2.0f),
+                       THROW_X(140.0f) + i * ((SCREEN_W - THROW_X(280.0f)) / 2.0f),
                        (i - 1) * 1.4f, vy0 - i * 0.8f);
       n = 3;
     } break;
     case WV_FOUNTAIN: {                        // one point, fanning out
-      float x = rnd_range(180, SCREEN_W - 180);
+      float x = rnd_range(THROW_X(180), SCREEN_W - THROW_X(180));
       for (int i = 0; i < 3; i++)
         spawn_fruit_at(pick_fruit(), false, x, (i - 1) * 3.2f, vy0 - i * 1.2f);
       n = 3;
     } break;
     case WV_PINCER: {                          // opposite sides, crossing
-      spawn_fruit_at(pick_fruit(), false, 110, 2.6f, vy0);
-      spawn_fruit_at(pick_fruit(), false, SCREEN_W - 110, -2.6f, vy0 - 0.6f);
+      spawn_fruit_at(pick_fruit(), false, THROW_X(110), 2.6f, vy0);
+      spawn_fruit_at(pick_fruit(), false, SCREEN_W - THROW_X(110), -2.6f, vy0 - 0.6f);
       n = 2;
     } break;
     case WV_BIG: {
       for (int i = 0; i < 5; i++)
         spawn_fruit_at(pick_fruit(), false,
-                       90.0f + i * ((SCREEN_W - 180.0f) / 4.0f),
+                       THROW_X(90.0f) + i * ((SCREEN_W - THROW_X(180.0f)) / 4.0f),
                        (i - 2) * 1.1f, vy0 - (i % 2) * 1.6f);
       n = 5;
       s_wave_rest = 1;
