@@ -160,6 +160,11 @@
 #define KISS_DESIGN_H 480
 #define SX(v) ((v) * SCREEN_W / KISS_DESIGN_W)
 #define SY(v) ((v) * SCREEN_H / KISS_DESIGN_H)
+// 1 on the board whose canvas IS the design canvas, the 4.3in: the one board
+// where SX and SY are the identity, and so the one board a FORECAST about
+// another board's lanes is asked from. Not the same question as !KISS_NARROW,
+// which the 7in answers the same way and this one does not.
+#define KISS_DESIGN_CANVAS (SCREEN_W == KISS_DESIGN_W && SCREEN_H == KISS_DESIGN_H)
 
 // The touch read is the platform seam: the device reads its controller, the
 // simulator feeds scripted input.

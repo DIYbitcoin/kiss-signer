@@ -566,8 +566,9 @@ static void wt_sub_measure(const char *kind, const char *txt,
     // any layout -- which is a different and much shorter list than "does not
     // fit 40% of what it has here", a question every string on the device
     // would fail.
-    // Not on the 3.5in itself: there the lane IS the measurement above.
-    if (!KISS_NARROW && (int)fl.x > WT_PORT_LANE)
+    // Only on the 4.3in: on the 3.5in the lane IS the measurement above, and on
+    // the 7in the type is a rung up, so its widths say nothing about the 3.5in.
+    if (KISS_DESIGN_CANVAS && (int)fl.x > WT_PORT_LANE)
         s_cut_sink("port", txt, (int)fl.x, WT_PORT_LANE);
 }
 
@@ -8208,9 +8209,9 @@ exp_paras_t ps;
     // worth more before anything is ported than after. It reports through its
     // own kind because the verdict is different: this is not a defect on the
     // board that ships today.
-    // A forecast, so the 3.5in itself does not run it: its own lane was
-    // measured above, and that verdict is the FIT one.
-    if (!KISS_NARROW) {
+    // A forecast, asked from the 4.3in only: the 3.5in's own lane was measured
+    // above, and that verdict is the FIT one.
+    if (KISS_DESIGN_CANVAS) {
         const int nw = EXP_FULL_TXT * WT_PORT_NARROW_W / WT_PORT_WIDE_W;
         if (exp_height(&ps, 0, ps.count, ladder[rungs - 1], nw) > room)
             WT_FIT_GAVE_UP("narrow", body, nw, room);
@@ -8471,7 +8472,7 @@ static void explain_grid(lv_obj_t *ovl, const wt_explain_t *e, int y, int room,
                                  LV_TEXT_FLAG_NONE);
                 nt += (ns.y > GRID_BADGE ? ns.y : GRID_BADGE) + 4;
             }
-            if (!KISS_NARROW && nt > room)
+            if (KISS_DESIGN_CANVAS && nt > room)
                 WT_FIT_GAVE_UP("narrow", e->body, WT_PORT_LANE, room);
         }
         if (total <= fits) break;

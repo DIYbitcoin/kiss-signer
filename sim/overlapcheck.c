@@ -3126,7 +3126,7 @@ static int oc_selftest_read(const char *name, const char *kind,
 // that cannot. The second is what the check exists to name, and a dead check
 // fails it -- which matters more here than anywhere else in this file, because
 // the hardware it is about does not exist yet and nobody can catch it on glass.
-#if !KISS_NARROW   // the port forecast is the wide board's; see oc_selftest below
+#if KISS_DESIGN_CANVAS   // the port forecast is the 4.3in's; see oc_selftest below
 static int oc_selftest_port(const char *name, const char *body,
                             bool want_finding)
 {
@@ -3269,7 +3269,7 @@ int oc_selftest(void)
     else                printf("SLACK self test: 2 cases, all as expected\n");
     printf("\n");
 
-#if !KISS_NARROW
+#if KISS_DESIGN_CANVAS
     int was_slack = bad;
     printf("PORT check self test\n");
     // The pinned half goes through the SINK, like the reading-level cases and
@@ -3295,8 +3295,9 @@ int oc_selftest(void)
     else                  printf("PORT self test: 2 cases, all as expected\n");
     printf("\n");
 #else
-    // The port forecast is the WIDE board asking about this one; here the
-    // lane is the measurement, and the FIT check owns it.
+    // The port forecast is the 4.3in asking about the 3.5in; on the 3.5in the
+    // lane is the measurement and the FIT check owns it, and on the 7in the
+    // type is a rung up, so there is nothing to forecast from.
     printf("PORT self test: not on this board\n");
 #endif
 
