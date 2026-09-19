@@ -761,12 +761,14 @@ static int s_role_accent_objs;
 static int s_role_status_objs;
 
 // A wall of text is at least this big. The width follows the lane; the
-// HEIGHT does not scale with the canvas, because on the 3.5in the reading
+// HEIGHT does not shrink with the canvas, because on the 3.5in the reading
 // face is the 14 floor and its lines are the same pixels tall as they are
 // here -- two paragraphs that are 72px on the wide board are 72px there too,
-// and 90px of words is a wall on either glass.
+// and 90px of words is a wall on either glass. It does GROW with it: the 7in
+// sets its type a rung up, so its three lines of font23 are three lines of 28
+// and 90px there is two lines, which is not a wall.
 #define OC_WALL_W SX(560)
-#define OC_WALL_H 90
+#define OC_WALL_H LV_MAX(90, SY(90))
 
 // ---- 6. BARE: a screen whose only content is a wall of text ----------------
 //
