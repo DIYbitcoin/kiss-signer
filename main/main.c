@@ -71,6 +71,32 @@ static const char *TAG = "kiss";
 #define TAP_BOX 22  // px, the same on every board: see the collector
 #define GRAVITY 0.5f
 #define TICK_MS 16
+// Physics steps per game_tick. game_tick is an lv_timer, and a timer that
+// comes due during a repaint runs once, after it, with no catch-up: LVGL sets
+// last_run to the time it ran. So on a board whose repaint outlasts the gap
+// between two ticks, every step the renderer eats is a step the fruit never
+// take, and the game plays in slow motion instead of at a lower frame rate.
+// The 4.3in already runs 43 to 51 ticks a second under a cutting finger (the
+// table at MAX_LIVE_FRUIT). The 7in blends about 1.6 times the pixels through
+// the same scalar code, and it plays slow on the glass; it has not been timed.
+// There game_tick takes every step the wall clock owes, up to GAME_MAX_STEPS.
+// A longer stall takes that many and drops the rest, so a hitch never lands
+// as one long jump.
+//
+// A step there is GAME_STEP_MS of wall clock, not TICK_MS. The 4.3in the
+// owner calls right has never run the design's 62.5 steps a second: it
+// measured 58 with nobody cutting and 43 to 51 under a finger. 18 ms is 55
+// a second, the middle of that, so the 7in plays at the pace the 4.3in is
+// played at rather than one nobody has held.
+#if defined(KISS_BOARD_JC1060)
+#define KISS_GAME_CATCHUP 1
+#define GAME_MAX_STEPS 3
+#define GAME_STEP_MS 18
+#elif defined(KISS_BOARD_GUITION) || defined(KISS_BOARD_WS35)
+#define KISS_GAME_CATCHUP 0
+#else
+#error "main.c: no physics catch-up choice for this board"
+#endif
 
 typedef struct {
   const lv_image_dsc_t *whole, *hl, *hr;
@@ -1197,6 +1223,14 @@ static void update_blade(int tx, int ty, bool pressed) {
     for (int i = 1; i < s_trail_count; i++) s_trail[i - 1] = s_trail[i];
     s_trail_count--;
   }
+#if KISS_GAME_CATCHUP
+}
+
+// The two lines follow the trail once per game_tick, after its last step.
+// Moved per step, each would invalidate a box per step, and LVGL repaints the
+// whole screen once a frame holds more than 32 boxes (LV_INV_BUF_SIZE).
+static void blade_show(void) {
+#endif
   if (s_trail_count >= 2) {
     // lv_line sizes its object as the bbox of its points measured FROM the object's
     // (0,0). Our trail holds absolute screen coords, so the object stretched from the
@@ -2415,6 +2449,28 @@ static const struct {
 };
 #define N_SCREENS (sizeof SCREENS / sizeof SCREENS[0])
 
+#if KISS_GAME_CATCHUP
+// The GAME_STEP_MS steps the wall clock has run since the last one taken,
+// counted against a mark that moves by whole steps, so the remainder of one
+// call is paid by the next. A call that comes early takes none: the timer
+// runs every TICK_MS, a little faster than a step. Past GAME_MAX_STEPS the
+// mark restarts at now. The mark only moves in play, so the first call of a
+// round, or the first after a screen that held the game off, finds it stale
+// and takes GAME_MAX_STEPS.
+static int game_steps_owed(void) {
+  static uint32_t s_step_at;
+  uint32_t now = lv_tick_get();
+  int steps = (int)((int32_t)(now - s_step_at) / GAME_STEP_MS);
+  if (steps < 1) return 0;
+  if (steps > GAME_MAX_STEPS) {
+    s_step_at = now;
+    return GAME_MAX_STEPS;
+  }
+  s_step_at += (uint32_t)steps * GAME_STEP_MS;
+  return steps;
+}
+#endif
+
 static void game_tick(lv_timer_t *t) {
   (void)t;
   int tx = 0, ty = 0;
@@ -2942,6 +2998,9 @@ static void game_tick(lv_timer_t *t) {
     return;
   }
   s_idle_ms = 0;
+#if KISS_GAME_CATCHUP
+  const int steps = game_steps_owed();
+#endif
   // The banner lands when the combo ENDS, so a four-fruit swipe reads as one
   // "4 FRUIT +6" instead of four racing +1s.
   if (s_combo_n >= 2 && lv_tick_elaps(s_combo_t) > COMBO_MS) {
@@ -2955,15 +3014,37 @@ static void game_tick(lv_timer_t *t) {
     s_combo_n = 0;
   }
   if (s_frenzy_ms > 0) {
+#if KISS_GAME_CATCHUP
+    const uint32_t spent = (uint32_t)steps * GAME_STEP_MS;   // frenzy is wall clock
+    s_frenzy_ms = (s_frenzy_ms > spent) ? s_frenzy_ms - spent : 0;
+#else
     s_frenzy_ms = (s_frenzy_ms > TICK_MS) ? s_frenzy_ms - TICK_MS : 0;
+#endif
   }
 #if KISS_BLADE_LANDING
   if (pressed && !s_prev_press) blade_land();   // ahead of update_blade's point
 #endif
   s_prev_press = pressed;
 
+#if KISS_GAME_CATCHUP
+  // One touch sample, several steps: the blade walks from the trail's newest
+  // point to this sample a step at a time, so the trail still holds one point
+  // per step, which is the spacing check_slices sweeps the fruit back along.
+  // On a new press the newest point is where the finger landed (blade_land
+  // above has just cleared the old stroke), so the walk starts there.
+#if !KISS_BLADE_LANDING
+#error "the catch-up's walk starts at the landing point: see blade_land"
+#endif
+  const bool sweep = pressed && s_trail_count > 0;
+  const int x0 = sweep ? (int)s_trail[s_trail_count - 1].x : tx;
+  const int y0 = sweep ? (int)s_trail[s_trail_count - 1].y : ty;
+  for (int k = 1; k <= steps && s_state == ST_PLAY; k++) {
+    update_blade(x0 + (tx - x0) * k / steps, y0 + (ty - y0) * k / steps, pressed);
+    check_slices(pressed);
+#else
   update_blade(tx, ty, pressed);
   check_slices(pressed);
+#endif
 
   float fg = fruit_gravity(diff_progress());   // one read, not one per entity
   for (int i = 0; i < MAX_ENT; i++) {
@@ -2977,7 +3058,9 @@ static void game_tick(lv_timer_t *t) {
     }
     e->x += e->vx;
     e->y += e->vy;
+#if !KISS_GAME_CATCHUP
     place(e);
+#endif
     bool gone = e->y > SCREEN_H + e->size + 8;
     // debris (halves/juice) is also culled off the sides/top so it never lingers in front of new fruit
     if (e->kind != K_FRUIT)
@@ -2989,6 +3072,14 @@ static void game_tick(lv_timer_t *t) {
       e->active = false;
     }
   }
+#if KISS_GAME_CATCHUP
+  }
+  // The objects move once, to where the last step left them: one box each
+  // per call, as on the boards that take one step.
+  blade_show();
+  for (int i = 0; i < MAX_ENT; i++)
+    if (s_ent[i].active) place(&s_ent[i]);
+#endif
 }
 
 // A fixed period throwing one or two random fruit is a drizzle. The real game
