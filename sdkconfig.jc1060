@@ -1,0 +1,13 @@
+# Guition JC1060P470C, 7.0in ("jc1060").
+#
+# Layered by the root CMakeLists.txt OVER the committed sdkconfig (the Guition
+# 4.3in profile) when -DKISS_BOARD=jc1060, so every line here is a DIFFERENCE
+# between the two boards and anything absent is shared. For this board that is
+# nearly everything: the same ESP32-P4 v1.3, the same 16 MB Boya flash (so
+# CONFIG_SPI_FLASH_AUTO_SUSPEND stays off, as it already is), the same 32 MB of
+# PSRAM, the same OV02C10 sensor on the ribbon, and every LVGL setting
+# tools/check_lv_conf.py pins against the simulator. Never hand-edit
+# build_jc1060/sdkconfig; it is generated from this chain, and after a change
+# to this file or to the committed sdkconfig, delete it and reconfigure.
+CONFIG_KISS_BOARD_GUITION=n
+CONFIG_KISS_BOARD_JC1060=y

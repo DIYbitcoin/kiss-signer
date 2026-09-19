@@ -1,9 +1,9 @@
 menu "KISS board"
 
-    # The board is a BUILD-TIME choice, never a runtime detection. Two boards
+    # The board is a BUILD-TIME choice, never a runtime detection. The boards
     # share one tree, one string catalog and one UI; what differs is the panel
-    # (MIPI-DSI ST7701 against SPI ST7796), the touch controller, the camera
-    # sensor and the pins, and all of that is decided here and in the per
+    # (a MIPI-DSI ST7701 or JD9165, or an SPI ST7796), the touch controller, the
+    # camera sensor and the pins, and all of that is decided here and in the per
     # board sdkconfig fragment the root CMakeLists.txt layers on top.
     #
     # Nothing reads this symbol at runtime to branch on behaviour. It picks
@@ -16,15 +16,18 @@ menu "KISS board"
         default KISS_BOARD_GUITION
         help
             Which board this image is for. Chosen by the root CMakeLists.txt
-            from -DKISS_BOARD=<guition|ws35>; the committed sdkconfig is the
-            Guition profile and the 3.5in board gets its own generated one
-            inside its build directory.
+            from -DKISS_BOARD=<guition|ws35|jc1060>; the committed sdkconfig is
+            the Guition profile and every other board gets its own generated
+            one inside its build directory.
 
         config KISS_BOARD_GUITION
             bool "Guition JC4880P443C (4.3in ST7701 MIPI-DSI 480x800, GT911, OV02C10)"
 
         config KISS_BOARD_WS35
             bool "Waveshare ESP32-P4-WIFI6-Touch-LCD-3.5 (ST7796 SPI 320x480, FT5x06, OV5647)"
+
+        config KISS_BOARD_JC1060
+            bool "Guition JC1060P470C (7.0in JD9165 MIPI-DSI 1024x600, GT911, OV02C10)"
     endchoice
 
 endmenu

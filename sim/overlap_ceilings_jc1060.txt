@@ -1,0 +1,8 @@
+# The 7in board's ceilings: one line per locale, the number of overlapcheck
+# findings it may have on the 1024x600 canvas. Read by sim/run_overlapcheck.sh
+# when KISS_BOARD=jc1060. Its own file and never the 4.3in's, because every
+# count is measured on its own lanes, which here are 1.25 to 1.28 times as
+# wide as the 4.3in's with the type one rung up.
+#
+# SHRINK ONLY, like the other two. English is deliberately absent: it has no
+# allowance.

@@ -5,9 +5,9 @@
 // on the device and by -DKISS_BOARD_WS35 on the desktop; nothing detects a
 // board at runtime.
 //
-// One board, one file: board_guition.c, board_ws35.c. Each is compiled only
-// into its own image, so none carries a dead arm of another, and the -Werror
-// lint set compiles every line it ships.
+// One board, one file: board_guition.c, board_ws35.c, board_jc1060.c. Each is
+// compiled only into its own image, so none carries a dead arm of another, and
+// the -Werror lint set compiles every line it ships.
 //
 // EVERY BOARD IS NAMED. A test that names one board and lets `#else` stand for
 // "the other one" was true while there were two, and the day a third arrives it
@@ -29,17 +29,20 @@
 #if defined(CONFIG_KISS_BOARD_WS35) && !defined(KISS_BOARD_WS35)
 #define KISS_BOARD_WS35 1
 #endif
+#if defined(CONFIG_KISS_BOARD_JC1060) && !defined(KISS_BOARD_JC1060)
+#define KISS_BOARD_JC1060 1
+#endif
 #else
 // The desktop builds take the board from -DKISS_BOARD_<ID>=1 (sim/sim_tmp.sh),
 // and no flag at all means the 4.3in, as every sim command in the house rules
 // and the browser build assume. A default is not a fallback: a board that
 // passes its own flag can never land here.
-#if !defined(KISS_BOARD_GUITION) && !defined(KISS_BOARD_WS35)
+#if !defined(KISS_BOARD_GUITION) && !defined(KISS_BOARD_WS35) && !defined(KISS_BOARD_JC1060)
 #define KISS_BOARD_GUITION 1
 #endif
 #endif
 
-#if defined(KISS_BOARD_GUITION) + defined(KISS_BOARD_WS35) != 1
+#if defined(KISS_BOARD_GUITION) + defined(KISS_BOARD_WS35) + defined(KISS_BOARD_JC1060) != 1
 #error "exactly one KISS_BOARD_<ID> must be defined (main/Kconfig.projbuild, sim/sim_tmp.sh)"
 #endif
 
@@ -109,6 +112,25 @@
 #define KISS_PANEL_SPI 0
 #define KISS_PANEL_SWROT 1
 #define KISS_CAM_ORIENT_LOG 0
+#elif defined(KISS_BOARD_JC1060)
+#define KISS_BOARD_ID "jc1060"
+#define KISS_BOARD_NAME "Guition JC1060P470C"
+// The 4.3in's sibling at 7.0in, and LANDSCAPE in the glass itself: the JD9165
+// panel is 1024x600 native, so the canvas is the panel and no flush turns it.
+// The screens are the wide ones, scaled up by SX/SY (1.28 across, 1.25 down).
+#define SCREEN_W 1024
+#define SCREEN_H 600
+#define KISS_PANEL_W 1024
+#define KISS_PANEL_H 600
+#define KISS_NARROW 0
+// The camera path is not written for this board yet (it builds camera_none.c),
+// so these two are the 4.3in's, the same OV02C10 turned away from the owner
+// the same way, and are read off this glass when that path lands.
+#define KISS_CAM_ORIENT 4
+#define KISS_CAM_RAW_MIRRORED 1
+#define KISS_PANEL_SPI 0
+#define KISS_PANEL_SWROT 0
+#define KISS_CAM_ORIENT_LOG 1
 #else
 #error "no arm for this board in main/kiss_board.h"
 #endif
@@ -125,14 +147,15 @@
 #endif
 
 // THE UI IS DRAWN ONCE, ON THE WIDE CANVAS. Every length in the screens and
-// the kit is written for 800x480, and a board that is smaller scales it at
-// compile time: SX for an x or a width, SY for a y or a height. On the wide
-// board both fold to the number itself, so nothing there can move by a pixel;
-// on the 3.5in they are 3/5 and 2/3. Integer arithmetic, floor: a position and
-// a width scaled apart can disagree with their sum by one pixel, which is why
-// the kit's right edges are computed from the scaled parts, never scaled as a
-// sum. Fonts do not scale by this; the composites in kiss_theme.c are set at
-// three fifths on a narrow board, a rung chosen per size rather than computed.
+// the kit is written for 800x480, and a board of any other size scales it at
+// compile time: SX for an x or a width, SY for a y or a height. On the 4.3in
+// both fold to the number itself, so nothing there can move by a pixel; on the
+// 3.5in they are 3/5 and 2/3, on the 7in 32/25 and 5/4. Integer arithmetic,
+// floor: a position and a width scaled apart can disagree with their sum by one
+// pixel, which is why the kit's right edges are computed from the scaled parts,
+// never scaled as a sum. Fonts do not scale by this; the composites in
+// kiss_theme.c are set at three fifths on a narrow board, a rung chosen per size
+// rather than computed.
 #define KISS_DESIGN_W 800
 #define KISS_DESIGN_H 480
 #define SX(v) ((v) * SCREEN_W / KISS_DESIGN_W)

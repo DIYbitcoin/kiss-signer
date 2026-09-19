@@ -3535,10 +3535,12 @@ void app_main(void) {
   // this costs nothing and keeps boot order boring.
   kiss_trng_start();
   build_game();
-#if KISS_NARROW
+#if KISS_PANEL_SPI
   ESP_LOGI(TAG, "fruit game running (landscape, turned in the panel)");
-#else
+#elif KISS_PANEL_SWROT
   ESP_LOGI(TAG, "fruit game running (landscape, manual rotated flush)");
+#else
+  ESP_LOGI(TAG, "fruit game running (landscape, native panel)");
 #endif
   // The one symptom of the GT911 not coming up is a device that ignores you;
   // say it instead. s_menu_panel exists as of build_game.
