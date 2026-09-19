@@ -749,6 +749,16 @@ static void update_hearts(void) {
 // NEW BEST ribbon lay across the card's top. The score steps down to 40 px
 // (digits 153..181 over the rule at 188), BEST takes 195..215 of a card that
 // ends at 226, and the ribbon rides 60..116, clear of the title and the card.
+// The in-game score: 40 px on the 4.3in and the 3.5in. The 7in sets its type a
+// rung up and 48, the largest built-in face, is that rung here. The game-over
+// number below is already 48 on the wide boards and has no rung above it.
+#if defined(KISS_BOARD_JC1060)
+#define HUD_SCORE_FONT (&lv_font_montserrat_48)
+#elif defined(KISS_BOARD_GUITION) || defined(KISS_BOARD_WS35)
+#define HUD_SCORE_FONT (&lv_font_montserrat_40)
+#else
+#error "main.c: no in-game score size for this board"
+#endif
 #if KISS_NARROW
 #define OVER_NUM_FONT  (&lv_font_montserrat_40)
 #define OVER_NUM_Y     145
@@ -3123,7 +3133,7 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   s_score_lbl = lv_label_create(scr);
   lv_label_set_text(s_score_lbl, "0");
   lv_obj_set_style_text_color(s_score_lbl, lv_color_hex(0xF6D157), LV_PART_MAIN);  // gold
-  lv_obj_set_style_text_font(s_score_lbl, &lv_font_montserrat_40, LV_PART_MAIN);
+  lv_obj_set_style_text_font(s_score_lbl, HUD_SCORE_FONT, LV_PART_MAIN);
   lv_obj_align(s_score_lbl, LV_ALIGN_TOP_LEFT, SX(22), SY(40));  // below top overscan, level with hearts
   lv_obj_add_flag(s_score_lbl, LV_OBJ_FLAG_HIDDEN);
 

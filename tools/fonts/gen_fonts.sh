@@ -19,10 +19,21 @@ set -e
 cd "$(dirname "$0")"
 LVF=../../managed_components/lvgl__lvgl/scripts/built_in_font
 JP=vendor/SourceHanSansJP-Normal.otf
+MONO=vendor/IoskeleyMono-Medium-ascii.ttf
 OUT=../../main
+
+# With no argument every face below is regenerated. `gen_fonts.sh jc1060`
+# writes the 7in board's four faces (jc1060_faces, below) and nothing else, so
+# adding them never rewrites a committed face.
+ONLY="${1:-}"
+case "$ONLY" in
+  ''|jc1060) ;;
+  *) echo "usage: $0 [jc1060]" >&2; exit 2 ;;
+esac
 
 [ -d "$LVF" ] || { echo "LVGL component not fetched (need $LVF)"; exit 1; }
 [ -f "$JP" ] || { echo "Japanese font missing (need tools/fonts/$JP)"; exit 1; }
+[ -f "$MONO" ] || { echo "Ioskeley Mono missing (need tools/fonts/$MONO)"; exit 1; }
 [ -d node_modules ] || npm install --no-audit --no-fund
 
 # must match LAT_RANGES in tools/gen_i18n.py (the hang-prevention check)
@@ -67,6 +78,49 @@ SYMS="61441,61448,61451,61452,61453,61457,61459,61461,61465,61468,61473,61475,61
 
 conv() { npx lv_font_conv --no-compress --no-prefilter --bpp 4 --format lvgl \
                           --force-fast-kern-format "$@"; }
+
+# The 7in board's faces. Its canvas is 1024x600, 1.28 times the 4.3in's across
+# and 1.25 down, so kiss_theme.c sets every name one rung UP there: 14 -> 18,
+# 23 -> 28, 28 -> 34, mono21 -> mono26 and so on. Most of those rungs exist
+# already. These four are the ones no other board had, each made with the
+# same range and flags as its family's neighbour:
+#   lat43   the top rung, 34 x 1.25. Latin/Cyrillic only like lat34, and for
+#           the same reason its chain ends in the 28px Japanese face.
+#   mono26  a closed row's value (mono21) one rung up. mono28 would be 1.33
+#           times the size, and an address set in it runs out of its lane.
+#   mono43  the top rung's body face, in front of lat43.
+#   num60   the Sign hero, 48 x 1.25, with num48's glyphs and no others.
+# The other boards never name them. The device build compiles them for the
+# 7in board only; the simulator's font glob compiles them everywhere, where
+# they are dead weight and draw nothing.
+jc1060_faces() {
+  echo "== font_kiss_lat43"
+  conv --size 43 \
+    --font "$LVF/Montserrat-Medium.ttf" -r "$LAT" \
+    --font "$LVF/FontAwesome5-Solid+Brands+Regular.woff" -r "$SYMS" \
+    --lv-fallback font_kiss_ja28 \
+    -o "$OUT/font_kiss_lat43.c"
+  for SZ in 26 43; do
+    echo "== font_kiss_mono$SZ"
+    conv --size $SZ --font "$MONO" -r 0x20-0x7E -r 0xB7 -r 0x2022 -r 0x2026 \
+      -o "$OUT/font_kiss_mono$SZ.c"
+  done
+  echo "== font_kiss_num60"
+  conv --size 60 --font "$MONO" -r 0x20 -r 0x2E -r 0x30-0x39 -r 0x41-0x46 \
+    -o "$OUT/font_kiss_num60.c"
+  # The same trailing-newline normalisation as the full run, on these four
+  # alone.
+  perl -0pi -e 's/\n+\z/\n/' "$OUT/font_kiss_lat43.c" "$OUT/font_kiss_mono26.c" \
+    "$OUT/font_kiss_mono43.c" "$OUT/font_kiss_num60.c"
+}
+
+if [ "$ONLY" = jc1060 ]; then
+  jc1060_faces
+  ls -la "$OUT/font_kiss_lat43.c" "$OUT/font_kiss_mono26.c" \
+    "$OUT/font_kiss_mono43.c" "$OUT/font_kiss_num60.c"
+  echo "jc1060 fonts generated"
+  exit 0
+fi
 
 for SZ in 14 28; do
   echo "== font_kiss_lat$SZ"
@@ -210,8 +264,6 @@ conv --size 34 \
 # the middle of an address with it. Without the glyph that elision draws LVGL's
 # placeholder box in the middle of the one line on the Sign screen the owner is
 # asked to compare against their coordinator.
-MONO=vendor/IoskeleyMono-Medium-ascii.ttf
-[ -f "$MONO" ] || { echo "Ioskeley Mono missing (need tools/fonts/$MONO)"; exit 1; }
 
 # 18 and 21 are the screen-system pass's two additions: 18 carries captions,
 # subs, prose, tab labels, the trail and the band; 21 is a closed row's value.
@@ -244,6 +296,9 @@ conv --size 48 --font "$MONO" -r 0x20 -r 0x2E -r 0x30-0x39 -r 0x41-0x46 \
 echo "== font_kiss_num28"
 conv --size 28 --font "$MONO" -r 0x20 -r 0x2E -r 0x30-0x39 -r 0x41-0x46 \
   -o "$OUT/font_kiss_num28.c"
+
+# The 7in board's four faces (jc1060_faces, near the top, says why).
+jc1060_faces
 
 # The 3.5in board's small faces, again, with STRONG autohinting, into
 # main/fonts_ws35/ under the same names. That glass has about 165 pixels to the

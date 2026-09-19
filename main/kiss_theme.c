@@ -99,13 +99,51 @@ static lv_obj_t *wt_tagged(lv_obj_t *scr, const char *tag)
     return NULL;
 }
 
+// Which face each name draws. Every screen is written for the 4.3in's 800x480
+// and names its type by what THAT board draws -- wt_font28(), wt_font_mono21()
+// -- and each board decides here, and nowhere else, what a name means on its
+// glass. An explicit chain rather than a test of KISS_NARROW, because the two
+// wide boards want different answers:
+//   4.3in  the design size. Every name draws the face it names.
+//   3.5in  three fifths of the size, like its canvas (see nat14() below).
+//   7in    one rung UP. Its canvas is 1.28 times the 4.3in's across and 1.25
+//          down, so the same string at one rung larger fills the same scaled
+//          lane: 14 -> 18, 23 -> 28, 28 -> 34, 34 -> 43.
+// Both switches off is the 4.3in. A board missing from this chain stops the
+// build rather than borrowing the 4.3in's ladder in silence.
+#if defined(KISS_BOARD_GUITION)
+#define WT_TYPE_NARROW 0
+#define WT_TYPE_UP     0
+#elif defined(KISS_BOARD_WS35)
+#define WT_TYPE_NARROW 1
+#define WT_TYPE_UP     0
+#elif defined(KISS_BOARD_JC1060)
+#define WT_TYPE_NARROW 0
+#define WT_TYPE_UP     1
+#else
+#error "kiss_theme.c: no font ladder for this board; give it one here and in the accessors below"
+#endif
+
+#if WT_TYPE_UP
+// The 7in's own faces (tools/fonts/gen_fonts.sh, jc1060_faces). Declared here
+// and not in kiss_fonts.h because no other board compiles them, so a
+// reference from anywhere else could only be a link error on those boards.
+LV_FONT_DECLARE(font_kiss_lat43);
+LV_FONT_DECLARE(font_kiss_mono26);
+LV_FONT_DECLARE(font_kiss_mono43);
+LV_FONT_DECLARE(font_kiss_num60);
+#endif
+
 // The nat ("native") composites start with Montserrat for ASCII, symbols, and
 // Latin text, then fall back directly to the active locale's regional CJK
 // font. A single ja -> ko -> zh chain would render shared Han codepoints with
 // whichever font appeared first, mixing Japanese glyph forms into Simplified
 // Chinese.
 static lv_font_t s_nat14[I18N_FC_ZH + 1];
-static lv_font_t s_nat18[I18N_FC_ZH + 1];   // the 3.5in's middle rung; unused on the wide board
+#if WT_TYPE_NARROW || WT_TYPE_UP
+// The 3.5in's middle rung and the 7in's bottom one. The 4.3in never names it.
+static lv_font_t s_nat18[I18N_FC_ZH + 1];
+#endif
 static lv_font_t s_nat23[I18N_FC_ZH + 1];
 static lv_font_t s_nat28[I18N_FC_ZH + 1];
 // The body composites the accessors hand out: IoskeleyMono first, the nat
@@ -114,7 +152,9 @@ static lv_font_t s_nat28[I18N_FC_ZH + 1];
 // mono faces -- wt_font_monoNN() keeps returning the raw chainless ones, so a
 // localised string pointed at a data face still fails loudly.
 static lv_font_t s_font14[I18N_FC_ZH + 1];
+#if WT_TYPE_NARROW || WT_TYPE_UP
 static lv_font_t s_font18[I18N_FC_ZH + 1];
+#endif
 static lv_font_t s_font23[I18N_FC_ZH + 1];
 static lv_font_t s_font28[I18N_FC_ZH + 1];
 // 34 exists for Latin/Cyrillic ONLY -- the CJK subsets at this size would add
@@ -123,6 +163,12 @@ static lv_font_t s_font28[I18N_FC_ZH + 1];
 // face, not an array: there is deliberately no per-class variant to pick.
 static lv_font_t s_nat34;
 static lv_font_t s_font34;
+#if WT_TYPE_UP
+// The 7in's top rung, Latin/Cyrillic only for the same reason 34 is. Its CJK
+// locales stop at 28 there, as they do on the 4.3in.
+static lv_font_t s_nat43;
+static lv_font_t s_font43;
+#endif
 static bool s_fonts_ready;
 
 static void fonts_init(void)
@@ -136,9 +182,10 @@ static void fonts_init(void)
     s_nat14[I18N_FC_JA].fallback = &font_kiss_ja14;
     s_nat14[I18N_FC_KO].fallback = &font_kiss_ko14;
     s_nat14[I18N_FC_ZH].fallback = &font_kiss_zh14;
-#if KISS_NARROW
-    // The 18 faces exist for this board alone. The wide image never names
-    // them, so the linker drops them there and its bytes do not move.
+#if WT_TYPE_NARROW || WT_TYPE_UP
+    // The 18 faces exist for the 3.5in and the 7in alone. The 4.3in's image
+    // never names them, so the linker drops them there and its bytes do not
+    // move.
     for (int i = 0; i <= I18N_FC_ZH; i++) s_nat18[i] = font_kiss_lat18;
     s_nat18[I18N_FC_JA].fallback = &font_kiss_ja18;
     s_nat18[I18N_FC_KO].fallback = &font_kiss_ko18;
@@ -171,6 +218,14 @@ static void fonts_init(void)
     }
     s_font34 = font_kiss_mono34;
     s_font34.fallback = &s_nat34;
+#if WT_TYPE_UP
+    // The same shape one rung up, and the same end: 28 is still the largest
+    // CJK face, so the 43 chain stops there too rather than at nothing.
+    s_nat43 = font_kiss_lat43;
+    s_nat43.fallback = &font_kiss_ja28;
+    s_font43 = font_kiss_mono43;
+    s_font43.fallback = &s_nat43;
+#endif
     s_fonts_ready = true;
 }
 
@@ -190,50 +245,94 @@ static int font_class_for_lang(int lang)
 // pixels are a third larger so the same physical height wanted 0.78 of the
 // size; it left every text-heavy screen 30% too wide for its lane and the
 // explainers running into the action band. The glass is smaller; the type
-// is too. The names keep saying what the WIDE board draws, because that is
-// how every screen is written; the board decides what a name means, here
-// and nowhere else.
+// is too.
+// ONE RUNG UP ON THE 7in: 14 -> 18, 23 -> 28, 28 -> 34, 34 -> 43. Its lanes
+// are 1.25 to 1.28 times the 4.3in's and each of those steps is 1.2 to 1.29
+// times the size below it, so a string fills the same share of its lane that
+// it was written to fill. No CJK face exists above 28, so there a CJK locale's
+// 28 stays 28 -- the whole composite, its ASCII included, exactly as
+// wt_font34() does on the 4.3in -- rather than setting Latin at 34 beside Han
+// at 28 inside one line.
+// The names keep saying what the 4.3in draws, because that is how every
+// screen is written; the board decides what a name means, here and nowhere
+// else.
 static const lv_font_t *nat14(void)
 {
     fonts_init();
+#if WT_TYPE_UP
+    return &s_nat18[font_class_for_lang(i18n_get_lang())];
+#else
     return &s_nat14[font_class_for_lang(i18n_get_lang())];
+#endif
 }
 static const lv_font_t *nat23(void)
 {
     fonts_init();
-    return KISS_NARROW ? &s_nat14[font_class_for_lang(i18n_get_lang())]
-                       : &s_nat23[font_class_for_lang(i18n_get_lang())];
+#if WT_TYPE_NARROW
+    return &s_nat14[font_class_for_lang(i18n_get_lang())];
+#elif WT_TYPE_UP
+    return &s_nat28[font_class_for_lang(i18n_get_lang())];
+#else
+    return &s_nat23[font_class_for_lang(i18n_get_lang())];
+#endif
 }
 static const lv_font_t *nat28(void)
 {
     fonts_init();
-    return KISS_NARROW ? &s_nat18[font_class_for_lang(i18n_get_lang())]
-                       : &s_nat28[font_class_for_lang(i18n_get_lang())];
+#if WT_TYPE_NARROW
+    return &s_nat18[font_class_for_lang(i18n_get_lang())];
+#elif WT_TYPE_UP
+    return font_class_for_lang(i18n_get_lang()) == I18N_FC_LAT
+             ? &s_nat34
+             : &s_nat28[font_class_for_lang(i18n_get_lang())];
+#else
+    return &s_nat28[font_class_for_lang(i18n_get_lang())];
+#endif
 }
 
 const lv_font_t *wt_font14_for_lang(int lang)
 {
     fonts_init();
+#if WT_TYPE_UP
+    return &s_nat18[font_class_for_lang(lang)];
+#else
     return &s_nat14[font_class_for_lang(lang)];
+#endif
 }
 
 // NOT wt_font14_for_lang: that one is the picker's and returns the nat face.
 const lv_font_t *wt_font14(void)
 {
     fonts_init();
+#if WT_TYPE_UP
+    return &s_font18[font_class_for_lang(i18n_get_lang())];
+#else
     return &s_font14[font_class_for_lang(i18n_get_lang())];
+#endif
 }
 const lv_font_t *wt_font23(void)
 {
     fonts_init();
-    return KISS_NARROW ? &s_font14[font_class_for_lang(i18n_get_lang())]
-                       : &s_font23[font_class_for_lang(i18n_get_lang())];
+#if WT_TYPE_NARROW
+    return &s_font14[font_class_for_lang(i18n_get_lang())];
+#elif WT_TYPE_UP
+    return &s_font28[font_class_for_lang(i18n_get_lang())];
+#else
+    return &s_font23[font_class_for_lang(i18n_get_lang())];
+#endif
 }
 const lv_font_t *wt_font28(void)
 {
     fonts_init();
-    return KISS_NARROW ? &s_font18[font_class_for_lang(i18n_get_lang())]
-                       : &s_font28[font_class_for_lang(i18n_get_lang())];
+#if WT_TYPE_NARROW
+    return &s_font18[font_class_for_lang(i18n_get_lang())];
+#elif WT_TYPE_UP
+    return font_class_for_lang(i18n_get_lang()) == I18N_FC_LAT
+             ? &s_font34
+             : &s_font28[font_class_for_lang(i18n_get_lang())];
+#else
+    return &s_font28[font_class_for_lang(i18n_get_lang())];
+#endif
 }
 
 // The top rung, for page titles and primary buttons. Latin/Cyrillic locales
@@ -242,14 +341,21 @@ const lv_font_t *wt_font28(void)
 // string is CJK would put the renderer on the fallback path for the whole
 // screen. 28 is not a downgrade there: Han and Kana fill their em box far more
 // than Latin does, so a 28px CJK title already reads about as large as a 34px
-// Latin one.
+// Latin one. The 7in makes the same split one rung up, 43 against the same 28.
 const lv_font_t *wt_font34(void)
 {
     fonts_init();
-    if (KISS_NARROW) return &s_font23[font_class_for_lang(i18n_get_lang())];
+#if WT_TYPE_NARROW
+    return &s_font23[font_class_for_lang(i18n_get_lang())];
+#elif WT_TYPE_UP
+    return font_class_for_lang(i18n_get_lang()) == I18N_FC_LAT
+             ? &s_font43
+             : &s_font28[font_class_for_lang(i18n_get_lang())];
+#else
     return font_class_for_lang(i18n_get_lang()) == I18N_FC_LAT
              ? &s_font34
              : &s_font28[font_class_for_lang(i18n_get_lang())];
+#endif
 }
 
 // The fixed pitch faces. No array, no fallback, no per locale variant, and
@@ -268,18 +374,47 @@ const lv_font_t *wt_font34(void)
 // bug about. A chain would render it one size small and nobody would notice
 // the wiring is wrong. (The renderer does not hang on a missing glyph; the
 // comment above about s_font34 predates LV_USE_FONT_PLACEHOLDER being on.)
-// The same three-fifths step as the composites above, on the denser mono
-// ladder (34 -> 21, 28 -> 18, 23 -> 14), and the same floor at 14.
-const lv_font_t *wt_font_mono14(void) { return &font_kiss_mono14; }
-const lv_font_t *wt_font_mono18(void) { return KISS_NARROW ? &font_kiss_mono14 : &font_kiss_mono18; }
-const lv_font_t *wt_font_mono21(void) { return KISS_NARROW ? &font_kiss_mono14 : &font_kiss_mono21; }
-const lv_font_t *wt_font_mono23(void) { return KISS_NARROW ? &font_kiss_mono14 : &font_kiss_mono23; }
-const lv_font_t *wt_font_mono28(void) { return KISS_NARROW ? &font_kiss_mono18 : &font_kiss_mono28; }
-const lv_font_t *wt_font_mono34(void) { return KISS_NARROW ? &font_kiss_mono21 : &font_kiss_mono34; }
+// The same ladders as the composites above, on the denser mono scale. The
+// 3.5in steps down three fifths (34 -> 21, 28 -> 18, 23 -> 14) with the same
+// floor at 14. The 7in steps up one rung, and the rung above 21 there is 26,
+// not 28: 28 is 1.33 times 21, and an address in a closed row's value set
+// that large runs past the lane the row gives it.
+#if WT_TYPE_NARROW
+#define WT_MONO14 font_kiss_mono14
+#define WT_MONO18 font_kiss_mono14
+#define WT_MONO21 font_kiss_mono14
+#define WT_MONO23 font_kiss_mono14
+#define WT_MONO28 font_kiss_mono18
+#define WT_MONO34 font_kiss_mono21
+#define WT_NUM48  font_kiss_num28
+#elif WT_TYPE_UP
+#define WT_MONO14 font_kiss_mono18
+#define WT_MONO18 font_kiss_mono23
+#define WT_MONO21 font_kiss_mono26
+#define WT_MONO23 font_kiss_mono28
+#define WT_MONO28 font_kiss_mono34
+#define WT_MONO34 font_kiss_mono43
+#define WT_NUM48  font_kiss_num60
+#else
+#define WT_MONO14 font_kiss_mono14
+#define WT_MONO18 font_kiss_mono18
+#define WT_MONO21 font_kiss_mono21
+#define WT_MONO23 font_kiss_mono23
+#define WT_MONO28 font_kiss_mono28
+#define WT_MONO34 font_kiss_mono34
+#define WT_NUM48  font_kiss_num48
+#endif
+const lv_font_t *wt_font_mono14(void) { return &WT_MONO14; }
+const lv_font_t *wt_font_mono18(void) { return &WT_MONO18; }
+const lv_font_t *wt_font_mono21(void) { return &WT_MONO21; }
+const lv_font_t *wt_font_mono23(void) { return &WT_MONO23; }
+const lv_font_t *wt_font_mono28(void) { return &WT_MONO28; }
+const lv_font_t *wt_font_mono34(void) { return &WT_MONO34; }
 
 // The Sign hero, and nothing else. Thirteen glyphs, digits and space and full
-// stop, so it cannot represent a letter even if handed one.
-const lv_font_t *wt_font_num48(void) { return KISS_NARROW ? &font_kiss_num28 : &font_kiss_num48; }
+// stop, so it cannot represent a letter even if handed one. 28px on the 3.5in,
+// 60 on the 7in (48 x 1.25), from the same glyph list.
+const lv_font_t *wt_font_num48(void) { return &WT_NUM48; }
 
 // The sink from kiss_theme.h. NULL on device and in any host build that has not
 // asked, so this costs a null check on a path that already measured text.
