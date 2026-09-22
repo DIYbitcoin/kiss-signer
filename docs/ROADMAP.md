@@ -31,9 +31,14 @@ vectors. Nobody outside the project has reviewed any of it. See
 
 Silent Payments is implemented in both directions and every vector in
 `sim/test_sp.c` passes, cross-checked against the embit SP fork, including the
-BIP374 DLEQ vectors and a Sparrow-generated fixture. What it has not had is a
-real network round trip at scale or any outside review, and coordinator support
-for BIP375 and BIP376 is still thin.
+BIP374 DLEQ vectors and a Sparrow-generated fixture. The whole loop has run on
+this hardware on signet and Mutinynet: sending to a silent payment address,
+finding the payment, spending it, and silent payment change, with every
+transaction on chain in
+[kiss-bdk's proof](https://github.com/kkdao/kiss-bdk/blob/main/docs/proof.md).
+Sparrow supports both halves for airgapped signers: BIP375 sending since 2.4.0,
+receiving wallets since 2.5.0. What it has not had is a Sparrow round trip, a
+mainnet transaction, or any outside review.
 
 ## Keys and storage
 
@@ -112,5 +117,5 @@ that opens a modest set of keys. See `main/kiss_duress.h`.
 - **No secure boot**, so an attacker with prolonged physical access to an
   unencrypted device can flash modified firmware and the interface will look
   identical. See [`docs/security-plan.md`](security-plan.md).
-- **Silent Payments has no outside users yet.** The vectors pass and Sparrow
-  fixtures parse, but coordinator support for BIP375 and BIP376 is early.
+- **Silent Payments is proven on test networks only.** The full loop ran on
+  signet through kiss-bdk, but not yet through Sparrow and never on mainnet.
