@@ -357,6 +357,7 @@
   "L_NO_PASSPHRASE": "NO PASSPHRASE",
   "L_PASSPHRASE_CAP": "PASSPHRASE",
   "L_PPINTRO_B": "Seed words plus this passphrase open your real keys. Nobody can reset it.",
+  "L_PPINTRO_B_KEF": "The backup gave your seed words. The passphrase picks the keys.",
   "L_PPINTRO_F1_C": "NOT STORED",
   "L_PPINTRO_F1_V": "TYPED EVERY LOGIN",
   "L_PPINTRO_F2_C": "LEFT EMPTY",

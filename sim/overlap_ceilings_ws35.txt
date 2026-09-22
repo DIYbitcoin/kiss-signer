@@ -57,24 +57,33 @@
 #     zh-CN" bash sim/run_overlapcheck.sh
 #
 # Same rule as the wide file: from here the numbers only go down.
-cs-CZ 12
-da-DK 11
+# RAISED BY ONE, deliberately, in the nine locales below that carry it
+# (2026-09-22). The walk gained a stop on the passphrase intro as it reads
+# after an encrypted backup opens, and that stop is the first to measure
+# this intro on this board: with the facts these locales need, the
+# paragraph gets one line at the reading rung and falls to the floor
+# face. The plain intro does the same thing when forced through that
+# stop, so the screen did not grow; it was never measured. Cutting it
+# means giving the paragraph its second line back, which is its own
+# change.
+cs-CZ 13
+da-DK 12
 de 22
 es-ES 13
 es-MX 13
-fr 25
+fr 26
 hr-HR 16
 hu-HU 19
 it 17
-ja 14
-ko 7
-nb-NO 14
+ja 15
+ko 8
+nb-NO 15
 nl 22
 pl 29
 pt-BR 19
 pt-PT 16
 ru 38
-sv-SE 13
+sv-SE 14
 tr 10
-vi 18
-zh-CN 9
+vi 19
+zh-CN 10

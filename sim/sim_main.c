@@ -8049,6 +8049,20 @@ int main(void) {
   // which is what retired the branch.
   if (!act_for(STR_L_PP_TYPE_IT, "restore offers")) { /* counted */ }
   must_not_show("restore/no create verb", tr(STR_L_CREATE_PASS_BTN));
+  must_not_show("restore/words make no backup claim", tr(STR_L_PPINTRO_B_KEF));
+  // The same intro after an encrypted backup opened, which no walk reaches:
+  // the KEF door stops at its keyboard. Forced from the source the open
+  // records, on a fresh intro in place of this one. Opening the backup gave
+  // back seed words, and the paragraph must not let that read as the keys.
+  {
+    const int was_src = kiss_seed_source();
+    kiss_seed_set_source(WSEED_SRC_KEF);
+    lv_obj_clean(lv_screen_active()); pump(4);
+    kiss_login_open_restore(NULL); pump(10);
+    save("/tmp/sim_restore_ppintro_kef.ppm");
+    must_show("restore/kef intro names what opened", tr(STR_L_PPINTRO_B_KEF));
+    kiss_seed_set_source(was_src);
+  }
 
   // This TAIL entry stops here deliberately. The keyboard past this action needs
   // a login teardown the tail of the walk cannot give -- kiss_login_open

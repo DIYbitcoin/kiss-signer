@@ -357,6 +357,7 @@
   "L_NO_PASSPHRASE": "NINCS JELMONDAT",
   "L_PASSPHRASE_CAP": "JELMONDAT",
   "L_PPINTRO_B": "A seed szavak és ez a jelmondat nyitják meg az igazi kulcsaidat. Senki nem tudja resetelni.",
+  "L_PPINTRO_B_KEF": "A mentés a seed szavakat adta. A kulcsokat a jelmondat választja.",
   "L_PPINTRO_F1_C": "NINCS TÁROLVA",
   "L_PPINTRO_F1_V": "MINDEN BELÉPÉSKOR ÍROD",
   "L_PPINTRO_F2_C": "ÜRESEN HAGYVA",

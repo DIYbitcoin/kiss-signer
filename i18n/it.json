@@ -357,6 +357,7 @@
   "L_NO_PASSPHRASE": "NESSUNA PASSPHRASE",
   "L_PASSPHRASE_CAP": "PASSPHRASE",
   "L_PPINTRO_B": "Le parole seed e questa passphrase aprono le tue chiavi vere. Nessuno la reimposta.",
+  "L_PPINTRO_B_KEF": "Il backup ha dato le parole seed. La passphrase sceglie le chiavi.",
   "L_PPINTRO_F1_C": "NON SALVATA",
   "L_PPINTRO_F1_V": "SCRITTA OGNI VOLTA",
   "L_PPINTRO_F2_C": "VUOTA",

@@ -357,6 +357,7 @@
   "L_NO_PASSPHRASE": "KEINE PASSPHRASE",
   "L_PASSPHRASE_CAP": "PASSPHRASE",
   "L_PPINTRO_B": "Seed-Wörter plus Passphrase öffnen Ihre echten Schlüssel. Nicht rücksetzbar.",
+  "L_PPINTRO_B_KEF": "Das Backup gab die Seed-Wörter. Die Passphrase wählt die Schlüssel.",
   "L_PPINTRO_F1_C": "NICHT GESPEICHERT",
   "L_PPINTRO_F1_V": "JEDES MAL GETIPPT",
   "L_PPINTRO_F2_C": "LEER GELASSEN",

@@ -357,6 +357,7 @@
   "L_NO_PASSPHRASE": "PASSPHRASE YOK",
   "L_PASSPHRASE_CAP": "PASSPHRASE",
   "L_PPINTRO_B": "Seed kelimeleri ve bu passphrase gerçek anahtarları açar. Kimse sıfırlayamaz.",
+  "L_PPINTRO_B_KEF": "Yedek seed kelimelerini verdi. Anahtarları passphrase seçer.",
   "L_PPINTRO_F1_C": "SAKLANMAZ",
   "L_PPINTRO_F1_V": "HER GİRİŞTE YAZILIR",
   "L_PPINTRO_F2_C": "BOŞ BIRAKILIRSA",

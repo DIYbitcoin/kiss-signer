@@ -357,6 +357,7 @@
   "L_NO_PASSPHRASE": "패스프레이즈 없이",
   "L_PASSPHRASE_CAP": "패스프레이즈",
   "L_PPINTRO_B": "시드 문구와 이 패스프레이즈가 진짜 키를 엽니다. 아무도 되돌릴 수 없습니다.",
+  "L_PPINTRO_B_KEF": "백업은 시드 문구를 돌려줍니다. 키는 패스프레이즈가 정합니다.",
   "L_PPINTRO_F1_C": "저장 안 함",
   "L_PPINTRO_F1_V": "매번 입력",
   "L_PPINTRO_F2_C": "비워 두면",

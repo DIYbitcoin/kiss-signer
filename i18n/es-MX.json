@@ -357,6 +357,7 @@
   "L_NO_PASSPHRASE": "SIN PASSPHRASE",
   "L_PASSPHRASE_CAP": "PASSPHRASE",
   "L_PPINTRO_B": "Las palabras semilla y esta frase abren tus claves reales. Nadie la restablece.",
+  "L_PPINTRO_B_KEF": "El respaldo dio tu frase semilla. La passphrase elige las claves.",
   "L_PPINTRO_F1_C": "NO SE GUARDA",
   "L_PPINTRO_F1_V": "SE ESCRIBE CADA VEZ",
   "L_PPINTRO_F2_C": "DEJADA VACÍA",

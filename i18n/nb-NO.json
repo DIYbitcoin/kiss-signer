@@ -357,6 +357,7 @@
   "L_NO_PASSPHRASE": "INGEN PASSORDFRASE",
   "L_PASSPHRASE_CAP": "PASSORDFRASE",
   "L_PPINTRO_B": "Seed-ord pluss denne frasen åpner de ekte nøklene dine. Ingen kan nullstille den.",
+  "L_PPINTRO_B_KEF": "Sikkerhetskopien ga seed-ordene. Frasen velger nøklene.",
   "L_PPINTRO_F1_C": "IKKE LAGRET",
   "L_PPINTRO_F1_V": "SKRIVES VED HVER ÅPNING",
   "L_PPINTRO_F2_C": "LATT TOM",

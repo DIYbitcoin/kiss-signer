@@ -357,6 +357,7 @@
   "L_NO_PASSPHRASE": "SANS PHRASE SECRÈTE",
   "L_PASSPHRASE_CAP": "PHRASE SECRÈTE",
   "L_PPINTRO_B": "Les mots seed et cette phrase ouvrent vos vraies clés. Nul ne la réinitialise.",
+  "L_PPINTRO_B_KEF": "La sauvegarde a rendu les mots seed. La phrase choisit les clés.",
   "L_PPINTRO_F1_C": "NON STOCKÉE",
   "L_PPINTRO_F1_V": "TAPÉE À CHAQUE FOIS",
   "L_PPINTRO_F2_C": "LAISSÉE VIDE",

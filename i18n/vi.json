@@ -357,6 +357,7 @@
   "L_NO_PASSPHRASE": "KHÔNG CÓ CỤM MẬT KHẨU",
   "L_PASSPHRASE_CAP": "CỤM MẬT KHẨU",
   "L_PPINTRO_B": "Cụm từ seed và cụm mật khẩu này mở khoá thật. Không ai đặt lại được.",
+  "L_PPINTRO_B_KEF": "Bản sao lưu trả lại từ seed. Cụm mật khẩu chọn khóa.",
   "L_PPINTRO_F1_C": "KHÔNG LƯU",
   "L_PPINTRO_F1_V": "NHẬP MỖI LẦN MỞ",
   "L_PPINTRO_F2_C": "ĐỂ TRỐNG",

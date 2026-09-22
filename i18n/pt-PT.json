@@ -357,6 +357,7 @@
   "L_NO_PASSPHRASE": "SEM PASSPHRASE",
   "L_PASSPHRASE_CAP": "PASSPHRASE",
   "L_PPINTRO_B": "As palavras seed e esta passphrase abrem suas chaves reais. Ninguém a redefine.",
+  "L_PPINTRO_B_KEF": "A cópia deu as palavras seed. A passphrase escolhe as chaves.",
   "L_PPINTRO_F1_C": "NÃO É GUARDADA",
   "L_PPINTRO_F1_V": "ESCRITA A CADA ENTRADA",
   "L_PPINTRO_F2_C": "DEIXADA VAZIA",

@@ -357,6 +357,7 @@
   "L_NO_PASSPHRASE": "BEZ PŘÍSTUPOVÉ FRÁZE",
   "L_PASSPHRASE_CAP": "PŘÍSTUPOVÁ FRÁZE",
   "L_PPINTRO_B": "Slova seedu a tato fráze otevřou vaše pravé klíče. Nikdo ji neresetuje.",
+  "L_PPINTRO_B_KEF": "Záloha vrátila slova seedu. Klíče určí přístupová fráze.",
   "L_PPINTRO_F1_C": "NEUKLÁDÁ SE",
   "L_PPINTRO_F1_V": "ZADÁVÁ SE POKAŽDÉ",
   "L_PPINTRO_F2_C": "PRÁZDNÁ",

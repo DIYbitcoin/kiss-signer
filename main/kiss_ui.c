@@ -2510,7 +2510,13 @@ void kiss_login_open_setup(void (*unlocked_cb)(void)) {
       { .cap = tr(STR_G_TECHNICAL), .val = tr(STR_T_PASS_TERM),
         .icon = LV_SYMBOL_LIST },
   };
-  wt_explain(scr, tr(STR_L_PPINTRO_HEAD), tr(STR_L_PPINTRO_B), facts, 3);
+  // After an encrypted backup opens, this is the next screen, and the plain
+  // paragraph let "backup opened" read as "keys recovered". It says what the
+  // backup gave back -- the seed words -- and that the passphrase still picks
+  // which keys those are.
+  const bool from_kef = s_restore_mode && kiss_seed_source() == WSEED_SRC_KEF;
+  wt_explain(scr, tr(STR_L_PPINTRO_HEAD),
+             tr(from_kef ? STR_L_PPINTRO_B_KEF : STR_L_PPINTRO_B), facts, 3);
 
   // One action, in the corner where the primary lives. TYPE IT also retires
   // the s_restore_mode branch: CREATE PASSPHRASE was an instruction to invent

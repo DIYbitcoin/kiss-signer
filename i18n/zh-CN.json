@@ -357,6 +357,7 @@
   "L_NO_PASSPHRASE": "没有密码短语",
   "L_PASSPHRASE_CAP": "密码短语",
   "L_PPINTRO_B": "助记词加上这个密码短语，才打开你真正的密钥。没有人能把它重置。",
+  "L_PPINTRO_B_KEF": "备份还原的是助记词。打开哪组密钥，由密码短语决定。",
   "L_PPINTRO_F1_C": "不保存",
   "L_PPINTRO_F1_V": "每次都要输入",
   "L_PPINTRO_F2_C": "留空",

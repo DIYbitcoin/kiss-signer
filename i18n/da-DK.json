@@ -357,6 +357,7 @@
   "L_NO_PASSPHRASE": "INGEN ADGANGSFRASE",
   "L_PASSPHRASE_CAP": "ADGANGSFRASE",
   "L_PPINTRO_B": "Seed-ord plus denne frase åbner dine rigtige nøgler. Ingen kan nulstille den.",
+  "L_PPINTRO_B_KEF": "Backuppen gav seed-ordene. Frasen vælger nøglerne.",
   "L_PPINTRO_F1_C": "IKKE GEMT",
   "L_PPINTRO_F1_V": "SKRIVES VED HVER ÅBNING",
   "L_PPINTRO_F2_C": "EFTERLADT TOM",

@@ -357,6 +357,7 @@
   "L_NO_PASSPHRASE": "BEZ KODNE FRAZE",
   "L_PASSPHRASE_CAP": "KODNA FRAZA",
   "L_PPINTRO_B": "Riječi seeda i ova fraza otvaraju vaše prave ključeve. Nitko je ne poništava.",
+  "L_PPINTRO_B_KEF": "Kopija je vratila riječi seeda. Ključeve bira kodna fraza.",
   "L_PPINTRO_F1_C": "NE POHRANJUJE SE",
   "L_PPINTRO_F1_V": "UPISUJE SE SVAKI PUT",
   "L_PPINTRO_F2_C": "OSTAVLJENO PRAZNO",

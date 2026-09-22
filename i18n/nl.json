@@ -357,6 +357,7 @@
   "L_NO_PASSPHRASE": "GEEN PASSPHRASE",
   "L_PASSPHRASE_CAP": "PASSPHRASE",
   "L_PPINTRO_B": "Seed-woorden plus deze passphrase openen je echte sleutels. Niemand reset hem.",
+  "L_PPINTRO_B_KEF": "De back-up gaf de seed-woorden. De passphrase kiest de sleutels.",
   "L_PPINTRO_F1_C": "NIET OPGESLAGEN",
   "L_PPINTRO_F1_V": "ELKE KEER TYPEN",
   "L_PPINTRO_F2_C": "LEEG GELATEN",
