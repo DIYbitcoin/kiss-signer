@@ -227,6 +227,11 @@ static lv_obj_t *s_fp_fly;               // transient: the code flying from the 
 static lv_obj_t *s_cam_lbl;              // bottom-center status/error slot
 static lv_obj_t *s_sd_badge;             // home: SD-storage indicator (SD mode only)
 static bool s_sd_badge_live;             // SD mode + card in: game_tick breathes it
+#if KISS_PMIC
+static lv_obj_t *s_batt_badge;           // home: the battery, only when one is fitted
+static int s_batt_x0;                    // where it stands when the SD badge is hidden
+static bool s_batt_low;                  // painted amber, so a restyle leaves it alone
+#endif
 static lv_obj_t *s_net_lbl;              // top-center test-network badge (hidden on mainnet)
 static lv_obj_t *s_home_build_id;
 static uint32_t s_home_act_t;          // idle auto-lock: last touch while unlocked
@@ -367,6 +372,20 @@ static int rnd_range(int a, int b) { return a + (int)rnd(b - a + 1); }
 void kiss_backlight_set(int on) { (void)on; }
 void kiss_backlight_level(int pct) { (void)pct; }
 void kiss_panel_black(void) { }
+#if KISS_PMIC
+// No power chip on the desktop. No cell unless the walk hands one over, which
+// is the board as it ships.
+static kiss_batt_t s_sim_batt;
+void kiss_board_batt_sim(const kiss_batt_t *b) {
+  if (b) s_sim_batt = *b;
+  else   memset(&s_sim_batt, 0, sizeof s_sim_batt);
+}
+bool kiss_board_batt_read(kiss_batt_t *b) {
+  if (!b) return false;
+  *b = s_sim_batt;
+  return true;
+}
+#endif
 
 // UPSIDE DOWN (kiss_board.h), and a REAL bool rather than a no-op: the
 // SETTING is what the desktop can hold. The walk taps the control, the value
@@ -1635,6 +1654,9 @@ static void kiss_home_restyle(void) {
   }
   if (s_underline)  lv_obj_set_style_bg_color(s_underline, ac, 0);
   if (s_chip_frame) lv_obj_set_style_border_color(s_chip_frame, ac, 0);
+#if KISS_PMIC
+  if (s_batt_badge && !s_batt_low) lv_obj_set_style_text_color(s_batt_badge, ac, 0);
+#endif
   if (s_theme_dot)  lv_obj_set_style_bg_color(s_theme_dot, ac, 0);
   if (s_theme_lbl) {
     lv_label_set_text(s_theme_lbl, wt_accent_name());
@@ -1679,9 +1701,52 @@ static void sd_badge_sync(bool present) {
   }
 }
 
+#if KISS_PMIC
+// The battery, beside the SD badge on the build line: a mark for how full it
+// is, the percent, and the USB mark while the cable is in. Hidden until the
+// power chip says a cell is fitted, which is how the board ships, so a board
+// on USB alone shows nothing new. Amber at 15% and below while nothing is
+// charging it; a signature or an update that dies half way costs a restart,
+// not keys, so it warns and does not stop anything.
+//
+// The USB mark, not a bolt: a bolt on this device reads as Lightning, which is
+// why fees wear scissors here.
+static void batt_badge_sync(void) {
+  if (!s_batt_badge) return;
+  kiss_batt_t b;
+  if (!kiss_board_batt_read(&b) || !b.present) {
+    lv_obj_add_flag(s_batt_badge, LV_OBJ_FLAG_HIDDEN);
+    return;
+  }
+  const char *mark = b.pct >= 80 ? LV_SYMBOL_BATTERY_FULL
+                   : b.pct >= 55 ? LV_SYMBOL_BATTERY_3
+                   : b.pct >= 30 ? LV_SYMBOL_BATTERY_2
+                   : b.pct >= 10 ? LV_SYMBOL_BATTERY_1
+                                 : LV_SYMBOL_BATTERY_EMPTY;
+  char txt[40];
+  snprintf(txt, sizeof txt, "%s %u%%%s", mark, (unsigned)b.pct,
+           b.usb ? "  " LV_SYMBOL_USB : "");
+  lv_label_set_text(s_batt_badge, txt);
+  s_batt_low = b.pct <= 15 && !b.usb;
+  lv_obj_set_style_text_color(s_batt_badge, s_batt_low ? WT_WARN : wt_accent(), 0);
+  // After the SD badge when it shows, where the SD badge would be when not,
+  // measured each time: the SD badge's own marks change with the card.
+  int x = s_batt_x0;
+  if (s_sd_badge && !lv_obj_has_flag(s_sd_badge, LV_OBJ_FLAG_HIDDEN)) {
+    lv_obj_update_layout(s_sd_badge);
+    x = lv_obj_get_x(s_sd_badge) + lv_obj_get_width(s_sd_badge) + SX(28);
+  }
+  lv_obj_set_pos(s_batt_badge, x, SY(420));
+  lv_obj_clear_flag(s_batt_badge, LV_OBJ_FLAG_HIDDEN);
+}
+#endif
+
 void kiss_home_refresh(void) {
   kiss_home_restyle();
   sd_badge_sync(platform_sd_probe() != 0);
+#if KISS_PMIC
+  batt_badge_sync();
+#endif
   if (!s_net_lbl) return;
   if (kiss_testnet()) {
     lv_label_set_text(s_net_lbl, kiss_net_name());   // TESTNET or SIGNET
@@ -2795,6 +2860,9 @@ static void game_tick(lv_timer_t *t) {
       }
       s_sd_present = present;
       sd_badge_sync(present);                        // persistent SD-storage badge
+#if KISS_PMIC
+      batt_badge_sync();                             // after it: it stands beside it
+#endif
     }
     // Gentle opacity breathe on the SD badge while the card is present, so it
     // reads as a live link to the card rather than a static label. Opacity only
@@ -3497,6 +3565,14 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   lv_label_set_text(s_sd_badge, "");
   lv_obj_set_style_text_font(s_sd_badge, wt_font14(), 0);
   lv_obj_add_flag(s_sd_badge, LV_OBJ_FLAG_HIDDEN);
+#if KISS_PMIC
+  // The battery: a figure the owner reads, so the build line's font23 rather
+  // than the SD badge's marks at font14. batt_badge_sync places and shows it.
+  s_batt_badge = lv_label_create(s_home);
+  lv_label_set_text(s_batt_badge, "");
+  lv_obj_set_style_text_font(s_batt_badge, wt_font23(), 0);
+  lv_obj_add_flag(s_batt_badge, LV_OBJ_FLAG_HIDDEN);
+#endif
 
   // The test network, top centre between the baked "KISS" logo and the
   // fingerprint. A DOT AND A WORD, not a pill: the lozenge was the only
@@ -3557,6 +3633,9 @@ void build_game(void) {  // non-static: the simulator harness calls this too
 #endif
   // Now the row has a measured width, the badge can stand clear of it.
   lv_obj_set_pos(s_sd_badge, kiss_build_id_right() + SX(28), SY(424));
+#if KISS_PMIC
+  s_batt_x0 = kiss_build_id_right() + SX(28);
+#endif
 
   // NOTHING here says how to reach the other signer.
   //

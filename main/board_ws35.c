@@ -458,6 +458,79 @@ void kiss_board_touch_start(void) {
 bool kiss_board_touch_ok(void) { return s_touch != NULL; }
 i2c_master_bus_handle_t kiss_board_i2c_bus(void) { return s_i2c_bus; }
 
+// ---- the battery: the AXP2101 at 0x34, on the touch bus ----
+// Three registers, as the chip's datasheet and XPowersLib read them: STATUS1
+// (0x00) bit 5 is USB power good and bit 3 a cell present; STATUS2 (0x01) bits
+// 6..5 are which way the current flows, 01 charging and 10 discharging; 0xA4 is
+// the fuel gauge's percent.
+//
+// Kern's driver for this board was the starting point, and three of its reads
+// are not what the chip says. It takes 10 in STATUS2 as FULL, where the chip
+// means discharging, so a board running on its battery said full. It splits the
+// voltage's two registers 8/6 where the chip packs them 5/8. And its "enable
+// the gauge" sets bit 0 of 0x18, which is the chip's watchdog. The gauge runs
+// from power up and nothing here shows a voltage, so this writes no register
+// at all.
+//
+// Asked lazily, from the home's poll, so the probe never sits in the boot path;
+// a chip that does not answer as an AXP2101 is dropped once and never asked
+// again. The bus lock in the I2C driver keeps these reads off the touch
+// sampler's, and 20 ms is the most one can hold the UI task.
+#define AXP_ADDR    0x34
+#define AXP_STATUS1 0x00
+#define AXP_STATUS2 0x01
+#define AXP_CHIP_ID 0x03
+#define AXP_ID      0x4A
+#define AXP_SOC     0xA4
+static i2c_master_dev_handle_t s_axp;
+static bool s_axp_gone;
+
+static bool axp_read(uint8_t reg, uint8_t *v) {
+  return i2c_master_transmit_receive(s_axp, &reg, 1, v, 1, 20) == ESP_OK;
+}
+
+static bool axp_probe(void) {
+  if (s_axp) return true;
+  if (s_axp_gone || !s_i2c_bus) return false;
+  i2c_device_config_t cfg = {.dev_addr_length = I2C_ADDR_BIT_LEN_7,
+                             .device_address = AXP_ADDR, .scl_speed_hz = 400000};
+  if (i2c_master_bus_add_device(s_i2c_bus, &cfg, &s_axp) != ESP_OK) {
+    s_axp = NULL;
+    s_axp_gone = true;
+    return false;
+  }
+  uint8_t id = 0;
+  if (!axp_read(AXP_CHIP_ID, &id) || id != AXP_ID) {
+    ESP_LOGW(TAG, "battery: no AXP2101 at 0x34 (id 0x%02x)", id);
+    i2c_master_bus_rm_device(s_axp);
+    s_axp = NULL;
+    s_axp_gone = true;
+    return false;
+  }
+  return true;
+}
+
+bool kiss_board_batt_read(kiss_batt_t *b) {
+  if (!b) return false;
+  memset(b, 0, sizeof *b);
+  uint8_t st1, st2, soc;
+  if (!axp_probe() || !axp_read(AXP_STATUS1, &st1) || !axp_read(AXP_STATUS2, &st2) ||
+      !axp_read(AXP_SOC, &soc))
+    return false;
+  b->usb = (st1 >> 5) & 1;
+  b->present = (st1 >> 3) & 1;
+  b->charging = ((st2 >> 5) & 3) == 1;
+  b->pct = soc > 100 ? 100 : soc;
+  // Once, raw, so the first bench session with a cell fitted can check the
+  // reading against the chip rather than against this decode.
+  static bool logged;
+  if (!logged) {
+    logged = true;
+    ESP_LOGI(TAG, "battery: AXP2101 status 0x%02x 0x%02x gauge %u%%", st1, st2, soc);
+  }
+  return true;
+}
+
 // Identity map: the driver's flags already turned the point into the canvas,
 // and the flip is in those flags too (kiss_flip_set), so this stays identity
 // both ways up.

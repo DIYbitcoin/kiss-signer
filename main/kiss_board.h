@@ -63,6 +63,10 @@
 //                          and drops what was left of the last stroke, rather
 //                          than starting where the first game pass found the
 //                          finger
+//   KISS_PMIC              1 when a power chip on the shared I2C bus can say
+//                          whether a battery is fitted and how full it is
+//                          (the 3.5in's AXP2101); 0 where there is nothing
+//                          to ask, and the home shows no battery at all
 #if defined(KISS_BOARD_WS35)
 #define KISS_BOARD_ID "ws35"
 #define KISS_BOARD_NAME "Waveshare ESP32-P4-WIFI6-Touch-LCD-3.5"
@@ -99,6 +103,7 @@
 #define KISS_PANEL_SWROT 0
 #define KISS_CAM_ORIENT_LOG 1
 #define KISS_BLADE_LANDING 0
+#define KISS_PMIC 1
 #elif defined(KISS_BOARD_GUITION)
 #define KISS_BOARD_ID "guition"
 #define KISS_BOARD_NAME "Guition JC4880P443C"
@@ -119,6 +124,7 @@
 #define KISS_PANEL_SWROT 1
 #define KISS_CAM_ORIENT_LOG 0
 #define KISS_BLADE_LANDING 0
+#define KISS_PMIC 0
 #elif defined(KISS_BOARD_JC1060)
 #define KISS_BOARD_ID "jc1060"
 #define KISS_BOARD_NAME "Guition JC1060P470C"
@@ -144,6 +150,7 @@
 // draws 1.6 times the 4.3in's pixels, so its pass is expected to be the
 // longest of the three; that is a model, and the pass has not been measured.
 #define KISS_BLADE_LANDING 1
+#define KISS_PMIC 0
 #else
 #error "no arm for this board in main/kiss_board.h"
 #endif
@@ -156,7 +163,7 @@
     !defined(KISS_NARROW) || !defined(KISS_CAM_ORIENT) ||                       \
     !defined(KISS_CAM_RAW_MIRRORED) || !defined(KISS_PANEL_SPI) ||              \
     !defined(KISS_PANEL_SWROT) || !defined(KISS_CAM_ORIENT_LOG) ||              \
-    !defined(KISS_BLADE_LANDING)
+    !defined(KISS_BLADE_LANDING) || !defined(KISS_PMIC)
 #error "a board arm in main/kiss_board.h leaves a capability undefined"
 #endif
 
@@ -203,6 +210,25 @@ bool platform_read_touch_ui(int *x, int *y);   // kiss_ui.c: the LVGL pointer in
 #if KISS_BLADE_LANDING
 // Where the contact platform_read_touch is holding came down (main/kiss_touch.c).
 bool platform_touch_origin(int *x, int *y);
+#endif
+
+#if KISS_PMIC
+// The battery, as the power chip reports it. Read only: nothing here writes a
+// register, because the same chip holds every rail this board runs on and a
+// wrong bit is a board that switches itself off. false when the chip did not
+// answer; `present` false when it answered and no cell is fitted, which is how
+// the board ships.
+typedef struct {
+  bool present;          // a cell is connected
+  bool usb;              // USB power is in
+  bool charging;         // the chip is charging the cell right now
+  unsigned char pct;     // 0..100, the chip's own fuel gauge
+} kiss_batt_t;
+bool kiss_board_batt_read(kiss_batt_t *b);
+#ifndef ESP_PLATFORM
+// The desktop builds have no chip: the walk hands this the reading to draw.
+void kiss_board_batt_sim(const kiss_batt_t *b);
+#endif
 #endif
 
 // ---- UPSIDE DOWN -------------------------------------------------------

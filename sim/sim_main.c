@@ -5565,6 +5565,23 @@ int main(void) {
   // card is in). Pop out to capture it, then return to migrate back to FLASH.
   tap_str(STR_C_BACK, 3, 8);      // Settings BACK, right corner -> home
   save("/tmp/sim_home_sd.ppm");                      // SD storage badge on home
+  // The battery beside it, at its widest: a full cell with the cable in, so
+  // the overlap gate measures the longest the line gets against the theme
+  // cluster. Then no cell again, which is the board as it ships and what
+  // every other home frame shows. A board with no power chip has no badge to
+  // draw, and saves the frame above again.
+#if KISS_PMIC
+  extern void kiss_home_refresh(void);               // main.h, which this file
+  const kiss_batt_t batt = {.present = true, .usb = true, .pct = 100};
+  kiss_board_batt_sim(&batt);                        // does not otherwise need
+  kiss_home_refresh(); pump(4);
+#endif
+  save("/tmp/sim_home_batt.ppm");                    // 100% on USB; unchanged with no power chip
+#if KISS_PMIC
+  must_show("home/battery", "100%");
+  kiss_board_batt_sim(NULL);
+  kiss_home_refresh(); pump(4);
+#endif
   touch(670, 240); pump(3); release(); pump(6);     // Settings tile -> Settings
   // CARD INFO while the words live on the card: the sealed row, green tick.
   set_tab(SET_BACKUP);
