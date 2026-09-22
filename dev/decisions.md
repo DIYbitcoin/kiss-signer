@@ -194,43 +194,43 @@ NO FILENAME HERE, and no "camera" either. Both were cut rather than fixed. The r
 
 The rule wt_ink_for serves says it in its own words -- the caution GLYPH and the breathing dot keep the amber, and anything READ takes the accent -- but the function was only ever handed a colour, so it lifted both. A row whose VALUE is LV_SYMBOL_WARNING had its caution sign painted the theme's colour: SEED WORDS reported the paper unchecked in green on the green theme, which is the one row on the page where amber is the whole message. A caution's WORDS still take the accent. Only the mark keeps the amber.
 
-[`main/kiss_theme.c:641`](../main/kiss_theme.c#L641)
+[`main/kiss_theme.c:777`](../main/kiss_theme.c#L777)
 
 ### the mark is font23, not the font14 every other mark on this device wears
 
 It shipped at 14 and came off the bench as too small to see and too small to aim at -- the same report the content tab LABELS got when they were 18, and this tab sits in the same 30px strip beside them. So the mark takes the tab rung, chrome23, and the brackets stay mono18 punctuation a rung below it exactly as they do on a content tab. Measured: the glyph goes 11x17 -> 17x25 in a strip 30 tall.
 
-[`main/kiss_theme.c:4599`](../main/kiss_theme.c#L4599)
+[`main/kiss_theme.c:4804`](../main/kiss_theme.c#L4804)
 
 ### the tab breathes whenever it has something UNREAD, not only until the first open ever
 
 It pulsed once, on the first [ ? ] an owner ever met, and was still forever after -- so [ ? 3 ] drew the count and then sat there, which is a badge you have to be looking at to notice. The attention dot on a content tab has answered the same question since it was filed from the bench as "not pulsing", and it answers a GLANCE. This is the same statement, so it is the same motion: 100..255 over 1200ms ease in out, the values wt_dot_breathe uses, rather than the 71..230 this one had of its own. The size and translate halves of a dot's breathe do not come with it -- growing a tab in a 30px strip moves the brackets, and the pixels are spent. It stops on its own. The count comes from kiss_terms_unread at build, the explainer swaps the screen, and coming back rebuilds the tab with whatever is left; at zero there is no animation to delete.
 
-[`main/kiss_theme.c:4678`](../main/kiss_theme.c#L4678)
+[`main/kiss_theme.c:4883`](../main/kiss_theme.c#L4883)
 
 ### a caution value is lifted into the accent only where the row has a LAMP to carry the amber
 
 The lift was unconditional, on the argument written here for its whole life -- "its lamp is the amber, and the lamp is what the eye lands on first anyway". That argument is the lamp's, not the value's, so a row with no lamp was borrowing a reason it did not have: SETTINGS > SIGNER lost its pulsing dot (a pulse means a tab needs attention, and being on signet does not), and the word SIGNET went on reading in the theme's own colour with nothing amber left anywhere on the row. Reported from the bench in those terms. So the condition is the lamp. No lamp, no lift, and the caution stays the caution's colour.
 
-[`main/kiss_theme.c:5471`](../main/kiss_theme.c#L5471)
+[`main/kiss_theme.c:5689`](../main/kiss_theme.c#L5689)
 
 ### a lone span is a break opportunity, so when the word before a stop ends near the edge the "
 
 " wraps by ITSELF and the next line opens with a full stop. It looks like a typo in the string and it is not -- SIGN's refusal screen shows it on "information" / ". pair it again". Folding the stop back into the body run fixes it and was rejected: the accent stop is the design, it is what makes a wrapped body scan as sentences rather than as a block, and LVGL gives no way to hold a span to the one before it. The copy moves instead, which is what happened here -- the word at the edge changes and the stop follows it up.
 
-[`main/kiss_theme.c:7920`](../main/kiss_theme.c#L7920)
+[`main/kiss_theme.c:8140`](../main/kiss_theme.c#L8140)
 
 ### the icon grid's ladder floors at 21 and no longer has a font14 rung
 
 THE FLOOR IS 21, NOT 14, which is the same floor wt_body_para has and for the same reason: font14 is for MARKS -- chip labels, unit suffixes, chevrons -- and every string in this grid is a SENTENCE an owner reads before signing. WHY FLAGGED is the case that proves it: five caution rows explaining why a payment was flagged, all of them at the size this device keeps for punctuation. mono21 only where the copy CAN be mono, which is what the body ladder asks too. Where it cannot, the rung stays 23 and the overflow is reported rather than shrunk away -- copy too long for its box is copy to cut, and a silent drop is what hid this for the grid's whole life.
 
-[`main/kiss_theme.c:8338`](../main/kiss_theme.c#L8338)
+[`main/kiss_theme.c:8560`](../main/kiss_theme.c#L8560)
 
 ### an output not on this page draws NO STRAND
 
 It used to draw a dimmed one, on the reasoning that the shape of the transaction should not leave while its detail is read -- and what that produced was a line running to blank glass, because the row it aims at is hidden. There is nothing at the end of it and nothing that says why, so it reads as a destination the screen will not name: the one thing this graph exists to never do. It was reported from the bench as a strand "going to nowhere", twice, once about its colour and once about the strand itself. What is lost is the fan on a paged spend, and the counter on the caption line carries that instead -- 1/2 is on the glass beside WHERE IT GOES, and the read-to-the-end gate holds the slide until every page has been turned, so no signature can happen from one page's worth of strands.
 
-[`main/kiss_theme.c:9421`](../main/kiss_theme.c#L9421)
+[`main/kiss_theme.c:9661`](../main/kiss_theme.c#L9661)
 
 ## `main/kiss_theme.h`
 
@@ -244,13 +244,13 @@ It used to draw a dimmed one, on the reasoning that the shape of the transaction
 
 It said "check your paper against these keys" until the paper was checked, then "pair a coordinator, then verify an address" until one had spoken, and it came off the bench as a first-time-user walkthrough on the screen the owner looks at every day. The order it was teaching is in docs/walkthrough.md, which is where the owner asked for it to live -- the same argument that took the passphrase line off this screen, a few paragraphs down in kiss_home_build(). The tiles are the home. A signer that keeps suggesting the next thing is a signer that never finishes setting itself up. tile title string ids, in tile order (sign, receive, keys, settings). STR_H_TILE_WALLET is a legacy KEY NAME whose value has been "Keys" for a while; renaming the key would touch all 21 locale files for nothing.
 
-[`main/main.c:171`](../main/main.c#L171)
+[`main/main.c:197`](../main/main.c#L197)
 
 ### a draw that can no longer become the word is cleared HERE, on the lift, not left to the 3s idle
 
 The word is the FIRST stored.strokes strokes of the buffer, so once that many have been drawn without matching, no later stroke can change the answer -- and every attempt after it appended to the corpse instead of starting fresh. The device then answered to nothing at all until the owner put their hand down for a full three seconds, which is not what a person does between two tries. Reported from the bench as a signer that would not open to its own word. The log showed the strokes counting 1..17 across five attempts, 2.5s apart, and never resetting. The heuristic that catches an abandoned KISS is switched OFF whenever a word is stored -- it is built on the letters being drawn left to right, which a custom word is not -- so the idle was the only clear there was.
 
-[`main/main.c:2004`](../main/main.c#L2004)
+[`main/main.c:2099`](../main/main.c#L2099)
 
 ## `sim/sim_main.c`
 
