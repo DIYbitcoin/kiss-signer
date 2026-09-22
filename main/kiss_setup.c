@@ -122,6 +122,7 @@ static void entropy_screen(void);
 static void dice_screen(void);
 static void method_screen(void);
 static void ent_fail_screen(void);
+static void rcpt_screen(const uint8_t tags[8], bool lens);
 static void words_screen(void);
 static void quiz_screen(void);
 static void restore_screen(void);
@@ -1053,16 +1054,19 @@ static void words_screen(void)
 static int s_ent_note;
 void kiss_setup_entropy_note(int v) { s_ent_note = v; }
 
-void kiss_setup_entropy(const uint8_t *entropy, unsigned len)
+// The words from the entropy, into s_w, with where they came from recorded.
+// 0 when the words exist. Split from kiss_setup_entropy so the tap path can
+// show its receipt before the words; every other path goes straight to them.
+static int words_load(const uint8_t *entropy, unsigned len)
 {
     if (!s_scr || s_restore || !entropy || (len != 16 && len != 32))
-        return;
+        return -1;
     char words[WSEED_MAX_MNEMONIC];
     unsigned need = s_count == 24 ? 32 : 16;
     if (len < need)
-        return;
+        return -1;
     if (kiss_seed_from_entropy(entropy, need, words, sizeof words) != 0)
-        return;
+        return -1;
     // Every seed creating path funnels through here, so this is the one place
     // that can promise the note describes the seed the owner actually has.
     kiss_seed_set_entropy_note(s_ent_note);
@@ -1089,7 +1093,13 @@ void kiss_setup_entropy(const uint8_t *entropy, unsigned len)
     // of this file already reaches for the same primitive.
     kiss_wipe(words, sizeof words);
     s_wpage = 0;
-    words_screen();
+    return 0;
+}
+
+void kiss_setup_entropy(const uint8_t *entropy, unsigned len)
+{
+    if (words_load(entropy, len) == 0)
+        words_screen();
 }
 
 // ---- source 3: the tap screen (see docs/specs/tap-entropy.md) ----
@@ -1239,6 +1249,17 @@ static void tap_done_cb(lv_timer_t *t)
              kiss_tapent_take(taps) == 0 &&
              (s_cam_have ? kiss_entropy_mix4(cam, trng, taps, jit, seed)
                          : kiss_entropy_mix3(jit, trng, taps, seed)) == 0;
+    // The receipt: one tag per source, in the explainer's order (lens, chip,
+    // taps, timing) whichever slot the fold put it in, taken from the legs as
+    // they went in and before the wipes below. A tag fails only where SHA256
+    // does, and so would the fold, so it refuses the same way rather than
+    // print a row it could not compute. A dead lens has no leg to tag.
+    uint8_t tags[8] = {0};
+    const bool lens = s_cam_have;
+    ok = ok && (!lens || kiss_entropy_tag(cam, tags) == 0) &&
+         kiss_entropy_tag(trng, tags + 2) == 0 &&
+         kiss_entropy_tag(taps, tags + 4) == 0 &&
+         kiss_entropy_tag(jit, tags + 6) == 0;
     // Every one of these is dead-store territory: last read is the line above,
     // so memset is elidable and wally_bzero is not. Same reasoning as
     // kiss_scan.c's scan_bzero and kiss_seed_sd.c's sd_bzero.
@@ -1251,7 +1272,8 @@ static void tap_done_cb(lv_timer_t *t)
     s_cam_have = false;
     kiss_tapent_reset();
     if (ok) {
-        kiss_setup_entropy(seed, 32);
+        if (words_load(seed, 32) == 0)
+            rcpt_screen(tags, lens);
     } else {
         // Reachable one way in practice: the chip's noise source is not
         // running. The other legs still cannot fail after a full 64-tap gate
@@ -1268,6 +1290,9 @@ static void tap_done_cb(lv_timer_t *t)
         // future reorder, and a guard does not earn 21 locales of its own copy.
         ent_fail_screen();
     }
+    // The receipt's labels copied the tags, so the one copy left is on the
+    // glass and goes with the screen.
+    kiss_wipe(tags, sizeof tags);
     kiss_wipe(seed, sizeof seed);
 }
 
@@ -1779,6 +1804,92 @@ static void ent_chip_lit(lv_obj_t *c, bool lit)
     lv_obj_set_style_border_color(c, col, 0);
     lv_obj_t *l = lv_obj_get_child(c, 0);
     if (l) lv_obj_set_style_text_color(l, col, 0);
+}
+
+// ---- the source receipt, between the last tap and the seed words ----
+// The entropy screen says four sources go in and the "?" names them, but once
+// the seed existed nothing said they had. This is that: one row per source,
+// wearing the explainer's mark for it, and a four character tag of what that
+// source gave this time (kiss_entropy_tag). The tags are new on every run, so
+// a source that stopped moving shows the same tag twice. They tell nothing
+// about the seed.
+//
+// The names are short keys of their own, not the explainer's terms. WHAT YOU
+// POINT AT is seventeen letters, and a caption lane that holds it at the
+// smallest rung has no room left for the third longer a translation runs.
+//
+// A dead lens keeps its row and says it was not used, rather than dropping
+// out: three rows under a "?" that promised four reads as a row that failed.
+static const int RCPT_CAPS[4] = {
+    STR_W_ENT_RCPT_CAM, STR_W_ENT_RCPT_CHIP, STR_W_ENT_RCPT_TAPS,
+    STR_W_ENT_RCPT_TIME,
+};
+
+static void rcpt_next_cb(lv_event_t *e) { (void)e; words_screen(); }
+
+static void rcpt_screen(const uint8_t tags[8], bool lens)
+{
+    mk_screen2(tr(STR_W_ENT_RCPT_T), tr(STR_W_ENT_RCPT_S));
+
+    // The framed subject is the refusal screen's equation with the other
+    // ending: the sources, each in the mark its row below wears, lit, and the
+    // words they made. A dead lens is the one chip left unlit.
+    lv_obj_t *card = wt_card(s_scr, SX(48), SY(132), SX(704), SY(56));
+    lv_obj_t *col = lv_obj_create(card);
+    lv_obj_remove_style_all(col);
+    lv_obj_set_pos(col, 0, 0);
+    lv_obj_set_size(col, SX(704), SY(56));
+    lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(col, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_remove_flag(col, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_t *row = wt_diagram_row(col);
+    for (int i = 0; i < 4; i++) {
+        if (i) wt_diagram_op(row, "+");
+        ent_chip_lit(wt_chip(row, ENT_MIX_ICONS[i], false), i || lens);
+    }
+    wt_diagram_op(row, LV_SYMBOL_RIGHT);
+    ent_chip_lit(wt_chip(row, tr(STR_W_ENT_RESULT), false), true);
+
+    char val[4][8];
+    wt_fact_t f[4];
+    for (int i = 0; i < 4; i++) {
+        snprintf(val[i], sizeof val[i], "%02x%02x", tags[2 * i], tags[2 * i + 1]);
+        f[i] = (wt_fact_t){ .cap = tr(RCPT_CAPS[i]), .val = val[i],
+                            .icon = ENT_MIX_ICONS[i] };
+    }
+    if (!lens) {
+        f[0].val = tr(STR_W_ENT_RCPT_OFF);
+        f[0].icon_col = WT_DIM;
+    }
+#if !KISS_NARROW
+    // One caption size for the block, which the 3.5in already gets from the
+    // kit. Here each caption steps down on its own, so one long translation
+    // would sit a size under the three rows beside it.
+    bool small = false;
+    for (int i = 0; i < 4; i++) {
+        lv_point_t cs;
+        lv_text_get_size(&cs, f[i].cap, wt_chrome28(f[i].cap), 2, 0,
+                         LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+        if (cs.x > WT_FACT_CAP_W - 4) small = true;
+    }
+    for (int i = 0; small && i < 4; i++) f[i].cap_font = wt_chrome23(f[i].cap);
+#endif
+    // Hung from the band like every explainer's rows, never into the card.
+    const int floor_y = SY(132) + SY(56) + SY(14);
+    int y = WT_CONTENT_BOTTOM - WT_FACT_BAND_GAP - wt_facts_height(f, 4);
+    if (y < floor_y) y = floor_y;
+    wt_facts(s_scr, y, f, 4);
+    kiss_wipe(val, sizeof val);
+
+    // The way on only, in the slot the words screen's own way on takes, so
+    // nothing moves under the thumb when the words appear. No CANCEL: on a
+    // signer with no keys it closes setup onto the game, which is why the
+    // chooser dropped its own (see choose_screen), and the words screen one
+    // tap on still has the exit its own rule asked for.
+    wt_arrow_action(s_scr, tr(STR_W_CKSUM_GO), false, true, SX(430), WT_ACTION_Y,
+                    SX(322), true, rcpt_next_cb, NULL);
 }
 
 // What this function has already PAINTED. -1 is "nothing yet", so the first

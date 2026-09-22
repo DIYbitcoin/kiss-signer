@@ -150,7 +150,9 @@ the accent for one frame. Nothing else moves. The bar is the whole feedback
 loop; a counter that also animates would compete with it.
 
 **On the 64th tap** the screen mixes, holds the full bar for ~400ms so the
-completion is seen rather than inferred, and advances to the words screen.
+completion is seen rather than inferred, and advances to the source receipt:
+one row per source with a four character tag of what it gave (a hash of that
+leg alone, `kiss_entropy_tag`, never of the seed), then SHOW SEED WORDS.
 
 **Action row: CANCEL only**, at the standard `WT_BACK_X`. Same rule the words
 screen documents: no screen without an exit. Cancelling here stages nothing and

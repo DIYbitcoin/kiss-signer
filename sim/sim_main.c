@@ -350,6 +350,15 @@ int kiss_jitter(uint8_t out[32]) {
   }
   return 0;
 }
+// The receipt tag the tap path prints per leg. kisstest pins the real hash;
+// the walk only needs a tag that follows its leg, so four legs print four
+// different tags on the stop that photographs them.
+int kiss_entropy_tag(const uint8_t leg[32], uint8_t tag[2]) {
+  if (!leg || !tag) return -1;
+  tag[0] = tag[1] = 0;
+  for (int i = 0; i < 32; i++) tag[i & 1] = (uint8_t)(tag[i & 1] * 31 + leg[i]);
+  return 0;
+}
 
 // storage mode: the real logic + its edge cases live in kiss_seed.c and are
 // covered by kisstest. Here it only has to steer the screens -- but it has to
@@ -6379,6 +6388,25 @@ int main(void) {
   s_sim_trng = true;                                // put the chip back
   tap_str(STR_C_TRY_AGAIN, 3, 6);     // TRY AGAIN -> entropy screen
   tap_str(STR_C_BACK, 3, 4);     // BACK -> choose
+
+  // The same collection with the chip live, which is the path every owner
+  // takes and no stop reached: the fold succeeds and the receipt comes up
+  // before the words. Its way on has to land on them.
+  touch(218, 176); pump(3); release(); pump(4);     // CREATE SEED
+  touch(174, 144); pump(3); release(); pump(4);     // FLASH -> method choice
+  touch(394, 144); pump(3); release(); pump(6);     // camera+taps (row 0)
+  tap_str(STR_W_ENT_CAPTURE, 3, 6);     // ADD YOUR TAPS -> the card
+  for (int i = 0; i < 100; i++) { touch(400, 260); pump(3); release(); pump(3); }
+  pump(40);                                         // the 400ms full bar, then the fold
+  save("/tmp/sim_setup_ent_rcpt.ppm");              // four sources, four tags
+  must_show("setup/receipt", tr(STR_W_ENT_RCPT_T));
+  tap_str(STR_W_CKSUM_GO, 3, 8);     // SHOW SEED WORDS -> the words
+  must_show("setup/receipt-to-words", tr(STR_W_WRITE_T));
+  // CANCEL on the words leaves setup, as it does for an owner; the walk comes
+  // back in the way it came in the first time.
+  tap_str(STR_C_CANCEL, 3, 8);
+  kiss_begin_setup(); pump(20);
+  must_show("setup/new-chooser-again", tr(STR_W_SETUP_T));
 
   // The CARDS detour (BLIND DRAW): both lengths, to the picker and back out.
   // The candidate math is stubbed above (first N indices over SIM_WORDS);

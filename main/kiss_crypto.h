@@ -55,6 +55,17 @@ int kiss_entropy_mix4(const uint8_t a[32], const uint8_t b[32],
                         const uint8_t c[32], const uint8_t d[32],
                         uint8_t out[32]);
 
+// The receipt tag for ONE leg of the fold: the first two bytes of
+// SHA256("kiss-receipt" || leg). The setup screen shows one per source after
+// the seed is made, so an owner can see each leg changed since last time.
+//
+// Its own hash, not a slice of the leg or of the seed: two bytes of the leg
+// itself would be two bytes of key material on the glass, and the prefix
+// keeps the tag from ever equalling a digest anything else on the device
+// computes. Two equal legs still give two equal tags, which is the point --
+// a chip returning constants shows the same tag every run.
+int kiss_entropy_tag(const uint8_t leg[32], uint8_t tag[2]);
+
 // ---- hardware entropy source ----
 // The chip's RNG only emits TRUE random numbers while a physical noise source
 // is feeding it, and on this board none of the ways that happens by accident
