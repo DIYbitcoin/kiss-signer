@@ -5887,6 +5887,8 @@ int main(void) {
 
   slide_fire(STR_I_KEF_MAKE_BTN);                   // slide CHOOSE A PASSWORD
   save("/tmp/sim_kef_pass.ppm");                    // CREATE A BACKUP PASSWORD
+  must_show("kef/create says it is not the passphrase",
+            tr(STR_L_KEF_OPEN_PROMPT));
   touch(664, 278); pump(3); release(); pump(3);     // k
   touch(201, 202); pump(3); release(); pump(3);     // e
   touch(312, 278); pump(3); release(); pump(3);     // f
@@ -7385,6 +7387,8 @@ int main(void) {
   save("/tmp/sim_kef_pick.ppm");
   touch(400, 144); pump(3); release(); pump(8);     // the one .kef row
   save("/tmp/sim_kef_open.ppm");                    // BACKUP PASSWORD keyboard
+  must_show("kef/open says it is not the passphrase",
+            tr(STR_L_KEF_OPEN_PROMPT));
   touch(664, 278); pump(3); release(); pump(3);     // k
   touch(201, 202); pump(3); release(); pump(3);     // e ("ke": wrong on purpose)
   touch(725, 430); pump(3); release(); pump(40);    // OK -> the one vague failure

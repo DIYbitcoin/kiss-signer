@@ -495,9 +495,15 @@ static void entry_refresh_text(void) {
     // The ghost prompt names what is being typed, and in KEF mode that is a
     // backup password, never a passphrase (vocabulary is load bearing here:
     // a passphrase opens a wallet, this opens an envelope).
-    lv_label_set_text(s_entry, tr(s_kef_mode && !s_kef_pass
-                                      ? STR_L_KEF_TYPE_PROMPT
-                                      : STR_L_TYPE_PROMPT));
+    //
+    // Where a passphrase is in play the prompt also says it is not one:
+    // opening a backup (the passphrase is typed next, and the two get
+    // swapped), or making one from keys that have a passphrase. Making one
+    // from keys with none keeps the plain prompt; there is nothing to confuse.
+    const bool kef_vs_pp = !s_kef_create || !kiss_session_decoy();
+    lv_label_set_text(s_entry, tr(!s_kef_mode || s_kef_pass ? STR_L_TYPE_PROMPT
+                                  : kef_vs_pp ? STR_L_KEF_OPEN_PROMPT
+                                              : STR_L_KEF_TYPE_PROMPT));
     lv_obj_set_style_text_color(s_entry, MUT_COL, 0);
     kiss_wipe(buf, sizeof buf);
     return;
