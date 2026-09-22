@@ -250,7 +250,7 @@ It said "check your paper against these keys" until the paper was checked, then 
 
 The word is the FIRST stored.strokes strokes of the buffer, so once that many have been drawn without matching, no later stroke can change the answer -- and every attempt after it appended to the corpse instead of starting fresh. The device then answered to nothing at all until the owner put their hand down for a full three seconds, which is not what a person does between two tries. Reported from the bench as a signer that would not open to its own word. The log showed the strokes counting 1..17 across five attempts, 2.5s apart, and never resetting. The heuristic that catches an abandoned KISS is switched OFF whenever a word is stored -- it is built on the letters being drawn left to right, which a custom word is not -- so the idle was the only clear there was.
 
-[`main/main.c:2099`](../main/main.c#L2099)
+[`main/main.c:2164`](../main/main.c#L2164)
 
 ## `sim/sim_main.c`
 
