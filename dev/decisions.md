@@ -106,25 +106,25 @@ It travelled with the theme and the theme has since gone up to the chrome column
 
 This read s_verify_full alone, which is only true when the passphrase leg actually RAN -- and that leg is skipped outright when there is no passphrase to check. So a device that has never had one showed "SEED WORDS VERIFIED" under a subtitle reading "the passphrase is not part of this check", disclaiming something the owner does not have and cannot add to the check. kiss_rehearse_after_words is the seam that already knows: VERIFIED means the words alone ARE the whole backup. When they are, and they matched, the backup is fully verified and there is nothing to disclaim. The subtitle survives for the case it was written for -- a passphrase in use whose leg was cancelled or not offered.
 
-[`main/kiss_setup.c:472`](../main/kiss_setup.c#L472)
+[`main/kiss_setup.c:473`](../main/kiss_setup.c#L473)
 
 ### the dice keys are drawn in wt_accent() over WT_DIV troughs, not in a hardcoded blue
 
 They read stronger than the rest of the device only because six large fills carry the same accent that is hairlines everywhere else -- area against stroke, not a palette break. There is no hardcoded colour in this file outside one dim amber. The keys, each directly over the column it feeds: six for a die, two for a coin. A die's key is the FACE, because that is what is printed on the thing in the owner's hand and it is also the character recorded. A coin has no digits on it, and the keys used to say 0 and 1 -- which made the first act of the flow an invented convention the owner had to hold in their head for 128 taps, before they had done anything. They say HEADS and TAILS now: nothing to decide, nothing to remember, and the words on the keys are the words on the coin. The recorded character is still 0 and 1, so the preimage is still the bit string. The mapping that makes it checkable does not live in anyone's head either -- W_COIN_VERIFY_NOTE prints it directly above the hash, on the one line written for the reader who is going to recompute it.
 
-[`main/kiss_setup.c:2541`](../main/kiss_setup.c#L2541)
+[`main/kiss_setup.c:2652`](../main/kiss_setup.c#L2652)
 
 ### the first boot storage chooser matches the Settings one row for row on purpose, so neither may be reordered alone
 
 Geometry and OBJECT from WT_CHOICE_* and wt_row_x, matching storage_chooser_screen() in kiss_settings.c row for row. The two screens present the identical choice and must not drift apart again, which is why the numbers live in kiss_theme.h and not in either file -- and now the shape does too, which is the drift that actually happened last time. Nothing is selected here. In Settings one of the three IS the current mode and wears the tick; this is first boot, there is no current mode yet, and a tick on FLASH would be the device answering its own question.
 
-[`main/kiss_setup.c:3645`](../main/kiss_setup.c#L3645)
+[`main/kiss_setup.c:3756`](../main/kiss_setup.c#L3756)
 
 ### the FIRST screen of setup has no CANCEL on a signer with no keys, because there is nothing to cancel to
 
 This is the one place the "no screen without an exit" rule is deliberately not applied, and the rule's own case says why: it was written for the WORDS screen, where an owner mid flow could only go forward or pull the power. Here the two choices ARE the way on, and the language picker is in the corner. What CANCEL did instead was strand people. It closed the wizard onto the fruit game, and the only route back into a keyless signer is the KISS draw -- printed on a card in the packaging and nowhere on the glass. So an owner who backed out of setup, or drew the gesture before knowing what it opened, was holding a signing device that had become a game. The obvious fix is the one that must NOT be built: a way in on the cover itself. kiss_seed_exists() is false on an AMNESIC signer with no session loaded and on an SD signer with its card out, so a cover that offers setup whenever there are no keys wears a signer's name permanently on the two modes that need the cover most. That is the decoy, gone. With keys, CANCEL stays exactly as it was: the wizard is reached from Settings then, there is a device behind it, and going back is correct.
 
-[`main/kiss_setup.c:3862`](../main/kiss_setup.c#L3862)
+[`main/kiss_setup.c:3973`](../main/kiss_setup.c#L3973)
 
 ## `main/kiss_sign.c`
 
@@ -258,4 +258,4 @@ The word is the FIRST stored.strokes strokes of the buffer, so once that many ha
 
 pump(30), not 20. The outgoing pane leaves on a per row stagger -- (n-1) * MO_OUT_STEP + MO_OUT_MS, which is 330ms for a six row detail pane against 320ms of pump -- so the old count photographed the previous screen still fading through this one. Invisible until overlapcheck learned to read spangroups: the ghost is a folded address, and a spangroup was not text to any check on the list.
 
-[`sim/sim_main.c:5241`](../sim/sim_main.c#L5241)
+[`sim/sim_main.c:5250`](../sim/sim_main.c#L5250)
