@@ -385,6 +385,7 @@ enum {
     STR_L_WARN_B_NOPASS,
     STR_L_WARN_T,
     STR_L_WARN_T_NOPASS,
+    STR_L_WARN_WRITE_C,
     STR_L_WEAK,
     STR_L_WEAK_ACK,
     STR_L_WEAK_T,

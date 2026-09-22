@@ -54,12 +54,11 @@ static const slot_t SLOTS[] = {
     { "sign/why",         -1,               SX(720), SY(300) },   // composed below
     { "sign/?address",    STR_S_ADDR_HELP_B, SX(720), SY(230) },
     { "sign/?coins",      STR_S_COINS_HELP_B, SX(720), SY(230) },
-    // kiss_ui.c:469,769 — login warning + passphrase intro
-    // The warn bodies render as ruled blocks split on their blank lines, so a
-    // whole-key slot can only bound the single-claim key at the wide block's
-    // width; the sliced no-passphrase pair is covered by the walk's three
-    // rendered states instead.
-    { "login/warn",       STR_L_WARN_B,     SX(690), SY(160) },
+    // kiss_ui.c login warning: no slot. Both warn bodies render as ruled
+    // rows split on their blank lines, and since the passphrase body grew its
+    // second claim (write it down) neither is a single block a whole-key slot
+    // can bound. Its rows are measured where they are drawn, by the walk's
+    // rendered states, the way the no-passphrase pair always was.
     // The why-block PAIRS that used to be measured here are gone: the
     // passphrase intro, the backup check, both blind draw screens, the dice
     // verdict and the checksum page all say their two claims as fact ROWS

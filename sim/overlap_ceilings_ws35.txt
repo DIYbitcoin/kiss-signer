@@ -71,8 +71,8 @@ ko 7
 nb-NO 14
 nl 22
 pl 29
-pt-BR 21
-pt-PT 18
+pt-BR 19
+pt-PT 16
 ru 38
 sv-SE 13
 tr 10

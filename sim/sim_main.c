@@ -6275,6 +6275,8 @@ int main(void) {
   must_show("setup/restore-fingerprint", tr(STR_L_TAP_TO_OPEN));
   tap_str(STR_L_TAP_TO_OPEN, 3, 8);                 // commit -> warning
   must_show("setup/restore-warning", tr(STR_L_WARN_T));
+  must_show("setup/restore-warning keeps the passphrase",
+            tr(STR_L_WARN_WRITE_C));
 
   // Exercise the other setup caption that must survive the same idle wipe.
   // The exact words and the exact passphrase recreate the restored wallet's
@@ -7470,6 +7472,8 @@ int main(void) {
     kiss_ui_sim_warn_screen(false, true);           // unverified, no fingerprint
     pump(8);
     save("/tmp/sim_warn_nopass_nofp.ppm");          // chip alone, NO value card
+    must_not_show("warn/no passphrase has none to write down",
+                  tr(STR_L_WARN_WRITE_C));
     kiss_ui_sim_warn_screen(true, false);           // verified, fingerprint back
     pump(8);
     save("/tmp/sim_warn_verified.ppm");             // green chip beside the card

@@ -1565,17 +1565,29 @@ static void setup_warn_screen(void) {
   // twenty locales once already. So the count stays and the words shrink. The
   // lone newlines were the old 740px label's hand wrapping anyway, and the
   // split below has turned them into spaces since the blocks arrived.
+  //
+  // With a passphrase the second row is the one that keeps it: written down,
+  // apart from the seed words, because those words alone restore other keys.
+  // Only this branch says it -- keys with no passphrase have nothing to keep.
+  //
+  // The fingerprint's intro and card hang from where the rows END, not from a
+  // fixed line. A translated row that wraps once more used to print straight
+  // into "know yours by its fingerprint:" -- in five locales the day the
+  // second row arrived. There is room under the card for one more line.
+  int intro_y = SY(232), facts_end = 0;
   {
     wt_fact_t facts[2] = {
-      { .cap  = tr(nclaims >= 2 ? STR_D_WORDS : STR_L_PASSPHRASE_CAP),
+      { .cap  = tr(warn_nopass ? STR_D_WORDS : STR_L_PASSPHRASE_CAP),
         .val  = para[0],
-        .icon = nclaims >= 2 ? WT_ICON_SECRET : WT_ICON_LOCK,
+        .icon = warn_nopass ? WT_ICON_SECRET : WT_ICON_LOCK,
         .icon_col = WT_WARN },
-      { .cap  = tr(STR_L_PASSPHRASE_CAP),
+      { .cap  = tr(warn_nopass ? STR_L_PASSPHRASE_CAP : STR_L_WARN_WRITE_C),
         .val  = nclaims >= 2 ? para[1] : NULL,
         .icon = LV_SYMBOL_WARNING, .icon_col = WT_WARN },
     };
-    wt_facts(s_warnscr, SY(110), facts, nclaims >= 2 ? 2 : 1);
+    const int fend = wt_facts(s_warnscr, SY(110), facts, nclaims >= 2 ? 2 : 1);
+    facts_end = fend;
+    intro_y = LV_MAX(intro_y, fend + SY(8));
   }
 
   lv_obj_t *intro = NULL;
@@ -1585,7 +1597,7 @@ static void setup_warn_screen(void) {
     lv_label_set_text(n, fp_intro);
     lv_obj_set_style_text_color(n, MUT_COL, 0);
     lv_obj_set_style_text_font(n, wt_font23(), 0);
-    lv_obj_align(n, LV_ALIGN_TOP_MID, 0, SY(232));
+    lv_obj_align(n, LV_ALIGN_TOP_MID, 0, intro_y);
   }
 
   // The fingerprint in a value card, and the backup state as a real chip beside
@@ -1598,6 +1610,13 @@ static void setup_warn_screen(void) {
   //
   // Centred as a pair: the card sizes itself to its caption in whatever locale
   // is rendering, so its x follows the measured width rather than a constant.
+#if KISS_NARROW
+  // The 3.5in has no height under the card to push into; its card stays put
+  // and the intro yields instead (below).
+  const int card_y = SY(268);
+#else
+  const int card_y = intro_y + (SY(268) - SY(232));
+#endif
   char fpbuf[16];
   snprintf(fpbuf, sizeof fpbuf, "%02X%02X%02X%02X",
            s_last_fp[0], s_last_fp[1], s_last_fp[2], s_last_fp[3]);
@@ -1607,7 +1626,7 @@ static void setup_warn_screen(void) {
   // pair is one card tall, which the band from the body's floor to 398 can hold
   // in every locale.
   lv_obj_t *card = fp_known
-      ? wt_value_card(s_warnscr, tr(STR_D_FINGERPRINT), fpbuf, SX(110), SY(268), SX(300), true)
+      ? wt_value_card(s_warnscr, tr(STR_D_FINGERPRINT), fpbuf, SX(110), card_y, SX(300), true)
       : NULL;
   // THREE states, because the flag behind this chip answers one question and
   // the owner in front of it has usually answered another. s_backup_verified
@@ -1658,27 +1677,39 @@ static void setup_warn_screen(void) {
               sh = lv_obj_get_height(state);
     if (cw + 12 + sw <= SCREEN_W - 2 * 16) {
       const int x0 = (SCREEN_W - cw - 12 - sw) / 2;
-      lv_obj_set_pos(card, x0, SY(268));
-      lv_obj_set_pos(state, x0 + cw + 12, SY(268) + (ch - sh) / 2);
+      lv_obj_set_pos(card, x0, card_y);
+      lv_obj_set_pos(state, x0 + cw + 12, card_y + (ch - sh) / 2);
     } else {
       const int cy = WT_CONTENT_BOTTOM - 4 - sh - 6 - ch;
       lv_obj_set_pos(card, (SCREEN_W - cw) / 2, cy);
       lv_obj_set_pos(state, (SCREEN_W - sw) / 2, cy + ch + 6);
       if (intro) lv_obj_set_y(intro, cy - (SY(268) - SY(232)));
     }
+    // The intro is the one thing here the card already says: it is captioned
+    // FINGERPRINT. So where a wrapped row leaves it no room between the rows
+    // and the card, it goes rather than printing into either.
+    if (intro) {
+      lv_obj_update_layout(intro);
+      const int iy = lv_obj_get_y(intro), ih = lv_obj_get_height(intro);
+      if (iy < facts_end + 2 || iy + ih > lv_obj_get_y(card) - 2) {
+        lv_obj_delete(intro);
+        intro = NULL;
+      }
+    }
   } else {
-    lv_obj_set_pos(state, (SCREEN_W - lv_obj_get_width(state)) / 2, SY(268));
+    lv_obj_set_pos(state, (SCREEN_W - lv_obj_get_width(state)) / 2, card_y);
   }
 #else
   (void)intro;
+  (void)facts_end;   // the wide board pushes the card instead
   if (card) {
     lv_obj_update_layout(card);
     lv_obj_set_pos(state, SX(440),
-                   SY(268) + (lv_obj_get_height(card) - lv_obj_get_height(state)) / 2);
+                   card_y + (lv_obj_get_height(card) - lv_obj_get_height(state)) / 2);
   } else {
     // Alone, the chip takes the card's lane instead of sitting where a card
     // used to be beside it.
-    lv_obj_set_pos(state, SX(110), SY(268));
+    lv_obj_set_pos(state, SX(110), card_y);
   }
 #endif
 
