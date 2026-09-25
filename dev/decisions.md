@@ -32,7 +32,7 @@ One taproot input is in fact enough: BIP341 hashes every input amount into THAT 
 
 The buffer was a fifth of the main task's 20KB stack, claimed in the frame that runs immediately after signing, where libwally is already deep -- and it was sized for a PSBT this device cannot be handed: the sign screen reads into QRT_MAX_PSBT (4096) TOTAL, framing included, so the signature bytes alone can never come near 4096 and the overflow branch was unreachable. Streaming spends 112 bytes, has nothing to overflow, and drops the branch. Byte-identical output, held by the golden vector in test_crypto.c.
 
-[`main/kiss_psbt.c:1347`](../main/kiss_psbt.c#L1347)
+[`main/kiss_psbt.c:1345`](../main/kiss_psbt.c#L1345)
 
 ## `main/kiss_recv.c`
 
@@ -174,19 +174,19 @@ The old caption rolled two mono lines a character at a time and that is a second
 
 Both bits set draws the dust row only, and caution_all_bits reads back through here, so the gate asks for the rows the owner can see and stays consistent. Splitting them was considered and dropped. It takes the stack to six on a page built for five (SG_ROW_MAX, and the ceiling argument above), and it buys a second row saying "tiny change" beside a row already saying "dust change" -- the same sentence about the same fault, for a two change output transaction almost no coordinator builds. What is lost is real and it is one line of a soft privacy caution, not a claim about where the money goes.
 
-[`main/kiss_sign.c:2988`](../main/kiss_sign.c#L2988)
+[`main/kiss_sign.c:2992`](../main/kiss_sign.c#L2992)
 
 ### the NETWORK badge yields its lane to the LOCKTIME badge, not the other way round
 
 Both are placed out of the same right to left fr chain and both used to end in a bare lv_obj_delete when the line ran out -- and on a long title the one that lost was always the locktime, because it is placed last. That is backwards, and each block's own comment says so. The network drops "because the network is on the DETAILS deck as well, so dropping it here costs the reader a tap, not the fact". The locktime badge EXISTS because its deck row is "where a fact goes to be unread" -- it was added to get that fact off the third tab and onto the glass. So dropping the locktime costs the fact, and dropping the network costs a tap. Measured, not theoretical: on the Dutch and Russian sign screens the title, the network chip and the fingerprint left the locktime badge under its 12px clearance even in the degraded form below, so it took the else branch and an owner signing a time locked payment was never told. The German case in the comment further down is the same bug caught one locale earlier and fixed only as far as German needed. The trade only arises on TESTNET, because that is the only time a network chip is drawn at all, and it fails in the safe direction. A missing network chip is what MAINNET looks like, so an owner who loses it reads the screen as more serious than it is and is more careful, not less. A missing locktime is the opposite: the payment reads as spendable now, and it is not.
 
-[`main/kiss_sign.c:3333`](../main/kiss_sign.c#L3333)
+[`main/kiss_sign.c:3337`](../main/kiss_sign.c#L3337)
 
 ### the sign review band does NOT name the transaction's file; that line was cut rather than fixed
 
 NO FILENAME HERE, and no "camera" either. Both were cut rather than fixed. The reader tapped that name on the file list one screen back, or watched the camera assemble the transaction, so the line restated what they had just done -- which is the copy rule's own example of a string to cut. And a filename is the COORDINATOR'S bookkeeping, not a fact about the payment: what says this is the right transaction is the amount and the destination, and both are on this screen at full size. A name in the corner never checked anything. What it cost to keep was the whole band. The line ran under the title beside the signed badge, the network chip and the fingerprint, and it was the only unlabelled string among them. It also carried two defects for as long as it existed: set in the smallest face on the device, and, once that was corrected, handing a translated phrase to a filename tail-fold so a scanned transaction read "scan...ansaction" on the screen where a payment is approved. fx survives because the badge and the chip above measure their lane against it: they may not run back under the title.
 
-[`main/kiss_sign.c:3517`](../main/kiss_sign.c#L3517)
+[`main/kiss_sign.c:3521`](../main/kiss_sign.c#L3521)
 
 ## `main/kiss_theme.c`
 
