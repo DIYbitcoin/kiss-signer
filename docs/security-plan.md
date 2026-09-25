@@ -233,6 +233,16 @@ boot, so a leaked key can be rotated out by the next one, where one key never
 could be. The scheme is RSA-3072 rather than the secp256r1 key the SD update
 lane publishes, because ECDSA secure boot is errata'd on this chip.
 
+**Planned: keys from your own seed.** An owner should be able to lock a board
+to keys derived from their own seed with BIP85, so there is no key file to
+store or lose and nobody else's key, ours included, can ever sign for that
+board. The seed backup already covers these keys. The device signs an image
+only after the owner has checked its hash against a reproducible build.
+Losing the seed means the board can never update again, which is acceptable
+only because losing it already means losing the funds. Release signing stays
+on the project's hardware key. This waits for ShieldSigner and Kern to finish
+their seed-derived secure boot work, so we can build on what they learn.
+
 ## Accepted risks
 
 Four findings from the internal audit that will not be fixed as written. Two
