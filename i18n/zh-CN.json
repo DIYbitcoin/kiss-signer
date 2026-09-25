@@ -604,6 +604,7 @@
   "S_WHY_DUSTIN": "粉尘攻击：花掉它会把你的密钥和陌生人连起来。把它取消选中。",
   "S_WHY_GAPCH": "找零超出范围：协调器要重新扫描才看得到。",
   "S_WHY_HIGHFEE": "手续费高：占你送出金额的一大块。在协调器里调低。",
+  "S_WHY_HIGHFEE_SELF": "手续费高：手续费占你输入的一大块。在协调器里调低。",
   "S_WHY_MERGE_CAP": "PRIVACY",
   "S_WHY_MERGE_FMT": "输入被联起来：显示你的 %u 个地址是同一个人的。少用几个币。",
   "S_WHY_MERGE_VAL": "ANYONE, FOREVER",

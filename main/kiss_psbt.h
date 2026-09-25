@@ -165,11 +165,17 @@ typedef struct {
     wpsbt_out_t outs[WPSBT_MAX_OUTS];
 } wpsbt_summary_t;
 
-// What the fee is a share OF: the payment, or when nothing leaves the wallet
-// (every output ours, a zero-sat data output at most) the coins being moved.
+// Nothing leaves the wallet: every output is ours, a zero-sat data output at
+// most. The fee is then a share of the inputs, and the screens say so.
+static inline bool wpsbt_fee_on_inputs(const wpsbt_summary_t *s)
+{
+    return s->send_sats == 0;
+}
+
+// What the fee is a share OF: the payment, or the inputs when nothing is sent.
 static inline uint64_t wpsbt_fee_base(const wpsbt_summary_t *s)
 {
-    return s->send_sats > 0 ? s->send_sats : s->in_sats;
+    return wpsbt_fee_on_inputs(s) ? s->in_sats : s->send_sats;
 }
 
 // The share half of WPSBT_C_HIGHFEE: a fee of a tenth or more of that base.

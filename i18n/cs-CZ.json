@@ -604,6 +604,7 @@
   "S_WHY_DUSTIN": "ÚTOK PRACHEM: utracením spojíte klíče s cizím. odznačte to.",
   "S_WHY_GAPCH": "DROBNÉ MIMO DOSAH: váš koordinátor je uvidí, až znovu prohledá.",
   "S_WHY_HIGHFEE": "VYSOKÝ POPLATEK: velký díl toho, co posíláte. snižte ho v koordinátoru.",
+  "S_WHY_HIGHFEE_SELF": "VYSOKÝ POPLATEK: poplatek je velký díl vašich vstupů. snižte ho v koordinátoru.",
   "S_WHY_MERGE_CAP": "PRIVACY",
   "S_WHY_MERGE_FMT": "VSTUPY SPOJENY: ukazuje, že %u vašich adres má jednoho majitele. použijte méně mincí.",
   "S_WHY_MERGE_VAL": "ANYONE, FOREVER",

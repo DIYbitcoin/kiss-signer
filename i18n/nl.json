@@ -604,6 +604,7 @@
   "S_WHY_DUSTIN": "DUST-AANVAL: hem uitgeven koppelt je sleutels aan een vreemde. haal hem weg.",
   "S_WHY_GAPCH": "WISSELGELD BUITEN BEREIK: je coördinator moet opnieuw scannen om het te zien.",
   "S_WHY_HIGHFEE": "HOGE KOSTEN: een groot deel van wat je stuurt. verlaag ze in je coördinator.",
+  "S_WHY_HIGHFEE_SELF": "HOGE KOSTEN: de kosten zijn een groot deel van je invoer. verlaag ze in je coördinator.",
   "S_WHY_MERGE_CAP": "PRIVACY",
   "S_WHY_MERGE_FMT": "INPUTS GEKOPPELD: toont dat %u van je adressen één eigenaar delen. gebruik minder munten.",
   "S_WHY_MERGE_VAL": "ANYONE, FOREVER",

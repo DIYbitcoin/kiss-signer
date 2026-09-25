@@ -653,12 +653,15 @@ static bool title_is_smallest(const lv_font_t *f)
 // not COMPILED since -- so the whole type-size ratchet was absent, in the one
 // state that looks nothing like a red gate. Mirror kiss_sign.c's builder, and
 // keep mirroring it: a reason added there and not here is measured by nothing.
-static void compose_why(char *out, size_t cap)
+//
+// The fee line has two forms, a payment's and a send to self's, and all five
+// reasons can fire with either. The caller measures both and keeps the worse.
+static void compose_why(char *out, size_t cap, int fee_key)
 {
     char merge[256];
     snprintf(merge, sizeof merge, tr(STR_S_WHY_MERGE_FMT), 9u);
     snprintf(out, cap, "%s\n%s\n%s\n%s\n%s",
-             tr(STR_S_WHY_HIGHFEE), tr(STR_S_WHY_DUSTIN), merge,
+             tr(fee_key), tr(STR_S_WHY_DUSTIN), merge,
              tr(STR_S_WHY_GAPCH), tr(STR_S_WHY_TINYCH));
 }
 
@@ -1003,9 +1006,16 @@ int main(int argc, char **argv)
         int small = 0;
         char lines[NSLOT][160];
         for (int i = 0; i < NSLOT; i++) {
-            char composed[1024];
+            char composed[1024], self[1024];
             const char *txt;
-            if (SLOTS[i].key < 0) { compose_why(composed, sizeof composed); txt = composed; }
+            if (SLOTS[i].key < 0) {
+                compose_why(composed, sizeof composed, STR_S_WHY_HIGHFEE);
+                compose_why(self, sizeof self, STR_S_WHY_HIGHFEE_SELF);
+                lv_point_t a, b;
+                lv_text_get_size(&a, composed, wt_font23(), 0, 0, SLOTS[i].w, LV_TEXT_FLAG_NONE);
+                lv_text_get_size(&b, self, wt_font23(), 0, 0, SLOTS[i].w, LV_TEXT_FLAG_NONE);
+                txt = b.y > a.y ? self : composed;
+            }
             else                  { txt = tr(SLOTS[i].key); }
 
             // Only font14 counts as a failure now. 23 is a real reading size,

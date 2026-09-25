@@ -604,6 +604,7 @@
   "S_WHY_DUSTIN": "STØVANGREB: at bruge den kobler dine nøgler til en fremmed. fravælg den.",
   "S_WHY_GAPCH": "BYTTEPENGE UDEN FOR RÆKKEVIDDE: din koordinator skal scanne igen for at se dem.",
   "S_WHY_HIGHFEE": "HØJT GEBYR: en stor del af det du sender. sæt det ned i din koordinator.",
+  "S_WHY_HIGHFEE_SELF": "HØJT GEBYR: gebyret er en stor del af dine input. sæt det ned i din koordinator.",
   "S_WHY_MERGE_CAP": "PRIVACY",
   "S_WHY_MERGE_FMT": "INPUT KOBLET: viser at %u af dine adresser har samme ejer. brug færre mønter.",
   "S_WHY_MERGE_VAL": "ANYONE, FOREVER",

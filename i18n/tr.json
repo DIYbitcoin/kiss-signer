@@ -604,6 +604,7 @@
   "S_WHY_DUSTIN": "TOZ SALDIRISI: harcamak anahtarlarınızı bir yabancıya bağlar. seçimden çıkarın.",
   "S_WHY_GAPCH": "PARA ÜSTÜ ERİŞİM DIŞI: koordinatörünüzün görmesi için yeniden taraması gerekir.",
   "S_WHY_HIGHFEE": "YÜKSEK ÜCRET: gönderdiğinizin büyük bir kısmı. koordinatörünüzde düşürün.",
+  "S_WHY_HIGHFEE_SELF": "YÜKSEK ÜCRET: ücret girdilerinizin büyük bir kısmı. koordinatörünüzde düşürün.",
   "S_WHY_MERGE_CAP": "PRIVACY",
   "S_WHY_MERGE_FMT": "GİRDİLER BAĞLANDI: %u adresinizin tek sahibi olduğunu gösterir. daha az coin kullanın.",
   "S_WHY_MERGE_VAL": "ANYONE, FOREVER",

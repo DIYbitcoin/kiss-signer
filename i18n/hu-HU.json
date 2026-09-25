@@ -604,6 +604,7 @@
   "S_WHY_GAPCH": "VISSZAJÁRÓ ELÉRHETETLEN: a koordinátorodnak újra kell keresnie, hogy lássa.",
   "S_FIX_SD": "save the .psbt from your coordinator onto this card, then insert it again.",
   "S_WHY_HIGHFEE": "MAGAS DÍJ: nagy szelet abból, amit küldesz. csökkentsd a koordinátorodban.",
+  "S_WHY_HIGHFEE_SELF": "MAGAS DÍJ: a díj nagy szeletet visz el az inputjaidból. csökkentsd a koordinátorodban.",
   "S_WHY_MERGE_FMT": "INPUTOK ÖSSZEKÖTVE: megmutatja, hogy %u címed egy tulajdonoshoz tartozik. használj kevesebb coint.",
   "S_WHY_MERGE_CAP": "PRIVACY",
   "S_WHY_MERGE_VAL": "ANYONE, FOREVER",

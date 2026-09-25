@@ -604,6 +604,7 @@
   "S_WHY_DUSTIN": "ATAQUE DE POEIRA: gastar liga suas chaves a um estranho. tire da seleção.",
   "S_WHY_GAPCH": "TROCO FORA DE ALCANCE: seu coordenador precisa varrer de novo para vê-lo.",
   "S_WHY_HIGHFEE": "TAXA ALTA: boa parte do que você manda. baixe no seu coordenador.",
+  "S_WHY_HIGHFEE_SELF": "TAXA ALTA: a taxa é boa parte das suas entradas. baixe no seu coordenador.",
   "S_WHY_MERGE_CAP": "PRIVACY",
   "S_WHY_MERGE_FMT": "ENTRADAS LIGADAS: mostra que %u dos seus endereços têm um só dono. use menos moedas.",
   "S_WHY_MERGE_VAL": "ANYONE, FOREVER",

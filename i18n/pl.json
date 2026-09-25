@@ -604,6 +604,7 @@
   "S_WHY_DUSTIN": "ATAK PYŁEM: wydanie go wiąże twoje klucze z obcym. odznacz go.",
   "S_WHY_GAPCH": "RESZTA POZA ZASIĘGIEM: twój koordynator musi przeskanować ponownie, żeby ją zobaczyć.",
   "S_WHY_HIGHFEE": "WYSOKA OPŁATA: duża część tego, co wysyłasz. obniż ją w koordynatorze.",
+  "S_WHY_HIGHFEE_SELF": "WYSOKA OPŁATA: opłata to duża część twoich wejść. obniż ją w koordynatorze.",
   "S_WHY_MERGE_CAP": "PRIVACY",
   "S_WHY_MERGE_FMT": "WEJŚCIA POWIĄZANE: pokazuje, że %u twoich adresów ma jednego właściciela. użyj mniej monet.",
   "S_WHY_MERGE_VAL": "ANYONE, FOREVER",

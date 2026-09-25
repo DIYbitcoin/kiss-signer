@@ -2568,8 +2568,12 @@ static void caution_help_cb(lv_event_t *e)
     // reason left here argues about a number the screen behind can show, and
     // that one argued about whether the number was knowable at all, which is not
     // something to hand an owner as a checkbox. See kiss_psbt.c.
+    // A send to self has no "what you send" for the fee to be a slice of: the
+    // bare percentage on its row is a share of the inputs, and this says so.
     if (f & WPSBT_C_HIGHFEE)
-        BODY_ADD(LV_SYMBOL_CUT, "%s%s", o ? "\n" : "", tr(STR_S_WHY_HIGHFEE));
+        BODY_ADD(LV_SYMBOL_CUT, "%s%s", o ? "\n" : "",
+                 tr(wpsbt_fee_on_inputs(&s_sum) && wpsbt_fee_share_high(&s_sum)
+                    ? STR_S_WHY_HIGHFEE_SELF : STR_S_WHY_HIGHFEE));
     if (f & WPSBT_C_DUST_INPUT)
         BODY_ADD(WT_ICON_DUST, "%s%s", o ? "\n" : "", tr(STR_S_WHY_DUSTIN));
     if (f & WPSBT_C_MERGE_INS) {

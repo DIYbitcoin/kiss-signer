@@ -604,6 +604,7 @@
   "S_WHY_DUSTIN": "ATTAQUE POUSSIÈRE : la dépenser lie vos clés à un inconnu. désélectionnez-la.",
   "S_WHY_GAPCH": "MONNAIE HORS DE PORTÉE : votre coordinateur doit rescanner pour la voir.",
   "S_WHY_HIGHFEE": "FRAIS ÉLEVÉS : une grosse part de l'envoi. baissez-les dans votre coordinateur.",
+  "S_WHY_HIGHFEE_SELF": "FRAIS ÉLEVÉS : les frais sont une grosse part de vos entrées. baissez-les dans votre coordinateur.",
   "S_WHY_MERGE_CAP": "PRIVACY",
   "S_WHY_MERGE_FMT": "ENTRÉES LIÉES : montre que %u de vos adresses ont un seul propriétaire. moins de pièces.",
   "S_WHY_MERGE_VAL": "ANYONE, FOREVER",

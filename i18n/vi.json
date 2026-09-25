@@ -604,6 +604,7 @@
   "S_WHY_DUSTIN": "TẤN CÔNG BỤI: tiêu nó nối khóa của bạn với người lạ. bỏ chọn nó.",
   "S_WHY_GAPCH": "TIỀN THỪA NGOÀI TẦM: ứng dụng điều phối phải quét lại mới thấy.",
   "S_WHY_HIGHFEE": "PHÍ CAO: một phần lớn số bạn gửi. hạ nó trong bộ điều phối.",
+  "S_WHY_HIGHFEE_SELF": "PHÍ CAO: phí là một phần lớn đầu vào của bạn. hạ nó trong bộ điều phối.",
   "S_WHY_MERGE_CAP": "PRIVACY",
   "S_WHY_MERGE_FMT": "ĐẦU VÀO BỊ NỐI: cho thấy %u địa chỉ của bạn chung một chủ. dùng ít đồng hơn.",
   "S_WHY_MERGE_VAL": "ANYONE, FOREVER",

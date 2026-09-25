@@ -604,6 +604,7 @@
   "S_WHY_DUSTIN": "ATTACCO POLVERE: spenderlo collega le tue chiavi a un estraneo. deselezionalo.",
   "S_WHY_GAPCH": "RESTO FUORI PORTATA: il tuo coordinatore deve riscansionare per vederlo.",
   "S_WHY_HIGHFEE": "COMMISSIONE ALTA: gran parte di quello che mandi. abbassala nel coordinatore.",
+  "S_WHY_HIGHFEE_SELF": "COMMISSIONE ALTA: la commissione è gran parte dei tuoi ingressi. abbassala nel coordinatore.",
   "S_WHY_MERGE_CAP": "PRIVACY",
   "S_WHY_MERGE_FMT": "INPUT COLLEGATI: mostra che %u tuoi indirizzi hanno un solo proprietario. usa meno monete.",
   "S_WHY_MERGE_VAL": "ANYONE, FOREVER",

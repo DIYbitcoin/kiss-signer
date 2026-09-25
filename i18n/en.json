@@ -604,6 +604,7 @@
   "S_WHY_GAPCH": "CHANGE OUT OF REACH: your coordinator must rescan to see it.",
   "S_FIX_SD": "save the .psbt from your coordinator onto this card, then insert it again.",
   "S_WHY_HIGHFEE": "HIGH FEE: a big slice of what you send. lower it in your coordinator.",
+  "S_WHY_HIGHFEE_SELF": "HIGH FEE: the fee is a big part of your inputs. lower it in your coordinator.",
   "S_WHY_MERGE_FMT": "INPUTS LINKED: shows %u of your addresses share one owner. use fewer coins.",
   "S_WHY_MERGE_CAP": "PRIVACY",
   "S_WHY_MERGE_VAL": "ANYONE, FOREVER",
