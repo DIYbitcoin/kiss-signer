@@ -2948,9 +2948,9 @@ static uint16_t caution_rows(uint16_t f, const char **parts, uint16_t *bits, int
     if (n < cap && (f & WPSBT_C_HIGHFEE)) {
         static char hf[96];
         char fig[48];
-        if (s_sum.send_sats > 0 && s_sum.fee_sats * 10 >= s_sum.send_sats)
+        if (wpsbt_fee_share_high(&s_sum))
             snprintf(fig, sizeof fig, tr(STR_S_C_HIGHFEE_PCT),
-                     (unsigned long long)(s_sum.fee_sats * 100 / s_sum.send_sats));
+                     (unsigned long long)(s_sum.fee_sats * 100 / wpsbt_fee_base(&s_sum)));
         else
             snprintf(fig, sizeof fig, tr(STR_S_FEERATE_FMT),
                      (unsigned)(s_sum.fee_rate_x10 / 10),

@@ -165,6 +165,24 @@ typedef struct {
     wpsbt_out_t outs[WPSBT_MAX_OUTS];
 } wpsbt_summary_t;
 
+// What the fee is a share OF: the payment, or when nothing leaves the wallet
+// (every output ours, a zero-sat data output at most) the coins being moved.
+static inline uint64_t wpsbt_fee_base(const wpsbt_summary_t *s)
+{
+    return s->send_sats > 0 ? s->send_sats : s->in_sats;
+}
+
+// The share half of WPSBT_C_HIGHFEE: a fee of a tenth or more of that base.
+// One definition for the verifier that raises the caution and the screen that
+// says which test raised it. The screen once kept its own copy, and when the
+// verifier learned to measure a send to self against its inputs the copy did
+// not: a 59% fee on a 3 kB data transaction read "high fee  1.9 sat/vB".
+static inline bool wpsbt_fee_share_high(const wpsbt_summary_t *s)
+{
+    uint64_t base = wpsbt_fee_base(s);
+    return base > 0 && s->fee_sats * 10 >= base;
+}
+
 // ---- DETAILS page data (read on demand from the held PSBT) ----
 #define WPSBT_MAX_INS 16
 

@@ -1125,9 +1125,7 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     // share OF: the coins being consolidated. Ordinary sends keep the identical
     // test and the identical threshold; only the previously untested case gains
     // one.
-    uint64_t fee_base = s->send_sats > 0 ? s->send_sats : s->in_sats;
-    if ((fee_base > 0 && s->fee_sats * 10 >= fee_base) ||
-        s->fee_rate_x10 > WPSBT_HIGH_RATE_X10)
+    if (wpsbt_fee_share_high(s) || s->fee_rate_x10 > WPSBT_HIGH_RATE_X10)
         caution(s, WPSBT_C_HIGHFEE, "unusually high fee - check it before signing");
 
     // Stated, not flagged -- see wpsbt_summary_t.lock_binds for why a signer

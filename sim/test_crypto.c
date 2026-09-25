@@ -1793,6 +1793,11 @@ int main(int argc, char **argv) {
     chki("consolidation high fee CAUTION", sum.status, WPSBT_CAUTION);
     chkb("consolidation flags the fee",
          (sum.caution_flags & WPSBT_C_HIGHFEE) != 0);
+    // The caution row prints the share only when this says the share fired,
+    // and the rate otherwise -- so here it must say so, or the row pairs HIGH
+    // FEE with the rate that just passed.
+    chkb("consolidation row names the share, not the rate",
+         wpsbt_fee_share_high(&sum));
     // The two halves of the wallet, told apart. out0 pays one of our own
     // RECEIVE addresses and out1 is real change, and both are ours -- which is
     // why the sign screen called both of them CHANGE until the branch was
