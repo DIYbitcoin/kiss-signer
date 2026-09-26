@@ -206,17 +206,21 @@ OFFLINE_INDEX = """<!doctype html>
           </li>
         </ol>
 
-        <!-- The same question as the hosted page, with the same ids: both
-             boards are ESP32-P4, so nothing but this answer picks the image. -->
+        <!-- The same question as the hosted page, with the same ids: every
+             board is an ESP32-P4, so nothing but this answer picks the image. -->
         <div class="board-pick" id="board-pick" role="radiogroup" aria-labelledby="board-pick-title">
           <strong id="board-pick-title">Which board is it?</strong>
           <label class="ack-row">
             <input type="radio" name="board" value="guition">
-            <span><b>Guition 4.3in</b>, the JC4880P443C. The larger screen, 800 by 480.</span>
+            <span><b>Guition 4.3in</b>, the JC4880P443C, with an 800 by 480 screen.</span>
           </label>
           <label class="ack-row">
             <input type="radio" name="board" value="ws35">
-            <span><b>Waveshare 3.5in</b>, the ESP32-P4-WIFI6-Touch-LCD-3.5. The smaller screen, 480 by 320.</span>
+            <span><b>Waveshare 3.5in</b>, the ESP32-P4-WIFI6-Touch-LCD-3.5, with a 480 by 320 screen.</span>
+          </label>
+          <label class="ack-row">
+            <input type="radio" name="board" value="jc1060">
+            <span><b>Guition 7in</b>, the JC1060P470C, with a 1024 by 600 screen.</span>
           </label>
         </div>
 

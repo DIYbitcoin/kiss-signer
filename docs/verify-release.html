@@ -214,6 +214,7 @@
       <p class="mut expect" data-board="guition">Guition 4.3in, <span class="mono">kiss-signer-0.1.0-beta10.bin</span>:
         <span class="mono">3acd0073f2598bd449e4289b0bd10986baf8b655e0f6997fb3f6cd7c3b3ca783</span></p>
       <p class="mut expect" data-board="ws35">Waveshare 3.5in: no image in this release</p>
+      <p class="mut expect" data-board="jc1060">Guition 7in: no image in this release</p>
     </main>
 
     <script>
@@ -227,9 +228,13 @@
       var EXPECT_WS35 = "";
       var EXPECT_WS35_SIZE = 0;
       var EXPECT_WS35_NAME = "";
+      var EXPECT_JC1060 = "";
+      var EXPECT_JC1060_SIZE = 0;
+      var EXPECT_JC1060_NAME = "";
       var IMAGES = [
         { board: "Guition 4.3in", sha256: EXPECT, size: EXPECT_SIZE, name: EXPECT_NAME },
-        { board: "Waveshare 3.5in", sha256: EXPECT_WS35, size: EXPECT_WS35_SIZE, name: EXPECT_WS35_NAME }
+        { board: "Waveshare 3.5in", sha256: EXPECT_WS35, size: EXPECT_WS35_SIZE, name: EXPECT_WS35_NAME },
+        { board: "Guition 7in", sha256: EXPECT_JC1060, size: EXPECT_JC1060_SIZE, name: EXPECT_JC1060_NAME }
       ].filter(function (image) { return image.sha256; });
 
       var K = [
