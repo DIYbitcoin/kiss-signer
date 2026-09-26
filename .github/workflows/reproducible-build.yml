@@ -6,9 +6,9 @@
 # objects in the linker map - the build scripts fail the job if any check
 # fails), and publishes the firmware hashes + artifacts.
 #
-# The normal release lane runs once per board, as a matrix: the Guition 4.3in
-# and the Waveshare 3.5in each get their own build, their own checks, their own
-# hashes, their own artifact and their own arm64 comparison. The ids and
+# The normal release lane runs once per board, as a matrix: the Guition 4.3in,
+# the Waveshare 3.5in and the Guition 7in each get their own build, their own
+# checks, their own hashes, their own artifact and their own arm64 comparison. The ids and
 # directories below are the ones tools/release_boards.sh gives each board; YAML
 # cannot source that file, so change the two together. The Guition is the
 # script's default board, so its leg builds the image this job always built, and
@@ -89,6 +89,11 @@ jobs:
             app: ws35_kiss_bringup
             artifact: kiss-signer-release-ws35-unsigned
             sums: SHA256SUMS-ws35-ci.txt
+          - board: jc1060
+            dir: build-release-jc1060
+            app: jc1060_kiss_bringup
+            artifact: kiss-signer-release-jc1060-unsigned
+            sums: SHA256SUMS-jc1060-ci.txt
     steps:
       # Full history: the docs freshness check below counts commits.
       - uses: actions/checkout@v4
@@ -192,6 +197,11 @@ jobs:
             app: ws35_kiss_bringup
             artifact: kiss-signer-release-ws35-unsigned
             sums_arm64: SHA256SUMS-ws35-arm64-ci.txt
+          - board: jc1060
+            dir: build-release-jc1060
+            app: jc1060_kiss_bringup
+            artifact: kiss-signer-release-jc1060-unsigned
+            sums_arm64: SHA256SUMS-jc1060-arm64-ci.txt
     steps:
       - uses: actions/checkout@v4
         with:

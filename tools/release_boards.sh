@@ -15,7 +15,7 @@
 # file name suffix -- so its image, its published names and every link to them
 # stay what they were.
 
-KISS_RELEASE_BOARD_IDS="guition ws35"
+KISS_RELEASE_BOARD_IDS="guition ws35 jc1060"
 
 # kiss_board_profile <id>: sets BOARD_BUILD, BOARD_APP, BOARD_SUFFIX,
 # BOARD_NAME, BOARD_MODEL and the BOARD_ARGS array for that board, or returns 1
@@ -37,6 +37,14 @@ kiss_board_profile() {
             BOARD_SUFFIX="-ws35"
             BOARD_NAME="Waveshare 3.5in"
             BOARD_MODEL="Waveshare ESP32-P4-WIFI6-Touch-LCD-3.5"
+            ;;
+        jc1060)
+            BOARD_BUILD=build-release-jc1060
+            BOARD_APP=jc1060_kiss_bringup
+            BOARD_ARGS=(-DKISS_BOARD=jc1060)
+            BOARD_SUFFIX="-jc1060"
+            BOARD_NAME="Guition 7in"
+            BOARD_MODEL="Guition JC1060P470C"
             ;;
         *)
             return 1

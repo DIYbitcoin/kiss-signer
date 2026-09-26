@@ -25,7 +25,7 @@ name: firmware build
 # the `on:` block below are in ci.yml now, beside the other three, where they
 # can be read together.
 #
-# Two legs since the 3.5in board: one per board profile, both gating. The
+# One leg per board profile, every one gating. The
 # Guition leg is textually the line this job always ran, with the committed
 # sdkconfig and no -DKISS_BOARD, so the image it builds is the image it always
 # built. The 3.5in leg builds into its own directory with its own generated
@@ -51,12 +51,19 @@ jobs:
             args: "-B build"
             bin: build/guition_kiss_bringup.bin
             map: build/guition_kiss_bringup.map
-            absent: 'libespressif__esp_lcd_st7796\.a\(|libespressif__esp_lcd_touch_ft5x06\.a\('
+            absent: 'libespressif__esp_lcd_st7796\.a\(|libespressif__esp_lcd_touch_ft5x06\.a\(|libespressif__esp_lcd_jd9165\.a\('
           - board: ws35
             args: "-B build_ws35 -DKISS_BOARD=ws35"
             bin: build_ws35/ws35_kiss_bringup.bin
             map: build_ws35/ws35_kiss_bringup.map
-            absent: 'libespressif__esp_lcd_st7701\.a\(|libespressif__esp_lcd_touch_gt911\.a\('
+            absent: 'libespressif__esp_lcd_st7701\.a\(|libespressif__esp_lcd_touch_gt911\.a\(|libespressif__esp_lcd_jd9165\.a\('
+          # The 7in shares the 4.3in's GT911, so only the other panels and
+          # the 3.5in's touch can be absent here.
+          - board: jc1060
+            args: "-B build_jc1060 -DKISS_BOARD=jc1060"
+            bin: build_jc1060/jc1060_kiss_bringup.bin
+            map: build_jc1060/jc1060_kiss_bringup.map
+            absent: 'libespressif__esp_lcd_st7701\.a\(|libespressif__esp_lcd_st7796\.a\(|libespressif__esp_lcd_touch_ft5x06\.a\('
     steps:
       - uses: actions/checkout@v4
 
