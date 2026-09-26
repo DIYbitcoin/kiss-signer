@@ -1592,9 +1592,16 @@
         <p class="eyebrow">03 / the device</p>
         <h2>The device, and the one mod it needs</h2>
         <p>
-          One board, no soldering: the Guition <strong>JC4880P443C</strong>. It
-          ships with a colour touchscreen, a camera and a microSD slot. The one
-          job left to you is turning the camera around.
+          Three boards, no soldering: the Guition <strong>JC4880P443C</strong>
+          (4.3in), the Waveshare <strong>ESP32-P4-WIFI6-Touch-LCD-3.5</strong>
+          (3.5in) and the Guition <strong>JC1060P470C</strong> (7in). Each has
+          a colour touchscreen, a camera and a microSD slot. The one job left to
+          you is making sure the camera faces out the back, away from you.
+        </p>
+        <p>
+          The firmware runs on boards with a v1.x ESP32-P4 chip. Boards with
+          the newer v3.x chip are not supported yet; <code>esptool</code>
+          prints the revision when it connects.
         </p>
         <h3>About the radio</h3>
         <p>
@@ -1611,8 +1618,8 @@
         </p>
         <h3>Flip the camera (one-time, required for QR scanning)</h3>
         <p>
-          The camera ships facing the user. Reading a QR from your coordinator
-          needs it facing out. Simple but fiddly:
+          On the Guition 4.3in the camera ships facing the user. Reading a QR
+          from your coordinator needs it facing out. Simple but fiddly:
         </p>
         <ol>
           <li>Lift the screen off with a small suction cup tool.</li>
@@ -1636,7 +1643,8 @@
         <p>Everything for a release sits on the GitHub Releases tab:</p>
         <ul>
           <li><code>kiss-signer-&lt;version&gt;.bin</code> &mdash; the firmware, for the Guition 4.3in</li>
-          <li><code>kiss-signer-&lt;version&gt;-ws35.bin</code> &mdash; the firmware for the Waveshare 3.5in, in a release that carries it</li>
+          <li><code>kiss-signer-&lt;version&gt;-ws35.bin</code> &mdash; the firmware for the Waveshare 3.5in</li>
+          <li><code>kiss-signer-&lt;version&gt;-jc1060.bin</code> &mdash; the firmware for the Guition 7in</li>
           <li><code>SHA256SUMS</code> &mdash; its hashes</li>
           <li><code>SHA256SUMS.asc</code> &mdash; the signature over those hashes</li>
           <li><code>kiss_signer_pgp.asc</code> &mdash; the key that signed them</li>
@@ -1666,7 +1674,8 @@ sha256sum --ignore-missing -c SHA256SUMS         # Linux</code></pre>
         <h3>Windows</h3>
         <p>
           Hash with <code>Get-FileHash firmware\kiss-signer-&lt;version&gt;.bin</code>
-          (<code>-ws35.bin</code> on the Waveshare 3.5in)
+          (<code>-ws35.bin</code> on the Waveshare 3.5in, <code>-jc1060.bin</code>
+          on the Guition 7in)
           in PowerShell and compare against <code>SHA256SUMS</code> by eye. Verify the
           signature with <a href="https://gpg4win.org">Gpg4win</a>.
         </p>
@@ -1692,9 +1701,12 @@ sha256sum --ignore-missing -c SHA256SUMS         # Linux</code></pre>
         </p>
         <p>
           Each board has its own: <code>-ws35-update.bin</code> is the Waveshare
-          3.5in&rsquo;s, the other one the Guition 4.3in&rsquo;s. The device
-          checks the signatures and the version, not which board a file was
-          built for, so take your board&rsquo;s.
+          3.5in&rsquo;s, <code>-jc1060-update.bin</code> the Guition 7in&rsquo;s,
+          and the one with no board in its name the Guition 4.3in&rsquo;s. From
+          beta11 on the device refuses another board&rsquo;s file. Beta10 does
+          not check, so take your board&rsquo;s; if the screen stays dark after
+          a wrong one, power it off and on and it goes back to the firmware it
+          had.
         </p>
         <div class="note">
           Take <code>-update.bin</code>, not the plain <code>.bin</code>. The
@@ -1733,7 +1745,7 @@ sha256sum --ignore-missing -c SHA256SUMS         # Linux</code></pre>
 <pre><code>pip install esptool        # or: pipx install esptool
 
 # find your device's port:
-#   macOS    /dev/cu.usbmodem*
+#   macOS    /dev/cu.usbmodem*  (the 3.5in may show as /dev/cu.wchusbserial*)
 #   Linux    /dev/ttyACM*
 #   Windows  COM3, COM4, ...
 
@@ -1741,7 +1753,8 @@ sha256sum --ignore-missing -c SHA256SUMS         # Linux</code></pre>
 shasum -a 256 --ignore-missing -c SHA256SUMS
 
 # your board's image: kiss-signer-&lt;version&gt;.bin on the Guition 4.3in,
-# kiss-signer-&lt;version&gt;-ws35.bin on the Waveshare 3.5in
+# kiss-signer-&lt;version&gt;-ws35.bin on the Waveshare 3.5in,
+# kiss-signer-&lt;version&gt;-jc1060.bin on the Guition 7in
 
 esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
   --before default-reset --after no-reset write-flash \
