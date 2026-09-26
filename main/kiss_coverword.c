@@ -1,5 +1,6 @@
 // See kiss_coverword.h for why this is not in main.c any more.
 #include "kiss_coverword.h"
+#include "kiss_board.h"   // SX/SY: the floors are drawn on the wide canvas
 
 // Recognise a "K": a left vertical spine, and anything reaching to the right.
 // Deliberately LENIENT -- this is cover, not the lock. A plain tap or a flat
@@ -15,7 +16,7 @@ static bool cw_is_k(const int *xs, const int *ys, int n)
         if (ys[i] > maxy) maxy = ys[i];
     }
     int w = maxx - minx, h = maxy - miny;
-    if (w < 40 || h < 50) return false;      // needs a bit of size, easy to meet
+    if (w < SX(40) || h < SY(50)) return false;   // needs a bit of size, easy to meet
     int spine_top = 0, spine_bot = 0;
     bool arm = false;
     // Integer comparisons against the bbox rather than float normalisation:
@@ -53,7 +54,7 @@ bool cw_match(const int *xs, const int *ys, const uint8_t *sid,
     // in front of the passphrase keyboard, so a false positive was a tell and
     // strictness was cheap. It now opens the DECOY, so a fumbled shape costs
     // nothing at all -- someone lands in a spare wallet.
-    if (w < 120 || h < 35) return false;     // still a word, just a smaller one
+    if (w < SX(120) || h < SY(35)) return false;   // still a word, just a smaller one
     if (w < h) return false;                 // wider than tall
 
     // Letter clusters along x. Letters are continuous in x; a 1-bin empty gap

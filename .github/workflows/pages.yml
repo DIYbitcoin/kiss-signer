@@ -1,0 +1,60 @@
+# The website, published from develop.
+#
+# It was served straight out of main/docs by the legacy Pages build, so every
+# typo fix on the site had to be merged to main before anybody could see it --
+# and a push to main starts the reproducible release build, because main is the
+# release line and that build is what publishes the firmware hashes. A one word
+# change was costing a nine minute firmware rebuild. Across one afternoon of
+# copy edits that was eight of them, and an Actions list nobody could read.
+#
+# So the two jobs are separated. develop publishes the website. main stays what
+# CONTRIBUTING says it is: the release line, moved only when a release is cut
+# and tagged, and the only branch whose push rebuilds and publishes hashes.
+#
+# The trade, stated plainly because it is real: the live site now shows what is
+# on develop, so a half-finished sentence is public the moment it is pushed.
+# The install page reads the release it offers from installer/release.json, so
+# what it hands people to flash is still whatever main last published.
+#
+# Only a change under docs/ triggers this, so an ordinary firmware commit on
+# develop adds no row to the Actions list.
+name: pages
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - "docs/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time, and never cancel one half way: a cancelled deploy can
+# leave the site on a version nobody chose.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/configure-pages@v5
+
+      # docs/ is the site root, exactly as the legacy build served it, so every
+      # relative path in the pages and the offline zip keeps working.
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

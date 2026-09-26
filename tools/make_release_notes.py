@@ -38,20 +38,38 @@ def code_block(lang: str, body: str) -> str:
     return f"```{lang}\n{body.rstrip()}\n```"
 
 
+def boards(meta: dict) -> list:
+    """(name, model, merged image, sha256, card image) per board, the Guition
+    first. A release.json from before the boards list describes the Guition
+    alone, at its top level."""
+    listed = meta.get("boards") or [{
+        "name": "Guition 4.3in", "model": meta.get("board", "Guition JC4880P443C"),
+        "browserFirmware": meta["browserFirmware"],
+    }]
+    out = []
+    for b in listed:
+        merged = Path(b["browserFirmware"]["path"]).name
+        # The card image. NOT the merged one: the device looks for the app
+        # descriptor 32 bytes in, and a merged image has the bootloader there,
+        # so the FIRMWARE screen reports "nothing to install" for it every time.
+        card = merged[:-len(".bin")] + "-update.bin"
+        out.append((b["name"], b["model"], merged,
+                    b["browserFirmware"].get("sha256", "unknown"), card))
+    return out
+
+
 def render(version: str) -> str:
     meta = release_meta()
-    browser = meta["browserFirmware"]
     auth = meta.get("authenticity", {})
-    filename = Path(browser["path"]).name
     fingerprint = auth.get("gpgFingerprint", "REPLACE-WITH-RELEASE-KEY-FINGERPRINT")
     commit = meta.get("commit", "unknown")
-    sha256 = browser.get("sha256", "unknown")
+    images = boards(meta)
+    # A release with one board reads exactly as every release before the
+    # second board did; with more, each image is named beside its board.
+    single = len(images) == 1
+    filename, sha256, update = images[0][2], images[0][3], images[0][4]
 
     offline = f"kiss-signer-{version}-offline.zip"
-    # The card image. NOT the merged one: the device looks for the app
-    # descriptor 32 bytes in, and a merged image has the bootloader there, so
-    # the FIRMWARE screen reports "nothing to install" for it every time.
-    update = f"kiss-signer-{version}-update.bin"
 
     verify_cmds = code_block(
         "sh",
@@ -66,9 +84,31 @@ shasum -a 256 --ignore-missing -c SHA256SUMS
 gpg --verify {offline}.asc {offline}""",
     )
 
+    if single:
+        intro = f"Beta firmware for the {images[0][1]} ESP32-P4 device."
+        assets = (f"- `{filename}`: merged firmware image, for flashing over USB\n"
+                  f"- `{update}`: the same firmware as an SD card update (see FIRMWARE below)")
+        hashes = f"Main firmware SHA256:\n\n`{sha256}`"
+        card = f"`{update}`"
+        page_route = "anyone. Plug in, tick the box, press the button"
+    else:
+        intro = ("Beta firmware for ESP32-P4 boards, one image per board: "
+                 + ", ".join(f"the {model} ({name})" for name, model, *_ in images[:-1])
+                 + f" and the {images[-1][1]} ({images[-1][0]}). "
+                 "Take the files for your board: each image carries only its "
+                 "own board's display driver.")
+        assets = "\n".join(
+            f"- `{merged}` and `{card_}`: {name}, merged image for USB and the "
+            f"same firmware as an SD card update (see FIRMWARE below)"
+            for name, _, merged, _, card_ in images)
+        hashes = "Main firmware SHA256, per board:\n\n" + "\n".join(
+            f"- {name}: `{digest}`" for name, _, _, digest, _ in images)
+        card = " or ".join(f"`{card_}`" for *_, card_ in images) + " (your board's)"
+        page_route = "anyone. Plug in, pick your board, tick the box, press the button"
+
     return f"""# KISS Signer {version}
 
-Beta firmware for the Guition JC4880P443C ESP32-P4 device.
+{intro}
 
 > **Beta warning:** do not trust this release with meaningful funds yet.
 
@@ -76,8 +116,7 @@ Beta firmware for the Guition JC4880P443C ESP32-P4 device.
 
 Download these assets from this release into one folder:
 
-- `{filename}`: merged firmware image, for flashing over USB
-- `{update}`: the same firmware as an SD card update (see FIRMWARE below)
+{assets}
 - `SHA256SUMS`: firmware hashes
 - `SHA256SUMS.asc`: GPG signature for `SHA256SUMS`
 - `kiss_signer_pgp.asc`: KISS release public key
@@ -92,9 +131,7 @@ Flashing on a machine with no network? Take these two instead:
 
 {verify_cmds}
 
-Main firmware SHA256:
-
-`{sha256}`
+{hashes}
 
 Release commit:
 
@@ -107,13 +144,13 @@ install page and in the guide — this is the map, not the manual.
 
 | | Route | Cable? | Who it suits |
 | --- | --- | --- | --- |
-| 🖱️ | **[Install page](https://diybitcoin.github.io/kiss-signer/)** | yes, USB | anyone. Plug in, tick the box, press the button |
+| 🖱️ | **[Install page](https://diybitcoin.github.io/kiss-signer/)** | yes, USB | {page_route} |
 | 💾 | **[SD card update](https://diybitcoin.github.io/kiss-signer/guide.html#sdupdate)** | no | already on beta8 or later, and no computer to hand |
 | 📦 | **[Offline zip](https://diybitcoin.github.io/kiss-signer/guide.html#offline)** | yes, USB | the machine you flash from has no internet |
 | ⌨️ | **[Command line](https://diybitcoin.github.io/kiss-signer/guide.html#esptool)** | yes, USB | Safari or Firefox, or you would rather use a terminal |
 
 The SD card route is the only one that needs no computer at all, and it keeps
-your keys and settings: put `{update}` in the root of a card, then SETTINGS →
+your keys and settings: put {card} in the root of a card, then SETTINGS →
 FIRMWARE on the device and hold to install. Use that file, not the merged image.
 
 > ⚠️ **Coming from beta7 or earlier?** SD card updates did not exist yet, so you

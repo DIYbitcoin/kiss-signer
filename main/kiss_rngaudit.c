@@ -18,15 +18,25 @@
 // card 12px of head and foot; full height is TWICE the fair share, the dice
 // bars' rule, so the fair line crosses at half and a level skyline against it
 // says "noise did this" with no words in any locale.
-#define HIST_X   48
-#define HIST_Y   96
-#define HIST_W   704
-#define HIST_H   200
-#define BAR_W    6
-#define BAR_PITCH 7
+#define HIST_X   SX(48)
+#define HIST_Y   SY(96)
+#define HIST_W   SX(704)
+#define BAR_W    SX(6)
+#define BAR_PITCH SX(7)
+#define BAR_TOP  SY(12)
+#if KISS_NARROW
+// The 3.5in card is 118 tall, not the scaled 133: the stat row under it is 57
+// and has to end above the band, where the scaled card left it 57 past it. The
+// skyline is 399 of a 422 card, so it sits centred rather than 2px off the left
+// edge with 21 empty on the right.
+#define HIST_H   118
+#define BAR_X0   ((HIST_W - (99 * BAR_PITCH + BAR_W)) / 2)
+#define BAR_H    (HIST_H - 2 * BAR_TOP)
+#else
+#define HIST_H   SY(200)
 #define BAR_X0   2
-#define BAR_TOP  12
-#define BAR_H    176
+#define BAR_H    SY(176)
+#endif
 
 static lv_obj_t *s_scr;
 static lv_obj_t *s_parent;
@@ -53,6 +63,15 @@ static kiss_rngq_t s_q;
 // So: a draw callback, confined to this one widget. Everything else on the
 // screen is still the kit.
 static lv_obj_t *s_hist;
+#if KISS_NARROW
+// The skyline's lane on the 3.5in. A result row that a long caption wraps taller
+// takes its pixels from the card rather than from the band, and the bars and
+// the fair line follow the card down with it.
+static int s_bar_lane = BAR_H;
+#define BAR_LANE s_bar_lane
+#else
+#define BAR_LANE BAR_H
+#endif
 static lv_obj_t *s_cnt;    // the running tally; the result widgets replace it
 static lv_obj_t *s_note;   // the sub lane: carries the retry line on a miss
 static lv_obj_t *s_exit;   // BACK while running, DONE once finished
@@ -111,7 +130,13 @@ static void intro_screen(void)
     }
 
     // The card clears the trail strip (70..100) with a gap of its own.
+#if KISS_NARROW
+    // 16 on the 3.5in: 24 put the third fact row through the band, and the
+    // pixels the rows need come from above the card as well as below it.
+    const int RNG_CARD_Y = WT_CHROME_STRIP_Y + WT_BR_H + 16;
+#else
     const int RNG_CARD_Y = WT_CHROME_STRIP_Y + WT_BR_H + 24;
+#endif
 
     bool live = kiss_trng_live();
 
@@ -159,17 +184,28 @@ static void intro_screen(void)
     };
     // Under the card with a gap that reads as one, rather than pinned at a
     // number chosen when the card sat higher.
-    wt_facts(s_scr, RNG_CARD_Y + WT_CHOICE_H + 34, facts, 3);
+#if KISS_NARROW
+    // Hung from the band the way every explainer's rows are: resting on the
+    // card, THE LIMIT ended 4 px under the floor on the 3.5in. The card's
+    // bottom edge still wins if a taller row ever needs the room.
+    {
+        int fy = WT_CONTENT_BOTTOM - WT_FACT_BAND_GAP - wt_facts_height(facts, 3);
+        const int under = RNG_CARD_Y + WT_CHOICE_H + SY(14);
+        wt_facts(s_scr, fy > under ? fy : under, facts, 3);
+    }
+#else
+    wt_facts(s_scr, RNG_CARD_Y + WT_CHOICE_H + SY(34), facts, 3);
+#endif
 
     lv_obj_t *back = wt_arrow_action(s_scr, tr(STR_C_BACK), true, false,
-                                     WT_BACK_X, WT_ACTION_Y, 140, true,
+                                     WT_BACK_X, WT_ACTION_Y, SX(140), true,
                                      exit_cb, NULL);
     lv_obj_set_ext_click_area(back, 10);
     // No START without a source. Absent, not greyed: a disabled control is a
     // shape this product does not draw.
     if (live)
         wt_arrow_action(s_scr, tr(STR_W_RNG_GO), false, true, WT_ACT_X,
-                        WT_ACTION_Y, 240, false, go_cb, NULL);
+                        WT_ACTION_Y, SX(240), false, go_cb, NULL);
 }
 
 // ---- the run ----
@@ -181,8 +217,8 @@ static void intro_screen(void)
 static int bar_h(int i)
 {
     if (!s_q.n) return 0;
-    int h = (int)((uint32_t)s_q.bin[i] * (BAR_H / 2) * s_q.bins / s_q.n);
-    return h > BAR_H ? BAR_H : h;
+    int h = (int)((uint32_t)s_q.bin[i] * (BAR_LANE / 2) * s_q.bins / s_q.n);
+    return h > BAR_LANE ? BAR_LANE : h;
 }
 
 // The skyline and the fair share line, in one pass over the widget's own
@@ -206,7 +242,7 @@ static void hist_draw_cb(lv_event_t *e)
         lv_area_t a;
         a.x1 = c.x1 + BAR_X0 + i * BAR_PITCH;
         a.x2 = a.x1 + BAR_W - 1;
-        a.y2 = c.y1 + BAR_TOP + BAR_H - 1;
+        a.y2 = c.y1 + BAR_TOP + BAR_LANE - 1;
         a.y1 = a.y2 - h + 1;
         lv_draw_rect(layer, &d, &a);
     }
@@ -215,7 +251,7 @@ static void hist_draw_cb(lv_event_t *e)
     lv_area_t t;
     t.x1 = c.x1;
     t.x2 = c.x2;
-    t.y1 = c.y1 + BAR_TOP + BAR_H / 2;
+    t.y1 = c.y1 + BAR_TOP + BAR_LANE / 2;
     t.y2 = t.y1;
     lv_draw_rect(layer, &d, &t);
 }
@@ -235,13 +271,88 @@ static void finish(void)
     char val[16];
     snprintf(val, sizeof val, "%u.%03u", (unsigned)(milli / 1000),
              (unsigned)(milli % 1000));
-    wt_value_card(s_scr, tr(STR_W_RNG_CHI_CAP), val, 48, 304, 190, false);
+#if KISS_NARROW
+    // ONE row against the band on the 3.5in. The wide positions scaled put all
+    // three blocks through the floor, SPREAD SCORE wrapped in its 114 px card,
+    // and the two chips stacked 2 px apart. The chips take a column as wide as
+    // the widest word either can wear, so nothing moves between a pass and a
+    // miss; the range keeps the 192 its 17 characters need, and the score card
+    // takes the rest. A locale whose caption would wrap in what is left (the
+    // German chip column leaves it 71 px) gets two rows instead: the chips side
+    // by side over the cards, and the skyline gives up the height.
+    {
+        const char *vs = v == RNGQ_PASS ? tr(STR_W_RNG_EVEN)
+                       : v == RNGQ_LOW  ? tr(STR_W_RNG_TOOEVEN)
+                                        : tr(STR_W_DICE_UNEVEN);
+        const bool live = kiss_trng_live();
+        const char *const words[] = {
+            tr(STR_W_RNG_EVEN), tr(STR_W_RNG_TOOEVEN), tr(STR_W_DICE_UNEVEN),
+            tr(STR_W_RNG_ON), tr(STR_W_RNG_OFF),
+        };
+        int colw = 0;
+        for (int i = 0; i < 5; i++) {
+            lv_point_t sz;
+            lv_text_get_size(&sz, words[i], wt_font14(), 1, 0, LV_COORD_MAX,
+                             LV_TEXT_FLAG_NONE);
+            if (sz.x > colw) colw = sz.x;
+        }
+        colw += 2 * SX(10);                  // the chip's own side pads
+        const int gap = 6, air = 8;
+        lv_point_t cap;
+        lv_text_get_size(&cap, tr(STR_W_RNG_CHI_CAP), wt_font14(), 1, 0,
+                         LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+        const bool one_row = SX(48) + cap.x + SX(32) + gap + SX(320) + gap + colw
+                             <= SX(752);
+        const int rng_x = one_row ? SX(752) - colw - gap - SX(320)
+                                  : SX(752) - SX(320);
+        lv_obj_t *chi = wt_value_card(s_scr, tr(STR_W_RNG_CHI_CAP), val, SX(48),
+                                      0, rng_x - gap - SX(48), false);
+        lv_obj_t *rng = wt_value_card(s_scr, tr(STR_W_RNG_RANGE_CAP),
+                                      "61.137 .. 148.230", rng_x, 0, SX(320), false);
+        lv_obj_t *chip = wt_state_chip(s_scr, vs, v == RNGQ_PASS ? OK_COL : WARN_COL);
+        lv_obj_t *src = wt_state_chip(s_scr, live ? tr(STR_W_RNG_ON) : tr(STR_W_RNG_OFF),
+                                      live ? OK_COL : WARN_COL);
+        lv_obj_update_layout(s_scr);
+        const int card_h = LV_MAX(lv_obj_get_height(chi), lv_obj_get_height(rng));
+        const int ch1 = lv_obj_get_height(chip), ch2 = lv_obj_get_height(src);
+        int top;
+        if (one_row) {
+            const int chips_h = ch1 + gap + ch2;
+            const int row_h = LV_MAX(card_h, chips_h);
+            const int row_y = WT_CONTENT_BOTTOM - air - row_h;
+            lv_obj_set_y(chi, row_y);
+            lv_obj_set_y(rng, row_y);
+            const int cy = row_y + (row_h - chips_h) / 2;
+            lv_obj_set_pos(chip, SX(752) - colw, cy);
+            lv_obj_set_pos(src, SX(752) - colw, cy + ch1 + gap);
+            top = row_y;
+        } else {
+            const int row_y = WT_CONTENT_BOTTOM - air - card_h;
+            const int chips_y = row_y - gap - LV_MAX(ch1, ch2);
+            lv_obj_set_y(chi, row_y);
+            lv_obj_set_y(rng, row_y);
+            const int src_x = SX(752) - lv_obj_get_width(src);
+            lv_obj_set_pos(src, src_x, chips_y);
+            lv_obj_set_pos(chip, src_x - gap - lv_obj_get_width(chip), chips_y);
+            top = chips_y;
+        }
+        lv_obj_set_height(chi, card_h);
+        lv_obj_set_height(rng, card_h);
+        if (s_hist && top - gap < HIST_Y + HIST_H) {
+            const int h = top - gap - HIST_Y;
+            lv_obj_set_height(lv_obj_get_parent(s_hist), h);
+            lv_obj_set_height(s_hist, h);
+            s_bar_lane = h - 2 * BAR_TOP;
+        }
+    }
+#else
+    wt_value_card(s_scr, tr(STR_W_RNG_CHI_CAP), val, SX(48), SY(304), SX(190), false);
     // The interval is a pair of constants, never translated; the intro taught
     // what it means. Same figures as kiss_rngq_verdict, 99 dof. 320 wide
     // because the range is 17 mono23 characters: at 280 it wrapped, and the
     // grown card crossed the content floor into the action bar.
     wt_value_card(s_scr, tr(STR_W_RNG_RANGE_CAP), "61.137 .. 148.230",
-                  246, 304, 320, false);
+                  SX(246), SY(304), SX(320), false);
 
     // UNEVEN is the dice judge's word, reused: same verdict, same 21 locales.
     const char *vs = v == RNGQ_PASS ? tr(STR_W_RNG_EVEN)
@@ -251,24 +362,25 @@ static void finish(void)
     // and the note says exactly that. The chip pair carries both halves of
     // the claim -- the spread, and the source it came from.
     lv_obj_t *chip = wt_state_chip(s_scr, vs, v == RNGQ_PASS ? OK_COL : WARN_COL);
-    lv_obj_set_pos(chip, 578, 314);
+    lv_obj_set_pos(chip, SX(578), SY(314));
     bool live = kiss_trng_live();
     lv_obj_t *src = wt_state_chip(s_scr, live ? tr(STR_W_RNG_ON) : tr(STR_W_RNG_OFF),
                                   live ? OK_COL : WARN_COL);
-    lv_obj_set_pos(src, 578, 352);
+    lv_obj_set_pos(src, SX(578), SY(352));
+#endif
 
     // The sub lane answers "so is it good?" in a sentence either way: the
     // chips carry the verdict, but a newcomer should not have to decode it
     // from a chip. On a miss, the once-in-500 line; on a pass, the plain one.
     if (s_note)
         wt_note_fit(s_note, v == RNGQ_PASS ? tr(STR_W_RNG_PASS_NOTE)
-                                           : tr(STR_W_RNG_RETRY), 704, 34);
+                                           : tr(STR_W_RNG_RETRY), SX(704), SY(34));
 
     if (s_exit) lv_obj_delete(s_exit);
     s_exit = wt_arrow_action(s_scr, tr(STR_C_DONE), true, false, WT_BACK_X,
-                             WT_ACTION_Y, 140, true, exit_cb, NULL);
+                             WT_ACTION_Y, SX(140), true, exit_cb, NULL);
     wt_arrow_action(s_scr, tr(STR_W_RNG_AGAIN), false, true, WT_ACT_X,
-                    WT_ACTION_Y, 240, false, go_cb, NULL);
+                    WT_ACTION_Y, SX(240), false, go_cb, NULL);
 }
 
 static void tick_cb(lv_timer_t *t)
@@ -299,7 +411,7 @@ static void run_screen(void)
     s_scr = wt_screen(s_parent, tr(STR_W_RNG_T), NULL);
     wt_chrome_head(s_scr);
     // The sub lane, empty until a miss puts the once-in-500 line there.
-    s_note = wt_note(s_scr, "", 48, 60, 704, 34);
+    s_note = wt_note(s_scr, "", SX(48), SY(60), SX(704), SY(34));
 
     lv_obj_t *card = wt_card(s_scr, HIST_X, HIST_Y, HIST_W, HIST_H);
     // The skyline and its fair share line, in one widget with a draw
@@ -312,10 +424,17 @@ static void run_screen(void)
     lv_obj_remove_flag(s_hist, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_event_cb(s_hist, hist_draw_cb, LV_EVENT_DRAW_MAIN, NULL);
 
-    s_cnt = wt_lbl(s_scr, "0 / 5000", HIST_X, 316, wt_font_mono28(), MUT_COL);
+#if KISS_NARROW
+    // Under the shorter card, not at the scaled 210 the taller one needed.
+    s_bar_lane = BAR_H;
+    s_cnt = wt_lbl(s_scr, "0 / 5000", HIST_X, HIST_Y + HIST_H + SY(12),
+                   wt_font_mono28(), MUT_COL);
+#else
+    s_cnt = wt_lbl(s_scr, "0 / 5000", HIST_X, SY(316), wt_font_mono28(), MUT_COL);
+#endif
 
     s_exit = wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_BACK_X,
-                             WT_ACTION_Y, 140, true, run_back_cb, NULL);
+                             WT_ACTION_Y, SX(140), true, run_back_cb, NULL);
     lv_obj_set_ext_click_area(s_exit, 10);
 
     kiss_rngq_reset(&s_q, 100);

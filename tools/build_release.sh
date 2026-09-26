@@ -1,6 +1,13 @@
 #!/bin/bash
 # Release-profile build -> build-release/ (dev build-disp + sdkconfig untouched).
 #
+# One board per run, chosen by the same variable every other build here reads:
+#   KISS_BOARD=guition (default)  -> build-release/guition_kiss_bringup.bin
+#   KISS_BOARD=ws35               -> build-release-ws35/ws35_kiss_bringup.bin
+#   KISS_BOARD=all                -> each board in turn, every check per image
+# tools/release_boards.sh holds the names. The default is the command this
+# script always was, and it builds the bytes it always built.
+#
 # What the release profile changes:
 #   * KISS_RELEASE=1        - dev mnemonic/selftest compiled OUT (the string
 #                             must not exist in the binary), boot fingerprint
@@ -21,18 +28,69 @@
 set -e
 cd "$(dirname "$0")/.."
 . tools/idf_image.sh
+. tools/release_boards.sh
+
+KISS_BOARD="${KISS_BOARD:-guition}"
+if [ "$KISS_BOARD" = "all" ]; then
+  # Each board is a whole run of this script in its own build directory, so
+  # every check below runs once per image, and a failure on one board stops
+  # the run before the next is built rather than being read past in the log.
+  for b in $KISS_RELEASE_BOARD_IDS; do
+    KISS_BOARD="$b" bash "tools/$(basename "$0")" || exit 1
+  done
+  exit 0
+fi
+if ! kiss_board_profile "$KISS_BOARD"; then
+  echo "KISS_BOARD=$KISS_BOARD: the release lane knows $KISS_RELEASE_BOARD_IDS, or all"
+  exit 2
+fi
+BUILD="$BOARD_BUILD"
+APP="$BOARD_APP"
+echo "board: $BOARD_NAME -> $BUILD/$APP.bin"
 
 # Build state starts clean, every run. A stale UNSIGNED marker from an earlier
 # reproducibility run would abort the publish gate on a freshly signed build --
 # and the inverse, a marker outliving the run that wrote it, is exactly the lie
 # the marker exists to prevent. The marker only, never the directory: a full
 # rebuild costs twenty minutes and buys nothing this delete does not.
-rm -f build-release/UNSIGNED
+rm -f "$BUILD/UNSIGNED"
+
+# The Guition's dev sdkconfig is the committed one. The 3.5in has none in the
+# tree: the root CMakeLists.txt layers sdkconfig.defaults, the committed
+# sdkconfig and sdkconfig.ws35 inside the build directory, and Kconfig resolves
+# whatever the layers leave open. So its dev sdkconfig is made here by that same
+# configure step rather than merged from the layers by hand. A hand merge is a
+# second Kconfig, and it would disagree with the real one the first time a layer
+# switched on a symbol that has dependents.
+#
+# The old generated file goes first, because an existing sdkconfig wins over
+# every layer, and a copy from before sdkconfig.ws35 last changed would
+# otherwise be what this release is built from. The build directory is made on
+# the host before the container touches it: on a Linux runner the container
+# writes as root, and the release sdkconfig below is written into that
+# directory from out here.
+SDKCONFIG_SRC=sdkconfig
+SDKCONFIG_REL=sdkconfig.release
+if [ "$KISS_BOARD" != "guition" ]; then
+  mkdir -p "$BUILD"
+  docker run --rm \
+    -e GIT_CONFIG_COUNT=1 \
+    -e GIT_CONFIG_KEY_0=safe.directory \
+    -e GIT_CONFIG_VALUE_0=/project \
+    -v "$PWD":/project -w /project "$KISS_IDF_IMAGE" \
+    sh -c "rm -f '$BUILD/profile/sdkconfig' && \
+           idf.py -B '$BUILD/profile' ${BOARD_ARGS[*]} reconfigure"
+  SDKCONFIG_SRC="$BUILD/profile/sdkconfig"
+  SDKCONFIG_REL="$BUILD/sdkconfig.release"
+fi
 
 # sdkconfig.release = the board's dev sdkconfig with quieter logs, regenerated
 # on every build so it can never drift from the real board config.
-python3 - <<'PY'
-lines = open("sdkconfig").read().splitlines()
+SDKCONFIG_SRC="$SDKCONFIG_SRC" SDKCONFIG_REL="$SDKCONFIG_REL" \
+KISS_BOARD="$KISS_BOARD" python3 - <<'PY'
+import os
+src, dst = os.environ["SDKCONFIG_SRC"], os.environ["SDKCONFIG_REL"]
+lines = open(src).read().splitlines()
 out = []
 for l in lines:
     if l == "CONFIG_LOG_DEFAULT_LEVEL_INFO=y":
@@ -97,8 +155,32 @@ out += [
     "# CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES is not set",
 
 ]
-open("sdkconfig.release", "w").write("\n".join(out) + "\n")
-print("wrote sdkconfig.release (logs: WARN, signed-app verification ON)")
+
+# Every substitution above matches a line by its exact text and does nothing
+# when the line is not there. The committed sdkconfig has carried all of them
+# since this lane existed; the 3.5in's comes from a different writer, and a
+# release that quietly kept INFO logs, lost its reproducibility or reset the
+# board after flashing is not something anything later in this script notices.
+# The board line is here for the same reason: this file is the one the image is
+# built from, so it is where a profile for the wrong board gets refused.
+board = os.environ["KISS_BOARD"].upper()
+missing = [want for want in (
+    "CONFIG_LOG_DEFAULT_LEVEL_WARN=y",
+    "CONFIG_BOOTLOADER_LOG_LEVEL_WARN=y",
+    "CONFIG_APP_REPRODUCIBLE_BUILD=y",
+    "# CONFIG_APP_COMPILE_TIME_DATE is not set",
+    "CONFIG_ESPTOOLPY_AFTER_NORESET=y",
+    f"CONFIG_KISS_BOARD_{board}=y",
+) if want not in out]
+if missing:
+    raise SystemExit(f"FAIL: {src} did not take the release profile; "
+                     "missing afterwards: " + ", ".join(missing))
+
+# Written beside the target and renamed over it, so an sdkconfig the container
+# rewrote on the last run, and owns on a Linux host, is replaced, not refused.
+open(dst + ".tmp", "w").write("\n".join(out) + "\n")
+os.replace(dst + ".tmp", dst)
+print(f"wrote {dst} (logs: WARN, signed-app verification ON)")
 PY
 
 # short commit from the HOST's git (the container can't read the bind-mounted
@@ -111,13 +193,15 @@ GIT_REV=$(git rev-parse --short HEAD 2>/dev/null || echo nogit)
 git diff --quiet HEAD 2>/dev/null || GIT_REV="$GIT_REV-dirty"
 echo "commit: $GIT_REV"
 
+# BOARD_ARGS is empty for the Guition, so its command line is the one this
+# lane always ran, argument for argument.
 docker run --rm \
   -e GIT_CONFIG_COUNT=1 \
   -e GIT_CONFIG_KEY_0=safe.directory \
   -e GIT_CONFIG_VALUE_0=/project \
   -v "$PWD":/project -w /project "$KISS_IDF_IMAGE" \
-  idf.py -B build-release -DSDKCONFIG=/project/sdkconfig.release -DKISS_RELEASE=1 \
-  -DKISS_COMMIT="$GIT_REV" build
+  idf.py -B "$BUILD" -DSDKCONFIG="/project/$SDKCONFIG_REL" ${BOARD_ARGS[@]+"${BOARD_ARGS[@]}"} \
+  -DKISS_RELEASE=1 -DKISS_COMMIT="$GIT_REV" build
 
 # ---- sign the app, on the HOST ----
 # The signature block appended here is what the device checks an SD update
@@ -196,12 +280,12 @@ if [ -n "${KISS_UNSIGNED:-}" ]; then
   # that publishes or flashes from this directory can test for it. Written
   # through the helper because the directory may belong to the container that
   # made it; see tools/idf_image.sh.
-  kiss_mark_unsigned build-release
+  kiss_mark_unsigned "$BUILD"
   echo
   echo "UNSIGNED build (KISS_UNSIGNED=1): reproducibility only."
   echo "      This image carries no signature block, so a device will refuse it"
   echo "      as an SD update and it must never be published as a release."
-  echo "      Wrote build-release/UNSIGNED to say so."
+  echo "      Wrote $BUILD/UNSIGNED to say so."
 elif [ ! -f "$KISS_OTA_HSM_CONFIG" ] && [ ! -f "$KISS_OTA_KEY" ]; then
   echo
   echo "FAIL: no OTA signing key. Looked for a card config at"
@@ -215,10 +299,10 @@ else
 echo "signing app with $OTA_KEY_DESC"
 "${ESPSECURE[@]}" sign-data \
   --version 2 "${OTA_SIGN_KEY[@]}" \
-  --output build-release/guition_kiss_bringup-signed.bin \
-  build-release/guition_kiss_bringup.bin
-mv build-release/guition_kiss_bringup-signed.bin \
-   build-release/guition_kiss_bringup.bin
+  --output "$BUILD/$APP-signed.bin" \
+  "$BUILD/$APP.bin"
+mv "$BUILD/$APP-signed.bin" \
+   "$BUILD/$APP.bin"
 
 # The public half in the repo has to be the half that just signed, or users
 # verify against a key the firmware does not carry. Cheap to check, and the
@@ -247,8 +331,8 @@ fi
 # existed; this lane published without it.
 if ! "${ESPSECURE[@]}" verify-signature \
      --version 2 --keyfile docs/installer/kiss_ota_pub.pem \
-     build-release/guition_kiss_bringup.bin >/dev/null 2>&1; then
-  echo "FAIL: build-release/guition_kiss_bringup.bin does not verify against"
+     "$BUILD/$APP.bin" >/dev/null 2>&1; then
+  echo "FAIL: $BUILD/$APP.bin does not verify against"
   echo "      docs/installer/kiss_ota_pub.pem"
   exit 1
 fi
@@ -262,11 +346,11 @@ fi
 # difference between the version being present and the version being what the
 # image actually claims. check_fw_version.py reads the app descriptor.
 python3 tools/check_fw_version.py --selftest || exit 1
-python3 tools/check_fw_version.py build-release || exit 1
+python3 tools/check_fw_version.py "$BUILD" || exit 1
 
-GIT_REV="$GIT_REV" python3 - <<'PY'
+GIT_REV="$GIT_REV" BUILD="$BUILD" APP="$APP" python3 - <<'PY'
 import os, sys
-bin_path = "build-release/guition_kiss_bringup.bin"
+bin_path = f"{os.environ['BUILD']}/{os.environ['APP']}.bin"
 blob = open(bin_path, "rb").read()
 fails = 0
 rev = os.environ.get("GIT_REV", "").encode()
@@ -317,7 +401,7 @@ else:
 # registered component and proves nothing; the linker map shows what the
 # binary actually contains.)
 import re
-mapf = open("build-release/guition_kiss_bringup.map").read()
+mapf = open(f"{os.environ['BUILD']}/{os.environ['APP']}.map").read()
 linked = []
 for lib in ("libesp_wifi", "libesp_wifi_remote", "libesp_hosted", "libbt.",
             "libwpa_supplicant", "liblwip", "libesp_netif", "libopenthread",
@@ -343,27 +427,37 @@ PY
 # which object a call lands in; it cannot say the call ran, and does not claim
 # to. tools/check_rng_provenance.py carries the rules and the account.
 python3 tools/check_rng_provenance.py --selftest
-python3 tools/check_rng_provenance.py build-release/guition_kiss_bringup.map
+python3 tools/check_rng_provenance.py "$BUILD/$APP.map"
 
 # flash budget: baked art is ~75% of the binary; fail while there is still
 # headroom to react, not on the flash step (set -e stops on a FAIL)
+#
+# Measured against the partition table the image was configured with, read out
+# of the sdkconfig it was built from. Both boards share partitions.csv today; a
+# board that ever got its own table would otherwise be measured against the
+# other board's slots, and pass or fail for a reason that is not about it.
+PART_CSV=$(sed -n 's/^CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="\(.*\)"$/\1/p' "$SDKCONFIG_REL")
+if [ -z "$PART_CSV" ] || [ ! -f "$PART_CSV" ]; then
+  echo "FAIL: $SDKCONFIG_REL names no partition table in this tree (got '$PART_CSV')"
+  exit 1
+fi
 python3 tools/check_flash_budget.py --selftest
-python3 tools/check_flash_budget.py build-release/guition_kiss_bringup.bin partitions.csv
+python3 tools/check_flash_budget.py "$BUILD/$APP.bin" "$PART_CSV"
 echo
-echo "release build OK: build-release/guition_kiss_bringup.bin"
+echo "release build OK: $BUILD/$APP.bin"
 echo
 echo "sha256 of what the commands below flash (release assets must match"
 echo "docs/installer/SHA256SUMS):"
 shasum -a 256 \
-  build-release/bootloader/bootloader.bin \
-  build-release/partition_table/partition-table.bin \
-  build-release/guition_kiss_bringup.bin | sed 's/^/  /'
+  "$BUILD/bootloader/bootloader.bin" \
+  "$BUILD/partition_table/partition-table.bin" \
+  "$BUILD/$APP.bin" | sed 's/^/  /'
 echo
 echo "ESP-IDF flash (local ESP-IDF install; sdkconfig uses no-reset):"
-echo "  idf.py -B build-release -p <port> flash"
+echo "  idf.py -B $BUILD -p <port> flash"
 echo
 echo "ESP-IDF app-only reflash:"
-echo "  idf.py -B build-release -p <port> app-flash"
+echo "  idf.py -B $BUILD -p <port> app-flash"
 echo
 # Read out of flasher_args.json, never typed here. This block used to claim it
 # came from flash_args and did not: enabling rollback added an ota_data
@@ -371,20 +465,22 @@ echo
 # 0x10000 for the app. Anyone following them would have written the app over
 # the slot the bootloader reads to decide which app to run, and got a board
 # that does not come back.
-APP_LINE=$(python3 - <<'PY'
-import json
-d = json.load(open("build-release/flasher_args.json"))["flash_files"]
-off = next(o for o, f in d.items() if f.endswith("guition_kiss_bringup.bin"))
-print(f"    {off} build-release/guition_kiss_bringup.bin")
+APP_LINE=$(BUILD="$BUILD" APP="$APP" python3 - <<'PY'
+import json, os
+build, app = os.environ["BUILD"], os.environ["APP"]
+d = json.load(open(f"{build}/flasher_args.json"))["flash_files"]
+off = next(o for o, f in d.items() if f.endswith(f"{app}.bin"))
+print(f"    {off} {build}/{app}.bin")
 PY
 )
-ALL_LINES=$(python3 - <<'PY'
-import json
-d = json.load(open("build-release/flasher_args.json"))["flash_files"]
+ALL_LINES=$(BUILD="$BUILD" python3 - <<'PY'
+import json, os
+build = os.environ["BUILD"]
+d = json.load(open(f"{build}/flasher_args.json"))["flash_files"]
 items = sorted(d.items(), key=lambda kv: int(kv[0], 16))
 for i, (off, f) in enumerate(items):
     tail = "" if i == len(items) - 1 else " \\"
-    print(f"    {off:<8}build-release/{f}{tail}")
+    print(f"    {off:<8}{build}/{f}{tail}")
 PY
 )
 
@@ -394,10 +490,16 @@ echo "    write-flash --flash-mode dio --flash-size 16MB --flash-freq 80m \\"
 echo "$APP_LINE"
 echo
 echo "direct esptool fallback - full flash (fresh board, or whenever bootloader/partitions changed;"
-echo "offsets from build-release/flasher_args.json - the encrypted-release lane"
+echo "offsets from $BUILD/flasher_args.json - the encrypted-release lane"
 echo "will need this full set):"
 echo "  uvx esptool --chip esp32p4 -p <port> -b 460800 --before default-reset --after no-reset \\"
 echo "    write-flash --flash-mode dio --flash-size 16MB --flash-freq 80m \\"
 echo "$ALL_LINES"
 echo
-echo "then: unplug -> ~3s -> replug (v1.3 sample never boots off a USB reset)"
+if [ "$KISS_BOARD" = "guition" ]; then
+  echo "then: unplug -> ~3s -> replug (v1.3 sample never boots off a USB reset)"
+else
+  # The release profile flashes with no-reset on every board, so this image
+  # also only starts from a power cycle.
+  echo "then: unplug -> ~3s -> replug (the release profile never resets after flashing)"
+fi

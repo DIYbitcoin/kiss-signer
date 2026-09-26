@@ -300,7 +300,7 @@ static int storage_write_keep(const char *words)
 // with it because an owner who turned history off expects the next wallet to
 // inherit that answer.
 static const char *const KEEP_KEYS[] = { "testnet", "script", "accent", "lang",
-                                         "denom", "prst" };
+                                         "denom", "prst", "flip" };
 #define N_KEEP (sizeof KEEP_KEYS / sizeof KEEP_KEYS[0])
 #endif
 

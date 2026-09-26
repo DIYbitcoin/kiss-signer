@@ -20,10 +20,21 @@ difference outside the three windows above -- so the arm64 lane proves the
 build reproduces rather than asserting it.
 
     python3 tools/check_repro_match.py A.bin B.bin
+    python3 tools/check_repro_match.py --build-dirs DIR_A DIR_B
     python3 tools/check_repro_match.py --selftest
+
+--build-dirs is the per-board form, one call per board's release build. It
+compares every part flasher_args.json says makes up that board's flash -- the
+app through the windows above, the bootloader, the partition table and the
+ota data byte for byte -- and it refuses two directories that built different
+boards before it compares a byte. With two boards there are two app names, and
+an image checked against the other board's image differs everywhere, which
+reads as a broken toolchain rather than as the wrong pair of files.
 
 Exit 0 when the images differ only where they must.
 """
+import json
+import os
 import sys
 
 # esp_app_desc_t follows the 24-byte image header and the 8-byte header of the
@@ -76,14 +87,86 @@ def compare(a, b):
     return allowed, offending
 
 
+def load_parts(build_dir):
+    """(app file, {offset: file}) from a build's flasher_args.json, or a string
+    saying why that directory cannot be compared."""
+    path = os.path.join(build_dir, "flasher_args.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            args = json.load(f)
+    except (OSError, ValueError) as exc:
+        return f"{path}: {exc}"
+    app = (args.get("app") or {}).get("file")
+    parts = args.get("flash_files") or {}
+    if not app or app not in parts.values():
+        return f"{path} names no app among its flash files"
+    return app, parts
+
+
+def compare_dirs(dir_a, dir_b):
+    """(lines, failed) for two release build directories of one board."""
+    got_a, got_b = load_parts(dir_a), load_parts(dir_b)
+    for got in (got_a, got_b):
+        if isinstance(got, str):
+            return [f"FAIL: {got}"], True
+    app_a, parts_a = got_a
+    app_b, parts_b = got_b
+    if app_a != app_b:
+        return [f"FAIL: {dir_a} built {app_a} and {dir_b} built {app_b}.",
+                "      Those are two different boards, not two builds of one."], True
+    if parts_a != parts_b:
+        return ["FAIL: the two builds lay out flash differently:",
+                f"      {dir_a}: {parts_a}",
+                f"      {dir_b}: {parts_b}"], True
+
+    lines, failed = [], False
+    for off, name in sorted(parts_a.items(), key=lambda kv: int(kv[0], 16)):
+        try:
+            with open(os.path.join(dir_a, name), "rb") as f:
+                a = f.read()
+            with open(os.path.join(dir_b, name), "rb") as f:
+                b = f.read()
+        except OSError as exc:
+            lines.append(f"FAIL: {name}: {exc}")
+            failed = True
+            continue
+        if name != app_a:
+            # No ELF hash in these, so nothing is allowed to move.
+            if a == b:
+                lines.append(f"PASS: {name} at {off} is byte-identical")
+            else:
+                lines.append(f"FAIL: {name} at {off} differs")
+                failed = True
+            continue
+        got = compare(a, b)
+        if isinstance(got, str):
+            lines.append(f"FAIL: {name}: {got}")
+            failed = True
+        elif got[1]:
+            lines.append(f"FAIL: {name} at {off}: {len(got[1])} byte(s) differ "
+                         f"outside the allowed windows, first at {got[1][0]:#08x}")
+            failed = True
+        elif not got[0]:
+            lines.append(f"PASS: {name} at {off} is byte-identical, "
+                         f"{len(a)} bytes")
+        else:
+            lines.append(f"PASS: {name} at {off}, {len(a)} bytes, {got[0]} "
+                         f"differ and all inside the allowed windows")
+    if failed:
+        lines.append("      These two hosts did not build the same firmware.")
+    return lines, failed
+
+
 def selftest():
     bad = 0
+    cases = 0
 
     def check(name, got, want):
-        nonlocal bad
+        nonlocal bad, cases
         ok = got == want
         print("  %-52s %s (%r)" % (name, "ok" if ok else "FAILED", got))
         bad += not ok
+        cases += 1
 
     size = DESC_OFF + 256 + 4096
     base = (bytes(range(256)) * (size // 256 + 1))[:size]
@@ -124,13 +207,68 @@ def selftest():
     check("a length difference is reported, not compared",
           isinstance(got, str), True)
 
-    print("repro match selftest: 8 cases, %d broken" % bad)
+    # The per-board form. Built on disk, because what it gets wrong would be
+    # the reading of flasher_args.json and the choice of which part gets the
+    # windows, and neither shows up in a comparison of two byte strings.
+    import shutil
+    import tempfile
+
+    def build_dir(app, app_bytes, boot=b"boot" * 64):
+        d = tempfile.mkdtemp()
+        os.makedirs(os.path.join(d, "bootloader"))
+        with open(os.path.join(d, "bootloader", "bootloader.bin"), "wb") as f:
+            f.write(boot)
+        with open(os.path.join(d, app), "wb") as f:
+            f.write(app_bytes)
+        with open(os.path.join(d, "flasher_args.json"), "w") as f:
+            json.dump({"app": {"offset": "0x20000", "file": app},
+                       "flash_files": {"0x2000": "bootloader/bootloader.bin",
+                                       "0x20000": app}}, f)
+        return d
+
+    made = []
+    try:
+        a = build_dir("guition_kiss_bringup.bin", base)
+        b = build_dir("guition_kiss_bringup.bin",
+                      poke(base, ELF_SHA_OFF, ELF_SHA_LEN))
+        made += [a, b]
+        check("two builds of one board differing in the window",
+              compare_dirs(a, b)[1], False)
+
+        c = build_dir("guition_kiss_bringup.bin", base, boot=b"boot" * 63 + b"bopt")
+        made.append(c)
+        check("a bootloader byte is NOT allowed", compare_dirs(a, c)[1], True)
+
+        # The same bytes under the other board's name: a matching image does
+        # not excuse a pair of directories that built two different boards.
+        w = build_dir("ws35_kiss_bringup.bin", base)
+        made.append(w)
+        check("builds of two different boards are refused",
+              compare_dirs(a, w)[1], True)
+
+        e = tempfile.mkdtemp()
+        made.append(e)
+        check("a directory with no flasher_args.json is refused",
+              compare_dirs(a, e)[1], True)
+    finally:
+        for d in made:
+            shutil.rmtree(d, ignore_errors=True)
+
+    print("repro match selftest: %d cases, %d broken" % (cases, bad))
     return 1 if bad else 0
 
 
 def main(argv):
     if "--selftest" in argv:
         return selftest()
+    if len(argv) == 4 and argv[1] == "--build-dirs":
+        lines, failed = compare_dirs(argv[2], argv[3])
+        for line in lines:
+            print(line)
+        if failed:
+            return 1
+        print(f"PASS: {argv[2]} and {argv[3]} built the same firmware.")
+        return 0
     if len(argv) != 3:
         print(__doc__.strip())
         return 2

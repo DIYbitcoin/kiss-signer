@@ -19,10 +19,21 @@ set -e
 cd "$(dirname "$0")"
 LVF=../../managed_components/lvgl__lvgl/scripts/built_in_font
 JP=vendor/SourceHanSansJP-Normal.otf
+MONO=vendor/IoskeleyMono-Medium-ascii.ttf
 OUT=../../main
+
+# With no argument every face below is regenerated. `gen_fonts.sh jc1060`
+# writes the 7in board's four faces (jc1060_faces, below) and nothing else, so
+# adding them never rewrites a committed face.
+ONLY="${1:-}"
+case "$ONLY" in
+  ''|jc1060) ;;
+  *) echo "usage: $0 [jc1060]" >&2; exit 2 ;;
+esac
 
 [ -d "$LVF" ] || { echo "LVGL component not fetched (need $LVF)"; exit 1; }
 [ -f "$JP" ] || { echo "Japanese font missing (need tools/fonts/$JP)"; exit 1; }
+[ -f "$MONO" ] || { echo "Ioskeley Mono missing (need tools/fonts/$MONO)"; exit 1; }
 [ -d node_modules ] || npm install --no-audit --no-fund
 
 # must match LAT_RANGES in tools/gen_i18n.py (the hang-prevention check)
@@ -67,6 +78,49 @@ SYMS="61441,61448,61451,61452,61453,61457,61459,61461,61465,61468,61473,61475,61
 
 conv() { npx lv_font_conv --no-compress --no-prefilter --bpp 4 --format lvgl \
                           --force-fast-kern-format "$@"; }
+
+# The 7in board's faces. Its canvas is 1024x600, 1.28 times the 4.3in's across
+# and 1.25 down, so kiss_theme.c sets every name one rung UP there: 14 -> 18,
+# 23 -> 28, 28 -> 34, mono21 -> mono26 and so on. Most of those rungs exist
+# already. These four are the ones no other board had, each made with the
+# same range and flags as its family's neighbour:
+#   lat43   the top rung, 34 x 1.25. Latin/Cyrillic only like lat34, and for
+#           the same reason its chain ends in the 28px Japanese face.
+#   mono26  a closed row's value (mono21) one rung up. mono28 would be 1.33
+#           times the size, and an address set in it runs out of its lane.
+#   mono43  the top rung's body face, in front of lat43.
+#   num60   the Sign hero, 48 x 1.25, with num48's glyphs and no others.
+# The other boards never name them. The device build compiles them for the
+# 7in board only; the simulator's font glob compiles them everywhere, where
+# they are dead weight and draw nothing.
+jc1060_faces() {
+  echo "== font_kiss_lat43"
+  conv --size 43 \
+    --font "$LVF/Montserrat-Medium.ttf" -r "$LAT" \
+    --font "$LVF/FontAwesome5-Solid+Brands+Regular.woff" -r "$SYMS" \
+    --lv-fallback font_kiss_ja28 \
+    -o "$OUT/font_kiss_lat43.c"
+  for SZ in 26 43; do
+    echo "== font_kiss_mono$SZ"
+    conv --size $SZ --font "$MONO" -r 0x20-0x7E -r 0xB7 -r 0x2022 -r 0x2026 \
+      -o "$OUT/font_kiss_mono$SZ.c"
+  done
+  echo "== font_kiss_num60"
+  conv --size 60 --font "$MONO" -r 0x20 -r 0x2E -r 0x30-0x39 -r 0x41-0x46 \
+    -o "$OUT/font_kiss_num60.c"
+  # The same trailing-newline normalisation as the full run, on these four
+  # alone.
+  perl -0pi -e 's/\n+\z/\n/' "$OUT/font_kiss_lat43.c" "$OUT/font_kiss_mono26.c" \
+    "$OUT/font_kiss_mono43.c" "$OUT/font_kiss_num60.c"
+}
+
+if [ "$ONLY" = jc1060 ]; then
+  jc1060_faces
+  ls -la "$OUT/font_kiss_lat43.c" "$OUT/font_kiss_mono26.c" \
+    "$OUT/font_kiss_mono43.c" "$OUT/font_kiss_num60.c"
+  echo "jc1060 fonts generated"
+  exit 0
+fi
 
 for SZ in 14 28; do
   echo "== font_kiss_lat$SZ"
@@ -123,6 +177,34 @@ for L in ja ko zh; do
   conv --size 23 \
     --font "$FONT" --symbols "$(cat glyphs_$L.txt)" \
     $FB -o "$OUT/font_kiss_${L}23.c"
+done
+
+# 18px: the 3.5in board's middle rung. Its canvas is 480x320, three fifths of
+# the 4.3in's width, so its composites are set at three fifths too (34 -> 23,
+# 28 -> 18, 23 -> 14; kiss_theme.c says why one rung down was not enough). 18
+# had a mono face already (below) and no localised one; all four scripts get
+# it, the full glyph set and the FontAwesome plane, for the same reasons 23
+# has them. The wide board never references these, so its image is unchanged.
+echo "== font_kiss_lat18"
+conv --size 18 \
+  --font "$LVF/Montserrat-Medium.ttf" -r "$LAT" \
+  --font "$LVF/FontAwesome5-Solid+Brands+Regular.woff" -r "$SYMS" \
+  --lv-fallback font_kiss_ja18 \
+  -o "$OUT/font_kiss_lat18.c"
+for L in ja ko zh; do
+  case $L in
+    ja) FB="--lv-fallback font_kiss_ko18" ;;
+    ko) FB="--lv-fallback font_kiss_zh18" ;;
+    zh) FB="" ;;
+  esac
+  echo "== font_kiss_${L}18"
+  FONT="$LVF/SourceHanSansSC-Normal.otf"
+  if [ "$L" = ja ]; then
+    FONT="$JP"
+  fi
+  conv --size 18 \
+    --font "$FONT" --symbols "$(cat glyphs_$L.txt)" \
+    $FB -o "$OUT/font_kiss_${L}18.c"
 done
 
 # 34px: page titles and primary buttons. LATIN/CYRILLIC ONLY, and the only size
@@ -182,8 +264,6 @@ conv --size 34 \
 # the middle of an address with it. Without the glyph that elision draws LVGL's
 # placeholder box in the middle of the one line on the Sign screen the owner is
 # asked to compare against their coordinator.
-MONO=vendor/IoskeleyMono-Medium-ascii.ttf
-[ -f "$MONO" ] || { echo "Ioskeley Mono missing (need tools/fonts/$MONO)"; exit 1; }
 
 # 18 and 21 are the screen-system pass's two additions: 18 carries captions,
 # subs, prose, tab labels, the trail and the band; 21 is a closed row's value.
@@ -212,10 +292,45 @@ done
 echo "== font_kiss_num48"
 conv --size 48 --font "$MONO" -r 0x20 -r 0x2E -r 0x30-0x39 -r 0x41-0x46 \
   -o "$OUT/font_kiss_num48.c"
+# The same nineteen glyphs at the 3.5in board's size (three fifths of 48).
+echo "== font_kiss_num28"
+conv --size 28 --font "$MONO" -r 0x20 -r 0x2E -r 0x30-0x39 -r 0x41-0x46 \
+  -o "$OUT/font_kiss_num28.c"
+
+# The 7in board's four faces (jc1060_faces, near the top, says why).
+jc1060_faces
+
+# The 3.5in board's small faces, again, with STRONG autohinting, into
+# main/fonts_ws35/ under the same names. That glass has about 165 pixels to the
+# inch against the 4.3in's 217, and most of its text sits on 14 and 18 px, where
+# the default light hinting leaves a stroke smeared across two half-lit pixels.
+# Strong hinting snaps stems to whole pixels, so letters read crisper at those
+# sizes. The build takes these instead of the main/ faces on that board only
+# (main/CMakeLists.txt, sim/sim_tmp.sh), so the 4.3in's image is untouched. Strong
+# hinting drops kerning, which a monospace face has none of and Montserrat at
+# 14 to 23 px does not miss.
+W35="$OUT/fonts_ws35"
+mkdir -p "$W35"
+for SZ in 14 18 23; do
+  echo "== fonts_ws35/font_kiss_lat$SZ"
+  conv --size $SZ \
+    --font "$LVF/Montserrat-Medium.ttf" --autohint-strong -r "$LAT" \
+    --font "$LVF/FontAwesome5-Solid+Brands+Regular.woff" -r "$SYMS" \
+    --lv-fallback font_kiss_ja$SZ \
+    -o "$W35/font_kiss_lat$SZ.c"
+done
+for SZ in 14 18 21 23; do
+  echo "== fonts_ws35/font_kiss_mono$SZ"
+  conv --size $SZ --font "$MONO" --autohint-strong -r 0x20-0x7E -r 0xB7 -r 0x2022 -r 0x2026 \
+    -o "$W35/font_kiss_mono$SZ.c"
+done
+echo "== fonts_ws35/font_kiss_num28"
+conv --size 28 --font "$MONO" --autohint-strong -r 0x20 -r 0x2E -r 0x30-0x39 -r 0x41-0x46 \
+  -o "$W35/font_kiss_num28.c"
 
 # lv_font_conv emits an extra blank line; normalize generated sources so
 # regeneration stays clean under git diff --check.
-perl -0pi -e 's/\n+\z/\n/' "$OUT"/font_kiss_*.c
+perl -0pi -e 's/\n+\z/\n/' "$OUT"/font_kiss_*.c "$W35"/font_kiss_*.c
 
 ls -la "$OUT"/font_kiss_*.c
 echo "fonts generated"

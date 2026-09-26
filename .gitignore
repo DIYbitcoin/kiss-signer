@@ -44,6 +44,12 @@ design_handoff_*/
 audit-notes/
 Sign IO Visualization.dc.html
 
+# Implementation plans: the step by step checklists written while a change is
+# being built. The change and its design spec (design/specs/) are what the repo
+# keeps; a plan is finished the day its last box is ticked, and nothing links
+# to one afterwards.
+design/plans/
+
 # Signing keys. The device refuses an OTA image whose signature does not check
 # against the public key baked into it, so the private half of that pair is the
 # one file in this project that can make firmware your signer will boot. It

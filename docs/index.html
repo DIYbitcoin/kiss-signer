@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#070a10">
     <meta
       name="description"
-      content="Install KISS Signer firmware on a Guition JC4880P443C ESP32-P4 device over Web Serial."
+      content="Install KISS Signer firmware on a Guition 4.3in, Waveshare 3.5in or Guition 7in ESP32-P4 board over Web Serial."
     >
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://diybitcoin.github.io/kiss-signer/">
@@ -71,9 +71,14 @@
             <img class="signer" src="media/signer-home.png" alt="The KISS Signer home screen">
             <i></i><i></i><i></i><i></i>
           </div>
+          <!-- Naming the two halves rather than describing who sees them.
+               "What everyone sees" invites the reader to picture an everyone,
+               which is the opposite of the point: the decoy is not a
+               performance for an audience, it is what the device is until
+               you unlock it. -->
           <figcaption class="reveal-caption">
-            <span class="decoy">What everyone sees</span>
-            <span class="signer">What only you see</span>
+            <span class="decoy">Decoy signer</span>
+            <span class="signer">Real signer</span>
           </figcaption>
         </figure>
       </section>
@@ -88,13 +93,34 @@
           </li>
           <li>
             <h3>Install</h3>
-            <p>Tick the box, press the button, pick the port. About a minute.</p>
+            <p>Choose your board, tick the box, press the button, pick the port. About a minute.</p>
           </li>
           <li>
             <h3>Power cycle</h3>
             <p>Unplug, wait three seconds, plug back in. You land on FRUIT&nbsp;ISLAND.</p>
           </li>
         </ol>
+
+        <!-- Asked before anything is hashed. Every board is an ESP32-P4, so
+             the browser cannot tell them apart and would flash any image onto
+             any board; the answer picks the one image and manifest the
+             rest of this card checks and offers. The ids match
+             tools/release_boards.sh. -->
+        <div class="board-pick" id="board-pick" role="radiogroup" aria-labelledby="board-pick-title">
+          <strong id="board-pick-title">Which board is it?</strong>
+          <label class="ack-row">
+            <input type="radio" name="board" value="guition">
+            <span><b>Guition 4.3in</b>, the JC4880P443C, with an 800 by 480 screen.</span>
+          </label>
+          <label class="ack-row">
+            <input type="radio" name="board" value="ws35">
+            <span><b>Waveshare 3.5in</b>, the ESP32-P4-WIFI6-Touch-LCD-3.5, with a 480 by 320 screen.</span>
+          </label>
+          <label class="ack-row">
+            <input type="radio" name="board" value="jc1060">
+            <span><b>Guition 7in</b>, the JC1060P470C, with a 1024 by 600 screen.</span>
+          </label>
+        </div>
 
         <div class="verify-line">
           <div class="verify-light pending" id="verify-light"></div>
@@ -117,7 +143,13 @@
             Connect and install (checking&hellip;)
           </button>
 
-          <esp-web-install-button id="install-button" class="is-hidden" manifest="installer/manifest.json">
+          <!-- No manifest attribute here: app.js sets it to the picked board's
+               manifest once that board's image has checked out. A copy of an
+               older app.js still sitting in a browser cache knows nothing of
+               the board question and would otherwise open this button onto
+               the Guition's manifest whatever board was picked; with nothing
+               named, the button has nothing to flash. -->
+          <esp-web-install-button id="install-button" class="is-hidden">
             <button slot="activate" class="flash-button" type="button">
               Connect and install
             </button>
@@ -164,12 +196,11 @@
           </div>
         </details>
 
-        <!-- The blocker is already on the button, which reads "This browser
-             can't talk to the device" the moment app.js finds no Web Serial.
-             This note is the way out, and only that: saying the problem twice
-             on one screen is how a reader learns to skip the second line. -->
+        <!-- The one line a reader on Safari or Firefox gets. It says what to
+             do, not what is wrong: the dead button is hidden, so nothing on
+             this screen states the problem twice. -->
         <p class="browser-note" id="browser-note" hidden>
-          Use Chrome, Brave or Edge, or
+          Use Chrome, Brave or Edge to install over USB, or
           <a href="guide.html#esptool">flash from the command line</a>.
         </p>
 

@@ -4,27 +4,14 @@
 #include <stdio.h>
 #include <math.h>
 
-#ifndef SIMULATOR  // ESP-only hardware bring-up; the desktop simulator provides its own platform
-#include "esp_chip_info.h"
-#include "esp_flash.h"
-#include "esp_cache.h"
+#ifndef SIMULATOR  // ESP-only: the logs and the FreeRTOS loop in app_main; the
+                   // board itself lives behind kiss_board.h
 #include "esp_log.h"
-#include "esp_ldo_regulator.h"
-#include "driver/ledc.h"
-#include "driver/gpio.h"
-#include "driver/i2c_master.h"
-#include "esp_lcd_mipi_dsi.h"
-#include "esp_lcd_panel_ops.h"
-#include "esp_lcd_panel_io.h"
-#include "esp_lcd_st7701.h"
-#include "esp_lcd_touch_gt911.h"
-#include "esp_lvgl_port.h"
-#include "esp_timer.h"
-#include "esp_heap_caps.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #endif
 #include "lvgl.h"
+#include "kiss_board.h"
 #include "sprites.h"
 #include "kiss_art.h"
 #include "menu_img.h"
@@ -32,6 +19,7 @@
 #include "gameover_img.h"
 #include "game_bg.h"
 #include "kiss_img.h"
+#include "kiss_fonts.h"   // font_kiss_mono23: the 3.5in fingerprint chip
 #include "tile_lbls.h"   // TILE_LBL_Y (strips replaced by live i18n labels)
 #include "i18n.h"
 #include "kiss_ui.h"
@@ -66,90 +54,49 @@
 #include "camera_spike.h"
 #endif
 
-// touch read is the platform seam: device reads GT911, simulator feeds scripted input
-extern bool platform_read_touch(int *x, int *y);
 
 #ifndef SIMULATOR
 static const char *TAG = "kiss";
 #endif
-
-#define LCD_H_RES 480   // PHYSICAL panel (native portrait): DPI timings, framebuffer, raw touch
-#define LCD_V_RES 800
-// LOGICAL UI canvas: the whole game is LANDSCAPE. Device reaches this via a one-time boot
-// rotation (display_start); the sim creates an 800x480 display directly. All UI/gameplay/art
-// is authored in these coordinates.
-#define SCREEN_W 800   // LOGICAL landscape canvas; rotated into the 480x800 panel by rot_flush
-#define SCREEN_H 480
-#define LCD_BITS_PER_PIXEL 16
-#define DSI_LANES 2
-#define DSI_LANE_BITRATE_MBPS 500
-#define DPI_CLOCK_MHZ 34
-#define DSI_PHY_LDO_CHAN 3
-#define DSI_PHY_LDO_MV 2500
-#define LCD_RST_GPIO 5
-#define LCD_BL_GPIO 23
-#define LCD_BL_PWM_FREQ 20000
-#define TOUCH_I2C_SCL 8
-#define TOUCH_I2C_SDA 7
 #define SPRITE_SRC 132  // source sprite size
 
-#ifndef SIMULATOR
-static const st7701_lcd_init_cmd_t st7701_lcd_cmds[] = {
-    {0xFF, (uint8_t[]){0x77, 0x01, 0x00, 0x00, 0x13}, 5, 0},
-    {0xEF, (uint8_t[]){0x08}, 1, 0},
-    {0xFF, (uint8_t[]){0x77, 0x01, 0x00, 0x00, 0x10}, 5, 0},
-    {0xC0, (uint8_t[]){0x63, 0x00}, 2, 0},
-    {0xC1, (uint8_t[]){0x0D, 0x02}, 2, 0},
-    {0xC2, (uint8_t[]){0x10, 0x08}, 2, 0},
-    {0xCC, (uint8_t[]){0x10}, 1, 0},
-    {0xB0, (uint8_t[]){0x80, 0x09, 0x53, 0x0C, 0xD0, 0x07, 0x0C, 0x09, 0x09, 0x28, 0x06, 0xD4, 0x13, 0x69, 0x2B, 0x71}, 16, 0},
-    {0xB1, (uint8_t[]){0x80, 0x94, 0x5A, 0x10, 0xD3, 0x06, 0x0A, 0x08, 0x08, 0x25, 0x03, 0xD3, 0x12, 0x66, 0x6A, 0x0D}, 16, 0},
-    {0xFF, (uint8_t[]){0x77, 0x01, 0x00, 0x00, 0x11}, 5, 0},
-    {0xB0, (uint8_t[]){0x5D}, 1, 0},
-    {0xB1, (uint8_t[]){0x58}, 1, 0},
-    {0xB2, (uint8_t[]){0x87}, 1, 0},
-    {0xB3, (uint8_t[]){0x80}, 1, 0},
-    {0xB5, (uint8_t[]){0x4E}, 1, 0},
-    {0xB7, (uint8_t[]){0x85}, 1, 0},
-    {0xB8, (uint8_t[]){0x21}, 1, 0},
-    {0xB9, (uint8_t[]){0x10, 0x1F}, 2, 0},
-    {0xBB, (uint8_t[]){0x03}, 1, 0},
-    {0xBC, (uint8_t[]){0x00}, 1, 0},
-    {0xC1, (uint8_t[]){0x78}, 1, 0},
-    {0xC2, (uint8_t[]){0x78}, 1, 0},
-    {0xD0, (uint8_t[]){0x88}, 1, 0},
-    {0xE0, (uint8_t[]){0x00, 0x3A, 0x02}, 3, 0},
-    {0xE1, (uint8_t[]){0x04, 0xA0, 0x00, 0xA0, 0x05, 0xA0, 0x00, 0xA0, 0x00, 0x40, 0x40}, 11, 0},
-    {0xE2, (uint8_t[]){0x30, 0x00, 0x40, 0x40, 0x32, 0xA0, 0x00, 0xA0, 0x00, 0xA0, 0x00, 0xA0, 0x00}, 13, 0},
-    {0xE3, (uint8_t[]){0x00, 0x00, 0x33, 0x33}, 4, 0},
-    {0xE4, (uint8_t[]){0x44, 0x44}, 2, 0},
-    {0xE5, (uint8_t[]){0x09, 0x2E, 0xA0, 0xA0, 0x0B, 0x30, 0xA0, 0xA0, 0x05, 0x2A, 0xA0, 0xA0, 0x07, 0x2C, 0xA0, 0xA0}, 16, 0},
-    {0xE6, (uint8_t[]){0x00, 0x00, 0x33, 0x33}, 4, 0},
-    {0xE7, (uint8_t[]){0x44, 0x44}, 2, 0},
-    {0xE8, (uint8_t[]){0x08, 0x2D, 0xA0, 0xA0, 0x0A, 0x2F, 0xA0, 0xA0, 0x04, 0x29, 0xA0, 0xA0, 0x06, 0x2B, 0xA0, 0xA0}, 16, 0},
-    {0xEB, (uint8_t[]){0x00, 0x00, 0x4E, 0x4E, 0x00, 0x00, 0x00}, 7, 0},
-    {0xEC, (uint8_t[]){0x08, 0x01}, 2, 0},
-    {0xED, (uint8_t[]){0xB0, 0x2B, 0x98, 0xA4, 0x56, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xF7, 0x65, 0x4A, 0x89, 0xB2, 0x0B}, 16, 0},
-    {0xEF, (uint8_t[]){0x08, 0x08, 0x08, 0x45, 0x3F, 0x54}, 6, 0},
-    {0xFF, (uint8_t[]){0x77, 0x01, 0x00, 0x00, 0x00}, 5, 0},
-    {0x11, (uint8_t[]){0x00}, 1, 120},
-    {0x29, (uint8_t[]){0x00}, 1, 20},
-};
-
-static esp_lcd_panel_io_handle_t s_io;
-static esp_lcd_panel_handle_t s_panel;
-static esp_lcd_touch_handle_t s_touch;
-#endif  // !SIMULATOR
 
 // ---------------- game ----------------
 #define MAX_ENT 28
 #define TRAIL_LEN 6       // trail length (per-frame redraw is bounded by the local-origin fix below)
 #ifndef BLADE_MAX_SPAN
-#define BLADE_MAX_SPAN 150  // px: hard cap on blade length so a fast swipe / dropped frame can't
+#define BLADE_MAX_SPAN SX(150)  // px: hard cap on blade length so a fast swipe / dropped frame can't
                             // stretch the redraw box across the screen (breaks the lag feedback loop)
 #endif
+#define TAP_BOX 22  // px, the same on every board: see the collector
 #define GRAVITY 0.5f
 #define TICK_MS 16
+// Physics steps per game_tick. game_tick is an lv_timer, and a timer that
+// comes due during a repaint runs once, after it, with no catch-up: LVGL sets
+// last_run to the time it ran. So on a board whose repaint outlasts the gap
+// between two ticks, every step the renderer eats is a step the fruit never
+// take, and the game plays in slow motion instead of at a lower frame rate.
+// The 4.3in already runs 43 to 51 ticks a second under a cutting finger (the
+// table at MAX_LIVE_FRUIT). The 7in blends about 1.6 times the pixels through
+// the same scalar code, and it plays slow on the glass; it has not been timed.
+// There game_tick takes every step the wall clock owes, up to GAME_MAX_STEPS.
+// A longer stall takes that many and drops the rest, so a hitch never lands
+// as one long jump.
+//
+// A step there is GAME_STEP_MS of wall clock, not TICK_MS. The 4.3in the
+// owner calls right has never run the design's 62.5 steps a second: it
+// measured 58 with nobody cutting and 43 to 51 under a finger. 18 ms is 55
+// a second, the middle of that, so the 7in plays at the pace the 4.3in is
+// played at rather than one nobody has held.
+#if defined(KISS_BOARD_JC1060)
+#define KISS_GAME_CATCHUP 1
+#define GAME_MAX_STEPS 3
+#define GAME_STEP_MS 18
+#elif defined(KISS_BOARD_GUITION) || defined(KISS_BOARD_WS35)
+#define KISS_GAME_CATCHUP 0
+#else
+#error "main.c: no physics catch-up choice for this board"
+#endif
 
 typedef struct {
   const lv_image_dsc_t *whole, *hl, *hr;
@@ -163,19 +110,21 @@ typedef struct {
 
 // A watermelon is a heavy slow three points and a cherry is a fast tumbling
 // one. Sizes are untouched: make_sprite takes the pre-sized fast path on
-// purpose, so real size variety means re-baking art. Character comes out of
+// purpose, so real size variety means re-baking art (the 3.5in's sprites
+// are baked at SX() of these numbers, so the numbers are SX() too). Character
+// comes out of
 // launch speed, spin rate and point value instead, which is free. The bomb
 // gets a NEGATIVE lift deliberately -- a slower arc is a readable arc, which
 // is the fix for bombs at high spawn rates being noise rather than threat.
 static const def_t DEFS[] = {
-    {&img_watermelon, &img_watermelon_half, &img_watermelon_halfr, 104, 104, false, false, 0xF0364C, 3, -3, 3},
-    {&img_apple,      &img_apple_half,      &img_apple_halfr,       94,  94, false, false, 0xF3E8C6, 1,  0, 5},
-    {&img_orange,     &img_orange_half,     &img_orange_halfr,      94,  94, false, false, 0xFF9E1B, 1,  0, 5},
-    {&img_pineapple,  &img_pineapple_half,  &img_pineapple_halfr,  112, 112, false, false, 0xFFD23A, 2, -2, 4},
-    {&img_strawberry, NULL, NULL, 100, 0, false, true,  0xFF466E, 1,  1, 7},
-    {&img_cherries,   NULL, NULL,  90, 0, false, true,  0xE01F2A, 1,  2, 8},
-    {&img_grapes,     NULL, NULL,  94, 0, false, true,  0x9C4DCC, 1,  1, 6},
-    {&img_bomb,       NULL, NULL,  92, 0, true,  false, 0,        0, -2, 2},
+    {&img_watermelon, &img_watermelon_half, &img_watermelon_halfr, SX(104), SX(104), false, false, 0xF0364C, 3, -3, 3},
+    {&img_apple,      &img_apple_half,      &img_apple_halfr,       SX(94), SX(94), false, false, 0xF3E8C6, 1,  0, 5},
+    {&img_orange,     &img_orange_half,     &img_orange_halfr,      SX(94), SX(94), false, false, 0xFF9E1B, 1,  0, 5},
+    {&img_pineapple,  &img_pineapple_half,  &img_pineapple_halfr,  SX(112), SX(112), false, false, 0xFFD23A, 2, -2, 4},
+    {&img_strawberry, NULL, NULL, SX(100), 0, false, true,  0xFF466E, 1,  1, 7},
+    {&img_cherries,   NULL, NULL,  SX(90), 0, false, true,  0xE01F2A, 1,  2, 8},
+    {&img_grapes,     NULL, NULL,  SX(94), 0, false, true,  0x9C4DCC, 1,  1, 6},
+    {&img_bomb,       NULL, NULL,  SX(92), 0, true,  false, 0,        0, -2, 2},
 };
 #define NUM_DEFS (sizeof(DEFS) / sizeof(DEFS[0]))
 #define BOMB_IDX (NUM_DEFS - 1)
@@ -278,15 +227,17 @@ static lv_obj_t *s_fp_fly;               // transient: the code flying from the 
 static lv_obj_t *s_cam_lbl;              // bottom-center status/error slot
 static lv_obj_t *s_sd_badge;             // home: SD-storage indicator (SD mode only)
 static bool s_sd_badge_live;             // SD mode + card in: game_tick breathes it
+#if KISS_PMIC
+static lv_obj_t *s_batt_badge;           // home: the battery, only when one is fitted
+static int s_batt_x0;                    // where it stands when the SD badge is hidden
+static bool s_batt_low;                  // painted amber, so a restyle leaves it alone
+#endif
 static lv_obj_t *s_net_lbl;              // top-center test-network badge (hidden on mainnet)
 static lv_obj_t *s_home_build_id;
 static uint32_t s_home_act_t;          // idle auto-lock: last touch while unlocked
 static lv_obj_t *s_lock_warn;            // "locking soon" toast, up for the last 30s
 static uint32_t s_secret_act_t;          // secret-idle deadline: last touch on a
 static uint32_t s_secret_rows;           // deadline row, and WHICH rows those were
-#ifndef SIMULATOR
-static i2c_master_bus_handle_t s_i2c_bus;  // shared touch bus; camera SCCB probes it too
-#endif
 // Sized by INK, not by time (the sampler below decimates to 10px moves). KISS
 // itself is ~100 points; a circle drawn right around it is ~125 more. At 256
 // that pair overflowed, and an overflow drops the TRAILING points -- which is
@@ -413,334 +364,7 @@ static uint32_t rnd(uint32_t n) {
 }
 static int rnd_range(int a, int b) { return a + (int)rnd(b - a + 1); }
 
-#ifndef SIMULATOR
-// The board pairs the radio-less ESP32-P4 with an ESP32-C6 WiFi/Bluetooth
-// coprocessor (SDIO, reset line on GPIO54 per Guition's EV-board-derived
-// BSP). KISS never uses it: hold its reset low from the first code we run
-// so whatever firmware shipped on the C6 never executes, and latch the pad
-// so the level survives soft resets. Logged at W because release builds
-// strip INFO. Settings/home read the pad back via radio_is_held().
-#define C6_RESET_GPIO GPIO_NUM_54
-static void radio_hold_in_reset(void) {
-  gpio_set_level(C6_RESET_GPIO, 0);   // level first: no high glitch on config
-  gpio_config_t io = {.pin_bit_mask = 1ULL << C6_RESET_GPIO,
-                      .mode = GPIO_MODE_INPUT_OUTPUT};
-  ESP_ERROR_CHECK(gpio_config(&io));
-  gpio_set_level(C6_RESET_GPIO, 0);
-  gpio_hold_en(C6_RESET_GPIO);
-  ESP_LOGW(TAG, "C6 radio held in reset (GPIO54 low)");
-}
-bool radio_is_held(void) { return gpio_get_level(C6_RESET_GPIO) == 0; }
-
-static void log_board_info(void) {
-  esp_chip_info_t chip;
-  uint32_t fs = 0;
-  esp_chip_info(&chip);
-  if (esp_flash_get_size(NULL, &fs) != ESP_OK) fs = 0;
-  ESP_LOGI(TAG, "KISS - Guition JC4880P443C ESP32-P4 rev%d flash=%luMB", chip.revision,
-           (unsigned long)(fs / (1024 * 1024)));
-}
-
-static void backlight_on(void) {
-  ledc_timer_config_t t = {.speed_mode = LEDC_LOW_SPEED_MODE, .timer_num = LEDC_TIMER_0,
-                           .duty_resolution = LEDC_TIMER_10_BIT, .freq_hz = LCD_BL_PWM_FREQ,
-                           .clk_cfg = LEDC_AUTO_CLK};
-  ESP_ERROR_CHECK(ledc_timer_config(&t));
-  ledc_channel_config_t c = {.gpio_num = LCD_BL_GPIO, .speed_mode = LEDC_LOW_SPEED_MODE,
-                             .channel = LEDC_CHANNEL_0, .timer_sel = LEDC_TIMER_0, .duty = 1023};
-  ESP_ERROR_CHECK(ledc_channel_config(&c));
-}
-
-// The panel while flash is being written. Every esp_ota_write disables the
-// cache, and both things that keep this screen alive sit on the wrong side of
-// that: the two DPI framebuffers live in PSRAM and are reached through the
-// cache, and the LVGL refresh the progress callback forces runs from flash. So
-// the panel is fed garbage for the whole update and the owner watches their
-// signer strobe while it rewrites itself.
-//
-// Two config routes were tried on the board and both are dead ends.
-// CONFIG_SPI_FLASH_AUTO_SUSPEND asserts at init on this board's Boya flash
-// chip; CONFIG_SPIRAM_XIP_FROM_PSRAM takes a store access fault in early
-// init. Both produced a boot loop and a black screen, so the answer is not a
-// Kconfig symbol, it is not driving the panel while the cache is gone.
-//
-// Dark for the length of the write. Deliberate dark reads as "it is working";
-// a strobing screen reads as "it is broken", and on a device rewriting its own
-// firmware that is the difference between waiting and pulling the power.
-void kiss_backlight_set(int on)
-{
-  ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, on ? 1023 : 0);
-  ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
-}
-
-// Brightness as the only progress indicator an update can honestly show.
-//
-// The panel cannot be redrawn while the write holds the cache, but the
-// backlight is a PWM peripheral and does not care: progress_cb runs BETWEEN
-// esp_ota_write calls, when the cache is back, so setting a duty there is
-// free and safe. The device starts at a floor rather than at nothing, because
-// a signer that is rewriting itself should read as awake, and climbs to full
-// as the write completes.
-//
-// This is only watchable if the panel is showing black while it starves,
-// which is what kiss_panel_black is for. Brightening a torn framebuffer would
-// reveal the tearing instead of hiding it.
-// The ramp is gamma corrected, and that is not a polish detail. LED luminance
-// is near enough linear in PWM duty, but perceived brightness goes as roughly
-// the 0.43 power of luminance, so a linear duty ramp is SEEN as racing to
-// almost-full in the first third and then crawling. On a progress indicator
-// that is not a cosmetic complaint, it is the light telling the owner the
-// write is nearly done when a quarter of it has landed, and then appearing to
-// stall for twenty seconds. Squaring pct undoes most of that and costs one
-// multiply.
-#define BL_FLOOR 80          // ~8%, awake but clearly not finished
-void kiss_backlight_level(int pct)
-{
-  if (pct < 0) pct = 0;
-  if (pct > 100) pct = 100;
-  uint32_t shaped = (uint32_t)pct * (uint32_t)pct;        // 0..10000
-  uint32_t duty = BL_FLOOR + (uint32_t)((1023 - BL_FLOOR) * shaped / 10000);
-  // One write per meaningful change. The install path calls this from a
-  // tight progress loop, and a stream of same-or-nearly-same duty writes is
-  // jitter the eye reads as flicker on a light that is the only indicator.
-  static uint32_t last = UINT32_MAX;
-  if (last != UINT32_MAX && (duty > last ? duty - last : last - duty) < 8 &&
-      pct != 0 && pct != 100)
-    return;
-  last = duty;
-  ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, duty);
-  ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
-}
-
-static uint16_t *s_fb;       // native 480x800 panel framebuffer (used only to clear it once)
-static void *s_fb2;          // the second one, kept for kiss_panel_black()
-
-// Both DPI framebuffers to black, so that when the DMA starves mid write the
-// panel is fed black where it expected black. The tearing does not stop, it
-// stops being visible -- which is the only version of "stops" available while
-// the framebuffers live in PSRAM behind the cache a flash write disables.
-void kiss_panel_black(void)
-{
-  // The msync is the fix for the rave. These framebuffers live in PSRAM
-  // behind the cache: a memset that stays in cache lines is black the CPU
-  // can see and garbage the DPI panel keeps scanning out -- and once the
-  // flash write disables the cache, nothing ever writes the black back.
-  // The camera code learned this first (camera_spike.c blank_fb); same
-  // C2M flush here, so the panel is fed the black we think we wrote.
-  const size_t n = (size_t)LCD_H_RES * LCD_V_RES * 2;
-  if (s_fb)  { memset(s_fb,  0, n); esp_cache_msync(s_fb,  n, ESP_CACHE_MSYNC_FLAG_DIR_C2M); }
-  if (s_fb2) { memset(s_fb2, 0, n); esp_cache_msync(s_fb2, n, ESP_CACHE_MSYNC_FLAG_DIR_C2M); }
-}
-static uint16_t *s_rotbuf;   // pre-rotated region, handed to the hardware blitter (DMA source)
-static lv_display_t *s_disp; // for flush_ready from the DMA-done callback
-
-static void lv_tick_cb(void *a) { (void)a; lv_tick_inc(2); }
-
-// the hardware blit (esp_lcd_panel_draw_bitmap) finished copying -> let LVGL render the next region
-static bool dpi_trans_done(esp_lcd_panel_handle_t p, esp_lcd_dpi_panel_event_data_t *e, void *u) {
-  (void)p; (void)e; (void)u;
-  if (s_disp) lv_display_flush_ready(s_disp);
-  return false;
-}
-
-// Lag triage, kept dormant: uncomment (or -DKISS_FLUSH_STATS) to log pixels
-// rotated/s, flush count/s and the largest dirty rect once per second. The CPU
-// rotate below is the only per-pixel display cost, so if the UI ever feels
-// slow this turns "feels laggy" into a number BEFORE anyone optimizes anything
-// (idle screens should be ~0; the sim's redraw-px diff is the desktop twin).
-// #define KISS_FLUSH_STATS 1
-
-// Landscape WITHOUT the driver's rotation (which panics): LVGL renders the 800x480 logical canvas;
-// we rotate each region 90deg into s_rotbuf, then let the SAME fast DMA blit the portrait build used
-// push it to the panel (CPU pixel writes to the live framebuffer tore on moving content).
-// Mapping (90deg CW): logical (lx,ly) -> panel (px,py) = (479-ly, lx).
-static void rot_flush(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map) {
-  (void)disp;
-  // While the camera owns the WHOLE panel (the dev preview, and any mode with no
-  // preview rect set), LVGL must not paint: menu animations under the wizard kept
-  // dirtying regions, and every repair flush flashed black boxes over the live
-  // video. Video ends with a full-screen invalidate, so dropping those flushes
-  // loses nothing.
-  //
-  // In two-column mode (ADDENDUM-01) LVGL paints EVERYTHING, including over the
-  // preview rect, and the video simply takes its rect back on the next frame.
-  //
-  // This used to ask camera_spike_ui_rect_free() whether the flush touched the
-  // preview and drop the whole flush if it did, which broke the scan and entropy
-  // screens on hardware and looked perfect in the simulator, where there is no
-  // camera and this function never runs. LVGL renders PARTIAL into a 48-LINE
-  // FULL-WIDTH buffer (see display_start), so a screen build arrives as ten bands
-  // of 800x48. Every band whose y range crossed the preview was discarded across
-  // its entire width, right column included: on the scan screen the preview spans
-  // y112..299, so everything from y96 to y335 never reached the panel. The owner
-  // saw a thick black band with camera on the left and nothing on the right.
-  //
-  // Painting over the video instead costs at most one frame of the layout showing
-  // through the preview, at 30fps, and only while something is actually being
-  // repainted. In steady state LVGL is not flushing at all. A rect test cannot be
-  // made to work here without splitting each band into sub-rectangles, and
-  // rot_flush has ONE rotation buffer and owes exactly one flush_ready per flush.
-  if (camera_spike_owns_panel()) {
-    lv_display_flush_ready(disp);
-    return;
-  }
-  uint16_t *src = (uint16_t *)px_map;
-  int ah = area->y2 - area->y1 + 1;                 // rotated rect width (panel x)
-#ifdef KISS_FLUSH_STATS
-  static uint32_t st_px, st_n, st_max;
-  static int64_t st_t0;
-  uint32_t px = (uint32_t)ah * (uint32_t)(area->x2 - area->x1 + 1);
-  st_px += px; st_n++;
-  if (px > st_max) st_max = px;
-  int64_t now = esp_timer_get_time();
-  if (st_t0 == 0) st_t0 = now;
-  if (now - st_t0 >= 1000000) {
-    ESP_LOGI(TAG, "flush: %u px/s in %u flushes, max rect %u px",
-             (unsigned)st_px, (unsigned)st_n, (unsigned)st_max);
-    st_px = st_n = st_max = 0;
-    st_t0 = now;
-  }
-#endif
-  for (int ly = area->y1; ly <= area->y2; ly++) {
-    int j = area->y2 - ly;
-    for (int lx = area->x1; lx <= area->x2; lx++)
-      s_rotbuf[(lx - area->x1) * ah + j] = *src++;
-  }
-  // panel rect: x in [479-y2 .. 479-y1], y in [x1 .. x2]
-  esp_lcd_panel_draw_bitmap(s_panel, (LCD_H_RES - 1) - area->y2, area->x1,
-                            LCD_H_RES - area->y1, area->x2 + 1, s_rotbuf);
-  // flush_ready happens in dpi_trans_done when the DMA completes
-}
-
-static lv_display_t *display_start(void) {
-  esp_ldo_channel_handle_t ldo = NULL;
-  esp_ldo_channel_config_t ldo_cfg = {.chan_id = DSI_PHY_LDO_CHAN, .voltage_mv = DSI_PHY_LDO_MV};
-  ESP_ERROR_CHECK(esp_ldo_acquire_channel(&ldo_cfg, &ldo));
-  esp_lcd_dsi_bus_handle_t dsi_bus = NULL;
-  esp_lcd_dsi_bus_config_t bus_cfg = {.bus_id = 0, .num_data_lanes = DSI_LANES,
-                                      .phy_clk_src = MIPI_DSI_PHY_CLK_SRC_DEFAULT,
-                                      .lane_bit_rate_mbps = DSI_LANE_BITRATE_MBPS};
-  ESP_ERROR_CHECK(esp_lcd_new_dsi_bus(&bus_cfg, &dsi_bus));
-  vTaskDelay(pdMS_TO_TICKS(50));
-  esp_lcd_dbi_io_config_t dbi_cfg = {.virtual_channel = 0, .lcd_cmd_bits = 8, .lcd_param_bits = 8};
-  ESP_ERROR_CHECK(esp_lcd_new_panel_io_dbi(dsi_bus, &dbi_cfg, &s_io));
-  esp_lcd_dpi_panel_config_t dpi_cfg = {
-      .dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT, .dpi_clock_freq_mhz = DPI_CLOCK_MHZ,
-      .virtual_channel = 0, .in_color_format = LCD_COLOR_FMT_RGB565,
-      .out_color_format = LCD_COLOR_FMT_RGB565, .num_fbs = 2,  // FB #2 = camera flip target
-      .video_timing = {.h_size = LCD_H_RES, .v_size = LCD_V_RES, .hsync_pulse_width = 12,
-                       .hsync_back_porch = 42, .hsync_front_porch = 42, .vsync_pulse_width = 2,
-                       .vsync_back_porch = 8, .vsync_front_porch = 166}};
-  st7701_vendor_config_t vendor_cfg = {
-      .mipi_config = {.dsi_bus = dsi_bus, .dpi_config = &dpi_cfg},
-      .init_cmds = st7701_lcd_cmds,
-      .init_cmds_size = sizeof(st7701_lcd_cmds) / sizeof(st7701_lcd_cmds[0]),
-      .flags.use_mipi_interface = 1};
-  esp_lcd_panel_dev_config_t panel_cfg = {.reset_gpio_num = LCD_RST_GPIO,
-                                          .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
-                                          .bits_per_pixel = LCD_BITS_PER_PIXEL,
-                                          .vendor_config = &vendor_cfg};
-  ESP_ERROR_CHECK(esp_lcd_new_panel_st7701(s_io, &panel_cfg, &s_panel));
-  ESP_ERROR_CHECK(esp_lcd_panel_reset(s_panel));
-  ESP_ERROR_CHECK(esp_lcd_panel_init(s_panel));
-  ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(s_panel, true));
-
-  // Clear the native framebuffer once (else un-painted regions show uninitialized "barcode" noise),
-  // and register the DMA-done callback so flush_ready fires when each blit completes.
-  void *fb2 = NULL;
-  ESP_ERROR_CHECK(esp_lcd_dpi_panel_get_frame_buffer(s_panel, 2, (void **)&s_fb, &fb2));
-  s_fb2 = fb2;                 // kept, so the update can black both out again
-  memset(s_fb, 0, (size_t)LCD_H_RES * LCD_V_RES * 2);
-  esp_cache_msync(s_fb, (size_t)LCD_H_RES * LCD_V_RES * 2,
-                  ESP_CACHE_MSYNC_FLAG_DIR_C2M);
-  memset(fb2, 0, (size_t)LCD_H_RES * LCD_V_RES * 2);
-  camera_spike_set_panel(s_panel, s_fb, fb2);
-  esp_lcd_dpi_panel_event_callbacks_t dpi_cbs = {.on_color_trans_done = dpi_trans_done};
-  ESP_ERROR_CHECK(esp_lcd_dpi_panel_register_event_callbacks(s_panel, &dpi_cbs, NULL));
-
-  // Manual LVGL setup (no esp_lvgl_port display): logical canvas is 800x480 landscape.
-  lv_init();
-  const esp_timer_create_args_t tcfg = {.callback = lv_tick_cb, .name = "lvtick"};
-  esp_timer_handle_t tick;
-  ESP_ERROR_CHECK(esp_timer_create(&tcfg, &tick));
-  ESP_ERROR_CHECK(esp_timer_start_periodic(tick, 2000));   // 2 ms LVGL tick
-
-  lv_display_t *disp = lv_display_create(SCREEN_W, SCREEN_H);
-  if (!disp) {
-    ESP_LOGE(TAG, "lv_display_create failed");
-    abort();                       // a panic reboots into last-known-good;
-  }                                // LVGL's own fallback is a silent while(1)
-  lv_display_set_color_format(disp, LV_COLOR_FORMAT_RGB565);
-  size_t bufsz = (size_t)SCREEN_W * 48 * 2;                  // 48-line partial buffers
-  // Same treatment as s_rotbuf below, for the same reason: these are the FIRST
-  // two 75KB internal allocations of the three, and they were the unchecked
-  // ones -- LVGL asserts on a NULL buffer with logging compiled out, which on
-  // this board is a silent hang, and a hang on an update's first boot strands
-  // the user on the broken image where a panic would roll back. PSRAM is fine
-  // as a render target here: rot_flush copies into s_rotbuf before DMA, and
-  // 64-byte alignment satisfies lv_draw_buf_align.
-  void *b1 = heap_caps_malloc(bufsz, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-  void *b2 = heap_caps_malloc(bufsz, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-  if (!b1) b1 = heap_caps_aligned_alloc(64, bufsz, MALLOC_CAP_SPIRAM);
-  if (!b2) b2 = heap_caps_aligned_alloc(64, bufsz, MALLOC_CAP_SPIRAM);
-  if (!b1 || !b2) {
-    ESP_LOGE(TAG, "display buffers: %u bytes x2 unavailable in any heap",
-             (unsigned)bufsz);
-    abort();
-  }
-  // DMA source for the rotated region. This is the THIRD 75KB allocation in a
-  // row -- b1, b2, then this -- out of roughly 340KB of internal RAM, and it
-  // was unchecked. When it finally came back NULL the first flush stored to
-  // NULL + 94 and the device panicked in rot_flush before it had drawn a
-  // single frame: "Store access fault, MTVAL 0x5e", three seconds after boot,
-  // forever. Nothing in the gate suite can reach this. rot_flush does not run
-  // in the simulator at all, and a build that never allocates cannot fail to.
-  //
-  // Internal first, because the blitter is fastest reading internal RAM. PSRAM
-  // second, because on the P4 the DPI panel reads it perfectly well and 75KB
-  // of headroom is worth more than the margin: this buffer is written once per
-  // band and read once by DMA. And then a hard check, so the next time the
-  // internal heap gets tight this says so on the console instead of storing
-  // through a null pointer.
-  s_rotbuf = heap_caps_malloc(bufsz, MALLOC_CAP_DMA);
-  if (!s_rotbuf) {
-    ESP_LOGW(TAG, "rotbuf: no internal DMA heap for %u bytes, using PSRAM",
-             (unsigned)bufsz);
-    s_rotbuf = heap_caps_aligned_alloc(64, bufsz, MALLOC_CAP_SPIRAM | MALLOC_CAP_DMA);
-  }
-  if (!s_rotbuf) {
-    ESP_LOGE(TAG, "rotbuf: %u bytes unavailable in any heap", (unsigned)bufsz);
-    abort();
-  }
-  lv_display_set_buffers(disp, b1, b2, bufsz, LV_DISPLAY_RENDER_MODE_PARTIAL);
-  lv_display_set_flush_cb(disp, rot_flush);
-  s_disp = disp;
-  return disp;
-}
-
-static void touch_start(void) {
-  i2c_master_bus_config_t i2c_cfg = {.i2c_port = I2C_NUM_0, .sda_io_num = TOUCH_I2C_SDA,
-                                     .scl_io_num = TOUCH_I2C_SCL, .clk_source = I2C_CLK_SRC_DEFAULT,
-                                     .glitch_ignore_cnt = 7, .flags.enable_internal_pullup = true};
-  i2c_master_bus_handle_t bus = NULL;
-  if (i2c_new_master_bus(&i2c_cfg, &bus) != ESP_OK) { ESP_LOGE(TAG, "i2c failed"); return; }
-  s_i2c_bus = bus;
-  kiss_scan_set_bus(bus);              // step 6: QR scanner shares the camera bus
-  camera_spike_set_bus(bus);             // step 7: entropy page starts the camera too
-  esp_lcd_panel_io_i2c_config_t tp_io_cfg = ESP_LCD_TOUCH_IO_I2C_GT911_CONFIG();
-  esp_lcd_panel_io_handle_t tp_io = NULL;
-  if (esp_lcd_new_panel_io_i2c(bus, &tp_io_cfg, &tp_io) != ESP_OK) return;
-  esp_lcd_touch_config_t tp_cfg = {.x_max = LCD_H_RES, .y_max = LCD_V_RES,
-                                   .rst_gpio_num = GPIO_NUM_NC, .int_gpio_num = GPIO_NUM_NC,
-                                   .flags = {.swap_xy = 0, .mirror_x = 0, .mirror_y = 0}};
-  if (esp_lcd_touch_new_i2c_gt911(tp_io, &tp_cfg, &s_touch) != ESP_OK) {
-    ESP_LOGE(TAG, "GT911 init failed");
-    s_touch = NULL;
-    return;
-  }
-  ESP_LOGI(TAG, "GT911 ready");
-}
-#else   // SIMULATOR
+#ifdef SIMULATOR
 // No panel to starve and no flash to write, so the desktop keeps the symbol
 // and does nothing with it. kiss_fw_ui.c then has ONE shape on both sides,
 // and the screen walk still reaches the WRITING stop with the same code path
@@ -748,6 +372,52 @@ static void touch_start(void) {
 void kiss_backlight_set(int on) { (void)on; }
 void kiss_backlight_level(int pct) { (void)pct; }
 void kiss_panel_black(void) { }
+#if KISS_PMIC
+// No power chip on the desktop. No cell unless the walk hands one over, which
+// is the board as it ships.
+static kiss_batt_t s_sim_batt;
+void kiss_board_batt_sim(const kiss_batt_t *b) {
+  if (b) s_sim_batt = *b;
+  else   memset(&s_sim_batt, 0, sizeof s_sim_batt);
+}
+bool kiss_board_batt_read(kiss_batt_t *b) {
+  if (!b) return false;
+  *b = s_sim_batt;
+  return true;
+}
+#endif
+
+// UPSIDE DOWN (kiss_board.h), and a REAL bool rather than a no-op: the
+// SETTING is what the desktop can hold. The walk taps the control, the value
+// changes, the screen repaints, and the frame that gets written comes out
+// turned -- sim/sim_main.c reflects it at the one seam that stands for glass.
+//
+// WHAT THE DESKTOP DOES NOT PROVE, which is most of it, written here because
+// this is the stub a reader of the feature arrives at first:
+//
+//  - Nothing about the three device transforms. board_guition.c's rotating
+//    flush, board_ws35.c's MADCTL and touch flags, and camera_spike.c are in
+//    neither sim link line (sim/build_sim.sh, sim/build_simapp.sh), so no
+//    desktop build compiles a line of any of them.
+//  - Nothing about persistence. store_u8 is a no-op under SIMULATOR and
+//    kiss_settings_load applies nothing here, so "remembered across reboots"
+//    is a hardware verdict rather than a test.
+//  - Nothing about the LAYOUT either, and that is the useful half: every
+//    geometry gate -- overlapcheck, fitcheck, osdcheck, the coverage checker
+//    -- reads the object tree and the string metrics, never the pixels. The
+//    flip is applied AFTER layout, so it cannot move one of their numbers.
+//    That is why the CONTROL is measured on both canvases and the turn is
+//    not: a flip cannot break a lane, by construction.
+static bool s_flip;
+bool kiss_flip_get(void) { return s_flip; }
+void kiss_flip_set(bool on, bool repaint)
+{
+  s_flip = on;
+  // On the device the panel is blacked and the screen invalidated because the
+  // glass holds the only copy, now the wrong way up. Here the invalidate is
+  // the whole job: it is what makes the next captured frame the turned one.
+  if (repaint && lv_screen_active()) lv_obj_invalidate(lv_screen_active());
+}
 #endif  // !SIMULATOR
 
 // ---------------- entities ----------------
@@ -797,7 +467,7 @@ static void score_popup(int x, int y, const char *txt, uint32_t color) {
   lv_anim_t a;
   lv_anim_init(&a); lv_anim_set_var(&a, l);
   lv_anim_set_exec_cb(&a, anim_y_cb);
-  lv_anim_set_values(&a, y, y - 54);
+  lv_anim_set_values(&a, y, y - SY(54));
   lv_anim_set_duration(&a, 600);
   lv_anim_set_ready_cb(&a, anim_del_cb);
   lv_anim_start(&a);
@@ -819,14 +489,14 @@ static void life_gain_fx(lv_obj_t *heart) {
   lv_anim_set_duration(&a, 380);
   lv_anim_set_path_cb(&a, lv_anim_path_overshoot);
   lv_anim_start(&a);
-  score_popup(SCREEN_W - 176, 44, "+1 LIFE", 0x8CF09A);
+  score_popup(SCREEN_W - SX(176), SY(44), "+1 LIFE", 0x8CF09A);
 }
 
 static void explosion(float x, float y) {
   lv_obj_t *o = lv_image_create(lv_screen_active());
   lv_image_set_src(o, &img_explosion);
   lv_image_set_pivot(o, 72, 72);
-  lv_obj_set_pos(o, (int)x - 72, (int)y - 72);
+  lv_obj_set_pos(o, (int)x - SX(72), (int)y - SY(72));
   lv_anim_t a;
   lv_anim_init(&a);
   lv_anim_set_var(&a, o);
@@ -870,7 +540,7 @@ static void juice_splat(float x, float y, uint32_t col) {
   lv_image_set_src(o, &img_splat);  // 100px, white -> recolored to juice
   lv_obj_set_style_image_recolor(o, lv_color_hex(col), 0);
   lv_obj_set_style_image_recolor_opa(o, LV_OPA_COVER, 0);
-  lv_obj_set_pos(o, (int)x - 50, (int)y - 50);
+  lv_obj_set_pos(o, (int)x - SX(50), (int)y - SY(50));
   lv_anim_t b;
   lv_anim_init(&b);
   lv_anim_set_var(&b, o);
@@ -956,10 +626,38 @@ static float diff_progress(void) {
 //
 // Apex is deliberately roughly constant across the ramp. What changes is the
 // TIME the fruit spends in the air, which is the part that reads as difficulty.
+// Scaled to the canvas: a throw's apex goes with the SQUARE of its speed, so
+// the 3.5in's 320px canvas takes root(2/3) of the wide speed to put the same
+// arc on its glass instead of throwing fruit off the top where nothing can
+// cut them.
+//
+// The 7in scales the WHOLE throw instead, the way SX and SY scale its
+// screens: every speed, pull, lane and wave position in the game is a length
+// in the 4.3in's pixels. Left unscaled there, an apple thrown at 15..18 px a
+// tick peaked at 0.32..0.56 of the 600 px height where the 4.3in's peaks at
+// 0.46..0.75 of 480, and the slowest watermelon topped out with its bottom
+// edge on the glass's. Speed and pull scaled by the same 1.25 scale the apex
+// by 1.25, because it is v*v/2g, and leave the time to the top alone, because
+// that is v/g: the same arc in proportion, in the same number of ticks.
+// Across, 1.28 does the same for the reach. Bare on the other two boards, so
+// they preprocess to the tokens they always did. That is safe only because
+// every use below is a whole operand where it lands: a literal, a name, a
+// product, or the whole right side of an assignment.
+#if KISS_NARROW || KISS_DESIGN_CANVAS
+#define THROW_X(v) v
+#define THROW_Y(v) v
+#else
+#define THROW_X(v) SX(v)
+#define THROW_Y(v) SY(v)
+#endif
 static int launch_speed(float p) {
+#if KISS_NARROW
+  return (int)(rnd_range(15 + (int)(p * 5), 18 + (int)(p * 9)) * 0.8165f);
+#else
   return rnd_range(15 + (int)(p * 5), 18 + (int)(p * 9));
+#endif
 }
-static float fruit_gravity(float p) { return GRAVITY * (0.70f + 0.30f * p); }
+static float fruit_gravity(float p) { return THROW_Y(GRAVITY * (0.70f + 0.30f * p)); }
 
 // Uniform rnd() produces visible runs (e.g. three oranges in a row). Pick a
 // fruit that differs from the last two -> feels varied without being rigged.
@@ -976,13 +674,13 @@ static int pick_fruit(void) {
 static float s_wave_x[8];
 static int s_wave_xn;
 static float pick_spawn_x(void) {
-  float x = rnd_range(70, SCREEN_W - 70);
+  float x = rnd_range(THROW_X(70), SCREEN_W - THROW_X(70));
   for (int tries = 0; tries < 10; tries++) {
     bool ok = true;
     for (int i = 0; i < s_wave_xn; i++)
-      if (fabsf(x - s_wave_x[i]) < 96.0f) { ok = false; break; }  // lanes >= 96px apart
+      if (fabsf(x - s_wave_x[i]) < THROW_X(96.0f)) { ok = false; break; }  // lanes >= 96px apart in the 4.3in's pixels
     if (ok) break;
-    x = rnd_range(70, SCREEN_W - 70);
+    x = rnd_range(THROW_X(70), SCREEN_W - THROW_X(70));
   }
   if (s_wave_xn < 8) s_wave_x[s_wave_xn++] = x;
   return x;
@@ -1027,6 +725,9 @@ static int live_fruit(void) {
   return n;
 }
 
+// vx and vy are in the 4.3in's pixels a tick, like every throw that calls
+// this, and are scaled to the canvas here, where every fruit is born. x is
+// the canvas's own already: each caller places it against SCREEN_W.
 static void spawn_fruit_at(int idx, bool gold, float x, float vx, float vy) {
   // The bomb is the threat, so it always gets its slot. Fruit are what flood.
   if (!DEFS[idx].bomb && live_fruit() >= MAX_LIVE_FRUIT) return;
@@ -1041,8 +742,8 @@ static void spawn_fruit_at(int idx, bool gold, float x, float vx, float vy) {
   e->size = d->size;
   e->x = x;
   e->y = SCREEN_H + d->size;
-  e->vx = vx;
-  e->vy = vy;
+  e->vx = THROW_X(vx);
+  e->vy = THROW_Y(vy);
   e->rot = (float)rnd(360);
   e->av = (float)rnd_range(-d->spin, d->spin);
   if (e->av == 0.0f) e->av = 1.0f;
@@ -1095,11 +796,14 @@ static void spawn_juice(float x, float y, uint32_t col, int n) {
     e->rot = 0.0f;
     e->av = 0.0f;                          // droplets never take the rotate path
     e->rot_q = 0;
-    e->size = 16;
+    e->size = SX(16);                      // the droplet's edge, baked per board
     e->x = x;
     e->y = y;
-    e->vx = cosf(a) * sp;
-    e->vy = sinf(a) * sp - 3.0f;
+    // In the 4.3in's pixels a tick, like the debris pull that brings it
+    // down. Left unscaled against that scaled pull, the 7in's spray rose
+    // to about 0.63 of the share of the glass it reaches on the 4.3in.
+    e->vx = THROW_X(cosf(a) * sp);
+    e->vy = THROW_Y(sinf(a) * sp - 3.0f);
     e->obj = make_droplet(col);
     place(e);
   }
@@ -1109,6 +813,34 @@ static void update_hearts(void) {
   for (int i = 0; i < 3; i++)
     lv_image_set_src(s_hearts[i], i < s_lives ? &img_heart : &img_heart_empty);
 }
+
+// The game over card's live rows. On the 3.5in they are pixels, one stack with
+// the card gameover_mock.py draws there: at the scaled 48 px the score sat on
+// the card's rule and the 28 px BEST ran through its bottom border, and the
+// NEW BEST ribbon lay across the card's top. The score steps down to 40 px
+// (digits 153..181 over the rule at 188), BEST takes 195..215 of a card that
+// ends at 226, and the ribbon rides 60..116, clear of the title and the card.
+// The in-game score: 40 px on the 4.3in and the 3.5in. The 7in sets its type a
+// rung up and 48, the largest built-in face, is that rung here. The game-over
+// number below is already 48 on the wide boards and has no rung above it.
+#if defined(KISS_BOARD_JC1060)
+#define HUD_SCORE_FONT (&lv_font_montserrat_48)
+#elif defined(KISS_BOARD_GUITION) || defined(KISS_BOARD_WS35)
+#define HUD_SCORE_FONT (&lv_font_montserrat_40)
+#else
+#error "main.c: no in-game score size for this board"
+#endif
+#if KISS_NARROW
+#define OVER_NUM_FONT  (&lv_font_montserrat_40)
+#define OVER_NUM_Y     145
+#define OVER_BEST_Y    190
+#define OVER_RIBBON_Y  60
+#else
+#define OVER_NUM_FONT  (&lv_font_montserrat_48)
+#define OVER_NUM_Y     SY(240)
+#define OVER_BEST_Y    SY(316)
+#define OVER_RIBBON_Y  SY(128)
+#endif
 
 static void show_game_over(void) {
   s_state = ST_OVER;
@@ -1126,8 +858,8 @@ static void show_game_over(void) {
   lv_obj_add_flag(s_blade_glow, LV_OBJ_FLAG_HIDDEN);
   lv_label_set_text_fmt(s_over_lbl, "%d", s_score);
   lv_label_set_text_fmt(s_best_lbl, "BEST  %d", s_best);
-  lv_obj_align(s_over_lbl, LV_ALIGN_TOP_MID, 0, 240);   // re-center for digit count (landscape card)
-  lv_obj_align(s_best_lbl, LV_ALIGN_TOP_MID, 0, 316);
+  lv_obj_align(s_over_lbl, LV_ALIGN_TOP_MID, 0, OVER_NUM_Y);   // re-center for digit count (landscape card)
+  lv_obj_align(s_best_lbl, LV_ALIGN_TOP_MID, 0, OVER_BEST_Y);
   if (newbest) lv_obj_clear_flag(s_newbest, LV_OBJ_FLAG_HIDDEN);
   else lv_obj_add_flag(s_newbest, LV_OBJ_FLAG_HIDDEN);
   lv_obj_move_foreground(s_over_panel);
@@ -1155,6 +887,16 @@ static void start_game(void) {
   for (int i = 0; i < 3; i++) lv_obj_clear_flag(s_hearts[i], LV_OBJ_FLAG_HIDDEN);
 }
 
+#ifdef SIMULATOR
+// Is a round of Fruit Island running. The walk asks because the corner
+// shortcut has to stop start_game() as well as answer the pair: a first tap
+// that launched a round would leave ST_MENU before the second tap arrived, and
+// the collector is skipped in ST_PLAY. That is a state, not a picture -- the
+// HUD's score is a label reading "0" on a screen where nothing else is written,
+// so a frame check would pass on an empty menu too.
+bool sim_game_playing(void) { return s_state == ST_PLAY; }
+#endif
+
 // menu intro: the logo letters (each carrying its own shadow) drop in from above,
 // staggered left->right, and land with an overshoot bounce; the accent fruit then
 // hop up into place and keep floating gently (the only idle motion on the menu)
@@ -1170,14 +912,14 @@ static void fruit_hop_done(lv_anim_t *a) {
   lv_anim_init(&f);
   lv_anim_set_var(&f, o);
   lv_anim_set_exec_cb(&f, logo_y_cb);
-  lv_anim_set_values(&f, menu_fruit_y[i], menu_fruit_y[i] - 12);
+  lv_anim_set_values(&f, menu_fruit_y[i], menu_fruit_y[i] - SY(12));
   lv_anim_set_duration(&f, 2600 + i * 300);
   lv_anim_set_reverse_duration(&f, 2600 + i * 300);
   lv_anim_set_repeat_count(&f, LV_ANIM_REPEAT_INFINITE);
   lv_anim_set_path_cb(&f, lv_anim_path_ease_in_out);
   lv_anim_start(&f);
   lv_anim_set_exec_cb(&f, saver_set_x);
-  lv_anim_set_values(&f, menu_fruit_x[i] - 7, menu_fruit_x[i] + 7);
+  lv_anim_set_values(&f, menu_fruit_x[i] - SX(7), menu_fruit_x[i] + SX(7));
   lv_anim_set_duration(&f, 3400 + i * 370);
   lv_anim_set_reverse_duration(&f, 3400 + i * 370);
   lv_anim_start(&f);
@@ -1214,14 +956,15 @@ static void menu_idle_drift_stop(void) {
 static void menu_intro(void) {
   for (int i = 0; i < LOGO_LT_N; i++) {
     if (!s_logo_lt[i]) return;
-    lv_obj_set_y(s_logo_lt[i], logo_lt_y[i] - 320);  // park off-screen until its delay is up
+    lv_obj_set_y(s_logo_lt[i], logo_lt_y[i] - SY(320));  // park off-screen until its delay is up
     lv_anim_t a;
     lv_anim_init(&a);
     lv_anim_set_var(&a, s_logo_lt[i]);
     lv_anim_set_exec_cb(&a, logo_y_cb);
-    lv_anim_set_values(&a, logo_lt_y[i] - 320, logo_lt_y[i]);
-    lv_anim_set_duration(&a, 420);
-    lv_anim_set_delay(&a, 40 + i * 55);
+    lv_anim_set_values(&a, logo_lt_y[i] - SY(320), logo_lt_y[i]);
+    // Half length on the 3.5in's SPI panel, fruit and all (WT_MOTION_MS).
+    lv_anim_set_duration(&a, WT_MOTION_MS(420));
+    lv_anim_set_delay(&a, WT_MOTION_MS(40 + i * 55));
     lv_anim_set_path_cb(&a, lv_anim_path_overshoot);
     lv_anim_start(&a);
   }
@@ -1229,22 +972,22 @@ static void menu_intro(void) {
     if (!s_menu_fruit[i]) return;
     lv_anim_delete(s_menu_fruit[i], NULL);           // stop a previous run's idle drift
     lv_obj_set_x(s_menu_fruit[i], menu_fruit_x[i]);
-    lv_obj_set_y(s_menu_fruit[i], menu_fruit_y[i] + 26);
+    lv_obj_set_y(s_menu_fruit[i], menu_fruit_y[i] + SY(26));
     lv_obj_set_style_opa(s_menu_fruit[i], 0, 0);
     lv_anim_t a;
     lv_anim_init(&a);
     lv_anim_set_var(&a, s_menu_fruit[i]);
     lv_anim_set_exec_cb(&a, logo_y_cb);
-    lv_anim_set_values(&a, menu_fruit_y[i] + 26, menu_fruit_y[i]);
-    lv_anim_set_duration(&a, 300);
-    lv_anim_set_delay(&a, 1060 + i * 90);
+    lv_anim_set_values(&a, menu_fruit_y[i] + SY(26), menu_fruit_y[i]);
+    lv_anim_set_duration(&a, WT_MOTION_MS(300));
+    lv_anim_set_delay(&a, WT_MOTION_MS(1060 + i * 90));
     lv_anim_set_path_cb(&a, lv_anim_path_overshoot);
     lv_anim_set_ready_cb(&a, fruit_hop_done);
     lv_anim_start(&a);
     lv_anim_set_ready_cb(&a, NULL);
     lv_anim_set_exec_cb(&a, anim_opa_cb);
     lv_anim_set_values(&a, 0, 255);
-    lv_anim_set_duration(&a, 220);
+    lv_anim_set_duration(&a, WT_MOTION_MS(220));
     lv_anim_set_path_cb(&a, lv_anim_path_linear);
     lv_anim_start(&a);
   }
@@ -1316,7 +1059,7 @@ static void slice(ent_t *e, float bdx, float bdy) {
   int pts = e->gold ? 5 : dd->points;
   s_score += pts;
   { char b[8]; snprintf(b, sizeof b, "+%d", pts);
-    score_popup((int)e->x - 6, (int)e->y - 24, b,
+    score_popup((int)e->x - SX(6), (int)e->y - SY(24), b,
                 e->gold ? 0xFFD23A : 0xFFFFFF); }
   lv_label_set_text_fmt(s_score_lbl, "%d", s_score);
   if (s_score / 50 > s_life_milestone) {       // every 50 pts: earn a life back (handles combo jumps)
@@ -1330,7 +1073,7 @@ static void slice(ent_t *e, float bdx, float bdy) {
   if (e->gold) {
     s_frenzy_ms = FRENZY_MS;
     screen_flash(0xFFD23A);
-    score_popup(SCREEN_W/2 - 110, SCREEN_H/2 - 40, "FRENZY!", 0xFFD23A);
+    score_popup(SCREEN_W/2 - SX(110), SCREEN_H/2 - SY(40), "FRENZY!", 0xFFD23A);
   }
   const def_t *d = &DEFS[e->defi];
   juice_splat(e->x, e->y, d->juice);  // big juicy splash on every slice
@@ -1349,10 +1092,10 @@ static void slice(ent_t *e, float bdx, float bdy) {
     float nx = -bdy, ny = bdx;                  // unit normal to the cut
     const float SEP = 7.0f;
     spawn_half(d->hl, d->hsize, e->x - nx*6, e->y - ny*6,
-               e->vx - nx*SEP, e->vy*0.6f - ny*SEP,
+               e->vx - THROW_X(nx*SEP), e->vy*0.6f - THROW_Y(ny*SEP),
                ang, -(float)rnd_range(2, 5));
     spawn_half(d->hr, d->hsize, e->x + nx*6, e->y + ny*6,
-               e->vx + nx*SEP, e->vy*0.6f + ny*SEP,
+               e->vx + THROW_X(nx*SEP), e->vy*0.6f + THROW_Y(ny*SEP),
                ang,  (float)rnd_range(2, 5));
     spawn_juice(e->x, e->y, d->juice, 1);   // it already threw two halves
   }
@@ -1449,6 +1192,31 @@ static void check_slices(bool pressed) {
 
 static bool read_touch(int *x, int *y) { return platform_read_touch(x, y); }
 
+#if KISS_BLADE_LANDING
+// A NEW STROKE STARTS WHERE THE FINGER LANDED. The blade is fed one point per
+// pass, the newest the sampler holds, so whatever the finger did between
+// landing and the first pass never reaches it: that pass draws no segment, and
+// the first segment tested starts wherever the finger had got to by then. A
+// swipe that lands ON a fruit starts past it. The landing point stands in for
+// the pass before, which is what check_slices assumes of the point behind the
+// newest, and the fruit is swept back one tick to meet it.
+//
+// Dropping what was left of the last stroke is the other half. After a lift
+// update_blade drains one point per pass, and a new press appended to those
+// joined the two strokes with a segment nobody drew, which cut whatever lay
+// between them, the bomb included. The fewer passes a board runs a second, the
+// more of the old trail a quick second swipe still finds there.
+static void blade_land(void) {
+  int ox, oy;
+  s_trail_count = 0;
+  if (platform_touch_origin(&ox, &oy)) {
+    s_trail[0].x = ox;
+    s_trail[0].y = oy;
+    s_trail_count = 1;
+  }
+}
+#endif
+
 static void update_blade(int tx, int ty, bool pressed) {
   if (pressed) {
     if (s_trail_count < TRAIL_LEN) {
@@ -1474,6 +1242,14 @@ static void update_blade(int tx, int ty, bool pressed) {
     for (int i = 1; i < s_trail_count; i++) s_trail[i - 1] = s_trail[i];
     s_trail_count--;
   }
+#if KISS_GAME_CATCHUP
+}
+
+// The two lines follow the trail once per game_tick, after its last step.
+// Moved per step, each would invalidate a box per step, and LVGL repaints the
+// whole screen once a frame holds more than 32 boxes (LV_INV_BUF_SIZE).
+static void blade_show(void) {
+#endif
   if (s_trail_count >= 2) {
     // lv_line sizes its object as the bbox of its points measured FROM the object's
     // (0,0). Our trail holds absolute screen coords, so the object stretched from the
@@ -1518,14 +1294,14 @@ static void saver_show(void) {
     lv_obj_t *f = lv_image_create(scr);
     lv_image_set_src(f, DEFS[pick_fruit()].whole);  // varied fruit, never the bomb, no triple-repeats
     int bx = rnd_range(24, SCREEN_W - 96);
-    lv_obj_set_pos(f, bx, SCREEN_H + 60);
+    lv_obj_set_pos(f, bx, SCREEN_H + SY(60));
     s_saver_fruit[i] = f;
 
     lv_anim_t a;
     lv_anim_init(&a);
     lv_anim_set_var(&a, f);
     lv_anim_set_exec_cb(&a, saver_set_y);
-    lv_anim_set_values(&a, SCREEN_H + 90, -140);            // rise off-bottom to off-top (loops unseen)
+    lv_anim_set_values(&a, SCREEN_H + SY(90), -SY(140));            // rise off-bottom to off-top (loops unseen)
     lv_anim_set_duration(&a, rnd_range(7000, 12000));
     lv_anim_set_delay(&a, i * 1100);
     lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
@@ -1535,7 +1311,7 @@ static void saver_show(void) {
     lv_anim_init(&b);
     lv_anim_set_var(&b, f);
     lv_anim_set_exec_cb(&b, saver_set_x);
-    lv_anim_set_values(&b, bx - 26, bx + 26);                // gentle horizontal sway
+    lv_anim_set_values(&b, bx - SX(26), bx + SX(26));                // gentle horizontal sway
     lv_anim_set_duration(&b, rnd_range(2600, 4200));
     lv_anim_set_reverse_duration(&b, rnd_range(2600, 4200));
     lv_anim_set_repeat_count(&b, LV_ANIM_REPEAT_INFINITE);
@@ -1590,12 +1366,59 @@ static bool detect_cover_word(const lv_point_t *p, int n, int strokes) {
   return cw_match(kx, ky, s_gid, n, strokes);
 }
 
+// The home tiles. The 3.5in's are a little wider than three fifths, 102 px
+// eight apart, so the 18 px tile words keep their margins (assets/generators/
+// kiss_mock.py draws the same boxes); the wide board's are what they were.
+#define HOME_TILE_X(i) (KISS_NARROW ? 24 + (i) * 110 : SX(50) + (i) * SX(180))
+#define HOME_TILE_W    (KISS_NARROW ? 102 : SX(161))
+#define HOME_TILE_LW   (KISS_NARROW ? 102 : SX(160))
+// A press on tile i: on the 3.5in the tile plus half its gap each side, so the
+// four boxes meet and none overlaps; the wide board keeps its measured boxes.
+#define TILE_HIT(i, wx0, wx1) (KISS_NARROW ? (tx >= HOME_TILE_X(i) - 4 && \
+                                              tx <= HOME_TILE_X(i) + HOME_TILE_W + 3) \
+                                           : (tx >= SX(wx0) && tx <= SX(wx1)))
+
+// Where a press opens the fingerprint card: the chip's left edge, on either board.
+#define HOME_CHIP_HIT_X (KISS_NARROW ? 300 : SX(566))
+
+#if KISS_NARROW
+// The fingerprint chip's box on the 3.5in, where its code is set at 23 px.
+#define HOME_CHIP_X 300
+#define HOME_CHIP_Y 22
+#define HOME_CHIP_W 140
+#define HOME_CHIP_H 36
+#endif
+
+// The tile words take the 3.5in's 18 px rung when the word fits its tile,
+// and the 14 px floor only when a translation does not: at 14 they read as
+// fine print under a 60 px icon. The wide board's tiles are unchanged.
+static const lv_font_t *tile_font(const char *t) {
+#if KISS_NARROW
+  lv_point_t sz;
+  lv_text_get_size(&sz, t, wt_font28(), 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+  return sz.x <= HOME_TILE_LW - 14 ? wt_font28() : wt_font23();
+#else
+  (void)t;
+  return wt_font23();
+#endif
+}
+
 // center the code + caption on the baked chip frame (566..760 x 39..86 in kiss_mock.py)
 static void fp_chip_place(void) {
+#if KISS_NARROW
+  const int cx = HOME_CHIP_X + HOME_CHIP_W / 2;
   lv_obj_update_layout(s_fp_chip);
-  lv_obj_set_pos(s_fp_chip, 663 - lv_obj_get_width(s_fp_chip) / 2, 46);
+  lv_obj_set_pos(s_fp_chip, cx - lv_obj_get_width(s_fp_chip) / 2,
+                 HOME_CHIP_Y + (HOME_CHIP_H - lv_obj_get_height(s_fp_chip)) / 2);
   lv_obj_update_layout(s_fp_cap);
-  lv_obj_set_pos(s_fp_cap, 663 - lv_obj_get_width(s_fp_cap) / 2, 92);
+  lv_obj_set_pos(s_fp_cap, cx - lv_obj_get_width(s_fp_cap) / 2,
+                 HOME_CHIP_Y + HOME_CHIP_H + 3);
+#else
+  lv_obj_update_layout(s_fp_chip);
+  lv_obj_set_pos(s_fp_chip, SX(663) - lv_obj_get_width(s_fp_chip) / 2, SY(46));
+  lv_obj_update_layout(s_fp_cap);
+  lv_obj_set_pos(s_fp_cap, SX(663) - lv_obj_get_width(s_fp_cap) / 2, SY(92));
+#endif
 }
 
 // unlock hand-off, in two acts on the freshly-revealed home screen:
@@ -1617,20 +1440,32 @@ static void fp_fly_glide(void) {
   lv_anim_t a;
   lv_anim_init(&a);
   lv_anim_set_var(&a, s_fp_fly);
-  lv_anim_set_duration(&a, 560);
-  lv_anim_set_delay(&a, 140);                 // a beat to read the locked code
+  // The whole hand-off at half length on the 3.5in (WT_MOTION_MS): the beat to
+  // read the code, the glide and both crossfades keep their order and overlap.
+  lv_anim_set_duration(&a, WT_MOTION_MS(560));
+  lv_anim_set_delay(&a, WT_MOTION_MS(140));   // a beat to read the locked code
   lv_anim_set_path_cb(&a, lv_anim_path_ease_in_out);
   lv_anim_set_exec_cb(&a, fly_x_cb);
-  lv_anim_set_values(&a, sx, 663 - fw / 2);   // land centered on the chip frame (663,61)
+#if KISS_NARROW
+  // Landed already: the flier started on the chip label (fp_fly_start).
+  (void)fw; (void)fh;
+  lv_obj_update_layout(s_fp_chip);
+  lv_anim_set_values(&a, sx, lv_obj_get_x(s_fp_chip));
   lv_anim_start(&a);
   lv_anim_set_exec_cb(&a, fly_y_cb);
-  lv_anim_set_values(&a, sy, 61 - fh / 2);
+  lv_anim_set_values(&a, sy, lv_obj_get_y(s_fp_chip));
+#else
+  lv_anim_set_values(&a, sx, SX(663) - fw / 2);   // land centered on the chip frame (663,61)
+  lv_anim_start(&a);
+  lv_anim_set_exec_cb(&a, fly_y_cb);
+  lv_anim_set_values(&a, sy, SY(61) - fh / 2);
+#endif
   lv_anim_start(&a);
   // last stretch: flier fades out...
   lv_anim_set_exec_cb(&a, anim_opa_cb);
   lv_anim_set_values(&a, 255, 0);
-  lv_anim_set_duration(&a, 200);
-  lv_anim_set_delay(&a, 140 + 400);
+  lv_anim_set_duration(&a, WT_MOTION_MS(200));
+  lv_anim_set_delay(&a, WT_MOTION_MS(140 + 400));
   lv_anim_set_path_cb(&a, lv_anim_path_linear);
   lv_anim_set_ready_cb(&a, fly_del_cb);
   lv_anim_start(&a);
@@ -1639,8 +1474,8 @@ static void fp_fly_glide(void) {
   lv_anim_set_ready_cb(&a, NULL);
   lv_anim_set_var(&a, s_fp_chip);
   lv_anim_set_values(&a, 0, 255);
-  lv_anim_set_duration(&a, 240);
-  lv_anim_set_delay(&a, 140 + 380);
+  lv_anim_set_duration(&a, WT_MOTION_MS(240));
+  lv_anim_set_delay(&a, WT_MOTION_MS(140 + 380));
   lv_anim_start(&a);
   lv_anim_set_var(&a, s_fp_cap);
   lv_anim_start(&a);
@@ -1699,19 +1534,35 @@ static void fp_fly_start(void) {
   s_fp_fly = lv_label_create(s_home);
   lv_label_set_text(s_fp_fly, s_fp_hex);      // real code first: size the label off it
   lv_obj_set_style_text_color(s_fp_fly, wt_accent(), 0);
+#if KISS_NARROW
+  // The code decrypts inside its own chip, in the chip's face and spacing, so
+  // the glide below has nowhere to go and the crossfade lands on the same
+  // pixels. Mid screen, where the wide board starts it, is the top edge of the
+  // 3.5in's tile row: the tile rims struck through the code for the whole
+  // decrypt, and there is no clear band between the tagline and the tiles
+  // that a code this size would fit in.
+  lv_obj_set_style_text_font(s_fp_fly, &font_kiss_mono23, 0);
+  lv_obj_set_style_text_letter_space(s_fp_fly, 2, 0);
+  lv_obj_update_layout(s_fp_fly);
+  lv_obj_update_layout(s_fp_chip);
+  lv_obj_set_pos(s_fp_fly, lv_obj_get_x(s_fp_chip), lv_obj_get_y(s_fp_chip));
+#else
   lv_obj_set_style_text_font(s_fp_fly, wt_font_num48(), 0);
   lv_obj_set_style_text_letter_space(s_fp_fly, 4, 0);
   lv_obj_update_layout(s_fp_fly);
   // start where the reveal card showed the code (box center 400,163 in kiss_ui.c)
-  lv_obj_set_pos(s_fp_fly, 400 - lv_obj_get_width(s_fp_fly) / 2,
-                 163 - lv_obj_get_height(s_fp_fly) / 2);
+  lv_obj_set_pos(s_fp_fly, SX(400) - lv_obj_get_width(s_fp_fly) / 2,
+                 SY(163) - lv_obj_get_height(s_fp_fly) / 2);
+#endif
   lv_obj_set_style_opa(s_fp_chip, 0, 0);      // chip appears only when the glide lands
   lv_obj_set_style_opa(s_fp_cap, 0, 0);
   lv_obj_clear_flag(s_fp_chip, LV_OBJ_FLAG_HIDDEN);
   lv_obj_clear_flag(s_fp_cap, LV_OBJ_FLAG_HIDDEN);
   s_fp_scr_step = 0;
   if (s_fp_scr_tmr) lv_timer_delete(s_fp_scr_tmr);
-  s_fp_scr_tmr = lv_timer_create(fp_scramble_cb, 45, NULL);  // ~540ms decrypt, then glide
+  // ~540ms decrypt, then glide; ~360ms on the 3.5in, whose twelve steps still
+  // each get a frame of their own at 30ms.
+  s_fp_scr_tmr = lv_timer_create(fp_scramble_cb, KISS_NARROW ? 30 : 45, NULL);
 }
 
 static void kiss_start(void);
@@ -1778,7 +1629,7 @@ static void kiss_home_restyle(void) {
     if (s_tile_ttl[i]) {
       // These objects survive a Settings language change. Refresh the font as
       // well as the text so regional CJK glyph forms switch immediately.
-      lv_obj_set_style_text_font(s_tile_ttl[i], wt_font23(), 0);
+      lv_obj_set_style_text_font(s_tile_ttl[i], tile_font(tr(TILE_TTL_STR[i])), 0);
       lv_label_set_text(s_tile_ttl[i], tr(TILE_TTL_STR[i]));
     }
   if (s_theme_cap) {
@@ -1803,17 +1654,26 @@ static void kiss_home_restyle(void) {
   }
   if (s_underline)  lv_obj_set_style_bg_color(s_underline, ac, 0);
   if (s_chip_frame) lv_obj_set_style_border_color(s_chip_frame, ac, 0);
+#if KISS_PMIC
+  if (s_batt_badge && !s_batt_low) lv_obj_set_style_text_color(s_batt_badge, ac, 0);
+#endif
   if (s_theme_dot)  lv_obj_set_style_bg_color(s_theme_dot, ac, 0);
   if (s_theme_lbl) {
     lv_label_set_text(s_theme_lbl, wt_accent_name());
     lv_obj_set_style_text_color(s_theme_lbl, lv_color_hex(0xE8EEF7), 0);
     lv_obj_update_layout(s_theme_lbl);           // right-align: long names must not
-    int tx = 760 - lv_obj_get_width(s_theme_lbl);  // leave the safe area (overscan!)
-    lv_obj_set_pos(s_theme_lbl, tx, 428);
-    if (s_theme_dot) lv_obj_set_pos(s_theme_dot, tx - 26, 430);
+    // The tag's right edge. 760 clears the corner bracket at 744..768 on the
+    // wide canvas because the bracket's own lines are its far sides; scaled,
+    // the bracket is 14 px and the word ran under its foot ("MONO too close
+    // to the bottom bracket", from the bench), so the small board ends the
+    // tag ten pixels short of the bracket's box instead.
+    const int tag_r = KISS_NARROW ? SX(744) - 10 : SX(760);
+    int tx = tag_r - lv_obj_get_width(s_theme_lbl);  // leave the safe area (overscan!)
+    lv_obj_set_pos(s_theme_lbl, tx, SY(428));
+    if (s_theme_dot) lv_obj_set_pos(s_theme_dot, tx - SX(26), SY(430));
     if (s_theme_cap) {
       lv_obj_update_layout(s_theme_cap);
-      lv_obj_set_pos(s_theme_cap, 760 - lv_obj_get_width(s_theme_cap), 406);
+      lv_obj_set_pos(s_theme_cap, tag_r - lv_obj_get_width(s_theme_cap), SY(406));
     }
   }
   for (int i = 0; i < N_MOTES; i++)
@@ -1841,9 +1701,52 @@ static void sd_badge_sync(bool present) {
   }
 }
 
+#if KISS_PMIC
+// The battery, beside the SD badge on the build line: a mark for how full it
+// is, the percent, and the USB mark while the cable is in. Hidden until the
+// power chip says a cell is fitted, which is how the board ships, so a board
+// on USB alone shows nothing new. Amber at 15% and below while nothing is
+// charging it; a signature or an update that dies half way costs a restart,
+// not keys, so it warns and does not stop anything.
+//
+// The USB mark, not a bolt: a bolt on this device reads as Lightning, which is
+// why fees wear scissors here.
+static void batt_badge_sync(void) {
+  if (!s_batt_badge) return;
+  kiss_batt_t b;
+  if (!kiss_board_batt_read(&b) || !b.present) {
+    lv_obj_add_flag(s_batt_badge, LV_OBJ_FLAG_HIDDEN);
+    return;
+  }
+  const char *mark = b.pct >= 80 ? LV_SYMBOL_BATTERY_FULL
+                   : b.pct >= 55 ? LV_SYMBOL_BATTERY_3
+                   : b.pct >= 30 ? LV_SYMBOL_BATTERY_2
+                   : b.pct >= 10 ? LV_SYMBOL_BATTERY_1
+                                 : LV_SYMBOL_BATTERY_EMPTY;
+  char txt[40];
+  snprintf(txt, sizeof txt, "%s %u%%%s", mark, (unsigned)b.pct,
+           b.usb ? "  " LV_SYMBOL_USB : "");
+  lv_label_set_text(s_batt_badge, txt);
+  s_batt_low = b.pct <= 15 && !b.usb;
+  lv_obj_set_style_text_color(s_batt_badge, s_batt_low ? WT_WARN : wt_accent(), 0);
+  // After the SD badge when it shows, where the SD badge would be when not,
+  // measured each time: the SD badge's own marks change with the card.
+  int x = s_batt_x0;
+  if (s_sd_badge && !lv_obj_has_flag(s_sd_badge, LV_OBJ_FLAG_HIDDEN)) {
+    lv_obj_update_layout(s_sd_badge);
+    x = lv_obj_get_x(s_sd_badge) + lv_obj_get_width(s_sd_badge) + SX(28);
+  }
+  lv_obj_set_pos(s_batt_badge, x, SY(420));
+  lv_obj_clear_flag(s_batt_badge, LV_OBJ_FLAG_HIDDEN);
+}
+#endif
+
 void kiss_home_refresh(void) {
   kiss_home_restyle();
   sd_badge_sync(platform_sd_probe() != 0);
+#if KISS_PMIC
+  batt_badge_sync();
+#endif
   if (!s_net_lbl) return;
   if (kiss_testnet()) {
     lv_label_set_text(s_net_lbl, kiss_net_name());   // TESTNET or SIGNET
@@ -1853,12 +1756,12 @@ void kiss_home_refresh(void) {
     // rendered label rather than a number written here.
     lv_obj_update_layout(s_net_lbl);
     const int lw = lv_obj_get_width(s_net_lbl), gap = 10;
-    const int x0 = (800 - (8 + gap + lw)) / 2;
+    const int x0 = (SCREEN_W - (8 + gap + lw)) / 2;
     if (s_net_dot) {
-      lv_obj_set_pos(s_net_dot, x0, 56);
+      lv_obj_set_pos(s_net_dot, x0, SY(56));
       lv_obj_clear_flag(s_net_dot, LV_OBJ_FLAG_HIDDEN);
     }
-    lv_obj_set_pos(s_net_lbl, x0 + 8 + gap, 52);
+    lv_obj_set_pos(s_net_lbl, x0 + SX(8) + gap, SY(52));
   } else {
     lv_obj_add_flag(s_net_lbl, LV_OBJ_FLAG_HIDDEN);
     if (s_net_dot) lv_obj_add_flag(s_net_dot, LV_OBJ_FLAG_HIDDEN);
@@ -1890,19 +1793,19 @@ static void tiles_settle(void) {
     // icon/title already said, so removing them also lets the title sit at the
     // visual centre of the label area.
     lv_obj_t *label = s_tile_ttl[i];
-    const int base = TILE_LBL_Y + 22;
+    const int base = SY(TILE_LBL_Y + 22);
     if (!label) return;
     lv_anim_delete(label, NULL);        // re-unlock mid-settle: start clean
     lv_obj_set_style_opa(label, 0, 0);
-    lv_obj_set_y(label, base - 12);
+    lv_obj_set_y(label, base - SY(12));
     lv_anim_t a;
     lv_anim_init(&a);
     lv_anim_set_var(&a, label);
-    lv_anim_set_delay(&a, 120 + i * 70);
-    lv_anim_set_duration(&a, 260);
+    lv_anim_set_delay(&a, WT_MOTION_MS(120 + i * 70));   // half on the 3.5in
+    lv_anim_set_duration(&a, WT_MOTION_MS(260));
     lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
     lv_anim_set_exec_cb(&a, fly_y_cb);
-    lv_anim_set_values(&a, base - 12, base);
+    lv_anim_set_values(&a, base - SY(12), base);
     lv_anim_start(&a);
     lv_anim_set_exec_cb(&a, anim_opa_cb);
     lv_anim_set_values(&a, 0, 255);
@@ -1911,24 +1814,24 @@ static void tiles_settle(void) {
 }
 
 static void motes_start(void) {
-  static const int mx[N_MOTES]  = {150, 260, 430, 590, 735};
+  static const int mx[N_MOTES]  = {SX(150), SX(260), SX(430), SX(590), SX(735)};
   static const int mms[N_MOTES] = {9000, 12400, 7600, 10800, 14200};
   for (int i = 0; i < N_MOTES; i++) {
     if (!s_mote[i]) return;
     lv_anim_delete(s_mote[i], NULL);
-    lv_obj_set_pos(s_mote[i], mx[i], 474);
+    lv_obj_set_pos(s_mote[i], mx[i], SY(474));
     lv_anim_t a;
     lv_anim_init(&a);
     lv_anim_set_var(&a, s_mote[i]);
     lv_anim_set_exec_cb(&a, fly_y_cb);
-    lv_anim_set_values(&a, 474, 2);
+    lv_anim_set_values(&a, SY(474), 2);
     lv_anim_set_duration(&a, mms[i]);
     lv_anim_set_delay(&a, i * 900);
     lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
     lv_anim_set_repeat_delay(&a, 500 + i * 400);
     lv_anim_start(&a);
     lv_anim_set_exec_cb(&a, anim_opa_cb);   // independent shimmer on top
-    lv_anim_set_values(&a, 30, 120);
+    lv_anim_set_values(&a, SY(30), SY(120));
     lv_anim_set_duration(&a, 2600 + i * 500);
     lv_anim_set_reverse_duration(&a, 2600 + i * 500);
     lv_anim_set_delay(&a, 0);
@@ -1942,7 +1845,7 @@ static void motes_stop(void) {
     if (!s_mote[i]) return;
     lv_anim_delete(s_mote[i], NULL);
     lv_obj_set_style_opa(s_mote[i], 0, 0);
-    lv_obj_set_y(s_mote[i], 474);           // parked in-bounds (invisible: opa 0)
+    lv_obj_set_y(s_mote[i], SY(474));           // parked in-bounds (invisible: opa 0)
   }
 }
 
@@ -2000,7 +1903,7 @@ static void kiss_lock(void) {            // back to the game cover (tap the KISS
   if (!s_home_on) return;
 #ifndef SIMULATOR
   if (camera_spike_is_on()) {              // never leave the camera running behind the game
-    camera_spike_toggle(s_home, s_i2c_bus);
+    camera_spike_toggle(s_home, kiss_board_i2c_bus());
     if (s_cam_lbl) lv_label_set_text(s_cam_lbl, camera_spike_status());
   }
 #endif
@@ -2511,11 +2414,30 @@ lv_obj_t *kiss_touch_dead_banner(lv_obj_t *parent)
   // touch panel is dead, and it is the instruction that gets the owner out of
   // that state. The chip self sizes, so nothing else moves.
   lv_obj_set_style_text_font(chip, wt_font23(), 0);
+#if KISS_NARROW
+  // The kit's 6 px sides left the last letter 7 px from the chip's edge on
+  // the 3.5in, where this sentence nearly spans the glass; 12 clears it. A
+  // translation longer than the glass wraps inside 16 px margins rather than
+  // running off both edges.
+  lv_obj_set_style_pad_hor(chip, 12, 0);
+  lv_obj_update_layout(chip);
+  const bool wrapped = lv_obj_get_width(chip) > SCREEN_W - 32;
+  if (wrapped) {
+    lv_obj_set_width(chip, SCREEN_W - 32);
+    lv_obj_set_style_text_align(chip, LV_TEXT_ALIGN_CENTER, 0);
+  }
+#endif
   lv_obj_update_layout(chip);
   // Bottom edge, not the top: the top is where the game's own title art is,
   // and the fault does not get to cover the cover story.
-  lv_obj_set_pos(chip, (SCREEN_W - lv_obj_get_width(chip)) / 2,
-                 SCREEN_H - lv_obj_get_height(chip) - 12);
+  int chip_y = SCREEN_H - lv_obj_get_height(chip) - SY(12);
+#if KISS_NARROW
+  // Two lines at the bottom edge reached up through the PLAY label (the
+  // button's top is SY(356) in menu_mock.py), so a wrapped chip sits on the
+  // island instead, 6 px above the button.
+  if (wrapped) chip_y = SY(356) - 6 - lv_obj_get_height(chip);
+#endif
+  lv_obj_set_pos(chip, (SCREEN_W - lv_obj_get_width(chip)) / 2, chip_y);
   lv_obj_move_foreground(chip);
   return chip;
 }
@@ -2591,6 +2513,28 @@ static const struct {
   { kiss_settings_active,  kiss_settings_close, true,  false, 0, false, false, NULL },
 };
 #define N_SCREENS (sizeof SCREENS / sizeof SCREENS[0])
+
+#if KISS_GAME_CATCHUP
+// The GAME_STEP_MS steps the wall clock has run since the last one taken,
+// counted against a mark that moves by whole steps, so the remainder of one
+// call is paid by the next. A call that comes early takes none: the timer
+// runs every TICK_MS, a little faster than a step. Past GAME_MAX_STEPS the
+// mark restarts at now. The mark only moves in play, so the first call of a
+// round, or the first after a screen that held the game off, finds it stale
+// and takes GAME_MAX_STEPS.
+static int game_steps_owed(void) {
+  static uint32_t s_step_at;
+  uint32_t now = lv_tick_get();
+  int steps = (int)((int32_t)(now - s_step_at) / GAME_STEP_MS);
+  if (steps < 1) return 0;
+  if (steps > GAME_MAX_STEPS) {
+    s_step_at = now;
+    return GAME_MAX_STEPS;
+  }
+  s_step_at += (uint32_t)steps * GAME_STEP_MS;
+  return steps;
+}
+#endif
 
 static void game_tick(lv_timer_t *t) {
   (void)t;
@@ -2823,7 +2767,7 @@ static void game_tick(lv_timer_t *t) {
       // drawn around them.
       lv_obj_t *card = lv_obj_create(s_lock_warn);
       lv_obj_remove_style_all(card);
-      lv_obj_set_size(card, LV_PCT(100), 56);
+      lv_obj_set_size(card, LV_PCT(100), SY(56));
       lv_obj_align(card, LV_ALIGN_TOP_MID, 0, 0);
       lv_obj_set_style_bg_color(card, WT_PANEL, 0);
       lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
@@ -2833,7 +2777,7 @@ static void game_tick(lv_timer_t *t) {
       lv_obj_set_flex_flow(card, LV_FLEX_FLOW_ROW);
       lv_obj_set_flex_align(card, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
                             LV_FLEX_ALIGN_CENTER);
-      lv_obj_set_style_pad_column(card, 12, 0);
+      lv_obj_set_style_pad_column(card, SX(12), 0);
       lv_obj_remove_flag(card, LV_OBJ_FLAG_CLICKABLE);
       lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
       lv_obj_t *mk = lv_label_create(card);          // marks before words
@@ -2851,7 +2795,7 @@ static void game_tick(lv_timer_t *t) {
     // and the only way out was pulling the power. This handler reads the same
     // touch the unlock gesture reads, so it is on a path known to work here.
     // Same top-left corner CANCEL once occupied, so nothing new has to be learned.
-    if (kiss_scan_active() && pressed && !s_prev_press && tx < 200 && ty < 110) {
+    if (kiss_scan_active() && pressed && !s_prev_press && tx < SX(200) && ty < SY(110)) {
       kiss_scan_cancel();
       s_prev_press = pressed;
       return;
@@ -2916,6 +2860,9 @@ static void game_tick(lv_timer_t *t) {
       }
       s_sd_present = present;
       sd_badge_sync(present);                        // persistent SD-storage badge
+#if KISS_PMIC
+      batt_badge_sync();                             // after it: it stands beside it
+#endif
     }
     // Gentle opacity breathe on the SD badge while the card is present, so it
     // reads as a live link to the card rather than a static label. Opacity only
@@ -2926,37 +2873,37 @@ static void game_tick(lv_timer_t *t) {
       uint32_t tri = ph < 60 ? ph : 120 - ph;        // 0..60..0
       lv_obj_set_style_opa(s_sd_badge, (lv_opa_t)(180 + tri * 75 / 60), 0);
     }
-    if (!cam_on && pressed && !s_prev_press && tx < 88 && ty < 88) {
+    if (!cam_on && pressed && !s_prev_press && tx < SX(88) && ty < SY(88)) {
       kiss_lock();
     } else if (cam_on) {
-      bool zoom_zone = (tx >= 680 || tx <= 120) && ty > 120;
+      bool zoom_zone = (tx >= SX(680) || tx <= SX(120)) && ty > SY(120);
       if (pressed && (s_zoom_drag || zoom_zone)) {            // edge drag = zoom
         if (!s_prev_press) { s_zoom_anchor = ty; s_zoom_drag = true; }
         else if (s_zoom_drag) {
-          while (s_zoom_anchor - ty >= 60) { camera_spike_zoom(+1); s_zoom_anchor -= 60; }
-          while (ty - s_zoom_anchor >= 60) { camera_spike_zoom(-1); s_zoom_anchor += 60; }
+          while (s_zoom_anchor - ty >= SY(60)) { camera_spike_zoom(+1); s_zoom_anchor -= SY(60); }
+          while (ty - s_zoom_anchor >= SY(60)) { camera_spike_zoom(-1); s_zoom_anchor += SY(60); }
         }
-      } else if (pressed && !s_prev_press && ty < 110) {
-        if (tx < 200) {                                       // top-left: close camera
-          camera_spike_toggle(s_home, s_i2c_bus);
+      } else if (pressed && !s_prev_press && ty < SY(110)) {
+        if (tx < SX(200)) {                                       // top-left: close camera
+          camera_spike_toggle(s_home, kiss_board_i2c_bus());
           if (s_cam_lbl) lv_label_set_text(s_cam_lbl, "");    // don't leave dev status on home
-        } else if (tx >= 600) {                               // top-right: orientation
+        } else if (tx >= SX(600)) {                               // top-right: orientation
           camera_spike_cycle_orientation();
         }
       }
-    } else if (pressed && !s_prev_press && tx >= 566 && ty < 110) {
+    } else if (pressed && !s_prev_press && tx >= HOME_CHIP_HIT_X && ty < SY(110)) {
       s_fp_pend = true;                  // fingerprint chip: open the card on release
     } else if (pressed && !s_prev_press &&
-               tx >= 40 && tx <= 220 && ty >= 140 && ty <= 340) {  // Sign tile
+               TILE_HIT(0, 40, 220) && ty >= SY(140) && ty <= SY(340)) {  // Sign tile
       s_tile_pend = 1;
     } else if (pressed && !s_prev_press &&
-               tx >= 230 && tx <= 390 && ty >= 140 && ty <= 340) { // Receive tile
+               TILE_HIT(1, 230, 390) && ty >= SY(140) && ty <= SY(340)) { // Receive tile
       s_tile_pend = 2;
     } else if (pressed && !s_prev_press &&
-               tx >= 410 && tx <= 570 && ty >= 140 && ty <= 340) { // Keys tile: export
+               TILE_HIT(2, 410, 570) && ty >= SY(140) && ty <= SY(340)) { // Keys tile: export
       s_tile_pend = 3;
     } else if (pressed && !s_prev_press &&
-               tx >= 590 && tx <= 750 && ty >= 140 && ty <= 340) { // Settings tile
+               TILE_HIT(3, 590, 750) && ty >= SY(140) && ty <= SY(340)) { // Settings tile
       s_tile_pend = 4;
     } else if (!pressed && s_prev_press && s_fp_pend) {           // finger lifted: card
       s_fp_pend = false;
@@ -2971,16 +2918,16 @@ static void game_tick(lv_timer_t *t) {
     }
     if (!pressed) s_zoom_drag = false;
 #else
-    if (pressed && !s_prev_press && tx < 88 && ty < 88) kiss_lock();
-    else if (pressed && !s_prev_press && tx >= 566 && ty < 110)
+    if (pressed && !s_prev_press && tx < SX(88) && ty < SY(88)) kiss_lock();
+    else if (pressed && !s_prev_press && tx >= HOME_CHIP_HIT_X && ty < SY(110))
       s_fp_pend = true;                  // fingerprint chip: open the card on release
-    else if (pressed && !s_prev_press && tx >= 40 && tx <= 220 && ty >= 140 && ty <= 340)
+    else if (pressed && !s_prev_press && TILE_HIT(0, 40, 220) && ty >= SY(140) && ty <= SY(340))
       s_tile_pend = 1;
-    else if (pressed && !s_prev_press && tx >= 230 && tx <= 390 && ty >= 140 && ty <= 340)
+    else if (pressed && !s_prev_press && TILE_HIT(1, 230, 390) && ty >= SY(140) && ty <= SY(340))
       s_tile_pend = 2;
-    else if (pressed && !s_prev_press && tx >= 410 && tx <= 570 && ty >= 140 && ty <= 340)
+    else if (pressed && !s_prev_press && TILE_HIT(2, 410, 570) && ty >= SY(140) && ty <= SY(340))
       s_tile_pend = 3;
-    else if (pressed && !s_prev_press && tx >= 590 && tx <= 750 && ty >= 140 && ty <= 340)
+    else if (pressed && !s_prev_press && TILE_HIT(3, 590, 750) && ty >= SY(140) && ty <= SY(340))
       s_tile_pend = 4;
     else if (!pressed && s_prev_press && s_fp_pend) {
       s_fp_pend = false;
@@ -3021,7 +2968,7 @@ static void game_tick(lv_timer_t *t) {
             int mx = -9999;                             // starts well LEFT of how far right we'd
             for (int i = 0; i < s_gn; i++)              // reached: KISS is drawn L->R, so only a
               if (s_gpt[i].x > mx) mx = s_gpt[i].x;     // RESTART (a fresh K) begins far to the left.
-            if (tx < mx - 160) { s_gn = 0; s_strokes = 0; }  // -> no points bleeding between tries
+            if (tx < mx - SX(160)) { s_gn = 0; s_strokes = 0; }  // -> no points bleeding between tries
           }
           s_stroke_n0 = s_gn; s_strokes++;
         }
@@ -3030,10 +2977,12 @@ static void game_tick(lv_timer_t *t) {
         // slow, careful draw fills the buffer in ~2.5s and the trailing letters
         // are silently dropped -- the classic "I drew KISS perfectly and nothing
         // happened" failure. Decimation bounds points by ink length, not time.
+        // The 10px is the wide canvas's; a smaller board keeps the same ink
+        // fraction, or its letters lose the samples the recogniser counts.
         if (s_gn < GEST_MAX &&
             (s_gn == s_stroke_n0 ||
-             LV_ABS(tx - s_gpt[s_gn - 1].x) >= 10 ||
-             LV_ABS(ty - s_gpt[s_gn - 1].y) >= 10)) {
+             LV_ABS(tx - s_gpt[s_gn - 1].x) >= SX(10) ||
+             LV_ABS(ty - s_gpt[s_gn - 1].y) >= SY(10))) {
           s_gpt[s_gn].x = tx; s_gpt[s_gn].y = ty;
           s_gid[s_gn] = (uint8_t)s_strokes; s_gn++;
         }
@@ -3051,11 +3000,30 @@ static void game_tick(lv_timer_t *t) {
             if (s_gpt[i].y < y0) y0 = s_gpt[i].y;
             if (s_gpt[i].y > y1) y1 = s_gpt[i].y;
           }
-          bool tap = (s_stroke_n0 == 0 && x1 - x0 < 22 && y1 - y0 < 22);
+          // A finger that rolls under TAP_BOX pixels is a tap. The box is a
+          // physical size, a couple of millimetres of skin, and the small
+          // board's glass has FEWER pixels per millimetre than the wide one
+          // (about 6.5 against 8.4), so the wide number already covers the
+          // same roll there and it does not scale. Scaled with the canvas it
+          // read 13 px, a quarter tighter in millimetres than the wide board,
+          // and the first flash of this layout came back with the game-over
+          // buttons dead to taps. A stroke that short means nothing to any
+          // recogniser (the smallest mark is SX(80)), so nothing is lost.
+          bool tap = (s_stroke_n0 == 0 && x1 - x0 < TAP_BOX && y1 - y0 < TAP_BOX);
+#ifndef SIMULATOR
+          // The first lifts after boot, so a dead button can be read off the
+          // serial log as "stroke" against "tap" without a second flash.
+          static int lifts_logged;
+          if (lifts_logged < 16) {
+            lifts_logged++;
+            ESP_LOGI(TAG, "gesture: lift, %d point(s), box %dx%d, %s", s_gn - s_stroke_n0,
+                     x1 - x0, y1 - y0, tap ? "tap" : "stroke");
+          }
+#endif
           if (tap && s_state == ST_OVER) {
             // baked buttons (coords from gameover_mock.py, padded): PLAY AGAIN
             // restarts; the MENU button -- and any stray tap -- returns to the menu
-            if (x1 >= 220 && x1 <= 580 && y1 >= 356 && y1 <= 458) start_game();
+            if (x1 >= SX(220) && x1 <= SX(580) && y1 >= SY(356) && y1 <= SY(458)) start_game();
             else go_menu();
             s_gn = 0; s_strokes = 0;
           } else if (tap) {
@@ -3098,6 +3066,9 @@ static void game_tick(lv_timer_t *t) {
     return;
   }
   s_idle_ms = 0;
+#if KISS_GAME_CATCHUP
+  const int steps = game_steps_owed();
+#endif
   // The banner lands when the combo ENDS, so a four-fruit swipe reads as one
   // "4 FRUIT +6" instead of four racing +1s.
   if (s_combo_n >= 2 && lv_tick_elaps(s_combo_t) > COMBO_MS) {
@@ -3107,22 +3078,47 @@ static void game_tick(lv_timer_t *t) {
     lv_label_set_text_fmt(s_score_lbl, "%d", s_score);
     char b[28];
     snprintf(b, sizeof b, "%d FRUIT  +%d", s_combo_n, bonus);
-    score_popup((int)s_combo_x - 60, (int)s_combo_y - 30, b, 0xFFD23A);
+    score_popup((int)s_combo_x - SX(60), (int)s_combo_y - SY(30), b, 0xFFD23A);
     s_combo_n = 0;
   }
   if (s_frenzy_ms > 0) {
+#if KISS_GAME_CATCHUP
+    const uint32_t spent = (uint32_t)steps * GAME_STEP_MS;   // frenzy is wall clock
+    s_frenzy_ms = (s_frenzy_ms > spent) ? s_frenzy_ms - spent : 0;
+#else
     s_frenzy_ms = (s_frenzy_ms > TICK_MS) ? s_frenzy_ms - TICK_MS : 0;
+#endif
   }
+#if KISS_BLADE_LANDING
+  if (pressed && !s_prev_press) blade_land();   // ahead of update_blade's point
+#endif
   s_prev_press = pressed;
 
+#if KISS_GAME_CATCHUP
+  // One touch sample, several steps: the blade walks from the trail's newest
+  // point to this sample a step at a time, so the trail still holds one point
+  // per step, which is the spacing check_slices sweeps the fruit back along.
+  // On a new press the newest point is where the finger landed (blade_land
+  // above has just cleared the old stroke), so the walk starts there.
+#if !KISS_BLADE_LANDING
+#error "the catch-up's walk starts at the landing point: see blade_land"
+#endif
+  const bool sweep = pressed && s_trail_count > 0;
+  const int x0 = sweep ? (int)s_trail[s_trail_count - 1].x : tx;
+  const int y0 = sweep ? (int)s_trail[s_trail_count - 1].y : ty;
+  for (int k = 1; k <= steps && s_state == ST_PLAY; k++) {
+    update_blade(x0 + (tx - x0) * k / steps, y0 + (ty - y0) * k / steps, pressed);
+    check_slices(pressed);
+#else
   update_blade(tx, ty, pressed);
   check_slices(pressed);
+#endif
 
   float fg = fruit_gravity(diff_progress());   // one read, not one per entity
   for (int i = 0; i < MAX_ENT; i++) {
     ent_t *e = &s_ent[i];
     if (!e->active) continue;
-    e->vy += (e->kind == K_FRUIT) ? fg : GRAVITY * 1.7f;  // debris falls faster -> clears the play area sooner
+    e->vy += (e->kind == K_FRUIT) ? fg : THROW_Y(GRAVITY * 1.7f);  // debris falls faster -> clears the play area sooner
     if (e->av != 0.0f) {
       e->rot += e->av;
       if (e->rot >= 360.0f) e->rot -= 360.0f;
@@ -3130,7 +3126,9 @@ static void game_tick(lv_timer_t *t) {
     }
     e->x += e->vx;
     e->y += e->vy;
+#if !KISS_GAME_CATCHUP
     place(e);
+#endif
     bool gone = e->y > SCREEN_H + e->size + 8;
     // debris (halves/juice) is also culled off the sides/top so it never lingers in front of new fruit
     if (e->kind != K_FRUIT)
@@ -3142,6 +3140,14 @@ static void game_tick(lv_timer_t *t) {
       e->active = false;
     }
   }
+#if KISS_GAME_CATCHUP
+  }
+  // The objects move once, to where the last step left them: one box each
+  // per call, as on the boards that take one step.
+  blade_show();
+  for (int i = 0; i < MAX_ENT; i++)
+    if (s_ent[i].active) place(&s_ent[i]);
+#endif
 }
 
 // A fixed period throwing one or two random fruit is a drizzle. The real game
@@ -3191,25 +3197,25 @@ static void spawn_tick(lv_timer_t *t) {
     case WV_ARC: {                             // thrown left to right
       for (int i = 0; i < 3; i++)
         spawn_fruit_at(pick_fruit(), false,
-                       140.0f + i * ((SCREEN_W - 280.0f) / 2.0f),
+                       THROW_X(140.0f) + i * ((SCREEN_W - THROW_X(280.0f)) / 2.0f),
                        (i - 1) * 1.4f, vy0 - i * 0.8f);
       n = 3;
     } break;
     case WV_FOUNTAIN: {                        // one point, fanning out
-      float x = rnd_range(180, SCREEN_W - 180);
+      float x = rnd_range(THROW_X(180), SCREEN_W - THROW_X(180));
       for (int i = 0; i < 3; i++)
         spawn_fruit_at(pick_fruit(), false, x, (i - 1) * 3.2f, vy0 - i * 1.2f);
       n = 3;
     } break;
     case WV_PINCER: {                          // opposite sides, crossing
-      spawn_fruit_at(pick_fruit(), false, 110, 2.6f, vy0);
-      spawn_fruit_at(pick_fruit(), false, SCREEN_W - 110, -2.6f, vy0 - 0.6f);
+      spawn_fruit_at(pick_fruit(), false, THROW_X(110), 2.6f, vy0);
+      spawn_fruit_at(pick_fruit(), false, SCREEN_W - THROW_X(110), -2.6f, vy0 - 0.6f);
       n = 2;
     } break;
     case WV_BIG: {
       for (int i = 0; i < 5; i++)
         spawn_fruit_at(pick_fruit(), false,
-                       90.0f + i * ((SCREEN_W - 180.0f) / 4.0f),
+                       THROW_X(90.0f) + i * ((SCREEN_W - THROW_X(180.0f)) / 4.0f),
                        (i - 2) * 1.1f, vy0 - (i % 2) * 1.6f);
       n = 5;
       s_wave_rest = 1;
@@ -3276,10 +3282,10 @@ static void storage_locked_screen(lv_obj_t *root,
   lv_obj_t *page = wt_screen(root, "STORAGE LOCKED",
                              "NON-DESTRUCTIVE SAFE MODE");
   lv_obj_set_style_text_color(wt_screen_title(page), WT_STOP, 0);
-  lv_obj_t *body = wt_wraph(page, BODY, 48, 116, 704, 236);
+  lv_obj_t *body = wt_wraph(page, BODY, SX(48), SY(116), SX(704), SY(236));
   lv_obj_set_style_text_color(body, WT_INK, 0);
-  lv_obj_t *code = wt_lbl(page, cause, 48, 398, wt_font14(), WT_WARN);
-  lv_obj_set_width(code, 704);
+  lv_obj_t *code = wt_lbl(page, cause, SX(48), SY(398), wt_font14(), WT_WARN);
+  lv_obj_set_width(code, SX(704));
   lv_label_set_long_mode(code, LV_LABEL_LONG_WRAP);
 }
 
@@ -3340,14 +3346,14 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   s_score_lbl = lv_label_create(scr);
   lv_label_set_text(s_score_lbl, "0");
   lv_obj_set_style_text_color(s_score_lbl, lv_color_hex(0xF6D157), LV_PART_MAIN);  // gold
-  lv_obj_set_style_text_font(s_score_lbl, &lv_font_montserrat_40, LV_PART_MAIN);
-  lv_obj_align(s_score_lbl, LV_ALIGN_TOP_LEFT, 22, 40);  // below top overscan, level with hearts
+  lv_obj_set_style_text_font(s_score_lbl, HUD_SCORE_FONT, LV_PART_MAIN);
+  lv_obj_align(s_score_lbl, LV_ALIGN_TOP_LEFT, SX(22), SY(40));  // below top overscan, level with hearts
   lv_obj_add_flag(s_score_lbl, LV_OBJ_FLAG_HIDDEN);
 
   for (int i = 0; i < 3; i++) {
     s_hearts[i] = lv_image_create(scr);
     lv_image_set_src(s_hearts[i], &img_heart);
-    lv_obj_align(s_hearts[i], LV_ALIGN_TOP_RIGHT, -64 - (2 - i) * 44, 50);  // padded sprite + below overscan band
+    lv_obj_align(s_hearts[i], LV_ALIGN_TOP_RIGHT, -SX(64) - (2 - i) * SX(44), SY(50));  // padded sprite + below overscan band
     lv_obj_add_flag(s_hearts[i], LV_OBJ_FLAG_HIDDEN);
   }
 
@@ -3390,18 +3396,18 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   s_over_lbl = lv_label_create(s_over_panel);  // big score number (on the card)
   lv_label_set_text(s_over_lbl, "0");
   lv_obj_set_style_text_color(s_over_lbl, lv_color_hex(0xFFFFFF), 0);
-  lv_obj_set_style_text_font(s_over_lbl, &lv_font_montserrat_48, 0);
-  lv_obj_align(s_over_lbl, LV_ALIGN_TOP_MID, 0, 240);
+  lv_obj_set_style_text_font(s_over_lbl, OVER_NUM_FONT, 0);
+  lv_obj_align(s_over_lbl, LV_ALIGN_TOP_MID, 0, OVER_NUM_Y);
 
   s_best_lbl = lv_label_create(s_over_panel);  // BEST n
   lv_label_set_text(s_best_lbl, "BEST  0");
   lv_obj_set_style_text_color(s_best_lbl, lv_color_hex(0xECC878), 0);
   lv_obj_set_style_text_font(s_best_lbl, &lv_font_montserrat_28, 0);
-  lv_obj_align(s_best_lbl, LV_ALIGN_TOP_MID, 0, 316);
+  lv_obj_align(s_best_lbl, LV_ALIGN_TOP_MID, 0, OVER_BEST_Y);
 
   s_newbest = lv_image_create(s_over_panel);  // NEW BEST! ribbon (shown when beaten)
   lv_image_set_src(s_newbest, &img_newbest);
-  lv_obj_align(s_newbest, LV_ALIGN_TOP_MID, 0, 128);
+  lv_obj_align(s_newbest, LV_ALIGN_TOP_MID, 0, OVER_RIBBON_Y);
   lv_obj_add_flag(s_newbest, LV_OBJ_FLAG_HIDDEN);
 
 
@@ -3442,27 +3448,27 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   for (int i = 0; i < 4; i++) {
     lv_obj_t *c = lv_obj_create(s_home);
     lv_obj_remove_style_all(c);
-    lv_obj_set_pos(c, 50 + i * 180, 150);
-    lv_obj_set_size(c, 161, 183);
-    lv_obj_set_style_radius(c, 12, 0);
+    lv_obj_set_pos(c, HOME_TILE_X(i), SY(150));
+    lv_obj_set_size(c, HOME_TILE_W, SY(183));
+    lv_obj_set_style_radius(c, SX(12), 0);
     lv_obj_set_style_border_width(c, 2, 0);
     lv_obj_set_style_bg_opa(c, 26, 0);              // glass wash; icons stay readable
-    lv_obj_set_style_shadow_width(c, 18, 0);        // the baked art's neon glow, live
+    lv_obj_set_style_shadow_width(c, SX(18), 0);        // the baked art's neon glow, live
     lv_obj_set_style_shadow_opa(c, 70, 0);
     lv_obj_remove_flag(c, LV_OBJ_FLAG_CLICKABLE);
     s_card_frame[i] = c;
   }
   static const struct { int x, y; lv_border_side_t side; } CORN[4] = {
-    {24, 24, LV_BORDER_SIDE_LEFT | LV_BORDER_SIDE_TOP},
-    {744, 24, LV_BORDER_SIDE_RIGHT | LV_BORDER_SIDE_TOP},
-    {24, 424, LV_BORDER_SIDE_LEFT | LV_BORDER_SIDE_BOTTOM},
-    {744, 424, LV_BORDER_SIDE_RIGHT | LV_BORDER_SIDE_BOTTOM},
+    {SX(24), SY(24), LV_BORDER_SIDE_LEFT | LV_BORDER_SIDE_TOP},
+    {SX(744), SY(24), LV_BORDER_SIDE_RIGHT | LV_BORDER_SIDE_TOP},
+    {SX(24), SY(424), LV_BORDER_SIDE_LEFT | LV_BORDER_SIDE_BOTTOM},
+    {SX(744), SY(424), LV_BORDER_SIDE_RIGHT | LV_BORDER_SIDE_BOTTOM},
   };
   for (int i = 0; i < 4; i++) {
     lv_obj_t *c = lv_obj_create(s_home);
     lv_obj_remove_style_all(c);
     lv_obj_set_pos(c, CORN[i].x, CORN[i].y);
-    lv_obj_set_size(c, 32, 32);
+    lv_obj_set_size(c, SX(32), SX(32));
     lv_obj_set_style_border_width(c, 3, 0);
     lv_obj_set_style_border_side(c, CORN[i].side, 0);
     lv_obj_remove_flag(c, LV_OBJ_FLAG_CLICKABLE);
@@ -3470,32 +3476,47 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   }
   s_underline = lv_obj_create(s_home);
   lv_obj_remove_style_all(s_underline);
-  lv_obj_set_pos(s_underline, 46, 94);
-  lv_obj_set_size(s_underline, 143, 3);
+#if KISS_NARROW
+  // Two rows under the scaled 62, where the rule sat 2 px below the KISS
+  // letters and 3 px above the tagline. kiss_mock.py lifts the word two rows
+  // and drops the tagline four, so the rule keeps 6 px from each.
+  lv_obj_set_pos(s_underline, SX(46), 64);
+#else
+  lv_obj_set_pos(s_underline, SX(46), SY(94));
+#endif
+  lv_obj_set_size(s_underline, SX(143), 3);
   lv_obj_set_style_bg_opa(s_underline, LV_OPA_COVER, 0);
   s_chip_frame = lv_obj_create(s_home);
   lv_obj_remove_style_all(s_chip_frame);
-  lv_obj_set_pos(s_chip_frame, 566, 40);
-  lv_obj_set_size(s_chip_frame, 195, 47);
-  lv_obj_set_style_radius(s_chip_frame, 10, 0);
+#if KISS_NARROW
+  // Wider and a little taller than three fifths of the wide chip: the code
+  // inside is set at 23 px here, not scaled down with the box (the bench
+  // called the scaled one tiny).
+  lv_obj_set_pos(s_chip_frame, HOME_CHIP_X, HOME_CHIP_Y);
+  lv_obj_set_size(s_chip_frame, HOME_CHIP_W, HOME_CHIP_H);
+#else
+  lv_obj_set_pos(s_chip_frame, SX(566), SY(40));
+  lv_obj_set_size(s_chip_frame, SX(195), SY(47));
+#endif
+  lv_obj_set_style_radius(s_chip_frame, SX(10), 0);
   lv_obj_set_style_border_width(s_chip_frame, 2, 0);
   lv_obj_remove_flag(s_chip_frame, LV_OBJ_FLAG_CLICKABLE);
   // live theme tag, bottom-right (replaces the baked dot that always lied MONO)
   s_theme_dot = lv_obj_create(s_home);
   lv_obj_remove_style_all(s_theme_dot);
-  lv_obj_set_pos(s_theme_dot, 676, 426);
-  lv_obj_set_size(s_theme_dot, 16, 16);
-  lv_obj_set_style_radius(s_theme_dot, 8, 0);
+  lv_obj_set_pos(s_theme_dot, SX(676), SY(426));
+  lv_obj_set_size(s_theme_dot, SX(16), SX(16));
+  lv_obj_set_style_radius(s_theme_dot, SX(8), 0);
   lv_obj_set_style_bg_opa(s_theme_dot, LV_OPA_COVER, 0);
   s_theme_cap = lv_label_create(s_home);
   lv_label_set_text(s_theme_cap, tr(STR_H_THEME));
   lv_obj_set_style_text_color(s_theme_cap, lv_color_hex(0x7A869C), 0);
   lv_obj_set_style_text_font(s_theme_cap, wt_font14(), 0);
-  lv_obj_set_pos(s_theme_cap, 704, 408);
+  lv_obj_set_pos(s_theme_cap, SX(704), SY(408));
   s_theme_lbl = lv_label_create(s_home);
   lv_obj_set_style_text_font(s_theme_lbl, wt_font14(), 0);
   lv_obj_set_style_text_letter_space(s_theme_lbl, 1, 0);
-  lv_obj_set_pos(s_theme_lbl, 704, 428);
+  lv_obj_set_pos(s_theme_lbl, SX(704), SY(428));
 
   // Fingerprint chip (top-right) — the baked art leaves this area BLANK (dynamic
   // content); live labels own it. Coords from assets/generators/kiss_mock.py.
@@ -3503,20 +3524,24 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   s_fp_chip = lv_label_create(s_home);
   lv_label_set_text(s_fp_chip, s_fp_hex);
   lv_obj_set_style_text_color(s_fp_chip, wt_accent(), 0);
+#if KISS_NARROW
+  lv_obj_set_style_text_font(s_fp_chip, &font_kiss_mono23, 0);  // fills the wider chip
+#else
   lv_obj_set_style_text_font(s_fp_chip, wt_font_mono28(), 0);   // fills the chip frame
+#endif
   lv_obj_set_style_text_letter_space(s_fp_chip, 2, 0);
 
   s_fp_cap = lv_label_create(s_home);
   lv_label_set_text(s_fp_cap, tr(STR_H_FINGERPRINT));
   lv_obj_set_style_text_color(s_fp_cap, lv_color_hex(0x7A869C), 0);   // muted, like the mock
-  lv_obj_set_style_text_font(s_fp_cap, wt_font14(), 0);
+  lv_obj_set_style_text_font(s_fp_cap, KISS_NARROW ? wt_font28() : wt_font14(), 0);
   fp_chip_place();
 
   s_cam_lbl = lv_label_create(s_home);         // bottom-center status/error slot: blank
   lv_label_set_text(s_cam_lbl, "");              // until something (camera/error) fills it.
   lv_obj_set_style_text_color(s_cam_lbl, lv_color_hex(0x7A869C), 0);  // baked art leaves this
   lv_obj_set_style_text_font(s_cam_lbl, wt_font14(), 0);   // bottom gap free
-  lv_obj_align(s_cam_lbl, LV_ALIGN_BOTTOM_MID, 0, -14);
+  lv_obj_align(s_cam_lbl, LV_ALIGN_BOTTOM_MID, 0, -SY(14));
 
   // Persistent storage badge, on the SAME LINE as the build identity and to the
   // right of it. It appears ONLY when these keys live on the SD card, so the
@@ -3540,6 +3565,14 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   lv_label_set_text(s_sd_badge, "");
   lv_obj_set_style_text_font(s_sd_badge, wt_font14(), 0);
   lv_obj_add_flag(s_sd_badge, LV_OBJ_FLAG_HIDDEN);
+#if KISS_PMIC
+  // The battery: a figure the owner reads, so the build line's font23 rather
+  // than the SD badge's marks at font14. batt_badge_sync places and shows it.
+  s_batt_badge = lv_label_create(s_home);
+  lv_label_set_text(s_batt_badge, "");
+  lv_obj_set_style_text_font(s_batt_badge, wt_font23(), 0);
+  lv_obj_add_flag(s_batt_badge, LV_OBJ_FLAG_HIDDEN);
+#endif
 
   // The test network, top centre between the baked "KISS" logo and the
   // fingerprint. A DOT AND A WORD, not a pill: the lozenge was the only
@@ -3554,12 +3587,12 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   // clean, and kept in sync by kiss_home_refresh().
   s_net_dot = lv_obj_create(s_home);
   lv_obj_remove_style_all(s_net_dot);
-  lv_obj_set_size(s_net_dot, 8, 8);
-  lv_obj_set_style_radius(s_net_dot, 4, 0);
+  lv_obj_set_size(s_net_dot, SX(8), SX(8));
+  lv_obj_set_style_radius(s_net_dot, SX(4), 0);
   lv_obj_set_style_bg_color(s_net_dot, WT_WARN, 0);
   lv_obj_set_style_bg_opa(s_net_dot, LV_OPA_COVER, 0);
   lv_obj_set_style_shadow_color(s_net_dot, WT_WARN, 0);
-  lv_obj_set_style_shadow_width(s_net_dot, 10, 0);
+  lv_obj_set_style_shadow_width(s_net_dot, SX(10), 0);
   lv_obj_set_style_shadow_opa(s_net_dot, 140, 0);
   lv_obj_remove_flag(s_net_dot, LV_OBJ_FLAG_CLICKABLE);
   wt_dot_breathe(s_net_dot, 8, 3, false);
@@ -3590,9 +3623,19 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   //
   // 420 rather than 424: font23 is a taller line box than the font14 this
   // corner used to draw, and the band's own top is what it must stay clear of.
-  s_home_build_id = kiss_build_id_make_at(s_home, 48, 420, false, false, false);
+#if KISS_NARROW
+  // Inside the corner bracket, not under it: scaled, 48 is 28 px and the
+  // bracket's box runs 14..33, so the warning mark sat on its foot.
+  s_home_build_id = kiss_build_id_make_at(s_home, SX(24) + SX(32) + 10, SY(420),
+                                          false, false, false);
+#else
+  s_home_build_id = kiss_build_id_make_at(s_home, SX(48), SY(420), false, false, false);
+#endif
   // Now the row has a measured width, the badge can stand clear of it.
-  lv_obj_set_pos(s_sd_badge, kiss_build_id_right() + 28, 424);
+  lv_obj_set_pos(s_sd_badge, kiss_build_id_right() + SX(28), SY(424));
+#if KISS_PMIC
+  s_batt_x0 = kiss_build_id_right() + SX(28);
+#endif
 
   // NOTHING here says how to reach the other signer.
   //
@@ -3616,11 +3659,11 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   for (int i = 0; i < 4; i++) {
     s_tile_ttl[i] = lv_label_create(s_home);
     lv_label_set_text(s_tile_ttl[i], tr(TILE_TTL_STR[i]));
-    lv_obj_set_style_text_font(s_tile_ttl[i], wt_font23(), 0);
+    lv_obj_set_style_text_font(s_tile_ttl[i], tile_font(tr(TILE_TTL_STR[i])), 0);
     lv_obj_set_style_text_color(s_tile_ttl[i], lv_color_hex(0xE8EEF7), 0);
     lv_obj_set_style_text_align(s_tile_ttl[i], LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(s_tile_ttl[i], 160);
-    lv_obj_set_pos(s_tile_ttl[i], 50 + i * 180, TILE_LBL_Y + 22);
+    lv_obj_set_width(s_tile_ttl[i], HOME_TILE_LW);
+    lv_obj_set_pos(s_tile_ttl[i], HOME_TILE_X(i), SY(TILE_LBL_Y + 22));
   }
 
   kiss_home_restyle();
@@ -3630,12 +3673,12 @@ void build_game(void) {  // non-static: the simulator harness calls this too
     s_mote[i] = lv_obj_create(s_home);
     lv_obj_remove_style_all(s_mote[i]);
     lv_obj_clear_flag(s_mote[i], LV_OBJ_FLAG_CLICKABLE);   // must never eat a tap
-    lv_obj_set_size(s_mote[i], 4, 4);
+    lv_obj_set_size(s_mote[i], SX(4), SX(4));
     lv_obj_set_style_radius(s_mote[i], 2, 0);
     lv_obj_set_style_bg_color(s_mote[i], wt_accent(), 0);
     lv_obj_set_style_bg_opa(s_mote[i], LV_OPA_COVER, 0);
     lv_obj_set_style_opa(s_mote[i], 0, 0);
-    lv_obj_set_pos(s_mote[i], 0, 474);
+    lv_obj_set_pos(s_mote[i], 0, SY(474));
     // A mote rises the full height of the screen, so at some tick it is always
     // sitting below WT_CONTENT_BOTTOM -- which is content crossing the line as
     // far as the screen-walk gate can tell, and is nothing at all as far as a
@@ -3661,10 +3704,10 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   lv_obj_set_style_text_font(s_saver_hint, &lv_font_montserrat_28, 0);
   lv_obj_set_style_bg_color(s_saver_hint, lv_color_hex(0x10131C), 0);
   lv_obj_set_style_bg_opa(s_saver_hint, 110, 0);            // subtle dark backing so it reads on any backdrop
-  lv_obj_set_style_pad_hor(s_saver_hint, 24, 0);
-  lv_obj_set_style_pad_ver(s_saver_hint, 11, 0);
-  lv_obj_set_style_radius(s_saver_hint, 4, 0);   // a bubble is a pill too
-  lv_obj_align(s_saver_hint, LV_ALIGN_BOTTOM_MID, 0, -64);
+  lv_obj_set_style_pad_hor(s_saver_hint, SX(24), 0);
+  lv_obj_set_style_pad_ver(s_saver_hint, SY(11), 0);
+  lv_obj_set_style_radius(s_saver_hint, SX(4), 0);   // a bubble is a pill too
+  lv_obj_align(s_saver_hint, LV_ALIGN_BOTTOM_MID, 0, -SY(64));
   lv_obj_add_flag(s_saver_hint, LV_OBJ_FLAG_HIDDEN);
   // The pulse starts with the saver and dies with it (saver_hint_pulse /
   // saver_hide). It used to start HERE, once, at REPEAT_INFINITE -- so it ran
@@ -3677,27 +3720,9 @@ void build_game(void) {  // non-static: the simulator harness calls this too
 }
 
 #ifndef SIMULATOR
-// device touch: read the GT911 controller
-bool platform_read_touch(int *x, int *y) {
-  if (!s_touch) return false;
-  esp_lcd_touch_read_data(s_touch);
-  // esp_lcd_touch_get_coordinates is deprecated (removed in component v2.0.0);
-  // esp_lcd_touch_get_data returns the same points in a struct array.
-  esp_lcd_touch_point_data_t pt[1];
-  uint8_t cnt = 0;
-  if (esp_lcd_touch_get_data(s_touch, pt, &cnt, 1) == ESP_OK && cnt > 0) {
-    // raw GT911 is portrait (x:0..479, y:0..799); map to the logical 800x480 landscape.
-    // Must match the 90deg mapping in rot_flush. Flip if it feels mirrored.
-    *x = pt[0].y;
-    *y = (LCD_H_RES - 1) - pt[0].x;
-    return true;
-  }
-  return false;
-}
-
 void app_main(void) {
-  radio_hold_in_reset();   // before anything else: smallest window for the C6
-  log_board_info();
+  kiss_board_radio_hold();   // before anything else: smallest window for the C6
+  kiss_board_log_info();
 #ifndef KISS_RELEASE
   {  // step 1 of the signer build order: prove the crypto stack (libwally)
     uint8_t fp[4];
@@ -3731,19 +3756,29 @@ void app_main(void) {
   // check in the tree that can see a derivation running in software -- no
   // desktop gate compiles the accelerator at all. See kiss_cryptobench.h.
   kiss_cryptobench_run();
-  display_start();
-  backlight_on();
-  touch_start();
+  kiss_board_display_start();
+  kiss_board_backlight_on();
+  kiss_board_touch_start();
+  // The controller's only reader, on its own 100 Hz clock. Before build_game,
+  // because the first LVGL pass already polls the seam, and the point of it is
+  // that the seam stops being polled on the repaint's clock.
+  kiss_touch_start();
   // After the display, because switching the entropy source on reconfigures
   // ADC1 and the analog i2c clock, and the panel's LDO comes up through the
   // same analog block. Nothing needs randomness before a screen exists, so
   // this costs nothing and keeps boot order boring.
   kiss_trng_start();
   build_game();
+#if KISS_PANEL_SPI
+  ESP_LOGI(TAG, "fruit game running (landscape, turned in the panel)");
+#elif KISS_PANEL_SWROT
   ESP_LOGI(TAG, "fruit game running (landscape, manual rotated flush)");
+#else
+  ESP_LOGI(TAG, "fruit game running (landscape, native panel)");
+#endif
   // The one symptom of the GT911 not coming up is a device that ignores you;
   // say it instead. s_menu_panel exists as of build_game.
-  if (!s_touch) kiss_touch_dead_banner(s_menu_panel);
+  if (!kiss_board_touch_ok()) kiss_touch_dead_banner(s_menu_panel);
 
   // Release the slot that was running before an SD update, now that this
   // firmware has proved the parts a bad image would take out: the crypto
@@ -3782,12 +3817,12 @@ void app_main(void) {
   // about that is theoretical: a partition table or an encryption state that
   // moved is exactly what an update changes, and exactly what the previous
   // firmware still works with.
-  if (kiss_fw_confirm_ok(src == 0, s_touch != NULL, !s_storage_blocked)) {
+  if (kiss_fw_confirm_ok(src == 0, kiss_board_touch_ok(), !s_storage_blocked)) {
     kiss_fw_mark_valid();
   } else if (src != 0) {
     ESP_LOGE(TAG, "signing selftest failed (stage %d): leaving this slot on "
                   "trial so a reboot returns the firmware that worked", src);
-  } else if (s_touch == NULL) {
+  } else if (!kiss_board_touch_ok()) {
     ESP_LOGE(TAG, "touch never came up: leaving this slot on trial so a "
                   "reboot returns the firmware that worked");
   } else {

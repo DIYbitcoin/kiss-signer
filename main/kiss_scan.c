@@ -39,6 +39,13 @@
 
 static lv_obj_t *s_scr;
 static lv_obj_t *s_prog, *s_hint;
+// Said once per transfer, not ten times a second. An unrecognised code sits in
+// frame at the decoder's full rate, and the state line is the one thing on this
+// screen that moves -- rewriting it on every frame is a flicker where the point
+// is a fact. Cleared when a part of a real transfer lands, so a code shown
+// after a refusal still reports.
+static bool s_said_wrong;
+
 static lv_timer_t *s_tmr;
 static qrt_parser_t *s_parser;
 static void (*s_on_psbt)(const uint8_t *, size_t, int);
@@ -121,11 +128,15 @@ static void cancel_cb(lv_event_t *e)
     // region stays live anyway because it costs nothing and it keeps working
     // for anyone who learned the camera close convention while the pill still
     // sat up here.
+    //
+    // Scaled with the canvas, like main.c's twin of this test. Unscaled on the
+    // 3.5in the corner reached 30 px down into the live preview, so a tap on
+    // the picture's top edge closed the scanner.
     lv_indev_t *indev = lv_event_get_indev(e);
     if (indev) {
         lv_point_t p;
         lv_indev_get_point(indev, &p);
-        if (p.x >= 200 || p.y >= 110) return;
+        if (p.x >= SX(200) || p.y >= SY(110)) return;
     }
     cancel_now();
 }
@@ -205,7 +216,20 @@ static void feed(const char *data, size_t len)
         if (s_prog) scan_status(tr(STR_N_RETRY), "");
         return;
     }
-    if (rc != 0) {                             // some other QR in view: ignore
+    if (rc != 0) {                             // not a format this screen takes
+        // THE ONE OUTCOME THE SCREEN NEVER REPORTED. A readable code that is
+        // not a transaction was dropped in silence: an owner holding their
+        // coordinator's RECEIVING address up to the sign scanner got "waiting
+        // for QR" for as long as they cared to hold it, which is the same
+        // screen as no code at all and the same screen as a dead camera. Three
+        // states, one sentence.
+        //
+        // Only before a transfer has started. Mid-set the counter is the news,
+        // and a stray code in frame may not displace it.
+        if (s_prog && seen == 0 && !s_said_wrong) {
+            scan_status(tr(STR_N_NOT_TX), "");
+            s_said_wrong = true;
+        }
 #ifdef ESP_PLATFORM
         // Rate-limited: an unrecognised code sits in frame at ~10 decodes a
         // second and would otherwise bury every other line in the log.
@@ -224,6 +248,7 @@ static void feed(const char *data, size_t len)
         return;
     }
     SCAN_LOG("part accepted: %u bytes, %d of %d", (unsigned)len, seen, total);
+    s_said_wrong = false;                  // a real transfer outranks the refusal
     if (s_prog) {
         char b[48];
         if (total > 1) snprintf(b, sizeof b, tr(STR_N_PARTS_FMT), seen, total);
@@ -285,7 +310,8 @@ static void poll_cb(lv_timer_t *t)
 #endif
 }
 
-static void scan_open_common(lv_obj_t *parent);
+static void scan_open_common(lv_obj_t *parent, kiss_scan_task_t task);
+
 
 void kiss_scan_open(lv_obj_t *parent,
                       void (*on_psbt)(const uint8_t *, size_t, int),
@@ -296,10 +322,10 @@ void kiss_scan_open(lv_obj_t *parent,
     s_on_text = NULL;
     s_on_cancel = on_cancel;
     s_parser = qrt_parser_new();
-    scan_open_common(parent);
+    scan_open_common(parent, KISS_SCAN_TASK_PSBT);
 }
 
-void kiss_scan_open_raw(lv_obj_t *parent,
+void kiss_scan_open_raw(lv_obj_t *parent, kiss_scan_task_t task,
                           void (*on_text)(const char *, size_t),
                           void (*on_cancel)(void))
 {
@@ -308,19 +334,66 @@ void kiss_scan_open_raw(lv_obj_t *parent,
     s_on_text = on_text;
     s_on_cancel = on_cancel;
     s_parser = NULL;                    // raw: no PSBT assembly
-    scan_open_common(parent);
+    scan_open_common(parent, task);
 }
 
 // ---- geometry ----
-// The viewfinder keeps the rect the camera was device tested on; everything
-// around it is on the chrome contract now. The can/cannot cards that used to
-// crowd the right column moved to the SIGN page's SCAN QR tab, where they
-// can be read before the camera is even open -- what is left here is the
-// picture, the one line that changes while you wait, and the way out.
-#define SCN_CAM_X 48
-#define SCN_CAM_Y 112
-#define SCN_CAM_W 300
-#define SCN_CAM_H 188
+// The viewfinder keeps its column and its top edge; its SIZE has changed on the
+// 4.3in since the camera was device tested here, and SCN_CAM_W carries the
+// arithmetic. Everything around it is on the chrome contract now. The
+// can/cannot cards that used to crowd the right column moved to the SIGN page's
+// SCAN QR tab, where they can be read before the camera is even open -- what is
+// left here is the picture, the one line that changes while you wait, and the
+// way out.
+#define SCN_CAM_X SX(48)
+#if KISS_NARROW
+// 6 lower on the 3.5in. The corner brackets are drawn 5 px outside the box,
+// and at the scaled 74 their top arms sat 2 px under the header's hairline;
+// at 80 they clear it by 8.
+#define SCN_CAM_Y (SY(112) + 6)
+#else
+#define SCN_CAM_Y SY(112)
+#endif
+#if KISS_NARROW
+#define SCN_CAM_W SX(300)
+#else
+// 273 SQUARE on the 4.3in, where this was 300x188, and the reason is the
+// camera's MOUNTING rather than taste. The module sits a quarter turn to the
+// landscape screen (camera_spike.c, the zoom ladder's note), so the sensor's
+// 1288 px width is shown down the box's HEIGHT and its 728 px height across the
+// box's WIDTH. orient_geometry then takes the widest crop that fills the box
+// exactly at some N/16, and N is pinned from below by the width: the crop needs
+// 16*W/N <= 728 rows, so a 300 wide box cannot go under 8/16 whatever its
+// height, and 8/16 of a 188 tall box is the 376x600 crop it had -- 29% of the
+// sensor's width, and a largest-square-subject of 376 px, half of what the
+// sensor can give.
+//
+// A SQUARE box is what unlocks it, and 273 is the size that lands exactly on
+// the sensor's short side: 16*273 = 4368 = 6 * 728, so N = 6 and the crop is
+// 728x728 -- the full height of the frame and 56.5% of its width, centred. The
+// largest square subject goes 376 -> 728 sensor px, all 728 of the short side,
+// and square is the right shape to spend the room on because a QR is square and
+// the reticle already is.
+//
+// It fits with the air the 3.5in keeps: bottom arms at 112 + 273 + 5 = 390,
+// eight clear of the content floor at 398, and the right arms end at 326, well
+// short of the text column at 396.
+#define SCN_CAM_W SX(273)
+#endif
+#if KISS_NARROW
+// 162 tall on the 3.5in, not the scaled 125, which on the glass read as a slot
+// too small to aim through. The empty rows under the old box were the room:
+// the bottom arms end at 80 + 162 + 5 = 247, the same air above the band's
+// edge at 254 as the top arms keep under the hairline. The width stays at 180
+// because with the sensor turned a quarter that is its whole 960 px side at
+// 3/16, and 162 is exact at that scale, so the picture is 864x960 of the
+// sensor (camera_spike.c, orient_geometry). A wider box would only magnify:
+// past 180 the scale has to rise and the view gets narrower, and the column
+// beside it gives up width its longest notes need.
+#define SCN_CAM_H 162
+#else
+#define SCN_CAM_H SCN_CAM_W          // square: see SCN_CAM_W for why, and why 273
+#endif
 
 // The rect, for anything outside this file that has to put something in the
 // same place. Below the #defines on purpose -- there is nowhere earlier it
@@ -332,18 +405,66 @@ void kiss_scan_view_rect(int *x, int *y, int *w, int *h)
     if (w) *w = SCN_CAM_W;
     if (h) *h = SCN_CAM_H;
 }
-#define SCN_COL_X 396
-#define SCN_COL_W 356
+#define SCN_COL_X SX(396)
+#define SCN_COL_W SX(356)
+
+// The face is picked per STRING, at every change. The status line wears half
+// a dozen translated states (zu groß, démarrage caméra...) and the hint wears
+// both a translated instruction and the camera driver's own text; a face
+// chosen once from one of them drew the others in the ASCII-only mono set.
+static void scan_line_set(lv_obj_t *l, const char *txt, int lines, bool big)
+{
+    const lv_font_t *f = big ? wt_chrome28(txt) : wt_chrome18(txt);
+    lv_obj_set_style_text_font(l, f, 0);
+    lv_obj_set_height(l, lines * lv_font_get_line_height(f));
+    lv_label_set_text(l, txt);
+}
+
+#if KISS_NARROW
+// The note under the status, placed after every change to the hint. On the
+// 3.5in a long translation of it ran 20 px past the floor (de, ru) from its
+// fixed row. It keeps that row while it fits and otherwise rises by what it
+// overruns -- into the hint's rows while the hint is empty, and never above
+// the lines a camera failure actually wrote there.
+static lv_obj_t *s_note;
+static void scan_note_place(void)
+{
+    if (!s_note || !s_hint) return;
+    const char *ht = lv_label_get_text(s_hint);
+    const bool empty = !ht || !*ht;
+    // An empty hint holds no rows, so its box does not lie across the note.
+    const lv_font_t *hf = lv_obj_get_style_text_font(s_hint, LV_PART_MAIN);
+    const int hlh = lv_font_get_line_height(hf);
+    int hint_h = 0;
+    if (!empty) {
+        lv_point_t hs;
+        lv_text_get_size(&hs, ht, hf, 0, 0, SCN_COL_W, LV_TEXT_FLAG_NONE);
+        hint_h = hs.y > 2 * hlh ? 2 * hlh : hs.y;
+    }
+    lv_obj_set_height(s_hint, empty ? 0 : 2 * hlh);
+    lv_obj_update_layout(s_note);
+    const int nh = lv_obj_get_height(s_note);
+    const int top = empty ? SY(168) : SY(168) + hint_h + 6;
+    int y = SY(232);
+    if (y + nh > WT_CONTENT_BOTTOM) y = WT_CONTENT_BOTTOM - nh;
+    if (y < top) y = top;
+    lv_obj_set_y(s_note, y);
+}
+#endif
 
 static void scan_status(const char *state, const char *hint)
 {
     if (!s_prog || !s_hint) return;
-    if (state) lv_label_set_text(s_prog, state);
-    if (hint)  lv_label_set_text(s_hint, hint);
+    if (state) scan_line_set(s_prog, state, 1, true);
+    if (hint)  scan_line_set(s_hint, hint, 2, false);
+#if KISS_NARROW
+    scan_note_place();
+#endif
 }
 
-static void scan_open_common(lv_obj_t *parent)
+static void scan_open_common(lv_obj_t *parent, kiss_scan_task_t task)
 {
+    s_said_wrong = false;
     kiss_wipe(s_pend, sizeof s_pend);
     kiss_wipe(s_psbt, sizeof s_psbt);
     __atomic_store_n(&s_pend_len, 0, __ATOMIC_RELEASE);   // camera not started yet
@@ -369,33 +490,42 @@ static void scan_open_common(lv_obj_t *parent)
     // that answers "can this rob me" -- de-boxed, on the glass, the way every
     // converted page carries its claims.
     s_prog = lv_label_create(s_scr);
-    lv_label_set_text(s_prog, tr(STR_N_STARTING));
     lv_obj_set_style_text_color(s_prog, INK_COL, 0);
-    lv_obj_set_style_text_font(s_prog, wt_chrome28(tr(STR_N_WAIT_QR)), 0);
-    lv_obj_set_pos(s_prog, SCN_COL_X, 124);
+    lv_obj_set_pos(s_prog, SCN_COL_X, SY(124));
     lv_obj_set_width(s_prog, SCN_COL_W);
-    lv_obj_set_height(s_prog, lv_font_get_line_height(wt_chrome28(tr(STR_N_WAIT_QR))));
     lv_label_set_long_mode(s_prog, LV_LABEL_LONG_DOT);
+    scan_line_set(s_prog, tr(STR_N_STARTING), 1, true);
 
     // The camera-failure path writes the driver status here: technical
     // metadata, two lines, height pinned so the longest retry instruction
     // degrades inside its box instead of past the column's edge.
     s_hint = lv_label_create(s_scr);
-    lv_label_set_text(s_hint, "");
     lv_obj_set_style_text_color(s_hint, MUT_COL, 0);
-    lv_obj_set_style_text_font(s_hint, wt_chrome18(tr(STR_N_RETRY)), 0);
-    lv_obj_set_pos(s_hint, SCN_COL_X, 168);
+    lv_obj_set_pos(s_hint, SCN_COL_X, SY(168));
     lv_obj_set_width(s_hint, SCN_COL_W);
-    lv_obj_set_height(s_hint, 2 * lv_font_get_line_height(wt_chrome18(tr(STR_N_RETRY))));
     lv_label_set_long_mode(s_hint, LV_LABEL_LONG_DOT);
+    scan_line_set(s_hint, "", 2, false);
 
+    // The sentence that answers "can this rob me", in the words of the door it
+    // was opened by. The backup one is the note its own load screen already
+    // carries beside SCAN, so the two say the same thing rather than two things.
+    const int NOTE[] = {
+        [KISS_SCAN_TASK_PSBT]   = STR_N_NOTHING_SIGNED,
+        [KISS_SCAN_TASK_ADDR]   = STR_N_FOR_ADDR,
+        [KISS_SCAN_TASK_BACKUP] = STR_W_LOAD_SCAN_NOTE,
+        [KISS_SCAN_TASK_PASS]   = STR_N_FOR_PASS,
+    };
+    const char *ntxt = tr(NOTE[task]);
     lv_obj_t *note = lv_label_create(s_scr);
-    lv_label_set_text(note, tr(STR_N_NOTHING_SIGNED));
+    lv_label_set_text(note, ntxt);
     lv_obj_set_style_text_color(note, MUT_COL, 0);
-    lv_obj_set_style_text_font(note, wt_chrome18(tr(STR_N_NOTHING_SIGNED)), 0);
-    lv_obj_set_pos(note, SCN_COL_X, 232);
+    lv_obj_set_style_text_font(note, wt_chrome18(ntxt), 0);
+    lv_obj_set_pos(note, SCN_COL_X, SY(232));
     lv_obj_set_width(note, SCN_COL_W);
     lv_label_set_long_mode(note, LV_LABEL_LONG_WRAP);
+#if KISS_NARROW
+    s_note = note;
+#endif
 
     scan_status(NULL, NULL);
 
@@ -403,9 +533,12 @@ static void scan_open_common(lv_obj_t *parent)
     // person struggling to scan does not know they have another option,
     // because that choice was a tab ago. Muted text, not a control, because
     // it is not reachable from here without cancelling first.
-    wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, 552, WT_ACTION_Y,
-                    200, true, cancel_btn_cb, NULL);
-    {
+    wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, SX(552), WT_ACTION_Y,
+                    SX(200), true, cancel_btn_cb, NULL);
+    // ...and only on the two doors a card can actually be used at. The address
+    // checker has no card route and the passphrase has no file: naming one
+    // there is an instruction that dead ends, printed under a live camera.
+    if (task == KISS_SCAN_TASK_PSBT || task == KISS_SCAN_TASK_BACKUP) {
         const lv_font_t *of = wt_chrome18(tr(STR_N_OR_SD));
         lv_obj_t *or = lv_label_create(s_scr);
         lv_label_set_text(or, tr(STR_N_OR_SD));
@@ -413,7 +546,7 @@ static void scan_open_common(lv_obj_t *parent)
         lv_obj_set_style_text_font(or, of, 0);
         lv_obj_set_pos(or, WT_ACT_X,
                        WT_ACTION_Y + (WT_ACTION_H - lv_font_get_line_height(of)) / 2);
-        lv_obj_set_width(or, 480);
+        lv_obj_set_width(or, SX(480));
         lv_obj_set_height(or, lv_font_get_line_height(of));
         lv_label_set_long_mode(or, LV_LABEL_LONG_DOT);
     }

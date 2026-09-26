@@ -33,6 +33,9 @@ QUIET=0
 # refusal is the failure this avoids rather than reports.
 export KISS_SIM_TMP="${KISS_SIM_TMP:-/tmp/kiss-preflight-$$}"
 mkdir -p "$KISS_SIM_TMP"
+# The lanes below are the Guition's, whatever board the caller's shell had
+# exported; every other board is run by name, in its own scratch, at the end.
+export KISS_BOARD=guition
 
 # Warnings are errors for everything this script builds. Every sim/build_*.sh
 # is clean today and the desktop CI lane sets the same variable, so a warning
@@ -180,6 +183,9 @@ run "the published notes match the changelog" \
 # in a box big enough to hold it, is invisible to every other check here.
 run "a translation that says too much" "I18NBLOAT_SELFTEST=1 python3 tools/check_i18n_bloat.py"
 run "a checker nothing runs" "GATECHECK_SELFTEST=1 python3 tools/check_gates.py"
+# A board test that names one board and lets every other fall into its #else:
+# the way a third board silently gets the Guition's framebuffer map.
+run "a board test that falls through" "python3 tools/check_board_switch.py --selftest"
 # The lane this script claimed to cover and did not. It was absent because it
 # read the FILESYSTEM and so passed on any machine with a component fetch on
 # it, which made it a check nobody could fail locally and CI failed for six
@@ -270,10 +276,68 @@ run "screens no gate sees" "python3 tools/check_screen_coverage.py"
 # hole because it has a "sim smoke walk" step whose whole job is this, and the
 # comment on that step says so. Same shape as check_links.py, which this script
 # listed and never ran -- a gate that cannot fail is not a gate.
+
+# COLD BOOT, and BEFORE the walk below rather than after it: the binary sweeps
+# the scratch's frames as it starts, so a cold run afterwards would take the
+# frames the tap gate is about to read. A process per mode because a run can only
+# be cold once -- sim/sim_main.c's cold_corner() says what each mode asks, what
+# it cost to run them here and what is still left to the glass. Mode 2 is the
+# reported bug; mode 1 passes with or without the fix, so the loop is the gate
+# and no single mode is.
+run "the corner shortcut from a cold boot" \
+    "for m in 1 2 3 4 5 6; do SIM_LANG=en KISS_COLD_CORNER=\$m \
+       \"\$KISS_SIM_TMP/fruitsim\" || exit 1; done"
 run "a walk tap that hits nothing" \
     "SIM_LANG=en \"\$KISS_SIM_TMP/fruitsim\" > \"\$KISS_SIM_TMP/sim_en.log\" \
      && python3 tools/check_sim_taps.py --selftest \
      && python3 tools/check_sim_taps.py"
+
+# --- the other boards -------------------------------------------------------
+# The same screens on each other board's canvas. Every gate that measures
+# geometry runs again with KISS_BOARD=<id>, in its own scratch so no two boards'
+# binaries and frames ever meet (sim/sim_tmp.sh has the why). The list is the
+# simulator's own, so a board it builds is a board preflight checks; the
+# Guition is the lanes above. English only, like the wide push lane; the other
+# locales are the nightly's. The unit tests run too: the gesture floors scale
+# with the canvas and their tests prove the scaled numbers as well as the wide
+# ones.
+PF_BOARDS=$(sed -n 's/^KISS_SIM_BOARD_IDS="\(.*\)"$/\1/p' sim/sim_tmp.sh)
+[ -n "$PF_BOARDS" ] || { echo "preflight: no KISS_SIM_BOARD_IDS in sim/sim_tmp.sh" >&2; exit 1; }
+for B in $PF_BOARDS; do
+    [ "$B" = guition ] && continue
+    BT="\$KISS_SIM_TMP/$B"
+    WS="KISS_BOARD=$B KISS_SIM_TMP=\"$BT\""
+    run "$B: unit tests" \
+        "$WS bash sim/build_test.sh && $WS \"$BT/kisstest\""
+    # Advisory, like the walk below and for the same reason: the count is
+    # printed and marked NOTE until it reads zero.
+    run --note-if "English slot\(s\) fell" "$B: text fit (en, advisory)" \
+        "$WS bash sim/build_fitcheck.sh \
+         && ($WS FITCHECK_SELFTEST=1 SIM_LANG=en \"$BT/kissfit\" || true)"
+    # The overlay text gate on the board's own lane, with its own strip widths
+    # and subtitle rungs. Not advisory: a caption that overflows is one that
+    # lies.
+    run "$B: on-video overlay text (build)" "$WS bash sim/build_osdcheck.sh"
+    run "$B: on-video overlay text (en)" "$WS SIM_LANG=en \"$BT/kissosd\""
+    # ADVISORY, for now. The 3.5in's English count is not at zero yet: the walk
+    # reaches every stop and every tap lands (the two lines below prove that and
+    # do fail), but the overlap gate still lists what the smaller lanes cut or
+    # stack. The count is printed and marked NOTE rather than hidden; the day it
+    # reads zero on every board this line loses its "|| true" and the CI step
+    # its continue-on-error, in one commit.
+    # The builds sit OUTSIDE the "|| true": a walk that does not compile is a
+    # failure, only its count is advisory.
+    run --note-if "text overlap gate: [1-9]" "$B: screen walk (en, advisory)" \
+        "$WS bash sim/build_sim.sh && $WS bash sim/build_overlapcheck.sh \
+         && ($WS OVERLAPCHECK_LANGS=en bash sim/run_overlapcheck.sh || true)"
+    run "$B: screens no gate sees" "$WS python3 tools/check_screen_coverage.py"
+    run "$B: the corner shortcut from a cold boot" \
+        "for m in 1 2 3 4 5 6; do $WS SIM_LANG=en KISS_COLD_CORNER=\$m \
+           \"$BT/fruitsim\" || exit 1; done"
+    run "$B: a walk tap that hits nothing" \
+        "$WS SIM_LANG=en \"$BT/fruitsim\" > \"$BT/sim_en.log\" \
+         && $WS python3 tools/check_sim_taps.py"
+done
 
 # --- the table ------------------------------------------------------------
 echo

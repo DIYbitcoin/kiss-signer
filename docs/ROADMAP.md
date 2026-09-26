@@ -31,9 +31,14 @@ vectors. Nobody outside the project has reviewed any of it. See
 
 Silent Payments is implemented in both directions and every vector in
 `sim/test_sp.c` passes, cross-checked against the embit SP fork, including the
-BIP374 DLEQ vectors and a Sparrow-generated fixture. What it has not had is a
-real network round trip at scale or any outside review, and coordinator support
-for BIP375 and BIP376 is still thin.
+BIP374 DLEQ vectors and a Sparrow-generated fixture. The whole loop has run on
+this hardware on signet and Mutinynet: sending to a silent payment address,
+finding the payment, spending it, and silent payment change, with every
+transaction on chain in
+[kiss-bdk's proof](https://github.com/kkdao/kiss-bdk/blob/main/docs/proof.md).
+Sparrow supports both halves for airgapped signers: BIP375 sending since 2.4.0,
+receiving wallets since 2.5.0. What it has not had is a Sparrow round trip, a
+mainnet transaction, or any outside review.
 
 ## Keys and storage
 
@@ -84,26 +89,29 @@ that opens a modest set of keys. See `main/kiss_duress.h`.
 
 | Feature | Status | Notes |
 |---|---|---|
-| 21 locales, 19 languages | done | Latin, Cyrillic, ja, ko, zh. Spanish and Portuguese have regional variants |
+| 22 locales, 20 languages | done | Latin, Cyrillic, ja, ko, zh. Spanish and Portuguese have regional variants |
 | Screenshots generated from firmware | done | `tools/gen_docs_shots.sh`, CI fails on drift |
 | Text fit report gates the build | done | `sim/fitcheck.c` covers body, title, row and sub-line budgets; overlapcheck's FIT question reports when `wt_note_fit` gives up and sets font14 |
 | Text overlap gate | done | `sim/overlapcheck.c`, nine questions per stop, three shrink-only backlogs, run by `sim/run_overlapcheck.sh` |
 | Accent themes | done | MONO, GREEN, CYPHERPINK, ORANGE. Status colours are never themed |
-| Browser installer | gated | Built and vendored, switched off while a release is staged |
+| Browser installer | done | The install page hashes the image against the release before it offers the button |
 
 ## Hardware
 
-| Target | Status |
-|---|---|
-| Guition JC4880P443C | done |
-| Other ESP32-P4 devices | planned |
+| Target | Status | Notes |
+|---|---|---|
+| Guition JC4880P443C, 4.3in, 800x480 | done | |
+| Waveshare ESP32-P4-WIFI6-Touch-LCD-3.5, 3.5in, 480x320 | done | The battery mark on the home screen shows only with a cell fitted, and has not yet been seen with one |
+| Guition JC1060P470C, 7in, 1024x600 | done | |
+| Waveshare ESP32-P4-WiFi6-Touch-LCD-5, 5in, 720x1280 | planned | Next board |
+| ESP32-P4 chip revision v3.x | planned | Every release so far is built for v1.x chips, and a v1.x image does not start on a v3.x chip. Waveshare sells the 3.5in with either. Separate v3.x images, and an install page that reads the chip before erasing anything, are written but nobody has flashed a v3.x board with them yet |
 
 ## Known gaps
 
 - **The normal beta does not encrypt flash.** Keys in FLASH are extractable by
   someone with the device and the right equipment. Use AMNESIC, or SD, or wait
   for the encrypted build, for anything that matters.
-- **20 of the 21 locales have not been read by a native speaker.** The English
+- **21 of the 22 locales have not been read by a native speaker.** The English
   copy is reviewed; the rest is machine-written against a term glossary. One
   screen carries a security caveat that a translation can quietly turn into a
   reassurance. See [`i18n/GLOSSARY.md`](../i18n/GLOSSARY.md).
@@ -112,5 +120,7 @@ that opens a modest set of keys. See `main/kiss_duress.h`.
 - **No secure boot**, so an attacker with prolonged physical access to an
   unencrypted device can flash modified firmware and the interface will look
   identical. See [`docs/security-plan.md`](security-plan.md).
-- **Silent Payments has no outside users yet.** The vectors pass and Sparrow
-  fixtures parse, but coordinator support for BIP375 and BIP376 is early.
+- **No support for v3.x ESP32-P4 chips yet.** The firmware will not start on
+  one; `esptool` prints the chip revision when it connects.
+- **Silent Payments is proven on test networks only.** The full loop ran on
+  signet through kiss-bdk, but not yet through Sparrow and never on mainnet.

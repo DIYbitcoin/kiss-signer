@@ -108,6 +108,14 @@ jobs:
         run: |
           GATECHECK_SELFTEST=1 python3 tools/check_gates.py
 
+      # main/kiss_board.h is the one place that asks which board this is.
+      # A test elsewhere that names one board and lets `#else` stand for the
+      # rest hands a new board the Guition's arm without a word.
+      - name: no board test falls through to another board's arm
+        if: always()
+        run: |
+          python3 tools/check_board_switch.py --selftest
+
       # Two readers for the burn recipe. The scheme checker reads the signature
       # block an image carries and holds it against the config that built it,
       # which no verify step did; the eFuse checker reads the fuses a board has
@@ -238,6 +246,17 @@ jobs:
         if: always()
         run: |
           bash sim/build_sim.sh
+          # The corner shortcut on a device that has just been switched on, a
+          # process per mode and all of them BEFORE the walk: the binary sweeps
+          # the scratch's frames as it starts, and the tap gate below reads the
+          # walk's. The long note on sim/sim_main.c's cold_corner() says what
+          # each mode asks, why none of this can be a walk stop, and which half
+          # of the seam still needs the glass.
+          for m in 1 2 3 4 5 6; do
+            timeout 120 env SIM_LANG=en KISS_COLD_CORNER=$m /tmp/fruitsim \
+              > /tmp/cold_corner_$m.log
+            tail -2 /tmp/cold_corner_$m.log
+          done
           for L in en; do
             echo "== SIM_LANG=$L =="
             timeout 300 env SIM_LANG=$L /tmp/fruitsim > /tmp/sim_$L.log
@@ -645,3 +664,81 @@ jobs:
           SDL_VIDEODRIVER=dummy /tmp/kissapp --frames 40 --shot /tmp/kissapp.ppm
           test -s /tmp/kissapp.ppm || { echo "FAIL: the app rendered nothing"; exit 1; }
           echo "ok: $(wc -c < /tmp/kissapp.ppm) bytes of frame"
+
+  # THE OTHER BOARDS, one runner each: the same screens on the 3.5in's 480x320
+  # and the 7in's 1024x600 canvas, every gate that measures geometry run again
+  # with KISS_BOARD set to the board. Its own job rather than more steps above
+  # because the binaries and the frames keep their names per board
+  # (sim/sim_tmp.sh), and because one board's finding must never be mistaken
+  # for the 4.3in's in the summary a person reads. English
+  # only, like the wide gates; tools/preflight.sh runs the same block by hand.
+  desktop-narrow:
+    runs-on: ubuntu-latest
+    strategy:
+      # One board's finding says nothing about the other's.
+      fail-fast: false
+      matrix:
+        board: [ws35, jc1060]
+    env:
+      KISS_WERROR: 1
+      KISS_BOARD: ${{ matrix.board }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: fetch LVGL for the sim (${{ matrix.board }})
+        uses: ./.github/actions/fetch-lvgl
+
+      - name: unit tests (${{ matrix.board }})
+        run: |
+          bash sim/build_test.sh
+          /tmp/kisstest
+
+      - name: sim smoke walk (${{ matrix.board }}, en)
+        run: |
+          bash sim/build_sim.sh
+          # A process per mode; sim/sim_main.c's cold_corner() says what each
+          # one asks of the corner and of the touch cache under it.
+          for m in 1 2 3 4 5 6; do
+            timeout 120 env SIM_LANG=en KISS_COLD_CORNER=$m /tmp/fruitsim \
+              > /tmp/cold_corner_$m.log
+            tail -2 /tmp/cold_corner_$m.log
+          done
+          timeout 300 env SIM_LANG=en /tmp/fruitsim > /tmp/sim_en.log
+          tail -1 /tmp/sim_en.log
+
+      - name: simulator taps still hit something (${{ matrix.board }})
+        if: always()
+        run: python3 tools/check_sim_taps.py
+
+      - name: every screen has a walk stop (${{ matrix.board }}, strict)
+        if: always()
+        env:
+          SCREENCOVER_STRICT: "1"
+        run: timeout 300 python3 tools/check_screen_coverage.py
+
+      # Advisory until each board's English count reaches zero, like the
+      # overlap gate below.
+      - name: button + explainer fit report (${{ matrix.board }}, en, advisory)
+        if: always()
+        continue-on-error: true
+        run: |
+          bash sim/build_fitcheck.sh
+          FITCHECK_SELFTEST=1 SIM_LANG=en /tmp/kissfit
+
+      # Advisory until each board's English count reaches zero (see the
+      # same note in tools/preflight.sh): the findings are printed, the job
+      # stays green. One commit removes this line when the count is zero.
+      - name: text overlap gate (${{ matrix.board }}, en, advisory)
+        if: always()
+        continue-on-error: true
+        run: OVERLAPCHECK_LANGS=en OVERLAPCHECK_STRICT=1 bash sim/run_overlapcheck.sh
+
+      # The overlay text gate on the board's own lane, with its own strip
+      # widths and subtitle rungs (osd_strips.h). It came in with the 3.5in's
+      # camera transport that draws those captions, and it blocks: unlike the
+      # two gates above it has no count to work down.
+      - name: overlay text gate (${{ matrix.board }}, en)
+        if: always()
+        run: |
+          bash sim/build_osdcheck.sh
+          SIM_LANG=en /tmp/kissosd

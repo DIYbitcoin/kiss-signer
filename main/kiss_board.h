@@ -1,0 +1,298 @@
+// The board seam. main.c and every screen see a board only through this
+// header: the size of the canvas they draw on, the name in the boot log, and
+// the handful of calls app_main makes to bring the hardware up. Which board
+// answers is decided at build time by CONFIG_KISS_BOARD_* (main/Kconfig.projbuild)
+// on the device and by -DKISS_BOARD_WS35 on the desktop; nothing detects a
+// board at runtime.
+//
+// One board, one file: board_guition.c, board_ws35.c, board_jc1060.c. Each is
+// compiled only into its own image, so none carries a dead arm of another, and
+// the -Werror lint set compiles every line it ships.
+//
+// EVERY BOARD IS NAMED. A test that names one board and lets `#else` stand for
+// "the other one" was true while there were two, and the day a third arrives it
+// silently hands that board the Guition's arm. So the block below lists each
+// board and ends in #error, and code outside this header does not ask which
+// board it is at all: it asks the question it actually has, through the
+// capability macros each arm defines (KISS_PANEL_SPI, KISS_PANEL_SWROT, and the
+// rest the guard at the end of the block names). Where no capability fits -- a
+// number measured on one board's glass -- the test lists the boards and ends in
+// #error too. tools/check_board_switch.py holds that line.
+#pragma once
+#include <stdbool.h>
+
+#ifdef ESP_PLATFORM
+#include "sdkconfig.h"
+#if defined(CONFIG_KISS_BOARD_GUITION) && !defined(KISS_BOARD_GUITION)
+#define KISS_BOARD_GUITION 1
+#endif
+#if defined(CONFIG_KISS_BOARD_WS35) && !defined(KISS_BOARD_WS35)
+#define KISS_BOARD_WS35 1
+#endif
+#if defined(CONFIG_KISS_BOARD_JC1060) && !defined(KISS_BOARD_JC1060)
+#define KISS_BOARD_JC1060 1
+#endif
+#else
+// The desktop builds take the board from -DKISS_BOARD_<ID>=1 (sim/sim_tmp.sh),
+// and no flag at all means the 4.3in, as every sim command in the house rules
+// and the browser build assume. A default is not a fallback: a board that
+// passes its own flag can never land here.
+#if !defined(KISS_BOARD_GUITION) && !defined(KISS_BOARD_WS35) && !defined(KISS_BOARD_JC1060)
+#define KISS_BOARD_GUITION 1
+#endif
+#endif
+
+#if defined(KISS_BOARD_GUITION) + defined(KISS_BOARD_WS35) + defined(KISS_BOARD_JC1060) != 1
+#error "exactly one KISS_BOARD_<ID> must be defined (main/Kconfig.projbuild, sim/sim_tmp.sh)"
+#endif
+
+// What each arm defines beyond its name and size:
+//   KISS_BOARD_ID          the id every build file uses: -DKISS_BOARD=<id>,
+//                          sdkconfig.<id>, <id>_kiss_bringup
+//   KISS_PANEL_SPI         1 when the panel is reached over SPI and holds the
+//                          only copy of the picture (the camera composes into a
+//                          scratch and blits it); 0 for a DPI panel whose two
+//                          framebuffers the camera takes over while it previews
+//   KISS_PANEL_SWROT       1 when the glass is portrait and the flush turns the
+//                          landscape canvas a quarter in software, so panel
+//                          coordinates are not canvas coordinates
+//   KISS_CAM_ORIENT_LOG    1 while the camera's orientation is still being read
+//                          off the glass: every session logs it
+//   KISS_BLADE_LANDING     1 when the game's blade starts each stroke at the point
+//                          the contact came down (main/kiss_touch.c keeps it),
+//                          and drops what was left of the last stroke, rather
+//                          than starting where the first game pass found the
+//                          finger
+//   KISS_PMIC              1 when a power chip on the shared I2C bus can say
+//                          whether a battery is fitted and how full it is
+//                          (the 3.5in's AXP2101); 0 where there is nothing
+//                          to ask, and the home shows no battery at all
+#if defined(KISS_BOARD_WS35)
+#define KISS_BOARD_ID "ws35"
+#define KISS_BOARD_NAME "Waveshare ESP32-P4-WIFI6-Touch-LCD-3.5"
+// LANDSCAPE, like the Guition: the owner holds both boards the same way. The
+// glass is 320x480 portrait; the ST7796 turns the picture in hardware (the
+// MADCTL swap board_ws35.c sets), so the canvas is 480x320 and no software
+// rotate runs on the way out. The panel numbers stay the glass's own: the
+// camera's overlay is laid out in that portrait frame, as on the Guition.
+#define SCREEN_W 480
+#define SCREEN_H 320
+#define KISS_PANEL_W 320
+#define KISS_PANEL_H 480
+#define KISS_NARROW 1
+// The OV5647's frame against this canvas: a rotation index (0..3, quarter
+// turns counter-clockwise, the PPA's direction) plus 4 when the preview is
+// mirrored, and whether the raw frame arrives mirrored, which the QR decoder
+// has to undo because a mirrored code locates and never reads.
+//
+// Turned a quarter. At 0 the picture reads on the glass as turned a quarter to
+// the right, and the vendors predict exactly that: Kern and Waveshare's
+// examples show this sensor unturned on the glass's portrait frame (MADCTL
+// MX), and this board turns that frame a quarter into landscape (MADCTL MV,
+// the same turn the touch mapping in board_ws35.c is proven on), so the
+// picture has to turn back by one. Unmirrored: the driver's mode table sets
+// the sensor's own mirror bit and Kern reads QR codes from that frame with no
+// un-mirror, and a turn cannot change handedness. One quarter from 0 is either
+// upright or upside down, so upside down here means 3. Upright with text
+// reading backwards means a raw mirror of 1 with 5 or 7: which of the two
+// depends on whether the PPA mirrors before or after it turns, and nothing
+// documents that. The camera logs both when it starts.
+#define KISS_CAM_ORIENT 1
+#define KISS_CAM_RAW_MIRRORED 0
+#define KISS_PANEL_SPI 1
+#define KISS_PANEL_SWROT 0
+#define KISS_CAM_ORIENT_LOG 1
+#define KISS_BLADE_LANDING 0
+#define KISS_PMIC 1
+#elif defined(KISS_BOARD_GUITION)
+#define KISS_BOARD_ID "guition"
+#define KISS_BOARD_NAME "Guition JC4880P443C"
+// LOGICAL UI canvas: the whole game is LANDSCAPE. The device reaches this via
+// a one-time boot rotation (the flush in board_guition.c turns each region
+// 90 degrees into the 480x800 panel); the sim creates an 800x480 display
+// directly. All UI, gameplay and art is authored in these coordinates.
+#define SCREEN_W 800
+#define SCREEN_H 480
+#define KISS_PANEL_W 480
+#define KISS_PANEL_H 800
+#define KISS_NARROW 0
+// The OV02C10 reads out mirrored, and rot0 plus the mirror is upright in panel
+// space: the orientation finder's result (camera_spike.c has its history).
+#define KISS_CAM_ORIENT 4
+#define KISS_CAM_RAW_MIRRORED 1
+#define KISS_PANEL_SPI 0
+#define KISS_PANEL_SWROT 1
+#define KISS_CAM_ORIENT_LOG 0
+#define KISS_BLADE_LANDING 0
+#define KISS_PMIC 0
+#elif defined(KISS_BOARD_JC1060)
+#define KISS_BOARD_ID "jc1060"
+#define KISS_BOARD_NAME "Guition JC1060P470C"
+// The 4.3in's sibling at 7.0in, and LANDSCAPE in the glass itself: the JD9165
+// panel is 1024x600 native, so the canvas is the panel and no flush turns it.
+// The screens are the wide ones, scaled up by SX/SY (1.28 across, 1.25 down).
+#define SCREEN_W 1024
+#define SCREEN_H 600
+#define KISS_PANEL_W 1024
+#define KISS_PANEL_H 600
+#define KISS_NARROW 0
+// The 4.3in's two, the same OV02C10 turned away from the owner the same way:
+// a first guess until this glass says otherwise, which is why KISS_CAM_ORIENT_LOG
+// prints them every session.
+#define KISS_CAM_ORIENT 4
+#define KISS_CAM_RAW_MIRRORED 1
+#define KISS_PANEL_SPI 0
+#define KISS_PANEL_SWROT 0
+#define KISS_CAM_ORIENT_LOG 1
+// Nothing in the landing is particular to this board. It is on here only
+// because the 4.3in and the 3.5in images are held unchanged until their own
+// glass has played it, and what it buys grows with the game pass. This board
+// draws 1.6 times the 4.3in's pixels, so its pass is expected to be the
+// longest of the three; that is a model, and the pass has not been measured.
+#define KISS_BLADE_LANDING 1
+#define KISS_PMIC 0
+#else
+#error "no arm for this board in main/kiss_board.h"
+#endif
+
+// The build has no -Wundef (main/CMakeLists.txt says why), so an `#if` on a
+// macro an arm forgot reads 0 and takes whichever arm 0 selects. A new board
+// that leaves one of these out is stopped here instead.
+#if !defined(KISS_BOARD_ID) || !defined(KISS_BOARD_NAME) || !defined(SCREEN_W) || \
+    !defined(SCREEN_H) || !defined(KISS_PANEL_W) || !defined(KISS_PANEL_H) ||   \
+    !defined(KISS_NARROW) || !defined(KISS_CAM_ORIENT) ||                       \
+    !defined(KISS_CAM_RAW_MIRRORED) || !defined(KISS_PANEL_SPI) ||              \
+    !defined(KISS_PANEL_SWROT) || !defined(KISS_CAM_ORIENT_LOG) ||              \
+    !defined(KISS_BLADE_LANDING) || !defined(KISS_PMIC)
+#error "a board arm in main/kiss_board.h leaves a capability undefined"
+#endif
+
+// THE UI IS DRAWN ONCE, ON THE WIDE CANVAS. Every length in the screens and
+// the kit is written for 800x480, and a board of any other size scales it at
+// compile time: SX for an x or a width, SY for a y or a height. On the 4.3in
+// both fold to the number itself, so nothing there can move by a pixel; on the
+// 3.5in they are 3/5 and 2/3, on the 7in 32/25 and 5/4. Integer arithmetic,
+// floor: a position and a width scaled apart can disagree with their sum by one
+// pixel, which is why the kit's right edges are computed from the scaled parts,
+// never scaled as a sum. Fonts do not scale by this; the composites in
+// kiss_theme.c are set at three fifths on a narrow board, a rung chosen per size
+// rather than computed.
+#define KISS_DESIGN_W 800
+#define KISS_DESIGN_H 480
+#define SX(v) ((v) * SCREEN_W / KISS_DESIGN_W)
+#define SY(v) ((v) * SCREEN_H / KISS_DESIGN_H)
+// A square's side, scaled by whichever axis grew less, so a square that fits
+// the design canvas fits every canvas. Both axes are 1 on the 4.3in and the
+// smaller is SX on the 3.5in, so there it is the SX it always was. On the 7in
+// the smaller is SY: a QR card sized by SX there grew 1.28 into 1.25 of room,
+// and the signed code's bottom edge ran under the floor.
+#define SQ(v) (SX(v) < SY(v) ? SX(v) : SY(v))
+// 1 on the board whose canvas IS the design canvas, the 4.3in: the one board
+// where SX and SY are the identity, and so the one board a FORECAST about
+// another board's lanes is asked from. Not the same question as !KISS_NARROW,
+// which the 7in answers the same way and this one does not.
+#define KISS_DESIGN_CANVAS (SCREEN_W == KISS_DESIGN_W && SCREEN_H == KISS_DESIGN_H)
+
+// The touch read is the platform seam: the device reads its controller, the
+// simulator feeds scripted input.
+//
+// TWO ENTRY POINTS, and they ask two different questions of the same cached
+// sample (main/kiss_touch.h). main.c's game_tick classifies taps itself, so it
+// is handed the EDGES a slow pass slept through -- one per call, each at the
+// point its own contact had. kiss_ui.c's pointer indev builds its own presses,
+// clicks and gestures out of a LEVEL it is shown every pass, so it is handed
+// exactly that and no history: a replayed edge reaches it as a click at a place
+// the finger has already left. One function cannot answer both questions, which
+// is why the pair is here instead of one name. Both simulators serve them the
+// same way the board does.
+bool platform_read_touch(int *x, int *y);      // main.c: the game and the collector
+bool platform_read_touch_ui(int *x, int *y);   // kiss_ui.c: the LVGL pointer indev
+#if KISS_BLADE_LANDING
+// Where the contact platform_read_touch is holding came down (main/kiss_touch.c).
+bool platform_touch_origin(int *x, int *y);
+#endif
+
+#if KISS_PMIC
+// The battery, as the power chip reports it. Read only: nothing here writes a
+// register, because the same chip holds every rail this board runs on and a
+// wrong bit is a board that switches itself off. false when the chip did not
+// answer; `present` false when it answered and no cell is fitted, which is how
+// the board ships.
+typedef struct {
+  bool present;          // a cell is connected
+  bool usb;              // USB power is in
+  bool charging;         // the chip is charging the cell right now
+  unsigned char pct;     // 0..100, the chip's own fuel gauge
+} kiss_batt_t;
+bool kiss_board_batt_read(kiss_batt_t *b);
+#ifndef ESP_PLATFORM
+// The desktop builds have no chip: the walk hands this the reading to draw.
+void kiss_board_batt_sim(const kiss_batt_t *b);
+#endif
+#endif
+
+// ---- UPSIDE DOWN -------------------------------------------------------
+// One runtime truth for the three surfaces that have to turn TOGETHER: the
+// picture on the glass, the touch map, and the camera's preview with its
+// overlays. Turning one without the others is the failure that matters --
+// the unlock is a drawn WORD and its recogniser is deliberately
+// orientation-sensitive (kiss_gword.c), so a display flipped without its
+// touch is an owner whose enrolled word stops matching, on a device with no
+// keyboard to fall back to.
+//
+// Neither board has a motion sensor, so nothing here is automatic: it is a
+// control the owner taps when they want the cable coming out of the other
+// side, and the byte behind it is remembered the way the theme's is.
+//
+// Declared HERE, beside platform_read_touch, because that is already the one
+// seam this header declares for the device and the desktop both, and the
+// touch reader is one of the three things that turns. Each board applies the
+// flip at the SAME seam it applies its existing quarter turn -- the
+// controller's address map on the 3.5in, the rotating flush on the 4.3in --
+// so the two compose by construction rather than by arithmetic written twice.
+//
+// `repaint` is false at boot, where nothing has been drawn yet and the first
+// frame is still on its way, and true from the control, where the glass is
+// already holding a picture that has just become the wrong way up.
+bool kiss_flip_get(void);
+void kiss_flip_set(bool on, bool repaint);
+
+#ifdef ESP_PLATFORM
+#include "lvgl.h"
+#include "driver/i2c_master.h"
+// In the order app_main calls them. The radio hold comes first, before
+// anything else runs, so the window in which the C6 could execute its
+// factory firmware is as small as the boot ROM leaves it.
+void kiss_board_radio_hold(void);
+void kiss_board_log_info(void);
+lv_display_t *kiss_board_display_start(void);
+void kiss_board_backlight_on(void);
+void kiss_board_touch_start(void);
+// ...and then the sampler over it, which is where both readers above get their
+// answers from (main/kiss_touch.c). After touch_start, because it needs the
+// controller handle to exist, and before build_game, because the first LVGL
+// pass already reads the seam.
+void kiss_touch_start(void);
+// ONE raw read of the controller, mapped to canvas coordinates, board private
+// in everything but linkage: kiss_touch.c's sampler is its only caller, and
+// keeping it the only caller is the fix. Each board's flip lives in here or in
+// the driver flags behind it, so what comes back is what the owner is looking
+// at either way up.
+bool kiss_board_touch_point(int *x, int *y);
+// Did the touch controller answer at init. It is one of the four gates that
+// decide whether a freshly installed image gets to keep its slot.
+bool kiss_board_touch_ok(void);
+// The I2C bus the touch controller lives on; the camera's SCCB shares it.
+i2c_master_bus_handle_t kiss_board_i2c_bus(void);
+#if KISS_PANEL_SPI
+// The one door onto the SPI panel, shared by LVGL and the camera. x2 and y2
+// are exclusive, esp_lcd's convention, and they are canvas coordinates: the
+// controller turns the glass, so a canvas rect is a panel rect. `px` is
+// already in the panel's byte order and written back from the cache. LVGL's
+// calls return at once and the DMA-done callback hands the buffer back; a
+// camera call (cam) returns when the transfer is complete, so its buffer is
+// free again. False when the driver refused the transfer: nothing was sent
+// and no completion will follow, so an LVGL caller owes its own flush_ready.
+bool kiss_board_blit(int x1, int y1, int x2, int y2, const void *px, bool cam);
+#endif
+#endif

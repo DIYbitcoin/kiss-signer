@@ -8,7 +8,8 @@ arrive. Served from GitHub Pages, the page and the binary are fetched while you
 flash, so pulling the plug halfway breaks it.
 
 This writes the whole served tree, plus the firmware and the signed hashes, into
-one zip. Download it once, carry it to a machine with no network at all, unzip,
+one zip. Every board's image and manifest that release.json lists goes in, so
+the offline page offers the same boards the hosted one does. Download it once, carry it to a machine with no network at all, unzip,
 run the serve file, flash. That is the entire feature.
 
 Two modes:
@@ -89,6 +90,8 @@ SITE_REQUIRED = [
     "media/passphrase-warning.png",
     "media/qr-scan.png",
     "media/sign-verify.png",
+    "media/audit-randomness.png",
+    "media/setup-storage.png",
     # the 329 byte stub, so /installer/ does not render a directory listing
     "installer/index.html",
     "installer/release.json",
@@ -195,13 +198,31 @@ OFFLINE_INDEX = """<!doctype html>
           </li>
           <li>
             <h3>Install</h3>
-            <p>Tick the box, press the button, then pick the port when the browser asks. About a minute.</p>
+            <p>Choose your board, tick the box, press the button, then pick the port when the browser asks. About a minute.</p>
           </li>
           <li>
             <h3>Power cycle</h3>
             <p>Unplug, wait three seconds, plug back in. Cold boot only. You land on FRUIT ISLAND.</p>
           </li>
         </ol>
+
+        <!-- The same question as the hosted page, with the same ids: every
+             board is an ESP32-P4, so nothing but this answer picks the image. -->
+        <div class="board-pick" id="board-pick" role="radiogroup" aria-labelledby="board-pick-title">
+          <strong id="board-pick-title">Which board is it?</strong>
+          <label class="ack-row">
+            <input type="radio" name="board" value="guition">
+            <span><b>Guition 4.3in</b>, the JC4880P443C, with an 800 by 480 screen.</span>
+          </label>
+          <label class="ack-row">
+            <input type="radio" name="board" value="ws35">
+            <span><b>Waveshare 3.5in</b>, the ESP32-P4-WIFI6-Touch-LCD-3.5, with a 480 by 320 screen.</span>
+          </label>
+          <label class="ack-row">
+            <input type="radio" name="board" value="jc1060">
+            <span><b>Guition 7in</b>, the JC1060P470C, with a 1024 by 600 screen.</span>
+          </label>
+        </div>
 
         <div class="verify-line">
           <div class="verify-light pending" id="verify-light"></div>
@@ -224,7 +245,9 @@ OFFLINE_INDEX = """<!doctype html>
             Connect and install (checking&hellip;)
           </button>
 
-          <esp-web-install-button id="install-button" class="is-hidden" manifest="installer/manifest.json">
+          <!-- app.js names the picked board's manifest here once its image
+               has checked out; until then there is nothing to flash. -->
+          <esp-web-install-button id="install-button" class="is-hidden">
             <button slot="activate" class="flash-button" type="button">
               Connect and install
             </button>
@@ -236,15 +259,13 @@ OFFLINE_INDEX = """<!doctype html>
         </div>
 
         <p class="browser-note" id="browser-note" hidden>
-          This browser has no Web Serial, so it cannot reach the device over the
-          cable. Chrome, Brave and Edge all can, on macOS too &mdash; or
-          <a href="guide.html#esptool">flash it from the command line</a>, which
-          needs no new browser at all.
+          Use Chrome, Brave or Edge to install over USB, or
+          <a href="guide.html#esptool">flash from the command line</a>.
         </p>
 
         <p class="fineprint">
           <a class="motion-link" href="guide.html#firstboot">What happens next &rarr;</a>
-          <a class="motion-link" href="guide.html#storage">Where your recovery words are kept &rarr;</a>
+          <a class="motion-link" href="guide.html#storage">Where your seed words are kept &rarr;</a>
           <a class="motion-link" href="verify-release.html">Check the file yourself &rarr;</a>
         </p>
       </section>
@@ -409,15 +430,27 @@ SERVE_BAT = "\r\n".join([
 ])
 
 
-def render_start_here(version: str, firmware: str, fingerprint: str | None,
-                      sha256: str | None) -> str:
+def render_start_here(version: str, images: list[tuple[str, str, str | None]],
+                      fingerprint: str | None) -> str:
     """The first thing a person sees after unzipping. Plain text, CRLF.
 
     Not .md: Windows has no default handler for it, so a double click asks
     which program to use. .txt opens everywhere. The 00- prefix is what puts it
     at the top of the folder in Finder and in Explorer.
+
+    images is (board name, firmware file, sha256) per board, the Guition first.
     """
     zip_name = f"kiss-signer-{version}-offline.zip"
+    # One board reads exactly as this file always has; more than one names each
+    # image beside its board, so nobody has to work out which is theirs.
+    single = len(images) == 1
+    if single:
+        firmware_lines = [f"  The firmware is {images[0][1]}, and it sits in",
+                          "  site/installer/firmware."]
+    else:
+        firmware_lines = ["  The firmware is one file per board, in site/installer/firmware:",
+                          ""]
+        firmware_lines += [f"      {board:<18}{name}" for board, name, _ in images]
 
     if fingerprint:
         # grouped the way gpg prints it, halves split by a double space, so it
@@ -461,8 +494,7 @@ def render_start_here(version: str, firmware: str, fingerprint: str | None,
         "  site/        the install page, the firmware, and the full guide",
         "  serve.*      a small program that shows the page to this computer only",
         "",
-        f"  The firmware is {firmware}, and it sits in",
-        "  site/installer/firmware.",
+    ] + firmware_lines + [
         "",
         "",
         "HOW TO USE IT",
@@ -480,7 +512,12 @@ def render_start_here(version: str, firmware: str, fingerprint: str | None,
         "     Safari and Firefox cannot reach a device over USB. That is a",
         "     limit of those browsers and nothing here can work around it.",
         "",
+    ] + ([
         "  3. Plug the device in, tick the box, press Connect and install.",
+    ] if single else [
+        "  3. Plug the device in, choose your board, tick the box, then press",
+        "     Connect and install.",
+    ]) + [
         "",
         "     The page hashes the firmware before it offers you the button, so",
         "     a damaged copy is refused rather than flashed.",
@@ -522,12 +559,20 @@ def render_start_here(version: str, firmware: str, fingerprint: str | None,
         "      sha256sum --ignore-missing -c ../SHA256SUMS        (Linux)",
     ] + ([
         "",
-        f"  The firmware ({firmware}) should hash to:",
+        f"  The firmware ({images[0][1]}) should hash to:",
         "",
-        f"      {sha256}",
+        f"      {images[0][2]}",
         "",
         "  The install page shows the same value before it offers the button.",
-    ] if sha256 else []) + [
+    ] if single and images[0][2] else []) + ([
+        "",
+        "  Each board's firmware should hash to:",
+        "",
+    ] + [line for board, name, digest in images if digest
+         for line in (f"      {board}, {name}", f"      {digest}", "")] + [
+        "  The install page shows the same value for the board you choose",
+        "  before it offers the button.",
+    ] if not single else []) + [
         "",
         "",
         "MORE",
@@ -554,21 +599,39 @@ def release_meta() -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def firmware_rel(meta: dict) -> str:
-    """Firmware path, docs/installer-relative, straight from release.json.
+def boards(meta: dict) -> list[dict]:
+    """The boards release.json describes, the Guition first. A release made
+    before release.json listed boards describes the Guition alone, at its top
+    level, and its manifest is manifest.json."""
+    listed = meta.get("boards")
+    if listed is None:
+        return [{"id": "guition", "name": "Guition 4.3in",
+                 "manifest": "manifest.json",
+                 "browserFirmware": meta.get("browserFirmware") or {}}]
+    return listed
+
+
+def firmware_rels(meta: dict) -> list[str]:
+    """Every board's firmware and manifest, docs/installer-relative, straight
+    from release.json.
 
     Never derived from VERSION: release.json is what docs/app.js hashes against,
     so packaging anything else would ship a page that fails its own check.
     """
-    path = (meta.get("browserFirmware") or {}).get("path")
-    if not path:
-        sys.exit("docs/installer/release.json has no browserFirmware.path")
-    return f"installer/{path}"
+    rels = []
+    for board in boards(meta):
+        path = (board.get("browserFirmware") or {}).get("path")
+        if not path:
+            sys.exit(f"docs/installer/release.json has no browserFirmware.path "
+                     f"for board {board.get('id')!r}")
+        rels.append(f"installer/{path}")
+        rels.append(f"installer/{board.get('manifest', 'manifest.json')}")
+    return rels
 
 
 def site_entries(meta: dict) -> list[tuple[pathlib.Path, str]]:
     """(source, arcname-under-site) pairs, sorted, missing requireds reported."""
-    names = list(SITE_REQUIRED) + [firmware_rel(meta)]
+    names = list(SITE_REQUIRED) + firmware_rels(meta)
     missing = [n for n in names if not (DOCS / n).is_file()]
     if missing:
         sys.exit(
@@ -660,6 +723,15 @@ def check() -> int:
                 f'app.js binds #{element_id}, and the offline page has no id="{element_id}"'
             )
 
+    # A board the release carries and the offline page cannot select is an
+    # image in the zip that nobody can install from it.
+    for board in boards(meta):
+        if f'name="board" value="{board.get("id")}"' not in OFFLINE_INDEX:
+            problems.append(
+                f"release.json carries board {board.get('id')!r}, and the offline "
+                "page has no choice for it"
+            )
+
     if problems:
         print("the offline zip would ship a page with missing files:\n")
         for problem in problems:
@@ -697,7 +769,12 @@ def build(out_dir: pathlib.Path) -> int:
             "docs/app.js verifies against it."
         )
 
-    firmware = firmware_rel(meta)
+    images = [
+        (board.get("name") or board.get("id", "?"),
+         pathlib.PurePath((board.get("browserFirmware") or {}).get("path", "")).name,
+         (board.get("browserFirmware") or {}).get("sha256"))
+        for board in boards(meta)
+    ]
     fingerprint = (meta.get("authenticity") or {}).get("gpgFingerprint")
     entries = site_entries(meta)
 
@@ -721,10 +798,7 @@ def build(out_dir: pathlib.Path) -> int:
 
     with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
         add(zf, "00-START-HERE.txt",
-            render_start_here(version, pathlib.PurePath(firmware).name,
-                              fingerprint,
-                              (meta.get("browserFirmware") or {}).get("sha256"),
-                              ).encode("utf-8"))
+            render_start_here(version, images, fingerprint).encode("utf-8"))
         add(zf, "serve.py", SERVE_PY.encode("utf-8"), 0o755)
         add(zf, "serve.command", SERVE_SH.encode("utf-8"), 0o755)
         add(zf, "serve.sh", SERVE_SH.encode("utf-8"), 0o755)

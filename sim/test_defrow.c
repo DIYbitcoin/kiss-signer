@@ -16,12 +16,34 @@ static void dchk(const char *name, int ok)
 
 int test_defrow(void)
 {
-    // The spec's own worked examples, verbatim.
+    // The spec's own worked examples, verbatim, for the wide lane; the
+    // 3.5in's lane is 178 with a 22 ghost (kiss_defrow.h says why it is not
+    // two thirds of 284) and its numbers are worked the same way. One branch
+    // per board, so a board added later fails to build here instead of
+    // being held to another board's numbers.
+#if defined(KISS_BOARD_WS35)
+    dchk("n=4 closed is 44", wt_def_h_closed(4) == 44);
+    dchk("n=4 open is 112", wt_def_h_open(4) == 112);
+    dchk("n=3 closed is 59", wt_def_h_closed(3) == 59);
+    dchk("n=3 open is 134", wt_def_h_open(3) == 134);
+    dchk("a ghost is 22", wt_def_h_ghost() == 22);
+#elif defined(KISS_BOARD_JC1060)
+    // The 7in's lane is SY(284) = 355 with an SY(34) = 42 ghost, worked the
+    // same way.
+    dchk("n=4 closed is 88", wt_def_h_closed(4) == 88);
+    dchk("n=4 open is 229", wt_def_h_open(4) == 229);
+    dchk("n=3 closed is 118", wt_def_h_closed(3) == 118);
+    dchk("n=3 open is 271", wt_def_h_open(3) == 271);
+    dchk("a ghost is 42", wt_def_h_ghost() == 42);
+#elif defined(KISS_BOARD_GUITION)
     dchk("n=4 closed is 71", wt_def_h_closed(4) == 71);
     dchk("n=4 open is 182", wt_def_h_open(4) == 182);
     dchk("n=3 closed is 94", wt_def_h_closed(3) == 94);
     dchk("n=3 open is 216", wt_def_h_open(3) == 216);
     dchk("a ghost is 34", wt_def_h_ghost() == 34);
+#else
+#error "work this board's definition row numbers out here"
+#endif
 
     for (int n = 2; n <= 5; n++) {
         char name[64];

@@ -519,6 +519,11 @@ a:hover {
 
 .reveal-caption {
   display: grid;
+  /* The two spans stack in one cell and cross-fade, so they have to agree on
+     where they sit. Without this each took its own width from the start of
+     the track and the pair drifted apart as the words changed length. */
+  justify-items: center;
+  text-align: center;
   margin: 12px 0 0;
   font-size: 0.72rem;
   letter-spacing: 0.2em;
@@ -1087,6 +1092,19 @@ h2 {
   margin: 3px 0 0;
   accent-color: var(--green);
   flex: none;
+}
+
+/* The board question on the install card: its two answers are ack rows, kept
+   close together so they read as one choice rather than two more steps. */
+.board-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.board-pick > strong {
+  color: var(--ink);
+  font-weight: 500;
 }
 
 .install-actions {

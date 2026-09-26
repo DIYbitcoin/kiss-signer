@@ -77,6 +77,18 @@ typedef struct {
     char     addr[120];  // longest form: a ~117-char sp1/tsp1 silent payment address
     uint64_t sats;
     bool     is_change;  // carries OUR keypath AND the re-derived script matches
+    // Which half of the wallet an OURS output landed on: 1 = the change
+    // branch, 0 = a receive address. Only meaningful when is_change.
+    //
+    // It is carried because the screen used to say CHANGE about both. The
+    // verifier accepts m/../0/i and m/../1/i alike -- correctly, a coin on
+    // either is ours and re-derives -- so a spend that pays one of the
+    // owner's own RECEIVE addresses, which every coordinator can build and
+    // some do when sweeping, was labelled change on the one screen that
+    // decides whether to sign. Change is a specific thing with its own
+    // cautions in this file, and an output that is not change must not wear
+    // the word.
+    uint32_t branch;
     bool     is_sp;      // BIP375 silent payment output: addr shows the sp1/tsp1
                          // re-encoding of its scan+spend keys, script derived here
     // Address index of a change output, m/../<change>/<index>. Only meaningful
@@ -152,6 +164,30 @@ typedef struct {
     uint32_t in0_keypaths;   // how many keypath entries input 0 carried at all
     wpsbt_out_t outs[WPSBT_MAX_OUTS];
 } wpsbt_summary_t;
+
+// Nothing leaves the wallet: every output is ours, a zero-sat data output at
+// most. The fee is then a share of the inputs, and the screens say so.
+static inline bool wpsbt_fee_on_inputs(const wpsbt_summary_t *s)
+{
+    return s->send_sats == 0;
+}
+
+// What the fee is a share OF: the payment, or the inputs when nothing is sent.
+static inline uint64_t wpsbt_fee_base(const wpsbt_summary_t *s)
+{
+    return wpsbt_fee_on_inputs(s) ? s->in_sats : s->send_sats;
+}
+
+// The share half of WPSBT_C_HIGHFEE: a fee of a tenth or more of that base.
+// One definition for the verifier that raises the caution and the screen that
+// says which test raised it. The screen once kept its own copy, and when the
+// verifier learned to measure a send to self against its inputs the copy did
+// not: a 59% fee on a 3 kB data transaction read "high fee  1.9 sat/vB".
+static inline bool wpsbt_fee_share_high(const wpsbt_summary_t *s)
+{
+    uint64_t base = wpsbt_fee_base(s);
+    return base > 0 && s->fee_sats * 10 >= base;
+}
 
 // ---- DETAILS page data (read on demand from the held PSBT) ----
 #define WPSBT_MAX_INS 16

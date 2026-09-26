@@ -7,7 +7,7 @@ contributors. Graphics licensed CC-BY 4.0
 on the wallet home screen (baked via assets/generators/kiss_mock.py).
 
 ## flags/
-Language-picker flags (20 regional-indicator emoji, 72x72), same source and
+Language-picker flags (21 regional-indicator emoji, 72x72), same source and
 license: Twemoji (https://github.com/jdecked/twemoji), CC-BY 4.0. English
 deliberately has no flag. Consumed by assets/generators/flag_imgs.py ->
 main/flag_imgs.c (do not hand-edit the generated file).

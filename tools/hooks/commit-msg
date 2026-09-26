@@ -70,4 +70,21 @@ if [ -n "$HIT" ]; then
   echo "deleting the line would delete the fact it carries." >&2
   exit 1
 fi
+
+# LENGTH, which only warns. The subject stays within 50 characters and body
+# lines within 72 (https://chris.beams.io/git-commit), and they are counted
+# here because counting by eye has shipped 55- and 56-character subjects that
+# looked fine. It never refuses: a pasted URL or a merge subject is rightly
+# over, and the refusal above stays the only thing in this file that holds a
+# commit up. LC_ALL=C plus dropping UTF-8 continuation bytes counts characters
+# with any awk, so an em dash is one, not three. Comment lines, and everything
+# under the scissors line `git commit -v` appends, are not the message.
+LC_ALL=C awk '
+  /^# -+ >8 -+$/ { exit }
+  /^#/ { next }
+  { n++; s = $0; gsub(/[\200-\277]/, "", s) }
+  n == 1 && /^(Merge|Revert|fixup!|squash!|amend!) / { exit }
+  n == 1 && length(s) > 50 { printf "commit-msg: subject is %d characters, limit 50\n", length(s) }
+  n > 2 && length(s) > 72 && $0 !~ /:\/\// { printf "commit-msg: body line %d is %d characters, limit 72\n", n, length(s) }
+' "$MSG" >&2
 exit 0

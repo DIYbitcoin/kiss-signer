@@ -15,9 +15,14 @@
 //
 // Pure integers, no LVGL, so kisstest can prove the identities on desktop.
 #pragma once
+#include "kiss_board.h"   // SY: the lane is 284 on the wide canvas
 
-#define WT_DEF_LANE  284   // the chrome contract's content lane height
-#define WT_DEF_GHOST 34    // a collapsed row
+// The 3.5in's lane is NOT the scaled 189. Its content floor was raised to 254
+// to leave a moat over the action row, and 76 + 189 ran the lane to 265: the
+// last ghost under an open definition sat 11 px into the moat with the band's
+// hairline through its letters. 76 + 178 ends the lane on the floor.
+#define WT_DEF_LANE  (KISS_NARROW ? 178 : SY(284))   // the content lane height
+#define WT_DEF_GHOST SY(34)    // a collapsed row
 
 static inline int wt_def_h_closed(int n) { return WT_DEF_LANE / n; }
 static inline int wt_def_h_open(int n)

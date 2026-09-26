@@ -26,13 +26,20 @@ static const char WT_BARCAP_TAG[] = "wt_action_bar_cap";
 static const char WT_SLIDEBAND_TAG[] = "wt_slide_band";
 // The [ ? ] tab, so a trail sharing its strip can stop before it.
 static const char WT_HELPTAB_TAG[] = "wt_help_tab";
+#if KISS_NARROW
+static const char WT_TABSTRIP_TAG[] = "wt_tab_strip";
+// The band's standing sentence, so the exit built after it can hand it the
+// lane the exit's own label leaves.
+static const char WT_STANDING_TAG[] = "wt_standing";
+static void standing_refit(lv_obj_t *scr);
+#endif
 static const char WT_THEMENAME_TAG[] = "wt_theme_name";
 // wt_theme_tab's geometry, up here because accent_walk resizes the control and
 // is defined long before the builder. The names are four different widths, so
 // the box is not a constant -- only the edge it hangs from is.
-#define WT_THEMETAB_SW    28    // the swatch
-#define WT_THEMETAB_GAP   12    // swatch to name
-#define WT_THEMETAB_RIGHT 752   // the page margin [ ? ] is pinned to as well
+#define WT_THEMETAB_SW    SX(28)    // the swatch
+#define WT_THEMETAB_GAP   SX(12)    // swatch to name
+#define WT_THEMETAB_RIGHT SX(752)   // the page margin [ ? ] is pinned to as well
 // The word on a band slide, so a caller can change it on arrival without
 // counting children -- the sign screen turns SLIDE TO SIGN into SIGNING.
 static const char WT_SLIDELBL_TAG[] = "wt_slide_label";
@@ -92,12 +99,51 @@ static lv_obj_t *wt_tagged(lv_obj_t *scr, const char *tag)
     return NULL;
 }
 
+// Which face each name draws. Every screen is written for the 4.3in's 800x480
+// and names its type by what THAT board draws -- wt_font28(), wt_font_mono21()
+// -- and each board decides here, and nowhere else, what a name means on its
+// glass. An explicit chain rather than a test of KISS_NARROW, because the two
+// wide boards want different answers:
+//   4.3in  the design size. Every name draws the face it names.
+//   3.5in  three fifths of the size, like its canvas (see nat14() below).
+//   7in    one rung UP. Its canvas is 1.28 times the 4.3in's across and 1.25
+//          down, so the same string at one rung larger fills the same scaled
+//          lane: 14 -> 18, 23 -> 28, 28 -> 34, 34 -> 43.
+// Both switches off is the 4.3in. A board missing from this chain stops the
+// build rather than borrowing the 4.3in's ladder in silence.
+#if defined(KISS_BOARD_GUITION)
+#define WT_TYPE_NARROW 0
+#define WT_TYPE_UP     0
+#elif defined(KISS_BOARD_WS35)
+#define WT_TYPE_NARROW 1
+#define WT_TYPE_UP     0
+#elif defined(KISS_BOARD_JC1060)
+#define WT_TYPE_NARROW 0
+#define WT_TYPE_UP     1
+#else
+#error "kiss_theme.c: no font ladder for this board; give it one here and in the accessors below"
+#endif
+
+#if WT_TYPE_UP
+// The 7in's own faces (tools/fonts/gen_fonts.sh, jc1060_faces). Declared here
+// and not in kiss_fonts.h because no other board compiles them, so a
+// reference from anywhere else could only be a link error on those boards.
+LV_FONT_DECLARE(font_kiss_lat43);
+LV_FONT_DECLARE(font_kiss_mono26);
+LV_FONT_DECLARE(font_kiss_mono43);
+LV_FONT_DECLARE(font_kiss_num60);
+#endif
+
 // The nat ("native") composites start with Montserrat for ASCII, symbols, and
 // Latin text, then fall back directly to the active locale's regional CJK
 // font. A single ja -> ko -> zh chain would render shared Han codepoints with
 // whichever font appeared first, mixing Japanese glyph forms into Simplified
 // Chinese.
 static lv_font_t s_nat14[I18N_FC_ZH + 1];
+#if WT_TYPE_NARROW || WT_TYPE_UP
+// The 3.5in's middle rung and the 7in's bottom one. The 4.3in never names it.
+static lv_font_t s_nat18[I18N_FC_ZH + 1];
+#endif
 static lv_font_t s_nat23[I18N_FC_ZH + 1];
 static lv_font_t s_nat28[I18N_FC_ZH + 1];
 // The body composites the accessors hand out: IoskeleyMono first, the nat
@@ -106,6 +152,9 @@ static lv_font_t s_nat28[I18N_FC_ZH + 1];
 // mono faces -- wt_font_monoNN() keeps returning the raw chainless ones, so a
 // localised string pointed at a data face still fails loudly.
 static lv_font_t s_font14[I18N_FC_ZH + 1];
+#if WT_TYPE_NARROW || WT_TYPE_UP
+static lv_font_t s_font18[I18N_FC_ZH + 1];
+#endif
 static lv_font_t s_font23[I18N_FC_ZH + 1];
 static lv_font_t s_font28[I18N_FC_ZH + 1];
 // 34 exists for Latin/Cyrillic ONLY -- the CJK subsets at this size would add
@@ -114,6 +163,12 @@ static lv_font_t s_font28[I18N_FC_ZH + 1];
 // face, not an array: there is deliberately no per-class variant to pick.
 static lv_font_t s_nat34;
 static lv_font_t s_font34;
+#if WT_TYPE_UP
+// The 7in's top rung, Latin/Cyrillic only for the same reason 34 is. Its CJK
+// locales stop at 28 there, as they do on the 4.3in.
+static lv_font_t s_nat43;
+static lv_font_t s_font43;
+#endif
 static bool s_fonts_ready;
 
 static void fonts_init(void)
@@ -127,6 +182,19 @@ static void fonts_init(void)
     s_nat14[I18N_FC_JA].fallback = &font_kiss_ja14;
     s_nat14[I18N_FC_KO].fallback = &font_kiss_ko14;
     s_nat14[I18N_FC_ZH].fallback = &font_kiss_zh14;
+#if WT_TYPE_NARROW || WT_TYPE_UP
+    // The 18 faces exist for the 3.5in and the 7in alone. The 4.3in's image
+    // never names them, so the linker drops them there and its bytes do not
+    // move.
+    for (int i = 0; i <= I18N_FC_ZH; i++) s_nat18[i] = font_kiss_lat18;
+    s_nat18[I18N_FC_JA].fallback = &font_kiss_ja18;
+    s_nat18[I18N_FC_KO].fallback = &font_kiss_ko18;
+    s_nat18[I18N_FC_ZH].fallback = &font_kiss_zh18;
+    for (int i = 0; i <= I18N_FC_ZH; i++) {
+        s_font18[i] = font_kiss_mono18;
+        s_font18[i].fallback = &s_nat18[i];
+    }
+#endif
     s_nat23[I18N_FC_JA].fallback = &font_kiss_ja23;
     s_nat23[I18N_FC_KO].fallback = &font_kiss_ko23;
     s_nat23[I18N_FC_ZH].fallback = &font_kiss_zh23;
@@ -150,6 +218,14 @@ static void fonts_init(void)
     }
     s_font34 = font_kiss_mono34;
     s_font34.fallback = &s_nat34;
+#if WT_TYPE_UP
+    // The same shape one rung up, and the same end: 28 is still the largest
+    // CJK face, so the 43 chain stops there too rather than at nothing.
+    s_nat43 = font_kiss_lat43;
+    s_nat43.fallback = &font_kiss_ja28;
+    s_font43 = font_kiss_mono43;
+    s_font43.fallback = &s_nat43;
+#endif
     s_fonts_ready = true;
 }
 
@@ -162,43 +238,101 @@ static int font_class_for_lang(int lang)
 // The nat faces, by current locale. The chrome guards and the language picker
 // want the Montserrat-primary composites: a native name like "Español" set on
 // the mono-primary face would mix two typefaces inside one word.
+// SCALED WITH THE CANVAS ON THE 3.5in. Its canvas is three fifths as wide as
+// the 4.3in's, so a face that is three fifths the size lays the same string
+// into the same lane: 34 -> 23, 28 -> 18, 23 -> 14, and 14 is the floor. One
+// rung (34 -> 28 -> 23 -> 18) was tried first, on the argument that its
+// pixels are a third larger so the same physical height wanted 0.78 of the
+// size; it left every text-heavy screen 30% too wide for its lane and the
+// explainers running into the action band. The glass is smaller; the type
+// is too.
+// ONE RUNG UP ON THE 7in: 14 -> 18, 23 -> 28, 28 -> 34, 34 -> 43. Its lanes
+// are 1.25 to 1.28 times the 4.3in's and each of those steps is 1.2 to 1.29
+// times the size below it, so a string fills the same share of its lane that
+// it was written to fill. No CJK face exists above 28, so there a CJK locale's
+// 28 stays 28 -- the whole composite, its ASCII included, exactly as
+// wt_font34() does on the 4.3in -- rather than setting Latin at 34 beside Han
+// at 28 inside one line.
+// The names keep saying what the 4.3in draws, because that is how every
+// screen is written; the board decides what a name means, here and nowhere
+// else.
 static const lv_font_t *nat14(void)
 {
     fonts_init();
+#if WT_TYPE_UP
+    return &s_nat18[font_class_for_lang(i18n_get_lang())];
+#else
     return &s_nat14[font_class_for_lang(i18n_get_lang())];
+#endif
 }
 static const lv_font_t *nat23(void)
 {
     fonts_init();
+#if WT_TYPE_NARROW
+    return &s_nat14[font_class_for_lang(i18n_get_lang())];
+#elif WT_TYPE_UP
+    return &s_nat28[font_class_for_lang(i18n_get_lang())];
+#else
     return &s_nat23[font_class_for_lang(i18n_get_lang())];
+#endif
 }
 static const lv_font_t *nat28(void)
 {
     fonts_init();
+#if WT_TYPE_NARROW
+    return &s_nat18[font_class_for_lang(i18n_get_lang())];
+#elif WT_TYPE_UP
+    return font_class_for_lang(i18n_get_lang()) == I18N_FC_LAT
+             ? &s_nat34
+             : &s_nat28[font_class_for_lang(i18n_get_lang())];
+#else
     return &s_nat28[font_class_for_lang(i18n_get_lang())];
+#endif
 }
 
 const lv_font_t *wt_font14_for_lang(int lang)
 {
     fonts_init();
+#if WT_TYPE_UP
+    return &s_nat18[font_class_for_lang(lang)];
+#else
     return &s_nat14[font_class_for_lang(lang)];
+#endif
 }
 
 // NOT wt_font14_for_lang: that one is the picker's and returns the nat face.
 const lv_font_t *wt_font14(void)
 {
     fonts_init();
+#if WT_TYPE_UP
+    return &s_font18[font_class_for_lang(i18n_get_lang())];
+#else
     return &s_font14[font_class_for_lang(i18n_get_lang())];
+#endif
 }
 const lv_font_t *wt_font23(void)
 {
     fonts_init();
+#if WT_TYPE_NARROW
+    return &s_font14[font_class_for_lang(i18n_get_lang())];
+#elif WT_TYPE_UP
+    return &s_font28[font_class_for_lang(i18n_get_lang())];
+#else
     return &s_font23[font_class_for_lang(i18n_get_lang())];
+#endif
 }
 const lv_font_t *wt_font28(void)
 {
     fonts_init();
+#if WT_TYPE_NARROW
+    return &s_font18[font_class_for_lang(i18n_get_lang())];
+#elif WT_TYPE_UP
+    return font_class_for_lang(i18n_get_lang()) == I18N_FC_LAT
+             ? &s_font34
+             : &s_font28[font_class_for_lang(i18n_get_lang())];
+#else
     return &s_font28[font_class_for_lang(i18n_get_lang())];
+#endif
 }
 
 // The top rung, for page titles and primary buttons. Latin/Cyrillic locales
@@ -207,13 +341,21 @@ const lv_font_t *wt_font28(void)
 // string is CJK would put the renderer on the fallback path for the whole
 // screen. 28 is not a downgrade there: Han and Kana fill their em box far more
 // than Latin does, so a 28px CJK title already reads about as large as a 34px
-// Latin one.
+// Latin one. The 7in makes the same split one rung up, 43 against the same 28.
 const lv_font_t *wt_font34(void)
 {
     fonts_init();
+#if WT_TYPE_NARROW
+    return &s_font23[font_class_for_lang(i18n_get_lang())];
+#elif WT_TYPE_UP
+    return font_class_for_lang(i18n_get_lang()) == I18N_FC_LAT
+             ? &s_font43
+             : &s_font28[font_class_for_lang(i18n_get_lang())];
+#else
     return font_class_for_lang(i18n_get_lang()) == I18N_FC_LAT
              ? &s_font34
              : &s_font28[font_class_for_lang(i18n_get_lang())];
+#endif
 }
 
 // The fixed pitch faces. No array, no fallback, no per locale variant, and
@@ -232,16 +374,47 @@ const lv_font_t *wt_font34(void)
 // bug about. A chain would render it one size small and nobody would notice
 // the wiring is wrong. (The renderer does not hang on a missing glyph; the
 // comment above about s_font34 predates LV_USE_FONT_PLACEHOLDER being on.)
-const lv_font_t *wt_font_mono14(void) { return &font_kiss_mono14; }
-const lv_font_t *wt_font_mono18(void) { return &font_kiss_mono18; }
-const lv_font_t *wt_font_mono21(void) { return &font_kiss_mono21; }
-const lv_font_t *wt_font_mono23(void) { return &font_kiss_mono23; }
-const lv_font_t *wt_font_mono28(void) { return &font_kiss_mono28; }
-const lv_font_t *wt_font_mono34(void) { return &font_kiss_mono34; }
+// The same ladders as the composites above, on the denser mono scale. The
+// 3.5in steps down three fifths (34 -> 21, 28 -> 18, 23 -> 14) with the same
+// floor at 14. The 7in steps up one rung, and the rung above 21 there is 26,
+// not 28: 28 is 1.33 times 21, and an address in a closed row's value set
+// that large runs past the lane the row gives it.
+#if WT_TYPE_NARROW
+#define WT_MONO14 font_kiss_mono14
+#define WT_MONO18 font_kiss_mono14
+#define WT_MONO21 font_kiss_mono14
+#define WT_MONO23 font_kiss_mono14
+#define WT_MONO28 font_kiss_mono18
+#define WT_MONO34 font_kiss_mono21
+#define WT_NUM48  font_kiss_num28
+#elif WT_TYPE_UP
+#define WT_MONO14 font_kiss_mono18
+#define WT_MONO18 font_kiss_mono23
+#define WT_MONO21 font_kiss_mono26
+#define WT_MONO23 font_kiss_mono28
+#define WT_MONO28 font_kiss_mono34
+#define WT_MONO34 font_kiss_mono43
+#define WT_NUM48  font_kiss_num60
+#else
+#define WT_MONO14 font_kiss_mono14
+#define WT_MONO18 font_kiss_mono18
+#define WT_MONO21 font_kiss_mono21
+#define WT_MONO23 font_kiss_mono23
+#define WT_MONO28 font_kiss_mono28
+#define WT_MONO34 font_kiss_mono34
+#define WT_NUM48  font_kiss_num48
+#endif
+const lv_font_t *wt_font_mono14(void) { return &WT_MONO14; }
+const lv_font_t *wt_font_mono18(void) { return &WT_MONO18; }
+const lv_font_t *wt_font_mono21(void) { return &WT_MONO21; }
+const lv_font_t *wt_font_mono23(void) { return &WT_MONO23; }
+const lv_font_t *wt_font_mono28(void) { return &WT_MONO28; }
+const lv_font_t *wt_font_mono34(void) { return &WT_MONO34; }
 
 // The Sign hero, and nothing else. Thirteen glyphs, digits and space and full
-// stop, so it cannot represent a letter even if handed one.
-const lv_font_t *wt_font_num48(void) { return &font_kiss_num48; }
+// stop, so it cannot represent a letter even if handed one. 28px on the 3.5in,
+// 60 on the 7in (48 x 1.25), from the same glyph list.
+const lv_font_t *wt_font_num48(void) { return &WT_NUM48; }
 
 // The sink from kiss_theme.h. NULL on device and in any host build that has not
 // asked, so this costs a null check on a path that already measured text.
@@ -393,7 +566,9 @@ static void wt_sub_measure(const char *kind, const char *txt,
     // any layout -- which is a different and much shorter list than "does not
     // fit 40% of what it has here", a question every string on the device
     // would fail.
-    if ((int)fl.x > WT_PORT_LANE)
+    // Only on the 4.3in: on the 3.5in the lane IS the measurement above, and on
+    // the 7in the type is a rung up, so its widths say nothing about the 3.5in.
+    if (KISS_DESIGN_CANVAS && (int)fl.x > WT_PORT_LANE)
         s_cut_sink("port", txt, (int)fl.x, WT_PORT_LANE);
 }
 
@@ -777,13 +952,13 @@ static const lv_font_t *note_font(const char *txt, int w, int max_h);
 // The radius is named because the action bar has to reproduce it: the bar fills
 // the bottom of this card, so anything that changes the curve here has to change
 // the curve there in the same edit or the boundary breaks at the two corners.
-#define WT_CARD_R 16
+#define WT_CARD_R SX(16)
 static void screen_card(lv_obj_t *scr)
 {
     lv_obj_t *card = lv_obj_create(scr);
     lv_obj_remove_style_all(card);
-    lv_obj_set_pos(card, 8, 8);
-    lv_obj_set_size(card, 784, 464);
+    lv_obj_set_pos(card, SX(8), SY(8));
+    lv_obj_set_size(card, SX(784), SY(464));
     lv_obj_set_style_radius(card, WT_CARD_R, 0);
     lv_obj_set_style_border_width(card, 1, 0);
     lv_obj_set_style_border_color(card, WT_EDGE, 0);
@@ -887,7 +1062,7 @@ lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub)
 #endif
     lv_obj_t *scr = lv_obj_create(parent);
     lv_obj_remove_style_all(scr);
-    lv_obj_set_size(scr, 800, 480);
+    lv_obj_set_size(scr, SCREEN_W, SCREEN_H);
     lv_obj_set_style_bg_color(scr, WT_BG, 0);
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
     lv_obj_remove_flag(scr, LV_OBJ_FLAG_CLICKABLE);
@@ -927,7 +1102,7 @@ lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub)
     lv_obj_set_style_text_color(cap, wt_accent(), 0);
     lv_obj_set_style_text_font(cap, wt_font34(), 0);
     lv_obj_set_style_text_letter_space(cap, 3, 0);
-    lv_obj_set_pos(cap, 48, 18);
+    lv_obj_set_pos(cap, SX(48), SY(18));
     lv_obj_set_user_data(cap, (void *)WT_TITLE_TAG);
 
     if (sub) {
@@ -939,14 +1114,31 @@ lv_obj_t *wt_screen(lv_obj_t *parent, const char *title, const char *sub)
         // SPANS, so the full stop takes the accent like every other sentence
         // on the device. It was a plain label, which is how the one line an
         // owner reads first ended up being the only one with a grey stop.
-        lv_obj_t *s = spans_new(scr, 48, 66, 704);
+        lv_obj_t *s = spans_new(scr, SX(48), SY(66), SX(704));
         lv_obj_set_style_text_color(s, WT_MUT, 0);
-        lv_obj_set_style_text_font(s, note_font(sub, 704, 29), 0);
+        lv_obj_set_style_text_font(s, note_font(sub, SX(704), SY(29)), 0);
         spans_fill(s, sub, NULL);
         lv_obj_set_user_data(s, (void *)WT_SUB_TAG);
+#if KISS_NARROW
+        // HELD to its one line on the 3.5in once the floor rung is not enough,
+        // which note_font has already reported. The 3.5in's content line is
+        // 64, a second line of the 14 face ends at 82, and the restore
+        // keyboard's word and suggestions sit from 64: "skriv dina seed-ord
+        // från papperet för att kontrollera dem." wrote its second line
+        // through the 1/12 counter.
+        {
+            lv_point_t ss;
+            lv_text_get_size(&ss, sub, lv_obj_get_style_text_font(s, 0), 0, 0,
+                             SX(704), LV_TEXT_FLAG_NONE);
+            if (ss.y > SY(29)) {
+                lv_spangroup_set_max_lines(s, 1);
+                lv_spangroup_set_overflow(s, LV_SPAN_OVERFLOW_ELLIPSIS);
+            }
+        }
+#endif
     }
     lv_obj_set_user_data(scr, (void *)WT_SCREEN_TAG);
-    wt_title_fit(scr, 704);   // 48..752, the page margins
+    wt_title_fit(scr, SX(704));   // 48..752, the page margins
     return scr;
 }
 
@@ -1002,6 +1194,19 @@ void wt_title_fit(lv_obj_t *scr, int w)
     }
     lv_obj_set_style_text_font(cap, f[pick], 0);
     lv_obj_set_style_text_letter_space(cap, space[pick], 0);
+#if KISS_NARROW
+    // The cursor follows the title it stands after. It was placed against the
+    // rung the title was built at, so a title that stepped down here left the
+    // block standing in the air where the longer line used to end.
+    lv_obj_t *cb = wt_tagged(scr, WT_CURSOR_TAG);
+    if (cb) {
+        lv_point_t ts;
+        lv_text_get_size(&ts, txt, f[pick], space[pick], 0, LV_COORD_MAX,
+                         LV_TEXT_FLAG_NONE);
+        lv_obj_set_pos(cb, lv_obj_get_style_x(cap, LV_PART_MAIN) + ts.x + SX(12),
+                       lv_obj_get_style_y(cap, LV_PART_MAIN) + (ts.y - SY(22)) / 2 - 2);
+    }
+#endif
 }
 
 void wt_sub_fit(lv_obj_t *scr, int w)
@@ -1013,7 +1218,7 @@ void wt_sub_fit(lv_obj_t *scr, int w)
     // Re-fit as well as re-width: the subtitle gets ONE line inside a 29px
     // budget, and narrowing the lane without re-measuring would simply wrap it
     // onto the y=96 content line.
-    lv_obj_set_style_text_font(s, note_font(txt, w, 29), 0);
+    lv_obj_set_style_text_font(s, note_font(txt, w, SY(29)), 0);
     lv_obj_set_width(s, w);
 }
 
@@ -1058,7 +1263,7 @@ static void action_bar_ensure_at(lv_obj_t *scr, int top)
         // and y as well.
         if (lv_obj_get_style_y(c, LV_PART_MAIN) <= top) return;
         lv_obj_set_y(c, top);
-        if (tag == (void *)WT_BAR_TAG) lv_obj_set_height(c, 471 - top);
+        if (tag == (void *)WT_BAR_TAG) lv_obj_set_height(c, SY(471) - top);
     }
     for (uint32_t i = 0; i < n; i++)
         if (lv_obj_get_user_data(lv_obj_get_child(scr, i)) == (void *)WT_BAR_TAG)
@@ -1079,8 +1284,8 @@ static void action_bar_ensure_at(lv_obj_t *scr, int top)
     lv_obj_t *bar = lv_obj_create(scr);
     lv_obj_remove_style_all(bar);
     lv_obj_set_user_data(bar, (void *)WT_BAR_TAG);
-    lv_obj_set_pos(bar, 9, top);
-    lv_obj_set_size(bar, 782, 471 - top);
+    lv_obj_set_pos(bar, SX(9), top);
+    lv_obj_set_size(bar, SX(782), SY(471) - top);
     lv_obj_set_style_radius(bar, WT_CARD_R - 1, 0);
     lv_obj_set_style_bg_color(bar, WT_BAR, 0);
     lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, 0);
@@ -1100,8 +1305,8 @@ static void action_bar_ensure_at(lv_obj_t *scr, int top)
     lv_obj_t *cap = lv_obj_create(scr);
     lv_obj_remove_style_all(cap);
     lv_obj_set_user_data(cap, (void *)WT_BARCAP_TAG);
-    lv_obj_set_pos(cap, 9, top);
-    lv_obj_set_size(cap, 782, WT_CARD_R - 1);
+    lv_obj_set_pos(cap, SX(9), top);
+    lv_obj_set_size(cap, SX(782), WT_CARD_R - 1);
     lv_obj_set_style_bg_color(cap, WT_BAR, 0);
     lv_obj_set_style_bg_opa(cap, LV_OPA_COVER, 0);
     lv_obj_set_style_border_color(cap, WT_HAIR, 0);
@@ -1171,8 +1376,15 @@ bool wt_is_slide_band(lv_obj_t *o)
 // because a transition is looked up on the state being entered: a descriptor
 // living only on the pressed style would animate the press and then sit out
 // the release, which is the half that matters most.
-#define WT_TAP_RING 10          // how far outside the edge the ring travels
-#define WT_TAP_MS   160
+#define WT_TAP_RING SX(10)          // how far outside the edge the ring travels
+#define WT_TAP_MS   WT_MOTION_MS(160)
+
+// How much of the pressed fill a held row or tab wears. Full, on the wide
+// board. On the 3.5in a row's caption is 14 px WT_MUT, and under MONO's pressed
+// steel at full strength it measured 2.8:1, and 3.8:1 even at the lighter grey
+// -- the row went unreadable at the moment the owner holds it to read it. 180
+// keeps the wash plainly lit and every theme's caption over 4.5:1.
+#define WT_PRESS_OPA (KISS_NARROW ? 180 : LV_OPA_COVER)
 
 static lv_style_transition_dsc_t s_tap_tr;
 static bool s_tap_tr_ready;
@@ -1206,9 +1418,21 @@ static lv_obj_t *round_chip(lv_obj_t *parent, const char *symbol,
 {
     lv_obj_t *chip = lv_obj_create(parent);
     lv_obj_remove_style_all(chip);
-    lv_obj_set_size(chip, 30, 30);
+#if KISS_NARROW
+    // A thumb's ring on the 3.5in, not three fifths of the wide one: the scaled
+    // 18 px circle held a speck of a "?" and was aimed at rather than pressed.
+    // x and y still place the chip the wide canvas drew, and the larger ring
+    // grows about that chip's centre, so a chip centred on a line of text
+    // stays centred on it. A caller that aligns the chip afterwards aligns
+    // the real size.
+    lv_obj_set_size(chip, WT_HELP_CHIP_D, WT_HELP_CHIP_D);
+    lv_obj_set_pos(chip, x - WT_HELP_CHIP_GROW, y - WT_HELP_CHIP_GROW);
+    lv_obj_set_style_radius(chip, WT_HELP_CHIP_D / 2, 0);
+#else
+    lv_obj_set_size(chip, SX(30), SX(30));
     lv_obj_set_pos(chip, x, y);
-    lv_obj_set_style_radius(chip, 15, 0);
+    lv_obj_set_style_radius(chip, SX(15), 0);
+#endif
     lv_obj_set_style_bg_color(chip, WT_KEY, 0);
     lv_obj_set_style_bg_opa(chip, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(chip, 1, 0);
@@ -1221,7 +1445,7 @@ static lv_obj_t *round_chip(lv_obj_t *parent, const char *symbol,
     if (acc) lv_obj_add_flag(chip, WT_FLAG_ACCENT_BORDER);
     lv_obj_add_flag(chip, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_clear_flag(chip, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_ext_click_area(chip, 12);       // 54px effective target
+    lv_obj_set_ext_click_area(chip, 12);       // 54px effective target (3.5in: 50)
     wt_tap_feedback(chip);
     if (cb) lv_obj_add_event_cb(chip, cb, LV_EVENT_CLICKED, ud);
 
@@ -1240,7 +1464,17 @@ static lv_obj_t *round_chip(lv_obj_t *parent, const char *symbol,
     // glyph box -- a hollow rectangle inside a ring, on every screen with a QR
     // on it, on the device and in every captured frame identically. The "?"
     // is ASCII and keeps mono21; a symbol takes the sans face that carries it.
+#if KISS_NARROW
+    // The 18 px face, the 3.5in's rung for the wide board's 28, in a 26 px
+    // ring: the same glyph to ring proportion the wide chip has, where the 14
+    // px face inside the larger ring read as the speck it replaced. Its line
+    // box is 22 against the ring's 24 px inside, so centred it clears the rim
+    // top and bottom -- the clip the 18 px ring gave a 14 px face's 18 px box
+    // cannot happen at this size.
+    lv_obj_set_style_text_font(label, wt_chrome28(symbol), 0);
+#else
     lv_obj_set_style_text_font(label, wt_chrome21(symbol), 0);
+#endif
     lv_obj_center(label);
     return chip;
 }
@@ -1283,14 +1517,21 @@ void wt_icon_text(char *out, size_t out_len, const char *icon, const char *txt)
 // told a lift is safe; a finger that has just LIFTED does, and by then the
 // label is free to say it. So the label carries the whole gesture: the word at
 // rest, KEEP SLIDING under the finger, KEEP GOING in the window.
-#define WT_SLIDE_KNOB      44
+//
+// The 3.5in's band is 60 px (kiss_theme.h): the caption at 2, the track at 34
+// with the knob's 32 px centred on it, 20..52. It was a 36 px knob on a track
+// at 40, 24..60, which put the knob's foot on the screen card's bottom edge at
+// 312 and its head 4 px under the caption: the band had room for the knob or
+// for air around it, not both. 32 keeps 4 px under the caption's capitals and
+// 6 px over the card's edge, and the press still lands anywhere on the bar.
+#define WT_SLIDE_KNOB      (KISS_NARROW ? 32 : 44)   // a finger does not scale: 32 is the floor
 #define WT_SLIDE_TRACK      4
-#define WT_SLIDE_LBL_Y     20
-#define WT_SLIDE_TRACK_Y   86
+#define WT_SLIDE_LBL_Y     (KISS_NARROW ? 2 : SY(20))
+#define WT_SLIDE_TRACK_Y   (KISS_NARROW ? 34 : SY(86))
 // 8px in either direction before the knob moves at all. A brush along the band
 // while reaching for the exit is not a gesture, and it must not light a fill
 // that then has to be seen retracting.
-#define WT_SLIDE_DEAD       8
+#define WT_SLIDE_DEAD       SX(8)
 // Past 85% the knob finishes the trip itself. The far end of a 704px lane is
 // where a thumb runs out of reach, and a gesture only a large hand can finish
 // is a gesture asking the wrong question.
@@ -1644,7 +1885,7 @@ lv_obj_t *wt_slide(lv_obj_t *scr, const wt_slide_t *cfg)
     int bh = WT_ACTION_H;
     if (band) {
         y = WT_ACTION_Y_SLIDE;
-        bh = 471 - WT_ACTION_Y_SLIDE;
+        bh = SY(471) - WT_ACTION_Y_SLIDE;
         action_bar_ensure_at(scr, WT_ACTION_Y_SLIDE);
     }
 
@@ -1663,7 +1904,9 @@ lv_obj_t *wt_slide(lv_obj_t *scr, const wt_slide_t *cfg)
     // is the one that covers the whole device. What is load bearing is that
     // the fill RUNS back instead of vanishing -- a fill that disappears reads
     // as a completed action.
-    h->release_ms = 200;
+    // 140 on the 3.5in: the rewind says the slide did not count, so it stays a
+    // motion rather than a jump, just a brisker one (see WT_MOTION_MS).
+    h->release_ms = KISS_NARROW ? 140 : 200;
     h->born = lv_tick_get();
     h->deaf_ms = cfg->deaf_ms;
     h->move = cfg->move;
@@ -1744,7 +1987,7 @@ lv_obj_t *wt_slide(lv_obj_t *scr, const wt_slide_t *cfg)
     lv_obj_remove_style_all(k);
     lv_obj_set_size(k, WT_SLIDE_KNOB, WT_SLIDE_KNOB);
     lv_obj_set_pos(k, 0, ty + WT_SLIDE_TRACK / 2 - WT_SLIDE_KNOB / 2);
-    lv_obj_set_style_radius(k, 6, 0);
+    lv_obj_set_style_radius(k, SX(6), 0);
     lv_obj_set_style_bg_color(k, fillc, 0);
     lv_obj_set_style_bg_opa(k, LV_OPA_COVER, 0);
     if (flagged) lv_obj_add_flag(k, WT_FLAG_ACCENT_FILL);
@@ -1754,13 +1997,37 @@ lv_obj_t *wt_slide(lv_obj_t *scr, const wt_slide_t *cfg)
 
     // The label swaps between its word and KEEP SLIDING mid-drag, so the
     // mono rung is taken only when BOTH fit the face -- a font swap on a
-    // held control would make the track jump under the finger.
-    const lv_font_t *lf2 = (mono_can(txt) && mono_can(held))
+    // held control would make the track jump under the finger. The same goes
+    // for the two words this kit writes on it by itself: KEEP GOING on a
+    // paused lift and the return leg's word. Left out, FORTSÆT drew as boxes.
+    const lv_font_t *lf2 = (mono_can(txt) && mono_can(held) &&
+                            mono_can(cfg->again) &&
+                            (!band || mono_can(tr(STR_L_KEEP_GOING))))
                                ? wt_font_mono23() : wt_font23();
     if (band) {
         lv_obj_t *l = wt_lbl(p, txt, 0, WT_SLIDE_LBL_Y, lf2, inkc);
         lv_obj_set_user_data(l, (void *)WT_SLIDELBL_TAG);
+#if KISS_NARROW
+        // WT_TRACK where the word or KEEP SLIDING would not fit the rule at
+        // two pixels, both decided together so the swap mid-drag keeps its
+        // tracking. The rule's box clips its label, and SCHIEBEN: SIGNIEREN
+        // lost the edge of its last letter to it at two -- a seventh of an em
+        // on the 14 face, where WT_TRACK's one is the wide canvas's tenth.
+        {
+            int ls = 2;
+            const char *pair[2] = { txt, held };
+            for (int i = 0; i < 2; i++) {
+                if (!pair[i]) continue;
+                lv_point_t ts;
+                lv_text_get_size(&ts, pair[i], lf2, 2, 0, LV_COORD_MAX,
+                                 LV_TEXT_FLAG_NONE);
+                if (ts.x > w) ls = WT_TRACK;
+            }
+            lv_obj_set_style_text_letter_space(l, ls, 0);
+        }
+#else
         lv_obj_set_style_text_letter_space(l, 2, 0);
+#endif
         if (!inert && !ink) lv_obj_add_flag(l, WT_FLAG_ACCENT);
         h->lbl = l;
     } else {
@@ -1958,7 +2225,7 @@ static lv_obj_t *qr_card_raw(lv_obj_t *scr, lv_obj_t **qr,
     lv_obj_remove_style_all(card);
     lv_obj_set_size(card, card_px, card_px);
     lv_obj_set_pos(card, x, y);
-    lv_obj_set_style_radius(card, 12, 0);
+    lv_obj_set_style_radius(card, SX(12), 0);
     lv_obj_set_style_bg_color(card, WT_CARD, 0);
     lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
     lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
@@ -2038,15 +2305,39 @@ static void qr_zoom_open(wt_qr_state_t *s)
     lv_obj_move_foreground(ovl);
     s->zoom = ovl;
 
+#if KISS_NARROW
+    // Nearly the whole height of the glass. Scaled, the card was 254 px and
+    // the code 235, which is 4 px a dot for the 49 dot pairing descriptor --
+    // the size its page draws it at on this board, so the enlarged view
+    // enlarged nothing. 296 px of code is 6 a dot for a descriptor, a scan key
+    // or a silent payment address, 10 for a receive address and at least 6
+    // for any signed frame, and the thinnest white left round any of them is
+    // 9 px. The card ends 22 px short of the close control.
+    lv_obj_t *zoom_card = qr_card_raw(ovl, &s->zoom_qr, (SCREEN_W - 314) / 2, 3,
+                                      314, 296);
+#else
     // 392px gives even a 117-character Silent Payment code materially larger
     // modules while leaving a full white quiet zone and a visible close target.
-    lv_obj_t *zoom_card = qr_card_raw(ovl, &s->zoom_qr, 188, 28, 424, 392);
+    lv_obj_t *zoom_card = qr_card_raw(ovl, &s->zoom_qr, SX(188), SY(28), SX(424), SX(392));
+#endif
     lv_obj_add_flag(zoom_card, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(zoom_card, qr_zoom_close_cb, LV_EVENT_CLICKED, s);
     if (s->zoom_qr)
         lv_qrcode_update(s->zoom_qr, s->data, s->data_len);
-    round_chip(ovl, LV_SYMBOL_CLOSE, 748, 20, WT_MUT,
+#if KISS_NARROW
+    // The overlay's only drawn way out, so it is a thumb's size here: the
+    // scaled ring was 18 px in the corner, over the bezel's edge. The glass
+    // right of the enlarged code is empty, and the whole overlay still
+    // closes on a tap as it always has.
+    lv_obj_t *x = round_chip(ovl, LV_SYMBOL_CLOSE, 0, 0, WT_MUT,
+                             qr_zoom_close_cb, s);
+    lv_obj_set_size(x, 32, 32);
+    lv_obj_set_style_radius(x, 16, 0);
+    lv_obj_set_pos(x, SX(752) - 32, SY(28));
+#else
+    round_chip(ovl, LV_SYMBOL_CLOSE, SX(748), SY(20), WT_MUT,
                qr_zoom_close_cb, s);
+#endif
 }
 
 static void qr_state_delete_cb(lv_event_t *e)
@@ -2105,9 +2396,19 @@ static lv_obj_t *qr_card_make(lv_obj_t *scr, lv_obj_t **qr,
     lv_obj_add_event_cb(card, qr_zoom_open_cb, LV_EVENT_CLICKED, s);
     lv_obj_add_event_cb(card, qr_state_delete_cb, LV_EVENT_DELETE, s);
     // Outside the white card, so the cue never damages the QR quiet zone.
-    if (cue)
-        round_chip(scr, LV_SYMBOL_PLUS, x - 36, y + 8, WT_MUT,
+#if KISS_NARROW
+    // ...and only where the gutter can hold it. A card at the 3.5in's margin
+    // leaves 22 px between the bezel and the white, and the 18 px ring sat on
+    // the bezel line and against the card. The card is the tap target either
+    // way; the ring is a cue, and a cue drawn over two edges is noise.
+    if (cue && x - SX(30) - 6 >= 10)
+        round_chip(scr, LV_SYMBOL_PLUS, x - SX(30) - 6, y + SY(8), WT_MUT,
                    qr_zoom_open_cb, s);
+#else
+    if (cue)
+        round_chip(scr, LV_SYMBOL_PLUS, x - SX(36), y + SY(8), WT_MUT,
+                   qr_zoom_open_cb, s);
+#endif
 
     if (qr) *qr = q;
     return card;
@@ -2319,8 +2620,16 @@ lv_obj_t *wt_addr_short(lv_obj_t *par, const char *addr, const lv_font_t *f)
     // wt_group4 changes, and then they both change together.
     const size_t first = n % 4 == 0 ? 4 : n % 4 + 4;
     char head[16] = {0}, mid[32] = {0}, tail[16] = {0};
-    snprintf(head, sizeof head, "%.*s %.4s", (int)first, addr, addr + first);
-    snprintf(mid, sizeof mid, "  \xE2\x80\xA6  %.4s ", addr + n - 12);
+    // The 3.5in keeps the prefix block and the two lit tail blocks and
+    // nothing else: at the 14 face the full fold is 252px and its lane is
+    // 210. The two blocks the caption says to compare stay whole.
+    if (KISS_NARROW) {
+        snprintf(head, sizeof head, "%.*s", (int)first, addr);
+        snprintf(mid, sizeof mid, "  \xE2\x80\xA6  ");
+    } else {
+        snprintf(head, sizeof head, "%.*s %.4s", (int)first, addr, addr + first);
+        snprintf(mid, sizeof mid, "  \xE2\x80\xA6  %.4s ", addr + n - 12);
+    }
     snprintf(tail, sizeof tail, "%.4s %.4s", addr + n - 8, addr + n - 4);
 
     lv_obj_t *sg = lv_spangroup_create(par);
@@ -2574,7 +2883,7 @@ static int row_sub_lane_w(int w, bool icon, bool sel, bool cb, int vw)
         right = w - 10 - (int)cs.x - 10;
     }
     if (vw) right -= vw + 12;
-    const int lx = icon ? 52 : 14;
+    const int lx = icon ? SX(52) : SX(14);
     const int sw = right - lx;
     return sw > 40 ? sw : 40;
 }
@@ -2641,6 +2950,13 @@ lv_obj_t *wt_row_f(lv_obj_t *scr, const char *label, const char *sub,
                     x, y, w, 0, cb, ud);
 }
 
+// The accent's TINT: a mark that says a row is touchable without shouting it
+// (see the chevron below). On the 3.5in those marks are 14 px glyphs, and at
+// 150 MONO's steel measured 3.8:1 on a panel and CYPHERPINK 2.7:1 -- a tint at
+// arm's length there is a mark nobody finds. 220 lifts all four accents past
+// 4.5:1 and still leaves a selected row's full strength louder.
+#define WT_TINT_OPA (KISS_NARROW ? 220 : 150)
+
 lv_obj_t *wt_row_x(lv_obj_t *scr, const char *icon, const char *label,
                    const char *sub, const lv_font_t *sf,
                    const char *val, const lv_font_t *vf, lv_color_t vcol,
@@ -2665,9 +2981,9 @@ lv_obj_t *wt_row_x(lv_obj_t *scr, const char *icon, const char *label,
     lv_obj_remove_style_all(row);
     lv_obj_set_pos(row, x, y);
     lv_obj_set_size(row, w, rowh);
-    lv_obj_set_style_radius(row, 10, 0);
+    lv_obj_set_style_radius(row, SX(10), 0);
     lv_obj_set_style_bg_color(row, wt_accent_pressed(), LV_STATE_PRESSED);
-    lv_obj_set_style_bg_opa(row, LV_OPA_COVER, LV_STATE_PRESSED);
+    lv_obj_set_style_bg_opa(row, WT_PRESS_OPA, LV_STATE_PRESSED);
     // A CARD, not a hairline-separated list line. This used to be a bottom rule
     // and no fill, on the argument that a box around every line turns a list
     // into a stack of cards competing for attention. That argument lost to the
@@ -2719,7 +3035,7 @@ lv_obj_t *wt_row_x(lv_obj_t *scr, const char *icon, const char *label,
                               wt_accent());
         lv_obj_add_flag(ok, WT_FLAG_ACCENT);
         lv_obj_update_layout(ok);
-        lv_obj_align(ok, LV_ALIGN_RIGHT_MID, -10, 0);
+        lv_obj_align(ok, LV_ALIGN_RIGHT_MID, -SX(10), 0);
         right = w - 10 - lv_obj_get_width(ok) - 10;
     } else if (cb) {
         // The accent, at 150 opacity. It was WT_DIM on the argument that a
@@ -2746,10 +3062,10 @@ lv_obj_t *wt_row_x(lv_obj_t *scr, const char *icon, const char *label,
         // own lane back rather than growing over the sub.
         const lv_font_t *chf = sf == wt_font28() ? wt_font23() : wt_font14();
         lv_obj_t *ch = wt_lbl(row, LV_SYMBOL_RIGHT, 0, 0, chf, wt_accent());
-        lv_obj_set_style_text_opa(ch, 150, 0);
+        lv_obj_set_style_text_opa(ch, WT_TINT_OPA, 0);
         lv_obj_add_flag(ch, WT_FLAG_ACCENT);
         lv_obj_update_layout(ch);
-        lv_obj_align(ch, LV_ALIGN_RIGHT_MID, -10, 0);
+        lv_obj_align(ch, LV_ALIGN_RIGHT_MID, -SX(10), 0);
         right = w - 10 - lv_obj_get_width(ch) - 10;
     }
 
@@ -2760,7 +3076,10 @@ lv_obj_t *wt_row_x(lv_obj_t *scr, const char *icon, const char *label,
     // third box inside a box inside a card, and the row's own border is already
     // doing the framing this needs -- the explainer's badge is a chip precisely
     // because it floats on an open page with nothing else to hold it.
-    const int lx = (icon && *icon) ? 52 : 14;
+    // SX: bare, the 3.5in kept the wide canvas's 52 beside a glyph at 8, and
+    // the 30 px between them was billed to the label -- "Encrypted bac..."
+    // on the SD page with the lane's own gap sitting empty before it.
+    const int lx = (icon && *icon) ? SX(52) : SX(14);
     if (icon && *icon) {
         // The badge takes the ACCENT, always. It used to be accent only when
         // the row was SELECTED, which meant every list without a current item
@@ -2775,11 +3094,11 @@ lv_obj_t *wt_row_x(lv_obj_t *scr, const char *icon, const char *label,
         // and it applies here for the same reason. Selected stays at full, so
         // "this is the one you are on" is still louder than "this is a row".
         lv_obj_t *ic = wt_lbl(row, icon, 0, 0, wt_font23(), wt_accent());
-        if (!sel) lv_obj_set_style_text_opa(ic, 150, 0);
+        if (!sel) lv_obj_set_style_text_opa(ic, WT_TINT_OPA, 0);
         lv_obj_add_flag(ic, WT_FLAG_ACCENT);
         lv_obj_set_user_data(ic, (void *)WT_ROW_ICON_TAG);
         lv_obj_update_layout(ic);
-        lv_obj_align(ic, LV_ALIGN_LEFT_MID, 14, 0);
+        lv_obj_align(ic, LV_ALIGN_LEFT_MID, SX(14), 0);
     }
 
     // The LABEL gets the full width on its own line, and the sub-line below
@@ -2814,7 +3133,7 @@ lv_obj_t *wt_row_x(lv_obj_t *scr, const char *icon, const char *label,
     // against "FLASH" was clean. One line means the row's internal geometry is
     // the same in every locale, and a translation too long to fit ellipsises
     // rather than rearranging the row.
-    lv_obj_t *l = wt_lbl(row, label, lx, sub && *sub ? 7 : 18,
+    lv_obj_t *l = wt_lbl(row, label, lx, sub && *sub ? SY(7) : SY(18),
                          wt_font23(), WT_INK);
     // Width stops short of the value, and the height is pinned to one line.
     // Both are needed. Pinning alone left the label's BOX spanning to the
@@ -2834,7 +3153,7 @@ lv_obj_t *wt_row_x(lv_obj_t *scr, const char *icon, const char *label,
     // nothing: the one that was not, "Recovery words live in", is "Words live
     // in" now.
     int lw = right - vw - (vw ? 12 : 0) - lx;
-    lv_obj_set_width(l, lw > 60 ? lw : 60);
+    lv_obj_set_width(l, lw > SX(60) ? lw : SX(60));
     lv_obj_set_height(l, lv_font_get_line_height(wt_font23()));
     lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
     lv_obj_update_layout(l);
@@ -2905,6 +3224,18 @@ lv_obj_t *wt_row_x(lv_obj_t *scr, const char *icon, const char *label,
             // that branch stays visible to the gate, because that is where
             // every real font14 body on this device turned out to be.
             if (rowh <= WT_ROW_H) wt_tiny_ok(s);
+#if KISS_NARROW
+            // The pair is centred in the row, as the tall branch above does.
+            // The wide numbers put the sub at 29 in a 42 px row on the 3.5in,
+            // and "0 already signed" lost its lower half to the card's edge.
+            {
+                const int lh  = lv_obj_get_height(l);
+                const int top = (rowh - lh -
+                                 (int)lv_font_get_line_height(sf)) / 2;
+                lv_obj_set_y(l, top > 0 ? top : 0);
+                lv_obj_set_y(s, (top > 0 ? top : 0) + lh);
+            }
+#endif
             lv_obj_set_width(s, sw);
             // ONE line, height pinned. The width left for the sub depends on how
             // wide the VALUE turned out, and a translated value ("DESACTIVADO"
@@ -3026,7 +3357,7 @@ lv_obj_t *wt_card(lv_obj_t *scr, int x, int y, int w, int h)
     lv_obj_remove_style_all(card);
     lv_obj_set_pos(card, x, y);
     lv_obj_set_size(card, w, h);
-    lv_obj_set_style_radius(card, 10, 0);
+    lv_obj_set_style_radius(card, SX(10), 0);
     lv_obj_set_style_border_width(card, 1, 0);
     lv_obj_set_style_border_color(card, WT_HAIR, 0);
     lv_obj_set_style_bg_color(card, WT_PANEL, 0);
@@ -3050,8 +3381,8 @@ static lv_color_t col_or(lv_color_t c, lv_color_t dflt)
     return (c.red || c.green || c.blue) ? c : dflt;
 }
 
-#define WT_TAB_GAP    9    // icon to label, and label to dot
-#define WT_TAB_DOT    7
+#define WT_TAB_GAP    SX(9)    // icon to label, and label to dot
+#define WT_TAB_DOT    SX(7)
 #define WT_TAB_SPACE  2    // the tracking a font14 label wears at this size
 
 // The highlight's two skins as ONE number: 0 is the ordinary group's panel
@@ -3086,7 +3417,7 @@ lv_obj_t *wt_tabs(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
     lv_obj_remove_style_all(hl);
     lv_obj_set_pos(hl, x + sel * WT_TAB_PITCH, y);
     lv_obj_set_size(hl, WT_TAB_W, WT_TAB_H);
-    lv_obj_set_style_radius(hl, 10, 0);
+    lv_obj_set_style_radius(hl, SX(10), 0);
     lv_obj_set_style_border_width(hl, 1, 0);
     lv_obj_remove_flag(hl, LV_OBJ_FLAG_CLICKABLE);   // the button over it takes the tap
     lv_obj_remove_flag(hl, LV_OBJ_FLAG_SCROLLABLE);
@@ -3102,13 +3433,13 @@ lv_obj_t *wt_tabs(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
         lv_obj_remove_style_all(b);
         lv_obj_set_pos(b, x + i * WT_TAB_PITCH, y);
         lv_obj_set_size(b, WT_TAB_W, WT_TAB_H);
-        lv_obj_set_style_radius(b, 10, 0);
+        lv_obj_set_style_radius(b, SX(10), 0);
         lv_obj_remove_flag(b, LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_add_flag(b, LV_OBJ_FLAG_CLICKABLE);
         // The same press answer every row on the device gives, so a tab reads
         // as the same family of object as the rows it switches between.
         lv_obj_set_style_bg_color(b, wt_accent_pressed(), LV_STATE_PRESSED);
-        lv_obj_set_style_bg_opa(b, LV_OPA_COVER, LV_STATE_PRESSED);
+        lv_obj_set_style_bg_opa(b, WT_PRESS_OPA, LV_STATE_PRESSED);
         wt_tap_feedback(b);
         if (cb) lv_obj_add_event_cb(b, cb, LV_EVENT_CLICKED, (void *)(intptr_t)i);
 
@@ -3222,14 +3553,14 @@ void wt_line_press(lv_obj_t *row)
     // lights a 3px accent edge down the row under the finger. That plus the
     // wash is the only feedback a borderless row can give, so it is not
     // decoration -- without it the row is an unmarked target.
-    lv_obj_set_style_radius(row, 6, LV_STATE_PRESSED);
+    lv_obj_set_style_radius(row, SX(6), LV_STATE_PRESSED);
     lv_obj_set_style_border_side(row, LV_BORDER_SIDE_LEFT, 0);
     lv_obj_set_style_border_width(row, 3, 0);
     lv_obj_set_style_border_color(row, wt_accent(), 0);
     lv_obj_set_style_border_opa(row, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_opa(row, LV_OPA_COVER, LV_STATE_PRESSED);
     lv_obj_set_style_bg_color(row, wt_accent_pressed(), 0);
-    lv_obj_set_style_bg_opa(row, LV_OPA_COVER, LV_STATE_PRESSED);
+    lv_obj_set_style_bg_opa(row, WT_PRESS_OPA, LV_STATE_PRESSED);
     lv_obj_add_flag(row, WT_FLAG_ACCENT_BORDER);
     lv_obj_add_flag(row, WT_FLAG_ACCENT_BG);
     // A style transition, not an lv_anim: LVGL runs it on the state change
@@ -3242,7 +3573,7 @@ void wt_line_press(lv_obj_t *row)
     static bool tr_ready;
     if (!tr_ready) {
         lv_style_transition_dsc_init(&tr, props, lv_anim_path_ease_out,
-                                     160, 0, NULL);
+                                     WT_MOTION_MS(160), 0, NULL);
         tr_ready = true;
     }
     lv_obj_set_style_transition(row, &tr, 0);
@@ -3283,8 +3614,8 @@ void wt_line_rule_draw(lv_obj_t *rule, int delay_ms, int ms)
     lv_anim_set_var(&a, rule);
     lv_anim_set_exec_cb(&a, an_w);
     lv_anim_set_values(&a, 0, w);
-    lv_anim_set_duration(&a, ms);
-    lv_anim_set_delay(&a, delay_ms);
+    lv_anim_set_duration(&a, WT_MOTION_MS(ms));   // callers pass the wide board's
+    lv_anim_set_delay(&a, WT_MOTION_MS(delay_ms));
     lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
     lv_anim_start(&a);
 }
@@ -3301,14 +3632,14 @@ void wt_line_row_stage(lv_obj_t *row, int k)
         if (lv_obj_get_user_data(c) == (void *)WT_LINE_VAL_TAG) { v = c; break; }
     }
     if (!v) return;
-    const int delay = 42 * k + 90;
+    const int delay = WT_MOTION_MS(42 * k + 90);
     lv_anim_t a;
     lv_anim_init(&a);
     lv_anim_set_var(&a, v);
-    lv_anim_set_duration(&a, 220);
+    lv_anim_set_duration(&a, WT_MOTION_MS(220));
     lv_anim_set_delay(&a, delay);
     lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
-    lv_anim_set_values(&a, 7, 0);
+    lv_anim_set_values(&a, SY(7), 0);
     lv_anim_set_exec_cb(&a, an_tx);
     lv_anim_start(&a);
     lv_obj_set_style_opa(v, LV_OPA_TRANSP, 0);
@@ -3323,8 +3654,8 @@ lv_obj_t *wt_help_mark(lv_obj_t *par, int x, int y)
     lv_obj_t *m = lv_obj_create(par);
     lv_obj_remove_style_all(m);
     lv_obj_set_pos(m, x, y);
-    lv_obj_set_size(m, 19, 19);
-    lv_obj_set_style_radius(m, 10, 0);
+    lv_obj_set_size(m, SX(19), SX(19));
+    lv_obj_set_style_radius(m, SX(10), 0);
     lv_obj_set_style_border_width(m, 1, 0);
     lv_obj_set_style_border_color(m, wt_accent(), 0);
     lv_obj_set_style_border_opa(m, 115, 0);
@@ -3365,7 +3696,7 @@ lv_obj_t *wt_title_cursor(lv_obj_t *scr)
     lv_obj_t *cur = lv_obj_create(scr);
     lv_obj_remove_style_all(cur);
     lv_obj_set_user_data(cur, (void *)WT_CURSOR_TAG);
-    lv_obj_set_size(cur, 10, 22);
+    lv_obj_set_size(cur, SX(10), SY(22));
     // Centred on the title's cap height rather than its box: a font34 line box
     // carries descender room no capital reaches into, so centring on the box
     // sits the block visibly low against KEYS and RECEIVE, which have no
@@ -3379,8 +3710,8 @@ lv_obj_t *wt_title_cursor(lv_obj_t *scr)
     // sliver against the top bezel, on every page that has a head. The style
     // getter reads back exactly what wt_chrome_head wrote and needs nothing
     // laid out, which is the whole point of measuring instead.
-    lv_obj_set_pos(cur, lv_obj_get_style_x(t, LV_PART_MAIN) + ts.x + 12,
-                   lv_obj_get_style_y(t, LV_PART_MAIN) + (ts.y - 22) / 2 - 2);
+    lv_obj_set_pos(cur, lv_obj_get_style_x(t, LV_PART_MAIN) + ts.x + SX(12),
+                   lv_obj_get_style_y(t, LV_PART_MAIN) + (ts.y - SY(22)) / 2 - 2);
     lv_obj_set_style_bg_color(cur, wt_accent(), 0);
     lv_obj_set_style_bg_opa(cur, LV_OPA_COVER, 0);
     lv_obj_add_flag(cur, WT_FLAG_ACCENT_FILL);
@@ -3437,7 +3768,7 @@ lv_obj_t *wt_line_row(lv_obj_t *par, int x, int y, int w, int h,
                               wt_accent());
         lv_obj_add_flag(ar, WT_FLAG_ACCENT);
         lv_obj_update_layout(ar);
-        lv_obj_align(ar, LV_ALIGN_RIGHT_MID, -4 - (24 - lv_obj_get_width(ar)) / 2,
+        lv_obj_align(ar, LV_ALIGN_RIGHT_MID, -SX(4) - (SX(24) - lv_obj_get_width(ar)) / 2,
                      0);
         right = w - 4 - 24;
     }
@@ -3477,7 +3808,7 @@ lv_obj_t *wt_line_row(lv_obj_t *par, int x, int y, int w, int h,
     // is stuck with like the 196px tab, so it gives the eight pixels and the
     // value gives them up. A 21 locale string does not get cut to save a
     // number that was picked round.
-    const int lane = 320;
+    const int lane = SX(320);
     int subw = 0;
     if (sub && *sub) {
         lv_point_t ss;
@@ -3512,7 +3843,7 @@ lv_obj_t *wt_line_row(lv_obj_t *par, int x, int y, int w, int h,
         lv_obj_set_height(sl, lv_font_get_line_height(sf));
         lv_label_set_long_mode(sl, LV_LABEL_LONG_DOT);
         lv_obj_set_style_text_align(sl, LV_TEXT_ALIGN_RIGHT, 0);
-        lv_obj_align(sl, LV_ALIGN_RIGHT_MID, -46, 0);
+        lv_obj_align(sl, LV_ALIGN_RIGHT_MID, -SX(46), 0);
     }
     return row;
 }
@@ -3535,14 +3866,21 @@ void wt_arrow_action_set_text(lv_obj_t *ctrl, const char *txt)
     const lv_font_t *f = chrome23(txt);
     lv_obj_set_style_text_font(l, f, 0);
     lv_point_t ls, as;
-    lv_text_get_size(&ls, txt, f, 2, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    lv_text_get_size(&ls, txt, f, WT_TRACK, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
     lv_text_get_size(&as, lv_label_get_text(a), wt_font23(), 0, 0,
                      LV_COORD_MAX, LV_TEXT_FLAG_NONE);
     const bool back = lv_obj_get_x(a) <= lv_obj_get_x(l);
     lv_label_set_text(l, txt);
-    lv_obj_set_width(ctrl, ls.x + 12 + as.x);
-    lv_obj_align(a, LV_ALIGN_LEFT_MID, back ? 0 : ls.x + 12, 0);
-    lv_obj_align(l, LV_ALIGN_LEFT_MID, back ? as.x + 12 : 0, 0);
+#if KISS_NARROW
+    // Keep the corner padding wt_arrow_action gave the control (above).
+    lv_obj_set_width(ctrl, ls.x + SX(12) + as.x +
+                     lv_obj_get_style_pad_left(ctrl, 0) +
+                     lv_obj_get_style_pad_right(ctrl, 0));
+#else
+    lv_obj_set_width(ctrl, ls.x + SX(12) + as.x);
+#endif
+    lv_obj_align(a, LV_ALIGN_LEFT_MID, back ? 0 : ls.x + SX(12), 0);
+    lv_obj_align(l, LV_ALIGN_LEFT_MID, back ? as.x + SX(12) : 0, 0);
 }
 
 lv_obj_t *wt_arrow_action(lv_obj_t *scr, const char *txt, bool back,
@@ -3559,9 +3897,14 @@ lv_obj_t *wt_arrow_action(lv_obj_t *scr, const char *txt, bool back,
     const lv_font_t *af = wt_font23();
     lv_point_t ls, as;
     const char *arrow = back ? WT_ICON_ARR_L : WT_ICON_ARR_R;
-    lv_text_get_size(&ls, txt, f, 2, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    lv_text_get_size(&ls, txt, f, WT_TRACK, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
     lv_text_get_size(&as, arrow, af, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-    const int cw = ls.x + 12 + as.x;
+    // The box has to hold the gap the labels are drawn at below, SX(12). It
+    // was a bare 12, which is that gap on the 4.3in and three pixels short of
+    // it on the 7in, where every word lost its last three pixels to the box.
+    // Never less than 12: the 3.5in's box was cleared on glass at 12 and its
+    // SX(12) is 7.
+    const int cw = ls.x + LV_MAX(12, SX(12)) + as.x;
 
     lv_obj_t *p = lv_obj_create(scr);
     lv_obj_remove_style_all(p);
@@ -3570,6 +3913,38 @@ lv_obj_t *wt_arrow_action(lv_obj_t *scr, const char *txt, bool back,
     // drawn around them would be the pill this replaces.
     lv_obj_set_size(p, cw, WT_ACTION_H);
     lv_obj_set_pos(p, right ? x + w - cw : x, y);
+#if KISS_NARROW
+    // The corner belongs to the control that sits in it. On this glass the
+    // row is 34 px tall, the word is 14 px type and the box stopped 17 px
+    // short of the bottom edge and 29 px short of the right one; a thumb
+    // reaching for BACK comes in from that corner, its centroid lands below
+    // and beside the word, and LVGL drops the press. Reported from the bench
+    // as "a hard time pressing back, any button bottom right". The box grows
+    // to the panel's edges as PADDING, so both labels stay exactly where they
+    // are drawn, and the top and left get a small margin of their own.
+    //
+    // Only a control that SITS at a panel edge grows to it. A right-aligned
+    // action mid-bar (DETAILS beside BACK) is right-aligned inside its own
+    // lane, not the panel's; grown to the panel edge it would lie under BACK
+    // and its centre would be BACK's, which is exactly where the walk's tap
+    // on it landed the first time.
+    if (y >= WT_CONTENT_BOTTOM) {
+        const int gap_r = SCREEN_W - (x + w), gap_l = x;
+        const int pb = LV_MAX(0, SCREEN_H - (y + WT_ACTION_H));
+        const int pr = right && gap_r >= 0 && gap_r <= SX(60) ? gap_r : 0;
+        const int pl = !right && gap_l >= 0 && gap_l <= SX(60) ? gap_l : 0;
+        lv_obj_set_style_pad_bottom(p, pb, 0);
+        lv_obj_set_style_pad_right(p, pr, 0);
+        lv_obj_set_style_pad_left(p, pl, 0);
+        lv_obj_set_size(p, cw + pl + pr, WT_ACTION_H + pb);
+        lv_obj_set_pos(p, right ? x + w - cw : x - pl, y);
+        lv_obj_set_ext_click_area(p, SY(12));
+        // A standing sentence already on the band stops 12 px short of this
+        // control's word, wherever the word's width put it.
+        lv_obj_add_flag(p, LV_OBJ_FLAG_CLICKABLE);
+        standing_refit(scr);
+    }
+#endif
     lv_obj_remove_flag(p, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_flag(p, LV_OBJ_FLAG_CLICKABLE);
     if (cb) lv_obj_add_event_cb(p, cb, LV_EVENT_CLICKED, ud);
@@ -3586,11 +3961,11 @@ lv_obj_t *wt_arrow_action(lv_obj_t *scr, const char *txt, bool back,
         static bool tr_ready;
         if (!tr_ready) {
             lv_style_transition_dsc_init(&tr, props, lv_anim_path_ease_out,
-                                         170, 0, NULL);
+                                         WT_MOTION_MS(170), 0, NULL);
             tr_ready = true;
         }
         lv_obj_set_style_translate_x(p, 0, 0);
-        lv_obj_set_style_translate_x(p, back ? -5 : 5, LV_STATE_PRESSED);
+        lv_obj_set_style_translate_x(p, back ? -SX(5) : SX(5), LV_STATE_PRESSED);
         lv_obj_set_style_transition(p, &tr, 0);
     }
 
@@ -3598,14 +3973,14 @@ lv_obj_t *wt_arrow_action(lv_obj_t *scr, const char *txt, bool back,
     // out, trailing it on the way in.
     lv_obj_t *a = wt_lbl(p, arrow, 0, 0, af, wt_accent());
     lv_obj_add_flag(a, WT_FLAG_ACCENT);
-    lv_obj_align(a, LV_ALIGN_LEFT_MID, back ? 0 : ls.x + 12, 0);
+    lv_obj_align(a, LV_ALIGN_LEFT_MID, back ? 0 : ls.x + SX(12), 0);
 
     // The primary takes the accent on its LABEL as well, and takes nothing
     // else: there is no fill left to give it.
     lv_obj_t *l = wt_lbl(p, txt, 0, 0, f, primary ? wt_accent() : WT_INK);
-    lv_obj_set_style_text_letter_space(l, 2, 0);
+    lv_obj_set_style_text_letter_space(l, WT_TRACK, 0);
     if (primary) lv_obj_add_flag(l, WT_FLAG_ACCENT);
-    lv_obj_align(l, LV_ALIGN_LEFT_MID, back ? as.x + 12 : 0, 0);
+    lv_obj_align(l, LV_ALIGN_LEFT_MID, back ? as.x + SX(12) : 0, 0);
     return p;
 }
 
@@ -3616,12 +3991,12 @@ lv_obj_t *wt_word_action(lv_obj_t *par, const char *mark, const char *txt,
 {
     lv_obj_t *c = lv_obj_create(par);
     lv_obj_remove_style_all(c);
-    lv_obj_set_size(c, LV_SIZE_CONTENT, 40);
+    lv_obj_set_size(c, LV_SIZE_CONTENT, SY(40));
     lv_obj_remove_flag(c, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_flex_flow(c, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(c, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
                           LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(c, 10, 0);
+    lv_obj_set_style_pad_column(c, SX(10), 0);
     if (cb) {
         lv_obj_add_flag(c, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_set_ext_click_area(c, 8);
@@ -3634,7 +4009,7 @@ lv_obj_t *wt_word_action(lv_obj_t *par, const char *mark, const char *txt,
         lv_label_set_text(l, mark_turn ? mark : txt);
         lv_obj_set_style_text_font(l, mark_turn ? wt_font23()
                                                 : chrome23(txt), 0);
-        if (!mark_turn) lv_obj_set_style_text_letter_space(l, 2, 0);
+        if (!mark_turn) lv_obj_set_style_text_letter_space(l, WT_TRACK, 0);
         lv_obj_set_style_text_color(l, col, 0);
         if (accent) lv_obj_add_flag(l, WT_FLAG_ACCENT);
     }
@@ -3695,6 +4070,49 @@ static const lv_font_t *chrome23(const char *s)
 static const lv_font_t *chrome28(const char *s)
 {
     return mono_can(s) ? wt_font_mono28() : nat28();
+}
+
+// THE WRAP LANE, which on the 7in is not the canvas lane. Its lanes are SX
+// of the 4.3in's, 1.28 times as wide, and its faces are one rung up -- but a
+// rung up is not 1.28 times as wide. LVGL advances a glyph by whole pixels
+// (lv_font_fmt_txt.c rounds adv_w), so the mono pitch goes 13 -> 16,
+// 14 -> 17 and 17 -> 20 at the three paragraph rungs: 1.23, 1.21 and 1.18.
+// 690 holds 40 characters of mono28 and 883 holds 44 of mono34, so every
+// line broke further right than the line the copy was written against, and
+// English that ends cleanly on the 4.3in ended on a stub here: "go first."
+// alone under a full line on the fee page, and five paragraphs like it.
+//
+// So a mono paragraph wraps at the width that holds exactly the characters
+// the 4.3in's `w` holds at the same name, w times this pitch over that one,
+// and never wider than the `lane` the layout gave it. Its line count, and
+// with it every fit, rung and widow verdict already taken on the 4.3in,
+// carries over as it is.
+//
+// `lane` comes back untouched on every other board, and for any text that
+// is not all mono: those glyphs come from the proportional faces, there is
+// no one pitch to scale by, and WIDOW, the check that caught this, is
+// English only. Keyed on the face, so a CJK locale's wt_font28() -- the
+// mono28 composite on both boards -- would read as the 23 rung; no CJK
+// paragraph passes mono_can, so none gets that far.
+static int wrap_w(const lv_font_t *f, const char *txt, int lane, int w)
+{
+#if WT_TYPE_UP
+    static const struct { const lv_font_t *here, *there; } rung[] = {
+        { &WT_MONO28, &font_kiss_mono28 },
+        { &WT_MONO23, &font_kiss_mono23 },
+        { &WT_MONO21, &font_kiss_mono21 },
+    };
+    if (!f || !mono_can(txt)) return lane;
+    for (size_t i = 0; i < sizeof rung / sizeof rung[0]; i++) {
+        if (f->dsc != rung[i].here->dsc) continue;
+        const int up = lv_font_get_glyph_width(f, 'n', 0);
+        const int dn = lv_font_get_glyph_width(rung[i].there, 'n', 0);
+        return (up > 0 && dn > 0) ? LV_MIN(lane, w * up / dn) : lane;
+    }
+#else
+    (void)f; (void)txt; (void)w;
+#endif
+    return lane;
 }
 
 void wt_chrome_head(lv_obj_t *scr)
@@ -3789,13 +4207,142 @@ static void tabs_flex_paint(lv_obj_t *b, bool selected)
     }
 }
 
+#if KISS_NARROW
+// THE 3.5in's HEADER ROW IS MEASURED, NOT PREDICTED. The wide strip reserves a
+// flat 30 px per tab for the brackets and centres itself in 620; three fifths
+// of those numbers is not what the small faces measure, so the five-up settings
+// strip came out wider than its lane and the centred overflow cut the selected
+// tab's "[" off the left (and a help tab carrying a count sat on the last
+// tab's "]"). So the small board fits the strip to what is actually there:
+// between the card's inner margin and the help tab's divider, it measures the
+// labels it drew and gives up, in order, the marks, the space inside each
+// tab, and finally letters from any word over its fair share.
+static void tab_parts(lv_obj_t *b, lv_obj_t **lb, lv_obj_t **ic, lv_obj_t **l,
+                      lv_obj_t **rb)
+{
+    *lb = *ic = *l = *rb = NULL;
+    const uint32_t n = lv_obj_get_child_count(b);
+    for (uint32_t i = 0; i < n; i++) {
+        lv_obj_t *c = lv_obj_get_child(b, i);
+        if (!lv_obj_check_type(c, &lv_label_class)) continue;   // the dot
+        const char *t = lv_label_get_text(c);
+        if (t && !strcmp(t, "["))      *lb = c;
+        else if (t && !strcmp(t, "]")) *rb = c;
+        else if (!*ic && *lb && !*l)   *ic = c;
+        else                           *l  = c;
+    }
+    if (!*l && *ic) { *l = *ic; *ic = NULL; }
+}
+
+static int text_w(lv_obj_t *c)
+{
+    lv_point_t sz;
+    lv_text_get_size(&sz, lv_label_get_text(c), lv_obj_get_style_text_font(c, 0),
+                     lv_obj_get_style_text_letter_space(c, 0), 0, LV_COORD_MAX,
+                     LV_TEXT_FLAG_NONE);
+    return sz.x;
+}
+
+static void tabs_flex_fit(lv_obj_t *strip, int x0, int x1)
+{
+    const int lane = x1 - x0;
+    const int n = (int)lv_obj_get_child_count(strip);
+    lv_obj_set_pos(strip, x0, WT_CHROME_STRIP_Y);
+    lv_obj_set_width(strip, lane);
+    if (n <= 0) return;
+    // Start from the words whole; a cut made against the old lane is undone.
+    for (int i = 0; i < n; i++) {
+        lv_obj_t *lb, *ic, *l, *rb;
+        tab_parts(lv_obj_get_child(strip, i), &lb, &ic, &l, &rb);
+        if (l) {
+            lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
+            lv_obj_set_width(l, LV_SIZE_CONTENT);
+            lv_obj_set_height(l, LV_SIZE_CONTENT);
+        }
+    }
+    for (int step = 0; step < 4; step++) {
+        int need = (n - 1) * 2, fixed = (n - 1) * 2, words = 0;
+        for (int i = 0; i < n; i++) {
+            lv_obj_t *b = lv_obj_get_child(strip, i);
+            lv_obj_t *lb, *ic, *l, *rb;
+            tab_parts(b, &lb, &ic, &l, &rb);
+            const int col = lv_obj_get_style_pad_column(b, 0);
+            int parts = 0, w = 0;
+            if (lb) { w += text_w(lb); parts++; }
+            if (rb) { w += text_w(rb); parts++; }
+            if (ic && !lv_obj_has_flag(ic, LV_OBJ_FLAG_HIDDEN)) {
+                w += text_w(ic) + lv_obj_get_style_margin_right(ic, 0);
+                parts++;
+            }
+            fixed += w + (l ? parts : parts - 1) * col;
+            if (l) { w += text_w(l); parts++; words++; }
+            need += w + (parts > 1 ? (parts - 1) * col : 0);
+        }
+        if (need <= lane || step == 3) {
+            if (step == 3 && words) {
+                const int fair = (lane - fixed) / words;
+                for (int i = 0; i < n; i++) {
+                    lv_obj_t *lb, *ic, *l, *rb;
+                    tab_parts(lv_obj_get_child(strip, i), &lb, &ic, &l, &rb);
+                    if (l && text_w(l) > fair) {
+                        lv_obj_set_width(l, fair);
+                        lv_obj_set_height(l, lv_font_get_line_height(
+                                                 lv_obj_get_style_text_font(l, 0)));
+                        lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+                    }
+                }
+                need = lane;
+            }
+            int gap = n > 1 ? 2 + (lane - need) / (n - 1) : 0;
+            if (gap > SX(28)) gap = SX(28);
+            if (gap < 2) gap = 2;
+            lv_obj_set_style_pad_column(strip, gap, 0);
+            return;
+        }
+        for (int i = 0; i < n; i++) {
+            lv_obj_t *b = lv_obj_get_child(strip, i);
+            lv_obj_t *lb, *ic, *l, *rb;
+            tab_parts(b, &lb, &ic, &l, &rb);
+            if (step == 0 && ic) lv_obj_add_flag(ic, LV_OBJ_FLAG_HIDDEN);
+            if (step == 1) lv_obj_set_style_pad_column(b, 0, 0);
+        }
+    }
+}
+
+// The help tab's width, the same arithmetic wt_help_tab_n draws with, so the
+// strip can leave it room before it exists.
+static int help_tab_w(int unread)
+{
+    const lv_font_t *bf = wt_font_mono18();
+    lv_point_t bs, ms, cs = {0, 0};
+    lv_text_get_size(&bs, "[", bf, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    lv_text_get_size(&ms, WT_ICON_WHAT, wt_font23(), 0, 0, LV_COORD_MAX,
+                     LV_TEXT_FLAG_NONE);
+    if (unread > 0) {
+        char cnt[8];
+        snprintf(cnt, sizeof cnt, "%d", unread > 99 ? 99 : unread);
+        lv_text_get_size(&cs, cnt, bf, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    }
+    const int gap = 2, pad = 4;
+    return 2 * pad + 2 * bs.x + 2 * gap + ms.x + (cs.x ? cs.x + gap : 0);
+}
+#endif
+
+#if KISS_NARROW
+// Room above a tab for its lifted attention dot and the dot's breath.
+static void tab_dot_ext_cb(lv_event_t *e)
+{
+    lv_event_set_ext_draw_size(e, SY(18));
+}
+#endif
+
 lv_obj_t *wt_tabs_flex(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
                        lv_event_cb_t cb)
 {
     lv_obj_t *strip = lv_obj_create(scr);
     lv_obj_remove_style_all(strip);
     lv_obj_set_pos(strip, WT_LANE_X, WT_CHROME_STRIP_Y);
-    lv_obj_set_size(strip, 620, WT_BR_H);
+    lv_obj_set_size(strip, SX(620), WT_BR_H);
     lv_obj_remove_flag(strip, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_remove_flag(strip, LV_OBJ_FLAG_SCROLLABLE);
     // CENTERED GROUP, not SPACE_BETWEEN and not packed left. Spreading pushed
@@ -3821,8 +4368,8 @@ lv_obj_t *wt_tabs_flex(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
     // 140 ellipsised two of its three labels in a lane with 120px to spare.
     // So measure first: if every label plus the bracket keep fits the 620,
     // nothing is capped; only when the strip genuinely overflows does each
-    // oversized label fall back to its fair share. 30 is two brackets and
-    // their pads. No minimum air between tabs: the brackets ARE the
+    // oversized label fall back to its fair share. The keep is two brackets
+    // and their pads. No minimum air between tabs: the brackets ARE the
     // separation.
     //
     // The MARK, when the strip has room for it. This strip dropped every
@@ -3831,7 +4378,31 @@ lv_obj_t *wt_tabs_flex(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
     // five-up settings strip has no room and stays words-only, the two and
     // three tab pages get their marks. Icons come off the Latin face via
     // wt_font23's fallback: IoskeleyMono carries no FontAwesome.
-    const int keep = 30 * n;
+    // The strip's lane, 620 on the wide canvas; every measure below is
+    // against it, never against the number.
+    const int lane = SX(620);
+    // The tab's own column, the one set on every tab below. The keep and the
+    // mark's share are both made of it, so they are read from the same name.
+    const int col = SX(4);
+#if KISS_NARROW || KISS_DESIGN_CANVAS
+    // The 3.5in and the 4.3in keep their numbers. The flat 30 and 4 are the
+    // 4.3in's 11 px brackets and 4 px column, exactly what the measure below
+    // comes to there, and the 3.5in's row is measured again by tabs_flex_fit
+    // once it is drawn: the one decision these still make there -- whether
+    // the marks are drawn at all -- is its tested layout.
+    const int keep = SX(30) * n, icol = 4;
+#else
+    // The keep, MEASURED: both brackets in the face they are drawn in, and
+    // the column on either side of the word; a mark adds its width and one
+    // more column. The 7in draws its brackets a rung up and its column at 5:
+    // its 30 came out right by coincidence, its 4 did not, and the three
+    // marked receive tabs overran the lane by 3 px and lost the outer
+    // brackets at both ends.
+    lv_point_t lbs, rbs;
+    lv_text_get_size(&lbs, "[", bf, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    lv_text_get_size(&rbs, "]", bf, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    const int keep = (lbs.x + rbs.x + 2 * col) * n, icol = col;
+#endif
     int need = keep, ineed = 0;
     for (int i = 0; i < n; i++) {
         lv_point_t ls;
@@ -3842,19 +4413,19 @@ lv_obj_t *wt_tabs_flex(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
             lv_point_t is;
             lv_text_get_size(&is, tabs[i].icon, wt_font23(), 0, 0,
                              LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-            ineed += is.x + 4;
+            ineed += is.x + icol;   // the mark and its own column
         }
     }
-    const bool icons = ineed > 0 && need + ineed <= 620;
-    const int fair = (620 - keep) / n;
-    const bool over = need > 620;
+    const bool icons = ineed > 0 && need + ineed <= lane;
+    const int fair = (lane - keep) / n;
+    const bool over = need > lane;
     // The inter-tab gap, from the room the measured tabs leave: 28 keeps a
     // two or three tab strip reading as one group, and a strip that already
     // fills the lane drops to whatever is left (the shipped five-up runs at
     // ~3px, which is what SPACE_BETWEEN was giving it anyway).
     if (n > 1) {
-        int gap = (620 - (need + (icons ? ineed : 0))) / (n - 1);
-        if (gap > 28) gap = 28;
+        int gap = (lane - (need + (icons ? ineed : 0))) / (n - 1);
+        if (gap > SX(28)) gap = SX(28);
         if (gap < 2)  gap = 2;
         lv_obj_set_style_pad_column(strip, gap, 0);
     }
@@ -3871,12 +4442,21 @@ lv_obj_t *wt_tabs_flex(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
         lv_obj_set_flex_flow(b, LV_FLEX_FLOW_ROW);
         lv_obj_set_flex_align(b, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
                               LV_FLEX_ALIGN_CENTER);
-        lv_obj_set_style_pad_column(b, 4, 0);
+        lv_obj_set_style_pad_column(b, col, 0);
         lv_obj_set_user_data(b, (void *)(intptr_t)(t->stop ? 1 : 0));
 
         wt_lbl(b, "[", 0, 0, bf, wt_accent());
-        if (icons && t->icon && *t->icon)
-            wt_lbl(b, t->icon, 0, 0, wt_font23(), WT_DIM);
+        if (icons && t->icon && *t->icon) {
+            lv_obj_t *ic = wt_lbl(b, t->icon, 0, 0, wt_font23(), WT_DIM);
+#if KISS_NARROW
+            // The mark's own air. The tab's 2 px column is the brackets'
+            // spacing, and a FontAwesome glyph fills its advance: THIS ADDRESS
+            // and SCAN QR read as one word glued to a picture.
+            lv_obj_set_style_margin_right(ic, 4, 0);
+#else
+            (void)ic;
+#endif
+        }
         const lv_font_t *lf = chrome23(t->label);
         lv_obj_t *l = wt_lbl(b, t->label, 0, 0, lf, WT_DIM);
         // A translation too wide for its share loses letters; the lane never
@@ -3900,13 +4480,34 @@ lv_obj_t *wt_tabs_flex(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
             // corner instead, the shape a badge already has.
             lv_obj_t *d = lv_obj_create(b);
             lv_obj_remove_style_all(d);
-            lv_obj_set_size(d, 7, 7);
-            lv_obj_set_style_radius(d, 4, 0);
+            lv_obj_set_size(d, SX(7), SX(7));
+            lv_obj_set_style_radius(d, SX(4), 0);
             lv_obj_set_style_bg_color(d, WT_WARN, 0);
             lv_obj_set_style_bg_opa(d, LV_OPA_COVER, 0);
             lv_obj_remove_flag(d, LV_OBJ_FLAG_CLICKABLE);
             lv_obj_add_flag(d, LV_OBJ_FLAG_FLOATING);
+#if KISS_NARROW
+            // ABOVE the corner rather than in it. The 3.5in's tab is 20 px
+            // tall around an 18 px line, so the box's corner is the top of
+            // the closing bracket: the dot was painted over the ] of the
+            // selected tab and 2 px off the last letter of every other one.
+            // Lifted clear of both, into the air under the title.
+            lv_obj_align(d, LV_ALIGN_TOP_RIGHT, 0, -SY(12));
+            // Outside the box, so neither the tab nor the strip may clip it:
+            // LVGL clips an OVERFLOW_VISIBLE parent's children to its EXTENDED
+            // draw area, which both of these have to be told about.
+            lv_obj_add_flag(b, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
+            lv_obj_add_event_cb(b, tab_dot_ext_cb, LV_EVENT_REFR_EXT_DRAW_SIZE, NULL);
+            lv_obj_refresh_ext_draw_size(b);
+            if (!lv_obj_has_flag(strip, LV_OBJ_FLAG_OVERFLOW_VISIBLE)) {
+                lv_obj_add_flag(strip, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
+                lv_obj_add_event_cb(strip, tab_dot_ext_cb,
+                                    LV_EVENT_REFR_EXT_DRAW_SIZE, NULL);
+                lv_obj_refresh_ext_draw_size(strip);
+            }
+#else
             lv_obj_align(d, LV_ALIGN_TOP_RIGHT, 0, 0);
+#endif
             // The mark breathes. A static dot was filed from the bench as
             // "not pulsing"; the ring flare answers a TAP, this answers a
             // glance.
@@ -3914,6 +4515,12 @@ lv_obj_t *wt_tabs_flex(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
         }
         tabs_flex_paint(b, i == sel);
     }
+#if KISS_NARROW
+    // Fitted against a help tab with no count; wt_help_tab_n fits it again
+    // against the one it actually draws.
+    lv_obj_set_user_data(strip, (void *)WT_TABSTRIP_TAG);
+    tabs_flex_fit(strip, SX(24), SX(752) - help_tab_w(0) - 8);
+#endif
     return strip;
 }
 
@@ -3937,12 +4544,13 @@ lv_obj_t *wt_trail(lv_obj_t *scr, const char *icon, const char *path,
                    bool stop)
 {
     int x = WT_LANE_X;
+    lv_obj_t *ic = NULL;
     if (icon && *icon) {
         // The mark comes off the Latin face; IoskeleyMono carries no
         // FontAwesome, same as the tab strip's marks. On the erase gate it
         // is full WT_STOP -- the red reaches the breadcrumb before the
         // sentence -- and a danger never wears the accent's flag.
-        lv_obj_t *ic = wt_lbl(scr, icon, x, 0, wt_font23(),
+        ic = wt_lbl(scr, icon, x, 0, wt_font23(),
                               stop ? WT_STOP : wt_accent());
         if (!stop) lv_obj_add_flag(ic, WT_FLAG_ACCENT);
         lv_obj_update_layout(ic);
@@ -3960,7 +4568,7 @@ lv_obj_t *wt_trail(lv_obj_t *scr, const char *icon, const char *path,
     // its RIGHT edge, so a trail running the full lane overlaps the brackets
     // whatever its text says -- the box is what collides, not the words. A
     // page that wants both builds the TAB FIRST.
-    int right = 752;
+    int right = SX(752);
     const uint32_t n = lv_obj_get_child_count(scr);
     for (uint32_t i = 0; i < n; i++) {
         lv_obj_t *c = lv_obj_get_child(scr, i);
@@ -3971,6 +4579,17 @@ lv_obj_t *wt_trail(lv_obj_t *scr, const char *icon, const char *path,
     if (right < x + 40) right = x + 40;
     lv_obj_set_width(l, right - x);
     lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+#if KISS_NARROW
+    // Lifted 3 px on the 3.5in when the row is the trail's alone. Centred in
+    // the 20 px strip, its capitals ended at 61 and its mark at 63, and the
+    // cards pages start at 64 -- the QR on the encrypted backup and the steps
+    // card on pairing touched the words over them. A [ ? ] on the row keeps
+    // the trail on its line, so the two stay on one baseline.
+    if (right == SX(752)) {
+        lv_obj_set_y(l, lv_obj_get_style_y(l, LV_PART_MAIN) - SY(5));
+        if (ic) lv_obj_set_y(ic, lv_obj_get_style_y(ic, LV_PART_MAIN) - SY(5));
+    }
+#endif
     return l;
 }
 
@@ -4028,8 +4647,8 @@ static lv_obj_t *band_dot(lv_obj_t *scr, int x, int y, lv_color_t col,
     lv_obj_t *d = lv_obj_create(scr);
     lv_obj_remove_style_all(d);
     lv_obj_set_pos(d, x, y);
-    lv_obj_set_size(d, 8, 8);
-    lv_obj_set_style_radius(d, 4, 0);
+    lv_obj_set_size(d, SX(8), SX(8));
+    lv_obj_set_style_radius(d, SX(4), 0);
     lv_obj_set_style_bg_color(d, col, 0);
     lv_obj_set_style_bg_opa(d, LV_OPA_COVER, 0);
     lv_obj_remove_flag(d, LV_OBJ_FLAG_CLICKABLE);
@@ -4045,22 +4664,71 @@ lv_obj_t *wt_standing(lv_obj_t *scr, const char *txt, lv_color_t col,
     const lv_font_t *f = chrome18(txt);
     int lh = lv_font_get_line_height(f);
     int y  = WT_ACTION_Y + (WT_ACTION_H - lh) / 2;
-    band_dot(scr, WT_ACT_X, y + (lh - 8) / 2, col, pulse);
+    band_dot(scr, WT_ACT_X, y + (lh - SY(8)) / 2, col, pulse);
     // The DOT carries the colour; the sentence takes the accent whenever that
     // colour was the caution. A standing line is read, and amber is a mark.
     const bool warn = lv_color_eq(col, WT_WARN);
-    lv_obj_t *l = wt_lbl(scr, txt, WT_ACT_X + 8 + 10, y, f,
+    lv_obj_t *l = wt_lbl(scr, txt, WT_ACT_X + SX(8) + SX(10), y, f,
                          warn ? wt_accent() : col);
     if (warn) lv_obj_add_flag(l, WT_FLAG_ACCENT);
-    lv_obj_set_style_text_letter_space(l, 2, 0);
+    lv_obj_set_style_text_letter_space(l, WT_TRACK, 0);
     // One line, in HEIGHT as well as width: the statement shares the band
     // with the exit, and LONG_DOT only elides once the box stops growing.
     // 592 is where the exit's lane begins.
-    lv_obj_set_width(l, 592 - 12 - (WT_ACT_X + 18));
+    lv_obj_set_width(l, SX(592) - SX(12) - (WT_ACT_X + SX(18)));
     lv_obj_set_height(l, lh);
     lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+#if KISS_NARROW
+    // The 3.5in fits the sentence to the band it has. Scaled, the lane stopped
+    // at 348 with the wide canvas's tracking, and WHOEVER READS THESE CAN
+    // SPEND THE COINS -- the one warning this band exists to carry -- shipped
+    // as "CAN SPEN..." with a short DONE 40 px to its right. It runs to the
+    // exit lane's own left edge now, or short of any band control nearer, and
+    // its tracking steps down until the words fit. A control built after it
+    // fits it again when it lands (wt_arrow_action).
+    lv_obj_set_user_data(l, (void *)WT_STANDING_TAG);
+    standing_refit(scr);
+#endif
     return l;
 }
+
+#if KISS_NARROW
+// The standing sentence on `scr`, if it has one, fitted to the nearest band
+// control on its right -- or to the exit lane's left edge while there is none
+// -- at the widest tracking that fits, down to none. Past that it keeps
+// LONG_DOT, which is copy too long for the band.
+static void standing_refit(lv_obj_t *scr)
+{
+    lv_obj_t *l = NULL;
+    const uint32_t nk = lv_obj_get_child_count(scr);
+    for (uint32_t i = 0; i < nk && !l; i++) {
+        lv_obj_t *c = lv_obj_get_child(scr, i);
+        if (lv_obj_get_user_data(c) == (void *)WT_STANDING_TAG) l = c;
+    }
+    if (!l) return;
+    const int lx = lv_obj_get_style_x(l, LV_PART_MAIN);
+    int right = WT_EXIT_X - SX(12);
+    for (uint32_t i = 0; i < nk; i++) {
+        lv_obj_t *c = lv_obj_get_child(scr, i);
+        const int cx = lv_obj_get_style_x(c, LV_PART_MAIN);
+        if (lv_obj_has_flag(c, LV_OBJ_FLAG_CLICKABLE) &&
+            lv_obj_get_style_y(c, LV_PART_MAIN) >= WT_ACTION_Y &&
+            cx > lx && cx - SX(12) < right)
+            right = cx - SX(12);
+    }
+    const char *t = lv_label_get_text(l);
+    const lv_font_t *f = lv_obj_get_style_text_font(l, LV_PART_MAIN);
+    if (!t || right - lx <= 0) return;
+    int ls = WT_TRACK;
+    for (; ls > 0; ls--) {
+        lv_point_t sz;
+        lv_text_get_size(&sz, t, f, ls, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+        if (sz.x <= right - lx) break;
+    }
+    lv_obj_set_style_text_letter_space(l, ls, 0);
+    lv_obj_set_width(l, right - lx);
+}
+#endif
 
 // ---- the [ ? ] explainer tab ----
 
@@ -4123,8 +4791,8 @@ lv_obj_t *wt_help_tab_n(lv_obj_t *scr, const char *hint, int unread,
     // section and the 1px line is what says so.
     lv_obj_t *dv = lv_obj_create(scr);
     lv_obj_remove_style_all(dv);
-    lv_obj_set_pos(dv, 668, 75);
-    lv_obj_set_size(dv, 1, 20);
+    lv_obj_set_pos(dv, SX(668), SY(75));
+    lv_obj_set_size(dv, 1, SY(20));
     lv_obj_set_style_bg_color(dv, WT_DIV, 0);
     lv_obj_set_style_bg_opa(dv, LV_OPA_COVER, 0);
     lv_obj_remove_flag(dv, LV_OBJ_FLAG_CLICKABLE);
@@ -4159,14 +4827,27 @@ lv_obj_t *wt_help_tab_n(lv_obj_t *scr, const char *hint, int unread,
     // and landed on 674, six pixels of air. The bigger mark spends exactly
     // those six, so the air around it comes back out of the gap -- 4 reads
     // right against a 17px glyph anyway, where 6 was air around an 11px one.
-    const int gap = 4, pad = 8;
+    const int gap = KISS_NARROW ? 2 : 4, pad = KISS_NARROW ? 4 : 8;
     int w = 2 * pad + 2 * bs.x + 2 * gap + ms.x + (cs.x ? cs.x + gap : 0);
+#if KISS_NARROW
+    // The divider stands 4 px off this tab's left edge, wherever the width put
+    // it, and a strip already on the screen is fitted to end 4 px short of it.
+    lv_obj_set_pos(dv, SX(752) - w - 4, SY(75));
+    {
+        const uint32_t nk = lv_obj_get_child_count(scr);
+        for (uint32_t i = 0; i < nk; i++) {
+            lv_obj_t *c = lv_obj_get_child(scr, i);
+            if (lv_obj_get_user_data(c) == (void *)WT_TABSTRIP_TAG)
+                tabs_flex_fit(c, SX(24), SX(752) - w - 8);
+        }
+    }
+#endif
 
     lv_obj_t *b = lv_obj_create(scr);
     lv_obj_remove_style_all(b);
     // Pinned by the RIGHT edge: the mark's rendered width moves with the
     // accent's glyph metrics, and a computed left edge drifts.
-    lv_obj_set_pos(b, 752 - w, WT_CHROME_STRIP_Y);
+    lv_obj_set_pos(b, SX(752) - w, WT_CHROME_STRIP_Y);
     lv_obj_set_user_data(b, (void *)WT_HELPTAB_TAG);
     lv_obj_set_size(b, w, WT_BR_H);
     lv_obj_remove_flag(b, LV_OBJ_FLAG_SCROLLABLE);
@@ -4238,13 +4919,127 @@ lv_obj_t *wt_help_tab_n(lv_obj_t *scr, const char *hint, int unread,
             c->hint = wt_lbl(scr, hint, WT_ACT_X,
                              WT_ACTION_Y + (WT_ACTION_H - lh) / 2, hf,
                              WT_DIM);
-            lv_obj_set_width(c->hint, 592 - 12 - WT_ACT_X);
+            lv_obj_set_width(c->hint, SX(592) - SX(12) - WT_ACT_X);
             lv_obj_set_height(c->hint, lh);
             lv_label_set_long_mode(c->hint, LV_LABEL_LONG_DOT);
         }
         lv_obj_add_event_cb(b, help_first_cb, LV_EVENT_CLICKED, c);
         lv_obj_add_event_cb(b, help_free_cb, LV_EVENT_DELETE, c);
     }
+    if (cb) lv_obj_add_event_cb(b, cb, LV_EVENT_CLICKED, ud);
+    return b;
+}
+
+// ---- the chrome column's shared arithmetic ------------------------------
+// Three things hang off the same right edge now -- [ ? ], the theme control
+// and the flip chip -- and the title gets what they leave. Written once here
+// because the alternative already went wrong once: sim/fitcheck.c carried a
+// COPY of this number and the theme control had made it 203px optimistic, on
+// the one gate that can see a title silently dropping a rung.
+//
+// The widest of the four theme NAMES, not the one that happens to be on. A
+// lane cut to MONO is a lane CYPHERPINK grows into, and it would make the
+// title's own type size depend on which colour was picked -- the page
+// re-fitting itself every time somebody taps one.
+static int acc_name_widest(void)
+{
+    const lv_font_t *nf = wt_font_mono21();
+    int widest = 0;
+    for (int i = 0; i < WT_ACC_N; i++) {
+        lv_point_t as;
+        lv_text_get_size(&as, WT_ACC_NAMES[i], nf, 1, 0, LV_COORD_MAX,
+                         LV_TEXT_FLAG_NONE);
+        if (as.x > widest) widest = as.x;
+    }
+    return widest;
+}
+
+// The flip chip's label, and why it is a C literal rather than a string key.
+//
+// A numeral and the degree sign are not COPY: they say the same thing in all
+// twenty two locales, so a translated key would be twenty two identical
+// strings and one more thing to keep in step. It could not be one anyway --
+// tools/check_mono_glyphs.py allows ASCII plus three punctuation marks across
+// i18n/*.json, and U+00B0 is outside that set, so "180 degrees" in en.json
+// fails the gate on sight in every locale.
+//
+// THE FACE IS THE PART TO GET RIGHT, and wt_font_mono21 -- what the theme
+// name beside it wears -- is the wrong answer. The bare mono accessors are
+// deliberately chain-free (see the paragraph above them), and IoskeleyMono
+// carries 0x20-0x7E and three marks: no degree sign, and no FontAwesome. Set
+// in mono21 this label draws two placeholder boxes, identically in the
+// simulator, which is the blind spot that paragraph names twice. wt_font23 is
+// the mono-PRIMARY composite, so 180 stays fixed pitch and only the mark and
+// the degree sign resolve out of the Latin fallback -- which every locale has,
+// because the CJK faces are chained BEHIND lat23 and not in front of it. It
+// needs no mono_can guard for the same reason: the guard exists for the bare
+// accessors. One rung above the theme's name because the composite ladder has
+// no 21, which is a smaller mismatch than a proportional face on a mono row.
+//
+// LV_SYMBOL_LOOP is the mark this device already spends on exactly this: "the
+// tap resolves HERE, now; the value advances to the next one in its set".
+//
+// TWO spaces between them, which is wt_icon_text's own form and is load
+// bearing rather than typographic: the walk's find_act matches a label by its
+// tail and demands two spaces in front of it, so one space here is a control
+// no gate could tap by its word -- and tapping it by a pixel is what the walk
+// says silently breaks.
+#define WT_FLIPTAB_TXT LV_SYMBOL_LOOP "  180\xC2\xB0"
+#define WT_FLIPTAB_PAD SX(10)   // a word action's own column pad, either side
+
+static int flip_tab_w(void)
+{
+    lv_point_t s;
+    lv_text_get_size(&s, WT_FLIPTAB_TXT, wt_font23(), 1, 0, LV_COORD_MAX,
+                     LV_TEXT_FLAG_NONE);
+    return s.x + 2 * WT_FLIPTAB_PAD;
+}
+
+// Where the flip chip's left edge sits. Computed from the widest theme name
+// and NOT from the theme control's live left edge, because accent_walk moves
+// that edge -- 84px on the wide board between MONO and CYPHERPINK -- and a
+// chip anchored to it would jump across the header every time somebody tapped
+// a colour.
+static int flip_tab_x(void)
+{
+    int x = WT_THEMETAB_RIGHT
+            - (WT_THEMETAB_SW + WT_THEMETAB_GAP + acc_name_widest())
+            - WT_THEMETAB_GAP - flip_tab_w();
+    // Both boxes take the same 6px of slop, and the gap between them scales
+    // with the canvas while the slop does not. Where twice the slop is wider
+    // than the gap -- the 3.5in, by one pixel -- the two hit areas would share
+    // a column and a press landing there would be ambiguous, so the chip moves
+    // left by the difference instead.
+    const int share = 2 * SY(6) - WT_THEMETAB_GAP;
+    if (share > 0) x -= share;
+    return x;
+}
+
+int wt_chrome_head_lane(void)
+{
+    // The 24 is the gap the title has always been given here, and it is bare
+    // rather than SX for the same reason it always was.
+    return flip_tab_x() - 24 - WT_LANE_X;
+}
+
+lv_obj_t *wt_flip_tab(lv_obj_t *scr, lv_event_cb_t cb, void *ud)
+{
+    lv_obj_t *b = lv_obj_create(scr);
+    lv_obj_remove_style_all(b);
+    lv_obj_set_pos(b, flip_tab_x(), SY(10));
+    lv_obj_set_size(b, flip_tab_w(), SY(40));
+    lv_obj_add_flag(b, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(b, LV_OBJ_FLAG_SCROLLABLE);
+    // The same 6 the theme box takes, and the same clearance it buys: 4..56,
+    // two clear of the 58 where [ ? ]'s own ext area begins.
+    lv_obj_set_ext_click_area(b, SY(6));
+    wt_tap_feedback(b);
+    // INK, like the theme's name and the title: the cursor is the accent's one
+    // appearance in this column, and a mark that changed colour with the theme
+    // would be saying something about the theme.
+    lv_obj_t *l = wt_lbl(b, WT_FLIPTAB_TXT, 0, 0, wt_font23(), WT_INK);
+    lv_obj_set_style_text_letter_space(l, 1, 0);
+    lv_obj_align(l, LV_ALIGN_CENTER, 0, 0);
     if (cb) lv_obj_add_event_cb(b, cb, LV_EVENT_CLICKED, ud);
     return b;
 }
@@ -4279,21 +5074,17 @@ lv_obj_t *wt_theme_tab(lv_obj_t *scr, lv_event_cb_t cb, void *ud)
     const lv_font_t *nf = wt_font_mono21();
     lv_point_t ns;
     lv_text_get_size(&ns, nm, nf, 1, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-    const int sw = WT_THEMETAB_SW, gap = WT_THEMETAB_GAP, ch = 40, ty = 10;
+    // SY, not bare: on the 3.5in a 10..50 box with its 6 px of slop reached
+    // 56, ten pixels into the tab strip at 46, so a swipe that began on the
+    // right-hand tabs was taken by the theme switch and the page never moved.
+    const int sw = WT_THEMETAB_SW, gap = WT_THEMETAB_GAP, ch = SY(40), ty = SY(10);
     const int cw = sw + gap + ns.x;
     const int tx = WT_THEMETAB_RIGHT - cw;
-    // The title's lane is measured against the WIDEST of the four names, not
-    // this one. A lane cut to MONO is a lane CYPHERPINK grows into, and it
-    // would make the title's own type size depend on which theme is on -- the
-    // page re-fitting itself every time somebody taps a colour.
-    int widest = 0;
-    for (int i = 0; i < WT_ACC_N; i++) {
-        lv_point_t as;
-        lv_text_get_size(&as, WT_ACC_NAMES[i], nf, 1, 0, LV_COORD_MAX,
-                         LV_TEXT_FLAG_NONE);
-        if (as.x > widest) widest = as.x;
-    }
-    const int lane = (WT_THEMETAB_RIGHT - (sw + gap + widest)) - 24 - WT_LANE_X;
+    // The title's lane is what this control and the flip chip beside it leave,
+    // measured against the WIDEST of the four names rather than this one --
+    // see wt_chrome_head_lane, which is where that arithmetic lives now that
+    // a gate reads it too.
+    const int lane = wt_chrome_head_lane();
 
     lv_obj_t *b = lv_obj_create(scr);
     lv_obj_remove_style_all(b);
@@ -4301,13 +5092,13 @@ lv_obj_t *wt_theme_tab(lv_obj_t *scr, lv_event_cb_t cb, void *ud)
     lv_obj_set_size(b, cw, ch);
     lv_obj_add_flag(b, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_remove_flag(b, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_ext_click_area(b, 6);
+    lv_obj_set_ext_click_area(b, SY(6));
     wt_tap_feedback(b);
 
     lv_obj_t *sq = lv_obj_create(b);
     lv_obj_remove_style_all(sq);
-    lv_obj_set_size(sq, sw, 20);
-    lv_obj_set_style_radius(sq, 6, 0);
+    lv_obj_set_size(sq, sw, SY(20));
+    lv_obj_set_style_radius(sq, SX(6), 0);
     lv_obj_set_style_bg_color(sq, wt_accent(), 0);
     lv_obj_set_style_bg_opa(sq, LV_OPA_COVER, 0);
     lv_obj_add_flag(sq, WT_FLAG_ACCENT_FILL);
@@ -4340,8 +5131,8 @@ lv_obj_t *wt_theme_tab(lv_obj_t *scr, lv_event_cb_t cb, void *ud)
                          lv_obj_get_style_text_font(cap, LV_PART_MAIN),
                          lv_obj_get_style_text_letter_space(cap, LV_PART_MAIN),
                          0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-        lv_obj_set_pos(cur, lv_obj_get_style_x(cap, LV_PART_MAIN) + cs.x + 12,
-                       lv_obj_get_style_y(cap, LV_PART_MAIN) + (cs.y - 22) / 2 - 2);
+        lv_obj_set_pos(cur, lv_obj_get_style_x(cap, LV_PART_MAIN) + cs.x + SX(12),
+                       lv_obj_get_style_y(cap, LV_PART_MAIN) + (cs.y - SY(22)) / 2 - 2);
     }
 
     if (cb) lv_obj_add_event_cb(b, cb, LV_EVENT_CLICKED, ud);
@@ -4356,7 +5147,7 @@ lv_obj_t *wt_theme_tab(lv_obj_t *scr, lv_event_cb_t cb, void *ud)
 // The headline's own line box is 38 at mono34 and it starts at 118, so the
 // paragraph cannot sit at 152 any more -- it did, and the two overlapped by
 // 4px on all three [ ? ] pages the moment the rung went up.
-#define WT_EXPLAIN_PARA_Y 168
+#define WT_EXPLAIN_PARA_Y SY(168)
 
 static const lv_font_t *explain_head_font(const char *s, int w)
 {
@@ -4373,15 +5164,17 @@ static const lv_font_t *explain_head_font(const char *s, int w)
 
 // The paragraph rung: 28, two lines at 690, one rung down if it needs three.
 // Two lines is not a layout preference -- the facts under it are pinned at
-// 200 and a third line is what walks into them.
+// 200 and a third line is what walks into them. `w` is the 4.3in's lane,
+// measured at the width wrap_w() will draw it.
 static const lv_font_t *explain_para_font(const char *s, int w, int lines)
 {
     if (!s || !*s) return chrome28(s);
     const lv_font_t *f = chrome28(s);
+    const int lane = wrap_w(f, s, SX(w), w);
     lv_point_t sz;
-    lv_text_get_size(&sz, s, f, 0, 0, w, LV_TEXT_FLAG_NONE);
+    lv_text_get_size(&sz, s, f, 0, 0, lane, LV_TEXT_FLAG_NONE);
     if (sz.y <= lines * lv_font_get_line_height(f)) return f;
-    WT_FIT_GAVE_UP("para", s, w, lines * lv_font_get_line_height(f));
+    WT_FIT_GAVE_UP("para", s, lane, lines * lv_font_get_line_height(f));
     return chrome23(s);
 }
 
@@ -4417,16 +5210,113 @@ static lv_obj_t *head_stop(lv_obj_t *scr, const char *txt, int x, int y,
 static lv_obj_t *body_spans_hi(lv_obj_t *par, const char *txt, int x, int y,
                                const lv_font_t *f, int w, const char *hi);
 
+// The pad between fact rows, and between a paragraph and the rows under it.
+// 14 is the wide canvas's pad beside a 37px caption line. The 3.5in's caption
+// line is 22, and the unscaled 14 made three rows under a two line paragraph
+// 264 px deep: the third caption on every [ ? ] page sat on the band's hairline
+// with its lower half in the moat. Scaled, three rows end at 249.
+#define WT_FACT_PAD (KISS_NARROW ? SY(14) : 14)
+
+// The mark's column: how far a caption sits right of its row's icon. 38 is
+// the 4.3in's icon at the 28 face with a few pixels of air. The mark rides the
+// caption's rung, and on the 7in that rung is the 34 face, a 43px icon: a bare
+// 38 put every caption 5px into its own mark -- SIGN, SETTINGS, the dice
+// warning and the firmware writing screen, all through this one row. Scaled
+// it is 48 there. Never less than 38: the 3.5in was cleared on glass at 38 and
+// its SX(38) is 22. One name, because facts_block_h has to lay the row out
+// exactly as wt_facts_in draws it.
+#define WT_FACT_MARK_W LV_MAX(38, SX(38))
+
+#if KISS_NARROW
+// THE BLOCK AS wt_facts_in WILL BUILD IT, on the lane. The sum of one line per
+// row is the wide canvas's answer and it is short twice on the 3.5in: a value
+// has 208 px there and a translated one takes a second line, and a caption
+// that steps down takes the whole block with it. An explainer hung its facts
+// from the band by the one-line sum, so the row a value had wrapped above was
+// pushed under the band -- the third caption of [ ? ] KEYS sat in the moat in
+// most of the translations. Every choice below is wt_facts_in's own, in order.
+static int facts_block_h(const wt_fact_t *facts, int n, int pad)
+{
+    bool marks = false, block_small = false;
+    for (int i = 0; i < n && facts; i++) {
+        if (facts[i].icon) marks = true;
+        if (facts[i].cap_font) continue;
+        lv_point_t cs;
+        lv_text_get_size(&cs, facts[i].cap, chrome28(facts[i].cap), WT_TRACK,
+                         0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+        if (cs.x > WT_FACT_CAP_W - 4) block_small = true;
+    }
+    const int cap_x = marks ? WT_LANE_X + WT_FACT_MARK_W : WT_LANE_X;
+    const int vx = cap_x + WT_FACT_CAP_W + 14;
+    const int vw = WT_LANE_X + WT_LANE_W - vx;
+    int h = 0;
+    for (int i = 0; i < n && facts; i++) {
+        const lv_font_t *cf = facts[i].cap_font ? facts[i].cap_font
+                                                : chrome28(facts[i].cap);
+        lv_point_t cs;
+        lv_text_get_size(&cs, facts[i].cap, cf, WT_TRACK, 0, LV_COORD_MAX,
+                         LV_TEXT_FLAG_NONE);
+        if (cs.x > WT_FACT_CAP_W - 4) cf = chrome23(facts[i].cap);
+        if (block_small && !facts[i].cap_font) cf = chrome23(facts[i].cap);
+        const lv_font_t *vf = chrome23(facts[i].val);
+        const int vdy = (lv_font_get_line_height(cf) -
+                         lv_font_get_line_height(vf)) / 2;
+        lv_point_t vs;
+        lv_text_get_size(&vs, facts[i].val ? facts[i].val : "", vf, 0, 0, vw,
+                         LV_TEXT_FLAG_NONE);
+        h += LV_MAX(lv_font_get_line_height(cf), vdy + vs.y) + pad;
+    }
+    return h ? h - pad : 0;
+}
+
+// When the block would still cross the floor it is placed over, the captions
+// give their rung, the whole block at once as wt_facts_in steps a wide one: a
+// caption equal to its value is the kit's long-language row already, and a
+// row under the band is not a row. A value that took a second line is what
+// gets here -- DESCRIPTEUR's "il regarde, ne dépense jamais" -- and only the
+// captions beside one-line values have height to give. The copy goes into
+// `buf`, because a caller's facts are its own and often const.
+//
+// Then the pads, and only as far as the floor asks: the last few pixels of a
+// block whose paragraph and captions are both on their floor rung were its
+// last row's descenders on the band's hairline. Never under SY(6), which
+// still separates two rows of the 14 face.
+#define WT_FACTS_FIT_MAX 8
+static int s_fact_pad = WT_FACT_PAD;    // the pad wt_facts_in builds on
+static const wt_fact_t *facts_fit(const wt_fact_t *facts, int n, int y,
+                                  int floor, wt_fact_t *buf, int *pad)
+{
+    *pad = WT_FACT_PAD;
+    if (n <= 0 || n > WT_FACTS_FIT_MAX ||
+        y + facts_block_h(facts, n, WT_FACT_PAD) <= floor)
+        return facts;
+    for (int i = 0; i < n; i++) {
+        buf[i] = facts[i];
+        if (!buf[i].cap_font) buf[i].cap_font = chrome23(buf[i].cap);
+    }
+    const int over = y + facts_block_h(buf, n, WT_FACT_PAD) - floor;
+    if (over > 0 && n > 1) {
+        const int p = WT_FACT_PAD - (over + n - 2) / (n - 1);
+        *pad = p > SY(6) ? p : SY(6);
+    }
+    return buf;
+}
+#endif
+
 int wt_facts_height(const wt_fact_t *facts, int n)
 {
+#if KISS_NARROW
+    return facts_block_h(facts, n, WT_FACT_PAD);
+#else
     int h = 0;
     for (int i = 0; i < n && facts; i++) {
         const int lh = LV_MAX(
             lv_font_get_line_height(chrome28(facts[i].cap)),
             lv_font_get_line_height(chrome23(facts[i].val)));
-        h += lh + 14;
+        h += lh + WT_FACT_PAD;
     }
-    return h ? h - 14 : 0;      // no pad under the last row
+    return h ? h - WT_FACT_PAD : 0;      // no pad under the last row
+#endif
 }
 
 static void explain_to(lv_obj_t *scr, const char *headline, const char *para,
@@ -4438,9 +5328,9 @@ static void explain_to(lv_obj_t *scr, const char *headline, const char *para,
     // needs it drawn as spans. That costs LV_LABEL_LONG_DOT, so it is only
     // taken when the headline measurably FITS -- and the label with its
     // ellipsis is what happens when it does not.
-    lv_obj_t *h = head_stop(scr, headline, WT_LANE_X, 118, hf, WT_LANE_W);
+    lv_obj_t *h = head_stop(scr, headline, WT_LANE_X, SY(118), hf, WT_LANE_W);
     if (!h) {
-        h = wt_lbl(scr, headline, WT_LANE_X, 118, hf, WT_INK);
+        h = wt_lbl(scr, headline, WT_LANE_X, SY(118), hf, WT_INK);
         lv_obj_set_width(h, WT_LANE_W);
         // HEIGHT TOO. LONG_DOT only elides once the box stops growing, so a
         // headline with a width and no height does not ellipsise -- it wraps,
@@ -4457,16 +5347,46 @@ static void explain_to(lv_obj_t *scr, const char *headline, const char *para,
     // the same kind of thing as a definition's.
     wt_read_measure(headline);
     wt_read_measure(para);
+#if KISS_NARROW
+    // A THIRD LINE at the reading rung where the facts still fit under it. Two
+    // lines of mono18 on the 3.5in are 74 characters, and a paragraph one
+    // clause longer fell to the 14 face -- the same face as the values in the
+    // rows below it -- on pages with two facts and a 40 px gap to spare.
+    //
+    // And FEWER than two where the facts do not leave two above the band
+    // itself. A translated caption or a wrapped value makes the block taller
+    // than English's, and two lines at the reading rung were kept regardless,
+    // so the block rested on the paragraph and its last row went under the
+    // band -- the [ ? ] pages did it in most of the translations. The
+    // paragraph gives the height back by a rung, the drop explain_para_font
+    // already reports, before a fact can. Measured against the band and not
+    // the gap above it: two lines that already fit above the band keep the
+    // reading rung they always had, and only a row actually under it changes
+    // anything.
+    int para_lines = 2;
+    {
+        const int lh = lv_font_get_line_height(chrome28(para));
+        const int top = WT_EXPLAIN_PARA_Y + WT_FACT_PAD +
+                        wt_facts_height(facts, n);
+        if (top + 3 * lh <= bottom - WT_FACT_BAND_GAP)
+            para_lines = 3;
+        else if (top + 2 * lh > bottom)
+            para_lines = 1;
+    }
+    const lv_font_t *pf = explain_para_font(para, 690, para_lines);
+#else
     const lv_font_t *pf = explain_para_font(para, 690, 2);
+#endif
+    const int pw = wrap_w(pf, para, SX(690), 690);
     // ONE path, highlight or not. This used to be two: a spangroup when the
     // page named a term and a plain label otherwise, and the accent stop was
     // added to neither -- which is why every [ ? ] page on the device was
     // missing it while the twelve takeover pages had it. A paragraph is a
     // paragraph.
-    body_spans_hi(scr, para, WT_LANE_X, WT_EXPLAIN_PARA_Y, pf, 690, hi);
+    body_spans_hi(scr, para, WT_LANE_X, WT_EXPLAIN_PARA_Y, pf, pw, hi);
     lv_point_t ps;
-    lv_text_get_size(&ps, para, pf, 0, 0, 690, LV_TEXT_FLAG_NONE);
-    wt_widow_measure(para, pf, 690);
+    lv_text_get_size(&ps, para, pf, 0, 0, pw, LV_TEXT_FLAG_NONE);
+    wt_widow_measure(para, pf, pw);
 
     // The facts start where the paragraph ends, and never above the line TWO
     // paragraph lines would reach: the caption lane holds still whether this
@@ -4481,10 +5401,12 @@ static void explain_to(lv_obj_t *scr, const char *headline, const char *para,
     // THREE facts is what this fits at 28. 246 + 3 * 46 + 32 = 416, so a
     // fourth crosses WT_CONTENT_BOTTOM and the CONTENT check says so. Every
     // page in the pass carries three.
+#if !KISS_NARROW
     const int para_lines = 2;
-    int y = WT_EXPLAIN_PARA_Y + ps.y + 14;
+#endif
+    int y = WT_EXPLAIN_PARA_Y + ps.y + WT_FACT_PAD;
     const int floor_y = WT_EXPLAIN_PARA_Y +
-                        para_lines * lv_font_get_line_height(pf) + 14;
+                        para_lines * lv_font_get_line_height(pf) + WT_FACT_PAD;
     if (y < floor_y) y = floor_y;
     // ...and then the block HANGS from the band rather than resting on the
     // paragraph. It rested on the paragraph, which put two facts on the KEF
@@ -4497,9 +5419,22 @@ static void explain_to(lv_obj_t *scr, const char *headline, const char *para,
     // measured from the other end, and it is the end an owner's eye actually
     // lands on, because the band under it does not move. The floor above
     // still wins if a long paragraph would otherwise be printed through.
+#if KISS_NARROW
+    // Against THIS page's bottom, which a slide raises: wt_facts only knows
+    // the standard one, so the rows are built here on the fitted pad.
+    wt_fact_t small[WT_FACTS_FIT_MAX];
+    int pad;
+    facts = facts_fit(facts, n, y, bottom, small, &pad);
+    const int hang = bottom - WT_FACT_BAND_GAP - facts_block_h(facts, n, pad);
+    if (hang > y) y = hang;
+    s_fact_pad = pad;
+    wt_facts_in(scr, WT_LANE_X, y, WT_LANE_W, facts, n);
+    s_fact_pad = WT_FACT_PAD;
+#else
     const int hang = bottom - WT_FACT_BAND_GAP - wt_facts_height(facts, n);
     if (hang > y) y = hang;
     wt_facts(scr, y, facts, n);
+#endif
 }
 
 void wt_explain_hi(lv_obj_t *scr, const char *headline, const char *para,
@@ -4518,7 +5453,19 @@ void wt_explain_to(lv_obj_t *scr, const char *headline, const char *para,
 // draw the identical ones under it. See the header.
 int wt_facts(lv_obj_t *scr, int y, const wt_fact_t *facts, int n)
 {
+#if KISS_NARROW
+    // The page's rows, against the page's floor: a caller that rests them
+    // under a card has no paragraph to give height back first.
+    wt_fact_t small[WT_FACTS_FIT_MAX];
+    int pad;
+    facts = facts_fit(facts, n, y, WT_CONTENT_BOTTOM, small, &pad);
+    s_fact_pad = pad;
+    const int end = wt_facts_in(scr, WT_LANE_X, y, WT_LANE_W, facts, n);
+    s_fact_pad = WT_FACT_PAD;
+    return end;
+#else
     return wt_facts_in(scr, WT_LANE_X, y, WT_LANE_W, facts, n);
+#endif
 }
 
 int wt_facts_in(lv_obj_t *par, int x, int y, int w,
@@ -4531,7 +5478,24 @@ int wt_facts_in(lv_obj_t *par, int x, int y, int w,
     bool marks = false;
     for (int i = 0; i < n && facts; i++)
         if (facts[i].icon) marks = true;
-    const int cap_x = marks ? x + 38 : x;
+    const int cap_x = marks ? x + WT_FACT_MARK_W : x;
+#if KISS_NARROW
+    // ONE caption rung for the block. Each caption stepping down on its own
+    // put NO PASSPHRASE a rung under PASSPHRASE directly beneath it, which
+    // reads as two kinds of row; a block that needs the smaller face for one
+    // caption takes it for all of them.
+    bool block_small = false;
+    for (int i = 0; i < n && facts; i++) {
+        if (facts[i].cap_font) continue;
+        lv_point_t cs;
+        lv_text_get_size(&cs, facts[i].cap, chrome28(facts[i].cap), WT_TRACK,
+                         0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+        if (cs.x > WT_FACT_CAP_W - 4) block_small = true;
+    }
+    const int cap_ls = WT_TRACK;
+#else
+    const int cap_ls = 2;
+#endif
 
     for (int i = 0; i < n && facts; i++) {
         // The CAPTION is the big one, and the value beside it is a rung
@@ -4561,9 +5525,12 @@ int wt_facts_in(lv_obj_t *par, int x, int y, int w,
                                                 : chrome28(facts[i].cap);
         {
             lv_point_t cs;
-            lv_text_get_size(&cs, facts[i].cap, cf, 2, 0, LV_COORD_MAX,
+            lv_text_get_size(&cs, facts[i].cap, cf, cap_ls, 0, LV_COORD_MAX,
                              LV_TEXT_FLAG_NONE);
             if (cs.x > WT_FACT_CAP_W - 4) cf = chrome23(facts[i].cap);
+#if KISS_NARROW
+            if (block_small && !facts[i].cap_font) cf = chrome23(facts[i].cap);
+#endif
         }
         if (facts[i].icon) {
             // Its own label, never composed into the caption: an icon in a
@@ -4585,7 +5552,7 @@ int wt_facts_in(lv_obj_t *par, int x, int y, int w,
         lv_obj_t *cap = wt_lbl(scr, facts[i].cap, cap_x, y, cf,
                                wt_accent());
         lv_obj_add_flag(cap, WT_FLAG_ACCENT);
-        lv_obj_set_style_text_letter_space(cap, 2, 0);
+        lv_obj_set_style_text_letter_space(cap, cap_ls, 0);
         // 214 wide, ONE line, no wrapping: a caption that would wrap gets
         // shorter copy for that locale. The lane never widens, and the
         // height is what makes LONG_DOT elide instead of stacking.
@@ -4596,7 +5563,7 @@ int wt_facts_in(lv_obj_t *par, int x, int y, int w,
         // The caption went from mono21 to mono23 in this pass and the lane
         // did not, which took WHAT IT SHARES from fitting to "WHAT IT SH..."
         // with nothing anywhere saying so.
-        wt_sub_measure("cap", facts[i].cap, cf, 2, WT_FACT_CAP_W - 4);
+        wt_sub_measure("cap", facts[i].cap, cf, cap_ls, WT_FACT_CAP_W - SX(4));
         lv_obj_set_width(cap, WT_FACT_CAP_W);
         lv_obj_set_height(cap, lv_font_get_line_height(cf));
         lv_label_set_long_mode(cap, LV_LABEL_LONG_DOT);
@@ -4634,7 +5601,11 @@ int wt_facts_in(lv_obj_t *par, int x, int y, int w,
         lv_obj_update_layout(val);
         const int lh = LV_MAX(lv_font_get_line_height(cf),
                               vdy + lv_obj_get_height(val));
-        y += lh + 14;
+#if KISS_NARROW
+        y += lh + s_fact_pad;
+#else
+        y += lh + WT_FACT_PAD;
+#endif
     }
     return y;
 }
@@ -4648,11 +5619,11 @@ void wt_explain(lv_obj_t *scr, const char *headline, const char *para,
 // ---- the in-place definition ----
 
 #define WT_DEF_MAX    6
-#define DEF_CAP_W   210    // the caption lane, fixed -- "FIRST ADDRESS" at
+#define DEF_CAP_W   SX(210)    // the caption lane, fixed -- "FIRST ADDRESS" at
                            // chrome23 ls2 measures 205
-#define DEF_VAL_X   238    // WT_LINE_PAD + 210 + 14
-#define DEF_ARR_W    26    // the arrow's lane, fixed
-#define DEF_HEAD_PAD 18    // the open row's head, down from the top
+#define DEF_VAL_X   (WT_LINE_PAD + DEF_CAP_W + SX(14))
+#define DEF_ARR_W    SX(26)    // the arrow's lane, fixed
+#define DEF_HEAD_PAD SY(18)    // the open row's head, down from the top
 
 enum { DEF_CLOSED, DEF_OPEN, DEF_GHOST };
 
@@ -4756,7 +5727,10 @@ static void def_apply(wt_defs_t *d, int k, int mode)
     if (r->arrow) {
         if (mode == DEF_GHOST) {
             lv_obj_remove_flag(r->arrow, WT_FLAG_ACCENT);
-            lv_obj_set_style_text_color(r->arrow, WT_DIV, 0);
+            // WT_DIV is a surface, and on the 3.5in a 14 px glyph in it was
+            // 1.2:1 -- a ghost's arrow gone rather than quiet. The inert ink
+            // there, the same the ghost's own name wears.
+            lv_obj_set_style_text_color(r->arrow, KISS_NARROW ? WT_DIM : WT_DIV, 0);
         } else {
             lv_obj_add_flag(r->arrow, WT_FLAG_ACCENT);
             lv_obj_set_style_text_color(r->arrow, wt_accent(), 0);
@@ -4774,12 +5748,12 @@ static void def_apply(wt_defs_t *d, int k, int mode)
         lv_obj_align(r->cap, LV_ALIGN_TOP_LEFT, WT_LINE_PAD, cy);
         if (r->lamp)
             lv_obj_align(r->lamp, LV_ALIGN_TOP_LEFT, DEF_VAL_X,
-                         DEF_HEAD_PAD + (vh - 8) / 2);
+                         DEF_HEAD_PAD + (vh - SY(8)) / 2);
         lv_obj_align(r->val, LV_ALIGN_TOP_LEFT, r->val_x, DEF_HEAD_PAD);
         if (r->arrow) {
             if (r->cyc)
                 lv_obj_align(r->arrow, LV_ALIGN_TOP_LEFT,
-                             r->val_x + r->vw_big + 14, DEF_HEAD_PAD);
+                             r->val_x + r->vw_big + SX(14), DEF_HEAD_PAD);
             else
                 lv_obj_align(r->arrow, LV_ALIGN_TOP_RIGHT, -WT_LINE_PAD,
                              DEF_HEAD_PAD);
@@ -4792,12 +5766,12 @@ static void def_apply(wt_defs_t *d, int k, int mode)
             lv_obj_align(r->sub, LV_ALIGN_RIGHT_MID,
                          (r->cyc || !r->arrow)
                              ? -WT_LINE_PAD
-                             : -(WT_LINE_PAD + DEF_ARR_W + 20), 0);
+                             : -(WT_LINE_PAD + DEF_ARR_W + SX(20)), 0);
         if (r->arrow) {
             if (r->cyc) {
                 const int vw = mode == DEF_GHOST ? r->vw_ghost : r->vw_big;
                 lv_obj_align(r->arrow, LV_ALIGN_LEFT_MID,
-                             r->val_x + vw + 14, 0);
+                             r->val_x + vw + SX(14), 0);
             } else {
                 lv_obj_align(r->arrow, LV_ALIGN_RIGHT_MID, -WT_LINE_PAD, 0);
             }
@@ -4826,7 +5800,7 @@ static void def_anim(lv_obj_t *var, lv_anim_exec_xcb_t exec, int32_t from,
     lv_anim_set_var(&a, var);
     lv_anim_set_exec_cb(&a, exec);
     lv_anim_set_values(&a, from, to);
-    lv_anim_set_duration(&a, 240);
+    lv_anim_set_duration(&a, WT_MOTION_MS(240));
     lv_anim_set_path_cb(&a, lv_anim_path_custom_bezier3);
     lv_anim_set_bezier3_param(&a, 205, 717, 307, 1024);
     if (done) lv_anim_set_completed_cb(&a, done);
@@ -4903,10 +5877,10 @@ void wt_def_list_open(lv_obj_t *list, int idx)
                 lv_anim_t a;
                 lv_anim_init(&a);
                 lv_anim_set_var(&a, body[i]);
-                lv_anim_set_duration(&a, 260);
-                lv_anim_set_delay(&a, 90);
+                lv_anim_set_duration(&a, WT_MOTION_MS(260));
+                lv_anim_set_delay(&a, WT_MOTION_MS(90));
                 lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
-                lv_anim_set_values(&a, 9, 0);
+                lv_anim_set_values(&a, SY(9), 0);
                 lv_anim_set_exec_cb(&a, an_ty);
                 lv_anim_start(&a);
                 lv_obj_set_style_opa(body[i], LV_OPA_TRANSP, 0);
@@ -4941,6 +5915,25 @@ static lv_obj_t *def_list_build(lv_obj_t *scr, const wt_def_t *defs, int n,
     lv_obj_add_event_cb(list, defs_free_cb, LV_EVENT_DELETE, d);
 
     const int oh = wt_def_h_open(n);
+#if KISS_NARROW
+    // ONE TRACK for the list's captions, and WT_TRACK where any of them needs
+    // it. Two pixels is a tenth of an em on the wide canvas's 23 px capitals
+    // and a seventh of one on the 3.5in's 14, which is the reason WT_TRACK
+    // exists; this lane was never moved onto it, so a caption that fits at one
+    // pixel -- SEED-WÖRTER, ALEATORIEDADE, TILFÆLDIGHED -- shipped ellipsised
+    // at two. The whole list takes it together, as a facts block takes its
+    // smaller rung, so one row is never tracked tighter than its neighbours;
+    // a list whose captions all fit keeps the two it was drawn with.
+    int cap_ls = 2;
+    for (int k = 0; k < n; k++) {
+        lv_point_t cs;
+        lv_text_get_size(&cs, defs[k].cap, chrome23(defs[k].cap), 2, 0,
+                         LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+        if (cs.x > DEF_CAP_W) cap_ls = WT_TRACK;
+    }
+#else
+    const int cap_ls = 2;
+#endif
     int ry = 0;
     for (int k = 0; k < n; k++) {
         wt_defrow_t *r = &d->r[k];
@@ -4971,9 +5964,9 @@ static lv_obj_t *def_list_build(lv_obj_t *scr, const wt_def_t *defs, int n,
         // LONG_DOT only elides once the box stops growing, so a lane without
         // a height is a lane that wraps into the row below it.
         const lv_font_t *cf = chrome23(defs[k].cap);
-        wt_sub_measure("label", defs[k].cap, cf, 2, DEF_CAP_W);
+        wt_sub_measure("label", defs[k].cap, cf, cap_ls, DEF_CAP_W);
         r->cap = wt_lbl(row, defs[k].cap, 0, 0, cf, WT_MUT);
-        lv_obj_set_style_text_letter_space(r->cap, 2, 0);
+        lv_obj_set_style_text_letter_space(r->cap, cap_ls, 0);
         lv_obj_set_width(r->cap, DEF_CAP_W);
         lv_obj_set_height(r->cap, lv_font_get_line_height(cf));
         lv_label_set_long_mode(r->cap, LV_LABEL_LONG_DOT);
@@ -4985,7 +5978,7 @@ static lv_obj_t *def_list_build(lv_obj_t *scr, const wt_def_t *defs, int n,
             // The lamp's glow, RECEIVE's own: the same colour, wider than
             // the dot, read as light rather than as a second ring.
             lv_obj_set_style_shadow_color(r->lamp, defs[k].lamp_col, 0);
-            lv_obj_set_style_shadow_width(r->lamp, 10, 0);
+            lv_obj_set_style_shadow_width(r->lamp, SX(10), 0);
             lv_obj_set_style_shadow_opa(r->lamp, 140, 0);
             r->val_x += 8 + 12;
         }
@@ -5064,6 +6057,23 @@ static lv_obj_t *def_list_build(lv_obj_t *scr, const wt_def_t *defs, int n,
             lv_obj_set_style_transform_pivot_y(
                 r->arrow, lv_obj_get_height(r->arrow) / 2, 0);
         }
+#if KISS_NARROW
+        // The open row's step up is taken only where the value still fits
+        // before the pinned mark. On the 3.5in ONE SIGNS, ONE WATCHES is 242 px
+        // at mono18, past a lamp, and its last letter was drawn under the
+        // MINUS; at the caption's own rung it clears the mark by 50.
+        if (r->arrow && !r->cyc) {
+            lv_point_t os, ot = { 0, 0 };
+            lv_text_get_size(&os, defs[k].val ? defs[k].val : "", r->vf_open,
+                             0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+            if (defs[k].val_tail)
+                lv_text_get_size(&ot, defs[k].val_tail, r->vf_open, 0, 0,
+                                 LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+            if (r->val_x + os.x + ot.x + SX(14) >
+                WT_LANE_W - WT_LINE_PAD - r->mark_w)
+                r->vf_open = r->vf_closed;
+        }
+#endif
 
         if (defs[k].sub && *defs[k].sub) {
             // A row's sub is measured against the CLOSED value, the widest
@@ -5125,30 +6135,60 @@ static lv_obj_t *def_list_build(lv_obj_t *scr, const wt_def_t *defs, int n,
             // underneath, never the term alone. Geometry computed against
             // the OPEN height, where it will be seen.
             const lv_font_t *pf = chrome23(defs[k].plain);
+#if KISS_NARROW
+            // The pads scale with the row. The 3.5in's open row is 112 px
+            // with four terms, and two unscaled 14s put a two line
+            // definition's TECHNICAL line 4 px under the row's floor.
+            const int dpad = SY(14);
+#else
+            const int dpad = 14;
+#endif
             int hy = DEF_HEAD_PAD +
-                     lv_font_get_line_height(chrome28(defs[k].val)) + 14;
+                     lv_font_get_line_height(chrome28(defs[k].val)) + dpad;
             r->plain = wt_lbl(row, defs[k].plain, WT_LINE_PAD, hy, pf,
                               WT_INK);
             lv_obj_set_style_text_opa(r->plain, 200, 0);
-            lv_obj_set_width(r->plain, 646);
+            lv_obj_set_width(r->plain, SX(646));
             lv_label_set_long_mode(r->plain, LV_LABEL_LONG_WRAP);
             lv_obj_add_flag(r->plain, LV_OBJ_FLAG_HIDDEN);
             lv_point_t ps;
-            lv_text_get_size(&ps, defs[k].plain, pf, 0, 0, 646,
+            // Measured at the lane the label WRAPS at. A bare 646 was the wide
+            // canvas's number: on the 3.5in the label wraps at 387, so a
+            // definition that took two lines there was measured as one and
+            // the TECHNICAL line was placed on top of its second line.
+            lv_text_get_size(&ps, defs[k].plain, pf, 0, 0, SX(646),
                              LV_TEXT_FLAG_NONE);
             wt_read_measure(defs[k].plain);
-            wt_widow_measure(defs[k].plain, pf, 646);
+            wt_widow_measure(defs[k].plain, pf, SX(646));
             if (defs[k].term && *defs[k].term) {
-                const int ty2 = hy + ps.y + 14;
+                const int ty2 = hy + ps.y + dpad;
                 r->term = wt_term_line(row, defs[k].term_label, defs[k].term,
-                                       WT_LINE_PAD, ty2, 646);
+                                       WT_LINE_PAD, ty2, SX(646));
                 if (r->term) {
                     lv_obj_update_layout(r->term);
                     // Against the ROW'S FLOOR, not against the card. A three
                     // line definition still fits a 216px row and lands on the
                     // term line -- nothing overlaps until the row is OPEN and
                     // settled, which is the state no sweep had ever measured.
+#if KISS_NARROW
+                    int bottom = ty2 + lv_obj_get_height(r->term);
+                    // The pads give first, and only what the row is short. A
+                    // two line definition in an accented or CJK face stands
+                    // one to three pixels taller than the mono one the 112 px
+                    // open row was sized on, and put its TECHNICAL line past
+                    // the row's floor in most of the translations. Never under
+                    // SY(6) either side, which still reads as a gap.
+                    if (bottom > oh) {
+                        const int give = LV_MIN(bottom - oh,
+                                                2 * (dpad - SY(6)));
+                        const int g1 = give / 2;
+                        lv_obj_set_y(r->plain, hy - g1);
+                        lv_obj_set_y(r->term, ty2 - give);
+                        bottom -= give;
+                    }
+#else
                     const int bottom = ty2 + lv_obj_get_height(r->term);
+#endif
                     if (bottom > oh) wt_term_report(defs[k].plain, bottom, oh);
                     lv_obj_add_flag(r->term, LV_OBJ_FLAG_HIDDEN);
                 }
@@ -5175,10 +6215,10 @@ static lv_obj_t *def_list_build(lv_obj_t *scr, const wt_def_t *defs, int n,
             lv_anim_t a;
             lv_anim_init(&a);
             lv_anim_set_var(&a, row);
-            lv_anim_set_duration(&a, 260);
-            lv_anim_set_delay(&a, 42 * k);
+            lv_anim_set_duration(&a, WT_MOTION_MS(260));
+            lv_anim_set_delay(&a, WT_MOTION_MS(42 * k));
             lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
-            lv_anim_set_values(&a, 9, 0);
+            lv_anim_set_values(&a, SY(9), 0);
             lv_anim_set_exec_cb(&a, an_ty);
             lv_anim_start(&a);
             lv_obj_set_style_opa(row, LV_OPA_TRANSP, 0);
@@ -5261,11 +6301,23 @@ lv_obj_t *wt_def_row_help(lv_obj_t *list, int k, lv_event_cb_t cb, void *ud)
         // why the "?" sat inside the sub's box on the one row that has both,
         // reported as "Native SegWit" and "?" sharing 8x18.
         lv_obj_update_layout(r->sub);
+#if KISS_NARROW
+        // From the chip's real right edge, not a deduction written for the
+        // wide row. The unscaled 38 plus the loop's 30 took 84 px off a
+        // 92 px sub on the 3.5in -- 60 of them glass between the "?" and the
+        // words -- and "Native SegWit" shipped as "Native S...". The sub is
+        // right aligned, so this keeps 12 px clear of the chip and no more.
+        const int sub_r = WT_LANE_W - ((r->cyc || !r->arrow)
+                                           ? WT_LINE_PAD
+                                           : WT_LINE_PAD + DEF_ARR_W + SX(20));
+        int w = sub_r - (r->val_x + vs.x + SX(14) + mx + WT_HELP_CHIP_D + SX(20));
+#else
         int w = lv_obj_get_width(r->sub) - (14 + 30 + 10 - 16) - mx;
+#endif
         if (w > 40) lv_obj_set_width(r->sub, w);
     }
     lv_obj_t *chip = wt_help_chip(r->row, 0, 0, wt_accent(), cb, ud);
-    lv_obj_align(chip, LV_ALIGN_LEFT_MID, r->val_x + vs.x + 14 + mx, 0);
+    lv_obj_align(chip, LV_ALIGN_LEFT_MID, r->val_x + vs.x + SX(14) + mx, 0);
     return chip;
 }
 
@@ -5274,52 +6326,86 @@ lv_obj_t *wt_def_row_help(lv_obj_t *list, int k, lv_event_cb_t cb, void *ud)
 void wt_outcome(lv_obj_t *scr, const wt_outcome_t *o)
 {
     const lv_color_t col = o->ok ? WT_OK : WT_WARN;
+#if KISS_NARROW
+    // ONE LINE a rung down before an ellipsis. The headline is pinned to a
+    // line because the paragraph sits under it, and on the 3.5in that line
+    // holds 36 characters of mono18: "Obrisano. Postavite ponovno, ili
+    // predajte." shipped as "ili ...", cut in the half of the verdict that
+    // says what to do next.
     const lv_font_t *hf = chrome28(o->headline);
+    {
+        lv_point_t hs;
+        lv_text_get_size(&hs, o->headline, hf, 0, 0, LV_COORD_MAX,
+                         LV_TEXT_FLAG_NONE);
+        if (hs.x > WT_LANE_W - SX(14) - SX(16)) hf = chrome23(o->headline);
+    }
+#else
+    const lv_font_t *hf = chrome28(o->headline);
+#endif
     const int hh = lv_font_get_line_height(hf);
 
     // The lamp: a 14px dot in an 18px glow, the state's own colour in all
     // four themes -- RECEIVE's discipline, at the size a verdict earns.
     lv_obj_t *d = lv_obj_create(scr);
     lv_obj_remove_style_all(d);
-    lv_obj_set_size(d, 14, 14);
-    lv_obj_set_style_radius(d, 7, 0);
+    lv_obj_set_size(d, SX(14), SX(14));
+    lv_obj_set_style_radius(d, SX(7), 0);
     lv_obj_set_style_bg_color(d, col, 0);
     lv_obj_set_style_bg_opa(d, LV_OPA_COVER, 0);
     lv_obj_set_style_shadow_color(d, col, 0);
-    lv_obj_set_style_shadow_width(d, 18, 0);
+    lv_obj_set_style_shadow_width(d, SX(18), 0);
     lv_obj_set_style_shadow_opa(d, 140, 0);
     lv_obj_remove_flag(d, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_remove_flag(d, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_pos(d, WT_LANE_X, 138 + (hh - 14) / 2);
+    lv_obj_set_pos(d, WT_LANE_X, SY(138) + (hh - SY(14)) / 2);
 
-    lv_obj_t *h = wt_lbl(scr, o->headline, WT_LANE_X + 14 + 16, 138, hf,
+    lv_obj_t *h = wt_lbl(scr, o->headline, WT_LANE_X + SX(14) + SX(16), SY(138), hf,
                          WT_INK);
-    lv_obj_set_width(h, WT_LANE_W - 14 - 16);
+    lv_obj_set_width(h, WT_LANE_W - SX(14) - SX(16));
     lv_obj_set_height(h, hh);
     lv_label_set_long_mode(h, LV_LABEL_LONG_DOT);
 
-    lv_obj_t *p = wt_lbl(scr, o->para, WT_LANE_X, 196, chrome18(o->para),
+    lv_obj_t *p = wt_lbl(scr, o->para, WT_LANE_X, SY(196), chrome18(o->para),
                          WT_MUT);
-    lv_obj_set_width(p, 690);
+    lv_obj_set_width(p, SX(690));
     lv_label_set_long_mode(p, LV_LABEL_LONG_WRAP);
 
     if (!o->f1c || !o->f1v) return;
-    wt_line_rule(scr, WT_LANE_X, 262, WT_LANE_W);
+    wt_line_rule(scr, WT_LANE_X, SY(262), WT_LANE_W);
     const struct { const char *cap, *val; } facts[2] = {
         { o->f1c, o->f1v }, { o->f2c, o->f2v },
     };
+#if KISS_NARROW
+    // The caption lane is what the captions MEASURE, not three fifths of the
+    // wide one: at 100 px WHAT SURVIVES shipped as "WHAT SU..." beside a
+    // value that then had to give up its own last word too. Measured, the
+    // caption keeps its words and the value keeps the rest of the lane.
+    int cap_w = SX(168);
+    for (int i = 0; i < 2 && facts[i].cap; i++) {
+        lv_point_t cs;
+        lv_text_get_size(&cs, facts[i].cap, chrome18(facts[i].cap), 2, 0,
+                         LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+        if (cs.x > cap_w) cap_w = cs.x;
+    }
+    if (cap_w > SX(240)) cap_w = SX(240);
+#else
+    const int cap_w = SX(168);
+#endif
     for (int i = 0; i < 2 && facts[i].cap && facts[i].val; i++) {
-        int y = i == 0 ? 280 : 322;
+        // SCALED like the rule above them. Bare, these were the wide canvas's
+        // 280 and 322, which on the 3.5in are the action row: both facts were
+        // printed straight through NEW SEED WORDS and OK.
+        int y = i == 0 ? SY(280) : SY(322);
         const lv_font_t *cf = chrome18(facts[i].cap);
         lv_obj_t *cap = wt_lbl(scr, facts[i].cap, WT_LANE_X, y, cf, WT_MUT);
         lv_obj_set_style_text_letter_space(cap, 2, 0);
-        lv_obj_set_width(cap, 168);
+        lv_obj_set_width(cap, cap_w);
         lv_obj_set_height(cap, lv_font_get_line_height(cf));
         lv_label_set_long_mode(cap, LV_LABEL_LONG_DOT);
         const lv_font_t *vf = chrome18(facts[i].val);
-        lv_obj_t *val = wt_lbl(scr, facts[i].val, WT_LANE_X + 168 + 14, y,
+        lv_obj_t *val = wt_lbl(scr, facts[i].val, WT_LANE_X + cap_w + SX(14), y,
                                vf, WT_INK);
-        lv_obj_set_width(val, WT_LANE_W - 168 - 14);
+        lv_obj_set_width(val, WT_LANE_W - cap_w - SX(14));
         lv_obj_set_height(val, lv_font_get_line_height(vf));
         lv_label_set_long_mode(val, LV_LABEL_LONG_DOT);
     }
@@ -5333,8 +6419,8 @@ void wt_word_grid(lv_obj_t *scr, const char *const *words, int n, int first)
     const lv_font_t *nf = wt_font_mono18();
     const lv_font_t *wf = wt_font_mono28();
     for (int k = 0; k < n; k++) {
-        const int cx = 62 + (k / 4) * 232;
-        const int cy = 126 + (k % 4) * 62;
+        const int cx = SX(62) + (k / 4) * SX(232);
+        const int cy = SY(126) + (k % 4) * SY(62);
         // Clamped, so the device compiler can PROVE the buffer: a word number
         // is 1..24 by construction, but "first + k + 1" is unbounded to the
         // truncation gate, and that gate is the one lane that has caught
@@ -5347,7 +6433,7 @@ void wt_word_grid(lv_obj_t *scr, const char *const *words, int n, int first)
         // The number right-aligned in its 30px lane, dim: it keeps the
         // owner's place and then gets out of the word's way.
         lv_obj_t *nl = wt_lbl(scr, num, cx, 0, nf, WT_DIM);
-        lv_obj_set_width(nl, 30);
+        lv_obj_set_width(nl, SX(30));
         lv_obj_set_height(nl, lv_font_get_line_height(nf));
         lv_obj_set_style_text_align(nl, LV_TEXT_ALIGN_RIGHT, 0);
         lv_obj_set_y(nl, cy + (lv_font_get_line_height(wf) -
@@ -5355,7 +6441,7 @@ void wt_word_grid(lv_obj_t *scr, const char *const *words, int n, int first)
         // BIP39 words are ASCII by construction, so the mono face is safe by
         // the same argument as a fingerprint; the guard stays for the day a
         // caller hands this something else.
-        lv_obj_t *wl = wt_lbl(scr, words[first + k], cx + 30 + 16, cy,
+        lv_obj_t *wl = wt_lbl(scr, words[first + k], cx + SX(30) + SX(16), cy,
                               chrome28(words[first + k]), WT_INK);
         lv_obj_set_height(wl, lv_font_get_line_height(wf));
     }
@@ -5363,12 +6449,22 @@ void wt_word_grid(lv_obj_t *scr, const char *const *words, int n, int first)
 
 void wt_sheet_dots(lv_obj_t *scr, int n, int cur)
 {
+#if KISS_NARROW
+    // 5 px on a 10 px pitch, level with the trail's lifted words. Scaled they
+    // were 3 px dots 8 apart, and beside SETTINGS / DEVICE they read as the
+    // trail trailing off into an ellipsis rather than as a page count.
+    const int dd = 5, dp = 10;
+    const int dy = WT_CHROME_STRIP_Y + (WT_BR_H - dd) / 2 - SY(5);
+#else
+    const int dd = SX(6), dp = SX(14);
+    const int dy = WT_CHROME_STRIP_Y + (WT_BR_H - SY(6)) / 2;
+#endif
     for (int i = 0; i < n; i++) {
         lv_obj_t *d = lv_obj_create(scr);
         lv_obj_remove_style_all(d);
-        lv_obj_set_size(d, 6, 6);
+        lv_obj_set_size(d, dd, dd);
         lv_obj_set_style_radius(d, 3, 0);
-        lv_obj_set_pos(d, 524 + i * 14, WT_CHROME_STRIP_Y + (WT_BR_H - 6) / 2);
+        lv_obj_set_pos(d, SX(524) + i * dp, dy);
         lv_obj_set_style_bg_opa(d, LV_OPA_COVER, 0);
         lv_obj_remove_flag(d, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_remove_flag(d, LV_OBJ_FLAG_SCROLLABLE);
@@ -5404,15 +6500,34 @@ void wt_gate(lv_obj_t *scr, const wt_gate_t *g)
                           0, wt_font23(), mark);
     lv_obj_update_layout(ic);
     const lv_font_t *sf = chrome28(g->sentence);
-    lv_obj_set_y(ic, 124 + (lv_font_get_line_height(sf) -
+    lv_obj_set_y(ic, SY(124) + (lv_font_get_line_height(sf) -
                             lv_obj_get_height(ic)) / 2);
     lv_obj_t *s = wt_lbl(scr, g->sentence,
-                         WT_LANE_X + lv_obj_get_width(ic) + 14, 124, sf,
+                         WT_LANE_X + lv_obj_get_width(ic) + SX(14), SY(124), sf,
                          ink);
     if (!g->stop) lv_obj_add_flag(s, WT_FLAG_ACCENT);
-    lv_obj_set_width(s, WT_LANE_W - lv_obj_get_width(ic) - 14);
+    lv_obj_set_width(s, WT_LANE_W - lv_obj_get_width(ic) - SX(14));
     lv_obj_set_height(s, lv_font_get_line_height(sf));
     lv_label_set_long_mode(s, LV_LABEL_LONG_DOT);
+#if KISS_NARROW
+    // The danger sentence takes a SECOND LINE on the 3.5in rather than an
+    // ellipsis. Its lane there holds 36 characters of mono18, and the SHOW
+    // gate's "Your seed words appear on this screen." shipped as "on this
+    // sc..." -- the one sentence the gate exists to say, cut, over 40 px of
+    // empty glass. The block below starts under whatever the sentence used.
+    int s_lines = 1;
+    {
+        lv_point_t ss;
+        const int sw = WT_LANE_W - lv_obj_get_width(ic) - SX(14);
+        lv_text_get_size(&ss, g->sentence, sf, 0, 0, LV_COORD_MAX,
+                         LV_TEXT_FLAG_NONE);
+        if (ss.x > sw) {
+            s_lines = 2;
+            lv_obj_set_height(s, 2 * lv_font_get_line_height(sf));
+            lv_label_set_long_mode(s, LV_LABEL_LONG_WRAP);
+        }
+    }
+#endif
 
     // ---- everything from here down was PINNED, and that was the bug -------
     //
@@ -5436,12 +6551,20 @@ void wt_gate(lv_obj_t *scr, const wt_gate_t *g)
     // the copy, which is one line at mono23 and nothing else: every gate that
     // carries a warn was forced to the floor by the gaps alone. These leave
     // 74, which is exactly a line, the 12px step and the warn.
-    const int TOP   = 170;
-    const int GAP   = 12;                      // above and below the rule
-    const int FGAP  = 6;                       // between the two facts
+#if KISS_NARROW
+    int TOP         = SY(170) + (s_lines - 1) * lv_font_get_line_height(sf);
+#else
+    const int TOP   = SY(170);
+#endif
+#if KISS_NARROW
+    int GAP         = SY(12);                  // above and below the rule
+#else
+    const int GAP   = SY(12);                  // above and below the rule
+#endif
+    const int FGAP  = SY(6);                   // between the two facts
     const int FLOOR = WT_ACTION_Y_SLIDE - 8;   // nothing may touch the slide
-    const int PARA_W = 690;
-    const int MARK_W = 34;                     // the tick's lane, fixed
+    const int PARA_W = SX(690);
+    const int MARK_W = SX(34);                 // the tick's lane, fixed
     // A paragraph is OPTIONAL. The SHOW gate has nothing to put in one: its
     // sentence says what is about to happen and its two facts say what that
     // costs and what it does not, so the slot was filled with the copying
@@ -5471,7 +6594,7 @@ void wt_gate(lv_obj_t *scr, const wt_gate_t *g)
             lv_point_t ws;
             lv_text_get_size(&ws, g->warn, wf, 0, 0, PARA_W - MARK_W,
                              LV_TEXT_FLAG_NONE);
-            wh = 12 + ws.y;
+            wh = SY(12) + ws.y;
         }
         h0 = lv_font_get_line_height(f0);
         h1 = lv_font_get_line_height(f1);
@@ -5482,9 +6605,44 @@ void wt_gate(lv_obj_t *scr, const wt_gate_t *g)
         // between the sentence and the slide, which is what the sink is for:
         // silent was the old behaviour and it is what let four text runs sit
         // two rungs small with nothing to say so.
+#if KISS_NARROW
+        // ...and before the copy is declared too long, the SENTENCE gives the
+        // rung its second line took. The block's own ladder has nothing left
+        // on the 3.5in -- its two rungs are the same 14 face -- so a two line
+        // sentence at 18 was what put the last fact under the slide: "Vos
+        // mots de récupération passent sur la carte." on MOVE YOUR WORDS.
+        if (rung == 1 && s_lines == 2 && sf != chrome23(g->sentence) &&
+            TOP + ph + wh + GAP + GAP + h0 + FGAP + h1 > FLOOR) {
+            sf = chrome23(g->sentence);
+            lv_obj_set_style_text_font(s, sf, 0);
+            const int sw = WT_LANE_W - lv_obj_get_width(ic) - SX(14);
+            lv_point_t ss;
+            lv_text_get_size(&ss, g->sentence, sf, 0, 0, LV_COORD_MAX,
+                             LV_TEXT_FLAG_NONE);
+            s_lines = ss.x > sw ? 2 : 1;
+            lv_obj_set_height(s, s_lines * lv_font_get_line_height(sf));
+            lv_obj_set_y(ic, SY(124) + (lv_font_get_line_height(sf) -
+                                    lv_obj_get_height(ic)) / 2);
+            TOP = SY(170) + (s_lines - 1) * lv_font_get_line_height(sf);
+            rung = 0;
+            continue;
+        }
+#endif
         if (rung == 1 && has_para)
             WT_FIT_GAVE_UP("gate", g->para, PARA_W, FLOOR - TOP);
     }
+#if KISS_NARROW
+    // Then the air around the rule, down to SY(6) a side and no further: the
+    // last pixels between a translated paragraph and warn line and the slide
+    // were the cross row's descenders on the band.
+    {
+        const int over = TOP + ph + wh + GAP + GAP + h0 + FGAP + h1 - FLOOR;
+        if (over > 0) {
+            const int g2 = GAP - (over + 1) / 2;
+            GAP = g2 > SY(6) ? g2 : SY(6);
+        }
+    }
+#endif
 
     // A gate with no paragraph would otherwise hug its sentence and leave the
     // whole bottom of the lane empty, which is what the SHOW gate looked like
@@ -5511,13 +6669,13 @@ void wt_gate(lv_obj_t *scr, const wt_gate_t *g)
         // takes the accent. Composed into one string they could only ever be
         // one colour, and the colour the bench wants on the words is not the
         // colour it wants on the mark.
-        lv_obj_t *wm = wt_lbl(scr, LV_SYMBOL_WARNING, WT_LANE_X, y + 12,
+        lv_obj_t *wm = wt_lbl(scr, LV_SYMBOL_WARNING, WT_LANE_X, y + SY(12),
                               mkf, WT_WARN);
         lv_obj_update_layout(wm);
-        lv_obj_t *w = wt_lbl(scr, g->warn, WT_LANE_X + MARK_W, y + 12, wf,
+        lv_obj_t *w = wt_lbl(scr, g->warn, WT_LANE_X + MARK_W, y + SY(12), wf,
                              g->stop ? WT_STOP_INK : wt_accent());
         if (!g->stop) lv_obj_add_flag(w, WT_FLAG_ACCENT);
-        lv_obj_set_y(wm, y + 12 + (lv_font_get_line_height(wf) -
+        lv_obj_set_y(wm, y + SY(12) + (lv_font_get_line_height(wf) -
                                    lv_obj_get_height(wm)) / 2);
         lv_obj_set_width(w, PARA_W - MARK_W);
         lv_label_set_long_mode(w, LV_LABEL_LONG_WRAP);
@@ -5554,18 +6712,23 @@ void wt_gate(lv_obj_t *scr, const wt_gate_t *g)
 }
 
 // ---- SETTINGS: the full-lane row (see kiss_theme.h) ----
-#define WT_WIDE_LX      18    // the label's lane, row local
-#define WT_WIDE_LW     250    // ...and its cap. See the header: the gate
+#define WT_WIDE_LX      SX(18)    // the label's lane, row local
+// The label's cap, which is also where the sub-line starts. The 14 face needs
+// less than the wide one, and the sub beside it needs more -- but not so much
+// that the two run together: at 120 on the 3.5in, CHECK MY COPY ended 4 px
+// before "never checked" began and the row read as one phrase. 132 leaves the
+// longest English label a 16 px gutter.
+#define WT_WIDE_LW     (KISS_NARROW ? SX(220) : SX(250))   // ...and its cap. See the header: the gate
                               // compares boxes, not ink.
-#define WT_WIDE_CHIP_W 150    // the chip's MINIMUM; a long value widens it.
+#define WT_WIDE_CHIP_W SX(150)    // the chip's MINIMUM; a long value widens it.
                               // 190 predates the mono23/28 bump: the value is
                               // left-aligned INSIDE the chip, so the unused
                               // minimum was dead space billed to the sub's
                               // lane -- at 150 the short-value column still
                               // lines up and the sub gets its 40px back.
-#define WT_WIDE_CHIP_H  40
-#define WT_WIDE_SWATCH  16
-#define WT_HELP_CHIP_W  30    // wt_help_chip's own size
+#define WT_WIDE_CHIP_H  SY(40)
+#define WT_WIDE_SWATCH  SX(16)
+#define WT_HELP_CHIP_W  WT_HELP_CHIP_D    // wt_help_chip's own size
 
 lv_obj_t *wt_row_wide(lv_obj_t *scr, int y, const wt_wide_t *r)
 {
@@ -5688,7 +6851,7 @@ lv_obj_t *wt_row_wide(lv_obj_t *scr, int y, const wt_wide_t *r)
         }
         lv_obj_t *ch = wt_lbl(chip, mark, 0, 0, cf, wt_accent());
         lv_obj_add_flag(ch, WT_FLAG_ACCENT);
-        lv_obj_align(ch, LV_ALIGN_RIGHT_MID, -12, 0);
+        lv_obj_align(ch, LV_ALIGN_RIGHT_MID, -SX(12), 0);
 
         lane_end = cx - 12;
     } else if (r->kind == WT_WIDE_OPEN) {
@@ -5697,7 +6860,7 @@ lv_obj_t *wt_row_wide(lv_obj_t *scr, int y, const wt_wide_t *r)
             lv_obj_t *ch = wt_lbl(row, LV_SYMBOL_RIGHT, 0, 0, cf, wt_accent());
             lv_obj_add_flag(ch, WT_FLAG_ACCENT);
             lv_obj_update_layout(ch);
-            lv_obj_align(ch, LV_ALIGN_RIGHT_MID, -12, 0);
+            lv_obj_align(ch, LV_ALIGN_RIGHT_MID, -SX(12), 0);
             right -= lv_obj_get_width(ch) + 12;
         }
         if (r->val && *r->val) {
@@ -5713,7 +6876,7 @@ lv_obj_t *wt_row_wide(lv_obj_t *scr, int y, const wt_wide_t *r)
         // nothing to pick. The value sits where a chip's text would have.
         if (r->val && *r->val) {
             lv_obj_t *v = wt_lbl(row, r->val, 0, 0, vf, vcol);
-            lv_obj_align(v, LV_ALIGN_RIGHT_MID, -18, 0);
+            lv_obj_align(v, LV_ALIGN_RIGHT_MID, -SX(18), 0);
             lane_end = WT_WIDE_W - 18 - vs.x - 12;
         } else {
             lane_end = WT_WIDE_W - 18;
@@ -5723,9 +6886,9 @@ lv_obj_t *wt_row_wide(lv_obj_t *scr, int y, const wt_wide_t *r)
     // The label, capped and pinned to one line. Both matter: the cap keeps the
     // label's BOX off the value's, and the pin stops a long translation
     // growing a second line into the sub-line beside it.
-    wt_sub_measure("label", r->label, lf, 2, WT_WIDE_LW);
+    wt_sub_measure("label", r->label, lf, WT_TRACK, WT_WIDE_LW);
     lv_obj_t *l = wt_lbl(row, r->label, WT_WIDE_LX, 0, lf, ink);
-    lv_obj_set_style_text_letter_space(l, 2, 0);
+    lv_obj_set_style_text_letter_space(l, WT_TRACK, 0);
     lv_obj_set_width(l, WT_WIDE_LW);
     lv_obj_set_height(l, lv_font_get_line_height(lf));
     lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
@@ -5766,7 +6929,7 @@ lv_obj_t *wt_row_wide_help(lv_obj_t *row, lv_event_cb_t cb, void *ud)
     // chrome23: the font the row actually set. Measuring at a smaller rung
     // shrank the box under the words and elided the label itself.
     lv_point_t sz;
-    lv_text_get_size(&sz, txt, chrome23(txt), 2, 0, LV_COORD_MAX,
+    lv_text_get_size(&sz, txt, chrome23(txt), WT_TRACK, 0, LV_COORD_MAX,
                      LV_TEXT_FLAG_NONE);
     int lw = sz.x;
     int cap = WT_WIDE_LW - WT_HELP_CHIP_W - 10;
@@ -5780,7 +6943,7 @@ lv_obj_t *wt_row_wide_help(lv_obj_t *row, lv_event_cb_t cb, void *ud)
     // the device rather than the colour of a row that cannot be pressed. The
     // guard in round_chip flags both its rim and its glyph.
     lv_obj_t *chip = wt_help_chip(row, 0, 0, wt_accent(), cb, ud);
-    lv_obj_align(chip, LV_ALIGN_LEFT_MID, WT_WIDE_LX + lw + 10, 0);
+    lv_obj_align(chip, LV_ALIGN_LEFT_MID, WT_WIDE_LX + lw + SX(10), 0);
     return chip;
 }
 
@@ -5843,27 +7006,31 @@ void wt_group_note(lv_obj_t *pane, int rows, const char *txt)
 // any screen a row opens, paint settled: a value chip rebuilds the whole page
 // on every tap, and three taps to reach SIGNET replaying the entry under the
 // owner's finger is not a design, it is a flicker.
-#define MO_IN_MS      260   // a row arriving
-#define MO_IN_DX       56
-#define MO_IN_STEP     38   // and the beat between rows down the group
-#define MO_UP_MS      320   // ...except in the stop group, which rises
-#define MO_UP_DY       14
-#define MO_UP_STEP     44
-#define MO_OUT_MS     200   // a row leaving
-#define MO_OUT_DX      44
-#define MO_OUT_STEP    26
-#define MO_FADE_IN     200
-#define MO_FADE_UP     240
-#define MO_FADE_OUT    160
-#define MO_CTRL_MS    220   // the value, a beat behind its label
-#define MO_CTRL_DX      7
-#define MO_CTRL_LAG    90
-#define MO_FLARE_UP   220   // the caution, pointed at once and let go
-#define MO_FLARE_DOWN 200   // 200 and not the 420 the handoff drew: at 420 the
-                            // page is still moving at 976ms, past the 800 the
-                            // kit allows a page change
-#define MO_FLARE_LAG  260
-#define MO_WASH_MS    280
+//
+// Every one at half length on the 3.5in (WT_MOTION_MS), the beats between rows
+// with them, so the order still reads and a page with a caution to point at is
+// still inside 400ms rather than 800.
+#define MO_IN_MS      WT_MOTION_MS(260)   // a row arriving
+#define MO_IN_DX       SX(56)
+#define MO_IN_STEP     WT_MOTION_MS(38)   // and the beat between rows down the group
+#define MO_UP_MS      WT_MOTION_MS(320)   // ...except in the stop group, which rises
+#define MO_UP_DY       SY(14)
+#define MO_UP_STEP     WT_MOTION_MS(44)
+#define MO_OUT_MS     WT_MOTION_MS(200)   // a row leaving
+#define MO_OUT_DX      SX(44)
+#define MO_OUT_STEP    WT_MOTION_MS(26)
+#define MO_FADE_IN     WT_MOTION_MS(200)
+#define MO_FADE_UP     WT_MOTION_MS(240)
+#define MO_FADE_OUT    WT_MOTION_MS(160)
+#define MO_CTRL_MS    WT_MOTION_MS(220)   // the value, a beat behind its label
+#define MO_CTRL_DX      SX(7)
+#define MO_CTRL_LAG    WT_MOTION_MS(90)
+#define MO_FLARE_UP   WT_MOTION_MS(220)   // the caution, pointed at once and let go
+#define MO_FLARE_DOWN WT_MOTION_MS(200)   // 200 and not the 420 the handoff drew: at
+                            // 420 the page is still moving at 976ms, past the
+                            // 800 the kit allows a page change
+#define MO_FLARE_LAG  WT_MOTION_MS(260)
+#define MO_WASH_MS    WT_MOTION_MS(280)
 
 // A child of a pane that is scenery rather than a row -- the stop group's
 // wash. It fades on its own schedule and must not be dealt a row's slide.
@@ -5927,7 +7094,7 @@ static void flare(lv_obj_t *row, int delay)
     lv_obj_remove_style_all(ring);
     lv_obj_set_pos(ring, 0, 0);
     lv_obj_set_size(ring, WT_WIDE_W, WT_WIDE_H);
-    lv_obj_set_style_radius(ring, 10, 0);
+    lv_obj_set_style_radius(ring, SX(10), 0);
     lv_obj_set_style_border_width(ring, 1, 0);
     lv_obj_set_style_border_color(ring, WT_WARN, 0);
     lv_obj_set_style_opa(ring, LV_OPA_TRANSP, 0);
@@ -6161,7 +7328,7 @@ lv_obj_t *wt_pane_new(wt_pane_t *p)
     // no taps of its own, so the strip and the exit under it stay reachable --
     // LVGL only ever hands a press to a CLICKABLE object and walks past this
     // one to the siblings beneath.
-    lv_obj_set_size(o, 800, 480);
+    lv_obj_set_size(o, SCREEN_W, SCREEN_H);
     lv_obj_remove_flag(o, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_remove_flag(o, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_event_cb(o, pane_gone, LV_EVENT_DELETE, p);
@@ -6262,13 +7429,13 @@ lv_obj_t *wt_pager_line(lv_obj_t *p, const char *txt, bool warn, int page,
     // constructed while the page it came from is still waiting on its async
     // delete, so the walk found the OLD screen's slide and pinned this line 54
     // pixels into a list that had none.
-    const int py = bottom - 40;
+    const int py = bottom - SY(40);
     lv_obj_t *note = wt_lbl(p, txt, WT_LANE_X, py, nf,
                             warn ? WT_WARN : WT_MUT);
     // The dots' lane comes off the note only when dots exist: the sort hint
     // on a sparse list is 4px longer than the shared lane, and DOT ate its
     // last clause without a word from any gate.
-    lv_obj_set_width(note, dots ? WT_LANE_W - 150 : WT_LANE_W);
+    lv_obj_set_width(note, dots ? WT_LANE_W - SX(150) : WT_LANE_W);
     // Pinned to ONE line: a label allowed to grow is a budget given away.
     lv_obj_set_height(note, lv_font_get_line_height(nf));
     lv_label_set_long_mode(note, LV_LABEL_LONG_DOT);
@@ -6276,14 +7443,24 @@ lv_obj_t *wt_pager_line(lv_obj_t *p, const char *txt, bool warn, int page,
     // slide it drives.
     wt_pane_scenery(note);
     if (!dots) return note;
-    const int pitch = 18;
+    const int pitch = SX(18);
+#if KISS_NARROW
+    // The row of dots ends ON the lane's edge and is centred on the note's
+    // line. The wide numbers are a 10 px dot gap and an 8 px drop; bare on
+    // the 3.5in they hung the last dot 4 px past the lane and set the row
+    // 2 px high on an 18 px line.
+    const int x0 = WT_LANE_X + WT_LANE_W - ((npages - 1) * pitch + SX(8));
+    const int dy = (lv_font_get_line_height(nf) - SX(8)) / 2;
+#else
     const int x0 = WT_LANE_X + WT_LANE_W - (npages * pitch - 10);
+    const int dy = SY(8);                                // centred on the 25px line
+#endif
     for (int i = 0; i < npages; i++) {
         lv_obj_t *d = lv_obj_create(p);
         lv_obj_remove_style_all(d);
-        lv_obj_set_size(d, 8, 8);
-        lv_obj_set_pos(d, x0 + i * pitch, py + 8);  // centred on the 25px line
-        lv_obj_set_style_radius(d, 5, 0);
+        lv_obj_set_size(d, SX(8), SX(8));
+        lv_obj_set_pos(d, x0 + i * pitch, py + dy);
+        lv_obj_set_style_radius(d, SX(5), 0);
         lv_obj_set_style_bg_opa(d, LV_OPA_COVER, 0);
         lv_obj_set_style_bg_color(d, i == page ? wt_accent() : WT_DIM, 0);
         if (i == page) lv_obj_add_flag(d, WT_FLAG_ACCENT);
@@ -6319,7 +7496,7 @@ void wt_list_scrollbar(lv_obj_t *list)
     if (!list) return;
     lv_obj_set_style_bg_color(list, wt_accent(), LV_PART_SCROLLBAR);
     lv_obj_set_style_bg_opa(list, LV_OPA_50, LV_PART_SCROLLBAR);
-    lv_obj_set_style_width(list, 6, LV_PART_SCROLLBAR);
+    lv_obj_set_style_width(list, SX(6), LV_PART_SCROLLBAR);
     lv_obj_set_style_radius(list, 3, LV_PART_SCROLLBAR);
     lv_obj_add_flag(list, WT_FLAG_ACCENT_SCROLL);
 }
@@ -6330,7 +7507,7 @@ lv_obj_t *wt_overlay_box(lv_obj_t *scr, lv_obj_t **scrim_out, int x, int y,
 {
     lv_obj_t *scrim = lv_obj_create(scr);
     lv_obj_remove_style_all(scrim);
-    lv_obj_set_size(scrim, 800, 480);
+    lv_obj_set_size(scrim, SCREEN_W, SCREEN_H);
     lv_obj_set_pos(scrim, 0, 0);
     lv_obj_set_style_bg_color(scrim, lv_color_black(), 0);
     lv_obj_set_style_bg_opa(scrim, LV_OPA_70, 0);
@@ -6347,8 +7524,8 @@ lv_obj_t *wt_overlay_box(lv_obj_t *scr, lv_obj_t **scrim_out, int x, int y,
     lv_obj_set_style_bg_opa(box, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(box, 1, 0);
     lv_obj_set_style_border_color(box, WT_EDGE, 0);
-    lv_obj_set_style_shadow_width(box, 40, 0);
-    lv_obj_set_style_shadow_offset_y(box, 18, 0);
+    lv_obj_set_style_shadow_width(box, SX(40), 0);
+    lv_obj_set_style_shadow_offset_y(box, SY(18), 0);
     lv_obj_set_style_shadow_color(box, lv_color_black(), 0);
     lv_obj_set_style_shadow_opa(box, 140, 0);
     // Clickable with no callback: a tap on the box's own padding is aimed at
@@ -6392,7 +7569,7 @@ lv_obj_t *wt_alert_chip(lv_obj_t *scr, const char *txt,
     lv_obj_add_flag(c, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_remove_flag(c, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_translate_x(c, 0, 0);
-    lv_obj_set_style_translate_x(c, 5, LV_STATE_PRESSED);
+    lv_obj_set_style_translate_x(c, SX(5), LV_STATE_PRESSED);
     if (cb) lv_obj_add_event_cb(c, cb, LV_EVENT_CLICKED, ud);
 
     lv_obj_t *ic = wt_lbl(c, LV_SYMBOL_WARNING, 0, 0, mf, WT_WARN);
@@ -6404,10 +7581,12 @@ lv_obj_t *wt_alert_chip(lv_obj_t *scr, const char *txt,
     lv_obj_t *l = wt_lbl(c, txt, 0, 0, lf, wt_accent());
     lv_obj_add_flag(l, WT_FLAG_ACCENT);
     lv_obj_set_style_text_letter_space(l, 1, 0);
-    lv_obj_align(l, LV_ALIGN_LEFT_MID, is.x + 12, 0);
+    lv_obj_align(l, LV_ALIGN_LEFT_MID, is.x + SX(12), 0);
     lv_obj_t *ch = wt_lbl(c, LV_SYMBOL_RIGHT, 0, 0, mf, wt_accent());
     lv_obj_add_flag(ch, WT_FLAG_ACCENT);
-    lv_obj_set_style_text_opa(ch, 180, 0);
+    // The 3.5in takes the row tint: 180 left CYPHERPINK's chevron at 3.5:1 on
+    // the bar.
+    lv_obj_set_style_text_opa(ch, KISS_NARROW ? WT_TINT_OPA : 180, 0);
     lv_obj_align(ch, LV_ALIGN_RIGHT_MID, 0, 0);
     return c;
 }
@@ -6463,15 +7642,15 @@ lv_obj_t *wt_value_card(lv_obj_t *scr, const char *cap, const char *val,
     // FINGERPRINT through here, so this has to be the theme's decision or the
     // same caption reads as four different marks.
     wt_cap_measure(cap);
-    lv_obj_t *c = wt_lbl(card, cap, 16, 12, wt_font14(), wt_accent());
+    lv_obj_t *c = wt_lbl(card, cap, SX(16), SY(12), wt_font14(), wt_accent());
     lv_obj_add_flag(c, WT_FLAG_ACCENT);
     lv_obj_set_style_text_letter_space(c, 1, 0);
-    lv_obj_set_width(c, w - 32);
+    lv_obj_set_width(c, w - SX(32));
     lv_label_set_long_mode(c, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_align(c, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_update_layout(c);
 
-    int vy = 12 + lv_obj_get_height(c) + 8;
+    int vy = SY(12) + lv_obj_get_height(c) + SY(8);
     // THE FACE IS ASKED, not assumed. The mono faces carry ASCII plus three
     // marks and NOTHING else, so an unconditional wt_font_mono here draws
     // LVGL's placeholder box for every character outside that set -- and the
@@ -6485,15 +7664,15 @@ lv_obj_t *wt_value_card(lv_obj_t *scr, const char *cap, const char *val,
     // native face when it cannot. A fingerprint, an address and a block number
     // are ASCII and keep the mono they were given; only words fall back, which
     // is the half that was never comparable character by character anyway.
-    lv_obj_t *v = wt_lbl(card, val, 16, vy,
+    lv_obj_t *v = wt_lbl(card, val, SX(16), vy,
                          big ? chrome28(val) : chrome23(val), WT_INK);
     lv_obj_set_style_text_letter_space(v, 2, 0);
-    lv_obj_set_width(v, w - 32);
+    lv_obj_set_width(v, w - SX(32));
     lv_obj_set_style_text_align(v, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_update_layout(v);
     // Sized to its content, never to a guess: the caption is translated and the
     // value can be four characters or forty.
-    lv_obj_set_size(card, w, vy + lv_obj_get_height(v) + 14);
+    lv_obj_set_size(card, w, vy + lv_obj_get_height(v) + SY(14));
     return card;
 }
 
@@ -6554,14 +7733,16 @@ const char *wt_split_colon(const char *line, char *head, size_t head_len)
 //
 // Now both arrangements are measured at every size and the first that fits wins.
 #define EXP_MAX_PARA 6
-#define EXP_FULL_W   704
+#define EXP_FULL_W   SX(704)
 // Measure against the TEXT lane, not the block. wt_why_block spends 14 on the
 // coloured rule and its gutter, so a measurement taken at the block's own width
 // comes back short and the last line lands under the OK action. That is not
 // hypothetical: measuring the full lane at 704 instead of 690 put the silent
 // payment card 19px past WT_CONTENT_BOTTOM in five locales.
-#define EXP_RULE_W   14
+#define EXP_RULE_W   SX(14)
 #define EXP_FULL_TXT (EXP_FULL_W - EXP_RULE_W)
+// The same lane as the 4.3in draws it: what wrap_w() holds a line to.
+#define EXP_FULL_TXT_W (704 - 14)
 
 typedef struct {
     const char *p[EXP_MAX_PARA];
@@ -6660,8 +7841,8 @@ static void exp_join(const exp_paras_t *ps, int a, int b, char *out, size_t len)
 // string -- "TECHNICALACCOUNT" was the first frame this drew. 14 more, the
 // same pad every other pair on this device sits on, leaves the longest term
 // in the set 482px against the 470 it needs.
-#define WT_TERM_LABEL_W 150
-#define WT_TERM_GUTTER   14
+#define WT_TERM_LABEL_W SX(150)
+#define WT_TERM_GUTTER   SX(14)
 // ONE OBJECT, holding two labels. A caller has one thing to place, one thing
 // to measure against the floor under it and one thing to hide -- the def row
 // shows and hides this line on every open and close, and chasing two labels
@@ -6688,6 +7869,11 @@ lv_obj_t *wt_term_line(lv_obj_t *par, const char *label, const char *term,
     int tx = 0;
     if (label && *label) {
         const lv_font_t *lf = chrome23(label);
+        // The box keeps the term's height, for the reason above. A label in a
+        // taller face (TEHNIČKI, TÉCNICO, 技術名 beside an ASCII term) draws
+        // past it instead of being clipped at the box's floor.
+        if (lv_font_get_line_height(lf) > h)
+            lv_obj_add_flag(box, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
         lv_obj_t *l = wt_lbl(box, label, 0, 0, lf, WT_MUT);
         lv_obj_set_style_text_letter_space(l, 2, 0);
         lv_obj_set_width(l, WT_TERM_LABEL_W);
@@ -7074,7 +8260,8 @@ exp_paras_t ps;
 
     for (int r = 0; r < rungs; r++) {
         const lv_font_t *cand = ladder[r];
-        const int hf = exp_height(&ps, 0, ps.count, cand, EXP_FULL_TXT);
+        const int lane = wrap_w(cand, body, EXP_FULL_TXT, EXP_FULL_TXT_W);
+        const int hf = exp_height(&ps, 0, ps.count, cand, lane);
         if (hf <= room) { f = cand; used = hf; break; }
 
         // Nothing fits at the floor either: keep the floor, clamp, and SAY SO,
@@ -7085,7 +8272,7 @@ exp_paras_t ps;
         if (r == rungs - 1) {
             f = cand;
             used = room;
-            WT_FIT_GAVE_UP("body", body, EXP_FULL_TXT, room);
+            WT_FIT_GAVE_UP("body", body, lane, room);
         }
     }
 
@@ -7102,7 +8289,9 @@ exp_paras_t ps;
     // worth more before anything is ported than after. It reports through its
     // own kind because the verdict is different: this is not a defect on the
     // board that ships today.
-    {
+    // A forecast, asked from the 4.3in only: the 3.5in's own lane was measured
+    // above, and that verdict is the FIT one.
+    if (KISS_DESIGN_CANVAS) {
         const int nw = EXP_FULL_TXT * WT_PORT_NARROW_W / WT_PORT_WIDE_W;
         if (exp_height(&ps, 0, ps.count, ladder[rungs - 1], nw) > room)
             WT_FIT_GAVE_UP("narrow", body, nw, room);
@@ -7126,14 +8315,15 @@ exp_paras_t ps;
     // what the house rules say to do about it.
     //
     // The gap is exp_height's own model of a blank line, so the ladder above
-    // measured exactly what is drawn here.
+    // measured exactly what is drawn here, at the lane it measured.
+    const int lane = wrap_w(f, body, EXP_FULL_TXT, EXP_FULL_TXT_W);
     int py = y;
     const int gap = lv_font_get_line_height(f);
     for (int i = 0; i < ps.count; i++) {
         char one[640];
         exp_join(&ps, i, i + 1, one, sizeof one);
-        lv_obj_t *p = body_spans(par, one, 48, py, f, EXP_FULL_TXT);
-        wt_widow_measure(one, f, EXP_FULL_TXT);
+        lv_obj_t *p = body_spans(par, one, SX(48), py, f, lane);
+        wt_widow_measure(one, f, lane);
         lv_obj_update_layout(p);
         py += lv_obj_get_height(p) + gap;
     }
@@ -7157,8 +8347,8 @@ void wt_body_para(lv_obj_t *par, const char *body, int y)
 // string that already exists. Nothing new to translate.
 #define GRID_COLS   2
 #define GRID_MAXN   12
-#define GRID_BADGE  34
-#define GRID_GUT    12
+#define GRID_BADGE  SX(34)
+#define GRID_GUT    SX(12)
 // One entry, in bytes. The longest today is the Russian dust attack line at 189
 // and Cyrillic runs two bytes a character, so a 192 byte buffer would truncate
 // the next translation that grows -- mid codepoint, because the copy below is a
@@ -7182,6 +8372,38 @@ static void grid_badge(lv_obj_t *par, const char *glyph, int x, int y,
     lv_obj_center(wt_lbl(b, glyph, 0, 0, wt_font14(), col));
 }
 
+#if KISS_NARROW
+// The grid's height at `cols` columns in face `f`, at the tightest gap the
+// ladder below allows -- what the 3.5in weighs one column against two with.
+static int grid_total(const char *const *ln, const int *len, int n, int cols,
+                      const lv_font_t *f)
+{
+    const int cw = (EXP_FULL_W - (cols - 1) * GRID_GUT) / cols;
+    const int tw = cw - GRID_BADGE - GRID_GUT;
+    int total = 0, nrow = 0;
+    for (int r = 0; r * cols < n; r++, nrow++) {
+        int tall = 0;
+        for (int c = 0; c < cols && r * cols + c < n; c++) {
+            const int i = r * cols + c;
+            char line[GRID_LINE_MAX], head[64];
+            int l = len[i] < (int)sizeof line ? len[i] : (int)sizeof line - 1;
+            lv_memcpy(line, ln[i], (size_t)l);
+            line[l] = 0;
+            const char *def = wt_split_colon(line, head, sizeof head);
+            if (!def) continue;
+            char run[GRID_LINE_MAX + 72];
+            snprintf(run, sizeof run, "%s %s", head, def);
+            lv_point_t sz;
+            lv_text_get_size(&sz, run, f, 0, 0, tw, LV_TEXT_FLAG_NONE);
+            const int h = sz.y > GRID_BADGE ? sz.y : GRID_BADGE;
+            if (h > tall) tall = h;
+        }
+        total += tall;
+    }
+    return total + (nrow - 1) * 4;
+}
+#endif
+
 static void explain_grid(lv_obj_t *ovl, const wt_explain_t *e, int y, int room,
                          lv_color_t sev)
 {
@@ -7204,7 +8426,40 @@ static void explain_grid(lv_obj_t *ovl, const wt_explain_t *e, int y, int room,
     // one sentence over five short lines. A single caution is the common case
     // on this card -- most flagged transactions trip exactly one -- and no walk
     // stop ever opened it, so it drew that way for its whole life.
+#if KISS_NARROW
+    // ONE column on the 3.5in wherever it is no taller than two. Two columns
+    // there are 180 px of text beside a badge, which is 21 characters: every
+    // entry broke into four ragged lines and three rows of them ran past the
+    // band on WHY FLAGGED. Across the whole lane the same entries take one or
+    // two lines each and read straight down.
+    int cols = GRID_COLS;
+    if (n == 1) {
+        cols = 1;
+    } else {
+        const lv_font_t *f0 = wt_font23();
+        const lv_font_t *f1 = wt_font_mono21();
+        int one = grid_total(ln, len, n, 1, f0);
+        int two = grid_total(ln, len, n, 2, f0);
+        // The mono rung only where the ladder below may take it.
+        bool mono = true;
+        for (int i = 0; i < n && mono; i++) {
+            char line[GRID_LINE_MAX];
+            int l = len[i] < (int)sizeof line ? len[i] : (int)sizeof line - 1;
+            lv_memcpy(line, ln[i], (size_t)l);
+            line[l] = 0;
+            mono = mono_can(line);
+        }
+        if (mono) {
+            const int one_m = grid_total(ln, len, n, 1, f1);
+            const int two_m = grid_total(ln, len, n, 2, f1);
+            if (one_m < one) one = one_m;
+            if (two_m < two) two = two_m;
+        }
+        if (one <= two || one <= room - 4) cols = 1;
+    }
+#else
     const int cols = (n == 1) ? 1 : GRID_COLS;
+#endif
     int rows = (n + cols - 1) / cols;
     int cw   = (EXP_FULL_W - (cols - 1) * GRID_GUT) / cols;   // 346 at two
     int tw   = cw - GRID_BADGE - GRID_GUT;               // text lane beside it
@@ -7298,7 +8553,8 @@ static void explain_grid(lv_obj_t *ovl, const wt_explain_t *e, int y, int room,
                                  LV_TEXT_FLAG_NONE);
                 nt += (ns.y > GRID_BADGE ? ns.y : GRID_BADGE) + 4;
             }
-            if (nt > room) WT_FIT_GAVE_UP("narrow", e->body, WT_PORT_LANE, room);
+            if (KISS_DESIGN_CANVAS && nt > room)
+                WT_FIT_GAVE_UP("narrow", e->body, WT_PORT_LANE, room);
         }
         if (total <= fits) break;
         // DECIDED: the icon grid's ladder floors at 21 and no longer has a font14 rung.
@@ -7346,7 +8602,7 @@ static void explain_grid(lv_obj_t *ovl, const wt_explain_t *e, int y, int room,
         line[l] = 0;
         const char *def = wt_split_colon(line, head, sizeof head);
 
-        int cx = 48 + (i % cols) * (cw + GRID_GUT);
+        int cx = SX(48) + (i % cols) * (cw + GRID_GUT);
         int cy = rowy[i / cols];
 
         if (e->icons && (size_t)i < e->icons_count && e->icons[i])
@@ -7411,11 +8667,11 @@ lv_obj_t *wt_explain_open(lv_obj_t *parent, const wt_explain_t *e)
     // The subject badge, right of the title row. An icon is worth more than the
     // word it replaces only if it is the SAME icon the reader met on the screen
     // that sent them here, so callers pass the one their control already wears.
-    const int icon_w = 48;
+    const int icon_w = SX(48);
     if (e->icon && *e->icon) {
         lv_obj_t *chip = lv_obj_create(ovl);
         lv_obj_remove_style_all(chip);
-        lv_obj_set_pos(chip, 752 - icon_w, 20);
+        lv_obj_set_pos(chip, SX(752) - icon_w, SY(20));
         lv_obj_set_size(chip, icon_w, icon_w);
         lv_obj_set_style_radius(chip, icon_w / 2, 0);
         lv_obj_set_style_bg_color(chip, WT_KEY, 0);
@@ -7430,15 +8686,35 @@ lv_obj_t *wt_explain_open(lv_obj_t *parent, const wt_explain_t *e)
 
     // Title and subtitle exactly where wt_screen puts them, because an explainer
     // is a page and should not announce itself as a different kind of object.
-    int lane = e->icon && *e->icon ? 704 - icon_w - 16 : 704;
-    lv_obj_t *t = wt_lbl(ovl, e->title, 48, 18, wt_font28(), sev);
+    int lane = e->icon && *e->icon ? SX(704) - icon_w - SX(16) : SX(704);
+    lv_obj_t *t = wt_lbl(ovl, e->title, SX(48), SY(18), wt_font28(), sev);
     lv_obj_set_style_text_letter_space(t, 2, 0);
     lv_obj_set_width(t, lane);
+#if KISS_NARROW
+    // ONE LINE, down wt_title_fit's own steps. With a width and no height
+    // this label wrapped instead of eliding, and VARFÖR DU GÖR DET HÄR FÖR
+    // HAND put its last word on the trail under it. The tracking goes to
+    // WT_TRACK first, then the rung; past both it is pinned and elides.
+    {
+        static const int ls[3] = { 2, WT_TRACK, WT_TRACK };
+        const lv_font_t *f[3] = { wt_font28(), wt_font28(), wt_font23() };
+        int pick = 2;
+        for (int i = 0; i < 3; i++) {
+            lv_point_t ts;
+            lv_text_get_size(&ts, e->title ? e->title : "", f[i], ls[i], 0,
+                             LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+            if (ts.x <= lane) { pick = i; break; }
+        }
+        lv_obj_set_style_text_font(t, f[pick], 0);
+        lv_obj_set_style_text_letter_space(t, ls[pick], 0);
+        lv_obj_set_height(t, lv_font_get_line_height(f[pick]));
+    }
+#endif
     lv_label_set_long_mode(t, LV_LABEL_LONG_DOT);
 
-    int y = 76;
+    int y = SY(76);
     if (e->sub && *e->sub) {
-        lv_obj_t *s = wt_lbl(ovl, e->sub, 48, 64, wt_body_font(e->sub, lane, 29),
+        lv_obj_t *s = wt_lbl(ovl, e->sub, SX(48), SY(64), wt_body_font(e->sub, lane, SY(29)),
                              WT_MUT);
         lv_obj_set_width(s, lane);
         lv_label_set_long_mode(s, LV_LABEL_LONG_DOT);
@@ -7450,8 +8726,10 @@ lv_obj_t *wt_explain_open(lv_obj_t *parent, const wt_explain_t *e)
         // fits on one line. 104 stays as the floor so a one line subtitle
         // keeps the spacing it has always had.
         lv_obj_update_layout(s);
-        y = 64 + lv_obj_get_height(s) + 12;
-        if (y < 104) y = 104;
+        y = SY(64) + lv_obj_get_height(s) + SY(12);
+        // SY: the floor is the wide canvas's 104, and bare on the 3.5in it
+        // held every subtitled explainer's body 35 px under its subtitle.
+        if (y < SY(104)) y = SY(104);
     } else {
         lv_obj_t *pt = parent ? wt_screen_title(parent) : NULL;
         const char *pn = pt ? lv_label_get_text(pt) : NULL;
@@ -7467,12 +8745,12 @@ lv_obj_t *wt_explain_open(lv_obj_t *parent, const wt_explain_t *e)
     bool has_val = e->val && *e->val;
     if (has_val) {
         lv_obj_t *vc = wt_value_card(ovl, e->cap ? e->cap : "", e->val,
-                                     48, y, e->aside ? 340 : 704, true);
+                                     SX(48), y, e->aside ? SX(340) : SX(704), true);
         lv_obj_update_layout(vc);
         band = lv_obj_get_height(vc);
     }
     if (e->aside) {
-        int ax = has_val ? 408 : 48, aw = has_val ? 344 : 704;
+        int ax = has_val ? SX(408) : SX(48), aw = has_val ? SX(344) : SX(704);
         int ah = e->aside(ovl, ax, y, aw);
         if (ah > band) band = ah;
     }
@@ -7506,8 +8784,8 @@ lv_obj_t *wt_explain_open(lv_obj_t *parent, const wt_explain_t *e)
         // label's rendered box is not its font's line height -- the term line
         // pinned by arithmetic came out 2px into the action row, which the
         // CONTENT check saw and nothing else would have.
-        lv_obj_t *tl = wt_term_line(ovl, e->term_label, e->term, 48, bottom + 14,
-                                    704);
+        lv_obj_t *tl = wt_term_line(ovl, e->term_label, e->term, SX(48), bottom + SY(14),
+                                    SX(704));
         lv_obj_update_layout(tl);
         // ...measured from what is INSIDE it, not from the box. chrome23
         // answers per string, so a label can be a pixel taller than the box
@@ -7551,8 +8829,8 @@ lv_obj_t *wt_explain_open(lv_obj_t *parent, const wt_explain_t *e)
     // 552..752: the corner, like every other way off a screen. It was centred
     // at 300, which matched neither the old rule nor the new one -- and this is
     // the most opened bar in the app, behind all ten explainers and every "?".
-    lv_obj_t *ok = wt_arrow_action(ovl, e->ok_txt, true, false, 552,
-                                   WT_ACTION_Y, 200, true,
+    lv_obj_t *ok = wt_arrow_action(ovl, e->ok_txt, true, false, SX(552),
+                                   WT_ACTION_Y, SX(200), true,
                                    explain_close_cb, ovl);
     lv_obj_remove_flag(ok, LV_OBJ_FLAG_IGNORE_LAYOUT);
     wt_card_intro(ovl);
@@ -7594,10 +8872,10 @@ lv_obj_t *wt_state_chip(lv_obj_t *par, const char *txt, lv_color_t col)
     // wearing one, on every screen at once because it is the kit's.
     // The state is carried by the tint and the ink, which is what the flat
     // chrome does everywhere else.
-    lv_obj_set_style_radius(c, 4, 0);
+    lv_obj_set_style_radius(c, SX(4), 0);
     lv_obj_set_style_border_width(c, 0, 0);
-    lv_obj_set_style_pad_hor(c, 10, 0);
-    lv_obj_set_style_pad_ver(c, 5, 0);
+    lv_obj_set_style_pad_hor(c, SX(10), 0);
+    lv_obj_set_style_pad_ver(c, SY(5), 0);
     lv_obj_set_style_bg_opa(c, 36, 0);        // ~14 percent: the rim's job now
     lv_obj_remove_flag(c, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_remove_flag(c, LV_OBJ_FLAG_SCROLLABLE);
@@ -7661,7 +8939,7 @@ void wt_card_intro(lv_obj_t *card)
     lv_anim_init(&d);
     lv_anim_set_var(&d, card);
     lv_anim_set_values(&d, 0, bg);
-    lv_anim_set_duration(&d, 140);
+    lv_anim_set_duration(&d, WT_MOTION_MS(140));
     lv_anim_set_path_cb(&d, lv_anim_path_ease_out);
     lv_anim_set_exec_cb(&d, ci_bg);
     lv_anim_start(&d);
@@ -7675,18 +8953,18 @@ void wt_card_intro(lv_obj_t *card)
     // after the title. Spreading a constant budget keeps the cadence and caps
     // the wait.
     uint32_t n = lv_obj_get_child_count(card);
-    uint32_t step = n > 1 ? 300 / (n - 1) : 0;
-    if (step > 60) step = 60;
+    uint32_t step = n > 1 ? WT_MOTION_MS(300) / (n - 1) : 0;
+    if (step > WT_MOTION_MS(60)) step = WT_MOTION_MS(60);
     for (uint32_t i = 0; i < n; i++) {
         lv_obj_t *ch = lv_obj_get_child(card, i);
         lv_obj_set_style_opa(ch, 0, 0);
-        lv_obj_set_style_translate_y(ch, 14, 0);
-        uint32_t delay = 40 + i * step;
+        lv_obj_set_style_translate_y(ch, SY(14), 0);
+        uint32_t delay = WT_MOTION_MS(40) + i * step;
         lv_anim_t a;
         lv_anim_init(&a);
         lv_anim_set_var(&a, ch);
         lv_anim_set_values(&a, 0, LV_OPA_COVER);
-        lv_anim_set_duration(&a, 220);
+        lv_anim_set_duration(&a, WT_MOTION_MS(220));
         lv_anim_set_delay(&a, delay);
         lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
         lv_anim_set_exec_cb(&a, ci_opa);
@@ -7694,8 +8972,8 @@ void wt_card_intro(lv_obj_t *card)
         lv_anim_t b;
         lv_anim_init(&b);
         lv_anim_set_var(&b, ch);
-        lv_anim_set_values(&b, 14, 0);
-        lv_anim_set_duration(&b, 240);
+        lv_anim_set_values(&b, SY(14), 0);
+        lv_anim_set_duration(&b, WT_MOTION_MS(240));
         lv_anim_set_delay(&b, delay);
         lv_anim_set_path_cb(&b, lv_anim_path_ease_out);
         lv_anim_set_exec_cb(&b, ci_ty);
@@ -7712,7 +8990,7 @@ lv_obj_t *wt_diagram_row(lv_obj_t *parent)
     lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
                           LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(row, 8, 0);
+    lv_obj_set_style_pad_column(row, SX(8), 0);
     lv_obj_remove_flag(row, LV_OBJ_FLAG_SCROLLABLE);
     return row;
 }
@@ -7728,8 +9006,8 @@ lv_obj_t *wt_chip(lv_obj_t *row, const char *txt, bool accent)
     lv_obj_t *c = lv_obj_create(row);
     lv_obj_remove_style_all(c);
     lv_obj_set_size(c, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-    lv_obj_set_style_pad_hor(c, 6, 0);
-    lv_obj_set_style_pad_bottom(c, 5, 0);
+    lv_obj_set_style_pad_hor(c, SX(6), 0);
+    lv_obj_set_style_pad_bottom(c, SY(5), 0);
     lv_obj_set_style_border_side(c, LV_BORDER_SIDE_BOTTOM, 0);
     lv_obj_set_style_border_width(c, 2, 0);
     lv_obj_set_style_border_color(c, accent ? wt_primary() : WT_DIM, 0);
@@ -7865,7 +9143,7 @@ void wt_diagram_pair(lv_obj_t *parent)
     lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(col, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
                           LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_row(col, 6, 0);
+    lv_obj_set_style_pad_row(col, SY(6), 0);
     lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
     wt_chip(col, tr(STR_D_ONLINE_APP), false);
     wt_diagram_op(col, LV_SYMBOL_DOWN " QR " LV_SYMBOL_UP);
@@ -7889,18 +9167,26 @@ void wt_diagram_pair(lv_obj_t *parent)
 // is a desktop app) and a phone stands against its edge (Nunchuk is not),
 // because a laptop alone came off the bench as claiming the coordinator is
 // only ever a computer.
-#define AG_CO_X   40    // coordinator block's left edge
-#define AG_CO_W  200    // its base bar, the block's full width
-#define AG_CO_SW 168    // the screen, centred over the base
-#define AG_CO_SH 100
-#define AG_CO_BH   8    // the base bar's height
-#define AG_GAP   130    // the airgap itself
-#define AG_SG_W  200    // this signer, landscape like the real panel
-#define AG_SG_H  120
-#define AG_BAND  120    // the machines' shared vertical band (the signer's)
-#define AG_LBL_Y (AG_BAND + 12)
+#define AG_CO_X   SX(40)    // coordinator block's left edge
+#define AG_CO_W  SX(200)    // its base bar, the block's full width
+#define AG_CO_SW SX(168)    // the screen, centred over the base
+#define AG_CO_SH SY(100)
+#define AG_CO_BH   SY(8)    // the base bar's height
+#define AG_GAP   SX(130)    // the airgap itself
+#define AG_SG_W  SX(200)    // this signer, landscape like the real panel
+#define AG_SG_H  SY(120)
+#define AG_BAND  SY(120)    // the machines' shared vertical band (the signer's)
+// The names' line under the band: 12 clear of it and 24 tall, which is the
+// 4.3in's mono18 (22) with two to spare. It scales with the rest of the
+// figure on the 7in, which names the machines a rung up in mono23, 25 tall:
+// at a bare 24 the figure cut the last pixel row off both names. Never under
+// the literal, because the 3.5in's scaled band (16) is shorter than its
+// mono14 (18).
+#define AG_LBL_GAP LV_MAX(12, SY(12))
+#define AG_LBL_H   LV_MAX(24, SY(24))
+#define AG_LBL_Y (AG_BAND + AG_LBL_GAP)
 #define AG_W     (AG_CO_X + AG_CO_W + AG_GAP + AG_SG_W + 40)
-#define AG_H     (AG_LBL_Y + 24)
+#define AG_H     (AG_LBL_Y + AG_LBL_H)
 
 // A QR mark drawn rather than typed: three finder squares and a scatter of
 // modules, s pixels on a side. The font's QR glyph tops out at 28px, which
@@ -7920,7 +9206,7 @@ static void ag_qr(lv_obj_t *par, int x, int y, int s, lv_color_t col)
         lv_obj_set_style_border_color(sq, col, 0);
         lv_obj_t *dot = lv_obj_create(sq);
         lv_obj_remove_style_all(dot);
-        lv_obj_set_size(dot, f - 8, f - 8);
+        lv_obj_set_size(dot, f - SX(8), f - SY(8));
         lv_obj_set_style_bg_color(dot, col, 0);
         lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, 0);
         lv_obj_center(dot);
@@ -7955,15 +9241,15 @@ lv_obj_t *wt_diagram_airgap(lv_obj_t *parent)
     lv_obj_remove_style_all(ph);
     lv_obj_set_pos(ph, AG_CO_X + (AG_CO_W - AG_CO_SW) / 2, co_y);
     lv_obj_set_size(ph, AG_CO_SW, AG_CO_SH);
-    lv_obj_set_style_radius(ph, 8, 0);
+    lv_obj_set_style_radius(ph, SX(8), 0);
     lv_obj_set_style_border_width(ph, 2, 0);
     lv_obj_set_style_border_color(ph, WT_MUT, 0);
-    ag_qr(ph, (AG_CO_SW - 56) / 2, (AG_CO_SH - 56) / 2, 56, WT_INK);
+    ag_qr(ph, (AG_CO_SW - SX(56)) / 2, (AG_CO_SH - SY(56)) / 2, 56, WT_INK);
     lv_obj_t *base = lv_obj_create(fig);
     lv_obj_remove_style_all(base);
     lv_obj_set_pos(base, AG_CO_X, co_y + AG_CO_SH + 2);
     lv_obj_set_size(base, AG_CO_W, AG_CO_BH);
-    lv_obj_set_style_radius(base, 4, 0);
+    lv_obj_set_style_radius(base, SX(4), 0);
     lv_obj_set_style_border_width(base, 2, 0);
     lv_obj_set_style_border_color(base, WT_MUT, 0);
     // The phone, standing against the laptop's right edge on the same floor.
@@ -7973,25 +9259,25 @@ lv_obj_t *wt_diagram_airgap(lv_obj_t *parent)
     // because two QRs would read as two sources. The home dot is what makes
     // 34x58 read as a phone rather than a stray card edge.
     {
-        const int pw = 34, phh = 58;
+        const int pw = SX(34), phh = SY(58);
         const int px = AG_CO_X + AG_CO_W + 10 - pw;
         const int py = co_y + AG_CO_SH + 2 + AG_CO_BH - phh;
         lv_obj_t *pho = lv_obj_create(fig);
         lv_obj_remove_style_all(pho);
         lv_obj_set_pos(pho, px, py);
         lv_obj_set_size(pho, pw, phh);
-        lv_obj_set_style_radius(pho, 8, 0);
+        lv_obj_set_style_radius(pho, SX(8), 0);
         lv_obj_set_style_bg_color(pho, WT_BG, 0);
         lv_obj_set_style_bg_opa(pho, LV_OPA_COVER, 0);
         lv_obj_set_style_border_width(pho, 2, 0);
         lv_obj_set_style_border_color(pho, WT_MUT, 0);
         lv_obj_t *hd = lv_obj_create(pho);
         lv_obj_remove_style_all(hd);
-        lv_obj_set_size(hd, 4, 4);
+        lv_obj_set_size(hd, SX(4), SX(4));
         lv_obj_set_style_radius(hd, LV_RADIUS_CIRCLE, 0);
         lv_obj_set_style_bg_color(hd, WT_MUT, 0);
         lv_obj_set_style_bg_opa(hd, LV_OPA_COVER, 0);
-        lv_obj_align(hd, LV_ALIGN_BOTTOM_MID, 0, -5);
+        lv_obj_align(hd, LV_ALIGN_BOTTOM_MID, 0, -SY(5));
     }
 
     // This signer: landscape like the panel it is, and the one element the
@@ -8002,7 +9288,7 @@ lv_obj_t *wt_diagram_airgap(lv_obj_t *parent)
     lv_obj_remove_style_all(sg);
     lv_obj_set_pos(sg, sx, sy);
     lv_obj_set_size(sg, AG_SG_W, AG_SG_H);
-    lv_obj_set_style_radius(sg, 10, 0);
+    lv_obj_set_style_radius(sg, SX(10), 0);
     lv_obj_set_style_border_width(sg, 2, 0);
     lv_obj_set_style_border_color(sg, wt_primary(), 0);
     // Viewfinder corners around what the camera is framing: the same QR the
@@ -8016,14 +9302,14 @@ lv_obj_t *wt_diagram_airgap(lv_obj_t *parent)
     for (int i = 0; i < 4; i++) {
         lv_obj_t *cn = lv_obj_create(sg);
         lv_obj_remove_style_all(cn);
-        lv_obj_set_size(cn, 14, 14);
-        lv_obj_set_pos(cn, C[i].cx ? AG_SG_W - 14 - 14 : 14,
-                       C[i].cy ? AG_SG_H - 14 - 14 : 14);
+        lv_obj_set_size(cn, SX(14), SX(14));
+        lv_obj_set_pos(cn, C[i].cx ? AG_SG_W - SX(14) - SX(14) : SX(14),
+                       C[i].cy ? AG_SG_H - SY(14) - SY(14) : SY(14));
         lv_obj_set_style_border_width(cn, 2, 0);
         lv_obj_set_style_border_color(cn, wt_primary(), 0);
         lv_obj_set_style_border_side(cn, C[i].side, 0);
     }
-    ag_qr(sg, (AG_SG_W - 40) / 2, (AG_SG_H - 40) / 2, 40, WT_MUT);
+    ag_qr(sg, (AG_SG_W - SX(40)) / 2, (AG_SG_H - SY(40)) / 2, 40, WT_MUT);
 
     // The gap: a dashed line with the QR mark punched through the middle of
     // it, a chevron either side -- the file goes over and comes back, and
@@ -8036,7 +9322,7 @@ lv_obj_t *wt_diagram_airgap(lv_obj_t *parent)
     pts[1].x = AG_GAP - 32; pts[1].y = 0;
     lv_obj_t *ln = lv_line_create(fig);
     lv_line_set_points(ln, pts, 2);
-    lv_obj_set_pos(ln, AG_CO_X + AG_CO_W + 16, ly);
+    lv_obj_set_pos(ln, AG_CO_X + AG_CO_W + SX(16), ly);
     lv_obj_set_style_line_width(ln, 2, 0);
     lv_obj_set_style_line_color(ln, WT_DIM, 0);
     lv_obj_set_style_line_dash_width(ln, 6, 0);
@@ -8049,7 +9335,7 @@ lv_obj_t *wt_diagram_airgap(lv_obj_t *parent)
     lv_obj_set_style_text_color(qr, WT_MUT, 0);
     lv_obj_set_style_bg_color(qr, WT_BG, 0);
     lv_obj_set_style_bg_opa(qr, LV_OPA_COVER, 0);
-    lv_obj_set_style_pad_hor(qr, 6, 0);
+    lv_obj_set_style_pad_hor(qr, SX(6), 0);
     lv_obj_update_layout(qr);
     lv_obj_set_pos(qr, AG_CO_X + AG_CO_W + AG_GAP / 2 - lv_obj_get_width(qr) / 2,
                    ly - lv_obj_get_height(qr) / 2);
@@ -8091,7 +9377,7 @@ lv_obj_t *wt_diagram_airgap(lv_obj_t *parent)
 // vertical segments ONLY (draw_line_skew has no dash path at all). A group
 // strand one pixel off the junction is a group strand drawn solid, which reads
 // as one coin -- the exact thing the dash exists to deny.
-#define BMARG   12
+#define BMARG   SX(12)
 // The junction, and where the output lane starts. Moved LEFT by 40 the day
 // every destination started carrying its address: an output row is an amount,
 // a label and a folded address, an input row is an amount, and the split
@@ -8100,19 +9386,35 @@ lv_obj_t *wt_diagram_airgap(lv_obj_t *parent)
 //
 // The inputs keep more than they use: their lane is clamped to BLANE_MAX 206
 // and the junction is at 290, so there is 84px of slack on that side.
-#define BJ_X   290
-#define BO_X   390
-#define BL_X   400
+#define BJ_X   SX(290)
+#define BO_X   SX(390)
+#define BL_X   SX(400)
 #define BJ_R     5
 // The lane the input amounts are right aligned in, measured from the widest of
 // them and clamped. 104 is frame 2c's lane, 206 is frame 3a's, where the group
 // row carries a count and a total on one line.
-#define BLANE_MIN 104
-#define BLANE_MAX 206
-#define BLANE_GAP  16
+//
+// The cap scales on the 7in, whose rows are set a rung up: at a bare 206
+// "16 more inputs" ran 57 px past the graph's left edge there. Never under
+// 206, because the 3.5in reins its lane in at its own junction instead (see
+// wt_bundle).
+#define BLANE_MIN SY(104)
+#define BLANE_MAX LV_MAX(206, SX(206))
+#define BLANE_GAP  SY(16)
+// The gap between an input row's words and its figure. bundle_row pads by it
+// and the lane measure in wt_bundle adds it, so it is one number. It was two,
+// a scaled pad and a bare 8 in the measure, and on the 7in (SX(8) is 10)
+// every labelled row came out 2 px wider than its lane: right aligned, TOTAL
+// started 2 px left of the graph. A bare 8 on the 3.5in, where SX(8) is 4 and
+// a group row read "16 more inputs2 749 257" -- a word run into a figure.
+#if KISS_NARROW
+#define BROW_PAD 8
+#else
+#define BROW_PAD SX(8)
+#endif
 // Points per curve. The longest strand spans 210px, so 16 puts a vertex every
 // ~14px; with line_rounded the joins disappear at this stroke width.
-#define BSEG 16
+#define BSEG SX(16)
 // The junction at rest and at the end of a hold. Rest is not this animation's
 // to move: the resting frame is drawn and approved, so growth is what carries
 // the hold and the accent that arrives afterwards means the signature.
@@ -8120,7 +9422,7 @@ lv_obj_t *wt_diagram_airgap(lv_obj_t *parent)
 // Vertical slack around the box so a row's LABEL, which is centred on its
 // strand and therefore reaches above the top row, is not clipped by the
 // container. LVGL clips children to their parent.
-#define BPAD 16
+#define BPAD SX(16)
 
 typedef struct {
     lv_point_precise_t *pts;      // one block for every strand; lv_line borrows it
@@ -8162,7 +9464,22 @@ typedef struct {
     // outlive the build, exactly as wt_strand_t.addr already promises.
     const char         *addr[WT_BUNDLE_MAX];
     lv_obj_t           *fold[WT_BUNDLE_MAX];  // the address line, the control
+#if KISS_NARROW
+    // The junction, the outputs' end and the column's start, per graph: the
+    // 3.5in sets them from what the output rows measure (see wt_bundle).
+    int16_t             bj_x, bo_x, bl_x;
+#endif
 } wt_bundle_t;
+
+#if KISS_NARROW
+#define B_JX(b) ((b)->bj_x)
+#define B_OX(b) ((b)->bo_x)
+#define B_LX(b) ((b)->bl_x)
+#else
+#define B_JX(b) BJ_X
+#define B_OX(b) BO_X
+#define B_LX(b) BL_X
+#endif
 
 // lv_line_set_points stores the POINTER, not a copy (see kiss_word_ui.c:82 for
 // the bug that taught this file the same lesson). The block outlives every
@@ -8268,7 +9585,7 @@ static lv_obj_t *bundle_row(lv_obj_t *box, int x, int y, int w, bool end)
     // row that clips nothing still answers that question, with its own
     // unscrollable self, for a column that scrolls perfectly well.
     lv_obj_add_flag(r, LV_OBJ_FLAG_OVERFLOW_VISIBLE);
-    lv_obj_set_style_pad_column(r, 8, 0);
+    lv_obj_set_style_pad_column(r, BROW_PAD, 0);
     lv_obj_set_pos(r, x, y);
     return r;
 }
@@ -8364,11 +9681,11 @@ static void bundle_relink(wt_bundle_t *b)
         lv_point_precise_t *pp = b->pts + (size_t)(b->out0 + i) * BSEG;
         int npts = BSEG;
         if (ry == b->jy) {
-            pp[0].x = BJ_X; pp[0].y = b->jy;
-            pp[1].x = BO_X; pp[1].y = ry;
+            pp[0].x = B_JX(b); pp[0].y = b->jy;
+            pp[1].x = B_OX(b); pp[1].y = ry;
             npts = 2;
         } else {
-            bundle_curve(pp, BJ_X, b->jy, BO_X, ry, 80, 20);
+            bundle_curve(pp, B_JX(b), b->jy, B_OX(b), ry, 80, 20);
         }
         lv_line_set_points(ln, pp, (uint32_t)npts);
     }
@@ -8411,7 +9728,7 @@ void wt_bundle_addr_tap(lv_obj_t *bundle, lv_event_cb_t cb)
         lv_obj_add_flag(b->fold[i], LV_OBJ_FLAG_CLICKABLE);
         lv_obj_set_ext_click_area(b->fold[i], 8);
         lv_obj_set_style_translate_x(b->fold[i], 0, 0);
-        lv_obj_set_style_translate_x(b->fold[i], 4, LV_STATE_PRESSED);
+        lv_obj_set_style_translate_x(b->fold[i], SX(4), LV_STATE_PRESSED);
         lv_obj_add_event_cb(b->fold[i], cb, LV_EVENT_CLICKED,
                             (void *)b->addr[i]);
     }
@@ -8438,6 +9755,28 @@ void wt_bundle_page_set(lv_obj_t *bundle, int page)
     lv_obj_update_layout(b->col);
     bundle_relink(b);
 }
+
+#if KISS_NARROW
+// How wide wt_addr_short draws `addr` on a row, measured the way it composes
+// the 3.5in's fold -- the prefix block, the ellipsis, the two lit blocks -- so
+// the split can keep a destination whole before the column moves right.
+static int bundle_fold_w(const char *addr)
+{
+    const size_t n = strlen(addr);
+    char s[64];
+    if (n < 20) {
+        snprintf(s, sizeof s, "%s", addr);
+    } else {
+        const size_t first = n % 4 == 0 ? 4 : n % 4 + 4;
+        snprintf(s, sizeof s, "%.*s  \xE2\x80\xA6  %.4s %.4s", (int)first, addr,
+                 addr + n - 8, addr + n - 4);
+    }
+    lv_point_t ts;
+    lv_text_get_size(&ts, s, wt_font_mono18(), 0, 0, LV_COORD_MAX,
+                     LV_TEXT_FLAG_NONE);
+    return ts.x;
+}
+#endif
 
 lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
                     const wt_strand_t *in,  size_t n_in,
@@ -8494,11 +9833,97 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
         if (in[i].label) {
             lv_text_get_size(&ts, in[i].label, wt_font14(), 0, 0, LV_COORD_MAX,
                              LV_TEXT_FLAG_NONE);
-            wid += ts.x + 8;                  // + bundle_row's pad_column
+            wid += ts.x + BROW_PAD;           // + bundle_row's pad_column
         }
         if (wid > lane) lane = wid;
     }
+#if KISS_NARROW
+    // THE SPLIT FOLLOWS THE ROWS on the 3.5in. Scaled, the output column is
+    // 211 px from a fixed 240: a BTC change row -- 0.00039000, its mark and
+    // CHANGE (MINE) -- needs 218, and its last letters went past the column.
+    // And the input lane's 206 cap is past the scaled junction at 174, so on
+    // the merge screen the coin amounts sat under their own strands. The
+    // column moves left as far as its widest row needs, or right as far as
+    // the widest input row needs and the outputs allow, never left of 180;
+    // the junction and the outputs' end keep their scaled distances to it.
+    {
+        int out_w = 0, hard_w = 0, fold_w = 0;
+        for (size_t i = 0; i < n_out; i++) {
+            if (out[i].note_only) continue;
+            lv_point_t ts;
+            wt_fmt_amount(out[i].sats, amt, sizeof amt);
+            lv_text_get_size(&ts, amt, wt_font_mono23(), 0, 0, LV_COORD_MAX,
+                             LV_TEXT_FLAG_NONE);
+            int rw = ts.x, hw = ts.x;
+            if (out[i].mark || out[i].label) {
+                char m[192];
+                snprintf(m, sizeof m, "%s%s%s", out[i].mark ? out[i].mark : "",
+                         out[i].mark && out[i].label ? "  " : "",
+                         out[i].label ? out[i].label : "");
+                lv_text_get_size(&ts, m, wt_font14(), 0, 0, LV_COORD_MAX,
+                                 LV_TEXT_FLAG_NONE);
+                rw += SX(8) + ts.x;
+                // What may not be cut: the mark, and room for the dots.
+                snprintf(m, sizeof m, "%s%s...", out[i].mark ? out[i].mark : "",
+                         out[i].mark ? "  " : "");
+                lv_text_get_size(&ts, m, wt_font14(), 0, 0, LV_COORD_MAX,
+                                 LV_TEXT_FLAG_NONE);
+                hw += SX(8) + ts.x;
+            }
+            if (out[i].known) {
+                lv_text_get_size(&ts, LV_SYMBOL_REFRESH, wt_font14(), 0, 0,
+                                 LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+                rw += SX(8) + ts.x;
+                hw += SX(8) + ts.x;
+            }
+            if (out[i].addr)
+                fold_w = LV_MAX(fold_w, bundle_fold_w(out[i].addr));
+            if (rw > out_w) out_w = rw;
+            if (hw > hard_w) hard_w = hw;
+        }
+        const int bl_max = w - 8 - out_w;
+        const int in_need = lane + BLANE_GAP + SX(30) + (BL_X - BJ_X);
+        int bl = BL_X;
+        if (bl < in_need) bl = in_need;
+        if (bl > bl_max) bl = bl_max;
+        if (bl < SX(300)) bl = SX(300);
+        // ...and past the strands, the output WORDS give, never a figure. An
+        // input row wider than its lane is right aligned into the panel's LEFT
+        // edge, so what went was its start: "16 input in più" lost its count
+        // on a twenty input merge and TOTAL its first letters, wherever an
+        // output label had taken the width -- COMMISSIONE DI RETE, WECHSELGELD
+        // (MEINS). A row's words restate its mark, which stays, and the column
+        // moves right only as far as the widest amount, mark and fold allow.
+        // And never so far right that a folded destination is clipped by the
+        // box, which the widest row's words alone never measured: it has no
+        // words to give, and the scrollbar's 8 is not its concern.
+        {
+            const int in_min = LV_MIN(lane, BLANE_MAX) + BLANE_GAP + SX(30) +
+                               SX(70);
+            const int bl_hard = LV_MIN(w - 8 - hard_w, w - fold_w);
+            if (bl < in_min && bl < bl_hard)
+                bl = in_min < bl_hard ? in_min : bl_hard;
+            if (fold_w && bl > w - fold_w) bl = w - fold_w;
+        }
+        // Where both sides are wide -- twenty coins against a fee row -- the
+        // output strands give up length before an input row loses letters,
+        // down to 42 px from the junction to the column.
+        int run = BL_X - BJ_X;
+        if (in_need > bl) run -= in_need - bl;
+        if (run < SX(70)) run = SX(70);
+        b->bl_x = (int16_t)bl;
+        b->bo_x = (int16_t)(bl - (BL_X - BO_X));
+        b->bj_x = (int16_t)(bl - run);
+    }
+#endif
     if (lane > BLANE_MAX) lane = BLANE_MAX;
+#if KISS_NARROW
+    // ...and it ends where the strands still have a run to the junction. The
+    // unscaled 206 is past the 3.5in's junction at 174: the merge screen's
+    // coin amounts were printed under their own strands, and "16 more inputs"
+    // ran into the total beside it.
+    if (lane > B_JX(b) - BLANE_GAP - SX(30)) lane = B_JX(b) - BLANE_GAP - SX(30);
+#endif
     const int ix0 = lane + BLANE_GAP;
 
     lv_point_precise_t *pp = b->pts;
@@ -8511,10 +9936,10 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
         int npts = BSEG;
         if (ry == jy) {                       // flat: two points, so it dashes
             pp[0].x = ix0;  pp[0].y = ry;
-            pp[1].x = BJ_X; pp[1].y = jy;
+            pp[1].x = B_JX(b); pp[1].y = jy;
             npts = 2;
         } else {
-            bundle_curve(pp, ix0, ry, BJ_X, jy, 43, 62);
+            bundle_curve(pp, ix0, ry, B_JX(b), jy, 43, 62);
         }
         const int k = b->n_line;
         const int px = wt_strand_px(in[i].sats, max_sats);
@@ -8535,6 +9960,24 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
         const bool acc = in[i].signed_ok;
         lv_obj_t *row = bundle_row(box, 0, ry - in_lh / 2, lane, true);
         wt_fmt_amount(in[i].sats, amt, sizeof amt);
+#if KISS_NARROW
+        // Still wider than its lane after the split gave all it could, and
+        // right aligned, the row would run off the panel's left edge and lose
+        // its START -- a group row's count. The words are cut instead, where
+        // the kit can say so, and the figure stays whole.
+        int words_w = -1;
+        if (in[i].label) {
+            lv_point_t as, ls;
+            lv_text_get_size(&as, amt, in_f, 0, 0, LV_COORD_MAX,
+                             LV_TEXT_FLAG_NONE);
+            lv_text_get_size(&ls, in[i].label, wt_font14(), 0, 0, LV_COORD_MAX,
+                             LV_TEXT_FLAG_NONE);
+            if (as.x + BROW_PAD + ls.x > lane) {
+                words_w = LV_MAX(lane - as.x - BROW_PAD, 0);
+                wt_sub_measure("label", in[i].label, wt_font14(), 0, words_w);
+            }
+        }
+#endif
         // One input is the whole input side, and it was the only figure in the
         // graph with no word anywhere near it: the caller puts the unit on the
         // input TOTAL, and with one coin there is no separate total to put it
@@ -8548,6 +9991,14 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
         if (in[i].label)                      // the group row: words, then the total
             b->note[k] = bundle_txt(row, in[i].label, wt_font14(),
                                     acc ? wt_accent() : WT_MUT, acc);
+#if KISS_NARROW
+        if (b->note[k] && words_w >= 0) {
+            lv_obj_set_width(b->note[k], words_w);
+            lv_obj_set_height(b->note[k],
+                              lv_font_get_line_height(wt_font14()));
+            lv_label_set_long_mode(b->note[k], LV_LABEL_LONG_DOT);
+        }
+#endif
         // WT_INK when this row IS the total, WT_MUT when it is one coin of
         // several: the number a reader has to READ is never the dimmest thing
         // on the screen, and the breakdown under a total is not that number.
@@ -8621,12 +10072,12 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
     // draws rather than half a line height below it.
     lv_obj_t *col = lv_obj_create(box);
     lv_obj_remove_style_all(col);
-    lv_obj_set_pos(col, BL_X, BPAD + BMARG - row_h / 2);
-    lv_obj_set_size(col, w - BL_X, h + row_h - 2 * BMARG);
+    lv_obj_set_pos(col, B_LX(b), BPAD + BMARG - row_h / 2);
+    lv_obj_set_size(col, w - B_LX(b), h + row_h - 2 * BMARG);
     lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(col, 0, 0);           // pass two sets the real gap
     lv_obj_set_scroll_dir(col, LV_DIR_VER);
-    lv_obj_set_style_width(col, 5, LV_PART_SCROLLBAR);
+    lv_obj_set_style_width(col, SX(5), LV_PART_SCROLLBAR);
     lv_obj_set_style_bg_color(col, WT_MUT, LV_PART_SCROLLBAR);
     lv_obj_set_style_bg_opa(col, LV_OPA_50, LV_PART_SCROLLBAR);
     b->col = col;
@@ -8635,7 +10086,7 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
         const int k = b->n_line;
         // Placed at the junction for now; bundle_relink puts every one of them
         // on its row once the column has been laid out.
-        bundle_curve(pp, BJ_X, jy - BPAD, BO_X, jy - BPAD, 80, 20);
+        bundle_curve(pp, B_JX(b), jy - BPAD, B_OX(b), jy - BPAD, 80, 20);
         if (!out[i].note_only) {
             b->line[k] = bundle_strand(sbox, &out[i], pp, BSEG,
                                        wt_strand_px(out[i].sats, max_sats));
@@ -8647,7 +10098,7 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
         // A COLUMN, because a row may be more than one line: an amount and its
         // word, then the address it pays. The strand aims at the whole row's
         // middle, so a row that grows stays joined to its line.
-        const int roww = w - BL_X - 8;             // 8 clear of the scrollbar
+        const int roww = w - B_LX(b) - 8;          // 8 clear of the scrollbar
         lv_obj_t *row = lv_obj_create(col);
         lv_obj_remove_style_all(row);
         lv_obj_set_width(row, roww);
@@ -8676,7 +10127,7 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
         lv_obj_set_flex_flow(line, LV_FLEX_FLOW_ROW);
         lv_obj_set_flex_align(line, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_END,
                               LV_FLEX_ALIGN_END);
-        lv_obj_set_style_pad_column(line, 8, 0);
+        lv_obj_set_style_pad_column(line, SX(8), 0);
         lv_obj_add_flag(line, LV_OBJ_FLAG_OVERFLOW_VISIBLE);  // see bundle_row
 
         const bool acc = (out[i].role == WT_STRAND_CHANGE);
@@ -8730,30 +10181,55 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
             // all of it. bundle_note_ink then finds no '#' and leaves it to
             // the object colour, which is the right answer for a stand down
             // too.
-            const lv_color_t wc = WT_MUT;
-            if (acc) {
-                /* whole label in the accent: mark and word together */
-            } else if (out[i].label && o + 2 < sizeof m) {
-                o += (size_t)snprintf(m + o, sizeof m - o, "  #%02X%02X%02X ",
-                                      wc.red, wc.green, wc.blue);
-                // '#' opens a colour run, so a literal one -- the change row's
-                // address index -- has to be doubled or LVGL eats the digits
-                // after it as a colour.
-                for (const char *q = out[i].label; *q && o + 3 < sizeof m; q++) {
-                    if (*q == '#') m[o++] = '#';
-                    m[o++] = *q;
-                }
-                if (o + 2 < sizeof m) m[o++] = '#';
-                m[o] = 0;
-            }
-            if (acc && out[i].label && o + 2 < sizeof m)
+            // THE ACCENT MEANS ONE THING ON THIS SCREEN, and it did not
+            // before: every row's mark took it, so the colour that also
+            // carries the owner's own amount and word was sitting on the
+            // recipient row and the fee row too. Three rows lit in the theme
+            // colour is a decoration; one is an answer. The rows that are not
+            // the owner's are mark and word alike in WT_MUT now, and the
+            // accent appears on exactly the money coming back.
+            //
+            // That is this device's version of what Electrum Mobile spends
+            // three fixed colours on -- green inputs, white receive, yellow
+            // change. One colour does it here, it follows whatever theme the
+            // owner is in rather than being written into the screen, and the
+            // amber stays free to mean a caution.
+            //
+            // No RECOLOR markup any more, on either row. It existed to hold a
+            // mark in the accent while the words beside it stayed muted, and
+            // with the mark muted there is nothing left for it to do. The '#'
+            // doubling that went with it is gone too, so a label may carry a
+            // literal '#' again.
+            if (out[i].label && o + 2 < sizeof m)
                 snprintf(m + o, sizeof m - o, "  %s", out[i].label);
-            b->note[k] = bundle_txt(line, m, wt_font14(), wt_accent(), true);
-            if (!acc) lv_label_set_recolor(b->note[k], true);
+            b->note[k] = bundle_txt(line, m, wt_font14(),
+                                    acc ? wt_accent() : WT_MUT, acc);
         } else if (out[i].label) {
             b->note[k] = bundle_txt(line, out[i].label, wt_font14(),
                                     WT_MUT, false);
         }
+#if KISS_NARROW
+        // The words the split above gave away, cut where the kit can say so.
+        if (b->note[k]) {
+            lv_point_t ns, ks = { 0, 0 };
+            const char *nt = lv_label_get_text(b->note[k]);
+            lv_text_get_size(&ns, nt, wt_font14(), 0, 0, LV_COORD_MAX,
+                             LV_TEXT_FLAG_NONE);
+            if (out[i].known)
+                lv_text_get_size(&ks, LV_SYMBOL_REFRESH, wt_font14(), 0, 0,
+                                 LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+            lv_obj_update_layout(b->amount[k]);
+            const int room = roww - lv_obj_get_width(b->amount[k]) - SX(8) -
+                             (out[i].known ? SX(8) + ks.x : 0);
+            if (ns.x > room && room > 0) {
+                wt_sub_measure("label", nt, wt_font14(), 0, room);
+                lv_obj_set_width(b->note[k], room);
+                lv_obj_set_height(b->note[k],
+                                  lv_font_get_line_height(wt_font14()));
+                lv_label_set_long_mode(b->note[k], LV_LABEL_LONG_DOT);
+            }
+        }
+#endif
         // A destination these keys have paid before. A bare mark, no word: the
         // row already carries an amount, a label and an address, and the one
         // thing being added is "you have been here". The words for it are on
@@ -8818,7 +10294,11 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
         // 290 + 44 is two clear of the slide band. SG_GRAPH_H_C is 8 less than
         // SG_GRAPH_H for exactly that reason.
         const int GAP_MIN   = 4;
-        const int GAP_PAGED = 10;
+        // The 3.5in draws a page at the gap it was cut at. Its 82 px band holds
+        // a recipient with its address, the fee and change at exactly 4, so a
+        // page cut at 4 and drawn at 10 lost the lower half of its last row --
+        // CHANGE (MINE) on the last page of a many-output spend.
+        const int GAP_PAGED = KISS_NARROW ? GAP_MIN : 10;
         int content = 0;
         for (uint16_t i = 0; i < b->n_out; i++)
             if (b->row[i]) content += lv_obj_get_height(b->row[i]) + GAP_MIN;
@@ -8873,7 +10353,7 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
     lv_obj_t *dot = lv_obj_create(box);
     lv_obj_remove_style_all(dot);
     lv_obj_set_size(dot, BJ_R * 2, BJ_R * 2);
-    lv_obj_set_pos(dot, BJ_X - BJ_R, jy - BJ_R);
+    lv_obj_set_pos(dot, B_JX(b) - BJ_R, jy - BJ_R);
     lv_obj_set_style_radius(dot, BJ_R, 0);
     lv_obj_set_style_bg_color(dot, WT_INK, 0);
     lv_obj_set_style_bg_opa(dot, LV_OPA_COVER, 0);
@@ -8916,6 +10396,12 @@ static void bundle_repaint(wt_bundle_t *b, int k, lv_color_t line_col,
     }
 }
 
+// The ink a stood-down output's WORDS take. WT_EDGE is a border colour, and on
+// the 3.5in's 14 px type it put the amounts at 1.6:1 -- not stood down, gone,
+// for the whole hold. WT_DIM is the palette's ink for present but inert, which
+// is what they are; the strands keep WT_EDGE and carry the stand down.
+#define BUNDLE_DOWN_INK (KISS_NARROW ? WT_DIM : WT_EDGE)
+
 // The folded address stands down with the row it belongs to.
 //
 // It is a SPANGROUP, so bundle_repaint above never reached it -- the spans
@@ -8945,7 +10431,7 @@ static void bundle_fold_ink(wt_bundle_t *b, int i, bool dim)
         // accent_walk relies on for every address on this device.
         const bool lit = (k + 1 == n);
         lv_style_set_text_color(lv_span_get_style(sp),
-                                dim ? WT_EDGE : (lit ? wt_accent() : WT_MUT));
+                                dim ? BUNDLE_DOWN_INK : (lit ? wt_accent() : WT_MUT));
     }
     // And the FLAG follows the ink. A theme switched while a finger is down
     // would otherwise walk this group and paint the tail back up to the new
@@ -8993,7 +10479,7 @@ static void bundle_dot_r(wt_bundle_t *b, int r)
 {
     if (!b->dot) return;
     lv_obj_set_size(b->dot, r * 2, r * 2);
-    lv_obj_set_pos(b->dot, BJ_X - r, b->jy + BPAD - r);
+    lv_obj_set_pos(b->dot, B_JX(b) - r, b->jy + BPAD - r);
     lv_obj_set_style_radius(b->dot, r, 0);
 }
 
@@ -9082,21 +10568,21 @@ void wt_bundle_state(lv_obj_t *bundle, int state)
             // wear it again the moment the hold is let go. What the screen is
             // about for these 1200ms is the commitment, not the warning.
             bundle_repaint(b, k, is_in ? WT_MUT : WT_EDGE,
-                           is_in ? (b->n_in == 1 ? WT_INK : WT_MUT) : WT_EDGE,
+                           is_in ? (b->n_in == 1 ? WT_INK : WT_MUT) : BUNDLE_DOWN_INK,
                            false, false);
             if (!is_in) {
                 bundle_fold_ink(b, k - (int)b->out0, true);
-                bundle_note_ink(b, k, WT_EDGE);
+                bundle_note_ink(b, k, BUNDLE_DOWN_INK);
             }
         } else if (state == WT_BUNDLE_SIGNING) {
             // Inputs at full strength, outputs stood down. The note rows go with
             // their side: a silent payment's claim is about an output, so it
             // dims with the output it belongs to.
             bundle_repaint(b, k, is_in ? WT_INK : WT_EDGE,
-                           is_in ? WT_INK : WT_EDGE, false, false);
+                           is_in ? WT_INK : BUNDLE_DOWN_INK, false, false);
             if (!is_in) {
                 bundle_fold_ink(b, k - (int)b->out0, true);
-                bundle_note_ink(b, k, WT_EDGE);
+                bundle_note_ink(b, k, BUNDLE_DOWN_INK);
             }
         } else if (state == WT_BUNDLE_SIGNED && is_in) {
             bundle_repaint(b, k, wt_accent(), wt_accent(), true, true);
@@ -9114,16 +10600,14 @@ void wt_bundle_state(lv_obj_t *bundle, int state)
                            acc && !b->flag[k], acc);
             bundle_fold_ink(b, k - (int)b->out0, false);
             live_out = true;   // the page dim below is what this just undid
-            // The note's own colour is its MARK, which is the accent on every
-            // row -- its words carry WT_MUT in markup. bundle_repaint paints
-            // the note with the amount, so this puts the mark back.
-            if (b->note[k]) {
-                lv_obj_set_style_text_color(b->note[k], wt_accent(), 0);
-                // ...and its WORDS back to what they were built with: WT_MUT,
-                // or the accent on the one row whose subject is money coming
-                // back. Same test the builder used.
-                bundle_note_ink(b, k, acc ? wt_accent() : WT_MUT);
-            }
+            // bundle_repaint paints the note with the AMOUNT, which is not
+            // what the note is: a recipient's figure comes back to WT_INK and
+            // its mark and word must not. Put the note back to what the
+            // builder gave it, by the same test the builder used -- the accent
+            // on the rows that are the owner's, WT_MUT on the rest.
+            if (b->note[k])
+                lv_obj_set_style_text_color(b->note[k],
+                                            acc ? wt_accent() : WT_MUT, 0);
         } else {
             // An input at rest, taken from its role rather than assumed to be
             // muted: a flagged one wears WT_WARN and has to come back to it

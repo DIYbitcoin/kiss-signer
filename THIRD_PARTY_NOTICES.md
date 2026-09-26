@@ -52,7 +52,7 @@ Pulled by the ESP-IDF component manager into `managed_components/` from
 
 | Component | Role | License |
 |-----------|------|---------|
-| esp-web-tools (`docs/installer/vendor/`) | browser flasher in the docs site | Apache-2.0 |
+| esp-web-tools (`docs/installer/vendor/`) | browser flasher in the docs site | Apache-2.0. Modified: `install-button.js` asks the browser only for USB serial devices from Espressif (vendor 0x303A, the Guition boards) and WCH (0x1A86, the Waveshare 3.5in's bridge), so the port list shows no Bluetooth devices |
 | Ioskeley Mono (`docs/fonts/IoskeleyMono-*.woff2`) | the docs site typeface, self-hosted | SIL OFL 1.1, an Iosevka configuration by ahatem. License text at [`docs/fonts/LICENSE-IoskeleyMono.txt`](docs/fonts/LICENSE-IoskeleyMono.txt) |
 | Iosevka | upstream of Ioskeley Mono | SIL OFL 1.1, Belleve Invis |
 | IBM Plex Mono (`docs/fonts/IBMPlexMono-*.woff2`) | docs site fallback face, self-hosted | SIL OFL 1.1, IBM. License text at [`docs/fonts/LICENSE-IBMPlexMono.txt`](docs/fonts/LICENSE-IBMPlexMono.txt) |

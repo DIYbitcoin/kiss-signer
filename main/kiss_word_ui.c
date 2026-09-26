@@ -292,7 +292,12 @@ static void write_screen(bool again)
         lv_obj_add_flag(s_line[i], LV_OBJ_FLAG_HIDDEN);
     }
 
-    s_hint = wt_lbl(s_scr, "", 48, 360, wt_font23(), WT_WARN);
+    // On the 3.5in the scaled 240 put "write it bigger" 3 px under the floor.
+    s_hint = wt_lbl(s_scr, "", SX(48),
+                    KISS_NARROW ? WT_CONTENT_BOTTOM - 4
+                                  - lv_font_get_line_height(wt_font23())
+                                : SY(360),
+                    wt_font23(), WT_WARN);
     lv_obj_add_flag(s_hint, LV_OBJ_FLAG_HIDDEN);
 
     // A transparent catcher over the writing field. Deliberately blank: a word
@@ -300,8 +305,8 @@ static void write_screen(bool again)
     // the owner will write on later.
     s_canvas = lv_obj_create(s_scr);
     lv_obj_remove_style_all(s_canvas);
-    lv_obj_set_pos(s_canvas, 0, 110);
-    lv_obj_set_size(s_canvas, 800, 240);
+    lv_obj_set_pos(s_canvas, 0, SY(110));
+    lv_obj_set_size(s_canvas, SCREEN_W, SY(240));
     lv_obj_add_flag(s_canvas, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_clear_flag(s_canvas, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_add_event_cb(s_canvas, press_cb, LV_EVENT_PRESSING, NULL);
@@ -316,14 +321,21 @@ static void write_screen(bool again)
     // between visits is the thing this whole pass is removing.
     const bool back_to_cover = (!again && gw_stored_any());
     wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, WT_BACK_X,
-                    WT_ACTION_Y, 140, true, cancel_cb, NULL);
+                    WT_ACTION_Y, SX(140), true, cancel_cb, NULL);
     if (back_to_cover)
-        wt_arrow_action(s_scr, tr(STR_GD_WORD_BACK_T), true, false, 330,
-                        WT_ACTION_Y, 260, false, back_to_cover_cb, NULL);
+        wt_arrow_action(s_scr, tr(STR_GD_WORD_BACK_T), true, false, SX(330),
+                        WT_ACTION_Y, SX(260), false, back_to_cover_cb, NULL);
     wt_arrow_action(s_scr, tr(STR_GD_WORD_DONE), false, true, WT_ACT_X,
-                    WT_ACTION_Y, 260, false, done_cb, NULL);
+                    WT_ACTION_Y, SX(260), false, done_cb, NULL);
     draw_reset();
 }
+
+// The two-row diagram card on the confirm and done screens. Scaled to 64 px
+// on the 3.5in, the two chip rows filled it to 4 px of the bottom edge, and
+// REAL's underline read as part of the border; 72 gives both rows 8 px. The
+// fact rows under it move down by the same 8 and still end well above the
+// slide band.
+#define WORD_CARD_H (KISS_NARROW ? 72 : SY(96))
 
 // The stop screen. Everything this changes is said before it is held, and held
 // rather than tapped, like every other control here that walking back cannot
@@ -344,15 +356,15 @@ static void confirm_screen(void)
     // one of these two cards should edit both; they are one drawing shown
     // before and after.
     {
-        lv_obj_t *card = wt_card(s_scr, 48, 96, 704, 96);
+        lv_obj_t *card = wt_card(s_scr, SX(48), SY(96), SX(704), WORD_CARD_H);
         lv_obj_t *box = lv_obj_create(card);
         lv_obj_remove_style_all(box);
         lv_obj_set_pos(box, 0, 0);
-        lv_obj_set_size(box, 704, 96);
+        lv_obj_set_size(box, SX(704), WORD_CARD_H);
         lv_obj_set_flex_flow(box, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_flex_align(box, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
                               LV_FLEX_ALIGN_CENTER);
-        lv_obj_set_style_pad_row(box, 10, 0);
+        lv_obj_set_style_pad_row(box, SY(10), 0);
         lv_obj_remove_flag(box, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_remove_flag(box, LV_OBJ_FLAG_SCROLLABLE);
 
@@ -389,14 +401,14 @@ static void confirm_screen(void)
             { .cap = tr(STR_GD_WORD_C_W2_H), .val = tr(STR_GD_WORD_C_W2_B),
               .icon = LV_SYMBOL_WARNING, .icon_col = WT_WARN },
         };
-        wt_facts(s_scr, 208, facts, 2);
+        wt_facts(s_scr, SY(208) + WORD_CARD_H - SY(96), facts, 2);
     }
     wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, WT_EXIT_X,
-                    WT_ACTION_Y, 140, true, cancel_cb, NULL);
+                    WT_ACTION_Y, SX(140), true, cancel_cb, NULL);
     // The slide bar, in the danger colours: replacing the unlock word is
     // the confirm this screen exists for.
     wt_slide_rule_c(s_scr, tr(STR_GD_WORD_HOLD), tr(STR_G_FW_KEEP_HOLDING),
-                    WT_ACT_X, WT_ACTION_Y_SLIDE, 330, WT_STOP_INK, WT_STOP,
+                    WT_ACT_X, WT_ACTION_Y_SLIDE, SX(330), WT_STOP_INK, WT_STOP,
                     save_cb, NULL);
 }
 
@@ -417,8 +429,8 @@ static void fail_screen(void)
 {
     s_scr = wt_screen(s_parent, tr(STR_C_TRY_AGAIN), NULL);
     wt_chrome_head(s_scr);
-    wt_body_para(s_scr, tr(STR_G_STORAGE_FAIL_GENERIC_B), 150);
-    wt_arrow_action(s_scr, tr(STR_C_OK), true, false, 552, WT_ACTION_Y, 200,
+    wt_body_para(s_scr, tr(STR_G_STORAGE_FAIL_GENERIC_B), SY(150));
+    wt_arrow_action(s_scr, tr(STR_C_OK), true, false, SX(552), WT_ACTION_Y, SX(200),
                     true, cancel_cb, NULL);
 }
 
@@ -455,8 +467,8 @@ static void done_screen(void)
         // meets from one Settings row are the same screen twice.
         lv_obj_t *col = lv_obj_create(s_scr);
         lv_obj_remove_style_all(col);
-        lv_obj_set_pos(col, 48, 112);
-        lv_obj_set_width(col, 704);
+        lv_obj_set_pos(col, SX(48), SY(112));
+        lv_obj_set_width(col, SX(704));
         lv_obj_set_height(col, LV_SIZE_CONTENT);
         lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_flex_align(col, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
@@ -469,8 +481,8 @@ static void done_screen(void)
         wt_chip(row, nb, false);
         wt_diagram_op(row, LV_SYMBOL_RIGHT);
         wt_chip(row, tr(STR_GD_OFF), false);
-        wt_body_para(s_scr, tr(STR_GD_NOPASS_B), 190);
-        wt_arrow_action(s_scr, tr(STR_C_OK), true, false, 552, WT_ACTION_Y, 200,
+        wt_body_para(s_scr, tr(STR_GD_NOPASS_B), SY(190));
+        wt_arrow_action(s_scr, tr(STR_C_OK), true, false, SX(552), WT_ACTION_Y, SX(200),
                     true, cancel_cb, NULL);
         return;
     }
@@ -480,15 +492,15 @@ static void done_screen(void)
     // chip is about 40x28, so English passed only because its body wrapped to
     // two lines and never became a wall. de, fr, pl and ru wrapped to three and
     // the screen was reported bare with the diagram right there on it.
-    lv_obj_t *card = wt_card(s_scr, 48, 118, 704, 96);
+    lv_obj_t *card = wt_card(s_scr, SX(48), SY(118), SX(704), WORD_CARD_H);
     lv_obj_t *box = lv_obj_create(card);
     lv_obj_remove_style_all(box);
     lv_obj_set_pos(box, 0, 0);
-    lv_obj_set_size(box, 704, 96);
+    lv_obj_set_size(box, SX(704), WORD_CARD_H);
     lv_obj_set_flex_flow(box, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(box, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
                           LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_row(box, 10, 0);
+    lv_obj_set_style_pad_row(box, SY(10), 0);
     lv_obj_remove_flag(box, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_remove_flag(box, LV_OBJ_FLAG_SCROLLABLE);
 
@@ -521,10 +533,10 @@ static void done_screen(void)
             { .cap = tr(STR_GD_WORD_C_W2_H), .val = tr(STR_GD_WORD_C_W2_B),
               .icon = LV_SYMBOL_WARNING, .icon_col = WT_WARN },
         };
-        wt_facts(s_scr, 236, facts, 2);
+        wt_facts(s_scr, SY(236) + WORD_CARD_H - SY(96), facts, 2);
     }
     // The corner, not centred at 300: one action, and it is the way out.
-    wt_arrow_action(s_scr, tr(STR_C_OK), true, false, 552, WT_ACTION_Y, 200,
+    wt_arrow_action(s_scr, tr(STR_C_OK), true, false, SX(552), WT_ACTION_Y, SX(200),
                     true, cancel_cb, NULL);
 }
 

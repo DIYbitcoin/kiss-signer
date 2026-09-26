@@ -8,12 +8,31 @@
 #include <stddef.h>
 #include <stdint.h>
 #include "lvgl.h"
+#include "kiss_board.h"    // SCREEN_W/H and the SX/SY scale
 #include "kiss_defrow.h"   // the definition rows' lane arithmetic
 
+// MOTION ON THE 3.5in RUNS AT HALF LENGTH. Its ST7796 is fed over SPI at about
+// 10 MB/s, 30 whole frames a second at best and fewer while a pane of rows is
+// moving, so a 260 ms slide there is seven or eight pictures: it does not glide,
+// it steps, and the page feels slow to answer. Halved, the same curve arrives
+// in the frames the panel can actually show. For transitions, staggers and
+// fades only -- never for a window that is a promise (a hold, a pause that
+// banks a slide, how long a typed character stays bare), which keeps its
+// length on every board. The wide board's numbers pass through untouched.
+#define WT_MOTION_MS(ms) (KISS_NARROW ? (ms) / 2 : (ms))
+
 // fixed palette (identical to what every screen used before the kit)
+//
+// THE 3.5in's TWO GREYS ARE LIGHTER. Its type is three fifths of the wide
+// board's, so a muted caption there is a 14 px face and owes 4.5:1, and the
+// ST7796 renders a dark grey darker than any monitor the sim is looked at on.
+// 0x4C5666 measured 2.6:1 on every surface it sits on and 0x7A869C 2.8:1
+// under a pressed row. The pair keeps its order, one step apart: WT_DIM at
+// 4.5:1 or better on everything up to a key's fill, WT_MUT at 7:1 on the page
+// and still under MONO's accent, WT_INK over both.
 #define WT_BG   lv_color_hex(0x070A10)
 #define WT_INK  lv_color_hex(0xE8EEF7)
-#define WT_MUT  lv_color_hex(0x7A869C)
+#define WT_MUT  lv_color_hex(KISS_NARROW ? 0x909CB1 : 0x7A869C)
 #define WT_KEY  lv_color_hex(0x10141D)
 #define WT_OK   lv_color_hex(0x35D07F)   // status semantics: never themed
 // AMBER IS A MARK COLOUR. The caution GLYPH keeps it and so does a breathing
@@ -43,7 +62,8 @@
 #define WT_HAIR  lv_color_hex(0x1E2531)  // 1px rule where a surface meets the page
 #define WT_PANEL lv_color_hex(0x0A0E15)  // explainer cards, any raised block
 #define WT_DIV   lv_color_hex(0x1A2130)  // divider between rows inside one panel
-#define WT_DIM   lv_color_hex(0x4C5666)  // ink for something present but inert
+#define WT_DIM   lv_color_hex(KISS_NARROW ? 0x747F92 : 0x4C5666)  // ink for something
+                                         // present but inert (3.5in: see WT_MUT)
 #define WT_EDGE  lv_color_hex(0x2A3346)  // border of a recessed or inert control
 
 // accent themes = the dots on the baked home art. MONO keeps the shipped look.
@@ -143,10 +163,18 @@ void wt_sub_fit(lv_obj_t *scr, int w);
 // fixed 23 that never re-fonts. What remains of TALL is geometry: it defines
 // WT_CONTENT_BOTTOM below, and the warn screen centres its word actions in
 // the 66px band. New rows take the standard height.
-#define WT_ACTION_Y       404   // standard row: 404..456, 24px above the edge
-#define WT_ACTION_H        52   // the standard control height on the row
-#define WT_ACTION_Y_TALL  398   // legacy tall band: 398..464
-#define WT_ACTION_H_TALL   66
+//
+// THE 3.5in's ROW SITS LOWER, UNDER A MOAT. Scaled, the row began 4 px under
+// the content's last line, and on a glass this size that is one thumb: the
+// bench reported presses meant for BACK landing on the row above it. So the
+// content stops at 254 and the row starts at 274, twenty pixels of nothing
+// between them, and the row's controls reach the panel's edges below and
+// beside them (wt_arrow_action) -- a thumb coming in from the corner has
+// nowhere to land but the control it is reaching for.
+#define WT_ACTION_Y       (KISS_NARROW ? 274 : SY(404))   // standard row: 404..456, 24px above the edge
+#define WT_ACTION_H        SY(52)   // the standard control height on the row
+#define WT_ACTION_Y_TALL  (KISS_NARROW ? 254 : SY(398))   // legacy tall band: 398..464
+#define WT_ACTION_H_TALL   SY(66)
 // Nothing above the row may extend past this. It is WT_ACTION_Y_TALL exactly,
 // not a rounder number with a gutter invented on top: the tall row is the
 // highest anything in the action band reaches, so crossing it is the failure.
@@ -175,10 +203,17 @@ void wt_sub_fit(lv_obj_t *scr, int w);
 // It is a third constant and not a change to the other two on purpose: every
 // screen on the device is laid out against WT_CONTENT_BOTTOM, and moving that
 // number would move ninety screens to fix one control.
-#define WT_ACTION_Y_SLIDE 344   // the slide band: 344..471
+//
+// The 3.5in does not scale the band, it folds it. Scaled, the band was 85 of
+// 320 px -- a quarter of the glass for one control, reported from the bench
+// as "the slider obviously can't take up that much space" -- because the
+// caption kept its own row over a track set two thirds of the way down. There
+// the band is 60 px (254..314): the caption on its first row, the 36 px knob
+// on its second, nothing between them but the 8 px a caption needs.
+#define WT_ACTION_Y_SLIDE (KISS_NARROW ? 254 : SY(344))   // the slide band: 344..471
 // Nothing on a screen carrying a band slide may cross this. 114 + 222 = 336,
 // with the same 8px of air over the band that 398 leaves over 404.
-#define WT_SLIDE_BOTTOM   336
+#define WT_SLIDE_BOTTOM   (KISS_NARROW ? 246 : SY(336))
 
 // THE BOTTOM RIGHT CORNER IS ALWAYS THE WAY OUT. Every screen, whether or not
 // its bar holds anything else. The exit ends at 752; the screen's action starts
@@ -228,7 +263,7 @@ void wt_sub_fit(lv_obj_t *scr, int w);
 // exact harm the reversal exists to remove, so they keep their old left slot and
 // the corner on those two screens stays empty. Give one of them a confirm and it
 // can move like everything else.
-#define WT_BACK_X          612   // the exit's left edge, for the standard
+#define WT_BACK_X          SX(612)   // the exit's left edge, for the standard
                                  // 140px lane: 612+140 = 752, the lane edge.
                                  // It was 610 while the corner held the ACTION
                                  // and the 2px sat on whichever control
@@ -236,12 +271,12 @@ void wt_sub_fit(lv_obj_t *scr, int w);
                                  // that corner on every screen and the gap
                                  // would be the most looked at 2px on the
                                  // device.
-#define WT_EXIT_X          612   // the exit's left edge when the bar ALSO holds
+#define WT_EXIT_X          SX(612)   // the exit's left edge when the bar ALSO holds
                                  // the screen's action. Same corner: the way out
                                  // does not move when a screen gains an action.
                                  // Kept as a separate name so a grep finds both
                                  // halves of the rule, not just one.
-#define WT_ACT_X            48   // and the screen's action takes the left.
+#define WT_ACT_X            SX(48)   // and the screen's action takes the left.
 
 // The action bar is the floor the row stands on: full width, WT_BAR fill, one
 // WT_HAIR line along its top. It is not a call you make. The first control
@@ -304,7 +339,7 @@ void wt_sub_fit(lv_obj_t *scr, int w);
 #define WT_ICON_SHIELD  "\xEF\x8F\xAD"   // U+F3ED shield-halved
 // The settings band's language control. It wore a bare forward arrow, which
 // is the glyph the SCREEN'S OWN action wears -- so the one control on the
-// band that picks between 21 languages was marked exactly like a "go on".
+// band that picks between 22 languages was marked exactly like a "go on".
 // A globe says what it is before a word of it is read, which was the ask.
 // Added to SYMS in the same edit that named it here.
 #define WT_ICON_LANG    "\xEF\x82\xAC"   // U+F0AC globe
@@ -359,6 +394,14 @@ const char *wt_sim_title_key(int id);
 // One visual language for anonymous "?" affordances: a 30px circle with a
 // 54px effective hit target. `color` carries warning semantics when needed;
 // size, border and press feedback remain identical everywhere.
+//
+// 26 on the 3.5in, not the scaled 18, with a 50px target: a finger does not
+// scale. x and y are still the wide canvas's chip, and the ring grows about
+// its centre by WT_HELP_CHIP_GROW each way (see round_chip). A caller that
+// measures the pair it draws beside measures WT_HELP_CHIP_D, never SX(30),
+// and one placing the real ring's corner adds the grow back.
+#define WT_HELP_CHIP_D (KISS_NARROW ? 26 : SX(30))
+#define WT_HELP_CHIP_GROW ((WT_HELP_CHIP_D - SX(30)) / 2)
 lv_obj_t *wt_help_chip(lv_obj_t *parent, int x, int y, lv_color_t color,
                        lv_event_cb_t cb, void *ud);
 
@@ -840,12 +883,12 @@ lv_obj_t *wt_row_head(lv_obj_t *scr, const char *txt, int x, int y, int w);
 // on the sub-line now, and the two are separated horizontally in any case, so
 // the extra four pixels only bought air inside the card. Redraw 05 draws 56 for
 // its smaller type; 64 is the same proportion at the type this device has.
-#define WT_ROW_H 64
+#define WT_ROW_H SY(64)
 // The air between a row's label and its sub-line, on a TALL row only. A 64px
 // row has none to give: its label owns 7..37 and its sub owns the rest. A
 // CHOICE row is 94 and had the same 3px, which reads as one block of text
 // rather than a heading and a line under it.
-#define WT_ROW_SUB_GAP 10
+#define WT_ROW_SUB_GAP SY(10)
 // Severity of a row CARD, applied after wt_row builds it. Redraw 05 tints the
 // whole box rather than one note inside it, so a group reads before its words
 // do: green for a state already satisfied, amber for a warning about the
@@ -954,9 +997,9 @@ lv_obj_t *wt_row_x(lv_obj_t *scr, const char *icon, const char *label,
 // `icon` must be a codepoint in tools/fonts/gen_fonts.sh's SYMS. One that is
 // not draws a blank box half a line wide, identically in the simulator, so a
 // wrong pick survives every gate and is caught on glass.
-#define WT_TAB_H     46
-#define WT_TAB_W    144
-#define WT_TAB_PITCH 152   // 144 + 8 of gap
+#define WT_TAB_H     SY(46)
+#define WT_TAB_W    SX(144)
+#define WT_TAB_PITCH SX(152)   // 144 + 8 of gap
 typedef struct {
     const char *icon;
     const char *label;
@@ -979,7 +1022,7 @@ lv_obj_t *wt_tabs(lv_obj_t *scr, const wt_tab_t *tabs, int n, int sel,
 // border, so it cross-fades over the same span rather than snapping at either
 // end. Safe to call while a previous slide is still running: it takes the
 // highlight from wherever it currently IS.
-#define WT_TAB_MS 200
+#define WT_TAB_MS WT_MOTION_MS(200)
 void wt_tabs_select(lv_obj_t *hl, int from, int to, bool stop);
 
 // The one line under a group of wide rows, at font23 in the page's margin.
@@ -1086,8 +1129,8 @@ lv_obj_t *wt_pager_line(lv_obj_t *p, const char *txt, bool warn, int page,
 // sub and the arrow -- and so a caller building its own value (an address
 // needs a spangroup) can opt into the same beat.
 #define WT_LINE_VAL_TAG ((void *)0x57A6E)
-#define WT_LINE_PAD  14   // left inset for the caption and the value
-#define WT_LINE_CAP_Y 6   // caption's top inside the row
+#define WT_LINE_PAD  SX(14)   // left inset for the caption and the value
+#define WT_LINE_CAP_Y SY(6)   // caption's top inside the row
 // The value's top inside the row: under the caption with a 4px gap. A function
 // rather than a constant because the mono14 line height is what it is measured
 // from, and that moves with the face.
@@ -1141,8 +1184,15 @@ lv_obj_t *wt_screen_cursor(lv_obj_t *scr);
 
 // The bracketed tab row's shared geometry (wt_tabs_flex draws it now; the
 // fixed-pitch wt_brackets strip it replaced is gone).
-#define WT_BR_H      30   // a tab
-#define WT_BR_STRIP_H 36  // the tabs, the gap, and the rule at the bottom of it
+#define WT_BR_H      SY(30)   // a tab
+#define WT_BR_STRIP_H SY(36)  // the tabs, the gap, and the rule at the bottom of it
+
+// The tracking on the words of the action row and the full-lane rows. 2 px is
+// the wide canvas's spacing on 23 px capitals, a tenth of an em. The 3.5in sets
+// the same words at 14 px, where 2 px is a seventh of one: FORGET MY SWIPE ran
+// into NOT NOW's arrow on the decoy screen, and CHECK MY COPY needed 133 px of
+// a 120 px lane. 1 px is the same tenth of an em on the smaller face.
+#define WT_TRACK (KISS_NARROW ? 1 : 2)
 
 // The arrow action. The action bar's control with no box at all: a label, and
 // an arrow pointing WHERE THE TAP TAKES YOU -- leading the label when it
@@ -1185,12 +1235,12 @@ lv_obj_t *wt_word_action(lv_obj_t *par, const char *mark, const char *txt,
 //
 // The lane arithmetic lives in kiss_defrow.h (pure integers, proven by
 // kisstest); the geometry here is the rest of the contract.
-#define WT_CHROME_TITLE_Y  14   // title top; mono28 ls3, WT_INK, at x=48
-#define WT_CHROME_STRIP_Y  70   // the 30px row that carries tabs OR the trail
-#define WT_CHROME_RULE_Y   99   // the static header hairline
-#define WT_LANE_X          48   // the content lane -- the ONE part shapes use
-#define WT_LANE_Y         114
-#define WT_LANE_W         704   // its height is WT_DEF_LANE (kiss_defrow.h):
+#define WT_CHROME_TITLE_Y  SY(14)   // title top; mono28 ls3, WT_INK, at x=48
+#define WT_CHROME_STRIP_Y  SY(70)   // the 30px row that carries tabs OR the trail
+#define WT_CHROME_RULE_Y   SY(99)   // the static header hairline
+#define WT_LANE_X          SX(48)   // the content lane -- the ONE part shapes use
+#define WT_LANE_Y         SY(114)
+#define WT_LANE_W         SX(704)   // its height is WT_DEF_LANE (kiss_defrow.h):
                                 // 114 + 284 = 398 = WT_CONTENT_BOTTOM exactly
 // The contract: bezel (wt_screen's card), title + blinking cursor, the strip
 // row, the hairline, the lane, and the action band -- which is built HERE,
@@ -1289,6 +1339,28 @@ lv_obj_t *wt_help_tab_n(lv_obj_t *scr, const char *hint, int unread,
 // repaints the page you are standing on. It narrows the title's lane and moves
 // the cursor to match, so a caller adds nothing but the callback.
 lv_obj_t *wt_theme_tab(lv_obj_t *scr, lv_event_cb_t cb, void *ud);
+// UPSIDE DOWN, on the theme's own rung and one gap to its left: the cycle
+// mark and "180 degrees". Tapping it turns the whole device over -- the glass,
+// the touch map and the camera preview, all from one runtime truth in
+// kiss_board.h -- and tapping it again turns it back, so either board can be
+// held with its cable coming out of the other side.
+//
+// Built BEFORE wt_theme_tab, which is the call that fits the title: the lane
+// below is what the PAIR of them leaves, so the title shrinks around both
+// exactly as it shrank around the theme control alone.
+//
+// It does not change appearance when tapped, and that is the theme control's
+// own argument rather than an omission: what the tap changes is the PAGE, so
+// the page is the only honest indicator -- and a chip that had to state which
+// way up it was would be stating it the wrong way up half the time.
+lv_obj_t *wt_flip_tab(lv_obj_t *scr, lv_event_cb_t cb, void *ud);
+// What the chrome column leaves the title on the page carrying both of those
+// controls. A number nobody has to keep in step by hand: sim/fitcheck.c is
+// the one gate that can see a title quietly dropping a rung -- the overlap
+// gate cannot, because a smaller title overlaps nothing -- and it held a
+// copied 704 that the theme control had already made wrong by 203px. It asks
+// the kit now.
+int wt_chrome_head_lane(void);
 // Whether [ ? ] has ever been opened. RAM here, one NVS byte in settings:
 // kiss_settings_load restores it at boot via _set, and the hook (registered
 // once, at boot) is how the first open reaches the store without the theme
@@ -1347,11 +1419,16 @@ typedef struct {
 // one lane. It was 214 while the caption was set at chrome23; the caption is
 // the larger face now, so the lane grew with it and the value -- a rung
 // smaller -- gives the width back.
-#define WT_FACT_CAP_W 300
+// Three fifths of 300 is 180. The 3.5in keeps 162: its captions are mono18 at
+// one pixel of tracking, where a thirteen letter one -- NO PASSPHRASE, WHAT
+// OPENS IT -- is 155 px. At 144 each of those fell a rung on its own and sat
+// visibly smaller than the row beside it; the value's 208 px still holds the
+// longest English one on one line.
+#define WT_FACT_CAP_W (KISS_NARROW ? SX(270) : SX(300))
 // The glass an explainer leaves between its last fact and the band above the
 // action row. One number, so every teaching page ends in the same place, and
 // 14 because 14 is the pad the rows already sit on between themselves.
-#define WT_FACT_BAND_GAP 14
+#define WT_FACT_BAND_GAP SY(14)
 int wt_facts(lv_obj_t *scr, int y, const wt_fact_t *facts, int n);
 // How tall n rows will be, so a caller can place the block against the
 // bottom of its content instead of the top. Same arithmetic wt_facts_in
@@ -1546,16 +1623,16 @@ enum { WT_WIDE_CYCLE = 0,  // a value chip that ADVANCES where it stands
        WT_WIDE_CHIP,       // a value chip that opens a screen
        WT_WIDE_OPEN,       // an optional value and a right chevron: opens a screen
        WT_WIDE_INERT };    // present, stated, and dead. See the AMNESIC case.
-#define WT_WIDE_X      25
-#define WT_WIDE_W     752
-#define WT_WIDE_H      60
-#define WT_WIDE_PITCH  66   // 60 + 6 of gap
+#define WT_WIDE_X      SX(25)
+#define WT_WIDE_W     SX(752)
+#define WT_WIDE_H      SY(60)
+#define WT_WIDE_PITCH  SY(66)   // 60 + 6 of gap
 // Four rows land at 126, 192, 258 and 324; the last bottom edge is 384, clear
 // of WT_CONTENT_BOTTOM at 398.
-#define WT_WIDE_Y(i)  (126 + (i) * WT_WIDE_PITCH)
+#define WT_WIDE_Y(i)  (SY(126) + (i) * WT_WIDE_PITCH)
 // The line under the last row of a group. ONE line, never two: a translation
 // that does not fit is copy to shorten, not a paragraph to wrap.
-#define WT_WIDE_EXPL_Y(rows) (WT_WIDE_Y((rows) - 1) + WT_WIDE_H + 12)
+#define WT_WIDE_EXPL_Y(rows) (WT_WIDE_Y((rows) - 1) + WT_WIDE_H + SY(12))
 typedef struct {
     const char *label;
     const char *sub;
@@ -1605,12 +1682,12 @@ lv_obj_t *wt_alert_chip(lv_obj_t *scr, const char *txt,
 // WALLET screen cannot drift from the screen it is meant to match. First
 // eyebrow at WT_LIST_TOP, first card WT_LIST_HEAD below it, then WT_LIST_PITCH
 // per row: four rows land at 379, above the 398 floor.
-#define WT_LIST_L_X    25
-#define WT_LIST_R_X   412
-#define WT_LIST_W     365
-#define WT_LIST_TOP    72
+#define WT_LIST_L_X    SX(25)
+#define WT_LIST_R_X   SX(412)
+#define WT_LIST_W     SX(365)
+#define WT_LIST_TOP    SY(72)
 #define WT_LIST_HEAD   23
-#define WT_LIST_PITCH  71    // WT_ROW_H plus 7 of gap
+#define WT_LIST_PITCH  SY(71)    // WT_ROW_H plus 7 of gap
 #define WT_LIST_Y(i)  (WT_LIST_TOP + WT_LIST_HEAD + (i) * WT_LIST_PITCH)
 
 // The chooser lane, which every screen offering a short list of options draws
@@ -1640,10 +1717,10 @@ lv_obj_t *wt_alert_chip(lv_obj_t *scr, const char *txt,
 // costs nothing: 45 was already one line at font23, so the "three lines at
 // font23" this comment used to claim has not been true for as long as the row
 // has been 96 tall.
-#define WT_CHOICE_X      42   // (800 - WT_CHOICE_W) / 2: rows centered, equal margins
-#define WT_CHOICE_W     716
-#define WT_CHOICE_H      94
-#define WT_CHOICE_Y(i)  (96 + (i) * 100)
+#define WT_CHOICE_X      SX(42)   // (800 - WT_CHOICE_W) / 2: rows centered, equal margins
+#define WT_CHOICE_W     SX(716)
+#define WT_CHOICE_H      SY(94)
+#define WT_CHOICE_Y(i)  (SY(96) + (i) * SY(100))
 
 // A value in a box: small muted caption, then the value large and monospaced
 // inside a bordered WT_PANEL card. The review draws every figure worth reading

@@ -17,13 +17,14 @@
 //     enrolment and unlock and makes the ORDER the letters were written in part
 //     of the word. Writing the same letters in another order is another word.
 #include "kiss_gword.h"
+#include "kiss_board.h"   // SX: the floor is drawn on the wide canvas
 
 #include <string.h>
 
 // A word is a written thing, not a flick. Same floor detect_cover_word uses for the
 // draw it recognises, for the same reason: below this it is a gesture at the
 // panel, and the owner did not mean anything by it.
-#define GW_MIN_SPAN 120
+#define GW_MIN_SPAN SX(120)
 #define GW_MIN_PTS  8
 
 static int isqrt_i(long v)

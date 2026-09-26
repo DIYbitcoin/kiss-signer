@@ -95,6 +95,28 @@ static void test_mix4(void)
     ok("mix4 rejects NULL leg 4", kiss_entropy_mix4(a, b, c, NULL, out) != 0);
 }
 
+// The receipt tag the setup screen prints per leg. The vectors are the
+// prefixed hash, so a tag that slipped to the leg's own digest -- or to the
+// leg's first bytes -- fails here rather than on the glass.
+//   python3 -c "import hashlib;print(hashlib.sha256(b'kiss-receipt'+bytes(32)).hexdigest()[:4])"
+static void test_tag(void)
+{
+    uint8_t a[32], b[32], t[2], u[2];
+    memset(a, 0x00, 32); memset(b, 0x11, 32);
+
+    ok("tag returns 0", kiss_entropy_tag(a, t) == 0);
+    ok("tag of 0x00 x32 is ae02", t[0] == 0xae && t[1] == 0x02);
+    kiss_entropy_tag(b, u);
+    ok("tag of 0x11 x32 is 7a65", u[0] == 0x7a && u[1] == 0x65);
+
+    // One bit anywhere in the leg moves the tag, or a leg that changed would
+    // show the owner the same tag as last time.
+    b[31] ^= 1; kiss_entropy_tag(b, t);
+    ok("tag depends on the last byte", memcmp(t, u, 2) != 0);
+
+    ok("tag rejects NULL", kiss_entropy_tag(NULL, t) != 0);
+}
+
 // The taps are the one input on the default path that refuses nothing: no
 // rhythm test, no spread test, no quality score, only a 30ms debounce
 // (kiss_tapent.h, docs/specs/tap-entropy.md). That is deliberate -- a number
@@ -242,6 +264,7 @@ int test_tapent(void)
     printf("\n-- tap entropy --\n");
     test_mix3();
     test_mix4();
+    test_tag();
     test_taps_cannot_weaken();
     test_jitter();
     test_debounce();

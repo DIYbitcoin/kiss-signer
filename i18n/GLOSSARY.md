@@ -1,6 +1,6 @@
 # KISS Signer translation glossary
 
-The 21 locale files cover 19 languages. Spanish (`es-MX`, `es-ES`) and
+The 22 locale files cover 20 languages. Spanish (`es-MX`, `es-ES`) and
 Portuguese (`pt-BR`, `pt-PT`) have regional variants. The table below records
 shared Bitcoin terminology; regional copy still follows the vocabulary of its
 locale, such as `billetera` versus `cartera` and `arquivo` versus `ficheiro`.
@@ -127,7 +127,12 @@ locale, such as `billetera` versus `cartera` and `arquivo` versus `ficheiro`.
   pl `fraza dostępu`, ru `кодовая фраза`, tr `Passphrase`,
   vi `cụm mật khẩu`, ja `パスフレーズ`, ko `패스프레이즈`, and
   zh-CN `密码短语`; nb-NO `passordfrase`, sv-SE `lösenfras`, da-DK
-  `adgangsfrase`, cs-CZ `přístupová fráze`, and hr-HR `kodna fraza`.
+  `adgangsfrase`, cs-CZ `přístupová fráze`, hr-HR `kodna fraza`, and
+  hu-HU `jelmondat`. The Hungarian is a deliberate choice and not a
+  synonym pick: the translator of Trezor's Hungarian wrote down that they
+  rendered passphrase as `jelmondat` rather than `jelszó` precisely so it
+  could not be confused with a password, which is the rule above arrived at
+  independently. `jelszó` therefore stays reserved for an actual password.
 - A strong passphrase can protect funds when recovery words are exposed, but
   exposed words let an attacker test passphrase guesses offline. Never imply
   that a weak passphrase provides encryption-strength protection.
@@ -247,6 +252,18 @@ Do not use "signer" where the sentence means the key set, and do not use
   800x480 layout.
 - Latin and Cyrillic languages retain the all-caps title and pill style.
   Turkish capitalization follows Turkish rules (`i` to `İ`, `ı` to `I`).
+- **Hungarian is written in the informal singular (tegezés), throughout.** Every
+  Bitcoin-native Hungarian source is: Electrum's own `hu` file ("Írd be", "Olvass
+  be egy QR-kódot"), Trezor Suite ("Add meg a jelmondatodat"), bitcoinbazis.hu and
+  mempool.space. Bitcoin Core's Hungarian is formal and is the outlier; BlueWallet's
+  mixes both inside one file, which is the defect a Hungarian reader notices first.
+  Do not "raise the register" to match German or Czech: those are formal because
+  their own markets are, and copying them here would make the one locale that has a
+  native reviewer read like a bank letter. Never `Ön`, `Kérjük`, or a third-person
+  imperative, and never the how-to first person plural ("nyissuk meg").
+- **Hungarian may not use `„` (U+201E)**, its own opening quote, and neither may
+  any locale. It is outside the generated font ranges, and a missing glyph hangs
+  LVGL rather than drawing badly. ASCII `"` or no quotes.
 
 ## Anchor terms
 
@@ -277,26 +294,26 @@ Do not use "signer" where the sentence means the key set, and do not use
 | CANCEL (keyboard) | ABBRUCH | SALIR | ANNULER | ANNULLA | STOP | ANULUJ | SAIR | ОТМЕНА | İPTAL | HỦY | 中止 | 취소 | 取消 |
 
 Decimal separator: de, es, fr, it, nl, pl, pt, ru, tr, and vi use a comma
-(`%u,%u sat/vB`), as do nb-NO, sv-SE, da-DK, cs-CZ, and hr-HR. ja, ko, and
-zh-CN keep the period.
+(`%u,%u sat/vB`), as do nb-NO, sv-SE, da-DK, cs-CZ, hr-HR, and hu-HU.
+ja, ko, and zh-CN keep the period.
 
 ### Added European locale anchors
 
-| term | nb-NO | sv-SE | da-DK | cs-CZ | hr-HR |
-|---|---|---|---|---|---|
-| wallet | lommebok | plånbok | tegnebog | peněženka | novčanik |
-| signer (the device) | Signeren | Signern | Signeren | Signer | Signer |
-| keys (what it holds) | nøkler | nycklar | nøgler | klíče | ključevi |
-| recovery words | gjenopprettingsord | återställningsord | gendannelsesord | slova seedu | riječi za oporavak |
-| common alias | seed phrase | seed phrase | seed-frase | seed fráze | seed fraza |
-| passphrase | passordfrase | lösenfras | adgangsfrase | přístupová fráze | kodna fraza |
-| fingerprint | fingeravtrykk | fingeravtryck | fingeraftryk | otisk | otisak |
-| change (back) | veksel | växel | byttepenge | drobné | ostatak |
-| fee | gebyr | avgift | gebyr | poplatek | naknada |
-| silent payment | stille betaling | tyst betalning | stille betaling | tichá platba | tiha uplata |
-| derivation path | derivasjonssti | härledningsväg | afledningssti | derivační cesta | put derivacije |
-| watch-only | kun observasjon | endast bevakning | kun visning | pouze pro sledování | promatrački (watch-only) |
-| CANCEL (keyboard) | AVBRYT | AVBRYT | AFBRYD | ZRUŠIT | OTKAŽI |
+| term | nb-NO | sv-SE | da-DK | cs-CZ | hr-HR | hu-HU |
+|---|---|---|---|---|---|---|
+| wallet | lommebok | plånbok | tegnebog | peněženka | novčanik | tárca |
+| signer (the device) | Signeren | Signern | Signeren | Signer | Signer | Signer |
+| keys (what it holds) | nøkler | nycklar | nøgler | klíče | ključevi | kulcsok |
+| recovery words | gjenopprettingsord | återställningsord | gendannelsesord | slova seedu | riječi za oporavak | helyreállítási szavak |
+| common alias | seed phrase | seed phrase | seed-frase | seed fráze | seed fraza | seed phrase |
+| passphrase | passordfrase | lösenfras | adgangsfrase | přístupová fráze | kodna fraza | jelmondat |
+| fingerprint | fingeravtrykk | fingeravtryck | fingeraftryk | otisk | otisak | ujjlenyomat |
+| change (back) | veksel | växel | byttepenge | drobné | ostatak | visszajáró |
+| fee | gebyr | avgift | gebyr | poplatek | naknada | díj |
+| silent payment | stille betaling | tyst betalning | stille betaling | tichá platba | tiha uplata | silent payment |
+| derivation path | derivasjonssti | härledningsväg | afledningssti | derivační cesta | put derivacije | származtatási útvonal |
+| watch-only | kun observasjon | endast bevakning | kun visning | pouze pro sledování | promatrački (watch-only) | megfigyelő |
+| CANCEL (keyboard) | AVBRYT | AVBRYT | AFBRYD | ZRUŠIT | OTKAŽI | MÉGSE |
 
 Terminology sources: the [BIP39 specification](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki),
 [BIP32 specification](https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki),
@@ -333,6 +350,7 @@ recognition aliases, but does not override BIP semantics.
 | da-DK | [Danish seed-phrase guidance](https://academy.binance.com/da-DK/articles/5-tips-to-secure-your-cryptocurrency-holdings), [Bitcoin.org Danish wallet guide](https://bitcoin.org/da/wallets/hardware/) plus the Bitcoin Core `da` and BlueWallet `da_DK` corpora |
 | cs-CZ | [Trezor Czech wallet guidance](https://trezor.io/cs), [Czech Bitcoin glossary](https://btc-slovnik.cz/) plus the Bitcoin Core `cs` and BlueWallet `cs_CZ` corpora |
 | hr-HR | [Bitcoin Store seed-phrase guide](https://www.bitstore.net/hr/blog/sto-je-cryptotag/), [CroBitcoin wallet guide](https://crobitcoin.com/vodic/otvorite-wallet/) plus the Bitcoin Core `hr` and BlueWallet `hr_HR` corpora |
+| hu-HU | [Trezor Hungarian launch, where the translator records rendering passphrase as `jelmondat` not `jelszó`](https://kriptoakademia.com/2021/10/29/magyar-nyelvi-tamogatast-kap-a-trezor), [Bitcoin Bazis glossary](https://www.bitcoinbazis.hu/bitcoin-szojegyzek/), [bitcoin.org Hungarian](https://bitcoin.org/hu/) plus the Bitcoin Core `hu`, Electrum `hu`, Trezor Suite `hu` and BlueWallet `hu_hu` corpora |
 
 This corpus review can catch incorrect or imported terminology and regional
 drift. It is not a substitute for final in-context review by one native Bitcoin

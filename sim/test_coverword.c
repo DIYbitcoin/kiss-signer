@@ -37,12 +37,15 @@ static void s_lift(void)  { k_stroke++; }
 // Straight segment from the current end, sampled the way the panel does: the
 // collector keeps a point only once the finger moved 10px, so ~12px steps are
 // what the recogniser actually receives. Same helper shape as test_gword.c.
+// Every point in this file is on the wide canvas; the board's own arrives
+// through SX/SY here, as the panel's would, and the sampling step with it.
 static void s_to(int x, int y) {
+    x = SX(x); y = SY(y);
     int fx = k_n ? k_xs[k_n - 1] : x, fy = k_n ? k_ys[k_n - 1] : y;
     if (!k_n) { k_xs[0] = x; k_ys[0] = y; k_sid[0] = (uint8_t)k_stroke; k_n = 1; return; }
     int dx = x - fx, dy = y - fy;
     int adx = dx < 0 ? -dx : dx, ady = dy < 0 ? -dy : dy;
-    int steps = (adx > ady ? adx : ady) / 12;
+    int steps = (adx > ady ? adx : ady) / SX(12);
     if (steps < 1) steps = 1;
     for (int i = 1; i <= steps && k_n < MAXP; i++) {
         k_xs[k_n] = fx + dx * i / steps;
@@ -54,6 +57,7 @@ static void s_to(int x, int y) {
 
 // Start a fresh stroke at a point without drawing into it from the last one.
 static void s_move(int x, int y) {
+    x = SX(x); y = SY(y);
     s_lift();
     if (k_n < MAXP) { k_xs[k_n] = x; k_ys[k_n] = y; k_sid[k_n] = (uint8_t)k_stroke; k_n++; }
 }
@@ -183,9 +187,9 @@ int test_coverword(void) {
     // tap, which on a device that has been switched to mainnet and back is a
     // way in nobody drew.
     cw_quick_reset();
-    kchk("corner box", cw_quick_zone(0, 0) && cw_quick_zone(119, 119));
+    kchk("corner box", cw_quick_zone(0, 0) && cw_quick_zone(CW_QT_BOX - 1, CW_QT_BOX - 1));
     kchk("...and what is outside it",
-         !cw_quick_zone(120, 60) && !cw_quick_zone(60, 120) && !cw_quick_zone(-1, 0));
+         !cw_quick_zone(CW_QT_BOX, SY(60)) && !cw_quick_zone(SX(60), CW_QT_BOX) && !cw_quick_zone(-1, 0));
 
     kchk("one tap alone opens nothing", !cw_quick_tap(40, 40, 1000));
     kchk("the second closes the pair", cw_quick_tap(40, 40, 1400));

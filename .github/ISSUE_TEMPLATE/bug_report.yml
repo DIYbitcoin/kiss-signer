@@ -14,7 +14,7 @@ body:
     attributes:
       label: Firmware version
       description: Settings shows it, or give the tag you built.
-      placeholder: v0.1.0-beta10
+      placeholder: v0.1.0-beta11
     validations:
       required: true
 

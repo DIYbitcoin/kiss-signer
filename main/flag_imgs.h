@@ -4,4 +4,4 @@
 #include "lvgl.h"
 
 // indexed by the i18n.h language enum; NULL = no flag
-extern const lv_image_dsc_t *const img_lang_flags[21];
+extern const lv_image_dsc_t *const img_lang_flags[22];

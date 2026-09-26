@@ -145,7 +145,7 @@ old mode, and destructive moves require deliberate confirmation. Moving an
 unlocked amnesic session to persistent storage is possible while its words are
 still in RAM. After lock or power-off, the wallet must be loaded again first.
 
-All storage strings ship in all 21 locale files. `gen_i18n.py` hard-errors on a
+All storage strings ship in all 22 locale files. `gen_i18n.py` hard-errors on a
 missing key and the fit checker covers the three-choice screens.
 
 ## Automated contract

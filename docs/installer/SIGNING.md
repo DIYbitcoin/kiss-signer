@@ -67,11 +67,24 @@ Builds, merges, writes SHA256SUMS, signs with whatever keys exist (and says so
 honestly in `release.json`'s `authenticity` block), regenerates
 `manifest.json`/`release.json`, writes `release-notes.md`, and packs
 `dist/kiss-signer-<version>-offline.zip` with its own `.asc`. Attach the
-firmware image, `SHA256SUMS`, `SHA256SUMS.asc`, `release.json`,
+firmware images, `SHA256SUMS`, `SHA256SUMS.asc`, `release.json`,
 `kiss_signer_pgp.asc`, **and both offline zip files** to the GitHub Release. Use
 `release-notes.md` as the GitHub Release body so every release keeps the same
 shape: download, verify, install, changelog. The installer page is a later
 GitHub Pages path, not the beta install path.
+
+A release carries one image per board, and every step above runs for each of
+them. The Guition 4.3in keeps the names releases have always had:
+`kiss-signer-<version>.bin`, `kiss-signer-<version>-update.bin` and
+`manifest.json`. The Waveshare 3.5in gets the same three with `-ws35` before
+the extension (`kiss-signer-<version>-ws35.bin`,
+`kiss-signer-<version>-ws35-update.bin`, `manifest-ws35.json`), and all six
+are in the one `SHA256SUMS` under the one signature. `release.json` keeps the
+Guition's `browserFirmware` at its top level for anything that already reads
+it, and lists each board, its manifest and its one image under `boards`; the
+install page asks which board before it hashes or offers anything.
+`KISS_RELEASE_BOARDS=guition` publishes the Guition alone. The boards and
+their names are in `tools/release_boards.sh`.
 
 The zip is signed on its own rather than listed in `SHA256SUMS`, because it
 contains `release.json`, which is written from the outcome of signing
@@ -272,9 +285,10 @@ update screen says the image cannot be checked, rather than installing whatever
 it is handed. `pq_tool keygen` refuses to overwrite an existing key — there is
 no second copy, and a device carrying the old public half has no way back.
 
-`tools/make_web_release.sh` appends the signature to
-`kiss-signer-<version>-update.bin` after `espsecure` has signed it, then reads
-it back through the device's own splitter. It refuses to publish unless
+`tools/make_web_release.sh` appends the signature to each board's
+`kiss-signer-<version>-update.bin` (`-ws35-update.bin` for the Waveshare 3.5in)
+after `espsecure` has signed it, then reads it back through the device's own
+splitter. It refuses to publish unless
 `main/pq_release_pubkey.h` is the public half of the key that just signed:
 nothing downstream can notice otherwise, and the release would be correctly
 signed, hashed, served, and refused by every device that installed it.

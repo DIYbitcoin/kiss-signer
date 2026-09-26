@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "kiss_board.h"
 #include "kiss_gword.h"
 
 static int gfails;
@@ -32,7 +33,15 @@ static void w_lift(void)  { g_stroke++; }
 // Straight segment from the current end, sampled the way the panel does: the
 // collector keeps a point only once the finger moved 10px, so ~12px steps are
 // what the recogniser actually receives.
+//
+// Every coordinate in this file is on the 800x480 design canvas, and this is
+// the one place it becomes the board's: the recogniser's floor is SX(120), so
+// a word drawn in raw pixels would be a different size relative to it on every
+// board, and the 7in's larger canvas turned the small word below into a
+// refusal. Scaled here, each case asks the same question on every board.
 static void w_to(int x, int y) {
+    x = SX(x);
+    y = SY(y);
     int fx = g_n ? g_xs[g_n - 1] : x, fy = g_n ? g_ys[g_n - 1] : y;
     if (!g_n) { g_xs[g_n] = x; g_ys[g_n] = y; g_sid[g_n] = (uint8_t)g_stroke; g_n++; return; }
     int dx = x - fx, dy = y - fy;

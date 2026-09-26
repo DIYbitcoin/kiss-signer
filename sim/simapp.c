@@ -40,8 +40,10 @@
 #include "kiss_scan.h"
 #endif
 
-#define HRES 800
-#define VRES 480
+#include "kiss_board.h"
+#include "kiss_touch.h"   // the same touch cache the board reads through
+#define HRES SCREEN_W
+#define VRES SCREEN_H
 
 void build_game(void);            // main/main.c -- the device calls this too
 void kiss_trng_start(void);       // main/kiss_crypto.c
@@ -60,26 +62,52 @@ static uint16_t g_fb[HRES * VRES];
 // LVGL indev: main/main.c's game_tick() samples platform_read_touch() directly,
 // so the fruit game and the KISS unlock stroke never reach LVGL at all. Feed
 // the seam, not the widget layer, and both halves see the same finger.
+//
+// This is the raw LEVEL and the only writer of it is set_touch, which posts
+// every change into the touch cache in the same statement.
 static int  g_tx, g_ty;
 static bool g_pressed;
 
+// ...and through the same cache the board reads through (main/kiss_touch.h), so
+// driving this window exercises the replay the collector lives on rather than a
+// stand-in for it. The mouse button is the raw LEVEL; the collector is handed
+// the edges it has not been shown and the indev is handed the level, exactly as
+// on glass. Click twice inside one repaint here and the corner pair behaves the
+// way it does on the board.
 bool platform_read_touch(int *x, int *y) {
-    if (!g_pressed) return false;
-    *x = g_tx; *y = g_ty;
-    return true;
+    return kiss_touch_edge(x, y, lv_tick_get());
 }
+
+bool platform_read_touch_ui(int *x, int *y) { return kiss_touch_level(x, y); }
 
 static void set_touch(int x, int y, int down) {
     if (x < 0) x = 0; if (x >= HRES) x = HRES - 1;
     if (y < 0) y = 0; if (y >= VRES) y = VRES - 1;
     g_tx = x; g_ty = y; g_pressed = down ? true : false;
+    // One state change in, the way a sampler that never misses a frame would
+    // post it. No debounce: a mouse button does not lose contact with the glass.
+    kiss_touch_post(g_pressed, g_tx, g_ty, lv_tick_get());
 }
 
+// UPSIDE DOWN (kiss_board.h) turns the picture HERE, which is this program's
+// stand-in for the glass: g_fb goes to the SDL texture and to the screenshot
+// writer, and nothing reads it back by canvas coordinates -- unlike the
+// scripted walk's framebuffer, where the ink check does and the reflection
+// therefore has to wait until the file is written. So it can live in the
+// flush, which is also where the Guition's own 180 lives.
+//
+// map_pointer reflects to match, and has to: the window is showing a turned
+// picture, so a click at window (x,y) is a press on whatever canvas pixel was
+// drawn there. Picture one way, pointer back the other, is exactly the pair
+// the device has to get right as well -- and here it can be driven by hand.
 static void flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px) {
     uint16_t *p = (uint16_t *)px;
+    const bool flip = kiss_flip_get();
     for (int y = area->y1; y <= area->y2; y++)
         for (int x = area->x1; x <= area->x2; x++, p++)
-            if (x >= 0 && x < HRES && y >= 0 && y < VRES) g_fb[y * HRES + x] = *p;
+            if (x >= 0 && x < HRES && y >= 0 && y < VRES)
+                g_fb[flip ? (VRES - 1 - y) * HRES + (HRES - 1 - x)
+                          : y * HRES + x] = *p;
     lv_display_flush_ready(disp);
 }
 
@@ -255,8 +283,10 @@ static bool kiss_script_step(void)
     if (g_kiss_hold > 0) { g_kiss_hold--; return true; }
     int16_t x = g_kiss[g_kiss_at][0], y = g_kiss[g_kiss_at][1];
     g_kiss_at++;
-    if (x == KP_END) { g_kiss_at = -1; g_pressed = false; return false; }
-    if (x == KP_UP)  { g_pressed = false; g_kiss_hold = 2; return true; }
+    // Lift through set_touch, never by dropping the flag on its own: the level
+    // and the cache's edge count are one statement (main/kiss_touch.h).
+    if (x == KP_END) { g_kiss_at = -1; set_touch(g_tx, g_ty, 0); return false; }
+    if (x == KP_UP)  { set_touch(g_tx, g_ty, 0); g_kiss_hold = 2; return true; }
     set_touch(x, y, 1);
     return true;
 }
@@ -391,14 +421,19 @@ static bool path_step(void) {
         return true;
     }
     if (g_btn_down) return true;               // held still: keep reporting it
-    g_pressed = false;
+    set_touch(g_tx, g_ty, 0);
     return false;
 }
 
 // Window coordinates -> the 800x480 panel. The strip below it is not the panel,
 // so a press down there never reaches the signer.
 static void map_pointer(int wx, int wy) {
-    path_extend(wx / g_scale, wy / g_scale);
+    int x = wx / g_scale, y = wy / g_scale;
+    // The window shows the flush's picture, so when that is turned the press
+    // has to be turned back before anything measures it in canvas space. See
+    // flush_cb.
+    if (kiss_flip_get()) { x = HRES - 1 - x; y = VRES - 1 - y; }
+    path_extend(x, y);
 }
 static bool in_panel(int wx, int wy) { return wy / g_scale < VRES; }
 static void render(void);

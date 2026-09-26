@@ -56,7 +56,7 @@ void kiss_settings_sim_set_load_result(kiss_settings_load_status_t status,
                                          int error_code);
 #endif
 
-// Full-screen language picker (21 locale choices + flags). Persists NVS "lang"
+// Full-screen language picker (22 locale choices + flags). Persists NVS "lang"
 // on pick, then calls picked_cb (which owns rebuilding its screen; the overlay
 // is a child of `parent` and dies with it). Also used by first-boot setup.
 void kiss_lang_picker_open(lv_obj_t *parent, void (*picked_cb)(void));

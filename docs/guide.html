@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#070a10">
     <meta
       name="description"
-      content="KISS Signer documentation: how signing works, checking your download, first boot, where your recovery words are kept, and best practices."
+      content="KISS Signer documentation: how signing works, checking your download, creating your keys, where your seed words are kept, and best practices."
     >
     <title>KISS Signer Docs</title>
     <link rel="stylesheet" href="styles.css">
@@ -1079,7 +1079,7 @@
         font-size: 0.84rem;
       }
       .first-run b {
-        color: var(--green);
+        color: var(--accent);
         font-family: var(--mono);
         margin-right: 6px;
       }
@@ -1434,7 +1434,7 @@
               <span>First run</span>
               <svg class="rail-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
             </summary>
-            <a href="#firstboot">First boot</a>
+            <a href="#firstboot">Create your keys</a>
             <a href="#roundtrip">TESTNET round trip</a>
             <a href="#cautions">Before you sign</a>
             <a href="#storage">Storage</a>
@@ -1525,7 +1525,7 @@
         </p>
       </section>
 <section class="doc-card reveal" id="features" aria-label="Features">
-        <p class="eyebrow">02 / what it does</p>
+        <p class="eyebrow">02 / features</p>
         <h2>What it does</h2>
         <div class="feats">
           <article>
@@ -1563,8 +1563,8 @@
 
           </article>
           <article>
-            <div class="feat-head"><svg class="feat-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5h13.5a3.5 3.5 0 0 1 0 7H7"/><path d="M7.5 5 4 8.5 7.5 12"/><path d="M9.5 12.5 6 16l3.5 3.5"/></svg><span>SILENT PAYMENTS</span></div>
-            <h3>One address you can reuse</h3>
+            <div class="feat-head"><svg class="feat-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5h13.5a3.5 3.5 0 0 1 0 7H7"/><path d="M7.5 5 4 8.5 7.5 12"/><path d="M9.5 12.5 6 16l3.5 3.5"/></svg><span>PRIVACY</span></div>
+            <h3>Silent payments</h3>
             <p>One <code>sp1</code> address you can hand out repeatedly, without the privacy cost of address reuse. An optional scan key lets your coordinator find those payments, never spend them.</p>
           </article>
           <article>
@@ -1573,14 +1573,18 @@
             <p>Every amount, the fee and the change are recomputed here, not taken on trust. Anything risky turns amber before you can sign.</p>
           </article>
           <article>
-            <div class="feat-head"><svg class="feat-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.2"/><path d="M2.8 12h18.4"/><path d="M12 2.8a15 15 0 0 1 0 18.4"/><path d="M12 2.8a15 15 0 0 0 0 18.4"/></svg><span>21 LANGUAGES</span></div>
+            <div class="feat-head"><svg class="feat-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.2"/><path d="M2.8 12h18.4"/><path d="M12 2.8a15 15 0 0 1 0 18.4"/><path d="M12 2.8a15 15 0 0 0 0 18.4"/></svg><span>22 LANGUAGES</span></div>
             <h3>Including CJK and Cyrillic</h3>
             <p>Each with its own font. Buttons resize rather than truncate, and the build fails if a key action gets too small to read.</p>
           </article>
           <article>
             <div class="feat-head"><svg class="feat-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 20.5h17"/><path d="M6.5 20.5v-6"/><path d="M11 20.5V8"/><path d="M15.5 20.5v-9"/><path d="M20 20.5V4.5"/></svg><span>AUDIT IT YOURSELF</span></div>
-            <h3>The signer proves parts of itself</h3>
+            <h3>It checks its own randomness</h3>
             <p>Keys are only as good as the entropy behind them, so the device audits its own: 5000 samples from the chip into a live histogram, scored for evenness. A lopsided chart means bad randomness.</p>
+            <figure class="shot-wide">
+              <img src="media/audit-randomness.png" alt="The RANDOMNESS AUDIT screen: a histogram of 5000 samples counted into 100 groups, a spread score of 105.920 inside a fair range of 61.137 to 148.230, marked EVEN and ON CHIP">
+              <figcaption>A fair chip fails this about one run in 500, so one lopsided chart means run it again, not throw the board away.</figcaption>
+            </figure>
           </article>
         </div>
       </section>
@@ -1588,9 +1592,16 @@
         <p class="eyebrow">03 / the device</p>
         <h2>The device, and the one mod it needs</h2>
         <p>
-          One board, no soldering: the Guition <strong>JC4880P443C</strong>. It
-          ships with a colour touchscreen, a camera and a microSD slot. The one
-          job left to you is turning the camera around.
+          Three boards, no soldering: the Guition <strong>JC4880P443C</strong>
+          (4.3in), the Waveshare <strong>ESP32-P4-WIFI6-Touch-LCD-3.5</strong>
+          (3.5in) and the Guition <strong>JC1060P470C</strong> (7in). Each has
+          a colour touchscreen, a camera and a microSD slot. The one job left to
+          you is making sure the camera faces out the back, away from you.
+        </p>
+        <p>
+          The firmware runs on boards with a v1.x ESP32-P4 chip. Boards with
+          the newer v3.x chip are not supported yet; <code>esptool</code>
+          prints the revision when it connects.
         </p>
         <h3>About the radio</h3>
         <p>
@@ -1607,8 +1618,8 @@
         </p>
         <h3>Flip the camera (one-time, required for QR scanning)</h3>
         <p>
-          The camera ships facing the user. Reading a QR from your coordinator
-          needs it facing out. Simple but fiddly:
+          On the Guition 4.3in the camera ships facing the user. Reading a QR
+          from your coordinator needs it facing out. Simple but fiddly:
         </p>
         <ol>
           <li>Lift the screen off with a small suction cup tool.</li>
@@ -1631,7 +1642,9 @@
         <h2>Check the download before you trust it</h2>
         <p>Everything for a release sits on the GitHub Releases tab:</p>
         <ul>
-          <li><code>kiss-signer-&lt;version&gt;.bin</code> &mdash; the firmware</li>
+          <li><code>kiss-signer-&lt;version&gt;.bin</code> &mdash; the firmware, for the Guition 4.3in</li>
+          <li><code>kiss-signer-&lt;version&gt;-ws35.bin</code> &mdash; the firmware for the Waveshare 3.5in</li>
+          <li><code>kiss-signer-&lt;version&gt;-jc1060.bin</code> &mdash; the firmware for the Guition 7in</li>
           <li><code>SHA256SUMS</code> &mdash; its hashes</li>
           <li><code>SHA256SUMS.asc</code> &mdash; the signature over those hashes</li>
           <li><code>kiss_signer_pgp.asc</code> &mdash; the key that signed them</li>
@@ -1661,6 +1674,8 @@ sha256sum --ignore-missing -c SHA256SUMS         # Linux</code></pre>
         <h3>Windows</h3>
         <p>
           Hash with <code>Get-FileHash firmware\kiss-signer-&lt;version&gt;.bin</code>
+          (<code>-ws35.bin</code> on the Waveshare 3.5in, <code>-jc1060.bin</code>
+          on the Guition 7in)
           in PowerShell and compare against <code>SHA256SUMS</code> by eye. Verify the
           signature with <a href="https://gpg4win.org">Gpg4win</a>.
         </p>
@@ -1684,6 +1699,15 @@ sha256sum --ignore-missing -c SHA256SUMS         # Linux</code></pre>
           release</a>, drop the file ending <strong>-update.bin</strong> in the
           top level of an SD card. That is the whole preparation.
         </p>
+        <p>
+          Each board has its own: <code>-ws35-update.bin</code> is the Waveshare
+          3.5in&rsquo;s, <code>-jc1060-update.bin</code> the Guition 7in&rsquo;s,
+          and the one with no board in its name the Guition 4.3in&rsquo;s. From
+          beta11 on the device refuses another board&rsquo;s file. Beta10 does
+          not check, so take your board&rsquo;s; if the screen stays dark after
+          a wrong one, power it off and on and it goes back to the firmware it
+          had.
+        </p>
         <div class="note">
           Take <code>-update.bin</code>, not the plain <code>.bin</code>. The
           plain one starts with the bootloader; a running device looks past that
@@ -1706,7 +1730,7 @@ sha256sum --ignore-missing -c SHA256SUMS         # Linux</code></pre>
         </p>
       </section>
 <section class="doc-card reveal" id="esptool" aria-label="Flash from the command line">
-        <p class="eyebrow">06 / the other way in</p>
+        <p class="eyebrow">06 / esptool, over usb</p>
         <h2>Flash it from the command line</h2>
         <p class="lede">
           Safari and Firefox will not let a web page reach USB, which is why the
@@ -1721,12 +1745,16 @@ sha256sum --ignore-missing -c SHA256SUMS         # Linux</code></pre>
 <pre><code>pip install esptool        # or: pipx install esptool
 
 # find your device's port:
-#   macOS    /dev/cu.usbmodem*
+#   macOS    /dev/cu.usbmodem*  (the 3.5in may show as /dev/cu.wchusbserial*)
 #   Linux    /dev/ttyACM*
 #   Windows  COM3, COM4, ...
 
 # check the download first, the same check as the page before this one
 shasum -a 256 --ignore-missing -c SHA256SUMS
+
+# your board's image: kiss-signer-&lt;version&gt;.bin on the Guition 4.3in,
+# kiss-signer-&lt;version&gt;-ws35.bin on the Waveshare 3.5in,
+# kiss-signer-&lt;version&gt;-jc1060.bin on the Guition 7in
 
 esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
   --before default-reset --after no-reset write-flash \
@@ -1755,8 +1783,8 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         <p>
           From the <a href="https://github.com/DIYbitcoin/kiss-signer/releases/latest">latest
           release</a>, take <strong>kiss-signer-&lt;version&gt;-offline.zip</strong>,
-          about 6.5&nbsp;MB. It holds the firmware, the install page and this
-          guide. Nothing in it reaches out.
+          under 10&nbsp;MB. It holds the firmware for every board the release
+          carries, the install page and this guide. Nothing in it reaches out.
         </p>
         <p>
           Check it before you trust it. The zip has its own signature, and the
@@ -1802,25 +1830,26 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           closes that by turning two locks on its first boot.
         </p>
 
-        <h3>Lock one: the chip scrambles everything it stores</h3>
+        <h3>Lock one: flash encryption</h3>
         <p>
-          The device generates a key by itself and writes it where
-          <em>nothing</em> can read it back &mdash; not your computer, not us,
-          not you. Everything saved after that is encrypted with it, so prying
-          the memory open reads noise. Seed words live in their own store, which
-          that encryption does not cover; it gets its own lock at the same time.
+          The chip scrambles everything it stores. It generates a key by
+          itself and writes it where <em>nothing</em> can read it back
+          &mdash; not your computer, not us, not you. Everything saved after
+          that is encrypted with it, so prying the memory open reads noise.
+          Seed words live in their own store, which that encryption does not
+          cover; it gets its own lock at the same time.
         </p>
 
-        <h3>Lock two: the device stops running strangers&rsquo; software</h3>
+        <h3>Lock two: secure boot</h3>
         <p>
-          It will only start firmware signed with keys <em>you</em> made and
-          keep, so nobody can quietly swap the signer for a lookalike that
-          phones your seed home.
+          The device stops running strangers&rsquo; software. It will only
+          start firmware signed with keys <em>you</em> made and keep, so
+          nobody can quietly swap the signer for a lookalike that phones your
+          seed home.
         </p>
         <p>
-          Both locks turn together, on that first boot. A device that got only
-          the first can never accept the second afterwards, so it is both or
-          neither.
+          Both turn together. A device that took only one can never accept
+          the other, so it is both or neither.
         </p>
 
         <div class="danger">
@@ -1857,8 +1886,8 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         </p>
       </section>
 <section class="doc-card reveal" id="firstboot">
-        <p class="eyebrow">09 / hand it to anyone</p>
-        <h2>Getting in the first time</h2>
+        <p class="eyebrow">09 / seed words and passphrase</p>
+        <h2>Create your keys</h2>
         <p>
           Three rules first. The device will not stop to say them.
         </p>
@@ -1922,9 +1951,8 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           <figcaption id="derive-cap">
             All three come from the master key, and the master key comes from
             both halves. Change the passphrase and you get a different master
-            key, so all three change together. That is why there is no wrong
-            passphrase: a different one is not an error, it is a different set
-            of keys, and the fingerprint is how you tell which set you are in.
+            key, so all three change together, and the fingerprint is how you
+            tell which set you are in.
           </figcaption>
         </figure>
         <p class="try">
@@ -2043,7 +2071,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         </div>
       </section>
 <section class="doc-card reveal" id="cautions">
-        <p class="eyebrow">11 / nothing is signed unseen</p>
+        <p class="eyebrow">11 / it checks, you confirm</p>
         <h2>What KISS checks before you sign</h2>
         <p class="lede">
           KISS re-derives the whole transaction on its own screen and speaks up
@@ -2105,28 +2133,32 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           your coordinator. Any caution gates the sign button behind
           <strong>I UNDERSTAND</strong>.
         </p>
-        <h3>While you are learning</h3>
-        <p>
-          Tap the <strong>?</strong> beside any unfamiliar term &mdash; RBF,
-          fingerprint, coordinator, dust &mdash; for a short card. On the
-          signed-QR screen, <strong>EASY SCAN</strong> slows the loop and
-          enlarges the dots for stubborn cameras. Tapping the KISS logo on the
-          game menu locks straight back to the game.
-        </p>
-        <p>
-          Settings shows what is on the device, bottom-left:
-          <code>KISS &lt;version&gt; (&lt;commit&gt;)</code>, plus a note while
-          flash encryption is off.
-        </p>
+        <h3>Small things worth knowing</h3>
+        <ul>
+          <li><strong>?</strong> beside an unfamiliar term &mdash; RBF,
+            fingerprint, coordinator, dust &mdash; opens a short card.</li>
+          <li><strong>EASY SCAN</strong>, on the signed-QR screen, slows the
+            loop and enlarges the dots for stubborn cameras.</li>
+          <li>Tapping the KISS logo on the game menu locks straight back to
+            the game.</li>
+          <li>Settings, bottom-left, shows what is on the device:
+            <code>KISS &lt;version&gt; (&lt;commit&gt;)</code>, and says so
+            while flash encryption is off.</li>
+        </ul>
       </section>
 <section class="doc-card reveal" id="storage">
         <p class="eyebrow">12 / three storage modes</p>
-        <h2>Where your recovery words are kept</h2>
+        <h2>Where your seed words are kept</h2>
         <p class="lede">
           Setup asks once, and Settings can change it later. What differs is
           what someone gets when they physically take the device, the card, or
           both.
         </p>
+
+        <figure class="shot-wide">
+          <img src="media/setup-storage.png" alt="The setup screen headed WHERE TO KEEP YOUR SEED WORDS, offering FLASH, SD CARD and AMNESIC, under the line choose what remains after you power off">
+          <figcaption>What each answer costs is the table below.</figcaption>
+        </figure>
 
         <figure class="matrix-wrap">
           <table class="matrix">
@@ -2730,7 +2762,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
 
         function build(card) {
           toc.textContent = "";
-          if (spy) { spy.disconnect(); spy = null; }
+          if (spy) { window.removeEventListener("scroll", spy); spy = null; }
 
           /* Step and feature headings count. They were excluded because
              listing them repeats the list beside itself, which is true, and
@@ -2770,19 +2802,32 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           });
           toc.hidden = false;
 
-          if (!("IntersectionObserver" in window)) return;
-          spy = new IntersectionObserver(
-            function (entries) {
-              entries.forEach(function (en) {
-                if (!en.isIntersecting) return;
-                links.forEach(function (a) { a.classList.remove("is-here"); });
-                var a = links.get(en.target);
-                if (a) a.classList.add("is-here");
-              });
-            },
-            { rootMargin: "-88px 0px -70% 0px" }
-          );
-          heads.forEach(function (h) { spy.observe(h); });
+          /* Which heading you are in is a scroll position question, not a
+             visibility one, and an observer cannot answer it at the foot of
+             the page: the last heading never reaches the band under the
+             topbar, so the mark sat one heading behind for the whole final
+             screen of every topic. Read the positions instead, and treat the
+             end of the document as the last heading outright. */
+          spy = function () {
+            var line = 140;
+            var cur = heads[0];
+            heads.forEach(function (h) {
+              if (h.getBoundingClientRect().top <= line) cur = h;
+            });
+            /* Headings in the last screenful never reach the line, because
+               there is no scroll left to carry them there. Once the page has
+               run out, the last heading is the one you are in. The few pixels
+               of slack cover a page that grows slightly as it settles. */
+            var doc = document.documentElement;
+            if (window.scrollY >= doc.scrollHeight - window.innerHeight - 4) {
+              cur = heads[heads.length - 1];
+            }
+            links.forEach(function (a, h) {
+              a.classList.toggle("is-here", h === cur);
+            });
+          };
+          window.addEventListener("scroll", spy, { passive: true });
+          spy();
         }
 
         window.__docsToc = build;

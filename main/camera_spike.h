@@ -1,5 +1,6 @@
-// Step 2 of the wallet build order: camera spike (OV02C10 over MIPI-CSI).
-// Goal: prove a live video stream once, then park it. Device-only (no sim).
+// Step 2 of the wallet build order: camera spike (OV02C10 over MIPI-CSI on the
+// Guition, OV5647 on the 3.5in). Goal: prove a live video stream once, then
+// park it. Device-only (no sim).
 #pragma once
 #include <stdbool.h>
 #include <stddef.h>
@@ -11,6 +12,10 @@
 // Give the spike the DPI panel handle + BOTH framebuffers (num_fbs=2). The live
 // preview is rendered by the PPA directly into the off-screen framebuffer and
 // flipped — LVGL is bypassed while streaming (no tear).
+//
+// The 3.5in passes the ST7796's handle and two NULLs: an SPI panel has no
+// framebuffer, so the camera renders into a scratch of its own and sends the
+// preview through kiss_board_blit (kiss_board.h).
 void camera_spike_set_panel(esp_lcd_panel_handle_t panel, void *fb0, void *fb1);
 
 // Toggle the live camera view on/off. Lazily initializes the pipeline on first
@@ -34,12 +39,40 @@ const char *camera_spike_status(void);
 // panel while streaming, preview rect included: that is what makes a live column
 // beside the video work, and a repaint that lands on the preview is corrected by
 // the next video frame rather than being held off.
+//
+// On the 3.5in the controller turns the glass, so the rect is the panel rect as
+// given and there is no framebuffer to flip or tear; the full-panel default is
+// the whole 480x320 canvas, sent as a rect like any other.
 void camera_spike_set_preview_rect(int x, int y, int w, int h);
+
+// The device turned over (kiss_board.h): re-derive whatever the camera holds
+// in PANEL coordinates from the landscape rect it was given. The board layer
+// calls it from kiss_flip_set, so the rect can never be left mapped for the
+// orientation the device has just stopped being in.
+//
+// A no-op on the 3.5in, and that is the whole difference between the two
+// boards here: there the flip is the controller's address map, so the preview
+// and its overlays cross it on the way out and every number stays what it
+// was. On the Guition the picture is composed in the framebuffer BEFORE the
+// beam reads it, so the camera turns its own three parts.
+//
+// Today the flip lives on Settings and no camera runs there, so this is
+// called between sessions rather than during one. Nothing enforces that, and
+// this is what makes it not matter.
+void camera_spike_flip_refresh(void);
 
 // True only while the live preview covers the WHOLE panel, which is the one
 // state in which LVGL must not paint. With a preview rect set, LVGL paints
-// everywhere and the video reclaims its rectangle on the next frame.
+// everywhere and the video reclaims its rectangle on the next frame. Never true
+// on the 3.5in: its panel keeps the only copy of the picture, so a flush LVGL
+// skipped there would be a region the glass never got back.
 bool camera_spike_owns_panel(void);
+
+// The 7in only (camera_spike.c says why): a flush holds this across its copy
+// into the framebuffer and the write back, so no camera frame lands between.
+// Defined on no other board, which is why nothing else calls it.
+void camera_spike_fb_lock(void);
+void camera_spike_fb_unlock(void);
 
 // Freeze the preview WITHOUT tearing the pipeline down: the stream task keeps
 // dequeuing frames but stops blitting and stops decoding, so LVGL owns the whole
@@ -47,8 +80,9 @@ bool camera_spike_owns_panel(void);
 // stop-and-restart costs a second of "STARTING".
 //
 // Any screen that opens something over a live preview must call this. The video
-// writes past LVGL straight into the scanned-out framebuffer, so an overlay alone
-// is a picture with a hole in it and a decoder still running underneath.
+// writes past LVGL straight into the scanned-out framebuffer (on the 3.5in, over
+// the shared SPI bus), so an overlay alone is a picture with a hole in it and a
+// decoder still running underneath.
 void camera_spike_pause(bool on);
 
 // True while the preview is live.
@@ -101,5 +135,6 @@ int camera_entropy_reason(void);
 // i2c_bus is really i2c_master_bus_handle_t (void* keeps sim includes clean).
 bool camera_scan_start(void *i2c_bus, void (*on_decode)(const char *data, size_t len));
 void camera_scan_stop(void);
-// Assembly progress, drawn as a bar into the video (LVGL is covered while live).
+// Assembly progress, drawn as a bar into the video when the preview is full
+// screen; a screen with a preview rect shows it in LVGL beside the video.
 void camera_scan_progress(int seen, int total);

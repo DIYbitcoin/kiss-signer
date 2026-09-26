@@ -59,11 +59,19 @@ printf 'x\n\nCLAUDE.md names them now, beside the device compiler.\n'      > "$T
 # wrong. This file and tools/hooks/* are excluded from the attribution lane's
 # tracked-file grep for exactly this reason.
 printf 'x\n\nbody.\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n' > "$T/trailer"
+# The length check only warns, so its proof is what it prints. The 50-character
+# subject is 52 bytes because of the em dash: a byte count would flag it, a
+# character count must not. The 51-character one must be flagged AND go through.
+printf 'Count this subject by characters — never by bytes!\n\nbody.\n'  > "$T/at50"
+printf 'Count this subject by characters — never by bytes!!\n\nbody.\n' > "$T/at51"
 fail=0
 sh "$DEST/commit-msg" "$T/refuse"  >/dev/null 2>&1 && { echo "hook selftest: a message naming a tool was ACCEPTED"; fail=1; }
 sh "$DEST/commit-msg" "$T/pass"    >/dev/null 2>&1 || { echo "hook selftest: the rewritten message was refused";   fail=1; }
 sh "$DEST/commit-msg" "$T/name"    >/dev/null 2>&1 && { echo "hook selftest: the retired filename exception still excuses"; fail=1; }
 sh "$DEST/commit-msg" "$T/trailer" >/dev/null 2>&1 || { echo "hook selftest: a trailer was refused, not stripped"; fail=1; }
 grep -qi 'co-authored-by' "$T/trailer" && { echo "hook selftest: the trailer survived"; fail=1; }
+sh "$DEST/commit-msg" "$T/at50" 2>&1 | grep -q 'subject is' && { echo "hook selftest: a 50-character subject was flagged"; fail=1; }
+sh "$DEST/commit-msg" "$T/at51" 2>&1 | grep -q 'subject is 51' || { echo "hook selftest: a 51-character subject went unflagged"; fail=1; }
+sh "$DEST/commit-msg" "$T/at51" >/dev/null 2>&1 || { echo "hook selftest: a long subject was refused, not warned"; fail=1; }
 [ "$fail" = 0 ] || { echo "hook selftest FAILED -- the installed hook is not doing its job"; exit 1; }
-echo "hook selftest: 5 checks, 0 broken"
+echo "hook selftest: 8 checks, 0 broken"

@@ -3,6 +3,9 @@
 // the fingerprint shown HUGE after entry (there is no "wrong passphrase" error
 // by design; the fingerprint is how you recognize your wallet).
 #include "kiss_ui.h"
+#ifndef SIMULATOR
+#include "esp_log.h"   // the STOP screens say why on the serial log
+#endif
 
 #include <stdio.h>
 #include <string.h>
@@ -195,12 +198,22 @@ bool kiss_ui_login_deadline_active(void) {
 #define KEY_SYM   "123"
 #define KEY_SYM2  "#+="
 #define KEY_ABC   "abc"
+#if KISS_NARROW
+// Dead glass, not a key: the 3.5in's thumb row puts one on each side of CANCEL
+// (see key_units). Hidden and disabled, so it draws nothing and a press on it
+// does nothing, and the label is one no handler below compares against.
+#define KEY_GAP   "gap"
+// One thumb row for all five planes; only its first key changes.
+#define THUMB_ROW(first) first, KEY_GAP, "CANCEL", KEY_GAP, " ", "OK", ""
+#else
+#define THUMB_ROW(first) first, "CANCEL", " ", "OK", ""
+#endif
 
 static const char *MAP_LOWER[] = {
     "q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "\n",
     "a", "s", "d", "f", "g", "h", "j", "k", "l", "\n",
     KEY_SHIFT, "z", "x", "c", "v", "b", "n", "m", LV_SYMBOL_BACKSPACE, "\n",
-    KEY_SYM, "CANCEL", " ", "OK", ""};
+    THUMB_ROW(KEY_SYM)};
 // Two upper planes, identical keys. One-shot drops back to lowercase after a
 // single character; CAPS stays until tapped again. The lower and upper planes
 // now share a shift GLYPH, so the difference between them is carried by the
@@ -209,12 +222,12 @@ static const char *MAP_UPPER[] = {
     "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "\n",
     "A", "S", "D", "F", "G", "H", "J", "K", "L", "\n",
     KEY_SHIFT, "Z", "X", "C", "V", "B", "N", "M", LV_SYMBOL_BACKSPACE, "\n",
-    KEY_SYM, "CANCEL", " ", "OK", ""};
+    THUMB_ROW(KEY_SYM)};
 static const char *MAP_CAPS[] = {
     "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "\n",
     "A", "S", "D", "F", "G", "H", "J", "K", "L", "\n",
     KEY_CAPS, "Z", "X", "C", "V", "B", "N", "M", LV_SYMBOL_BACKSPACE, "\n",
-    KEY_SYM, "CANCEL", " ", "OK", ""};
+    THUMB_ROW(KEY_SYM)};
 // two symbol planes so ALL 32 ASCII punctuation chars are reachable (spec:
 // passphrase = printable ASCII; an untypeable char = an unrecoverable wallet).
 // This is why the letter planes say "123" and not "123" alone would do: the
@@ -223,24 +236,62 @@ static const char *MAP_SYM[] = {
     "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "\n",
     "!", "@", "#", "$", "%", "&", "(", ")", "?", "\n",
     KEY_SYM2, "-", "_", "=", "+", ".", ",", "/", LV_SYMBOL_BACKSPACE, "\n",
-    KEY_ABC, "CANCEL", " ", "OK", ""};
+    THUMB_ROW(KEY_ABC)};
 static const char *MAP_SYM2[] = {
     "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "\n",
     "\"", "'", ":", ";", "[", "]", "{", "}", "*", "\n",
     KEY_SYM, "<", ">", "\\", "|", "`", "~", "^", LV_SYMBOL_BACKSPACE, "\n",
-    KEY_ABC, "CANCEL", " ", "OK", ""};
+    THUMB_ROW(KEY_ABC)};
+
+#if KISS_NARROW
+// Key widths in units on the 3.5in. The third row gives shift and backspace 3
+// units against 2 per letter: at 1 each, #+= fills its key to 4 px of either
+// edge.
+//
+// The thumb row is 123 4, gap 1, CANCEL 6, gap 1, space 8, OK 6 of 26. CANCEL
+// throws away what was typed -- in setup, a seed's only passphrase -- and it
+// sat one gap from 123 and the space bar, the two keys a thumb reaches for
+// most in that row. A gap wide enough to separate it was a gap every letter
+// paid for too, so the gaps shrank to 6 px and CANCEL alone has dead glass
+// beside it: a hidden, disabled key each side (KEY_GAP), about 30 px from the
+// edge of 123 or space to the edge of CANCEL where a press does nothing. The
+// ids after 123 move up by the first gap, so CANCEL is 30 and OK 33 here.
+// key_rect reads the same table.
+#define KB_THUMB_N 6
+#define KB_ID_OK   33
+static int key_units(uint32_t id) {
+  static const uint8_t thumb[KB_THUMB_N] = {4, 1, 6, 1, 8, 6};
+  if (id == 19 || id == 27) return 3;
+  if (id > 19 && id < 27) return 2;
+  if (id >= 28 && id < 28 + KB_THUMB_N) return thumb[id - 28];
+  return 1;
+}
+static bool key_is_gap(uint32_t id) { return id == 29 || id == 31; }
+#else
+#define KB_ID_OK   31
+#endif
 
 // every plane keeps the same 10/9/9/4 button layout, so key_rect() and the
-// id-based ctrls (space #30 width, OK #31 accent) hold on all of them; ctrls
-// are re-asserted anyway since LVGL may reset them on map change
+// id-based ctrls (space #30 width, OK #31 accent; on the 3.5in the thumb row's
+// widths and gaps, OK #33) hold on all of them; ctrls are re-asserted anyway
+// since LVGL may reset them on map change
 static void kb_plane(lv_obj_t *kb, const char **map) {
   lv_buttonmatrix_set_map(kb, map);
   // hold-to-repeat ONLY on backspace (id 27 on every plane): a slow press on a
   // character key must never repeat into the masked field (silent-input footgun)
   lv_buttonmatrix_set_button_ctrl_all(kb, LV_BUTTONMATRIX_CTRL_NO_REPEAT);
   lv_buttonmatrix_clear_button_ctrl(kb, 27, LV_BUTTONMATRIX_CTRL_NO_REPEAT);
+#if KISS_NARROW
+  for (uint32_t id = 19; id < 28 + KB_THUMB_N; id++) {   // see key_units
+    lv_buttonmatrix_set_button_width(kb, id, key_units(id));
+    if (key_is_gap(id))
+      lv_buttonmatrix_set_button_ctrl(kb, id, LV_BUTTONMATRIX_CTRL_HIDDEN |
+                                              LV_BUTTONMATRIX_CTRL_DISABLED);
+  }
+#else
   lv_buttonmatrix_set_button_width(kb, 30, 3);
-  lv_buttonmatrix_set_button_ctrl(kb, 31, LV_BUTTONMATRIX_CTRL_CHECKED);
+#endif
+  lv_buttonmatrix_set_button_ctrl(kb, KB_ID_OK, LV_BUTTONMATRIX_CTRL_CHECKED);
   // Shift is id 19 (10 + 9 keys before it). Lower and upper share a glyph, so
   // the lit key is the whole difference between "the next letter is a capital"
   // and "it is not". Assert it on every plane swap rather than trusting LVGL to
@@ -252,12 +303,19 @@ static void kb_plane(lv_obj_t *kb, const char **map) {
 }
 
 // ---- LVGL pointer indev over the same touch seam the game uses ----
-extern bool platform_read_touch(int *x, int *y);
-
+//
+// The seam's UI entry point, not the game's, and the split is about what each
+// reader wants out of the one cached sample (main/kiss_touch.h). An indev is
+// shown a LEVEL every pass and builds its own presses, clicks and gestures out
+// of the sequence, so a level is all this one is given. game_tick's entry point
+// replays the edges a slow pass slept through, because it classifies taps
+// itself; replaying those into an indev would be a click at a coordinate the
+// finger had already left -- a phantom key on the passphrase keyboard, from a
+// contact that happened on another screen.
 static void indev_read(lv_indev_t *indev, lv_indev_data_t *data) {
   (void)indev;
   int x = 0, y = 0;
-  if (platform_read_touch(&x, &y)) {
+  if (platform_read_touch_ui(&x, &y)) {
     data->state = LV_INDEV_STATE_PRESSED;
     data->point.x = x;
     data->point.y = y;
@@ -297,6 +355,51 @@ void kiss_ui_drop_indev_for_test(void) {
 }
 #endif
 
+// Keyboard geometry, shared by the matrix itself, the key callout and the
+// 3.5in header fit below.
+#define KB_X 0
+#if KISS_NARROW
+// 104..320 on the 3.5in: down to the glass's own edge, and 6 px higher than
+// the 110 it started at, which the header can spare -- the counter row ends
+// at 100 (see COUNT_Y). Rows are 49 px, from 45.
+#define KB_Y 104
+#define KB_H 216
+// 6 px across, 5 down, 2 of pad. The gaps were 12 across to keep CANCEL clear
+// of its neighbours, which cost every letter 6 px of key; CANCEL has its own
+// dead glass now (see key_units), so the letters get the width back: 42 px
+// keys on the top row, from 37.
+#define KB_GAP_X 6
+#define KB_GAP_Y 5
+#define KB_PAD   2
+#else
+#define KB_Y SY(158)
+#define KB_H SY(316)
+#endif
+#define KB_W SCREEN_W
+#if !KISS_NARROW
+#define KB_PAD SX(6)
+#define KB_GAP_X KB_PAD
+#define KB_GAP_Y KB_PAD
+#endif
+
+#if KISS_NARROW
+// The 3.5in header, above a keyboard that starts at KB_Y (104). Scaled, the
+// SCAN and eye pills were 26 px tall and 5 px apart, the entry sat 61..84 and
+// the counter row at 88 put its descenders 3 px off the top key row. The
+// pills grow to 32 px with 12 px between them, the entry rises to 48, and the
+// counter row sits at 82 unless a wrapped entry pushes it down (hdr_fit).
+// SCAN is 68 wide because SCANNER and ESCANEA are 59 px at 14 px type; the
+// caption lane stops 12 px short of it.
+#define PILL_Y  8
+#define PILL_H  32
+#define SCAN_X  312
+#define SCAN_W  68
+#define EYE_X   392
+#define EYE_W   60
+#define ENTRY_Y 48
+#define COUNT_Y 82
+#endif
+
 // long-passphrase fitting: past ~78 chars show "..." + the tail (the newest
 // chars are what the user is checking). Never scroll-animate a masked secret.
 //
@@ -316,13 +419,13 @@ static void entry_apply(const char *txt, int chars) {
   // gate is not told when a 90 character passphrase lands on font14. There is
   // nothing here anybody can shorten.
   lv_obj_set_style_text_font(s_entry,
-                             wt_body_font_typed(txt ? txt : "", 704, 40), 0);
+                             wt_body_font_typed(txt ? txt : "", SX(704), SY(40)), 0);
   // SHOW means the user has already decided nobody is looking, so showing only
   // the tail buys nothing and hides the half they are trying to check (and the
   // half they are about to backspace through). Wrap instead: 128 chars of
   // font14 fit two lines of the 704px slot.
   if (s_show) {
-    lv_obj_set_width(s_entry, 704);
+    lv_obj_set_width(s_entry, SX(704));
     lv_label_set_long_mode(s_entry, LV_LABEL_LONG_WRAP);
     lv_label_set_text(s_entry, txt);
     return;
@@ -392,9 +495,15 @@ static void entry_refresh_text(void) {
     // The ghost prompt names what is being typed, and in KEF mode that is a
     // backup password, never a passphrase (vocabulary is load bearing here:
     // a passphrase opens a wallet, this opens an envelope).
-    lv_label_set_text(s_entry, tr(s_kef_mode && !s_kef_pass
-                                      ? STR_L_KEF_TYPE_PROMPT
-                                      : STR_L_TYPE_PROMPT));
+    //
+    // Where a passphrase is in play the prompt also says it is not one:
+    // opening a backup (the passphrase is typed next, and the two get
+    // swapped), or making one from keys that have a passphrase. Making one
+    // from keys with none keeps the plain prompt; there is nothing to confuse.
+    const bool kef_vs_pp = !s_kef_create || !kiss_session_decoy();
+    lv_label_set_text(s_entry, tr(!s_kef_mode || s_kef_pass ? STR_L_TYPE_PROMPT
+                                  : kef_vs_pp ? STR_L_KEF_OPEN_PROMPT
+                                              : STR_L_KEF_TYPE_PROMPT));
     lv_obj_set_style_text_color(s_entry, MUT_COL, 0);
     kiss_wipe(buf, sizeof buf);
     return;
@@ -419,12 +528,57 @@ static void entry_refresh_text(void) {
   kiss_wipe(buf, sizeof buf);
 }
 
+#if KISS_NARROW
+// The counter row follows the entry down when a SHOWN passphrase wraps: at a
+// fixed 88 the second line of a 90 character passphrase was drawn over
+// "characters: 90". If the pushed row would reach the keys, the entry climbs
+// instead, no higher than 2 px under the pills.
+//
+// The length hint sits centred in whatever the counter and the meter leave
+// between them, 12 px clear of each. "characters: 9 (spaces: 2)" beside
+// "longer is stronger" does not fit 480 px; the hint is coaching and the
+// meter beside it already says WEAK, so the hint is the one that stands down.
+static void hdr_fit(void) {
+  if (!s_entry || !s_count) return;
+  lv_obj_set_y(s_entry, ENTRY_Y);
+  lv_obj_update_layout(s_entry);
+  const int count_h = lv_font_get_line_height(wt_font14());
+  int ebot = ENTRY_Y + lv_obj_get_height(s_entry);
+  const int over = ebot + 2 + count_h - (KB_Y + KB_PAD);
+  if (over > 0) {
+    const int ey = LV_MAX(PILL_Y + PILL_H + 2, ENTRY_Y - over);
+    lv_obj_set_y(s_entry, ey);
+    ebot = ey + lv_obj_get_height(s_entry);
+  }
+  const int y = LV_MAX(COUNT_Y, ebot + 2);
+  lv_obj_set_y(s_count, y);
+  if (!s_meter || !s_pp_hint) return;
+  lv_obj_update_layout(s_count);
+  lv_obj_update_layout(s_meter);
+  lv_obj_update_layout(s_pp_hint);
+  // The meter ends where the eye pill does, whatever its word's width.
+  const int ml = EYE_X + EYE_W - lv_obj_get_width(s_meter);
+  lv_obj_set_pos(s_meter, ml, y);
+  const char *mt = lv_label_get_text(s_meter);
+  const char *ct = lv_label_get_text(s_count);
+  const int left = SX(48) + (ct && *ct ? lv_obj_get_width(s_count) + 12 : 0);
+  const int right = mt && *mt ? ml - 12 : EYE_X + EYE_W;
+  const int hw = lv_obj_get_width(s_pp_hint);
+  lv_obj_set_pos(s_pp_hint, left + (right - left - hw) / 2, y);
+  if (hw <= right - left) lv_obj_remove_flag(s_pp_hint, LV_OBJ_FLAG_HIDDEN);
+  else                    lv_obj_add_flag(s_pp_hint, LV_OBJ_FLAG_HIDDEN);
+}
+#endif
+
 // Text first, then the caret. The caret is placed by asking the label where a
 // character sits, so it can only be positioned once the text it indexes into
 // is the text actually on screen.
 static void entry_refresh(void) {
   if (s_caret > s_plen || s_caret < 0) s_caret = s_plen;   // never index off the end
   entry_refresh_text();
+#if KISS_NARROW
+  hdr_fit();
+#endif
   caret_refresh();
 }
 
@@ -449,7 +603,14 @@ static void flash_last(void) {
 // DIDN'T MATCH", "THAT OPENS A DIFFERENT WALLET". Only the eyebrow belongs at
 // 14. The rest auto-fit into the 486px left of the SCAN button, wrapping
 // rather than running underneath it when a translation is long.
-#define CAP_W 486
+// On the 3.5in the lane stops 12 px short of whatever pill is leftmost: SCAN,
+// or the eye when there is no SCAN (a backup password), where TYPE THE EXACT
+// BACKUP PASSPHRASE then fits at 18 px instead of dropping to 14.
+#if KISS_NARROW
+#define CAP_W ((s_kef_mode ? EYE_X : SCAN_X) - 12 - SX(48))
+#else
+#define CAP_W SX(486)
+#endif
 static void cap_set(const char *txt, lv_color_t col, bool alert) {
   if (!s_cap) return;
   lv_label_set_text(s_cap, txt);
@@ -459,8 +620,21 @@ static void cap_set(const char *txt, lv_color_t col, bool alert) {
   // of the strings coming through the quiet branch are instructions: "CREATE
   // YOUR PASSPHRASE" and "CREATE A BACKUP PASSWORD", both landing at font14 in
   // a 64px band.
-  lv_obj_set_style_text_font(s_cap, wt_body_font(txt, CAP_W, 58), 0);
-  lv_obj_set_pos(s_cap, 48, alert ? 22 : 28);
+  lv_obj_set_style_text_font(s_cap, wt_body_font(txt, CAP_W, SY(58)), 0);
+#if KISS_NARROW
+  // Centred on the pills' middle line, measured: a one line caption sat 5 px
+  // below the pills' centre and a two line alert ran to 50, onto the entry
+  // at 48. Two lines at 14 px now end by 42.
+  {
+    lv_point_t sz;
+    lv_text_get_size(&sz, txt, wt_body_font(txt, CAP_W, SY(58)), 0, 0, CAP_W,
+                     LV_TEXT_FLAG_NONE);
+    lv_obj_set_pos(s_cap, SX(48), LV_MAX(4, PILL_Y + PILL_H / 2 - sz.y / 2));
+  }
+  (void)alert;
+#else
+  lv_obj_set_pos(s_cap, SX(48), alert ? SY(22) : SY(28));
+#endif
 }
 
 // after a weak-ack warning, any edit returns the caption to the stage prompt
@@ -564,11 +738,26 @@ static void cancel_discard_cb(lv_event_t *e) {       // "discard": drop the stag
   (void)e;
   wipe_and_close();                                  // clears s_cancel_ovl too
 }
+#if KISS_NARROW
+// A two line body at 14 px hung under the title with 60 to 70 px of empty
+// card between it and the buttons on the 3.5in. Centred in the band between
+// the title and the control below, the same copy reads as the card's middle
+// rather than its top; a longer translation fills the band the same way.
+static void modal_body_centre(lv_obj_t *card, lv_obj_t *title,
+                              lv_obj_t *body, lv_obj_t *below) {
+  lv_obj_update_layout(card);
+  const int top = lv_obj_get_y(title) + lv_obj_get_height(title);
+  const int bot = lv_obj_get_y(below);
+  const int y = top + (bot - top - lv_obj_get_height(body)) / 2;
+  if (y > lv_obj_get_y(body)) lv_obj_set_y(body, y);
+}
+#endif
+
 static void show_cancel_confirm(void) {
   if (s_cancel_ovl) return;
   s_cancel_ovl = lv_obj_create(lv_screen_active());
   lv_obj_remove_style_all(s_cancel_ovl);
-  lv_obj_set_size(s_cancel_ovl, 800, 480);
+  lv_obj_set_size(s_cancel_ovl, SCREEN_W, SCREEN_H);
   lv_obj_set_pos(s_cancel_ovl, 0, 0);
   lv_obj_set_style_bg_color(s_cancel_ovl, lv_color_hex(0x000000), 0);
   lv_obj_set_style_bg_opa(s_cancel_ovl, 190, 0);     // dim the keyboard behind
@@ -581,11 +770,18 @@ static void show_cancel_confirm(void) {
   // 540x268 only ever fit this body at 14pt: at 23 it needs four lines and the
   // card had 106px between the title and the buttons. Grown so the readable
   // size is the one that fits, not the one that survives.
-  lv_obj_set_size(card, 560, 300);
+#if KISS_NARROW
+  // 420 wide on the 3.5in, not the scaled 336: KEEP GOING at 18 px with its
+  // tracking is 126 px, and the scaled 139 px button left it 6 px of padding
+  // a side. The buttons grow to 180 and keep 24 px between them.
+  lv_obj_set_size(card, 420, SY(300));
+#else
+  lv_obj_set_size(card, SX(560), SY(300));
+#endif
   lv_obj_center(card);
   lv_obj_set_style_bg_color(card, BG_COL, 0);
   lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
-  lv_obj_set_style_radius(card, 18, 0);
+  lv_obj_set_style_radius(card, SX(18), 0);
   lv_obj_set_style_border_color(card, lv_color_hex(0xF2B84B), 0);
   lv_obj_set_style_border_width(card, 1, 0);
   lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
@@ -594,17 +790,18 @@ static void show_cancel_confirm(void) {
   lv_label_set_text(t, tr(STR_L_CANCEL_SETUP_T));
   lv_obj_set_style_text_color(t, INK_COL, 0);
   lv_obj_set_style_text_font(t, wt_font28(), 0);
-  lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 30);
+  lv_obj_align(t, LV_ALIGN_TOP_MID, 0, SY(30));
 
   // y=82 down to the button row (300 - 22 - 58 = 220) leaves 138px, so 23 fits
   // on four lines. wt_note takes it and drops to 14 only if it cannot.
-  lv_obj_t *s = wt_note(card, tr(STR_L_CANCEL_SETUP_B), 30, 82, 500, 124);
+  lv_obj_t *s = wt_note(card, tr(STR_L_CANCEL_SETUP_B), SX(30), SY(82),
+                        KISS_NARROW ? 420 - 2 * SX(30) : SX(500), SY(124));
   lv_obj_set_style_text_color(s, MUT_COL, 0);
   lv_obj_set_style_text_align(s, LV_TEXT_ALIGN_CENTER, 0);
 
   lv_obj_t *keep = lv_button_create(card);           // safe choice, green outline
-  lv_obj_set_size(keep, 232, 58);
-  lv_obj_align(keep, LV_ALIGN_BOTTOM_LEFT, 18, -22);
+  lv_obj_set_size(keep, KISS_NARROW ? 180 : SX(232), SY(58));
+  lv_obj_align(keep, LV_ALIGN_BOTTOM_LEFT, KISS_NARROW ? 18 : SX(18), -SY(22));
   lv_obj_set_style_bg_color(keep, KEY_COL, 0);
   lv_obj_set_style_border_color(keep, lv_color_hex(0x35D07F), 0);
   lv_obj_set_style_border_width(keep, 2, 0);
@@ -614,13 +811,13 @@ static void show_cancel_confirm(void) {
   lv_label_set_text(kl, tr(STR_L_KEEP_GOING));
   lv_obj_set_style_text_color(kl, INK_COL, 0);
   lv_obj_set_style_text_font(kl,
-      wt_body_font(tr(STR_L_KEEP_GOING), 204, 42), 0);
+      wt_body_font(tr(STR_L_KEEP_GOING), KISS_NARROW ? 180 - 28 : SX(204), SY(42)), 0);
   lv_obj_set_style_text_letter_space(kl, 2, 0);
   lv_obj_center(kl);
 
   lv_obj_t *disc = lv_button_create(card);           // destructive choice, red
-  lv_obj_set_size(disc, 232, 58);
-  lv_obj_align(disc, LV_ALIGN_BOTTOM_RIGHT, -18, -22);
+  lv_obj_set_size(disc, KISS_NARROW ? 180 : SX(232), SY(58));
+  lv_obj_align(disc, LV_ALIGN_BOTTOM_RIGHT, KISS_NARROW ? -18 : -SX(18), -SY(22));
   lv_obj_set_style_bg_color(disc, KEY_COL, 0);
   lv_obj_set_style_border_color(disc, lv_color_hex(0xFF4D5E), 0);
   lv_obj_set_style_border_width(disc, 2, 0);
@@ -630,9 +827,12 @@ static void show_cancel_confirm(void) {
   lv_label_set_text(dl, tr(STR_L_DISCARD));
   lv_obj_set_style_text_color(dl, lv_color_hex(0xFF4D5E), 0);
   lv_obj_set_style_text_font(dl,
-      wt_body_font(tr(STR_L_DISCARD), 204, 42), 0);
+      wt_body_font(tr(STR_L_DISCARD), KISS_NARROW ? 180 - 28 : SX(204), SY(42)), 0);
   lv_obj_set_style_text_letter_space(dl, 2, 0);
   lv_obj_center(dl);
+#if KISS_NARROW
+  modal_body_centre(card, t, s, keep);
+#endif
 }
 
 // Capture the first setup entry and move to the exact-repeat stage. Both the
@@ -699,7 +899,7 @@ static void show_weak_confirm(void) {
 
   s_weak_ovl = lv_obj_create(lv_screen_active());
   lv_obj_remove_style_all(s_weak_ovl);
-  lv_obj_set_size(s_weak_ovl, 800, 480);
+  lv_obj_set_size(s_weak_ovl, SCREEN_W, SCREEN_H);
   lv_obj_set_pos(s_weak_ovl, 0, 0);
   lv_obj_set_style_bg_color(s_weak_ovl, lv_color_hex(0x000000), 0);
   lv_obj_set_style_bg_opa(s_weak_ovl, 200, 0);
@@ -712,18 +912,27 @@ static void show_weak_confirm(void) {
   // 360, not 440: the body is two lines in English and at most four in the
   // longest translation, and a card sized for text that is not there reads as
   // a missing paragraph. Height here is set by what the copy needs.
-  lv_obj_set_size(card, 704, 360);
+  lv_obj_set_size(card, SX(704), SY(360));
   lv_obj_center(card);
   lv_obj_set_style_bg_color(card, BG_COL, 0);
   lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
-  lv_obj_set_style_radius(card, 18, 0);
+  lv_obj_set_style_radius(card, SX(18), 0);
   lv_obj_set_style_border_color(card, lv_color_hex(0xFF4D5E), 0);
   lv_obj_set_style_border_width(card, 1, 0);
   lv_obj_clear_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
+#if KISS_NARROW
+  // 28 px on the 3.5in, and the stack measured from the top of the card: the
+  // unscaled 48 px triangle at 20..68 ran 10 px into the title at 58. Icon
+  // 14..45, title 50, body 84, BACK at 192 as before.
+  lv_obj_t *icon = wt_lbl(card, LV_SYMBOL_WARNING, 0, 0,
+                          &lv_font_montserrat_28, lv_color_hex(0xFF4D5E));
+  lv_obj_align(icon, LV_ALIGN_TOP_MID, 0, 14);
+#else
   lv_obj_t *icon = wt_lbl(card, LV_SYMBOL_WARNING, 0, 0,
                           &lv_font_montserrat_48, lv_color_hex(0xFF4D5E));
-  lv_obj_align(icon, LV_ALIGN_TOP_MID, 0, 30);
+  lv_obj_align(icon, LV_ALIGN_TOP_MID, 0, SY(30));
+#endif
 
   // A KEF password and a passphrase are different words for a reason: the
   // card must name the thing being weak, and for a backup the threat is
@@ -731,11 +940,12 @@ static void show_weak_confirm(void) {
   lv_obj_t *t = wt_lbl(card, tr(s_kef_mode ? STR_L_KEF_WEAK_T : STR_L_WEAK_T),
                        0, 0, wt_font28(), INK_COL);
   lv_obj_set_style_text_letter_space(t, 2, 0);
-  lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 88);
+  lv_obj_align(t, LV_ALIGN_TOP_MID, 0, KISS_NARROW ? 50 : SY(88));
 
   lv_obj_t *b = wt_note(card, tr(s_kef_mode ? STR_L_KEF_WEAK_ACK
                                             : STR_L_WEAK_ACK),
-                        32, 144, 640, 124);
+                        SX(32), KISS_NARROW ? 84 : SY(144), SX(640),
+                        KISS_NARROW ? 96 : SY(124));
   lv_obj_set_style_text_color(b, MUT_COL, 0);
   lv_obj_set_style_text_align(b, LV_TEXT_ALIGN_CENTER, 0);
 
@@ -743,12 +953,15 @@ static void show_weak_confirm(void) {
   // beside the one that is gone. The arrow action sizes to its word, so the
   // centring is an align rather than a measured x.
   lv_obj_t *back = wt_arrow_action(card, tr(STR_C_BACK), true, false,
-                                   195, 288, 314, false, weak_back_cb, NULL);
-  lv_obj_align(back, LV_ALIGN_TOP_MID, 0, 288);
+                                   SX(195), SY(288), SX(314), false, weak_back_cb, NULL);
+  lv_obj_align(back, LV_ALIGN_TOP_MID, 0, SY(288));
+#if KISS_NARROW
+  modal_body_centre(card, t, b, back);
+#endif
 }
 
 // ---- fingerprint reveal ----
-static void setup_fail_screen(void);
+static void setup_fail_screen(const char *why, int rc);
 static void recover_screen(void);
 static void fp_tap_cb(lv_event_t *e);
 
@@ -906,8 +1119,8 @@ static void recover_screen(void)
     {
         lv_obj_t *col = lv_obj_create(s_recovscr);
         lv_obj_remove_style_all(col);
-        lv_obj_set_pos(col, 48, 112);
-        lv_obj_set_width(col, 704);
+        lv_obj_set_pos(col, SX(48), SY(112));
+        lv_obj_set_width(col, SX(704));
         lv_obj_set_height(col, LV_SIZE_CONTENT);
         lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_flex_align(col, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER,
@@ -921,15 +1134,15 @@ static void recover_screen(void)
         wt_diagram_op(row, LV_SYMBOL_RIGHT);
         wt_chip(row, tr(STR_GD_OFF), false);   // NOT SET: nowhere on this device
     }
-    wt_body_para(s_recovscr, tr(STR_L_RECOVER_B), 190);
+    wt_body_para(s_recovscr, tr(STR_L_RECOVER_B), SY(190));
 
     // SHOW WORDS opens the reveal; TRY AGAIN returns to the login above, so
     // it is the escape and takes the corner, wearing the accent as the way
     // the product steers.
     wt_arrow_action(s_recovscr, tr(STR_I_SHOW_WORDS), false, false, WT_ACT_X,
-                    WT_ACTION_Y, 300, false, recover_words_cb, NULL);
+                    WT_ACTION_Y, SX(300), false, recover_words_cb, NULL);
     wt_arrow_action(s_recovscr, tr(STR_C_TRY_AGAIN), true, true, WT_EXIT_X,
-                    WT_ACTION_Y, 140, true, recover_retry_cb, NULL);
+                    WT_ACTION_Y, SX(140), true, recover_retry_cb, NULL);
 }
 static void setup_warn_screen(void);
 
@@ -946,13 +1159,21 @@ static void setup_fail_dismiss_cb(lv_event_t *e) {
 }
 
 // Setup couldn't be saved (staged seed failed to commit, or the session didn't
-// derive): show a clear STOP instead of silently entering a broken home.
-static void setup_fail_screen(void) {
+// derive): show a clear STOP instead of silently entering a broken home. The
+// screen says STOP and nothing else, on purpose; the serial log names the step
+// and its code, because a bare STOP on the bench was the whole report the
+// first time the 3.5in board refused a setup.
+static void setup_fail_screen(const char *why, int rc) {
+#ifndef SIMULATOR
+  ESP_LOGE("kiss", "%s: %s failed (rc %d)", s_setup_mode ? "setup" : "login", why, rc);
+#else
+  (void)why; (void)rc;
+#endif
   login_teardown();
 
   s_errscr = lv_obj_create(lv_screen_active());
   lv_obj_remove_style_all(s_errscr);
-  lv_obj_set_size(s_errscr, 800, 480);
+  lv_obj_set_size(s_errscr, SCREEN_W, SCREEN_H);
   lv_obj_set_style_bg_color(s_errscr, BG_COL, 0);
   lv_obj_set_style_bg_opa(s_errscr, LV_OPA_COVER, 0);
   lv_obj_remove_flag(s_errscr, LV_OBJ_FLAG_CLICKABLE);
@@ -961,31 +1182,31 @@ static void setup_fail_screen(void) {
   lv_label_set_text(icon, LV_SYMBOL_CLOSE);
   lv_obj_set_style_text_color(icon, lv_color_hex(0xFF4D5E), 0);
   lv_obj_set_style_text_font(icon, &lv_font_montserrat_48, 0);
-  lv_obj_align(icon, LV_ALIGN_TOP_MID, 0, 120);
+  lv_obj_align(icon, LV_ALIGN_TOP_MID, 0, SY(120));
 
   lv_obj_t *t = lv_label_create(s_errscr);
   lv_label_set_text(t, s_setup_mode ? tr(STR_L_FAIL_SETUP_T)
                                     : tr(STR_L_FAIL_OPEN_T));
   lv_obj_set_style_text_color(t, INK_COL, 0);
   lv_obj_set_style_text_font(t, wt_font28(), 0);
-  lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 190);
+  lv_obj_align(t, LV_ALIGN_TOP_MID, 0, SY(190));
 
   lv_obj_t *s = wt_note(s_errscr, s_setup_mode ? tr(STR_L_FAIL_SETUP_B)
                                                : tr(STR_L_FAIL_OPEN_B),
-                        40, 232, 720, 58);
+                        SX(40), SY(232), SX(720), SY(58));
   lv_obj_set_style_text_color(s, MUT_COL, 0);
   lv_obj_set_style_text_align(s, LV_TEXT_ALIGN_CENTER, 0);
 
   lv_obj_t *btn = lv_button_create(s_errscr);
-  lv_obj_set_size(btn, 200, 56);
-  lv_obj_align(btn, LV_ALIGN_TOP_MID, 0, 300);
+  lv_obj_set_size(btn, SX(200), SY(56));
+  lv_obj_align(btn, LV_ALIGN_TOP_MID, 0, SY(300));
   lv_obj_set_style_bg_color(btn, KEY_COL, 0);
   lv_obj_set_style_shadow_width(btn, 0, 0);
   lv_obj_add_event_cb(btn, setup_fail_dismiss_cb, LV_EVENT_CLICKED, NULL);
   lv_obj_t *bl = lv_label_create(btn);
   lv_label_set_text(bl, tr(STR_C_BACK));
   lv_obj_set_style_text_color(bl, INK_COL, 0);
-  lv_obj_set_style_text_font(bl, wt_body_font(tr(STR_C_BACK), 180, 44), 0);
+  lv_obj_set_style_text_font(bl, wt_body_font(tr(STR_C_BACK), SX(180), SY(44)), 0);
   lv_obj_center(bl);
 }
 
@@ -1021,13 +1242,17 @@ static void fp_tap_cb(lv_event_t *e) {
       return;
     }
     if (crc != WSEED_OK && crc != WSEED_ERR_CLEANUP) {
+#ifndef SIMULATOR
+      ESP_LOGE("kiss", "setup: storage mode %d", kiss_seed_mode());
+#endif
       kiss_seed_discard();
       wipe_login_secrets();
-      setup_fail_screen();
+      setup_fail_screen("seed commit", crc);
       return;
     }
   }
-  if (kiss_session_open(s_plen ? s_pass : NULL) != 0) {
+  int orc = kiss_session_open(s_plen ? s_pass : NULL);
+  if (orc != 0) {
     // A successful setup commit was verified before this second derivation.
     // If the swap still fails, never publish the candidate fingerprint or
     // pretend that an unlocked session exists.
@@ -1036,7 +1261,7 @@ static void fp_tap_cb(lv_event_t *e) {
     // that screen only inherits the login's two-minute secret-idle wipe, so a
     // device set down on it would still sit on plaintext for up to 120 s.
     wipe_login_secrets();
-    setup_fail_screen();
+    setup_fail_screen("session open", orc);
     return;
   }
   if (s_shown_fp_valid) {
@@ -1255,11 +1480,23 @@ static void setup_warn_verify_cb(lv_event_t *e)
                          false);   // this flow runs its own passphrase leg
 }
 
+#if KISS_NARROW
+// The width a label's text needs on one line, in its own face and tracking.
+static int label_ink_w(lv_obj_t *l) {
+  lv_point_t sz;
+  lv_text_get_size(&sz, lv_label_get_text(l),
+                   lv_obj_get_style_text_font(l, LV_PART_MAIN),
+                   lv_obj_get_style_text_letter_space(l, LV_PART_MAIN), 0,
+                   LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+  return sz.x;
+}
+#endif
+
 static void setup_warn_screen(void) {
   if (s_warnscr) return;
   s_warnscr = lv_obj_create(lv_screen_active());
   lv_obj_remove_style_all(s_warnscr);
-  lv_obj_set_size(s_warnscr, 800, 480);
+  lv_obj_set_size(s_warnscr, SCREEN_W, SCREEN_H);
   lv_obj_set_style_bg_color(s_warnscr, BG_COL, 0);
   lv_obj_set_style_bg_opa(s_warnscr, LV_OPA_COVER, 0);
   lv_obj_add_flag(s_warnscr, LV_OBJ_FLAG_CLICKABLE);   // swallow stray taps
@@ -1283,7 +1520,7 @@ static void setup_warn_screen(void) {
   lv_label_set_text(t, tr(warn_t));
   lv_obj_set_style_text_color(t, wt_ink_for(WT_WARN), 0);
   lv_obj_set_style_text_font(t, wt_font28(), 0);
-  lv_obj_align(t, LV_ALIGN_TOP_MID, 0, 40);
+  lv_obj_align(t, LV_ALIGN_TOP_MID, 0, SY(40));
 
   // Never print a zeroed fingerprint. Zero is kiss_ui_forget_fp's "no keys
   // open" value and it also survives a derivation that failed, so an owner was
@@ -1334,25 +1571,39 @@ static void setup_warn_screen(void) {
   // twenty locales once already. So the count stays and the words shrink. The
   // lone newlines were the old 740px label's hand wrapping anyway, and the
   // split below has turned them into spaces since the blocks arrived.
+  //
+  // With a passphrase the second row is the one that keeps it: written down,
+  // apart from the seed words, because those words alone restore other keys.
+  // Only this branch says it -- keys with no passphrase have nothing to keep.
+  //
+  // The fingerprint's intro and card hang from where the rows END, not from a
+  // fixed line. A translated row that wraps once more used to print straight
+  // into "know yours by its fingerprint:" -- in five locales the day the
+  // second row arrived. There is room under the card for one more line.
+  int intro_y = SY(232), facts_end = 0;
   {
     wt_fact_t facts[2] = {
-      { .cap  = tr(nclaims >= 2 ? STR_D_WORDS : STR_L_PASSPHRASE_CAP),
+      { .cap  = tr(warn_nopass ? STR_D_WORDS : STR_L_PASSPHRASE_CAP),
         .val  = para[0],
-        .icon = nclaims >= 2 ? WT_ICON_SECRET : WT_ICON_LOCK,
+        .icon = warn_nopass ? WT_ICON_SECRET : WT_ICON_LOCK,
         .icon_col = WT_WARN },
-      { .cap  = tr(STR_L_PASSPHRASE_CAP),
+      { .cap  = tr(warn_nopass ? STR_L_PASSPHRASE_CAP : STR_L_WARN_WRITE_C),
         .val  = nclaims >= 2 ? para[1] : NULL,
         .icon = LV_SYMBOL_WARNING, .icon_col = WT_WARN },
     };
-    wt_facts(s_warnscr, 110, facts, nclaims >= 2 ? 2 : 1);
+    const int fend = wt_facts(s_warnscr, SY(110), facts, nclaims >= 2 ? 2 : 1);
+    facts_end = fend;
+    intro_y = LV_MAX(intro_y, fend + SY(8));
   }
 
+  lv_obj_t *intro = NULL;
   if (fp_known && fp_intro) {
     lv_obj_t *n = lv_label_create(s_warnscr);
+    intro = n;
     lv_label_set_text(n, fp_intro);
     lv_obj_set_style_text_color(n, MUT_COL, 0);
     lv_obj_set_style_text_font(n, wt_font23(), 0);
-    lv_obj_align(n, LV_ALIGN_TOP_MID, 0, 232);
+    lv_obj_align(n, LV_ALIGN_TOP_MID, 0, intro_y);
   }
 
   // The fingerprint in a value card, and the backup state as a real chip beside
@@ -1365,6 +1616,13 @@ static void setup_warn_screen(void) {
   //
   // Centred as a pair: the card sizes itself to its caption in whatever locale
   // is rendering, so its x follows the measured width rather than a constant.
+#if KISS_NARROW
+  // The 3.5in has no height under the card to push into; its card stays put
+  // and the intro yields instead (below).
+  const int card_y = SY(268);
+#else
+  const int card_y = intro_y + (SY(268) - SY(232));
+#endif
   char fpbuf[16];
   snprintf(fpbuf, sizeof fpbuf, "%02X%02X%02X%02X",
            s_last_fp[0], s_last_fp[1], s_last_fp[2], s_last_fp[3]);
@@ -1374,7 +1632,7 @@ static void setup_warn_screen(void) {
   // pair is one card tall, which the band from the body's floor to 398 can hold
   // in every locale.
   lv_obj_t *card = fp_known
-      ? wt_value_card(s_warnscr, tr(STR_D_FINGERPRINT), fpbuf, 110, 268, 300, true)
+      ? wt_value_card(s_warnscr, tr(STR_D_FINGERPRINT), fpbuf, SX(110), card_y, SX(300), true)
       : NULL;
   // THREE states, because the flag behind this chip answers one question and
   // the owner in front of it has usually answered another. s_backup_verified
@@ -1405,15 +1663,61 @@ static void setup_warn_screen(void) {
                                              : tr(STR_L_BACKUP_UNVERIFIED),
                                   state_col);
   lv_obj_update_layout(state);
+#if KISS_NARROW
+  // The 3.5in has 480 px for a pair the wide board places at fixed 110 and
+  // 440: the 180 px card put RESTORED FROM YOUR SEED WORDS at 264..535, off
+  // the glass. The card shrinks to its own eight characters, and the pair is
+  // centred from both measured widths with 12 px between them. A chip too
+  // long for that (VOLLEDIGE BACK-UP NIET GECONTROLEERD) goes under the card
+  // instead, and the intro and card climb by the chip's height to make room.
+  // Alone, the chip is centred like everything above it.
+  if (card) {
+    lv_obj_t *cap = lv_obj_get_child(card, 0), *val = lv_obj_get_child(card, 1);
+    const int tw = LV_MAX(label_ink_w(cap), label_ink_w(val));
+    const int cw = tw + SX(32) + 2 * 12;
+    lv_obj_set_width(card, cw);
+    lv_obj_set_width(cap, cw - SX(32));
+    lv_obj_set_width(val, cw - SX(32));
+    lv_obj_update_layout(card);
+    const int ch = lv_obj_get_height(card), sw = lv_obj_get_width(state),
+              sh = lv_obj_get_height(state);
+    if (cw + 12 + sw <= SCREEN_W - 2 * 16) {
+      const int x0 = (SCREEN_W - cw - 12 - sw) / 2;
+      lv_obj_set_pos(card, x0, card_y);
+      lv_obj_set_pos(state, x0 + cw + 12, card_y + (ch - sh) / 2);
+    } else {
+      const int cy = WT_CONTENT_BOTTOM - 4 - sh - 6 - ch;
+      lv_obj_set_pos(card, (SCREEN_W - cw) / 2, cy);
+      lv_obj_set_pos(state, (SCREEN_W - sw) / 2, cy + ch + 6);
+      if (intro) lv_obj_set_y(intro, cy - (SY(268) - SY(232)));
+    }
+    // The intro is the one thing here the card already says: it is captioned
+    // FINGERPRINT. So where a wrapped row leaves it no room between the rows
+    // and the card, it goes rather than printing into either.
+    if (intro) {
+      lv_obj_update_layout(intro);
+      const int iy = lv_obj_get_y(intro), ih = lv_obj_get_height(intro);
+      if (iy < facts_end + 2 || iy + ih > lv_obj_get_y(card) - 2) {
+        lv_obj_delete(intro);
+        intro = NULL;
+      }
+    }
+  } else {
+    lv_obj_set_pos(state, (SCREEN_W - lv_obj_get_width(state)) / 2, card_y);
+  }
+#else
+  (void)intro;
+  (void)facts_end;   // the wide board pushes the card instead
   if (card) {
     lv_obj_update_layout(card);
-    lv_obj_set_pos(state, 440,
-                   268 + (lv_obj_get_height(card) - lv_obj_get_height(state)) / 2);
+    lv_obj_set_pos(state, SX(440),
+                   card_y + (lv_obj_get_height(card) - lv_obj_get_height(state)) / 2);
   } else {
     // Alone, the chip takes the card's lane instead of sitting where a card
     // used to be beside it.
-    lv_obj_set_pos(state, 110, 268);
+    lv_obj_set_pos(state, SX(110), card_y);
   }
+#endif
 
   // I UNDERSTAND's tick answers in green or red for whether skipping is
   // walking past a verified backup or an unchecked one. VERIFY is an ACTION,
@@ -1424,7 +1728,7 @@ static void setup_warn_screen(void) {
                                     s_backup_verified ? WT_INK : wt_accent(),
                                     !s_backup_verified,
                                     setup_warn_verify_cb, NULL);
-  lv_obj_set_pos(verify, 48, WT_ACTION_Y_TALL + 13);
+  lv_obj_set_pos(verify, SX(48), WT_ACTION_Y_TALL + SY(13));
 
   // Skipping is allowed, but it must look like a conscious decision.
   lv_obj_t *ok = wt_word_action(s_warnscr, LV_SYMBOL_OK,
@@ -1433,7 +1737,7 @@ static void setup_warn_screen(void) {
                                 false, setup_warn_ok_cb, NULL);
   // The tick alone carries the verdict; the word is a word.
   lv_obj_set_style_text_color(lv_obj_get_child(ok, 1), WT_INK, 0);
-  lv_obj_align(ok, LV_ALIGN_TOP_RIGHT, -48, WT_ACTION_Y_TALL + 13);
+  lv_obj_align(ok, LV_ALIGN_TOP_RIGHT, -SX(48), WT_ACTION_Y_TALL + SY(13));
 }
 
 #ifdef SIMULATOR
@@ -1481,14 +1785,15 @@ static void fp_help_cb(lv_event_t *e) {
 
 static void show_fingerprint(void) {
   uint8_t fp[4] = {0};
-  if (kiss_fingerprint(s_plen ? s_pass : NULL, fp) != 0) {
+  int frc = kiss_fingerprint(s_plen ? s_pass : NULL, fp);
+  if (frc != 0) {
     // derivation failed: STOP here. Never cache or reveal the zeroed fp —
     // it would flow into s_last_fp and render as the "SIGNING AS" identity.
     // The typed passphrase dies with it: the fail screen only inherits the
     // login's two-minute secret-idle wipe, and staging is already gone.
     if (s_setup_mode) kiss_seed_discard();
     wipe_login_secrets();
-    setup_fail_screen();
+    setup_fail_screen("fingerprint derivation", frc);
     return;
   }
   memcpy(s_shown_fp, fp, sizeof s_shown_fp);
@@ -1519,8 +1824,8 @@ static void show_fingerprint(void) {
   // The title has to be told to keep clear of the chip. wt_screen fits it to the
   // full 704px lane, and a title has no width of its own, so a long translation
   // of FINGERPRINT would run straight underneath the circle.
-  wt_title_fit(s_fpscr, 640);
-  wt_help_chip(s_fpscr, 715, 35, MUT_COL, fp_help_cb, NULL);
+  wt_title_fit(s_fpscr, SX(640));
+  wt_help_chip(s_fpscr, SX(715), SY(35), MUT_COL, fp_help_cb, NULL);
 
   // Band one: the code, in a framed card CENTRED at the size it has always had.
   // 420x118 with the number at num48 is what the owner asked to keep, and the
@@ -1534,9 +1839,9 @@ static void show_fingerprint(void) {
   // object on its line.
   lv_obj_t *box = lv_obj_create(s_fpscr);
   lv_obj_remove_style_all(box);
-  lv_obj_set_pos(box, 190, 96);
-  lv_obj_set_size(box, 420, 118);
-  lv_obj_set_style_radius(box, 16, 0);
+  lv_obj_set_pos(box, SX(190), SY(96));
+  lv_obj_set_size(box, SX(420), SY(118));
+  lv_obj_set_style_radius(box, SX(16), 0);
   lv_obj_set_style_border_width(box, 2, 0);
   lv_obj_set_style_border_color(box, wt_accent(), 0);
   lv_obj_set_style_bg_color(box, lv_color_hex(0x0C1018), 0);
@@ -1551,8 +1856,8 @@ static void show_fingerprint(void) {
   lv_obj_set_style_text_color(cap, MUT_COL, 0);
   lv_obj_set_style_text_font(cap, wt_font14(), 0);
   lv_obj_set_style_text_letter_space(cap, 2, 0);
-  lv_obj_align(cap, LV_ALIGN_TOP_MID, 0, 16);
-  lv_obj_set_width(cap, 384);
+  lv_obj_align(cap, LV_ALIGN_TOP_MID, 0, SY(16));
+  lv_obj_set_width(cap, SX(384));
   lv_label_set_long_mode(cap, LV_LABEL_LONG_DOT);
 
   lv_obj_t *big = lv_label_create(box);
@@ -1571,17 +1876,17 @@ static void show_fingerprint(void) {
   // a hex string scannable; a fixed advance already does that, and the extra
   // tracking on top pushed the 8 characters wider than the box.
   lv_obj_set_style_text_font(big, wt_font_num48(), 0);
-  lv_obj_align(big, LV_ALIGN_BOTTOM_MID, 0, -18);
+  lv_obj_align(big, LV_ALIGN_BOTTOM_MID, 0, -SY(18));
 
   // the code card rises + fades in when the fingerprint is computed
   lv_anim_t pa;
   lv_anim_init(&pa);
   lv_anim_set_var(&pa, box);
-  lv_anim_set_duration(&pa, 260);
-  lv_anim_set_delay(&pa, 40);
+  lv_anim_set_duration(&pa, WT_MOTION_MS(260));   // half on the 3.5in's SPI panel
+  lv_anim_set_delay(&pa, WT_MOTION_MS(40));
   lv_anim_set_path_cb(&pa, lv_anim_path_ease_out);
   lv_anim_set_exec_cb(&pa, fp_pop_ty_cb);
-  lv_anim_set_values(&pa, 22, 0);
+  lv_anim_set_values(&pa, SY(22), 0);
   lv_anim_start(&pa);
   lv_anim_set_exec_cb(&pa, fp_pop_opa_cb);
   lv_anim_set_values(&pa, 40, 255);
@@ -1619,7 +1924,7 @@ static void show_fingerprint(void) {
         .val = tr(nopass ? STR_L_FP_NOTE2_NOPASS : STR_L_FP_NOTE2),
         .icon = LV_SYMBOL_WARNING, .icon_col = WT_WARN },
     };
-    wt_facts(s_fpscr, 232, facts, 2);
+    wt_facts(s_fpscr, SY(232), facts, 2);
   }
 
   // The action bar every other screen has. This one holds the screen's real
@@ -1628,39 +1933,45 @@ static void show_fingerprint(void) {
   // seed on a PLAIN TAP, with no hold and no confirm in front of it, so the
   // corner is exactly where it must not be.
   wt_arrow_action(s_fpscr, tr(STR_C_BACK), true, false, WT_BACK_X,
-                  WT_ACTION_Y, 140, true, fp_back_cb, NULL);
+                  WT_ACTION_Y, SX(140), true, fp_back_cb, NULL);
   wt_arrow_action(s_fpscr, tr(STR_L_TAP_TO_OPEN), false, true, WT_ACT_X,
-                  WT_ACTION_Y, 260, false, fp_tap_cb, NULL);
+                  WT_ACTION_Y, SX(260), false, fp_tap_cb, NULL);
 
   lv_obj_add_flag(s_login, LV_OBJ_FLAG_HIDDEN);
 }
 
 // ---- key-press bubble: the tapped character pops up and rises above the key ----
 // (the board has no vibration motor, so feedback is visual)
-#define KB_X 0
-#define KB_Y 158
-#define KB_W 800
-#define KB_H 316
-#define KB_PAD 6
 
 // geometry of button `id` in the shared 10/9/9/4 layout (space = 3 units wide)
 static void key_rect(uint32_t id, int *x, int *y, int *w, int *h) {
+#if KISS_NARROW
+  static const uint8_t row_first[] = {0, 10, 19, 28, 28 + KB_THUMB_N};
+  static const uint8_t row_units[] = {10, 9, 20, 26};   // sums of key_units
+#else
   static const uint8_t row_first[] = {0, 10, 19, 28, 32};
   static const uint8_t row_units[] = {10, 9, 9, 6};
+#endif
   int r = 3;
   for (int i = 0; i < 4; i++)
     if (id < row_first[i + 1]) { r = i; break; }
-  int rh = (KB_H - 2 * KB_PAD - 3 * KB_PAD) / 4;
-  *y = KB_Y + KB_PAD + r * (rh + KB_PAD);
+  int rh = (KB_H - 2 * KB_PAD - 3 * KB_GAP_Y) / 4;
+  *y = KB_Y + KB_PAD + r * (rh + KB_GAP_Y);
   *h = rh;
   int units_before = 0, my_units = 1;
+#if KISS_NARROW
+  for (uint32_t i = row_first[r]; i < id; i++)
+    units_before += key_units(i);
+  my_units = key_units(id);
+#else
   for (uint32_t i = row_first[r]; i < id; i++)
     units_before += (i == 30) ? 3 : 1;
   if (id == 30) my_units = 3;
+#endif
   int n_keys = row_first[r + 1] - row_first[r];
-  float unit = (float)(KB_W - 2 * KB_PAD - (n_keys - 1) * KB_PAD) / row_units[r];
+  float unit = (float)(KB_W - 2 * KB_PAD - (n_keys - 1) * KB_GAP_X) / row_units[r];
   int idx = id - row_first[r];
-  *x = KB_X + KB_PAD + (int)(units_before * unit) + idx * KB_PAD;
+  *x = KB_X + KB_PAD + (int)(units_before * unit) + idx * KB_GAP_X;
   *w = (int)(my_units * unit);
 }
 
@@ -1704,7 +2015,7 @@ static void key_flash(uint32_t id) {
   if (!s_kflash) {
     s_kflash = lv_obj_create(s_login);
     lv_obj_remove_style_all(s_kflash);
-    lv_obj_set_style_radius(s_kflash, 10, 0);
+    lv_obj_set_style_radius(s_kflash, SX(10), 0);
     lv_obj_set_style_bg_color(s_kflash, wt_accent(), 0);
     lv_obj_set_style_border_width(s_kflash, 2, 0);
     lv_obj_set_style_border_color(s_kflash, wt_accent(), 0);
@@ -1720,7 +2031,7 @@ static void key_flash(uint32_t id) {
   lv_anim_set_exec_cb(&s_kflash_a, kflash_opa);
   lv_anim_set_path_cb(&s_kflash_a, lv_anim_path_ease_out);
   lv_anim_set_values(&s_kflash_a, 110, 0);
-  lv_anim_set_duration(&s_kflash_a, 190);
+  lv_anim_set_duration(&s_kflash_a, WT_MOTION_MS(190));
   lv_anim_start(&s_kflash_a);
 }
 
@@ -1728,13 +2039,13 @@ static void pop_show(const char *ch, uint32_t id) {
   if (!s_pop) {                             // iPhone-style key callout: larger than the
     s_pop = lv_obj_create(s_login);         // key, big glyph, bottom overlapping the
     lv_obj_remove_style_all(s_pop);         // pressed key so it visibly grows out of it
-    lv_obj_set_size(s_pop, 96, 96);
-    lv_obj_set_style_radius(s_pop, 20, 0);
+    lv_obj_set_size(s_pop, SX(96), SX(96));
+    lv_obj_set_style_radius(s_pop, SX(20), 0);
     lv_obj_set_style_bg_color(s_pop, wt_accent_bg(), 0);
     lv_obj_set_style_bg_opa(s_pop, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(s_pop, 2, 0);
     lv_obj_set_style_border_color(s_pop, wt_accent(), 0);
-    lv_obj_set_style_shadow_width(s_pop, 18, 0);
+    lv_obj_set_style_shadow_width(s_pop, SX(18), 0);
     lv_obj_set_style_shadow_color(s_pop, lv_color_hex(0x000000), 0);
     lv_obj_set_style_shadow_opa(s_pop, LV_OPA_60, 0);
     s_pop_lbl = lv_label_create(s_pop);
@@ -1748,10 +2059,12 @@ static void pop_show(const char *ch, uint32_t id) {
   key_rect(id, &kx, &ky, &kw, &kh);
   pop_wipe_text();
   lv_label_set_text(s_pop_lbl, ch);
-  int px = kx + kw / 2 - 48;
+  // Half the bubble, which is SX(96): a bare 48 is only half of it on the
+  // wide panel, and on the 3.5in it put every callout 20 px left of its key.
+  int px = kx + kw / 2 - SX(96) / 2;
   if (px < 4) px = 4;
-  if (px > 800 - 100) px = 800 - 100;
-  lv_obj_set_pos(s_pop, px, ky - 68);       // bottom ~28px into the key = attached to it
+  if (px > SCREEN_W - SX(100)) px = SCREEN_W - SX(100);
+  lv_obj_set_pos(s_pop, px, ky - SY(68));       // bottom ~28px into the key = attached to it
   lv_obj_clear_flag(s_pop, LV_OBJ_FLAG_HIDDEN);
   lv_obj_move_foreground(s_pop);
 
@@ -1765,8 +2078,10 @@ static void pop_show(const char *ch, uint32_t id) {
   lv_anim_set_var(&s_pop_a, s_pop);
   lv_anim_set_path_cb(&s_pop_a, lv_anim_path_ease_out);
   lv_anim_set_exec_cb(&s_pop_a, pop_ty);
-  lv_anim_set_values(&s_pop_a, 10, -6);      // starts low, lifts off the key
-  lv_anim_set_duration(&s_pop_a, 190);
+  lv_anim_set_values(&s_pop_a, SY(10), -SY(6));      // starts low, lifts off the key
+  // The lift at half length on the 3.5in; how long the callout STAYS is the
+  // timer below, which is a window and keeps its 300ms.
+  lv_anim_set_duration(&s_pop_a, WT_MOTION_MS(190));
   lv_anim_start(&s_pop_a);
 
   key_flash(id);
@@ -2041,7 +2356,8 @@ static void pp_scan_cancel_cb(void) { }     // the keyboard was never torn down
 
 static void pp_scan_go_cb(lv_event_t *e) {
   lv_obj_delete_async((lv_obj_t *)lv_event_get_user_data(e));
-  kiss_scan_open_raw(lv_screen_active(), pp_scan_text_cb, pp_scan_cancel_cb);
+  kiss_scan_open_raw(lv_screen_active(), KISS_SCAN_TASK_PASS,
+                     pp_scan_text_cb, pp_scan_cancel_cb);
 }
 
 static void pp_scan_back_cb(lv_event_t *e) {
@@ -2054,11 +2370,11 @@ static void pp_scan_warn_cb(lv_event_t *e) {
                             tr(STR_L_SCAN_WARN_S));
   wt_chrome_head(scr);                  // the head every other page wears
   lv_obj_move_foreground(scr);
-  wt_body_para(scr, tr(STR_L_SCAN_WARN_B), 122);
+  wt_body_para(scr, tr(STR_L_SCAN_WARN_B), SY(122));
   wt_arrow_action(scr, tr(STR_L_SCAN_GO), false, true, WT_ACT_X, WT_ACTION_Y,
-                  300, false, pp_scan_go_cb, scr);
+                  SX(300), false, pp_scan_go_cb, scr);
   wt_arrow_action(scr, tr(STR_C_BACK), true, false, WT_BACK_X, WT_ACTION_Y,
-                  140, true, pp_scan_back_cb, scr);
+                  SX(140), true, pp_scan_back_cb, scr);
 }
 
 static void show_cb(lv_event_t *e) {
@@ -2194,14 +2510,20 @@ void kiss_login_open_setup(void (*unlocked_cb)(void)) {
       { .cap = tr(STR_G_TECHNICAL), .val = tr(STR_T_PASS_TERM),
         .icon = LV_SYMBOL_LIST },
   };
-  wt_explain(scr, tr(STR_L_PPINTRO_HEAD), tr(STR_L_PPINTRO_B), facts, 3);
+  // After an encrypted backup opens, this is the next screen, and the plain
+  // paragraph let "backup opened" read as "keys recovered". It says what the
+  // backup gave back -- the seed words -- and that the passphrase still picks
+  // which keys those are.
+  const bool from_kef = s_restore_mode && kiss_seed_source() == WSEED_SRC_KEF;
+  wt_explain(scr, tr(STR_L_PPINTRO_HEAD),
+             tr(from_kef ? STR_L_PPINTRO_B_KEF : STR_L_PPINTRO_B), facts, 3);
 
   // One action, in the corner where the primary lives. TYPE IT also retires
   // the s_restore_mode branch: CREATE PASSPHRASE was an instruction to invent
   // one, which is wrong for words being restored, and PASSPHRASE alone read
   // as a label rather than an action.
-  wt_arrow_action(scr, tr(STR_L_PP_TYPE_IT), false, true, 552, WT_ACTION_Y,
-                  200, true, pp_intro_go_cb, NULL);
+  wt_arrow_action(scr, tr(STR_L_PP_TYPE_IT), false, true, SX(552), WT_ACTION_Y,
+                  SX(200), true, pp_intro_go_cb, NULL);
 }
 
 // font_for_both lived here: it sized a label for BOTH of the strings it swaps
@@ -2229,15 +2551,22 @@ void kiss_login_open(void (*unlocked_cb)(void)) {
   // button ids 29 and 31; slot 33 is the space key, width 3, and must keep
   // its single space). kb_cb compares against the same tr() pointers, so the
   // matches are exact. CAPS used to keep the static literals, so caps lock
-  // showed "CANCEL"/"OK" in every locale (hr-HR: OTKAŽI / U REDU).
-  MAP_LOWER[32] = MAP_UPPER[32] = MAP_CAPS[32] = MAP_SYM[32] = MAP_SYM2[32] =
-      tr(STR_C_CANCEL);
-  MAP_LOWER[34] = MAP_UPPER[34] = MAP_CAPS[34] = MAP_SYM[34] = MAP_SYM2[34] =
-      tr(STR_C_OK);
+  // showed "CANCEL"/"OK" in every locale (hr-HR: OTKAŽI / U REDU). On the
+  // 3.5in a gap key stands before each of CANCEL and the space, so the slots
+  // are 33 and 36.
+#if KISS_NARROW
+  enum { SLOT_CANCEL = 33, SLOT_OK = 36 };
+#else
+  enum { SLOT_CANCEL = 32, SLOT_OK = 34 };
+#endif
+  MAP_LOWER[SLOT_CANCEL] = MAP_UPPER[SLOT_CANCEL] = MAP_CAPS[SLOT_CANCEL] =
+      MAP_SYM[SLOT_CANCEL] = MAP_SYM2[SLOT_CANCEL] = tr(STR_C_CANCEL);
+  MAP_LOWER[SLOT_OK] = MAP_UPPER[SLOT_OK] = MAP_CAPS[SLOT_OK] =
+      MAP_SYM[SLOT_OK] = MAP_SYM2[SLOT_OK] = tr(STR_C_OK);
 
   s_login = lv_obj_create(lv_screen_active());
   lv_obj_remove_style_all(s_login);
-  lv_obj_set_size(s_login, 800, 480);
+  lv_obj_set_size(s_login, SCREEN_W, SCREEN_H);
   lv_obj_set_style_bg_color(s_login, BG_COL, 0);
   lv_obj_set_style_bg_opa(s_login, LV_OPA_COVER, 0);
 
@@ -2258,8 +2587,13 @@ void kiss_login_open(void (*unlocked_cb)(void)) {
   lv_obj_t *showbtn = lv_button_create(s_login);
   lv_obj_set_style_bg_color(showbtn, KEY_COL, 0);
   lv_obj_set_style_shadow_width(showbtn, 0, 0);
-  lv_obj_set_size(showbtn, 92, 40);
-  lv_obj_set_pos(showbtn, 650, 18);
+#if KISS_NARROW
+  lv_obj_set_size(showbtn, EYE_W, PILL_H);
+  lv_obj_set_pos(showbtn, EYE_X, PILL_Y);
+#else
+  lv_obj_set_size(showbtn, SX(92), SY(40));
+  lv_obj_set_pos(showbtn, SX(650), SY(18));
+#endif
   lv_obj_add_event_cb(showbtn, show_cb, LV_EVENT_CLICKED, NULL);
   // AN EYE, not the word, and this is the one control on the device where the
   // mark is not a preference. The button is 92px wide and the label lane is 84.
@@ -2278,7 +2612,8 @@ void kiss_login_open(void (*unlocked_cb)(void)) {
   s_showbtn_lbl = lv_label_create(showbtn);
   lv_label_set_text(s_showbtn_lbl, LV_SYMBOL_EYE_OPEN);
   lv_obj_set_style_text_color(s_showbtn_lbl, MUT_COL, 0);
-  lv_obj_set_style_text_font(s_showbtn_lbl, wt_font23(), 0);
+  // 18 px on the 3.5in: the 14 px eye was a speck in a 32 px pill.
+  lv_obj_set_style_text_font(s_showbtn_lbl, KISS_NARROW ? wt_font28() : wt_font23(), 0);
   lv_obj_center(s_showbtn_lbl);
 
   // SCAN: a passphrase kept as a QR (some owners do). Gated behind one warning
@@ -2290,22 +2625,35 @@ void kiss_login_open(void (*unlocked_cb)(void)) {
     lv_obj_t *sb = lv_button_create(s_login);
     lv_obj_set_style_bg_color(sb, KEY_COL, 0);
     lv_obj_set_style_shadow_width(sb, 0, 0);
-    lv_obj_set_size(sb, 92, 40);
-    lv_obj_set_pos(sb, 550, 18);
+#if KISS_NARROW
+    lv_obj_set_size(sb, SCAN_W, PILL_H);
+    lv_obj_set_pos(sb, SCAN_X, PILL_Y);
+#else
+    lv_obj_set_size(sb, SX(92), SY(40));
+    lv_obj_set_pos(sb, SX(550), SY(18));
+#endif
     lv_obj_add_event_cb(sb, pp_scan_warn_cb, LV_EVENT_CLICKED, NULL);
     lv_obj_t *sl = lv_label_create(sb);
     lv_label_set_text(sl, tr(STR_L_SCAN_BTN));
     lv_obj_set_style_text_color(sl, MUT_COL, 0);
-    lv_obj_set_style_text_font(sl, wt_body_font(tr(STR_L_SCAN_BTN), 84, 32), 0);
+#if KISS_NARROW
+    lv_obj_set_style_text_font(sl, wt_body_font(tr(STR_L_SCAN_BTN), SCAN_W - 8, PILL_H - 8), 0);
+#else
+    lv_obj_set_style_text_font(sl, wt_body_font(tr(STR_L_SCAN_BTN), SX(84), SY(32)), 0);
+#endif
     lv_obj_center(sl);
   }
 
   s_entry = lv_label_create(s_login);
   lv_obj_set_style_text_font(s_entry, wt_font28(), 0);
-  lv_obj_set_width(s_entry, 704);
+  lv_obj_set_width(s_entry, SX(704));
   lv_label_set_long_mode(s_entry, LV_LABEL_LONG_SCROLL);   // long passphrases scroll
   lv_obj_set_style_text_align(s_entry, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_set_pos(s_entry, 48, 92);
+#if KISS_NARROW
+  lv_obj_set_pos(s_entry, SX(48), ENTRY_Y);
+#else
+  lv_obj_set_pos(s_entry, SX(48), SY(92));
+#endif
   // Tap-to-edit. One line of font28 is a 34px target, which is mean for a
   // fingertip, so the touch area is widened without moving the layout.
   lv_obj_add_flag(s_entry, LV_OBJ_FLAG_CLICKABLE);
@@ -2324,19 +2672,31 @@ void kiss_login_open(void (*unlocked_cb)(void)) {
   lv_label_set_text(s_count, "");
   lv_obj_set_style_text_color(s_count, MUT_COL, 0);
   lv_obj_set_style_text_font(s_count, wt_font14(), 0);
-  lv_obj_set_pos(s_count, 48, 132);
+#if KISS_NARROW
+  lv_obj_set_pos(s_count, SX(48), COUNT_Y);   // hdr_fit moves it
+#else
+  lv_obj_set_pos(s_count, SX(48), SY(132));
+#endif
 
   s_meter = lv_label_create(s_login);      // WEAK/FAIR/STRONG (setup mode only)
   lv_label_set_text(s_meter, "");
   lv_obj_set_style_text_font(s_meter, wt_font14(), 0);
   lv_obj_set_style_text_letter_space(s_meter, 2, 0);
-  lv_obj_set_pos(s_meter, 660, 132);
+#if KISS_NARROW
+  lv_obj_set_pos(s_meter, SX(660), COUNT_Y);  // hdr_fit right-aligns it
+#else
+  lv_obj_set_pos(s_meter, SX(660), SY(132));
+#endif
 
   s_pp_hint = lv_label_create(s_login);    // length-coaching hint (setup mode only)
   lv_label_set_text(s_pp_hint, "");
   lv_obj_set_style_text_font(s_pp_hint, wt_font14(), 0);
   lv_obj_set_style_text_color(s_pp_hint, MUT_COL, 0);
-  lv_obj_align(s_pp_hint, LV_ALIGN_TOP_MID, 0, 132);   // centered between count and meter
+#if KISS_NARROW
+  lv_obj_set_pos(s_pp_hint, SX(48), COUNT_Y);   // hdr_fit centres it in the gap
+#else
+  lv_obj_align(s_pp_hint, LV_ALIGN_TOP_MID, 0, SY(132));   // centered between count and meter
+#endif
   // Declared font14, all three. This is one 132px line above a keyboard
   // carrying a character COUNTER, a strength WORD and a length hint -- three
   // readouts sharing a row, none of them a sentence, and the row cannot grow
@@ -2349,19 +2709,25 @@ void kiss_login_open(void (*unlocked_cb)(void)) {
   // lock from a previous screen would silently change what gets typed
   s_caps_lock = false; s_one_shot = false; s_shift_t0 = 0; s_hold_lock_ok = false;
   kb_plane(s_kb, MAP_LOWER);
-  lv_obj_set_size(s_kb, 800, 316);
-  lv_obj_set_pos(s_kb, 0, 158);
+  lv_obj_set_size(s_kb, SCREEN_W, KISS_NARROW ? KB_H : SY(316));
+  lv_obj_set_pos(s_kb, 0, KISS_NARROW ? KB_Y : SY(158));
   lv_obj_set_style_bg_color(s_kb, BG_COL, 0);
   lv_obj_set_style_border_width(s_kb, 0, 0);
-  lv_obj_set_style_pad_all(s_kb, 6, 0);
+#if KISS_NARROW
+  lv_obj_set_style_pad_all(s_kb, KB_PAD, 0);
+  lv_obj_set_style_pad_column(s_kb, KB_GAP_X, 0);   // see KB_GAP_X
+  lv_obj_set_style_pad_row(s_kb, KB_GAP_Y, 0);
+#else
+  lv_obj_set_style_pad_all(s_kb, SX(6), 0);
   lv_obj_set_style_pad_gap(s_kb, 6, 0);
+#endif
   // keys: big, dark, readable
   lv_obj_set_style_bg_color(s_kb, KEY_COL, LV_PART_ITEMS);
   lv_obj_set_style_bg_color(s_kb, KEYP_COL, LV_PART_ITEMS | LV_STATE_PRESSED);
   lv_obj_set_style_text_color(s_kb, INK_COL, LV_PART_ITEMS);
   lv_obj_set_style_text_font(s_kb, wt_font28(), LV_PART_ITEMS);
   lv_obj_set_style_shadow_width(s_kb, 0, LV_PART_ITEMS);
-  lv_obj_set_style_radius(s_kb, 8, LV_PART_ITEMS);
+  lv_obj_set_style_radius(s_kb, SX(8), LV_PART_ITEMS);
   lv_obj_set_style_border_width(s_kb, 0, LV_PART_ITEMS);
   // bottom row: plane switch, CANCEL, wide space, OK
   lv_obj_set_style_bg_color(s_kb, wt_accent_bg(),
@@ -2440,7 +2806,7 @@ static int s_build_id_right;   // measured right edge, see kiss_build_id_right
 // word space on purpose: these are two unrelated facts, not a sentence, and
 // nothing may be drawn between them (a separator here would be a dash used as
 // punctuation, which this codebase does not do).
-#define BUILD_ID_GAP 28
+#define BUILD_ID_GAP SX(28)
 
 // Two callers, two shapes, and the shape belongs to the CALLER, not to this
 // function's other argument. Settings stacks, because it has three facts to
@@ -2462,16 +2828,16 @@ bool kiss_fp_card(lv_obj_t *parent, int y)
   // The same two facts now sit open on the glass: caption at the chrome
   // rung, code at the def rows' own mono28.
   const char *cap = tr(STR_L_FP_CAP);
-  lv_obj_t *c = wt_lbl(parent, cap, 231, y, wt_chrome21(cap), wt_accent());
+  lv_obj_t *c = wt_lbl(parent, cap, SX(231), y, wt_chrome21(cap), wt_accent());
   lv_obj_add_flag(c, WT_FLAG_ACCENT);
   lv_obj_set_style_text_letter_space(c, 2, 0);
-  lv_obj_set_width(c, 340);
+  lv_obj_set_width(c, SX(340));
   lv_obj_set_style_text_align(c, LV_TEXT_ALIGN_CENTER, 0);
-  lv_obj_t *v = wt_lbl(parent, id, 231,
-                       y + lv_font_get_line_height(wt_chrome21(cap)) + 6,
+  lv_obj_t *v = wt_lbl(parent, id, SX(231),
+                       y + lv_font_get_line_height(wt_chrome21(cap)) + SY(6),
                        wt_font_mono28(), WT_INK);
   lv_obj_set_style_text_letter_space(v, 2, 0);
-  lv_obj_set_width(v, 340);
+  lv_obj_set_width(v, SX(340));
   lv_obj_set_style_text_align(v, LV_TEXT_ALIGN_CENTER, 0);
   return true;
 }
@@ -2600,7 +2966,7 @@ lv_obj_t *kiss_build_id_make_at(lv_obj_t *parent, int x, int y,
     // is ON or OFF and the translation of neither is fixed, so the gap is added
     // to what encryption actually rendered rather than to a guess about it.
     lv_obj_update_layout(w);
-    lv_obj_set_pos(r, lv_obj_get_x(w) + lv_obj_get_width(w) + 24,
+    lv_obj_set_pos(r, lv_obj_get_x(w) + lv_obj_get_width(w) + SX(24),
                    lv_obj_get_y(w));
 
     // Third fact on the same row: whether the chip's RNG has a physical noise
@@ -2638,7 +3004,7 @@ lv_obj_t *kiss_build_id_make_at(lv_obj_t *parent, int x, int y,
     // owner has made the opposite one: two rows of small print in the corner of
     // Settings beat three.
     lv_obj_update_layout(r);
-    lv_obj_set_pos(n, lv_obj_get_x(r) + lv_obj_get_width(r) + 24,
+    lv_obj_set_pos(n, lv_obj_get_x(r) + lv_obj_get_width(r) + SX(24),
                    lv_obj_get_y(r));
     wt_tiny_ok(r); wt_tiny_ok(n);
     lv_obj_update_layout(n);

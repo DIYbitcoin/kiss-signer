@@ -40,6 +40,7 @@ LANGS = [
     ("da", "1f1e9-1f1f0"),
     ("cs", "1f1e8-1f1ff"),
     ("hr", "1f1ed-1f1f7"),
+    ("hu", "1f1ed-1f1fa"),
 ]
 
 c_lines = ['#include "lvgl.h"', ""]

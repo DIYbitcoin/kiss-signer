@@ -1313,6 +1313,17 @@ CONFIG_PARTITION_TABLE_MD5=y
 # end of Partition Table
 
 #
+# KISS board
+#
+# default:
+CONFIG_KISS_BOARD_GUITION=y
+# default:
+# CONFIG_KISS_BOARD_WS35 is not set
+# default:
+# CONFIG_KISS_BOARD_JC1060 is not set
+# end of KISS board
+
+#
 # Compiler options
 #
 # CONFIG_COMPILER_OPTIMIZATION_DEBUG is not set
@@ -4421,13 +4432,6 @@ CONFIG_ESP_LCD_TOUCH_MAX_POINTS=5
 # default:
 CONFIG_ESP_LCD_TOUCH_MAX_BUTTONS=1
 # end of ESP LCD TOUCH
-
-#
-# ESP LVGL PORT
-#
-# default:
-# CONFIG_LVGL_PORT_ENABLE_PPA is not set
-# end of ESP LVGL PORT
 
 #
 # Espressif SCCB Configurations

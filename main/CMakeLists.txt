@@ -1,7 +1,62 @@
+# One board file per image, never both: each is that board's whole answer to
+# kiss_board.h, and the other board's would not even compile against the
+# drivers it names.
+if(CONFIG_KISS_BOARD_WS35)
+    set(KISS_BOARD_SRC "board_ws35.c")
+    # The baked backdrops drawn at this board's 480x320 by the same
+    # generators (--board ws35). Same symbols, same headers, one set per image.
+    set(KISS_ART_SRCS "menu_img_ws35.c" "menu_logo_ws35.c" "gameover_img_ws35.c" "game_bg.c" "kiss_img_ws35.c")
+    set(KISS_SPRITES_SRC "sprites_ws35.c")
+    # The small faces with strong hinting (tools/fonts/gen_fonts.sh says why),
+    # same names, same link slots.
+    set(KISS_F_LAT14 "fonts_ws35/font_kiss_lat14.c")
+    set(KISS_F_LAT18 "fonts_ws35/font_kiss_lat18.c")
+    set(KISS_F_LAT23 "fonts_ws35/font_kiss_lat23.c")
+    set(KISS_F_MONO14 "fonts_ws35/font_kiss_mono14.c")
+    set(KISS_F_MONO18 "fonts_ws35/font_kiss_mono18.c")
+    set(KISS_F_MONO21 "fonts_ws35/font_kiss_mono21.c")
+    set(KISS_F_MONO23 "fonts_ws35/font_kiss_mono23.c")
+    set(KISS_F_NUM28 "fonts_ws35/font_kiss_num28.c")
+elseif(CONFIG_KISS_BOARD_GUITION OR CMAKE_BUILD_EARLY_EXPANSION)
+    # The early pass collects requirements before any CONFIG_ symbol exists,
+    # and the source list it sees is not the one that gets built.
+    set(KISS_BOARD_SRC "board_guition.c")
+    # In this order, with game_bg.c where it always was: the link order is
+    # the source order, and the Guition image is held byte-identical.
+    set(KISS_ART_SRCS "menu_img.c" "menu_logo.c" "gameover_img.c" "game_bg.c" "kiss_img.c")
+    set(KISS_SPRITES_SRC "sprites.c")
+    set(KISS_F_LAT14 "font_kiss_lat14.c")
+    set(KISS_F_LAT18 "font_kiss_lat18.c")
+    set(KISS_F_LAT23 "font_kiss_lat23.c")
+    set(KISS_F_MONO14 "font_kiss_mono14.c")
+    set(KISS_F_MONO18 "font_kiss_mono18.c")
+    set(KISS_F_MONO21 "font_kiss_mono21.c")
+    set(KISS_F_MONO23 "font_kiss_mono23.c")
+    set(KISS_F_NUM28 "font_kiss_num28.c")
+elseif(CONFIG_KISS_BOARD_JC1060)
+    set(KISS_BOARD_SRC "board_jc1060.c")
+    # The same pictures drawn at 1024x600 by the same generators (--board
+    # jc1060), defining the same symbols.
+    set(KISS_ART_SRCS "menu_img_jc1060.c" "menu_logo_jc1060.c" "gameover_img_jc1060.c" "game_bg.c" "kiss_img_jc1060.c")
+    set(KISS_SPRITES_SRC "sprites_jc1060.c")
+    set(KISS_F_LAT14 "font_kiss_lat14.c")
+    set(KISS_F_LAT18 "font_kiss_lat18.c")
+    set(KISS_F_LAT23 "font_kiss_lat23.c")
+    set(KISS_F_MONO14 "font_kiss_mono14.c")
+    set(KISS_F_MONO18 "font_kiss_mono18.c")
+    set(KISS_F_MONO21 "font_kiss_mono21.c")
+    set(KISS_F_MONO23 "font_kiss_mono23.c")
+    set(KISS_F_NUM28 "font_kiss_num28.c")
+    # One rung up needs four faces no other board has (kiss_theme.c's ladder).
+    set(KISS_F_EXTRA "font_kiss_lat43.c" "font_kiss_mono26.c" "font_kiss_mono43.c" "font_kiss_num60.c")
+else()
+    message(FATAL_ERROR "no source list for this board in main/CMakeLists.txt")
+endif()
+
 idf_component_register(
-    SRCS "main.c" "sprites.c" "menu_img.c" "menu_logo.c" "gameover_img.c" "game_bg.c" "kiss_img.c" "kiss_art.c" "kiss_art_rle.c" "kiss_crypto.c" "kiss_psbt.c" "kiss_sp.c" "kiss_ui.c" "kiss_theme.c" "kiss_terms.c" "kiss_info.c" "kiss_recv.c" "kiss_sign.c" "kiss_scan.c" "kiss_settings.c" "kiss_fw.c" "kiss_fw_ui.c" "kiss_pqsig.c" "kiss_setup.c" "kiss_duress.c" "kiss_gword.c" "kiss_coverword.c" "kiss_duress_ui.c" "kiss_word_ui.c" "kiss_seed.c" "kiss_seed_sd.c" "kiss_kef.c" "kiss_kef_crypto.c" "kiss_pbkdf2.c" "kiss_cryptobench.c" "kiss_usage.c" "kiss_payee.c" "kiss_backup.c" "kiss_tapent.c" "kiss_dice.c" "kiss_dice_q.c" "kiss_rngq.c" "kiss_rngaudit.c" "kiss_cards_q.c" "kiss_lastword.c" "kiss_rehearse.c" "i18n.c" "i18n_tables.c" "font_kiss_lat14.c" "font_kiss_lat23.c" "font_kiss_lat28.c" "font_kiss_lat34.c" "font_kiss_mono14.c" "font_kiss_mono18.c" "font_kiss_mono21.c" "font_kiss_mono23.c" "font_kiss_mono28.c" "font_kiss_mono34.c" "font_kiss_num48.c" "font_kiss_ja23.c" "font_kiss_ko23.c" "font_kiss_zh23.c" "flag_imgs.c" "font_kiss_ja14.c" "font_kiss_ja28.c" "font_kiss_ko14.c" "font_kiss_ko28.c" "font_kiss_zh14.c" "font_kiss_zh28.c" "qr_transport.c" "platform_sd.c" "camera_spike.c" "osd_text.c" "osd_strips.c"
+    SRCS "main.c" ${KISS_BOARD_SRC} "kiss_touch.c" ${KISS_SPRITES_SRC} ${KISS_ART_SRCS} "kiss_art.c" "kiss_art_rle.c" "kiss_crypto.c" "kiss_psbt.c" "kiss_sp.c" "kiss_ui.c" "kiss_theme.c" "kiss_terms.c" "kiss_info.c" "kiss_recv.c" "kiss_sign.c" "kiss_scan.c" "kiss_settings.c" "kiss_fw.c" "kiss_fw_ui.c" "kiss_pqsig.c" "kiss_setup.c" "kiss_duress.c" "kiss_gword.c" "kiss_coverword.c" "kiss_duress_ui.c" "kiss_word_ui.c" "kiss_seed.c" "kiss_seed_sd.c" "kiss_kef.c" "kiss_kef_crypto.c" "kiss_pbkdf2.c" "kiss_cryptobench.c" "kiss_usage.c" "kiss_payee.c" "kiss_backup.c" "kiss_tapent.c" "kiss_dice.c" "kiss_dice_q.c" "kiss_rngq.c" "kiss_rngaudit.c" "kiss_cards_q.c" "kiss_lastword.c" "kiss_rehearse.c" "i18n.c" "i18n_tables.c" ${KISS_F_LAT14} ${KISS_F_LAT23} "font_kiss_lat28.c" "font_kiss_lat34.c" ${KISS_F_MONO14} ${KISS_F_MONO18} ${KISS_F_MONO21} ${KISS_F_MONO23} "font_kiss_mono28.c" "font_kiss_mono34.c" "font_kiss_num48.c" "font_kiss_ja23.c" "font_kiss_ko23.c" "font_kiss_zh23.c" "flag_imgs.c" "font_kiss_ja14.c" "font_kiss_ja28.c" "font_kiss_ko14.c" "font_kiss_ko28.c" "font_kiss_zh14.c" "font_kiss_zh28.c" "qr_transport.c" "platform_sd.c" "camera_spike.c" "osd_text.c" "osd_strips.c" ${KISS_F_LAT18} "font_kiss_ja18.c" "font_kiss_ko18.c" "font_kiss_zh18.c" ${KISS_F_NUM28} ${KISS_F_EXTRA}
     INCLUDE_DIRS "."
-    REQUIRES esp_system spi_flash app_update esp_driver_gpio esp_driver_ledc esp_driver_i2c esp_lcd esp_lcd_st7701 esp_lcd_touch esp_lcd_touch_gt911 esp_lvgl_port esp_timer esp_driver_ppa esp_mm libwally-core esp_video fatfs sdmmc esp_driver_sdmmc cUR k_quirc slhdsa nvs_flash bootloader_support efuse
+    REQUIRES esp_system spi_flash app_update esp_driver_gpio esp_driver_ledc esp_driver_i2c esp_lcd esp_lcd_st7701 esp_lcd_st7796 esp_lcd_jd9165 esp_lcd_touch esp_lcd_touch_gt911 esp_lcd_touch_ft5x06 esp_timer esp_driver_ppa esp_mm libwally-core esp_video fatfs sdmmc esp_driver_sdmmc cUR k_quirc slhdsa nvs_flash bootloader_support efuse
 )
 
 # THE LINT LANE. There is no separate one: this component is the only place in
@@ -82,6 +137,43 @@ target_compile_definitions(${COMPONENT_LIB} PRIVATE LV_LVGL_H_INCLUDE_SIMPLE=1)
 # happened to agree, and nothing enforced it.
 idf_build_get_property(KISS_VERSION_LINE PROJECT_VER)
 target_compile_definitions(${COMPONENT_LIB} PRIVATE KISS_VERSION_STR="${KISS_VERSION_LINE}")
+
+# The project name, for the same reason: it is the app descriptor's
+# project_name, the one field an SD update image carries that says which BOARD
+# it was built for, and kiss_fw.c compares it against the running image. The
+# simulator has no descriptor and takes a default in the source.
+target_compile_definitions(${COMPONENT_LIB} PRIVATE KISS_PROJECT_STR="${CMAKE_PROJECT_NAME}")
+
+# The board profile, asserted rather than trusted. The root CMakeLists.txt
+# picks the project name from -DKISS_BOARD before Kconfig runs, and Kconfig
+# then says CONFIG_KISS_BOARD_* from whichever sdkconfig it was handed. Those
+# are two sources, and a build directory configured for one board and then
+# re-pointed at the other would otherwise link the 4.3in image under the
+# 3.5in name, or the reverse, without a word. Not during IDF's early expansion
+# pass, which runs this file once to collect requirements before any CONFIG_
+# symbol exists; in the real pass they are guaranteed to be visible.
+if(NOT CMAKE_BUILD_EARLY_EXPANSION)
+    # Every board, not one against the other: CONFIG_KISS_BOARD_<ID> is a
+    # Kconfig choice, so exactly one is set, and it has to be this one.
+    string(TOUPPER "${KISS_BOARD}" _kiss_board_uc)
+    if(NOT CONFIG_KISS_BOARD_${_kiss_board_uc})
+        if(KISS_BOARD STREQUAL "guition")
+            message(FATAL_ERROR "the committed sdkconfig has been switched to another board's "
+                                "profile; it must stay the Guition profile")
+        else()
+            message(FATAL_ERROR "KISS_BOARD=${KISS_BOARD} but the sdkconfig is not the "
+                                "${KISS_BOARD} profile: delete the build directory's "
+                                "sdkconfig and reconfigure")
+        endif()
+    endif()
+    # Both camera sensors answer at SCCB address 0x36, so an image carrying
+    # both drivers would let esp_video's auto-detect pick one by chip-ID
+    # readback order. Exactly one per board profile.
+    if(CONFIG_CAMERA_OV5647 AND CONFIG_CAMERA_OV02C10)
+        message(FATAL_ERROR "both camera sensors are enabled and both answer at SCCB 0x36: "
+                            "exactly one per board profile")
+    endif()
+endif()
 
 # short commit for verifier matching. Passed by tools/build_release.sh from the
 # HOST's git (as a cache var it re-triggers configure whenever it changes; git
