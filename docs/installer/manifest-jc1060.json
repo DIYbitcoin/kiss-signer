@@ -1,5 +1,5 @@
 {
-  "name": "KISS Signer (Guition 4.3in)",
+  "name": "KISS Signer (Guition 7in)",
   "version": "0.1.0-beta11-9f63c65c",
   "new_install_prompt_erase": true,
   "new_install_improv_wait_time": 0,
@@ -9,7 +9,7 @@
       "improv": false,
       "parts": [
         {
-          "path": "firmware/kiss-signer-0.1.0-beta11.bin",
+          "path": "firmware/kiss-signer-0.1.0-beta11-jc1060.bin",
           "offset": 0
         }
       ]

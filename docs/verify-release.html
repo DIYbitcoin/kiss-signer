@@ -209,12 +209,14 @@
            the data-board attribute, and a board the release does not carry
            says so rather than keeping an older release's hash. -->
       <p class="mut" style="margin-top:22px">
-        Expected for <b>0.1.0-beta10</b>:
+        Expected for <b>0.1.0-beta11</b>:
       </p>
-      <p class="mut expect" data-board="guition">Guition 4.3in, <span class="mono">kiss-signer-0.1.0-beta10.bin</span>:
-        <span class="mono">3acd0073f2598bd449e4289b0bd10986baf8b655e0f6997fb3f6cd7c3b3ca783</span></p>
-      <p class="mut expect" data-board="ws35">Waveshare 3.5in: no image in this release</p>
-      <p class="mut expect" data-board="jc1060">Guition 7in: no image in this release</p>
+      <p class="mut expect" data-board="guition">Guition 4.3in, <span class="mono">kiss-signer-0.1.0-beta11.bin</span>:
+        <span class="mono">0078184abe4021b1dcecbf80b8f2092d866a5ecb8494342e40a441c3f664abeb</span></p>
+      <p class="mut expect" data-board="ws35">Waveshare 3.5in, <span class="mono">kiss-signer-0.1.0-beta11-ws35.bin</span>:
+        <span class="mono">7bf8ff09826a71c3ce8fa758aa6d9276d80c1c4df9fbf365300167500c02a2f4</span></p>
+      <p class="mut expect" data-board="jc1060">Guition 7in, <span class="mono">kiss-signer-0.1.0-beta11-jc1060.bin</span>:
+        <span class="mono">e2c4cb72ab4faa5ff3591667abfffff028ea4f211f66330d45e81baa3855ffa5</span></p>
     </main>
 
     <script>
@@ -222,15 +224,15 @@
       // offline bundle with no network. Same SHA256 the audit check page uses.
       // One image per board. The Guition's keep the names they always had; an
       // empty hash is a board this release carries no image for.
-      var EXPECT = "3acd0073f2598bd449e4289b0bd10986baf8b655e0f6997fb3f6cd7c3b3ca783";
-      var EXPECT_SIZE = 5181440;
-      var EXPECT_NAME = "kiss-signer-0.1.0-beta10.bin";
-      var EXPECT_WS35 = "";
-      var EXPECT_WS35_SIZE = 0;
-      var EXPECT_WS35_NAME = "";
-      var EXPECT_JC1060 = "";
-      var EXPECT_JC1060_SIZE = 0;
-      var EXPECT_JC1060_NAME = "";
+      var EXPECT = "0078184abe4021b1dcecbf80b8f2092d866a5ecb8494342e40a441c3f664abeb";
+      var EXPECT_SIZE = 5115904;
+      var EXPECT_NAME = "kiss-signer-0.1.0-beta11.bin";
+      var EXPECT_WS35 = "7bf8ff09826a71c3ce8fa758aa6d9276d80c1c4df9fbf365300167500c02a2f4";
+      var EXPECT_WS35_SIZE = 5050368;
+      var EXPECT_WS35_NAME = "kiss-signer-0.1.0-beta11-ws35.bin";
+      var EXPECT_JC1060 = "e2c4cb72ab4faa5ff3591667abfffff028ea4f211f66330d45e81baa3855ffa5";
+      var EXPECT_JC1060_SIZE = 6164480;
+      var EXPECT_JC1060_NAME = "kiss-signer-0.1.0-beta11-jc1060.bin";
       var IMAGES = [
         { board: "Guition 4.3in", sha256: EXPECT, size: EXPECT_SIZE, name: EXPECT_NAME },
         { board: "Waveshare 3.5in", sha256: EXPECT_WS35, size: EXPECT_WS35_SIZE, name: EXPECT_WS35_NAME },

@@ -3,10 +3,10 @@
   "product": "KISS Signer",
   "board": "Guition JC4880P443C",
   "chipFamily": "ESP32-P4",
-  "version": "0.1.0-beta10",
-  "commit": "6a885d83",
+  "version": "0.1.0-beta11",
+  "commit": "9f63c65c",
   "status": "beta",
-  "generated": "2026-09-09",
+  "generated": "2026-09-26",
   "authenticity": {
     "signed": true,
     "signatureStatus": "pgp",
@@ -22,10 +22,10 @@
     "size": "16MB"
   },
   "browserFirmware": {
-    "path": "firmware/kiss-signer-0.1.0-beta10.bin",
+    "path": "firmware/kiss-signer-0.1.0-beta11.bin",
     "offset": 0,
-    "size": 5181440,
-    "sha256": "3acd0073f2598bd449e4289b0bd10986baf8b655e0f6997fb3f6cd7c3b3ca783"
+    "size": 5115904,
+    "sha256": "0078184abe4021b1dcecbf80b8f2092d866a5ecb8494342e40a441c3f664abeb"
   },
   "sourceParts": [
     {
@@ -53,8 +53,136 @@
       "name": "application",
       "sourcePath": "build-release/guition_kiss_bringup.bin",
       "offset": 131072,
-      "size": 5050368,
-      "sha256": "4113c875a17a3c14eee1160fc0b1bcfeddcebe526d4ae3738cd275c12d0abe1e"
+      "size": 4984832,
+      "sha256": "ad40933be25539106ca18e195c23407ecc7b2cb34ff1c97eebe047d0c760b3ba"
+    }
+  ],
+  "boards": [
+    {
+      "id": "guition",
+      "name": "Guition 4.3in",
+      "model": "Guition JC4880P443C",
+      "manifest": "manifest.json",
+      "browserFirmware": {
+        "path": "firmware/kiss-signer-0.1.0-beta11.bin",
+        "offset": 0,
+        "size": 5115904,
+        "sha256": "0078184abe4021b1dcecbf80b8f2092d866a5ecb8494342e40a441c3f664abeb"
+      },
+      "sourceParts": [
+        {
+          "name": "bootloader",
+          "sourcePath": "build-release/bootloader/bootloader.bin",
+          "offset": 8192,
+          "size": 20864,
+          "sha256": "8015788ed9850795cf99da7cf610614343c445d5b646fb88e7753cd13a99282a"
+        },
+        {
+          "name": "partition table",
+          "sourcePath": "build-release/partition_table/partition-table.bin",
+          "offset": 65536,
+          "size": 3072,
+          "sha256": "fdf93d4861300dffb24e77681e33762d500f40629f2b7909a1f2262b439997f0"
+        },
+        {
+          "name": "ota data",
+          "sourcePath": "build-release/ota_data_initial.bin",
+          "offset": 98304,
+          "size": 8192,
+          "sha256": "7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f"
+        },
+        {
+          "name": "application",
+          "sourcePath": "build-release/guition_kiss_bringup.bin",
+          "offset": 131072,
+          "size": 4984832,
+          "sha256": "ad40933be25539106ca18e195c23407ecc7b2cb34ff1c97eebe047d0c760b3ba"
+        }
+      ]
+    },
+    {
+      "id": "ws35",
+      "name": "Waveshare 3.5in",
+      "model": "Waveshare ESP32-P4-WIFI6-Touch-LCD-3.5",
+      "manifest": "manifest-ws35.json",
+      "browserFirmware": {
+        "path": "firmware/kiss-signer-0.1.0-beta11-ws35.bin",
+        "offset": 0,
+        "size": 5050368,
+        "sha256": "7bf8ff09826a71c3ce8fa758aa6d9276d80c1c4df9fbf365300167500c02a2f4"
+      },
+      "sourceParts": [
+        {
+          "name": "bootloader",
+          "sourcePath": "build-release-ws35/bootloader/bootloader.bin",
+          "offset": 8192,
+          "size": 20864,
+          "sha256": "8015788ed9850795cf99da7cf610614343c445d5b646fb88e7753cd13a99282a"
+        },
+        {
+          "name": "partition table",
+          "sourcePath": "build-release-ws35/partition_table/partition-table.bin",
+          "offset": 65536,
+          "size": 3072,
+          "sha256": "fdf93d4861300dffb24e77681e33762d500f40629f2b7909a1f2262b439997f0"
+        },
+        {
+          "name": "ota data",
+          "sourcePath": "build-release-ws35/ota_data_initial.bin",
+          "offset": 98304,
+          "size": 8192,
+          "sha256": "7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f"
+        },
+        {
+          "name": "application",
+          "sourcePath": "build-release-ws35/ws35_kiss_bringup.bin",
+          "offset": 131072,
+          "size": 4919296,
+          "sha256": "64de1745d8c17ebbef2ea66e1064c15edf7fb1697d0e952dde09cad272c19e41"
+        }
+      ]
+    },
+    {
+      "id": "jc1060",
+      "name": "Guition 7in",
+      "model": "Guition JC1060P470C",
+      "manifest": "manifest-jc1060.json",
+      "browserFirmware": {
+        "path": "firmware/kiss-signer-0.1.0-beta11-jc1060.bin",
+        "offset": 0,
+        "size": 6164480,
+        "sha256": "e2c4cb72ab4faa5ff3591667abfffff028ea4f211f66330d45e81baa3855ffa5"
+      },
+      "sourceParts": [
+        {
+          "name": "bootloader",
+          "sourcePath": "build-release-jc1060/bootloader/bootloader.bin",
+          "offset": 8192,
+          "size": 20864,
+          "sha256": "8015788ed9850795cf99da7cf610614343c445d5b646fb88e7753cd13a99282a"
+        },
+        {
+          "name": "partition table",
+          "sourcePath": "build-release-jc1060/partition_table/partition-table.bin",
+          "offset": 65536,
+          "size": 3072,
+          "sha256": "fdf93d4861300dffb24e77681e33762d500f40629f2b7909a1f2262b439997f0"
+        },
+        {
+          "name": "ota data",
+          "sourcePath": "build-release-jc1060/ota_data_initial.bin",
+          "offset": 98304,
+          "size": 8192,
+          "sha256": "7d2c7ac4888bfd75cd5f56e8d61f69595121183afc81556c876732fd3782c62f"
+        },
+        {
+          "name": "application",
+          "sourcePath": "build-release-jc1060/jc1060_kiss_bringup.bin",
+          "offset": 131072,
+          "size": 6033408,
+          "sha256": "294dd77a5d81d5ce34ac3366540b50628b99f440583262653bf1ffc0ee77194b"
+        }
+      ]
     }
   ],
   "warnings": [
