@@ -199,14 +199,6 @@ KISS_BOARD=jc1060 tools/build_release.sh
 shasum -a 256 build-release-jc1060/jc1060_kiss_bringup.bin
 ```
 
-For a device that will hold real coins, `tools/build_encrypted_release.sh`
-builds the hardened profile instead.
-
-> [!WARNING]
-> That profile's first boot **burns eFuses, with no undo**, and the device can
-> **never be reflashed over USB** afterwards. Signed SD updates still work and
-> become the only way in. Fresh device only.
-
 ## License
 
 Original source and documentation are [MIT](LICENSE). Vendored components keep
