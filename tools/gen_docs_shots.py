@@ -547,10 +547,14 @@ REVEAL_TAIL_MIN = 4
 
 
 def theme_colour(name):
-    """A hex colour from main/kiss_theme.h. Never invent one, never copy one."""
+    """A hex colour from main/kiss_theme.h. Never invent one, never copy one.
+
+    A colour the 3.5in overrides is written KISS_NARROW ? narrow : wide, and
+    these frames are the 4.3in's, so the wide value is the one they drew."""
     with open(os.path.join(ROOT, "main", "kiss_theme.h")) as fh:
-        m = re.search(r"#define\s+%s\s+lv_color_hex\(0x([0-9A-Fa-f]{6})\)" % name,
-                      fh.read())
+        m = re.search(r"#define\s+%s\s+lv_color_hex\("
+                      r"(?:KISS_NARROW\s*\?\s*0x[0-9A-Fa-f]{6}\s*:\s*)?"
+                      r"0x([0-9A-Fa-f]{6})\)" % name, fh.read())
     if not m:
         raise ValueError("no %s in main/kiss_theme.h" % name)
     v = int(m.group(1), 16)
