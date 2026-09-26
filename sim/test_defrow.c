@@ -25,6 +25,14 @@ int test_defrow(void)
     dchk("n=3 closed is 59", wt_def_h_closed(3) == 59);
     dchk("n=3 open is 134", wt_def_h_open(3) == 134);
     dchk("a ghost is 22", wt_def_h_ghost() == 22);
+#elif defined(KISS_BOARD_JC1060)
+    // The 7in's lane is SY(284) = 355 with an SY(34) = 42 ghost, worked the
+    // same way.
+    dchk("n=4 closed is 88", wt_def_h_closed(4) == 88);
+    dchk("n=4 open is 229", wt_def_h_open(4) == 229);
+    dchk("n=3 closed is 118", wt_def_h_closed(3) == 118);
+    dchk("n=3 open is 271", wt_def_h_open(3) == 271);
+    dchk("a ghost is 42", wt_def_h_ghost() == 42);
 #else
     dchk("n=4 closed is 71", wt_def_h_closed(4) == 71);
     dchk("n=4 open is 182", wt_def_h_open(4) == 182);

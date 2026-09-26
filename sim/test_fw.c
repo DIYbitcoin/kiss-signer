@@ -266,8 +266,8 @@ int test_fw(void)
 
     // ---- the other board's image ----------------------------------------
     //
-    // Both boards build from one tree and check an image against the same
-    // release keys, so one built for the other board parses, verifies and can
+    // Every board builds from one tree and checks an image against the same
+    // release keys, so one built for another board parses, verifies and can
     // be newer than anything running. The project name in its descriptor is
     // the only thing that says it is not this device's firmware: the scan asks
     // first, and install asks again.
@@ -275,7 +275,8 @@ int test_fw(void)
     // Every board the tree builds, so the case holds for each of them rather
     // than for whichever one a two-way pick happened to name. A board missing
     // from this list fails the first check instead of testing against nothing.
-    static const char *const boards[] = { "guition_kiss_bringup", "ws35_kiss_bringup" };
+    static const char *const boards[] = { "guition_kiss_bringup", "ws35_kiss_bringup",
+                                          "jc1060_kiss_bringup" };
     const size_t nboards = sizeof boards / sizeof boards[0];
     bool listed = false;
     const char *other = NULL;
