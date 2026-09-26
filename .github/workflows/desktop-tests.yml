@@ -665,29 +665,35 @@ jobs:
           test -s /tmp/kissapp.ppm || { echo "FAIL: the app rendered nothing"; exit 1; }
           echo "ok: $(wc -c < /tmp/kissapp.ppm) bytes of frame"
 
-  # THE 3.5in BOARD, on its own runner: the same screens on a 480x320 canvas,
-  # every gate that measures geometry run again with KISS_BOARD=ws35. Its own
-  # job rather than more steps above because the binaries and the frames keep
-  # their names per board (sim/sim_tmp.sh), and because a narrow finding must
-  # never be mistaken for a wide one in the summary a person reads. English
+  # THE OTHER BOARDS, one runner each: the same screens on the 3.5in's 480x320
+  # and the 7in's 1024x600 canvas, every gate that measures geometry run again
+  # with KISS_BOARD set to the board. Its own job rather than more steps above
+  # because the binaries and the frames keep their names per board
+  # (sim/sim_tmp.sh), and because one board's finding must never be mistaken
+  # for the 4.3in's in the summary a person reads. English
   # only, like the wide gates; tools/preflight.sh runs the same block by hand.
   desktop-narrow:
     runs-on: ubuntu-latest
+    strategy:
+      # One board's finding says nothing about the other's.
+      fail-fast: false
+      matrix:
+        board: [ws35, jc1060]
     env:
       KISS_WERROR: 1
-      KISS_BOARD: ws35
+      KISS_BOARD: ${{ matrix.board }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: fetch LVGL for the sim (3.5in)
+      - name: fetch LVGL for the sim (${{ matrix.board }})
         uses: ./.github/actions/fetch-lvgl
 
-      - name: unit tests (3.5in)
+      - name: unit tests (${{ matrix.board }})
         run: |
           bash sim/build_test.sh
           /tmp/kisstest
 
-      - name: sim smoke walk (3.5in, en)
+      - name: sim smoke walk (${{ matrix.board }}, en)
         run: |
           bash sim/build_sim.sh
           # A process per mode; sim/sim_main.c's cold_corner() says what each
@@ -700,38 +706,38 @@ jobs:
           timeout 300 env SIM_LANG=en /tmp/fruitsim > /tmp/sim_en.log
           tail -1 /tmp/sim_en.log
 
-      - name: simulator taps still hit something (3.5in)
+      - name: simulator taps still hit something (${{ matrix.board }})
         if: always()
         run: python3 tools/check_sim_taps.py
 
-      - name: every screen has a walk stop (3.5in, strict)
+      - name: every screen has a walk stop (${{ matrix.board }}, strict)
         if: always()
         env:
           SCREENCOVER_STRICT: "1"
         run: timeout 300 python3 tools/check_screen_coverage.py
 
-      # Advisory until the 3.5in's English count reaches zero, like the
+      # Advisory until each board's English count reaches zero, like the
       # overlap gate below.
-      - name: button + explainer fit report (3.5in, en, advisory)
+      - name: button + explainer fit report (${{ matrix.board }}, en, advisory)
         if: always()
         continue-on-error: true
         run: |
           bash sim/build_fitcheck.sh
           FITCHECK_SELFTEST=1 SIM_LANG=en /tmp/kissfit
 
-      # Advisory until the 3.5in's English count reaches zero (see the
+      # Advisory until each board's English count reaches zero (see the
       # same note in tools/preflight.sh): the findings are printed, the job
       # stays green. One commit removes this line when the count is zero.
-      - name: text overlap gate (3.5in, en, advisory)
+      - name: text overlap gate (${{ matrix.board }}, en, advisory)
         if: always()
         continue-on-error: true
         run: OVERLAPCHECK_LANGS=en OVERLAPCHECK_STRICT=1 bash sim/run_overlapcheck.sh
 
-      # The overlay text gate on this board's 384 px lane, with the 18 px
-      # subtitle rung and the two-strip subtitle it needs (osd_strips.h). It
-      # came in with the camera transport that draws those captions, and it
-      # blocks: unlike the two gates above it has no count to work down.
-      - name: overlay text gate (3.5in, en)
+      # The overlay text gate on the board's own lane, with its own strip
+      # widths and subtitle rungs (osd_strips.h). It came in with the 3.5in's
+      # camera transport that draws those captions, and it blocks: unlike the
+      # two gates above it has no count to work down.
+      - name: overlay text gate (${{ matrix.board }}, en)
         if: always()
         run: |
           bash sim/build_osdcheck.sh
