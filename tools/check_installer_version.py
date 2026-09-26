@@ -52,7 +52,6 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 INSTALLER = ROOT / "docs" / "installer"
-BADGE = ROOT / "docs" / "readme" / "badge-version.svg"
 INDEX = ROOT / "docs" / "index.html"
 
 
@@ -462,15 +461,6 @@ def main() -> int:
         problems += verify_page_problems(text, boards)
         if version not in text:
             problems.append(f"docs/verify-release.html does not name {version!r}")
-
-    # The README badge is the fourth copy, and the only one a reader sees before
-    # they download anything.
-    if BADGE.is_file():
-        text = re.sub(r"<[^>]+>", " ", BADGE.read_text())
-        if version not in text:
-            problems.append(
-                f"docs/readme/badge-version.svg does not name {version!r}"
-            )
 
     live = install_button_live()
 

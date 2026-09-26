@@ -122,9 +122,10 @@ gpg_sign() {
 #
 # These blocks run on release day and on no other day, so one that names a
 # variable it never defines sits there until somebody is eight minutes into a
-# build with a signing key in their hand. That is not hypothetical: the badge
-# block below did exactly that, and the release died after the card had
-# already signed the firmware. Checked here, first, where it costs a second.
+# build with a signing key in their hand. That is not hypothetical: the README
+# badge block that used to sit in here did exactly that, and the release died
+# after the card had already signed the firmware. Checked here, first, where it
+# costs a second.
 python3 tools/check_release_lane.py
 
 # 0. the documentation screenshots, BEFORE the clean-tree check below.
@@ -737,27 +738,6 @@ if page.is_file():
         sys.exit("FAIL: docs/verify-release.html has no single 'Expected for' line")
     page.write_text(t)
     print("re-baked docs/verify-release.html")
-
-# 5b. the README's version badge.
-#
-# It was a static SVG nothing generated and everybody forgot: the gate named
-# it on the beta9 run, still reading beta8, and the only reason it has ever
-# been right is that somebody typed it. Every other version bearing file in a
-# release is written from VERSION by this script; this one is now too.
-#
-# A substitution rather than a rewrite, because the badge is shields.io output
-# and its geometry -- widths, clip path, text offsets -- is not worth
-# reproducing here. The version appears in the aria-label and in two text
-# nodes, so every copy of the old string goes.
-badge = "docs/readme/badge-version.svg"
-if os.path.exists(badge):
-    b = open(badge, encoding="utf-8").read()
-    found = re.findall(r"\d+\.\d+\.\d+[-A-Za-z0-9.]*", b)
-    if not found:
-        print("note: no version string in badge-version.svg, left alone")
-    elif found[0] != version:
-        open(badge, "w", encoding="utf-8").write(b.replace(found[0], version))
-        print("re-baked %s (%s -> %s)" % (badge, found[0], version))
 PY
 
 # 6. release notes, written before the zip so the zip can carry them: inside an

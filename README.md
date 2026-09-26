@@ -4,8 +4,6 @@
 
 **An airgapped single-sig Bitcoin signer hidden behind a fruit slashing arcade game.**
 
-<img src="docs/readme/badge-status.svg" alt="status: beta"> <img src="docs/readme/badge-version.svg" alt="version: 0.1.0-beta10"> <img src="docs/readme/badge-chip.svg" alt="chip: ESP32-P4"> <img src="docs/readme/badge-radio.svg" alt="radio: disabled"> <img src="docs/readme/badge-signing.svg" alt="signing: single-sig + SP"> <img src="docs/readme/badge-langs.svg" alt="languages: 22"> <img src="docs/readme/badge-license.svg" alt="license: MIT">
-
 <img src="docs/media/kiss-reveal.gif" alt="Drawing the word KISS on the game menu, which opens the signer" width="560">
 
 **Draw KISS anywhere on the menu.** The device shows nothing while you draw. The strokes are traced onto this picture so you can see where they go.
