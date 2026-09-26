@@ -52,8 +52,15 @@
   are worked out again on the device. A **?** on any unfamiliar word opens a
   plain words card.
 
-Runs on the Guition **JC4880P443C** dev board: ESP32-P4, 480×800 touch panel,
-camera, SD card slot. No soldering.
+Runs on three ESP32-P4 dev boards, each with a touch screen, a camera and a
+microSD slot. No soldering.
+
+- Guition **JC4880P443C**, 4.3in, 800×480
+- Waveshare **ESP32-P4-WIFI6-Touch-LCD-3.5**, 3.5in, 480×320
+- Guition **JC1060P470C**, 7in, 1024×600
+
+Only boards with a v1.x ESP32-P4 chip for now; esptool prints the revision
+when it connects. The newer v3.x chip is on the [roadmap](docs/ROADMAP.md).
 
 Inspired by [Bowser](https://github.com/arcbtc/bowser-bitcoin-hardware-wallet),
 a Bitcoin signer hidden under a Tetris game.
@@ -63,8 +70,10 @@ a Bitcoin signer hidden under a Tetris game.
 Everything you need is attached to the
 [latest release](https://github.com/DIYbitcoin/kiss-signer/releases/latest), and
 [the install page](https://diybitcoin.github.io/kiss-signer/) will flash it from your
-browser. To do it by hand, download the firmware, the hashes, the signature and
-the public key into one folder.
+browser. To do it by hand, download your board's firmware, the hashes, the
+signature and the public key into one folder. The firmware is
+`kiss-signer-VERSION.bin` for the Guition 4.3in, `-ws35.bin` for the Waveshare
+3.5in and `-jc1060.bin` for the Guition 7in.
 
 **Verify first.**
 
@@ -82,7 +91,7 @@ trustworthy as the page you read it on.
 
 ```sh
 pip install esptool
-# port: /dev/cu.usbmodem* (macOS) | /dev/ttyACM* (Linux) | COMx (Windows)
+# port: /dev/cu.usbmodem* or /dev/cu.wchusbserial* (macOS) | /dev/ttyACM* (Linux) | COMx (Windows)
 esptool --chip esp32p4 -p <port> -b 460800 \
   --before default-reset --after no-reset write-flash \
   --flash-mode dio --flash-size 16MB --flash-freq 80m \
@@ -98,13 +107,14 @@ esptool --chip esp32p4 -p <port> -b 460800 \
 > Afterwards: **unplug, wait about 3 seconds, plug back in.** The device only
 > starts new firmware from a real power-on.
 
-**No internet where you flash?** Every release carries a 6 MB offline zip: the
+**No internet where you flash?** Every release carries an offline zip: the
 install page, the firmware and the signed hashes in one download. Verify its
 signature, move it across, unzip, run the serve script inside.
 
 **No computer at all?** A running signer takes its next firmware off the SD
-card. Copy the `-update.bin` to a card, then SETTINGS > FIRMWARE. The device
-checks both signatures itself before anything becomes bootable.
+card. Copy your board's `-update.bin` to a card, then SETTINGS > FIRMWARE. The
+device checks both signatures itself, and refuses another board's file, before
+anything becomes bootable.
 
 ## First boot
 
@@ -183,6 +193,10 @@ shasum -a 256 build-release/guition_kiss_bringup.bin
 # the Waveshare 3.5in
 KISS_BOARD=ws35 tools/build_release.sh
 shasum -a 256 build-release-ws35/ws35_kiss_bringup.bin
+
+# the Guition 7in
+KISS_BOARD=jc1060 tools/build_release.sh
+shasum -a 256 build-release-jc1060/jc1060_kiss_bringup.bin
 ```
 
 For a device that will hold real coins, `tools/build_encrypted_release.sh`
