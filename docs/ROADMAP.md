@@ -94,7 +94,7 @@ that opens a modest set of keys. See `main/kiss_duress.h`.
 | Text fit report gates the build | done | `sim/fitcheck.c` covers body, title, row and sub-line budgets; overlapcheck's FIT question reports when `wt_note_fit` gives up and sets font14 |
 | Text overlap gate | done | `sim/overlapcheck.c`, nine questions per stop, three shrink-only backlogs, run by `sim/run_overlapcheck.sh` |
 | Accent themes | done | MONO, GREEN, CYPHERPINK, ORANGE. Status colours are never themed |
-| Browser installer | gated | Built and vendored, switched off while a release is staged |
+| Browser installer | done | The install page hashes the image against the release before it offers the button |
 
 ## Hardware
 
