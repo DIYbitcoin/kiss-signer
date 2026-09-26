@@ -98,10 +98,13 @@ that opens a modest set of keys. See `main/kiss_duress.h`.
 
 ## Hardware
 
-| Target | Status |
-|---|---|
-| Guition JC4880P443C | done |
-| Other ESP32-P4 devices | planned |
+| Target | Status | Notes |
+|---|---|---|
+| Guition JC4880P443C, 4.3in, 800x480 | done | |
+| Waveshare ESP32-P4-WIFI6-Touch-LCD-3.5, 3.5in, 480x320 | done | The battery mark on the home screen shows only with a cell fitted, and has not yet been seen with one |
+| Guition JC1060P470C, 7in, 1024x600 | done | |
+| Waveshare ESP32-P4-WiFi6-Touch-LCD-5, 5in, 720x1280 | planned | Next board |
+| ESP32-P4 chip revision v3.x | planned | Every release so far is built for v1.x chips, and a v1.x image does not start on a v3.x chip. Waveshare sells the 3.5in with either. Separate v3.x images, and an install page that reads the chip before erasing anything, are written but nobody has flashed a v3.x board with them yet |
 
 ## Known gaps
 
@@ -117,5 +120,7 @@ that opens a modest set of keys. See `main/kiss_duress.h`.
 - **No secure boot**, so an attacker with prolonged physical access to an
   unencrypted device can flash modified firmware and the interface will look
   identical. See [`docs/security-plan.md`](security-plan.md).
+- **No support for v3.x ESP32-P4 chips yet.** The firmware will not start on
+  one; `esptool` prints the chip revision when it connects.
 - **Silent Payments is proven on test networks only.** The full loop ran on
   signet through kiss-bdk, but not yet through Sparrow and never on mainnet.
