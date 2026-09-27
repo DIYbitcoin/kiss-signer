@@ -6,7 +6,7 @@
 
 <img src="docs/media/kiss-reveal.gif" alt="Drawing the word KISS on the game menu, which opens the signer" width="560">
 
-**Draw KISS anywhere on the menu.** The device shows nothing while you draw. The strokes are traced onto this picture so you can see where they go.
+**Draw KISS on the menu to enter.** You can customize the swipe after setup.
 
 <table>
 <tr>
@@ -14,8 +14,8 @@
 <td align="center"><img src="docs/readme/signer-home.png" alt="KISS Signer home screen" width="400"></td>
 </tr>
 <tr>
-<td align="center">What everyone sees: a real, playable game</td>
-<td align="center">What only you see: gesture, then passphrase</td>
+<td align="center">What everyone sees: a playable game</td>
+<td align="center">What you see after drawing KISS</td>
 </tr>
 </table>
 
@@ -36,42 +36,38 @@
 
 ## What it is
 
-- **Your seed words plus a passphrase make your keys.** The passphrase is typed
-  fresh every time and never stored. Every passphrase is valid, so there is no
-  wrong one: a different passphrase quietly opens different keys.
-- **Airgapped by hardware.** Transactions move by animated QR or SD card. The
-  radio chip is held in reset from the first instruction of every boot, and the
-  release build fails if any networking code links into it.
-- **Pairs with Sparrow or BlueWallet.** Others work if they do both halves:
-  import a descriptor or a zpub as watch-only, and pass transactions back by QR
-  or microSD. It watches and broadcasts; it cannot sign. Ask in
-  [Telegram](https://t.me/KISS_signer) about anything untried.
-- **Shows you everything before you sign.** Every amount, the fee and the change
-  are worked out again on the device. A **?** on any unfamiliar word opens a
-  plain words card.
+- **Seed words plus a passphrase.** The passphrase is typed every time and
+  never stored.
+- **Airgapped.** Transactions move by QR code or SD card. The radio chip is held
+  off from the moment it boots.
+- **Works with Sparrow and BlueWallet**, or any app that can watch a
+  descriptor and pass transactions by QR or SD card.
+- **Shows everything before you sign.** Amounts, fee and change are checked on
+  the device.
 
-Runs on three ESP32-P4 dev boards, each with a touch screen, a camera and a
-microSD slot. No soldering.
+Runs on three ESP32-P4 boards with a touch screen, camera and microSD slot. No
+soldering.
 
 - Guition **JC4880P443C**, 4.3in, 800×480
 - Waveshare **ESP32-P4-WIFI6-Touch-LCD-3.5**, 3.5in, 480×320
 - Guition **JC1060P470C**, 7in, 1024×600
 
-Only boards with a v1.x ESP32-P4 chip for now; esptool prints the revision
-when it connects. The newer v3.x chip is on the [roadmap](docs/ROADMAP.md).
+Boards with the newer v3.x ESP32-P4 chip are not supported yet
+([roadmap](docs/ROADMAP.md)).
 
 Inspired by [Bowser](https://github.com/arcbtc/bowser-bitcoin-hardware-wallet),
 a Bitcoin signer hidden under a Tetris game.
 
 ## Install
 
-Everything you need is attached to the
-[latest release](https://github.com/DIYbitcoin/kiss-signer/releases/latest), and
-[the install page](https://diybitcoin.github.io/kiss-signer/) will flash it from your
-browser. To do it by hand, download your board's firmware, the hashes, the
-signature and the public key into one folder. The firmware is
-`kiss-signer-VERSION.bin` for the Guition 4.3in, `-ws35.bin` for the Waveshare
-3.5in and `-jc1060.bin` for the Guition 7in.
+Easiest: [the install page](https://diybitcoin.github.io/kiss-signer/) flashes
+it from your browser.
+
+By hand: from the
+[latest release](https://github.com/DIYbitcoin/kiss-signer/releases/latest),
+download your board's firmware (`kiss-signer-VERSION.bin` for the Guition 4.3in,
+`-ws35.bin` for the Waveshare 3.5in, `-jc1060.bin` for the Guition 7in) plus
+`SHA256SUMS`, `SHA256SUMS.asc` and `kiss_signer_pgp.asc`.
 
 **Verify first.**
 
@@ -82,8 +78,7 @@ gpg --verify SHA256SUMS.asc SHA256SUMS      # expect this fingerprint:
 shasum -a 256 --ignore-missing -c SHA256SUMS   # macOS (Linux: sha256sum)
 ```
 
-Cross-check that fingerprint somewhere other than this page. It is only as
-trustworthy as the page you read it on.
+Cross-check that fingerprint somewhere other than this page.
 
 **Then flash.**
 
@@ -97,28 +92,21 @@ esptool --chip esp32p4 -p <port> -b 460800 \
 ```
 
 > [!WARNING]
-> This writes the whole chip, **including the area that holds your keys**. Have
-> your seed words on paper and your passphrase in hand before flashing a device
-> that already holds keys.
+> This erases the whole chip, **keys included**. Have your seed words and
+> passphrase first.
 
-> [!IMPORTANT]
-> Afterwards: **unplug, wait about 3 seconds, plug back in.** The device only
-> starts new firmware from a real power-on.
+Then **unplug, wait 3 seconds, plug back in.**
 
-**No internet where you flash?** Every release carries an offline zip: the
-install page, the firmware and the signed hashes in one download. Verify its
-signature, move it across, unzip, run the serve script inside.
+**No internet?** Each release has an offline zip with the install page and the
+firmware.
 
-**No computer at all?** A running signer takes its next firmware off the SD
-card. Copy your board's `-update.bin` to a card, then SETTINGS > FIRMWARE. The
-device checks both signatures itself, and refuses another board's file, before
-anything becomes bootable.
+**Updating?** Copy your board's `-update.bin` to an SD card, then SETTINGS >
+FIRMWARE. Your keys stay.
 
 ## First boot
 
-The game is what boots. A secret gesture on the menu opens the signer, then
-setup takes two minutes: create or restore keys, write the twelve seed
-words on paper, prove you wrote them, choose a passphrase.
+Draw KISS on the menu. Setup takes two minutes: create or restore keys, write
+down the seed words, confirm them, choose a passphrase.
 
 <table>
 <tr>
@@ -126,26 +114,20 @@ words on paper, prove you wrote them, choose a passphrase.
 <td align="center"><img src="docs/readme/verify-backup.png" alt="Backup verified: every word matched" width="400"></td>
 </tr>
 <tr>
-<td align="center">Write the twelve seed words down. The passphrase is needed too.</td>
-<td align="center">Type them back and the device confirms, without showing them</td>
+<td align="center">Write down the seed words</td>
+<td align="center">Type them back to confirm</td>
 </tr>
 </table>
 
 > [!TIP]
-> **Check your backup before you fund it**, under KEYS > BACKUP > SEED WORDS.
-> Bad backups lose more coins than bad signers do. Write the fingerprint from
-> the home screen on the same paper: a mistyped passphrase never errors, it
-> silently opens different, empty keys, and that code is how you notice.
+> **Check your backup before you fund it**: KEYS > BACKUP > SEED WORDS. Also
+> write down the fingerprint on the home screen. A mistyped passphrase gives no
+> error, it just opens different, empty keys.
 
 ## Day to day
 
-Pair with a coordinator under **KEYS > PAIR COORDINATOR**. Two machines, and
-neither trusts the other.
-
-| | |
-| --- | --- |
-| **The coordinator** | watches the chain, hands out addresses, builds the transaction, broadcasts the signed one |
-| **KISS** | holds the keys, shows you what the transaction really spends, signs |
+Pair with Sparrow or BlueWallet under **KEYS > PAIR COORDINATOR**. The app on
+your computer watches and builds transactions; KISS checks and signs them.
 
 <table>
 <tr>
@@ -153,36 +135,25 @@ neither trusts the other.
 <td align="center"><img src="docs/readme/use-2-sign.png" alt="Sign screen showing amounts, fee, and hold to sign" width="400"></td>
 </tr>
 <tr>
-<td align="center">Verify the address on the device, not on the computer</td>
-<td align="center">Every amount and change output shown before you can sign</td>
+<td align="center">Check the address on the device</td>
+<td align="center">See every amount before you sign</td>
 </tr>
 </table>
 
-Rehearse on testnet first, under **SETTINGS > SIGNER > NETWORK**. The coins are
-free and the screens are the ones you will use for real.
+Try it on testnet first: **SETTINGS > SIGNER > NETWORK**.
 
-Before every signature the device re-derives the whole transaction and calls out
-a high fee, a dust amount, or change that hurts your privacy. Each one is a
-caution you acknowledge behind an **I UNDERSTAND** tap, never a silent block.
-Address reuse is different: the device cannot see the chain, so RECEIVE simply
-hands you a fresh address each time. The SILENT tab holds one address you can
-publish forever instead.
+Before you sign, the device warns you about a high fee, dust, or change that
+hurts your privacy.
 
 ## Docs
 
-The [guide](https://diybitcoin.github.io/kiss-signer/guide.html) covers verifying a release, flashing on each
-operating system, flashing with no internet, first boot, pairing Sparrow, and
-building from source. The [walkthrough](docs/walkthrough.md) is the short
-version: the five things to do before the signer holds anything you care about.
-
-Every screenshot here and in the docs is a frame the simulator rendered from the
-current firmware, not a photograph.
+The [guide](https://diybitcoin.github.io/kiss-signer/guide.html) has the details.
+The [walkthrough](docs/walkthrough.md) is the short version.
 
 ## Build it yourself
 
-Docker is the only requirement, and the builds are reproducible, so your hashes
-must match [CI](.github/workflows/reproducible-build.yml)'s. Do not trust a
-firmware download just because it is attached to a release.
+You only need Docker. Builds are reproducible, so your hashes should match
+[CI](.github/workflows/reproducible-build.yml)'s.
 
 ```sh
 tools/build_release.sh
@@ -199,11 +170,5 @@ shasum -a 256 build-release-jc1060/jc1060_kiss_bringup.bin
 
 ## License
 
-Original source and documentation are [MIT](LICENSE). Vendored components keep
-their own licenses: libwally-core (MIT), ESP-IDF and Espressif components
-(Apache-2.0), LVGL (MIT), the fonts (SIL OFL 1.1), the Twemoji kiss mark and
-flags (CC-BY 4.0), and the game's fruit art (Microsoft Fluent Emoji, MIT). The
-full list is in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
-
-**Use at your own risk. This is experimental firmware. Do not trust it with
-meaningful funds.**
+[MIT](LICENSE). Third party components keep their own licenses, listed in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
