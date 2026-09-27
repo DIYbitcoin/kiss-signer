@@ -152,6 +152,9 @@ def pick_order():
 # names other wallets print in English too. Anything added here needs a reason
 # on its line; "we did not get round to it" is not one.
 UNTRANSLATED_OK = {
+    # New device radio explainer; English in other locales until the UI
+    # translation sweep, matching the other new Settings help cards.
+    "I_DEV_RADIO_HELP",
     # What the post-setup screen says about a backup a RESTORE just
     # proved, in place of the flat red "not verified" it used to show at
     # the end of the one flow that had demonstrated a working backup.

@@ -1882,6 +1882,18 @@ static void terms_open_cb(lv_event_t *e) { (void)e; s_terms_page = 0;
 
 static void device_open_cb(lv_event_t *e) { (void)e; device_screen(); }
 
+static void radio_help_cb(lv_event_t *e)
+{
+    (void)e;
+    wt_explain_t x = {
+        .title = tr(STR_I_DEV_RADIO),
+        .body = tr(STR_I_DEV_RADIO_HELP),
+        .ok_txt = tr(STR_C_OK),
+        .mode = WT_BODY_PROSE,
+    };
+    wt_explain_open(s_scr, &x);
+}
+
 static void device_screen(void)
 {
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
@@ -1935,7 +1947,8 @@ static void device_screen(void)
     // the build, on a page an owner opens to read the firmware version. The
     // card has one door now and it is on the storage chooser, which is the
     // screen where the card is what the owner is already thinking about.
-    wt_def_list(s_scr, defs, 4);
+    lv_obj_t *list = wt_def_list(s_scr, defs, 4);
+    wt_def_row_help(list, 2, radio_help_cb, NULL);
 
     lv_obj_set_ext_click_area(
         wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, SX(592), WT_ACTION_Y, SX(160), true, device_back_cb, NULL), 10);

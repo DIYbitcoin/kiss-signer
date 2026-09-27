@@ -5537,6 +5537,12 @@ int main(void) {
   must_show("device/build", tr(STR_I_DEV_BUILD));
   must_show("device/radio", tr(STR_I_DEV_RADIO));
   must_show("device/randomness", tr(STR_I_DEV_RANDOM));
+  tap_label_exact("?");
+  pump(30);
+  save("/tmp/sim_device_radio_help.ppm");
+  must_show("device/radio help", "ESP32-C6");
+  tap_str(STR_C_OK, 3, 20);
+  must_show("device/after radio help", tr(STR_I_DEV_BUILD));
   // NO CARD ROW HERE any more. The card page has one door and it is on the
   // storage chooser, which is the screen already about the card.
   tap_str(STR_C_BACK, 3, 8);                        // -> Settings, DEVICE tab
