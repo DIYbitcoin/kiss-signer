@@ -156,7 +156,7 @@ bool random_sampler_init(random_sampler_t *sampler, double *probs,
 
     sampler->probs[a] = P[a];
     sampler->aliases[a] = g;
-    P[g] = P[g] + P[a] - 1.0;
+    P[g] += P[a] - 1.0;
 
     if (P[g] < 1.0) {
       small[small_size++] = g;
@@ -276,6 +276,12 @@ static bool choose_fragments_internal(uint32_t seq_num, size_t seq_len,
   size_t draws = (degree < seq_len) ? degree : seq_len;
   for (size_t i = 0; i < draws && remaining_count > 0; i++) {
     uint32_t idx = prng_next_int(&rng, 0, remaining_count - 1);
+    // prng_next_double() rounds the top 1024 outputs up to 1.0, so idx can
+    // equal remaining_count; the reference implementations fault or throw.
+    if (idx >= remaining_count) {
+      free(remaining_indexes);
+      return false;
+    }
     if (!part_indexes_add(result, remaining_indexes[idx])) {
       free(remaining_indexes);
       return false;

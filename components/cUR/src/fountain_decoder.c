@@ -347,8 +347,52 @@ static void decoder_part_move(decoder_part_t *src, decoder_part_t *dst) {
   *src = (decoder_part_t){0};
 }
 
+// Ported from upstream 3f4a837 (PR303-003). The queue was fixed at 8 entries
+// and four of the five callers ignore a refused enqueue, so one simple pivot
+// that resolved more cached equations than that dropped recovered fragments
+// and could stall an animation that had already sent enough. It now grows on
+// demand, bounded so a hostile stream cannot drive unbounded allocation.
+#define QUEUE_MAX_CAPACITY 1024u
+
+// Room for at least `need` entries. False only at QUEUE_MAX_CAPACITY or on
+// OOM. Copies into a fresh buffer in logical order, because realloc keeps raw
+// indices and a wrapped ring buffer would come out with its head before its
+// tail. Entries own their heap pointers, so copying the bytes moves ownership.
+static bool queue_reserve(part_queue_t *queue, size_t need) {
+  if (!queue)
+    return false;
+  if (need <= queue->capacity)
+    return true;
+  if (queue->capacity >= QUEUE_MAX_CAPACITY)
+    return false;
+
+  size_t new_capacity = queue->capacity ? queue->capacity * 2 : 1;
+  while (new_capacity < need)
+    new_capacity *= 2;
+  if (new_capacity > QUEUE_MAX_CAPACITY)
+    new_capacity = QUEUE_MAX_CAPACITY;
+  if (need > new_capacity)
+    return false;
+
+  decoder_part_t *parts = safe_malloc(new_capacity * sizeof(decoder_part_t));
+  if (!parts)
+    return false;
+
+  for (size_t i = 0; i < queue->count; i++)
+    parts[i] = queue->parts[(queue->front + i) % queue->capacity];
+
+  free(queue->parts);
+  queue->parts = parts;
+  queue->front = 0;
+  queue->rear = queue->count % new_capacity;
+  queue->capacity = new_capacity;
+  return true;
+}
+
 static bool queue_enqueue(part_queue_t *queue, decoder_part_t *part) {
-  if (!queue || !part || queue->count >= queue->capacity)
+  if (!queue || !part)
+    return false;
+  if (!queue_reserve(queue, queue->count + 1))
     return false;
 
   decoder_part_move(part, &queue->parts[queue->rear]);
@@ -1336,6 +1380,12 @@ bool fountain_decoder_receive_part(fountain_decoder_t *decoder,
     return true;
   }
 
+  // Ported from upstream 0b0437e: seq_num 0 would select fragment index
+  // (uint32_t)-1 in choose_fragments.
+  if (part->seq_num == 0) {
+    return false;
+  }
+
   if (decoder->expected_part_indexes == NULL) {
     // The three numbers in the header have to agree with each other before any
     // of them is believed, because the join below allocates message_len bytes
@@ -1353,6 +1403,12 @@ bool fountain_decoder_receive_part(fountain_decoder_t *decoder,
     size_t capacity = part->seq_len * part->data_len;
     if (part->message_len > capacity ||
         part->message_len <= capacity - part->data_len)
+      return false;
+    // Ported from upstream 0b0437e, and stricter than the pair above: every
+    // fragment is exactly ceil(message_len / seq_len) bytes, the last one
+    // zero-padded, which is the only length an encoder produces.
+    if (part->data_len != part->message_len / part->seq_len +
+                              (part->message_len % part->seq_len ? 1 : 0))
       return false;
 
     decoder->expected_part_indexes = part_indexes_new();

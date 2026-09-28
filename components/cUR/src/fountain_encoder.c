@@ -333,6 +333,14 @@ fountain_encoder_t *fountain_encoder_new(const uint8_t *message,
     return NULL;
   }
 
+  // Allocation-safety floor: a tiny max_fragment_len explodes the fragment
+  // count (one heap block plus bookkeeping per fragment). The Python bindings
+  // clamp to >= 10 as QR-transport policy; enforce the floor here so direct C
+  // consumers get the same protection.
+  if (max_fragment_len < 10) {
+    return NULL;
+  }
+
   fountain_encoder_t *encoder =
       (fountain_encoder_t *)calloc(1, sizeof(fountain_encoder_t));
   if (!encoder) {
@@ -418,6 +426,12 @@ static bool mix_fragments(const fountain_encoder_t *encoder,
 bool fountain_encoder_next_part(fountain_encoder_t *encoder,
                                 fountain_encoder_part_t *part) {
   if (!encoder || !part) {
+    return false;
+  }
+
+  // Refuse to wrap: seq_num 0 is not a valid part number, and the wrapped
+  // counter would ask choose_fragments for fragment index (uint32_t)-1.
+  if (encoder->seq_num == UINT32_MAX) {
     return false;
   }
 

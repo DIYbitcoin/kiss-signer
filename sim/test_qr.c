@@ -382,17 +382,22 @@ static void qr_test_signed_output_ceiling(void) {
 static void qr_test_hostile_header(void) {
     const size_t body_len = 10;
 
-    struct { const char *name; size_t seq_len; size_t message_len; bool ok; } cases[] = {
+    struct { const char *name; uint32_t seq_num; size_t seq_len; size_t message_len; bool ok; } cases[] = {
         // one 10-byte fragment cannot be a 256 KB message
-        { "message_len far past what the frames carry", 1, 256u * 1024u, false },
+        { "message_len far past what the frames carry", 1, 1, 256u * 1024u, false },
         // nor one byte past
-        { "message_len one byte past the frames",       1, 11,           false },
+        { "message_len one byte past the frames",       1, 1, 11,           false },
         // seq_len sized for a message that ended two fragments ago: fragment 3
         // of 3 would be entirely padding, which no encoder produces
-        { "seq_len larger than the message needs",      3, 10,           false },
+        { "seq_len larger than the message needs",      1, 3, 10,           false },
+        // every fragment is ceil(message_len / seq_len) bytes, and 25 in 3 is
+        // 9: a 10 byte fragment for it is a length no encoder produces
+        { "fragment longer than ceil(message/seq)",     1, 3, 25,           false },
+        // part number 0 would pick fragment index (uint32_t)-1
+        { "seq_num 0",                                  0, 1, 10,           false },
         // the honest shapes still load
-        { "exact single fragment",                      1, 10,           true  },
-        { "final fragment part-full",                   3, 25,           true  },
+        { "exact single fragment",                      1, 1, 10,           true  },
+        { "final fragment part-full",                   1, 3, 28,           true  },
     };
 
     for (size_t c = 0; c < sizeof cases / sizeof cases[0]; c++) {
@@ -401,7 +406,7 @@ static void qr_test_hostile_header(void) {
         if (!d || !body) { qchkb("hostile-header decoder allocs", 0); return; }
         memset(body, 0xA5, body_len);
         fountain_encoder_part_t part = {
-            .seq_num = 1,
+            .seq_num = cases[c].seq_num,
             .seq_len = cases[c].seq_len,
             .message_len = cases[c].message_len,
             .checksum = 0,
@@ -472,6 +477,40 @@ static int cur_feed(fountain_decoder_t *d, fountain_encoder_t *e,
     free(p->data);
     (*fed)++;
     return fountain_decoder_is_complete(d) ? 1 : 0;
+}
+
+// An animation received as mixed frames only, which is what a camera sees when
+// it joins a loop late: every fragment has to be recovered by reduction, none
+// arrives on its own. 50 fragments of 100 bytes, frames from 51 on, a generous
+// cap of 8x seq_len. It must complete, refuse nothing, and give back the exact
+// bytes. (It does not reach the work queue's old 8 entry limit, which the
+// port of upstream PR303-003 in fountain_decoder.c removed: measured at 50 to
+// 400 fragments, the old and new queue need the same frames.)
+static void qr_test_fountain_mixed_only(void) {
+    const size_t frag = 100, msg_len = 50 * 100;
+    uint8_t *msg = malloc(msg_len);
+    if (!msg) { qchkb("fountain mixed-only allocs", 0); return; }
+    for (size_t i = 0; i < msg_len; i++) msg[i] = (uint8_t)(i * 13 + 5);
+
+    fountain_encoder_t *e = fountain_encoder_new(msg, msg_len, frag, 50, frag);
+    fountain_decoder_t *d = fountain_decoder_new();
+    fountain_encoder_part_t p = {0};
+    size_t fed = 0, refused = 0;
+    int ok = e && d, done = 0, r;
+    for (size_t i = 0; i < 8 * 50 && ok && !done; i++) {
+        r = cur_feed(d, e, &p, &fed, &refused);
+        if (r < 0) ok = 0; else if (r) done = 1;
+    }
+    qchkb("fountain mixed-only completes from mixed frames alone", ok && done);
+    qchkb("fountain mixed-only refused no live frame", ok && refused == 0);
+    qchkb("fountain mixed-only bytes match",
+          ok && done && fountain_decoder_result_message_len(d) == msg_len &&
+          fountain_decoder_result_message(d) &&
+          memcmp(fountain_decoder_result_message(d), msg, msg_len) == 0);
+    printf("      fountain mixed-only: %zu frames for %d fragments\n", fed, 50);
+    fountain_decoder_free(d);
+    fountain_encoder_free(e);
+    free(msg);
 }
 
 // The mixed-part budget is the device's protection against a fragment feed
@@ -967,6 +1006,7 @@ int test_qr_transport(const uint8_t *psbt, size_t psbt_len) {
     qr_test_ur_bounds();
     qr_test_prng_range();
     qr_test_fountain_cap_churn();
+    qr_test_fountain_mixed_only();
 
     wally_free_string(b64);
     return qfails;

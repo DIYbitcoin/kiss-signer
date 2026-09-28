@@ -13,10 +13,11 @@ typedef struct {
 
 /**
  * Create a new UR object
- * @param type UR type string (will be copied)
- * @param cbor CBOR data (will be copied)
- * @param cbor_len Length of CBOR data
- * @return Pointer to UR object or NULL on error
+ * @param type UR type string (will be copied); must be a valid UR type:
+ *             [a-z0-9-]+ with no leading or trailing dash (see is_ur_type())
+ * @param cbor CBOR data (will be copied); must be non-empty
+ * @return Pointer to UR object or NULL on error (invalid type, empty cbor,
+ *         or allocation failure)
  */
 ur_t *ur_new(const char *type, const uint8_t *cbor, size_t cbor_len);
 

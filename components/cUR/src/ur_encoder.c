@@ -65,7 +65,8 @@ static char *encode_ur(const char **path_components, size_t component_count) {
 
 bool ur_encoder_encode_single(const char *type, const uint8_t *cbor_data,
                               size_t cbor_len, char **ur_string_out) {
-  if (!type || !cbor_data || cbor_len == 0 || !ur_string_out) {
+  if (!type || !is_ur_type(type) || !cbor_data || cbor_len == 0 ||
+      !ur_string_out) {
     return false;
   }
 
@@ -92,7 +93,7 @@ bool ur_encoder_encode_single(const char *type, const uint8_t *cbor_data,
 ur_encoder_t *ur_encoder_new(const char *type, const uint8_t *cbor_data,
                              size_t cbor_len, size_t max_fragment_len,
                              uint32_t first_seq_num, size_t min_fragment_len) {
-  if (!type || !cbor_data || cbor_len == 0) {
+  if (!type || !is_ur_type(type) || !cbor_data || cbor_len == 0) {
     return NULL;
   }
 

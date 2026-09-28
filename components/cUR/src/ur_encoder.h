@@ -23,7 +23,7 @@ typedef struct ur_encoder {
 
 /**
  * Encode a single-part UR (static utility function)
- * @param type UR type
+ * @param type Valid UR type: [a-z0-9-]+ with no leading/trailing dash
  * @param cbor_data CBOR-encoded data
  * @param cbor_len Length of CBOR data
  * @param ur_string_out Output UR string (allocated by function, must be freed
@@ -35,7 +35,7 @@ bool ur_encoder_encode_single(const char *type, const uint8_t *cbor_data,
 
 /**
  * Create new UR encoder for multi-part encoding
- * @param type UR type
+ * @param type Valid UR type: [a-z0-9-]+ with no leading/trailing dash
  * @param cbor_data CBOR-encoded data
  * @param cbor_len Length of CBOR data
  * @param max_fragment_len Maximum fragment length

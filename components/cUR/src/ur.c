@@ -20,6 +20,12 @@ ur_t *ur_new(const char *type, const uint8_t *cbor, size_t cbor_len) {
   if (!type || !cbor || cbor_len == 0)
     return NULL;
 
+  // Reject invalid type strings at construction: an encoder built from a bad
+  // type emits parts every decoder rejects, and the failure would otherwise
+  // surface only at scan time on the receiving device.
+  if (!is_ur_type(type))
+    return NULL;
+
   ur_t *ur = safe_malloc(sizeof(ur_t));
   if (!ur)
     return NULL;

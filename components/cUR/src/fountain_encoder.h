@@ -58,9 +58,10 @@ bool fountain_encoder_partition_message(const uint8_t *message,
 /**
  * Create new fountain encoder
  * @param message Message to encode
- * @param message_len Message length
- * @param max_fragment_len Maximum fragment length
- * @param first_seq_num First sequence number (default 0)
+ * @param message_len Message length; must be >= min_fragment_len
+ * @param max_fragment_len Maximum fragment length; must be >= 10
+ * @param first_seq_num First sequence number (default 0). The counter does not
+ *                      wrap: once it reaches UINT32_MAX, next_part() fails.
  * @param min_fragment_len Minimum fragment length (default 10)
  * @return Pointer to encoder or NULL on error
  */
@@ -94,7 +95,7 @@ bool fountain_encoder_is_single_part(const fountain_encoder_t *encoder);
  * Generate next part
  * @param encoder Pointer to encoder
  * @param part Output part (allocated by caller)
- * @return true on success
+ * @return true on success; false once seq_num would wrap past UINT32_MAX
  */
 bool fountain_encoder_next_part(fountain_encoder_t *encoder,
                                 fountain_encoder_part_t *part);

@@ -80,10 +80,18 @@ static cbor_value_t *decode_bytes(urtypes_cbor_decoder_t *decoder,
   uint64_t len;
   if (!read_argument(decoder, additional, &len))
     return NULL;
-  if (len > CBOR_MAX_ITEM_LEN)
+  // Ported from upstream e9540eb: a length the remaining input cannot hold
+  // is refused before anything is allocated for it.
+  if (len > CBOR_MAX_ITEM_LEN || len > decoder->len - decoder->offset)
     return NULL;
 
   size_t slen = (size_t)len;
+
+  // Empty byte string (0x40) is valid CBOR; safe_malloc(0) returns NULL, so
+  // skip the staging buffer instead of misreading the empty case as OOM.
+  if (slen == 0)
+    return cbor_value_new_bytes(NULL, 0);
+
   uint8_t *data = safe_malloc(slen);
   if (!data)
     return NULL;
@@ -103,7 +111,9 @@ static cbor_value_t *decode_string(urtypes_cbor_decoder_t *decoder,
   uint64_t len;
   if (!read_argument(decoder, additional, &len))
     return NULL;
-  if (len > CBOR_MAX_ITEM_LEN)
+  // Ported from upstream e9540eb: a length the remaining input cannot hold
+  // is refused before anything is allocated for it.
+  if (len > CBOR_MAX_ITEM_LEN || len > decoder->len - decoder->offset)
     return NULL;
 
   size_t slen = (size_t)len;
@@ -177,7 +187,9 @@ static cbor_value_t *decode_map(urtypes_cbor_decoder_t *decoder,
       return NULL;
     }
 
-    if (!cbor_map_set(map, key, value)) {
+    // A repeated key makes the map ambiguous: another decoder may keep the
+    // first value where cbor_map_set() would keep the last.
+    if (cbor_map_get(map, key) || !cbor_map_set(map, key, value)) {
       cbor_value_free(value);
       cbor_value_free(key);
       cbor_value_free(map);
@@ -283,6 +295,11 @@ cbor_value_t *cbor_decode(const uint8_t *data, size_t len) {
     return NULL;
 
   cbor_value_t *value = urtypes_cbor_decoder_decode(decoder);
+  if (value && decoder->offset != len) {
+    // Trailing bytes after the item: not the payload that was declared.
+    cbor_value_free(value);
+    value = NULL;
+  }
   urtypes_cbor_decoder_free(decoder);
 
   return value;
