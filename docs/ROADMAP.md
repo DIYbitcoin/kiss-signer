@@ -15,6 +15,8 @@ vectors. Nobody outside the project has reviewed any of it. See
 | Feature | Status | Notes |
 |---|---|---|
 | Single sig Native SegWit (BIP84) | done | `m/84h/0h/0h`, testnet on `84h/1h` |
+| Single sig Nested SegWit (BIP49) | done | `m/49h/0h/0h`, chosen under address type |
+| Single sig Legacy (BIP44) | done | `m/44h/0h/0h`, chosen under address type |
 | PSBT over animated QR (BC-UR) | done | Both directions |
 | PSBT over SD card | done | Writes `<name>-signed.psbt` beside the source |
 | On-device re-derivation of every output | done | Change verified, not trusted |
