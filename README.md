@@ -27,7 +27,8 @@
 [Changelog](CHANGELOG.md) &nbsp;·&nbsp;
 [Roadmap](docs/ROADMAP.md) &nbsp;·&nbsp;
 [Security](SECURITY.md) &nbsp;·&nbsp;
-[Telegram](https://t.me/KISS_signer)
+[Telegram](https://t.me/KISS_signer) &nbsp;·&nbsp;
+[X](https://x.com/KISS_signer)
 
 </div>
 
@@ -182,6 +183,19 @@ hurts your privacy.
 
 The [guide](https://diybitcoin.github.io/kiss-signer/guide.html) has the details.
 The [walkthrough](docs/walkthrough.md) is the short version.
+
+## 🔐 Security
+
+Found a vulnerability? Email **diybitcoin@protonmail.com**. Please do not open a
+public issue for anything that could put funds at risk. Details in
+[SECURITY.md](SECURITY.md).
+
+## 💬 Community
+
+- **Telegram:** [t.me/KISS_signer](https://t.me/KISS_signer) for questions,
+  ideas and help
+- **X:** [@KISS_signer](https://x.com/KISS_signer) for news and releases
+- **GitHub issues** for bugs that do not put funds at risk
 
 ## License
 
