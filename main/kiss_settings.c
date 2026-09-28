@@ -1882,14 +1882,25 @@ static void terms_open_cb(lv_event_t *e) { (void)e; s_terms_page = 0;
 
 static void device_open_cb(lv_event_t *e) { (void)e; device_screen(); }
 
+// The body is two `term: definition` lines, HELD and NOT HELD, so it is drawn
+// as the icon grid the other glossaries use. As prose it was a 690x160
+// paragraph with no frame, which the overlap gate refuses as BARE.
+static const char *const RADIO_HELP_ICONS[] = {
+    WT_ICON_LOCK,          // HELD: the radio chip cannot start
+    LV_SYMBOL_WARNING,     // NOT HELD: the reset pin is not low
+};
+
 static void radio_help_cb(lv_event_t *e)
 {
     (void)e;
     wt_explain_t x = {
         .title = tr(STR_I_DEV_RADIO),
+        .icon = WT_ICON_SHIELD,
         .body = tr(STR_I_DEV_RADIO_HELP),
         .ok_txt = tr(STR_C_OK),
-        .mode = WT_BODY_PROSE,
+        .mode = WT_GRID_ICONS,
+        .icons = RADIO_HELP_ICONS,
+        .icons_count = sizeof RADIO_HELP_ICONS / sizeof RADIO_HELP_ICONS[0],
     };
     wt_explain_open(s_scr, &x);
 }
