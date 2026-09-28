@@ -39,8 +39,8 @@
 
 - **BIP39 seed plus passphrase.** 12 or 24 words. The passphrase is typed or
   scanned every session and never stored.
-- **Single-sig native SegWit (BIP84)**, plus Silent Payments: receive, send and
-  spend (BIP352).
+- **Single-sig:** native SegWit (BIP84, the default), nested SegWit (BIP49) and
+  legacy (BIP44), plus Silent Payments: receive, send and spend (BIP352).
 - **Airgapped.** PSBTs move by QR (BC-UR) or SD card. The radio chip is held in
   reset from the first instruction of every boot.
 - **Works with Sparrow and BlueWallet.** Other coordinators work if they import
