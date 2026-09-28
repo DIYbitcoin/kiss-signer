@@ -36,8 +36,8 @@
 
 ## What it is
 
-- **Seed words plus a passphrase.** The passphrase is typed every time and
-  never stored.
+- **Seed words plus a passphrase.** The passphrase is typed or scanned every
+  time and never stored.
 - **Airgapped.** Transactions move by QR code or SD card. The radio chip is held
   off from the moment it boots.
 - **Works with Sparrow and BlueWallet**, or any app that can watch a

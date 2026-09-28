@@ -49,7 +49,7 @@ mainnet transaction, or any outside review.
 | Restore by typing words | done | |
 | Restore from an encrypted backup | done | The locked QR or a `.kef` file, both under the backup password |
 | Restore by SeedQR | removed | A bare seed square is a seed to whoever photographs it, and this signer never wrote one |
-| Passphrase, typed per session, never stored | done | Every passphrase is valid, so there is no wrong passphrase error |
+| Passphrase, typed or scanned per session, never stored | done | Every passphrase is valid, so there is no wrong passphrase error |
 | Backup verification against paper | done | Reports a mismatch by word position, never shows the stored words |
 | FLASH storage | done | **Not encrypted in the normal beta**, so a chip dump reveals the words |
 | SD CARD storage | done | Sealed to a device key, so the card alone is inert |
