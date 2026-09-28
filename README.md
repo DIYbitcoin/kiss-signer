@@ -41,11 +41,11 @@
   scanned every session and never stored.
 - **Single-sig native SegWit (BIP84)**, plus Silent Payments: receive, send and
   spend (BIP352).
-- **Airgapped.** PSBTs move as animated QR codes (BC-UR) or files on microSD.
-  The radio chip is held in reset from the first instruction of every boot.
+- **Airgapped.** PSBTs move by QR (BC-UR) or SD card. The radio chip is held in
+  reset from the first instruction of every boot.
 - **Works with Sparrow and BlueWallet.** Other coordinators work if they import
-  a watch-only output descriptor (or a zpub) and send and receive PSBTs as BC-UR
-  QR codes or `.psbt` files. BBQr is not supported.
+  a watch-only output descriptor (or a zpub) and exchange PSBTs by QR (BC-UR) or
+  SD card for signing. BBQr is not supported.
 - **Verifies before it signs.** Every output, the fee and the change are
   derived again on the device; change is verified, not trusted.
 
