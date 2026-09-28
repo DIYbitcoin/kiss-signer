@@ -225,7 +225,7 @@
   "I_DEV_RADIO": "RADIO",
   "I_DEV_RADIO_OFF": "ZADRŽANO",
   "I_DEV_RADIO_ON": "NIJE ZADRŽANO",
-  "I_DEV_RADIO_HELP": "HELD: the ESP32-C6 is held in reset, keeping Wi-Fi and Bluetooth disabled. KISS does this automatically during startup.\nNOT HELD: the reset pin is not low.",
+  "I_DEV_RADIO_HELP": "HELD: the ESP32-C6 is held in reset, so Wi-Fi and Bluetooth stay off. KISS does this at every start.\nNOT HELD: the reset pin is not low.",
   "I_DEV_RANDOM": "SLUČAJNOST",
   "I_ERASE_B1": "ovi ključevi, nakon potvrde",
   "I_ERASE_B2": "vaš papir i kodna fraza",

@@ -225,7 +225,7 @@
   "I_DEV_RADIO": "RÁDIÓ",
   "I_DEV_RADIO_OFF": "TILTVA",
   "I_DEV_RADIO_ON": "NINCS TILTVA",
-  "I_DEV_RADIO_HELP": "HELD: the ESP32-C6 is held in reset, keeping Wi-Fi and Bluetooth disabled. KISS does this automatically during startup.\nNOT HELD: the reset pin is not low.",
+  "I_DEV_RADIO_HELP": "HELD: the ESP32-C6 is held in reset, so Wi-Fi and Bluetooth stay off. KISS does this at every start.\nNOT HELD: the reset pin is not low.",
   "I_DEV_RANDOM": "VÉLETLEN",
   "I_ERASE_B1": "a kulcsokat, ha megerősíted",
   "I_ERASE_B2": "a papírod és a jelmondatod",

@@ -225,7 +225,7 @@
   "I_DEV_RADIO": "TELSİZ",
   "I_DEV_RADIO_OFF": "TUTULUYOR",
   "I_DEV_RADIO_ON": "TUTULMUYOR",
-  "I_DEV_RADIO_HELP": "HELD: the ESP32-C6 is held in reset, keeping Wi-Fi and Bluetooth disabled. KISS does this automatically during startup.\nNOT HELD: the reset pin is not low.",
+  "I_DEV_RADIO_HELP": "HELD: the ESP32-C6 is held in reset, so Wi-Fi and Bluetooth stay off. KISS does this at every start.\nNOT HELD: the reset pin is not low.",
   "I_DEV_RANDOM": "RASTGELELİK",
   "I_ERASE_B1": "bu anahtarlar, onaylayınca",
   "I_ERASE_B2": "kâğıdınız ve passphrase",

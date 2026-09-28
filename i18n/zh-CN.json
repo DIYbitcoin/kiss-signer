@@ -225,7 +225,7 @@
   "I_DEV_RADIO": "无线电",
   "I_DEV_RADIO_OFF": "已关停",
   "I_DEV_RADIO_ON": "未关停",
-  "I_DEV_RADIO_HELP": "HELD: the ESP32-C6 is held in reset, keeping Wi-Fi and Bluetooth disabled. KISS does this automatically during startup.\nNOT HELD: the reset pin is not low.",
+  "I_DEV_RADIO_HELP": "HELD: the ESP32-C6 is held in reset, so Wi-Fi and Bluetooth stay off. KISS does this at every start.\nNOT HELD: the reset pin is not low.",
   "I_DEV_RANDOM": "随机性",
   "I_ERASE_B1": "确认后这组密钥",
   "I_ERASE_B2": "你的纸和密码短语",
