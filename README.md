@@ -197,6 +197,21 @@ public issue for anything that could put funds at risk. Details in
 - **X:** [@KISS_signer](https://x.com/KISS_signer) for news and releases
 - **GitHub issues** for bugs that do not put funds at risk
 
+## 🤝 Contributing
+
+Pull requests are welcome. To keep reviews quick:
+
+1. **One open pull request at a time.** GitHub enforces this; drafts do not
+   count. When yours is merged or closed, open the next.
+2. **One fix or feature per pull request**, based on the `develop` branch.
+3. Read [CONTRIBUTING.md](CONTRIBUTING.md) first: building, tests, and testing
+   on a real board.
+
+New to pull requests? GitHub's
+[guide](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request-from-a-fork)
+walks you through it. Found a vulnerability? Email it instead, see Security
+above.
+
 ## License
 
 [MIT](LICENSE). Third party components keep their own licenses, listed in

@@ -22,7 +22,10 @@ reproducible firmware hashes and invites you to rebuild and compare them, so
 - **`main`** is the release line. It only moves when a release is cut,
   merged `--no-ff` from `develop` and tagged. Never commit to it directly.
 
-**Base your pull requests on `develop`.**
+**Base your pull requests on `develop`.** One open pull request at a time,
+and one fix or feature in each: GitHub limits contributors without write access
+to one open pull request (drafts do not count), so the next waits until the
+last is merged or closed.
 
 ```bash
 git checkout develop
