@@ -60,48 +60,81 @@ a Bitcoin signer hidden under a Tetris game.
 
 ## Install
 
-Easiest: [the install page](https://diybitcoin.github.io/kiss-signer/) flashes
-it from your browser.
+Pick one. All three end the same way: **unplug, wait 3 seconds, plug back in.**
 
-By hand: from the
-[latest release](https://github.com/DIYbitcoin/kiss-signer/releases/latest),
-download your board's firmware (`kiss-signer-VERSION.bin` for the Guition 4.3in,
-`-ws35.bin` for the Waveshare 3.5in, `-jc1060.bin` for the Guition 7in) plus
-`SHA256SUMS`, `SHA256SUMS.asc` and `kiss_signer_pgp.asc`.
-
-**Verify first.**
-
-```sh
-gpg --import kiss_signer_pgp.asc
-gpg --verify SHA256SUMS.asc SHA256SUMS      # expect this fingerprint:
-# 166A CBF3 7786 FCEA A694  96DE 886F 1BFE B84E F1C0
-shasum -a 256 --ignore-missing -c SHA256SUMS   # macOS (Linux: sha256sum)
-```
-
-Cross-check that fingerprint somewhere other than this page.
-
-**Then flash.**
-
-```sh
-pip install esptool
-# port: /dev/cu.usbmodem* or /dev/cu.wchusbserial* (macOS) | /dev/ttyACM* (Linux) | COMx (Windows)
-esptool --chip esp32p4 -p <port> -b 460800 \
-  --before default-reset --after no-reset write-flash \
-  --flash-mode dio --flash-size 16MB --flash-freq 80m \
-  0 kiss-signer-VERSION.bin
-```
+| | How | You need |
+| --- | --- | --- |
+| 🟢 **Easy** | Install page in your browser | Chrome, Brave or Edge, a USB cable |
+| 🟡 **Medium** | Verify the files yourself, then flash | A terminal, `gpg`, `esptool` |
+| 🔴 **Hard** | Build it from source | Docker |
 
 > [!WARNING]
-> This erases the whole chip, **keys included**. Have your seed words and
+> Flashing erases the whole chip, **keys included**. Have your seed words and
 > passphrase first.
 
-Then **unplug, wait 3 seconds, plug back in.**
+### 🟢 Easy: from your browser
 
-**No internet?** Each release has an offline zip with the install page and the
-firmware.
+1. Open the [install page](https://diybitcoin.github.io/kiss-signer/).
+2. Pick your board, plug it in, click **Connect and install**.
+3. Unplug, wait 3 seconds, plug back in.
 
-**Updating?** Copy your board's `-update.bin` to an SD card, then SETTINGS >
-FIRMWARE. Your keys stay.
+### 🟡 Medium: verify, then flash
+
+1. From the [latest release](https://github.com/DIYbitcoin/kiss-signer/releases/latest),
+   download your board's firmware plus `SHA256SUMS`, `SHA256SUMS.asc` and
+   `kiss_signer_pgp.asc`.
+
+   | Board | Firmware |
+   | --- | --- |
+   | Guition 4.3in | `kiss-signer-VERSION.bin` |
+   | Waveshare 3.5in | `kiss-signer-VERSION-ws35.bin` |
+   | Guition 7in | `kiss-signer-VERSION-jc1060.bin` |
+
+2. Verify. Cross-check the fingerprint somewhere other than this page.
+
+   ```sh
+   gpg --import kiss_signer_pgp.asc
+   gpg --verify SHA256SUMS.asc SHA256SUMS      # expect this fingerprint:
+   # 166A CBF3 7786 FCEA A694  96DE 886F 1BFE B84E F1C0
+   shasum -a 256 --ignore-missing -c SHA256SUMS   # macOS (Linux: sha256sum)
+   ```
+
+3. Flash.
+
+   ```sh
+   pip install esptool
+   # port: /dev/cu.usbmodem* or /dev/cu.wchusbserial* (macOS) | /dev/ttyACM* (Linux) | COMx (Windows)
+   esptool --chip esp32p4 -p <port> -b 460800 \
+     --before default-reset --after no-reset write-flash \
+     --flash-mode dio --flash-size 16MB --flash-freq 80m \
+     0 kiss-signer-VERSION.bin
+   ```
+
+4. Unplug, wait 3 seconds, plug back in.
+
+> [!TIP]
+> **No internet on that computer?** Download `kiss-signer-VERSION-offline.zip`
+> and its `.asc` instead. Verify the zip with `gpg --verify`, unzip it, run the
+> serve script inside, and use the install page offline.
+
+### 🔴 Hard: build it from source
+
+You only need Docker. Builds are reproducible, so your hashes should match
+[CI](.github/workflows/reproducible-build.yml)'s.
+
+```sh
+tools/build_release.sh                   # Guition 4.3in
+KISS_BOARD=ws35 tools/build_release.sh   # Waveshare 3.5in
+KISS_BOARD=jc1060 tools/build_release.sh # Guition 7in
+```
+
+Each writes its image to its own `build-release*` folder; hash it with
+`shasum -a 256` and compare.
+
+## 🔄 Updating
+
+Copy your board's `-update.bin` from the latest release to an SD card, then
+**SETTINGS > FIRMWARE**. Your keys stay.
 
 ## First boot
 
@@ -149,24 +182,6 @@ hurts your privacy.
 
 The [guide](https://diybitcoin.github.io/kiss-signer/guide.html) has the details.
 The [walkthrough](docs/walkthrough.md) is the short version.
-
-## Build it yourself
-
-You only need Docker. Builds are reproducible, so your hashes should match
-[CI](.github/workflows/reproducible-build.yml)'s.
-
-```sh
-tools/build_release.sh
-shasum -a 256 build-release/guition_kiss_bringup.bin
-
-# the Waveshare 3.5in
-KISS_BOARD=ws35 tools/build_release.sh
-shasum -a 256 build-release-ws35/ws35_kiss_bringup.bin
-
-# the Guition 7in
-KISS_BOARD=jc1060 tools/build_release.sh
-shasum -a 256 build-release-jc1060/jc1060_kiss_bringup.bin
-```
 
 ## License
 
