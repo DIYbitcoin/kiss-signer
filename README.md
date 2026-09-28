@@ -180,8 +180,44 @@ the PSBT and broadcasts it; KISS verifies and signs.
 
 Rehearse on testnet or signet first: **SETTINGS > SIGNER > NETWORK**.
 
-Before signing, the device flags a high fee, dust outputs, and change that hurts
-your privacy.
+Before signing, the device flags a high fee, dust attack inputs, inputs that
+link your addresses, tiny change, and change your coordinator cannot see.
+
+## Features
+
+**🎲 Entropy you can check**
+- New seeds mix four sources: the camera, the chip's hardware RNG, your taps and
+  timing. No single source decides your keys.
+- Or roll a die 50 times or flip a coin 128 times, and check the SHA256 on any
+  computer.
+- Or draw 11 words blind from a cut up BIP39 list; the device works out the
+  checksum word.
+- A randomness audit tests the chip's RNG on the device.
+
+**🕵️ Duress**
+- Drawing KISS alone opens decoy keys, with no passphrase. Keep a little in them
+  to hand over.
+- Your real keys sit behind your own extra swipe and your passphrase. You can
+  also replace KISS with your own drawing.
+
+**💾 Where your seed words live**, your choice
+- **Flash:** on the device, unencrypted in this beta.
+- **SD card:** sealed to this device, so the card alone opens nothing. Not a
+  backup.
+- **Amnesic:** RAM only, gone at power off. Load your seed words every session.
+
+**🔑 Backups**
+- Seed words on paper, verified on the device without showing them.
+- An encrypted backup as a QR or a file on the SD card, in Krux's KEF format,
+  opened only with your password.
+
+**🛡️ Firmware you can trust**
+- Reproducible builds and GPG signed releases.
+- SD card updates are checked on the device against two signatures, ECDSA and
+  post quantum SLH-DSA, and roll back by themselves if the new firmware fails
+  to start.
+
+**🌍 22 languages**, and a **?** on any Bitcoin term opens a plain words card.
 
 ## Docs
 
