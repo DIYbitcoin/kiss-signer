@@ -37,14 +37,17 @@
 
 ## What it is
 
-- **Seed words plus a passphrase.** The passphrase is typed or scanned every
-  time and never stored.
-- **Airgapped.** Transactions move by QR code or SD card. The radio chip is held
-  off from the moment it boots.
-- **Works with Sparrow and BlueWallet**, or any app that can watch a
-  descriptor and pass transactions by QR or SD card.
-- **Shows everything before you sign.** Amounts, fee and change are checked on
-  the device.
+- **BIP39 seed plus passphrase.** 12 or 24 words. The passphrase is typed or
+  scanned every session and never stored.
+- **Single-sig native SegWit (BIP84)**, plus Silent Payments: receive, send and
+  spend (BIP352).
+- **Airgapped.** PSBTs move as animated QR codes (BC-UR) or files on microSD.
+  The radio chip is held in reset from the first instruction of every boot.
+- **Works with Sparrow and BlueWallet.** Other coordinators work if they import
+  a watch-only output descriptor (or a zpub) and send and receive PSBTs as BC-UR
+  QR codes or `.psbt` files. BBQr is not supported.
+- **Verifies before it signs.** Every output, the fee and the change are
+  derived again on the device; change is verified, not trusted.
 
 Runs on three ESP32-P4 boards with a touch screen, camera and microSD slot. No
 soldering.
@@ -139,8 +142,8 @@ Copy your board's `-update.bin` from the latest release to an SD card, then
 
 ## First boot
 
-Draw KISS on the menu. Setup takes two minutes: create or restore keys, write
-down the seed words, confirm them, choose a passphrase.
+Draw KISS on the menu. Setup takes two minutes: generate or restore a BIP39
+seed, write down the seed words, verify the backup, set a passphrase.
 
 <table>
 <tr>
@@ -160,8 +163,9 @@ down the seed words, confirm them, choose a passphrase.
 
 ## Day to day
 
-Pair with Sparrow or BlueWallet under **KEYS > PAIR COORDINATOR**. The app on
-your computer watches and builds transactions; KISS checks and signs them.
+Under **KEYS > PAIR COORDINATOR**, export the watch-only output descriptor to
+Sparrow (or the zpub to BlueWallet). The coordinator tracks your UTXOs, builds
+the PSBT and broadcasts it; KISS verifies and signs.
 
 <table>
 <tr>
@@ -169,15 +173,15 @@ your computer watches and builds transactions; KISS checks and signs them.
 <td align="center"><img src="docs/readme/use-2-sign.png" alt="Sign screen showing amounts, fee, and hold to sign" width="400"></td>
 </tr>
 <tr>
-<td align="center">Check the address on the device</td>
-<td align="center">See every amount before you sign</td>
+<td align="center">Verify the receive address on the device</td>
+<td align="center">Every output, the fee and change, before you sign</td>
 </tr>
 </table>
 
-Try it on testnet first: **SETTINGS > SIGNER > NETWORK**.
+Rehearse on testnet or signet first: **SETTINGS > SIGNER > NETWORK**.
 
-Before you sign, the device warns you about a high fee, dust, or change that
-hurts your privacy.
+Before signing, the device flags a high fee, dust outputs, and change that hurts
+your privacy.
 
 ## Docs
 
