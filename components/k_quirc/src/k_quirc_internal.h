@@ -15,6 +15,29 @@
 
 #ifdef ESP_PLATFORM
 #include <esp_heap_caps.h>
+
+#if !defined(K_QUIRC_LOGW) || !defined(K_QUIRC_LOGE) ||                        \
+    !defined(K_QUIRC_LOGI) || !defined(K_QUIRC_LOGD)
+#include <esp_log.h>
+#endif
+#ifndef K_QUIRC_LOGW
+#define K_QUIRC_LOGW(tag, fmt, ...) ESP_LOGW(tag, fmt, ##__VA_ARGS__)
+#endif
+#ifndef K_QUIRC_LOGE
+#define K_QUIRC_LOGE(tag, fmt, ...) ESP_LOGE(tag, fmt, ##__VA_ARGS__)
+#endif
+#ifndef K_QUIRC_LOGI
+#define K_QUIRC_LOGI(tag, fmt, ...) ESP_LOGI(tag, fmt, ##__VA_ARGS__)
+#endif
+#ifndef K_QUIRC_LOGD
+#define K_QUIRC_LOGD(tag, fmt, ...) ESP_LOGD(tag, fmt, ##__VA_ARGS__)
+#endif
+#ifndef K_QUIRC_YIELD
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#define K_QUIRC_YIELD() vTaskDelay(1)
+#endif
+
 static inline void *k_malloc_large(size_t size) {
   void *ptr = heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT |
                                          MALLOC_CAP_CACHE_ALIGNED);
@@ -43,6 +66,30 @@ static inline void *k_malloc_fast(size_t size) {
 #define K_MALLOC_IMAGE(size) malloc(size)
 #define K_MALLOC_SCRATCH(size) malloc(size)
 #define K_FREE(ptr) free(ptr)
+
+#if !defined(K_QUIRC_LOGW) || !defined(K_QUIRC_LOGE) ||                        \
+    !defined(K_QUIRC_LOGI) || !defined(K_QUIRC_LOGD)
+#include <stdio.h>
+#endif
+#ifndef K_QUIRC_LOGW
+#define K_QUIRC_LOGW(tag, fmt, ...)                                            \
+  fprintf(stderr, "W (%s) " fmt "\n", tag, ##__VA_ARGS__)
+#endif
+#ifndef K_QUIRC_LOGE
+#define K_QUIRC_LOGE(tag, fmt, ...)                                            \
+  fprintf(stderr, "E (%s) " fmt "\n", tag, ##__VA_ARGS__)
+#endif
+#ifndef K_QUIRC_LOGI
+#define K_QUIRC_LOGI(tag, fmt, ...)                                            \
+  fprintf(stderr, "I (%s) " fmt "\n", tag, ##__VA_ARGS__)
+#endif
+#ifndef K_QUIRC_LOGD
+#define K_QUIRC_LOGD(tag, fmt, ...)                                            \
+  fprintf(stderr, "D (%s) " fmt "\n", tag, ##__VA_ARGS__)
+#endif
+#ifndef K_QUIRC_YIELD
+#define K_QUIRC_YIELD() ((void)0)
+#endif
 #endif
 
 /* Compiler optimization hints */
@@ -67,19 +114,53 @@ static inline void *k_malloc_fast(size_t size) {
 #define QUIRC_MAX_CAPSTONES 32
 #define QUIRC_MAX_GRIDS 8
 #define QUIRC_PERSPECTIVE_PARAMS 8
-#define QUIRC_MAX_VERSION 25
+#define QUIRC_MAX_VERSION 27
 #define QUIRC_MAX_ALIGNMENT 7
+/* Flood-fill span stack: entries are 8 bytes each (see xylf_t), so the
+ * default costs 64 KB of fast RAM.  Override to trade memory for the
+ * ability to fill extremely fragmented regions without overflow. */
+#ifndef QUIRC_FLOOD_FILL_STACK
 #define QUIRC_FLOOD_FILL_STACK 8192
-// The allocation is QUIRC_FLOOD_FILL_STACK * sizeof(xylf_t). It was written as
-// a bare "* 8", which is exactly that size and not a magic safety factor --
-// worth naming, because "* 8" reads like slack somebody guessed at. The entry
-// type moved here from k_quirc_identify.c so the allocation can say so.
+#endif
+
+/* Flood-fill stack entry (defined here so allocation can use its size) */
 typedef struct {
   int16_t x, y, l, r;
 } xylf_t;
 #define K_QUIRC_MAX_IMAGE_DIM 1280
 #define K_QUIRC_THRESHOLD_OFFSET_DEFAULT 10
-#define K_QUIRC_THRESHOLD_OFFSET_MAX 20
+
+/* Adaptive threshold control loop: measures frame N, corrects frame N+1.
+ *
+ * The offset accumulates while the measurement settles within the frame, so
+ * this is an integrating controller on a static plant and the error decays as
+ * e[n+1] = (1 - GAIN*Kp) e[n], for a plant gain Kp = d(dilation)/d(offset).
+ * Kp spans 0.0005 to 0.0033 over real captures, so the loop gain is 0.09 to
+ * 0.66 and the pole stays real and positive: the approach is monotone from
+ * any starting offset.  Overshoot would need a plant 1.5x faster than any
+ * measured and instability 3x, so GAIN is set well below the deadbeat value
+ * of ~550 for margin rather than for the shortest settling time.
+ *
+ * OFFSET_MAX bounds the operating point; the +/-20 this used to allow was far
+ * short of the +50 or more that defocused, overexposed captures need.
+ * STEP_MAX rate-limits one frame's measurement.  STEP_MIN is a deadband:
+ * thresholding is a step function of an integer gray level, so without one
+ * the loop settles into a limit cycle rather than a value -- deterministically,
+ * on a perfectly repeated frame.  Widening it from 3 to 10 removed 38 of 39
+ * hunting runs on real captures and raised yield from 39% to 43%.
+ */
+#ifndef K_QUIRC_THRESHOLD_OFFSET_MAX
+#define K_QUIRC_THRESHOLD_OFFSET_MAX 70
+#endif
+#ifndef K_QUIRC_THRESHOLD_STEP_MAX
+#define K_QUIRC_THRESHOLD_STEP_MAX 30
+#endif
+#ifndef K_QUIRC_THRESHOLD_STEP_MIN
+#define K_QUIRC_THRESHOLD_STEP_MIN 10
+#endif
+#ifndef K_QUIRC_DILATION_GAIN
+#define K_QUIRC_DILATION_GAIN 200.0f
+#endif
 
 #if QUIRC_MAX_REGIONS < UINT8_MAX
 typedef uint8_t quirc_pixel_t;
@@ -99,8 +180,9 @@ struct quirc_point {
 
 struct quirc_region {
   struct quirc_point seed;
-  int count;
+  int count; /* Area in pixels; 0 if the fill ran out of stack */
   int capstone;
+  int16_t x0, y0, x1, y1; /* Bounding box */
 };
 
 struct quirc_capstone {
@@ -118,7 +200,6 @@ struct quirc_grid {
   struct quirc_point align;
   int grid_size;
   float c[QUIRC_PERSPECTIVE_PARAMS];
-  int timing_bias;
 };
 
 struct quirc_code {
@@ -147,12 +228,16 @@ struct datastream {
 struct k_quirc {
   uint8_t *image;
   quirc_pixel_t *pixels;
+  size_t image_capacity; /* Allocated pixels; independent of active w/h. */
   uint8_t *flood_fill_stack;
   bool owns_pixels;
-  bool flood_fill_overflow;
 #ifdef K_QUIRC_ADAPTIVE_THRESHOLD
   int threshold_offset;
-  bool processing_inverted;
+  /* Finder-pattern areas summed over every capstone found this frame.  Kept
+   * as raw sums rather than per-capstone estimates so the whole frame costs
+   * one division, and so larger (more reliable) finders carry more weight. */
+  uint32_t dilation_ring;
+  uint32_t dilation_white;
 #endif
   int w;
   int h;
@@ -166,6 +251,17 @@ struct k_quirc {
   struct quirc_data data_scratch;
   struct datastream ds_scratch;
 };
+
+/* Zeroing the optimiser is not allowed to discard.
+ *
+ * Decoded QR payloads are frequently secrets - BIP39 mnemonics, seed entropy,
+ * PSBTs, OTP provisioning URIs - and the scratch buffers above plus the
+ * captured frame hold them in plaintext. A plain memset() before free() is a
+ * dead store that a compiler may legally remove, and explicit_bzero()/
+ * memset_s() are not portably available across the ESP-IDF and host builds
+ * this library targets, so the call is routed through a volatile function
+ * pointer instead. Safe with a NULL pointer or a zero length. */
+void k_quirc_bzero(void *ptr, size_t len);
 
 /*
  * Version info structure
@@ -215,6 +311,8 @@ void k_quirc_set_threshold_offset_for(struct k_quirc *q, int offset);
  */
 void quirc_extract_internal(const struct k_quirc *q, int index,
                             struct quirc_code *code);
+void quirc_extract_nudged(const struct k_quirc *q, int index,
+                          struct quirc_code *code, float du, float dv);
 k_quirc_error_t quirc_decode_internal(const struct quirc_code *code,
                                       struct quirc_data *data,
                                       struct datastream *ds);

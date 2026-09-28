@@ -18,9 +18,26 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/* Limits on the maximum size of QR-codes and their content (Max Version 25). */
-#define K_QUIRC_MAX_BITMAP 1712  /* ceil(117*117/8) for version 25 */
-#define K_QUIRC_MAX_PAYLOAD 2560 /* v25 ECC-L numeric max: 2149 chars */
+/*
+ * K_QUIRC_WARN_UNUSED_RESULT - the compiler warns at any call site that
+ * discards this function's return value.
+ *
+ * Applied to everything that reports failure through its return: the context
+ * allocator, the resize, the frame accessor, the decoders. Ignoring any of
+ * them means running on a NULL buffer or on a frame that was never sized.
+ *
+ * NOTE: under GCC a `(void)` cast does NOT suppress this. To ignore a result
+ * deliberately, consume it with `if (call()) { }` and say why in a comment.
+ */
+#if defined(__GNUC__) || defined(__clang__)
+#define K_QUIRC_WARN_UNUSED_RESULT __attribute__((__warn_unused_result__))
+#else
+#define K_QUIRC_WARN_UNUSED_RESULT
+#endif
+
+/* Limits on the maximum size of QR-codes and their content (Max Version 27). */
+#define K_QUIRC_MAX_BITMAP 1954  /* ceil(125*125/8) for version 27 */
+#define K_QUIRC_MAX_PAYLOAD 2560 /* v27 total codewords 1990 < 2560 */
 
 /* QR-code ECC types. */
 #define K_QUIRC_ECC_LEVEL_M 0
@@ -28,7 +45,13 @@
 #define K_QUIRC_ECC_LEVEL_H 2
 #define K_QUIRC_ECC_LEVEL_Q 3
 
-/* QR-code data types. */
+/* QR-code data types.
+ *
+ * These are distinct bits, and k_quirc_data_t.data_type is the OR of every
+ * segment mode present in the symbol - a QR code may mix modes. Test it with
+ * a mask, not equality: `data_type & K_QUIRC_DATA_TYPE_KANJI` is true for any
+ * symbol containing a Kanji segment, whereas `data_type == ..._KANJI` only
+ * matches a symbol that is Kanji and nothing else. */
 #define K_QUIRC_DATA_TYPE_NUMERIC 1
 #define K_QUIRC_DATA_TYPE_ALPHA 2
 #define K_QUIRC_DATA_TYPE_BYTE 4
@@ -45,6 +68,10 @@ typedef enum {
   K_QUIRC_ERROR_DATA_OVERFLOW,
   K_QUIRC_ERROR_DATA_UNDERFLOW,
   K_QUIRC_ERROR_ALLOC_FAILED,
+  /* An ECC-valid symbol whose decoded content is out of range for its
+   * declared mode (e.g. an alphanumeric value with no character mapping).
+   * Appended last so existing numeric values are unchanged. */
+  K_QUIRC_ERROR_INVALID_SYMBOL,
 } k_quirc_error_t;
 
 /* Point structure for corners */
@@ -78,7 +105,7 @@ typedef struct k_quirc k_quirc_t;
  * Create a new QR-code decoder instance.
  * @return Decoder instance or NULL on allocation failure
  */
-k_quirc_t *k_quirc_new(void);
+K_QUIRC_WARN_UNUSED_RESULT k_quirc_t *k_quirc_new(void);
 
 /**
  * Destroy a QR-code decoder instance and free all resources.
@@ -89,12 +116,16 @@ void k_quirc_destroy(k_quirc_t *q);
 /**
  * Resize the decoder for a specific image size.
  * Must be called before decoding.
+ * Retains the largest allocated image capacity until destruction. Resizing
+ * within that capacity does not allocate; the next frame must fill the active
+ * width * height bytes returned by k_quirc_begin(). Image contents are not
+ * preserved when capacity grows. On failure the existing context is unchanged.
  * @param q Decoder instance
  * @param w Image width
  * @param h Image height
- * @return 0 on success, -1 on allocation failure
+ * @return 0 on success, -1 on invalid dimensions or allocation failure
  */
-int k_quirc_resize(k_quirc_t *q, int w, int h);
+K_QUIRC_WARN_UNUSED_RESULT int k_quirc_resize(k_quirc_t *q, int w, int h);
 
 /**
  * Begin decoding - get pointer to grayscale image buffer.
@@ -104,7 +135,7 @@ int k_quirc_resize(k_quirc_t *q, int w, int h);
  * @param h Optional pointer to receive height
  * @return Pointer to grayscale buffer
  */
-uint8_t *k_quirc_begin(k_quirc_t *q, int *w, int *h);
+K_QUIRC_WARN_UNUSED_RESULT uint8_t *k_quirc_begin(k_quirc_t *q, int *w, int *h);
 
 /**
  * End decoding - process the image and detect QR codes.
@@ -119,7 +150,7 @@ void k_quirc_end(k_quirc_t *q, bool find_inverted);
  * @param q Decoder instance
  * @return Number of detected QR codes
  */
-int k_quirc_count(const k_quirc_t *q);
+K_QUIRC_WARN_UNUSED_RESULT int k_quirc_count(const k_quirc_t *q);
 
 /**
  * Decode a specific QR code and get its data.
@@ -128,15 +159,15 @@ int k_quirc_count(const k_quirc_t *q);
  * @param result Pointer to result structure to fill
  * @return K_QUIRC_SUCCESS on success, error code otherwise
  */
-k_quirc_error_t k_quirc_decode(k_quirc_t *q, int index,
-                               k_quirc_result_t *result);
+K_QUIRC_WARN_UNUSED_RESULT k_quirc_error_t
+k_quirc_decode(k_quirc_t *q, int index, k_quirc_result_t *result);
 
 /**
  * Get a human-readable error message.
  * @param err Error code
  * @return Error message string
  */
-const char *k_quirc_strerror(k_quirc_error_t err);
+K_QUIRC_WARN_UNUSED_RESULT const char *k_quirc_strerror(k_quirc_error_t err);
 
 /**
  * Convenience function: Decode QR codes from grayscale image.
@@ -150,9 +181,10 @@ const char *k_quirc_strerror(k_quirc_error_t err);
  * @param find_inverted If true, also try inverted QR codes
  * @return Number of QR codes successfully decoded
  */
-int k_quirc_decode_grayscale(const uint8_t *grayscale_data, int width,
-                             int height, k_quirc_result_t *results,
-                             int max_results, bool find_inverted);
+K_QUIRC_WARN_UNUSED_RESULT int
+k_quirc_decode_grayscale(const uint8_t *grayscale_data, int width, int height,
+                         k_quirc_result_t *results, int max_results,
+                         bool find_inverted);
 
 /* Debug visualization support */
 #ifdef K_QUIRC_DEBUG
@@ -172,7 +204,6 @@ typedef struct {
 typedef struct {
   float c[8];
   int grid_size;
-  int timing_bias;
 } k_quirc_debug_grid_t;
 
 typedef struct {

@@ -2008,7 +2008,11 @@ static bool cam_start(void) {
   s_clear_pending = 2;                // start from black (letterbox bars)
   s_frames = 0;
   s_t0 = esp_timer_get_time();
-  if (xTaskCreatePinnedToCore(stream_task, "camspike", 6144, NULL, 3,
+  // 8192: the QR decode runs on this task, and k_quirc's thresholder keeps its
+  // histograms on the stack (about 3 KB at its deepest frame, measured with
+  // -fstack-usage), where the older copy kept them static. See
+  // components/k_quirc/VENDOR.kiss.md.
+  if (xTaskCreatePinnedToCore(stream_task, "camspike", 8192, NULL, 3,
                               &s_cam.task, 1) != pdPASS) {
     set_status("CAM: task create failed");
     ioctl(s_cam.fd, VIDIOC_STREAMOFF, &type);

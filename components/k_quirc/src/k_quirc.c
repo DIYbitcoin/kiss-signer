@@ -13,8 +13,17 @@
 
 #include "k_quirc_internal.h"
 
-static int image_allocation_size(int w, int h, size_t elem_size,
-                                 size_t *out_size) {
+/* Indirecting through a volatile pointer stops the compiler from treating the
+ * zeroing as a dead store and eliding it. See k_quirc_internal.h. */
+static void *(*const volatile k_quirc_memset_fn)(void *, int, size_t) = memset;
+
+void k_quirc_bzero(void *ptr, size_t len) {
+  if (ptr && len)
+    k_quirc_memset_fn(ptr, 0, len);
+}
+
+static K_QUIRC_WARN_UNUSED_RESULT int
+image_allocation_size(int w, int h, size_t elem_size, size_t *out_size) {
   if (!out_size || w <= 0 || h <= 0 || w > K_QUIRC_MAX_IMAGE_DIM ||
       h > K_QUIRC_MAX_IMAGE_DIM)
     return -1;
@@ -43,59 +52,26 @@ k_quirc_t *k_quirc_new(void) {
   return q;
 }
 
-// kiss-signer: wipe before free, on both paths that free these buffers.
-//
-// This decoder is pointed at secrets. A locked backup and a passphrase QR
-// both arrive as an image, and q->image / q->pixels hold that image after
-// binarisation -- which is the code itself, still readable, still decodable by
-// anyone who reads the freed block back. The heap on this device is not
-// scrubbed on free and the beta has no flash encryption behind it, so handing
-// these blocks back with the pattern intact leaves a recoverable secret
-// sitting in whatever allocates next.
-//
-// Sized from q->w/q->h rather than a remembered length: those are the fields
-// resize() sets alongside the allocation, so they cannot drift apart from it.
-static void wipe_buffers(k_quirc_t *q) {
-  size_t n;
-  if (q->image && image_allocation_size(q->w, q->h, sizeof(uint8_t), &n) == 0)
-    memset(q->image, 0, n);
-  if (q->owns_pixels && q->pixels &&
-      image_allocation_size(q->w, q->h, sizeof(quirc_pixel_t), &n) == 0)
-    memset(q->pixels, 0, n);
-  // The DECODED text, not just the picture of it. data_scratch is where
-  // decode() assembles the payload before it is copied to the caller, so after
-  // a backup it holds the sealed envelope and after a passphrase QR it holds
-  // the passphrase -- in the middle of the struct that k_quirc_destroy hands
-  // back to the allocator. Wiping the image and leaving this behind cleaned up
-  // the photograph and kept the transcript.
-  memset(&q->data_scratch, 0, sizeof q->data_scratch);
-  // And ds_scratch, which is not one copy but two: struct datastream carries
-  // raw[K_QUIRC_MAX_PAYLOAD] (the error-corrected codewords) and
-  // data[K_QUIRC_MAX_PAYLOAD] (the assembled bytes) before either reaches
-  // data_scratch. Wiping only the destination left the payload in the same
-  // struct twice over.
-  memset(&q->ds_scratch, 0, sizeof q->ds_scratch);
-  // And code_scratch, which is the raw module grid the decode ran on. It is
-  // not text, so it does not look like a secret in a memory dump -- it is the
-  // QR itself, and anyone who can read a QR can read the payload straight back
-  // out of it. Three fields, three copies, one wipe.
-  memset(&q->code_scratch, 0, sizeof q->code_scratch);
-}
-
 void k_quirc_destroy(k_quirc_t *q) {
   if (q) {
-    wipe_buffers(q);
-    // The decoded text lives inside the context itself. Zero it before K_FREE
-    // takes the struct: the heap is not scrubbed on free, and that payload can
-    // be a mnemonic.
-    memset(&q->data_scratch, 0, sizeof q->data_scratch);
-    memset(&q->ds_scratch, 0, sizeof q->ds_scratch);
-    if (q->image)
+    /* Scrub decoded plaintext and the captured frame before handing the memory
+     * back to the allocator. This runs once per scan session, not per frame -
+     * callers bracket the whole camera loop with k_quirc_new()/_destroy() and
+     * use k_quirc_begin()/_end() per frame - so the cost is immaterial. */
+    if (q->image) {
+      k_quirc_bzero(q->image, q->image_capacity * sizeof(*q->image));
       K_FREE(q->image);
-    if (q->owns_pixels && q->pixels)
+    }
+    if (q->owns_pixels && q->pixels) {
+      k_quirc_bzero(q->pixels, q->image_capacity * sizeof(*q->pixels));
       K_FREE(q->pixels);
+    }
+    /* flood_fill_stack holds only coordinates, never payload bytes. */
     if (q->flood_fill_stack)
       K_FREE(q->flood_fill_stack);
+    k_quirc_bzero(&q->code_scratch, sizeof(q->code_scratch));
+    k_quirc_bzero(&q->data_scratch, sizeof(q->data_scratch));
+    k_quirc_bzero(&q->ds_scratch, sizeof(q->ds_scratch));
     K_FREE(q);
   }
 }
@@ -108,6 +84,21 @@ int k_quirc_resize(k_quirc_t *q, int w, int h) {
 
   if (!q || image_allocation_size(w, h, sizeof(uint8_t), &image_size) < 0)
     return -1;
+
+  if (image_size <= q->image_capacity) {
+    size_t old_size = (size_t)q->w * (size_t)q->h;
+    if (image_size < old_size) {
+      /* The next frame overwrites the active prefix. Clear the discarded tail
+       * now so shrinking an ROI does not retain the previous frame there. */
+      k_quirc_bzero(q->image + image_size, old_size - image_size);
+      if (q->owns_pixels)
+        k_quirc_bzero(q->pixels + image_size,
+                      (old_size - image_size) * sizeof(*q->pixels));
+    }
+    q->w = w;
+    q->h = h;
+    return 0;
+  }
 
   new_image = K_MALLOC_IMAGE(image_size);
   if (!new_image)
@@ -136,15 +127,18 @@ int k_quirc_resize(k_quirc_t *q, int w, int h) {
     }
   }
 
-  // Same reasoning as k_quirc_destroy: a resize frees the previous frame's
-  // buffers, and on this device the previous frame may have been a seed.
-  wipe_buffers(q);
-  if (q->image)
+  /* Capacity still describes the outgoing buffers, including any ROI tail. */
+  if (q->image) {
+    k_quirc_bzero(q->image, q->image_capacity * sizeof(*q->image));
     K_FREE(q->image);
-  if (q->owns_pixels && q->pixels)
+  }
+  if (q->owns_pixels && q->pixels) {
+    k_quirc_bzero(q->pixels, q->image_capacity * sizeof(*q->pixels));
     K_FREE(q->pixels);
+  }
 
   q->image = new_image;
+  q->image_capacity = image_size;
   if (sizeof(*q->image) == sizeof(*q->pixels)) {
     q->pixels = (quirc_pixel_t *)q->image;
     q->owns_pixels = false;
@@ -172,7 +166,6 @@ uint8_t *k_quirc_begin(k_quirc_t *q, int *w, int *h) {
   q->num_regions = QUIRC_PIXEL_REGION;
   q->num_capstones = 0;
   q->num_grids = 0;
-  q->flood_fill_overflow = false;
 
   if (w)
     *w = q->w;
@@ -207,15 +200,42 @@ k_quirc_error_t k_quirc_decode(k_quirc_t *q, int index,
 
   quirc_extract_internal(q, index, code);
 
-  /* kiss-signer-os: corners come from extract and are valid even when decode
-   * fails — export them always so the scanner UI can warn about a QR that is
-   * clipped by the frame edge (see VENDOR.kiss.md). */
+  /* Report the detected QR's corner positions regardless of decode outcome.
+   * quirc_extract_internal fills code->corners before decoding is attempted, so
+   * a located-but-undecoded code can still be measured by the caller (e.g. to
+   * compute pixels-per-module). result->valid stays false on decode failure. */
   for (int i = 0; i < 4; i++) {
     result->corners[i].x = code->corners[i].x;
     result->corners[i].y = code->corners[i].y;
   }
 
   k_quirc_error_t err = quirc_decode_internal(code, data, ds);
+
+  /* Data-ECC failures are frequently a slightly misfitted grid rather than a
+   * bad image: the corner opposite the corner capstone is extrapolated (v1
+   * codes have no alignment pattern at all), and at small pixels-per-module
+   * a sub-module error there flips enough cells to exceed the ECC budget.
+   * Retry the extraction with that corner nudged around its fitted position.
+   * This costs nothing on the happy path and only re-runs the (cheap)
+   * extract+decode stages on frames that would otherwise be dropped.
+   * Restricted to small grids (<= v10): larger versions have alignment
+   * patterns anchoring the far corner so the nudge rarely helps there,
+   * and extraction cost scales with grid area. */
+  if (err == K_QUIRC_ERROR_DATA_ECC && q->grids[index].grid_size <= 57) {
+    static const float nudges[][2] = {
+        {-0.5f, -0.5f}, {0.5f, 0.5f}, {-0.5f, 0.0f},  {0.5f, 0.0f},
+        {0.0f, -0.5f},  {0.0f, 0.5f}, {-1.0f, -1.0f}, {1.0f, 1.0f},
+        {-1.0f, 0.0f},  {1.0f, 0.0f}, {0.0f, -1.0f},  {0.0f, 1.0f},
+    };
+    for (size_t n = 0; n < sizeof(nudges) / sizeof(nudges[0]); n++) {
+      quirc_extract_nudged(q, index, code, nudges[n][0], nudges[n][1]);
+      err = quirc_decode_internal(code, data, ds);
+      if (err == K_QUIRC_SUCCESS)
+        break;
+      err = K_QUIRC_ERROR_DATA_ECC;
+    }
+  }
+
   if (err == K_QUIRC_SUCCESS) {
     result->valid = true;
     result->data.version = data->version;
@@ -230,6 +250,13 @@ k_quirc_error_t k_quirc_decode(k_quirc_t *q, int index,
     result->data.payload[result->data.payload_len] = 0;
   }
 
+  /* The payload now lives in the caller's result, which it is responsible for
+   * clearing. Drop our copies rather than leaving them resident in the context
+   * for the remainder of the scan session. quirc_decode_internal() zeroes both
+   * on entry, so this only shortens the window - it changes no behaviour. */
+  k_quirc_bzero(data, sizeof(*data));
+  k_quirc_bzero(ds, sizeof(*ds));
+
   return err;
 }
 
@@ -243,7 +270,8 @@ const char *k_quirc_strerror(k_quirc_error_t err) {
       [K_QUIRC_ERROR_UNKNOWN_DATA_TYPE] = "Unknown data type",
       [K_QUIRC_ERROR_DATA_OVERFLOW] = "Data overflow",
       [K_QUIRC_ERROR_DATA_UNDERFLOW] = "Data underflow",
-      [K_QUIRC_ERROR_ALLOC_FAILED] = "Memory allocation failed"};
+      [K_QUIRC_ERROR_ALLOC_FAILED] = "Memory allocation failed",
+      [K_QUIRC_ERROR_INVALID_SYMBOL] = "Invalid symbol for data type"};
 
   if (err >= 0 && err < sizeof(error_table) / sizeof(error_table[0]))
     return error_table[err];
@@ -307,7 +335,6 @@ const k_quirc_debug_info_t *k_quirc_get_debug_info(const k_quirc_t *q) {
   for (int i = 0; i < q->num_grids && i < K_QUIRC_DEBUG_MAX_GRIDS; i++) {
     memcpy(debug_info.grids[i].c, q->grids[i].c, sizeof(float) * 8);
     debug_info.grids[i].grid_size = q->grids[i].grid_size;
-    debug_info.grids[i].timing_bias = q->grids[i].timing_bias;
   }
 
   debug_info.num_capstones = q->num_capstones;

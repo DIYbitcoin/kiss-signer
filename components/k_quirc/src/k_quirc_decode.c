@@ -3,10 +3,9 @@
  * Reed-Solomon error correction and QR code payload decoding
  */
 
-#include "esp_log.h"
 #include "k_quirc_internal.h"
 
-__attribute__((unused)) static const char *TAG = "k_quirc";
+#define TAG "k_quirc"
 
 #define MAX_POLY 64
 
@@ -104,21 +103,22 @@ static void poly_add(uint8_t *dst, const uint8_t *src, uint8_t c, int shift,
   }
 }
 
+/* Horner's rule: one table multiply per coefficient, and no modulo since two
+ * logarithms sum to less than 2p. */
 static uint8_t poly_eval(const uint8_t *s, uint8_t x,
                          const struct galois_field *gf, int len) {
   uint8_t sum = 0;
-  uint8_t log_x = gf->log[x];
+  int log_x = gf->log[x];
 
   if (!x)
     return s[0];
 
-  for (int i = 0; i < len; i++) {
-    uint8_t c = s[i];
-
-    if (!c)
-      continue;
-
-    sum ^= gf->exp[(gf->log[c] + log_x * i) % gf->p];
+  for (int i = len - 1; i >= 0; i--) {
+    if (sum) {
+      int e = gf->log[sum] + log_x;
+      sum = gf->exp[e >= gf->p ? e - gf->p : e];
+    }
+    sum ^= s[i];
   }
 
   return sum;
@@ -175,17 +175,20 @@ static int block_syndromes(const uint8_t *data, int bs, int npar, uint8_t *s) {
 
   memset(s, 0, MAX_POLY);
 
+  /* s[i] is the codeword evaluated at alpha^i, by Horner's rule */
   for (int i = 0; i < npar; i++) {
+    uint8_t sum = 0;
+
     for (int j = 0; j < bs; j++) {
-      uint8_t c = data[bs - j - 1];
-
-      if (!c)
-        continue;
-
-      s[i] ^= gf256_exp[((int)gf256_log[c] + i * j) % 255];
+      if (sum) {
+        int e = gf256_log[sum] + i;
+        sum = gf256_exp[e >= 255 ? e - 255 : e];
+      }
+      sum ^= data[j];
     }
 
-    if (s[i])
+    s[i] = sum;
+    if (sum)
       nonzero = 1;
   }
 
@@ -236,10 +239,15 @@ static k_quirc_error_t correct_block(uint8_t *data,
 
   eloc_poly(omega, s, sigma, npar - 1);
 
+  /* The locator's degree is the number of errors, usually far below npar */
+  int terms = npar;
+  while (terms > 1 && !sigma[terms - 1])
+    terms--;
+
   for (int i = 0; i < ecc->bs; i++) {
     uint8_t xinv = gf256_exp[255 - i];
 
-    if (!poly_eval(sigma, xinv, &gf256, npar)) {
+    if (!poly_eval(sigma, xinv, &gf256, terms)) {
       uint8_t sd_x = poly_eval(sigma_deriv, xinv, &gf256, npar);
       uint8_t omega_x = poly_eval(omega, xinv, &gf256, npar);
       uint8_t error =
@@ -360,13 +368,22 @@ static int mask_bit(int mask, int i, int j) {
   return 0;
 }
 
-static void read_bit(const struct quirc_code *code, struct quirc_data *data,
+/* All eight mask predicates are periodic in i and j with a period dividing
+ * 12 (they only use i%2, i%3, (i/2)%2, (j/3)%2 and products thereof), so a
+ * 12x12 lookup table built once per decode replaces the per-bit divisions. */
+static void build_mask_table(int mask, uint8_t tab[12][12]) {
+  for (int i = 0; i < 12; i++)
+    for (int j = 0; j < 12; j++)
+      tab[i][j] = (uint8_t)mask_bit(mask, i, j);
+}
+
+static void read_bit(const struct quirc_code *code, const uint8_t mtab[12][12],
                      struct datastream *ds, int i, int j) {
   int bitpos = ds->data_bits & 7;
   int bytepos = ds->data_bits >> 3;
   int v = grid_bit(code, j, i);
 
-  if (mask_bit(data->mask, i, j))
+  if (mtab[i % 12][j % 12])
     v ^= 1;
 
   if (v)
@@ -375,56 +392,46 @@ static void read_bit(const struct quirc_code *code, struct quirc_data *data,
   ds->data_bits++;
 }
 
+static void reserve_rect(uint8_t *bitmap, int size, int x0, int y0, int rw,
+                         int rh) {
+  for (int y = y0; y < y0 + rh; y++) {
+    int bit = y * size + x0;
+    for (int x = 0; x < rw; x++, bit++)
+      bitmap[bit >> 3] |= (1 << (bit & 7));
+  }
+}
+
 static void build_reserved_bitmap(int version, int size, uint8_t *bitmap) {
   memset(bitmap, 0, (size * size + 7) >> 3);
   const struct quirc_version_info *ver = &quirc_version_db[version];
 
-  for (int j = 0; j < size; j++) {
-    for (int i = 0; i < size; i++) {
-      bool reserved = false;
+  /* Finder patterns + format info areas */
+  reserve_rect(bitmap, size, 0, 0, 9, 9);
+  reserve_rect(bitmap, size, size - 8, 0, 8, 9);
+  reserve_rect(bitmap, size, 0, size - 8, 9, 8);
 
-      if (i < 9 && j < 9)
-        reserved = true;
-      else if (i < 9 && j >= size - 8)
-        reserved = true;
-      else if (i >= size - 8 && j < 9)
-        reserved = true;
-      else if (i == 6 || j == 6)
-        reserved = true;
+  /* Timing patterns */
+  reserve_rect(bitmap, size, 6, 0, 1, size);
+  reserve_rect(bitmap, size, 0, 6, size, 1);
 
-      if (!reserved && version >= 7) {
-        if (i < 6 && j >= size - 11)
-          reserved = true;
-        else if (i >= size - 11 && j < 6)
-          reserved = true;
-      }
+  /* Version info blocks */
+  if (version >= 7) {
+    reserve_rect(bitmap, size, 0, size - 11, 6, 3);
+    reserve_rect(bitmap, size, size - 11, 0, 3, 6);
+  }
 
-      if (!reserved) {
-        int a = 0;
-        while (a < QUIRC_MAX_ALIGNMENT && ver->apat[a])
-          a++;
+  /* Alignment patterns: 5x5 around each center, skipping the three
+   * combinations that coincide with the finder patterns */
+  int a = 0;
+  while (a < QUIRC_MAX_ALIGNMENT && ver->apat[a])
+    a++;
 
-        if (a) {
-          int ai = -1, aj = -1;
-          for (int p = 0; p < a; p++) {
-            if (abs(ver->apat[p] - i) < 3)
-              ai = p;
-            if (abs(ver->apat[p] - j) < 3)
-              aj = p;
-          }
-
-          if (ai >= 0 && aj >= 0) {
-            if (!((ai == 0 && aj == 0) || (ai == 0 && aj == a - 1) ||
-                  (ai == a - 1 && aj == 0)))
-              reserved = true;
-          }
-        }
-      }
-
-      if (reserved) {
-        int bit = j * size + i;
-        bitmap[bit >> 3] |= (1 << (bit & 7));
-      }
+  for (int p = 0; p < a; p++) {
+    for (int r = 0; r < a; r++) {
+      if ((p == 0 && r == 0) || (p == 0 && r == a - 1) ||
+          (p == a - 1 && r == 0))
+        continue;
+      reserve_rect(bitmap, size, ver->apat[p] - 2, ver->apat[r] - 2, 5, 5);
     }
   }
 }
@@ -436,6 +443,7 @@ static k_quirc_error_t read_data(const struct quirc_code *code,
   int x = code->size - 1;
   int dir = -1;
   uint8_t reserved[K_QUIRC_MAX_BITMAP];
+  uint8_t mtab[12][12];
 
   /* Verify bitmap fits: (size*size+7)/8 must fit in K_QUIRC_MAX_BITMAP */
   if (code->size <= 0 ||
@@ -443,6 +451,7 @@ static k_quirc_error_t read_data(const struct quirc_code *code,
     return K_QUIRC_ERROR_INVALID_GRID_SIZE;
 
   build_reserved_bitmap(data->version, code->size, reserved);
+  build_mask_table(data->mask, mtab);
 
   while (x > 0) {
     if (x == 6)
@@ -450,10 +459,10 @@ static k_quirc_error_t read_data(const struct quirc_code *code,
 
     int bit0 = y * code->size + x;
     if (!((reserved[bit0 >> 3] >> (bit0 & 7)) & 1))
-      read_bit(code, data, ds, y, x);
+      read_bit(code, mtab, ds, y, x);
     int bit1 = y * code->size + x - 1;
     if (!((reserved[bit1 >> 3] >> (bit1 & 7)) & 1))
-      read_bit(code, data, ds, y, x - 1);
+      read_bit(code, mtab, ds, y, x - 1);
 
     y += dir;
     if (y < 0 || y >= code->size) {
@@ -529,8 +538,9 @@ static int take_bits(struct datastream *ds, int len) {
 /*
  * Payload decoding
  */
-static int numeric_tuple(struct quirc_data *data, struct datastream *ds,
-                         int bits, int digits) {
+static K_QUIRC_WARN_UNUSED_RESULT int numeric_tuple(struct quirc_data *data,
+                                                    struct datastream *ds,
+                                                    int bits, int digits) {
   int tuple;
   int i;
 
@@ -582,26 +592,12 @@ static k_quirc_error_t decode_numeric(struct quirc_data *data,
   return K_QUIRC_SUCCESS;
 }
 
-static const char *alpha_map = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:";
-
-// The alphanumeric alphabet has 45 entries, and the field that indexes it is
-// wider than that in BOTH paths below: a pair is 11 bits (0..2047, so d/45
-// reaches 45 -- the NUL) and a lone character is 6 bits (0..63, so it indexes
-// up to 17 bytes PAST the end of the literal and copies whatever rodata sits
-// there straight into the decoded payload).
-//
-// Neither is reachable from a conforming symbol -- a real encoder never emits a
-// value outside the alphabet -- but this is the first code in the signer to
-// touch bytes off a QR code held up to the camera, and nothing upstream masks
-// the value to the alphabet's size.
-//
-// Split out so the boundary is testable directly: reaching it through a decode
-// means hand-building a grid that survives Reed-Solomon, while what actually
-// needs proving is that 45..63 are refused and 0..44 still map exactly.
-// Returns the character, or -1 for a value the alphabet does not contain.
-int k_quirc_alpha_char(int v) {
-  return (v >= 0 && v < 45) ? (int)(unsigned char)alpha_map[v] : -1;
-}
+/* The alphanumeric character set has exactly 45 entries. Declaring the array
+ * with an explicit bound makes a too-long literal a compile error, and gives
+ * the range checks in decode_alpha() a single source of truth. */
+#define ALPHA_MAP_LEN 45
+static const char alpha_map[ALPHA_MAP_LEN + 1] =
+    "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:";
 
 static k_quirc_error_t decode_alpha(struct quirc_data *data,
                                     struct datastream *ds) {
@@ -624,11 +620,13 @@ static k_quirc_error_t decode_alpha(struct quirc_data *data,
       return K_QUIRC_ERROR_DATA_UNDERFLOW;
 
     d = take_bits(ds, 11);
-    int hi = k_quirc_alpha_char(d / 45), lo = k_quirc_alpha_char(d % 45);
-    if (hi < 0 || lo < 0)
-      return K_QUIRC_ERROR_DATA_ECC;   // corrected data is still not alphanumeric
-    data->payload[data->payload_len++] = (uint8_t)hi;
-    data->payload[data->payload_len++] = (uint8_t)lo;
+    /* 11 bits hold 0..2047, but only 0..2024 encode a valid character pair.
+     * Values above that would index alpha_map[45], its NUL terminator, and
+     * splice an embedded NUL into a payload callers treat as a C string. */
+    if (d >= ALPHA_MAP_LEN * ALPHA_MAP_LEN)
+      return K_QUIRC_ERROR_INVALID_SYMBOL;
+    data->payload[data->payload_len++] = alpha_map[d / ALPHA_MAP_LEN];
+    data->payload[data->payload_len++] = alpha_map[d % ALPHA_MAP_LEN];
     count -= 2;
   }
 
@@ -639,10 +637,12 @@ static k_quirc_error_t decode_alpha(struct quirc_data *data,
       return K_QUIRC_ERROR_DATA_UNDERFLOW;
 
     d = take_bits(ds, 6);
-    int ch = k_quirc_alpha_char(d);
-    if (ch < 0)
-      return K_QUIRC_ERROR_DATA_ECC;
-    data->payload[data->payload_len++] = (uint8_t)ch;
+    /* 6 bits hold 0..63 but the map has only 45 entries: without this check
+     * values 45..63 read up to 18 bytes past the array and copy them into
+     * the decoded payload. */
+    if (d >= ALPHA_MAP_LEN)
+      return K_QUIRC_ERROR_INVALID_SYMBOL;
+    data->payload[data->payload_len++] = alpha_map[d];
   }
 
   return K_QUIRC_SUCCESS;
@@ -760,14 +760,22 @@ static k_quirc_error_t decode_payload(struct quirc_data *data,
       break;
 
     default:
+      /* The 0000 terminator lands here, as do the reserved mode indicators.
+       * Treating both as end-of-data matches upstream quirc: erroring would
+       * break symbols whose data exactly fills the capacity, leaving no room
+       * for a terminator. */
       goto done;
     }
 
     if (err)
       return err;
 
+    /* Accumulate rather than assign. The mode constants are distinct bits, and
+     * a symbol may carry several segments; overwriting left only the last
+     * non-ECI mode visible, so a Kanji segment followed by any other segment
+     * reported the trailing mode and slipped past callers that reject Kanji. */
     if (type != 7)
-      data->data_type = type;
+      data->data_type |= type;
   }
 done:
 
@@ -819,6 +827,18 @@ k_quirc_error_t quirc_decode_internal(const struct quirc_code *code,
 
 void quirc_extract_internal(const struct k_quirc *q, int index,
                             struct quirc_code *code) {
+  quirc_extract_nudged(q, index, code, 0.0f, 0.0f);
+}
+
+/* Extract the grid with the far (extrapolated) corner nudged by (du,dv)
+ * modules.  The nudge is applied in grid space with a bilinear weight that
+ * is zero at the three capstone-anchored corners and 1 at the corner
+ * opposite the corner capstone, so retries bend only the part of the fit
+ * that has no capstone anchoring it (v1 codes have no alignment pattern -
+ * that corner is pure extrapolation).  Called with (0,0) for the normal
+ * extraction. */
+void quirc_extract_nudged(const struct k_quirc *q, int index,
+                          struct quirc_code *code, float du, float dv) {
   const struct quirc_grid *qr = &q->grids[index];
   const int max_grid_size = QUIRC_MAX_VERSION * 4 + 17;
 
@@ -829,8 +849,8 @@ void quirc_extract_internal(const struct k_quirc *q, int index,
 
   /* Bounds check to prevent buffer overflow in cell_bitmap */
   if (qr->grid_size < 21 || qr->grid_size > max_grid_size) {
-    ESP_LOGW(TAG, "Grid size %d outside supported range 21..%d", qr->grid_size,
-             max_grid_size);
+    K_QUIRC_LOGW(TAG, "Grid size %d outside supported range 21..%d",
+                 qr->grid_size, max_grid_size);
     code->size = 0;
     return;
   }
@@ -842,15 +862,48 @@ void quirc_extract_internal(const struct k_quirc *q, int index,
 
   code->size = qr->grid_size;
 
+  const int w = q->w;
+  const int h = q->h;
+  const float *c = qr->c;
+  const bool nudged = (du != 0.0f) || (dv != 0.0f);
+  const float inv_gs2 = 1.0f / ((float)qr->grid_size * (float)qr->grid_size);
   int i = 0;
   for (int y = 0; y < qr->grid_size; y++) {
+    /* Along a row the map's numerators and denominator advance by additions.
+     * Half a denominator is folded into the numerators, which rounds the
+     * quotient; the reciprocal follows its neighbour's by a Newton step, the
+     * denominator moving by a fraction of a percent per cell. */
+    float vy = y + 0.5f;
+    float den = c[6] * 0.5f + c[7] * vy + 1.0f;
+    float mx = c[0] * 0.5f + c[1] * vy + c[2] + 0.5f * den;
+    float my = c[3] * 0.5f + c[4] * vy + c[5] + 0.5f * den;
+    float mx_step = c[0] + 0.5f * c[6];
+    float my_step = c[3] + 0.5f * c[6];
+    float inv = 1.0f / den;
+
     for (int x = 0; x < qr->grid_size; x++) {
-      struct quirc_point p;
+      int px, py;
+      if (!nudged) {
+        inv *= 2.0f - den * inv;
+        px = (int)(mx * inv);
+        py = (int)(my * inv);
+        mx += mx_step;
+        my += my_step;
+        den += c[6];
+      } else {
+        /* Weight grows towards the extrapolated corner (grid_size,
+         * grid_size); retry-only path, so the extra math is fine. */
+        float ux = x + 0.5f;
+        float wgt = ux * vy * inv_gs2;
+        float un = ux + du * wgt;
+        float vn = vy + dv * wgt;
+        float d = 1.0f / (c[6] * un + c[7] * vn + 1.0f);
+        px = fast_roundf((c[0] * un + c[1] * vn + c[2]) * d);
+        py = fast_roundf((c[3] * un + c[4] * vn + c[5]) * d);
+      }
 
-      perspective_map(qr->c, x + 0.5f, y + 0.5f, &p);
-
-      if (p.y >= 0 && p.y < q->h && p.x >= 0 && p.x < q->w) {
-        if (q->pixels[p.y * q->w + p.x])
+      if (py >= 0 && py < h && px >= 0 && px < w) {
+        if (q->pixels[py * w + px])
           code->cell_bitmap[i >> 3] |= (1 << (i & 7));
       }
 
