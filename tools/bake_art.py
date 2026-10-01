@@ -62,6 +62,12 @@ FILES = [
     "main/kiss_img_jc1060.c",
     "main/menu_logo_jc1060.c",
     "main/sprites_jc1060.c",
+    # The 5in's: at 1280x720, sprites at 1.6 times (--board ws5).
+    "main/menu_img_ws5.c",
+    "main/gameover_img_ws5.c",
+    "main/kiss_img_ws5.c",
+    "main/menu_logo_ws5.c",
+    "main/sprites_ws5.c",
 ]
 
 HEADERS = [
@@ -70,6 +76,11 @@ HEADERS = [
     "main/kiss_img.h",
     "main/sprites.h",
     "main/menu_logo.h",
+    "main/menu_img.h",
+    "main/gameover_img.h",
+    "main/kiss_img.h",
+    "main/menu_logo.h",
+    "main/sprites.h",
     "main/menu_img.h",
     "main/gameover_img.h",
     "main/kiss_img.h",

@@ -38,6 +38,15 @@ The 7in's is 1024x600, sprites at 1.28 times:
 /tmp/spritevenv/bin/python assets/generators/kiss_mock.py --board jc1060       # -> main/kiss_img_jc1060.c
 ```
 
+The 5in's is 1280x720, sprites at 1.6 times:
+
+```
+/tmp/spritevenv/bin/python assets/generators/convert_fruit.py --board ws5   # -> main/sprites_ws5.c
+/tmp/spritevenv/bin/python assets/generators/menu_mock.py --board ws5       # -> main/menu_img_ws5.c, main/menu_logo_ws5.c
+/tmp/spritevenv/bin/python assets/generators/gameover_mock.py --board ws5   # -> main/gameover_img_ws5.c
+/tmp/spritevenv/bin/python assets/generators/kiss_mock.py --board ws5       # -> main/kiss_img_ws5.c
+```
+
 Then bake what was written, naming the files, so nothing else is touched:
 `python3 tools/bake_art.py main/sprites_jc1060.c main/menu_img_jc1060.c ...`.
 A board's run writes only its own files. Record the result with

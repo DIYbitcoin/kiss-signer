@@ -219,8 +219,9 @@ emit("droplet", Image.fromarray(np.dstack([np.full((_S, _S, 3), 255, np.uint8), 
 # 3.5in's 24 px the notch between its lobes fell between samples, so its
 # hearts read as flat-topped shields until they were drawn at four times.
 # The 4.3in's 40 px hearts were always drawn directly, and the 7in's 51 px
-# ones have more pixels for the notch, not fewer.
-HEART_OVER = per_board(BOARD, {"guition": 1, "ws35": 4, "jc1060": 1})
+# ones have more pixels for the notch, not fewer, and the 5in's 64 px more
+# still.
+HEART_OVER = per_board(BOARD, {"guition": 1, "ws35": 4, "jc1060": 1, "ws5": 1})
 for _nm, _col in (("heart", [232, 60, 60]), ("heart_empty", [86, 56, 60])):
     _hi = heart(sz(40) * HEART_OVER, _col)
     emit(_nm, _hi if HEART_OVER == 1 else _hi.resize((sz(40), sz(40)), Image.LANCZOS))

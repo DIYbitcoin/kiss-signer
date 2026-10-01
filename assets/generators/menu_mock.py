@@ -25,7 +25,7 @@ from boards import BOARDS, per_board
 
 ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
 ap.add_argument("--board", choices=sorted(BOARDS), default="guition",
-                help="guition: 800x480 (default); ws35: 480x320; jc1060: 1024x600. "
+                help="guition: 800x480 (default); ws35: 480x320; jc1060: 1024x600; ws5: 1280x720. "
                      "A board other than guition writes its own suffixed .c files")
 BOARD = ap.parse_args().board
 W, H = BOARDS[BOARD].w, BOARDS[BOARD].h
@@ -97,7 +97,7 @@ def seal_counters(m):
 
 
 # Whether the logo plates are sealed as well as filled: see seal_counters.
-SEAL = per_board(BOARD, {"guition": False, "ws35": True, "jc1060": True})
+SEAL = per_board(BOARD, {"guition": False, "ws35": True, "jc1060": True, "ws5": True})
 
 
 # ---- sky gradient (sunset), vertical ----
@@ -207,6 +207,10 @@ L1, L2 = per_board(BOARD, {
              ("ISLAND", 72, 182, (255, 196, 64), (244, 96, 40))),
     "jc1060": (("FRUIT", 92, 86, (255, 196, 64), (244, 96, 40)),
                ("ISLAND", 82, 166, (255, 196, 64), (244, 96, 40))),
+    # The 5in scales 3/2 down and 1.6 across, more room again; the wide rows
+    # until its glass says otherwise.
+    "ws5": (("FRUIT", 92, 86, (255, 196, 64), (244, 96, 40)),
+            ("ISLAND", 82, 166, (255, 196, 64), (244, 96, 40))),
 })
 
 # ---- screensaver backdrop: scene + FULL logo, no UI chrome ----
@@ -234,6 +238,8 @@ FRUIT_AT = per_board(BOARD, {
              ("watermelon", (160, 184), 80), ("strawberry", (572, 190), 76)],
     "jc1060": [("cherries", (150, 64), 92), ("grapes", (560, 60), 90),
                ("watermelon", (172, 176), 80), ("strawberry", (566, 184), 76)],
+    "ws5": [("cherries", (150, 64), 92), ("grapes", (560, 60), 90),
+            ("watermelon", (172, 176), 80), ("strawberry", (566, 184), 76)],
 })
 fruits = []
 for nm, pos, sz in FRUIT_AT:

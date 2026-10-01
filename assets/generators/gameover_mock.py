@@ -9,7 +9,8 @@ Every board, one drawing. Every length below is the wide 800x480 number and X()/
 floor it onto the canvas exactly as SX()/SY() in main/kiss_board.h do, so the baked
 card, pill and ribbon sit under the live labels and hit boxes on each board.
 `--board ws35` draws the same picture at 480x320 into main/gameover_img_ws35.c, and
-`--board jc1060` at 1024x600 into main/gameover_img_jc1060.c; each defines the same
+`--board jc1060` at 1024x600 into main/gameover_img_jc1060.c, `--board ws5` at
+1280x720 into main/gameover_img_ws5.c; each defines the same
 symbols under the wide header. Without the flag the output is the wide file, byte
 for byte. boards.py lists the boards."""
 import argparse
@@ -24,7 +25,7 @@ from boards import BOARDS, DESIGN_W, DESIGN_H, per_board
 ap = argparse.ArgumentParser(description="GAME OVER backdrop and NEW BEST ribbon")
 ap.add_argument("--board", choices=sorted(BOARDS), default="guition",
                 help="guition draws 800x480 (default); ws35 draws 480x320; "
-                     "jc1060 draws 1024x600")
+                     "jc1060 draws 1024x600; ws5 draws 1280x720")
 BOARD = ap.parse_args().board
 DW, DH = DESIGN_W, DESIGN_H              # the design canvas every number below is written for
 W, H = BOARDS[BOARD].w, BOARDS[BOARD].h
@@ -98,7 +99,7 @@ def seal_counters(m):
 
 
 # Whether the title plate is sealed as well as filled: see seal_counters.
-SEAL = per_board(BOARD, {"guition": False, "ws35": True, "jc1060": True})
+SEAL = per_board(BOARD, {"guition": False, "ws35": True, "jc1060": True, "ws5": True})
 
 
 # ---- synthwave scene (same hero as the menu), blurred + dimmed so the card pops ----
@@ -152,9 +153,11 @@ def logo_line(txt, size, cy, top, bot):
 # The title's design size and centre y. The 3.5in's type scales by 2/3 and its
 # width by 3/5, so the scaled title ran 6 px into the MENU pill and its rim sat
 # 4 px under the top edge; there it is 40 px, its rim 8 px down, ending 14 px
-# short of the pill. The 7in starts from the wide row: one line fits landscape
-# with no top clip, and its type scales less than its width does.
-TITLE = per_board(BOARD, {"guition": (66, 82), "ws35": (60, 80), "jc1060": (66, 82)})
+# short of the pill. The 7in and the 5in start from the wide row: one line
+# fits landscape with no top clip, and their type scales less than their
+# width does.
+TITLE = per_board(BOARD, {"guition": (66, 82), "ws35": (60, 80), "jc1060": (66, 82),
+                          "ws5": (66, 82)})
 logo_line("GAME OVER", *TITLE, (255, 209, 96), (231, 116, 44))
 
 # ---- score card (frame + SCORE label + divider; numbers overlaid at runtime) ----
@@ -196,11 +199,13 @@ img.alpha_composite(btn)
 # ---- fruit accents flanking the title (cherries nudged clear of the MENU pill) ----
 # (emoji, design position, design size). The 3.5in's are off its title, one
 # each side of the ribbon: the melon sat on the G, and the cherries there keep
-# 19 px under the MENU pill and 24 off the ribbon. The 7in's start as the wide ones.
+# 19 px under the MENU pill and 24 off the ribbon. The 7in's and the 5in's
+# start as the wide ones.
 ACCENTS = per_board(BOARD, {
     "guition": [("watermelon", (150, 56), 90), ("cherries", (545, 96), 88)],
     "ws35": [("watermelon", (144, 100), 90), ("cherries", (568, 96), 88)],
     "jc1060": [("watermelon", (150, 56), 90), ("cherries", (545, 96), 88)],
+    "ws5": [("watermelon", (150, 56), 90), ("cherries", (545, 96), 88)],
 })
 for nm, pos, sz in ACCENTS:
     fr = Image.open(f"{EMO}/{nm}.png").convert("RGBA"); fr.thumbnail((X(sz), X(sz)), Image.LANCZOS)
@@ -210,11 +215,12 @@ for nm, pos, sz in ACCENTS:
 # hit region lives in main.c game_tick ST_OVER tap handling -- keep in sync
 # The 3.5in's is out in the corner, level with its title, in pixels: where it
 # scaled to, the pill covered the R. Any tap off PLAY AGAIN goes to the menu, so
-# no hit box moves with it. The 7in's is the wide pill scaled.
+# no hit box moves with it. The 7in's and the 5in's are the wide pill scaled.
 mx0, my0, mx1, my1 = per_board(BOARD, {
     "guition": (X(612), Y(30), X(752), Y(84)),
     "ws35": (380, 11, 464, 45),
     "jc1060": (X(612), Y(30), X(752), Y(84)),
+    "ws5": (X(612), Y(30), X(752), Y(84)),
 })
 mb = Image.new("RGBA", (W, H), (0, 0, 0, 0))
 msh = Image.new("RGBA", (W, H), (0, 0, 0, 0))

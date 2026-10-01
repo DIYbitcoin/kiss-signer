@@ -38,6 +38,9 @@ BOARDS = {
     "ws35": Board(w=480, h=320, suffix="_ws35", narrow=True),
     # The Guition 7in: the 4.3in's screens, scaled up.
     "jc1060": Board(w=1024, h=600, suffix="_jc1060", narrow=False),
+    # The Waveshare 5in: the 4.3in's screens scaled up further, 1.6 across
+    # and 1.5 down, on a portrait glass turned the way the 4.3in's is.
+    "ws5": Board(w=1280, h=720, suffix="_ws5", narrow=False),
 }
 
 

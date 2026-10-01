@@ -51,11 +51,9 @@ case "$KISS_BOARD" in
              KISS_ART_SRCS="main/menu_img_jc1060.c main/menu_logo_jc1060.c main/gameover_img_jc1060.c main/kiss_img_jc1060.c"
              KISS_SPRITES_SRC="main/sprites_jc1060.c"
              KISS_FONT_DIR="" ;;
-    # Bring-up: the 4.3in's pictures until the 5in's own are drawn at 1280x720
-    # (main/CMakeLists.txt makes the same interim choice for the device).
     ws5)     KISS_BOARD_CFLAGS="-DKISS_BOARD_WS5=1"
-             KISS_ART_SRCS="main/menu_img.c main/menu_logo.c main/gameover_img.c main/kiss_img.c"
-             KISS_SPRITES_SRC="main/sprites.c"
+             KISS_ART_SRCS="main/menu_img_ws5.c main/menu_logo_ws5.c main/gameover_img_ws5.c main/kiss_img_ws5.c"
+             KISS_SPRITES_SRC="main/sprites_ws5.c"
              KISS_FONT_DIR="" ;;
     *) echo "sim: KISS_BOARD must be one of: $KISS_SIM_BOARD_IDS (got '$KISS_BOARD')" >&2; exit 1 ;;
 esac

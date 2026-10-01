@@ -51,11 +51,10 @@ elseif(CONFIG_KISS_BOARD_JC1060)
     set(KISS_F_EXTRA "font_kiss_lat43.c" "font_kiss_mono26.c" "font_kiss_mono43.c" "font_kiss_num60.c")
 elseif(CONFIG_KISS_BOARD_WS5)
     set(KISS_BOARD_SRC "board_ws5.c")
-    # Bring-up: the 4.3in's pictures, drawn for 800x480, until this board's own
-    # are generated at 1280x720 (--board ws5). They draw in the top left of the
-    # glass meanwhile, which is accepted at the first STOP as it was for the 7in.
-    set(KISS_ART_SRCS "menu_img.c" "menu_logo.c" "gameover_img.c" "game_bg.c" "kiss_img.c")
-    set(KISS_SPRITES_SRC "sprites.c")
+    # The same pictures drawn at 1280x720 by the same generators (--board
+    # ws5), defining the same symbols.
+    set(KISS_ART_SRCS "menu_img_ws5.c" "menu_logo_ws5.c" "gameover_img_ws5.c" "game_bg.c" "kiss_img_ws5.c")
+    set(KISS_SPRITES_SRC "sprites_ws5.c")
     set(KISS_F_LAT14 "font_kiss_lat14.c")
     set(KISS_F_LAT18 "font_kiss_lat18.c")
     set(KISS_F_LAT23 "font_kiss_lat23.c")
