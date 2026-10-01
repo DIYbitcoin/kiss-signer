@@ -3157,26 +3157,57 @@ static int oc_selftest_port(const char *name, const char *body,
 // A check that fired on both would be one nobody could act on, and a dead one
 // fails the first case -- which is the only reason this exists, since every
 // string the check found on the day it landed is on its backlog.
+//
+// The string that fires is GROWN, not written: "fits now, not once a third
+// longer" is a window between 74% and 100% of the lane, and the lane is a
+// different number of glyphs on every board. The 7in's lane is 1.28 times the
+// 4.3in's with the type a rung up, so a string written for one landed in the
+// other's window too; the 5in's lane is 1.6 times with the same rung, and the
+// same string sat at 57% of it, under the floor, so the case went dead on that
+// board alone. So a word is added at a time until the kit's own measure says
+// slack, and the case fails if a CUT arrives first (the string overshot the
+// lane, which the window cannot allow) or nothing arrives at all.
 static int oc_selftest_slack(const char *name, const char *val,
                              bool want_finding)
 {
-    lv_obj_t *scr = wt_screen(NULL, "SELFTEST", NULL);
-    lv_screen_load(scr);
-    s_cut_n = 0; s_findings = 0; s_seen_n = 0;
-    wt_row_wide(scr, WT_WIDE_Y(0), &(wt_wide_t){
-        .label = "LABEL",
-        .sub   = val,
-        .kind  = WT_WIDE_CYCLE,
-        .val   = "VALUE",
-    });
-    lv_refr_now(NULL);
-    oc_check_cut("selftest");
-
-    bool got = s_findings > 0;
-    printf("  %-46s %s (%d finding%s)\n", name,
-           got == want_finding ? "ok" : "FAILED", s_findings,
-           s_findings == 1 ? "" : "s");
-    return got == want_finding ? 0 : 1;
+    char grown[256];
+    snprintf(grown, sizeof grown, "%s", val);
+    for (int words = 0; ; words++) {
+        lv_obj_t *scr = wt_screen(NULL, "SELFTEST", NULL);
+        lv_screen_load(scr);
+        s_cut_n = 0; s_findings = 0; s_seen_n = 0;
+        wt_row_wide(scr, WT_WIDE_Y(0), &(wt_wide_t){
+            .label = "LABEL",
+            .sub   = grown,
+            .kind  = WT_WIDE_CYCLE,
+            .val   = "VALUE",
+        });
+        lv_refr_now(NULL);
+        // What the kit measured while it built the row, before the reporter
+        // folds it into a count: only a SLACK entry is the case this tests.
+        bool slack = false, other = false;
+        for (int i = 0; i < s_cut_n; i++) {
+            if (strcmp(s_cut_kind[i], "slack") == 0) slack = true;
+            else other = true;
+        }
+        oc_check_cut("selftest");
+        bool got = s_findings > 0;
+        // The clear case is one shape, judged once. The firing case grows
+        // until it fires or overshoots; 40 words is past any lane here.
+        if (!want_finding || slack || other || words >= 40) {
+            bool pass = want_finding ? (slack && !other) : !got;
+            printf("  %-46s %s (%d finding%s%s)\n", name,
+                   pass ? "ok" : "FAILED", s_findings,
+                   s_findings == 1 ? "" : "s",
+                   want_finding && slack ? ", grown to fit" : "");
+            return pass ? 0 : 1;
+        }
+        if (strlen(grown) + 6 >= sizeof grown) {
+            printf("  %-46s FAILED (the grown string ran out of room)\n", name);
+            return 1;
+        }
+        strcat(grown, " more");
+    }
 }
 
 // MARK goes through a real wt_value_card, not through the sink: the rule IS
