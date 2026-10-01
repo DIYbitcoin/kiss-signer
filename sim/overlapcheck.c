@@ -3382,10 +3382,13 @@ int oc_selftest(void)
 
     was = bad;
     printf("DOTS check self test\n");
+    // The lane scales with the canvas, like every lane the kit draws: a
+    // literal 120 held "ok.psbt" at the 4.3in's 23 and the 7in's 28, and cut
+    // it at the 5in's 34, where the case that must stay clear fired.
     bad += oc_selftest_dots("a name too long for its lane, fires",
-                            "zzzz-MANY-recipients-export.psbt", 120, true);
+                            "zzzz-MANY-recipients-export.psbt", SX(120), true);
     bad += oc_selftest_dots("the same lane, a name that fits, clear",
-                            "ok.psbt", 120, false);
+                            "ok.psbt", SX(120), false);
     if (bad != was) printf("DOTS self test: %d case(s) wrong\n", bad - was);
     else            printf("DOTS self test: 2 cases, all as expected\n");
     printf("\n");

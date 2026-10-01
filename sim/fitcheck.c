@@ -559,7 +559,13 @@ static int row_label_budget(const row_t *r)
     lv_point_t sz;
     lv_text_get_size(&sz, LV_SYMBOL_RIGHT, wt_font23(), 0, 0,
                      LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-    int right = r->w - 10 - (int)sz.x - 10;
+    // The row's width is a DESIGN number in the table above, so on a wide
+    // board it scales with the canvas the way the row it models does. Left
+    // unscaled it measured the 7in's and the 5in's larger type against the
+    // 4.3in's 365 px and reported labels as cut that both boards draw whole.
+    // The 3.5in's rows are a different shape and keep the number as it is.
+    const int w = KISS_NARROW ? r->w : SX(r->w);
+    int right = w - 10 - (int)sz.x - 10;
     int vw = 0;
     if (r->val_set) {
         // widest of the set, in this locale
@@ -815,9 +821,14 @@ static int check_addr_lift(void)
         { "silent payment, full",      SP, 722 },
     };
     for (size_t i = 0; i < sizeof cases / sizeof cases[0]; i++) {
-        lv_obj_t *flat = wt_addr_spans(scr, cases[i].addr, cases[i].w,
+        // The lanes are design numbers too, and scale the way the lanes they
+        // stand for do: unscaled, the 7in's and the 5in's larger type wrapped
+        // in the 4.3in's 438 px and every case reported a lift that had
+        // bought a line.
+        const int w = KISS_NARROW ? cases[i].w : SX(cases[i].w);
+        lv_obj_t *flat = wt_addr_spans(scr, cases[i].addr, w,
                                        wt_font_mono14());
-        lv_obj_t *lift = wt_addr_spans_lift(scr, cases[i].addr, cases[i].w,
+        lv_obj_t *lift = wt_addr_spans_lift(scr, cases[i].addr, w,
                                             wt_font_mono14());
         lv_obj_update_layout(flat);
         lv_obj_update_layout(lift);
@@ -827,8 +838,12 @@ static int check_addr_lift(void)
             printf("  %-28s lift did nothing (%dpx both)\n", cases[i].name, hf);
             bad++;
         }
-        // ... and must not buy that with a whole extra line of address
-        if (hl - hf > 8) {
+        // ... and must not buy that with a whole extra line of address. A
+        // whole line of the flat face, not a count of pixels: the lift's own
+        // cost is the difference between two rungs' line heights, which is 7
+        // on the 4.3in, 10 on the 7in and 13 on the 5in, and a literal 8
+        // called the last two a wrap they had not made.
+        if (hl - hf >= (int)lv_font_get_line_height(wt_font_mono14())) {
             printf("  %-28s lift cost %dpx, a wrapped line\n",
                    cases[i].name, hl - hf);
             bad++;
@@ -1291,7 +1306,11 @@ int main(int argc, char **argv)
                 i18n_set_lang(l);
                 const char *txt = tr(TITLE_SLOTS[t].key);
                 int ls = 0;
-                const int lane = TITLE_SLOTS[t].lane ? TITLE_SLOTS[t].lane
+                // A stated lane is a design number, scaled like the title's
+                // own lane on a wide board (row_label_budget says why).
+                const int stated = KISS_NARROW ? TITLE_SLOTS[t].lane
+                                               : SX(TITLE_SLOTS[t].lane);
+                const int lane = TITLE_SLOTS[t].lane ? stated
                                                      : wt_chrome_head_lane();
                 const lv_font_t *picked = title_pick(txt, lane,
                                                      TITLE_SLOTS[t].chrome, &ls);

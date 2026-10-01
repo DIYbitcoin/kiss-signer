@@ -34,8 +34,11 @@
 #include "osd_text.h"
 #include "kiss_theme.h"
 
-#define CANVAS_W 1000
-#define CANVAS_H 96
+// Sized for the 4.3in's strips, and grown with the canvas on a board whose
+// type is larger: the 5in's 28 name is a 43 px face, and one caption set in
+// it is 1066 px wide, past a fixed 1000. Never smaller than it always was.
+#define CANVAS_W (SX(1000) > 1000 ? SX(1000) : 1000)
+#define CANVAS_H (SY(96) > 96 ? SY(96) : 96)
 
 static int g_fail;
 static int g_checked;
