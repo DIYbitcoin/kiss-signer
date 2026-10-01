@@ -62,43 +62,43 @@ Both were the middle of a sentence: one named the method without saying what it 
 
 Keying the cache on the card being present looked cheaper and is wrong in the state that matters most: install the update and the same card is still in the slot holding the same image, now the running version. The scan would say WFW_ERR_SAME, the cache would still say 1, and the dot would sit there pointing at a FIRMWARE row offering nothing -- immediately after the one action that was supposed to clear it. So kiss_settings_open forgets the answer, and everything after it inside that one visit reuses it. A settings page rebuilds on every tab tap, so scanning per build would put an SD read behind a tab. The mark also goes when the card goes, which is what the probe below is for: a dot that outlived the card points at a row that says "no card".
 
-[`main/kiss_settings.c:2005`](../main/kiss_settings.c#L2005)
+[`main/kiss_settings.c:2010`](../main/kiss_settings.c#L2010)
 
 ### the amber dots on the tab strip are the attention chip's ROUTING and cannot be deleted as a duplicate of the count
 
 The first tab carrying one, in strip order, so the chip lands on the leftmost mark and the owner works rightwards. It used to be hard coded to BACKUP on the strength of a comment saying both counted conditions lived there; that stopped being true the moment duress joined the count, and a chip that jumps past a lit dot is worse than one that does not move.
 
-[`main/kiss_settings.c:2042`](../main/kiss_settings.c#L2042)
+[`main/kiss_settings.c:2047`](../main/kiss_settings.c#L2047)
 
 ### ONE door onto AUDIT, and it is this one
 
 The row was duplicated onto BACKUP because "how were these made" is a question about the seed and an outside reader guessed that tab; that argument is still true and did not survive what the pair cost. From the bench, "why the fuck now is there TWO audit button in SETTINGS screens" -- a settings page that lists the same row twice reads as a page that does not know what it holds, and a reader who cannot find a screen is not helped by finding it twice. It was moved to DEVICE for one commit on the reasoning that HOW YOUR KEYS WERE MADE and the RANDOMNESS AUDIT are facts about this box. Wrong tab: what an owner does with them is decide whether to TRUST the box, which is what SECURITY is for, and it is where the row has always been. DEVICE is FIRMWARE, THIS DEVICE and TERMS, and it is three rows again. No value: AUDIT has no state to report, so what it is FOR rides the sub lane. A phrase in the value lane wraps into the chevron -- the value never yields, so it has to be short or absent.
 
-[`main/kiss_settings.c:2250`](../main/kiss_settings.c#L2250)
+[`main/kiss_settings.c:2255`](../main/kiss_settings.c#L2255)
 
 ### the DECOY CARD hides in a decoy session, not the whole row
 
 The row was absent whenever kiss_session_decoy() was true, on the sound-sounding reason that the list contains THE DECOY. What that predicate actually means is "opened with an EMPTY passphrase", which is every signer that has never configured one -- so the reference an owner is pointed at from four other screens was missing from the settings page on the devices most likely to need it, and the bench reported it as the row simply not existing. One card is the secret; the other ten are a glossary. terms_ids() drops that one.
 
-[`main/kiss_settings.c:2379`](../main/kiss_settings.c#L2379)
+[`main/kiss_settings.c:2384`](../main/kiss_settings.c#L2384)
 
 ### these tabs keep their NOUNS and are not renamed after the jobs they hold
 
 The proposal was HOW IT SIGNS / WHAT IT KEEPS / HOW IT PROVES / WHAT IT IS, and it does not fit: the five-up strip is 620px, the shipped labels measure 612 of it, and those four plus NO UNDO measure 920. Three hundred pixels over is not a layout to tune. The only form that fits is single verbs -- SIGNS / KEEPS / PROVES / IS, 500px -- and "IS" is not a word to put on a tab an owner is looking for something in. Verbs without subjects read worse than the nouns they would replace, for a reader who bought their first signing device last week. The miscategorisation the proposal was built on is also gone: it argued that storage sat on SECURITY while recovery words sat on BACKUP, so checking a backup crossed two tabs. STORAGE is on BACKUP beside SEED WORDS, which is one job on one tab.
 
-[`main/kiss_settings.c:2617`](../main/kiss_settings.c#L2617)
+[`main/kiss_settings.c:2622`](../main/kiss_settings.c#L2622)
 
 ### the theme moved off the action band into the chrome column above [ ? ]
 
 It spent a version as a wordless chip in the header, one as a row on the DEVICE tab, and one as a swatch on the band's centre. The band was the wrong shelf: BACK, NEED ATTENTION and LANGUAGE all take you somewhere, and this control repaints the page you are already standing on. That is chrome, the same job as the title and the [ ? ], so it goes in the same column. The band had three controls sharing its right half because of it, and the bench had already filed that once -- "too close to the language picker" -- which was answered by centring it, moving the crowding rather than the control. It is a KIT call and the geometry is not here, for the reason the first draft of it proved: built by hand on this page, the swatch followed the accent through its flag and the NAME beside it did not, so an in-place restyle drew a green swatch labelled MONO.
 
-[`main/kiss_settings.c:2665`](../main/kiss_settings.c#L2665)
+[`main/kiss_settings.c:2670`](../main/kiss_settings.c#L2670)
 
 ### LANGUAGE lives on the BAND, moved there out of the DEVICE tab
 
 It travelled with the theme and the theme has since gone up to the chrome column; this one stays, because picking a language OPENS a picker, which is what every other control on this band does. The language control needs no caption -- its label IS the active language's own name, stripped of the regional qualifier ("ESPANOL (ESPANA)" -> "ESPANOL") because the picker's flag carries the variant. A WORD ACTION with a GLOBE, not an arrow action. It was a forward arrow, which is the mark the SCREEN'S OWN action wears -- so the one control on the band that picks between 21 languages was signed exactly like a "go on", and came back from the bench as "should have some icon better than an arrow, no?". A globe says what the control is before its word is read, in every one of those 21 languages at once.
 
-[`main/kiss_settings.c:2710`](../main/kiss_settings.c#L2710)
+[`main/kiss_settings.c:2715`](../main/kiss_settings.c#L2715)
 
 ## `main/kiss_setup.c`
 
@@ -250,7 +250,7 @@ It said "check your paper against these keys" until the paper was checked, then 
 
 The word is the FIRST stored.strokes strokes of the buffer, so once that many have been drawn without matching, no later stroke can change the answer -- and every attempt after it appended to the corpse instead of starting fresh. The device then answered to nothing at all until the owner put their hand down for a full three seconds, which is not what a person does between two tries. Reported from the bench as a signer that would not open to its own word. The log showed the strokes counting 1..17 across five attempts, 2.5s apart, and never resetting. The heuristic that catches an abandoned KISS is switched OFF whenever a word is stored -- it is built on the letters being drawn left to right, which a custom word is not -- so the idle was the only clear there was.
 
-[`main/main.c:2173`](../main/main.c#L2173)
+[`main/main.c:2198`](../main/main.c#L2198)
 
 ## `sim/sim_main.c`
 
@@ -258,4 +258,4 @@ The word is the FIRST stored.strokes strokes of the buffer, so once that many ha
 
 pump(30), not 20. The outgoing pane leaves on a per row stagger -- (n-1) * MO_OUT_STEP + MO_OUT_MS, which is 330ms for a six row detail pane against 320ms of pump -- so the old count photographed the previous screen still fading through this one. Invisible until overlapcheck learned to read spangroups: the ghost is a folded address, and a spangroup was not text to any check on the list.
 
-[`sim/sim_main.c:5257`](../sim/sim_main.c#L5257)
+[`sim/sim_main.c:5275`](../sim/sim_main.c#L5275)
