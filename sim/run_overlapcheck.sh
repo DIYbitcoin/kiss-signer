@@ -118,11 +118,16 @@ died=""
 # A board with no row, or a row whose file is missing, stops here: read from
 # nowhere, every locale would pass as unceiled, and a board measured against
 # another board's numbers would pass on the wrong ones.
+# heap_extra is the board's KISS_LV_EXTRA_POOL from main/kiss_board.h: what
+# its LVGL pool holds beyond the shared 128K, so the heap band below moves
+# with it. A row left behind when the header changes fails that band, loudly.
+heap_extra=0
 case "${KISS_BOARD:-guition}" in
     guition) default_ceilings=sim/overlap_ceilings.txt ;;
     ws35)    default_ceilings=sim/overlap_ceilings_ws35.txt ;;
     jc1060)  default_ceilings=sim/overlap_ceilings_jc1060.txt ;;
-    ws5)     default_ceilings=sim/overlap_ceilings_ws5.txt ;;
+    ws5)     default_ceilings=sim/overlap_ceilings_ws5.txt
+             heap_extra=262144 ;;
     *) echo "text overlap gate: no ceilings row for KISS_BOARD=$KISS_BOARD" >&2; exit 1 ;;
 esac
 ceilfile="${OVERLAPCHECK_CEILINGS:-$default_ceilings}"
@@ -169,10 +174,12 @@ heap_note() {
             return 1
         fi
     fi
-    if [ "$tot" -lt 98304 ] || [ "$tot" -gt 131072 ]; then
+    if [ "$tot" -lt $(( 98304 + heap_extra )) ] ||
+       [ "$tot" -gt $(( 131072 + heap_extra )) ]; then
         # A real 128K pool reads ~120K. The lower edge rejects a 64K/dead
         # monitor; the upper edge rejects a 256K sim that would make the same
-        # device workload look artificially cheap.
+        # device workload look artificially cheap. A board with a second
+        # pool moves both edges by exactly that pool.
         echo "heap pool out of band in $who: $tot" >&2
         return 1
     fi
