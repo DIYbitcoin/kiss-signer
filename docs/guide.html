@@ -1888,8 +1888,40 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
 <section class="doc-card reveal" id="firstboot">
         <p class="eyebrow">09 / seed words and passphrase</p>
         <h2>Create your keys</h2>
+        <p class="lede">
+          The signer has no button. You open it by drawing
+          <strong>K I S S</strong> on the game menu, every time, so learn this
+          first.
+        </p>
+        <figure class="gesture" aria-labelledby="gesture-cap">
+          <div class="gesture-stage">
+            <img src="media/game-menu.png" alt="The FRUIT ISLAND game menu">
+            <svg viewBox="0 0 800 480" aria-hidden="true">
+              <!-- Four letters, left to right, across the artwork. The spine of
+                   the K and its arms are separate strokes because the recogniser
+                   counts pen lifts, not ink. -->
+              <path class="gs" d="M160 175 L160 300"/>
+              <path class="gs" d="M250 180 L163 240 L250 298"/>
+              <path class="gs" d="M300 175 L300 300"/>
+              <path class="gs" d="M462 200 C462 168 368 168 368 206 C368 238 455 238 455 270 C455 302 363 302 360 270"/>
+              <path class="gs" d="M607 200 C607 168 513 168 513 206 C513 238 600 238 600 270 C600 302 508 302 505 270"/>
+            </svg>
+            <button class="gesture-play" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5 19 12 8 18.5Z"/></svg>
+              <span>Show the gesture</span>
+            </button>
+          </div>
+          <figcaption id="gesture-cap">
+            Write <strong>K I S S</strong> across the menu with your finger.
+            <strong>Lift between letters</strong> &mdash; the device counts pen
+            lifts, not ink, and one continuous scribble never matches. Write it
+            <strong>wider than it is tall</strong>. The shape is forgiving; the
+            four separate letters are not.
+          </figcaption>
+        </figure>
+
         <p>
-          Three rules first. The device will not stop to say them.
+          Three rules next. The device will not stop to say them.
         </p>
 
         <ul>
@@ -2000,33 +2032,6 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           Walk this once with valueless TESTNET coins before using keys you care
           about. Five steps, receive then spend.
         </p>
-        <figure class="gesture" aria-labelledby="gesture-cap">
-          <div class="gesture-stage">
-            <img src="media/game-menu.png" alt="The FRUIT ISLAND game menu">
-            <svg viewBox="0 0 800 480" aria-hidden="true">
-              <!-- Four letters, left to right, across the artwork. The spine of
-                   the K and its arms are separate strokes because the recogniser
-                   counts pen lifts, not ink. -->
-              <path class="gs" d="M160 175 L160 300"/>
-              <path class="gs" d="M250 180 L163 240 L250 298"/>
-              <path class="gs" d="M300 175 L300 300"/>
-              <path class="gs" d="M462 200 C462 168 368 168 368 206 C368 238 455 238 455 270 C455 302 363 302 360 270"/>
-              <path class="gs" d="M607 200 C607 168 513 168 513 206 C513 238 600 238 600 270 C600 302 508 302 505 270"/>
-            </svg>
-            <button class="gesture-play" type="button">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5 19 12 8 18.5Z"/></svg>
-              <span>Show the gesture</span>
-            </button>
-          </div>
-          <figcaption id="gesture-cap">
-            Write <strong>K I S S</strong> across the menu with your finger.
-            <strong>Lift between letters</strong> &mdash; the device counts pen
-            lifts, not ink, and one continuous scribble never matches. Write it
-            <strong>wider than it is tall</strong>. The shape is forgiving; the
-            four separate letters are not.
-          </figcaption>
-        </figure>
-
         <p class="try">
           <a href="sim/index.html">Try it in the simulator</a>
           Open the signer, then walk the same five steps against Sparrow. Nothing there is on a chain.
@@ -2035,7 +2040,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           <figure>
             <img src="media/game-menu.png" alt="Fruit Island game menu">
             <figcaption><b>01</b>Return to KISS: write K I S S across the
-              menu, as above.</figcaption>
+              menu, as in <a href="#firstboot">Create your keys</a>.</figcaption>
           </figure>
           <figure>
             <img src="media/export-descriptor.png" alt="KISS descriptor QR for Sparrow">
