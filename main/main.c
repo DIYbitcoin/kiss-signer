@@ -2882,6 +2882,12 @@ static void game_tick(lv_timer_t *t) {
       uint32_t tri = ph < 60 ? ph : 120 - ph;        // 0..60..0
       lv_obj_set_style_opa(s_sd_badge, (lv_opa_t)(180 + tri * 75 / 60), 0);
     }
+    // A new press arms at most one of the two below, so it starts from none.
+    // They are cleared on the lift that fires them and nowhere else, so a press
+    // whose lift this block never saw (the page changed under the finger)
+    // fired at the NEXT lift instead and left the newer press armed for the
+    // one after: the wrong thing opened, one tap late.
+    if (pressed && !s_prev_press) { s_fp_pend = false; s_tile_pend = 0; }
     if (!cam_on && pressed && !s_prev_press && tx < SX(88) && ty < SY(88)) {
       kiss_lock();
     } else if (cam_on) {
@@ -2927,6 +2933,8 @@ static void game_tick(lv_timer_t *t) {
     }
     if (!pressed) s_zoom_drag = false;
 #else
+    // As above: a new press starts from nothing pending.
+    if (pressed && !s_prev_press) { s_fp_pend = false; s_tile_pend = 0; }
     if (pressed && !s_prev_press && tx < SX(88) && ty < SY(88)) kiss_lock();
     else if (pressed && !s_prev_press && tx >= HOME_CHIP_HIT_X && ty < SY(110))
       s_fp_pend = true;                  // fingerprint chip: open the card on release
