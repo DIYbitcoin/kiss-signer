@@ -36,6 +36,7 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "esp_video_device.h"
+#include "esp_video_isp_ioctl.h"
 #include "esp_video_init.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -808,6 +809,39 @@ static void scan_exposure(bool on) {
     ioctl(s_cam.fd, VIDIOC_S_EXT_CTRLS, &cs);
     s_exp_saved = -1;
   }
+}
+
+// With the controller off nothing programs the ISP's gamma block either, so
+// frames reach the panel linear, and a linear picture on a panel that expects
+// display encoded values looks dark, twice over at the halved scan exposure.
+// While scanning, put the standard display curve (1/2.2) on it; off again on
+// stop, so the entropy page keeps measuring the linear frames its floor and
+// target were set against. The decoder reads the same frames, and the curve
+// only lifts dark levels without reordering any of them.
+//
+// x steps of 16 ending at 255 are what the ISP accepts (esp_isp_gamma.c).
+static const uint8_t s_gamma_y[ISP_GAMMA_CURVE_POINTS_NUM] = {
+    72, 99, 119, 136, 151, 164, 175, 186,
+    197, 206, 215, 224, 232, 240, 248, 255};
+
+static void scan_gamma(bool on) {
+  int fd = open(ESP_VIDEO_ISP1_DEVICE_NAME, O_RDWR);
+  if (fd < 0) {
+    ESP_LOGW(TAG, "scan: no ISP device for gamma");
+    return;
+  }
+  esp_video_isp_gamma_t g = {.enable = on};
+  for (int i = 0; i < ISP_GAMMA_CURVE_POINTS_NUM; i++) {
+    g.points[i].x = i == ISP_GAMMA_CURVE_POINTS_NUM - 1 ? 255 : 16 * (i + 1);
+    g.points[i].y = s_gamma_y[i];
+  }
+  struct v4l2_ext_control c = {.id = V4L2_CID_USER_ESP_ISP_GAMMA,
+                               .p_u8 = (uint8_t *)&g};
+  struct v4l2_ext_controls cs = {.ctrl_class = V4L2_CID_USER_CLASS,
+                                 .count = 1, .controls = &c};
+  if (ioctl(fd, VIDIOC_S_EXT_CTRLS, &cs) != 0)
+    ESP_LOGW(TAG, "scan: set gamma %s failed", on ? "on" : "off");
+  close(fd);
 }
 
 static void set_status(const char *fmt, ...) {
@@ -2127,6 +2161,7 @@ bool camera_scan_start(void *bus_v, void (*on_decode)(const char *, size_t)) {
     return false;
   }
   scan_exposure(true);                           // freeze hand shake
+  scan_gamma(true);                              // lift the linear picture
   set_status("CAM: scanning %ux%u", (unsigned)s_cam.w, (unsigned)s_cam.h);
   return true;
 }
@@ -2136,6 +2171,7 @@ void camera_scan_stop(void) {
   s_scan_mode = false;
   s_scan_cb = NULL;
   scan_exposure(false);                          // back to the default look
+  scan_gamma(false);                             // entropy wants it linear
   cam_stop();                                    // waits for the stream task to exit
   if (s_quirc) { k_quirc_destroy(s_quirc); s_quirc = NULL; }
   lv_obj_invalidate(lv_screen_active());         // repaint LVGL over the video
