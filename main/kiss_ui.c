@@ -2039,6 +2039,11 @@ static void pop_show(const char *ch, uint32_t id) {
   if (!s_pop) {                             // iPhone-style key callout: larger than the
     s_pop = lv_obj_create(s_login);         // key, big glyph, bottom overlapping the
     lv_obj_remove_style_all(s_pop);         // pressed key so it visibly grows out of it
+    // A callout, not a control. lv_obj_create makes every object clickable,
+    // and this one sits over the key ABOVE the one just pressed for 300 ms:
+    // the next tap landing there went to the bubble, and the letter under it
+    // was never typed. The key flash below already passes taps through.
+    lv_obj_remove_flag(s_pop, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_size(s_pop, SX(96), SX(96));
     lv_obj_set_style_radius(s_pop, SX(20), 0);
     lv_obj_set_style_bg_color(s_pop, wt_accent_bg(), 0);
