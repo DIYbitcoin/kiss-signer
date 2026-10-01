@@ -378,7 +378,13 @@ void kiss_scan_open_raw(lv_obj_t *parent, kiss_scan_task_t task,
 // It fits with the air the 3.5in keeps: bottom arms at 112 + 273 + 5 = 390,
 // eight clear of the content floor at 398, and the right arms end at 326, well
 // short of the text column at 396.
-#define SCN_CAM_W SX(273)
+//
+// Never taller than the room under it, since the box is square: the canvas of
+// the 5in is 8/5 as wide and only 3/2 as tall, and the scaled 436 put the
+// bottom arms 12 px into the action band. The arms are 5 px out and stop 3
+// short of the band, which is the air the 7in's box has. The 4.3in and the
+// 7in fit and keep their sizes.
+#define SCN_CAM_W LV_MIN(SX(273), WT_CONTENT_BOTTOM - SCN_CAM_Y - 8)
 #endif
 #if KISS_NARROW
 // 162 tall on the 3.5in, not the scaled 125, which on the glass read as a slot
