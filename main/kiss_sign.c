@@ -858,19 +858,20 @@ static void done_summary(int y)
 
     // Recipient and fee side by side, because they are the two halves of the
     // number the hero on the verify screen showed as one.
+    // Scaled, on every board: the two halves split the card the way they do on
+    // the 4.3in, where both fold to the numbers they always were. They were
+    // literals there and scaled only on the 3.5in, whose 422 wide card cut an
+    // unscaled 400 to a mark and a digit; the 7in and the 5in then drew the fee
+    // 400 px in on cards 901 and 1126 wide, and on the 5in at its own type the
+    // two amounts ran together into one line.
     struct { const char *icon; int str; uint64_t sats; int x; } cells[2] = {
-        { LV_SYMBOL_DOWNLOAD, STR_S_SENDING_CAP, s_sum.send_sats,  20 },
-        { LV_SYMBOL_CUT,      STR_S_FEE,         s_sum.fee_sats,  400 },
+        { LV_SYMBOL_DOWNLOAD, STR_S_SENDING_CAP, s_sum.send_sats, SX(20) },
+        { LV_SYMBOL_CUT,      STR_S_FEE,         s_sum.fee_sats,  SX(400) },
     };
     const lv_font_t *vf = wt_font34();
 #if KISS_NARROW
-    // The 3.5in's card is 422 wide, so the unscaled 400 put the fee column at
-    // 428 and the card's edge cut it to a mark and a digit. Scaled, the two
-    // halves split the card the way they do on the wide board -- and both
-    // figures take a rung down together when either outgrows its half, which
-    // "0.00001000 BTC" at 23 px does in the fee's 170.
-    cells[0].x = SX(20);
-    cells[1].x = SX(400);
+    // On the 3.5in both figures take a rung down together when either outgrows
+    // its half, which "0.00001000 BTC" at 23 px does in the fee's 170.
     for (int i = 0; i < 2; i++) {
         char a[40], b[64];
         wt_fmt_amount(cells[i].sats, a, sizeof a);
