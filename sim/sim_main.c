@@ -4330,7 +4330,11 @@ int main(void) {
     } else {
       lv_area_t a; lv_obj_get_coords(ad, &a);
       const int before = g_walk_fails;
-      touch_at((a.x1 + a.x2) / 2, a.y2 + SY(12)); pump(3); release(); pump(12);
+      // A literal 12, not SY(12): the widened area it probes is a literal 16
+      // (kiss_sign.c sets it in pixels, a finger pad like the other click
+      // pads), so the probe is in pixels too. Scaled, it reached 18 on the 5in
+      // and landed outside the pad, failing the stop on a target that works.
+      touch_at((a.x1 + a.x2) / 2, a.y2 + 12); pump(3); release(); pump(12);
       // STR_R_VT, the card's title, and not the lesson body: ADDR_HELP_B is
       // two sentences with a newline between them and must_show matches a
       // needle against one label's whole text, so the body can never match.
