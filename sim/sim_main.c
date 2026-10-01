@@ -6901,7 +6901,12 @@ int main(void) {
         // can show the ink in the WRONG PLACE: the line was parented to the
         // canvas at y=110 while being fed absolute touch points, so every
         // stroke drew 110px below the finger and no gate could see it.
-        if (rep == 0 && x > b.x1 + 80 && x <= b.x1 + 120)
+        // A window one step wide, so exactly one point of the stroke lands
+        // in it whatever the step is. It was 80 to 120 on every board, which
+        // held one point at the 4.3in's step of 40, the 7in's 51 and the
+        // 3.5in's 24, and none at the 5in's 64 (16, 80, 144), so the frame
+        // was never written there and the taps gate stopped.
+        if (rep == 0 && x > b.x1 + 80 && x <= b.x1 + 80 + SX(40))
           save("/tmp/sim_duress_draw_ink.ppm");
       }
       release(); pump(8);                    // 8 after a lift, or the next press folds in
