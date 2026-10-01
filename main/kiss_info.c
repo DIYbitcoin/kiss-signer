@@ -701,7 +701,9 @@ static void pair_instructions_cb(lv_event_t *e)
     lv_obj_t *c1 = wt_card(s_scr, SX(36), SY(96), SX(716), SY(162));
     lv_obj_t *h1 = wt_section(c1, tr_sym(WT_ICON_QR, STR_I_SHOW_TO), SX(16), SY(10));
     lv_obj_update_layout(h1);
-    const int b1 = 10 + lv_obj_get_height(h1) + 4;
+    // From where the head IS: it sits at SY(10), and a bare 10 started the
+    // body a pixel inside the head's line on the 5in.
+    const int b1 = SY(10) + lv_obj_get_height(h1) + 4;
     lv_obj_t *steps = wt_note(c1,
         s_pair_fmt ? tr(STR_I_NOTE_BW) : tr(STR_I_NOTE_SPARROW),
         SX(16), b1, SX(688), SY(162) - b1 - SY(12));
@@ -710,7 +712,7 @@ static void pair_instructions_cb(lv_event_t *e)
     lv_obj_t *c2 = wt_card(s_scr, SX(36), SY(264), SX(716), SY(132));
     lv_obj_t *h2 = wt_section(c2, tr_sym(LV_SYMBOL_OK, STR_R_VERIFY), SX(16), SY(8));
     lv_obj_update_layout(h2);
-    const int b2 = 8 + lv_obj_get_height(h2) + 4;
+    const int b2 = SY(8) + lv_obj_get_height(h2) + 4;
     lv_obj_t *prove = wt_note(c2, tr(STR_I_PROVE), SX(16), b2, SX(688), SY(132) - b2 - SY(10));
     lv_obj_set_style_text_color(prove, WT_INK, 0);
 #endif

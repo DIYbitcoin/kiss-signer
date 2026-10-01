@@ -3882,7 +3882,7 @@ lv_obj_t *wt_line_row(lv_obj_t *par, int x, int y, int w, int h,
         lv_obj_update_layout(ar);
         lv_obj_align(ar, LV_ALIGN_RIGHT_MID, -SX(4) - (SX(24) - lv_obj_get_width(ar)) / 2,
                      0);
-        right = w - 4 - 24;
+        right = w - SX(4) - SX(24);
     }
 
     // The page font, not the mono one. The mono face is for DATA -- a version,
@@ -3931,7 +3931,11 @@ lv_obj_t *wt_line_row(lv_obj_t *par, int x, int y, int w, int h,
     // 18 of gap. Measured off the arrow instead, the one row with no arrow
     // would hang its sub 14px right of every other and the column would not
     // read straight down.
-    const int sub_x = w - 46 - subw;
+    //
+    // SX(46), the inset the sub is aligned with below. A bare 46 said the sub
+    // began 27 px further right than it does on the 5in, and the value's box
+    // was sized to run 9 px under it.
+    const int sub_x = w - SX(46) - subw;
 
     if (val) {
         // Stops 18 clear of whatever is to its right -- the sub if there is

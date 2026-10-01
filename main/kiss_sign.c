@@ -1085,7 +1085,9 @@ static void signed_title_row(void)
     // the device; 10 is the gap the title keeps to its own cursor.
     const int cx = SX(48) + ts.x + 10;
 #else
-    const int cx = 48 + ts.x + 14;                   // where the word starts
+    // Off the tick's own x, as above. A bare 48 is the 4.3in's margin: on the
+    // 5in the tick starts at 77 and the word began at 116, inside it.
+    const int cx = SX(48) + ts.x + SX(14);           // where the word starts
 #endif
     wt_title_fit(s_scr, SX(752) - cx - (SX(12) + SX(10)));
 
@@ -2862,8 +2864,10 @@ static void verify_gesture_cb(lv_event_t *e)
 // it. 738 is 10 clear of the LOCK that marks a signed graph at 748; 57 is the
 // widest counter ("9/9" at mono23) plus its gap, reserved whether or not one is
 // drawn so OUTPUTS does not move when a transaction gains a page.
+// Scaled with the canvas: the counter is set a rung or two up on the larger
+// boards, and at a bare 57 the 5in's "1/3" began inside the word OUTPUTS.
 #define SG_CAP_R     SX(738)
-#define SG_CAP_CNT    57
+#define SG_CAP_CNT   SX(57)
 // The 3.5in sizes that lane off the counter itself. 57 unscaled was the wide
 // face's "9/9"; here the counter is 25 px, and the spare 20 pushed OUTPUTS
 // onto the input total until the two read as one figure. The counter ends 10
@@ -3453,7 +3457,13 @@ static void verify_screen(lv_obj_t *parent)
             // which is what the card says. On a line that still runs out -- a
             // locale whose word for SIGN is long -- the mark gives way and the
             // badge stays tappable.
-            bool q_fits = (fr - 30 - 12 - lw - 12 - fx >= 12);
+            //
+            // The mark's lane is its ring, which is drawn SX(30) wide on the
+            // wide canvases. Reserved at a bare 30 the 5in's 48 px ring stood
+            // 6 px inside the badge beside it. The 3.5in keeps its 30: its
+            // ring is placed and sized by its own rules.
+            const int qw = KISS_NARROW ? 30 : SX(30);
+            bool q_fits = (fr - qw - 12 - lw - 12 - fx >= 12);
             // ...and when even the badge alone will not fit, the WORD goes
             // and the mark and the number stay. German is the case: "SIGN" is
             // SIGNIEREN, five characters longer, which is about 95px off the
@@ -3478,7 +3488,7 @@ static void verify_screen(lv_obj_t *parent)
                 lv_label_set_text(lb, lnm);
                 lv_obj_update_layout(lb);
                 lw = lv_obj_get_width(lb);
-                q_fits = (fr - 30 - 12 - lw - 12 - fx >= 12);
+                q_fits = (fr - qw - 12 - lw - 12 - fx >= 12);
             }
             // LAST, and only once the word has already gone: take the
             // network's lane back. Its chip is the widest thing on this line
@@ -3491,7 +3501,7 @@ static void verify_screen(lv_obj_t *parent)
                 lv_obj_delete(net_badge);
                 net_badge = NULL;
                 fr += net_w + 12;
-                q_fits = (fr - 30 - 12 - lw - 12 - fx >= 12);
+                q_fits = (fr - qw - 12 - lw - 12 - fx >= 12);
             }
             if (q_fits || fr - lw - 12 - fx >= 12) {
                 if (q_fits) {
@@ -3499,7 +3509,7 @@ static void verify_screen(lv_obj_t *parent)
                                  KISS_NARROW ? SG_HDR_CY - SX(30) / 2 : SY(26),
                                  wt_accent(),
                                  det_term_cb, (void *)(uintptr_t)DT_LOCKTIME);
-                    fr -= 30 + 12;
+                    fr -= qw + 12;
                 }
                 lv_obj_set_pos(lb, fr - lw, KISS_NARROW ? SG_HDR_Y(lb) : SY(26));
                 fr -= lw + 12;
@@ -4476,9 +4486,11 @@ static void verify_screen(lv_obj_t *parent)
             }
         }
 #endif
-        // SX(24) on the 3.5in, where the caption actually starts: the bare 24
-        // spent 10 px of a middle slot that has none to spare.
-        const int mid_l = (KISS_NARROW ? SX(24) : 24) + capw + 12, mid_r = out_x - 12;
+        // SX(24), where the caption actually starts on every canvas: the bare
+        // 24 spent 10 px of a middle slot the 3.5in has none to spare in, and
+        // on the larger boards it centred the figure against an edge the
+        // caption is not at.
+        const int mid_l = SX(24) + capw + 12, mid_r = out_x - 12;
         // The middle slot SHEDS rather than overflows. Twenty coins make the
         // left caption ALL 20 COINS SIGNED and the figure seven digits wide, so
         // the three parts stopped fitting between the two column heads and the
