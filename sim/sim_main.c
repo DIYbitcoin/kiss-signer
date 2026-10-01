@@ -1063,12 +1063,13 @@ static const char *g_lang_code;
 // wearing. Added for the ROLE check in sim/overlapcheck.c, which asks whether
 // an element carries an accent and a status colour at once and therefore has
 // nothing to look at until an accent is actually selected.
+static int g_walk_accent = WT_ACC_MONO;   // what the walk set out wearing
 static void sim_pick_accent(void) {
   const char *a = getenv("SIM_ACCENT");
   if (!a || !*a) return;
   for (int i = 0; i < WT_ACC_N; i++) {
     wt_accent_set(i);
-    if (strcmp(wt_accent_name(), a) == 0) return;
+    if (strcmp(wt_accent_name(), a) == 0) { g_walk_accent = i; return; }
   }
   wt_accent_set(WT_ACC_MONO);
   fprintf(stderr, "unknown SIM_ACCENT %s\n", a);
@@ -3939,8 +3940,9 @@ int main(void) {
   // two redesigns ago. The page was already home, so they landed on nothing --
   // until the theme tag became a control in that corner, and then they
   // stepped the theme twice and every frame after this one was drawn in pink.
-  // So this stop says what it expects: the walk is dressed as it began.
-  if (wt_accent_get() != WT_ACC_MONO) {
+  // So this stop says what it expects: the walk is dressed as it began, in
+  // MONO or in the theme SIM_ACCENT picked.
+  if (wt_accent_get() != g_walk_accent) {
     printf("FAIL: home/end: the theme is %s, so a walk tap stepped it\n",
            wt_accent_name());
     g_walk_fails++;
