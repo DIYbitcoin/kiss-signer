@@ -3074,6 +3074,24 @@ int main(void) {
   pump(70);                                         // landed; chip + caption faded in
   save("/tmp/sim_home.ppm");
 
+  // The theme tag is a CONTROL on this page: framed like the fingerprint chip,
+  // and a tap on it is the Settings swatch's own step. Once round all of them,
+  // so everything after this stop is still dressed as it was; the frame saved
+  // after the first tap is the one that shows the page repainted in place.
+  {
+    const int was = wt_accent_get();
+    for (int i = 0; i < WT_ACC_N; i++) {
+      touch(700, 437); pump(3); release(); pump(6);
+      if (wt_accent_get() != (was + 1 + i) % WT_ACC_N) {
+        printf("FAIL: home theme tag: tap %d did not step the theme\n", i + 1);
+        g_walk_fails++;
+      }
+      if (i == 0) save("/tmp/sim_home_theme.ppm");
+    }
+    if (wt_accent_get() == was)
+      printf("ok: the home theme tag steps the theme and comes round\n");
+  }
+
   pump(90);                                         // ~1.4s idle: motes drift up
   save("/tmp/sim_home_idle.ppm");                   // motes at new positions here
   pump(120);                                        // more drift

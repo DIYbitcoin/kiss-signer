@@ -32,6 +32,11 @@ kiss_settings_load_status_t kiss_settings_load(void);
 // writes it, so the sign screen can offer the switch where the amounts are.
 void kiss_settings_set_denom(int d);
 
+// The next colour theme: applies it and writes it, the step the swatch in
+// Settings takes, so the home page can offer the switch where the theme's
+// name is shown. The caller repaints what it is standing on.
+void kiss_settings_theme_next(void);
+
 // The decoy's high score. Read opportunistically, outside the boot gate
 // above: see the note on the reader in kiss_settings.c for why.
 uint16_t kiss_game_best_load(void);

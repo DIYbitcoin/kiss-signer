@@ -220,6 +220,13 @@ static lv_obj_t *s_card_frame[4];        // live accent chrome over the baked sk
 static lv_obj_t *s_corner[4];            // the theme recolors these instantly, no re-bake
 static lv_obj_t *s_underline, *s_chip_frame;
 static lv_obj_t *s_theme_dot, *s_theme_lbl, *s_theme_cap;
+// The theme tag is a control: its frame, the press that is waiting for its
+// release, and the corner of the screen that counts as a press on it (set by
+// kiss_home_restyle with the frame; off the canvas until then, so nothing is
+// a press on a tag that has not been placed).
+static lv_obj_t *s_theme_frame;
+static bool s_theme_pend;
+static int s_theme_hx0 = 32767, s_theme_hy0 = 32767;
 // The test-network mark: a breathing amber dot beside a themed word,
 // the same shape the theme readout in the opposite corner already wears.
 static lv_obj_t *s_net_dot;
@@ -1667,23 +1674,41 @@ static void kiss_home_restyle(void) {
   if (s_batt_badge && !s_batt_low) lv_obj_set_style_text_color(s_batt_badge, ac, 0);
 #endif
   if (s_theme_dot)  lv_obj_set_style_bg_color(s_theme_dot, ac, 0);
+  if (s_theme_frame) lv_obj_set_style_border_color(s_theme_frame, ac, 0);
   if (s_theme_lbl) {
     lv_label_set_text(s_theme_lbl, wt_accent_name());
     lv_obj_set_style_text_color(s_theme_lbl, lv_color_hex(0xE8EEF7), 0);
     lv_obj_update_layout(s_theme_lbl);           // right-align: long names must not
-    // The tag's right edge. 760 clears the corner bracket at 744..768 on the
-    // wide canvas because the bracket's own lines are its far sides; scaled,
-    // the bracket is 14 px and the word ran under its foot ("MONO too close
-    // to the bottom bracket", from the bench), so the small board ends the
-    // tag ten pixels short of the bracket's box instead.
-    const int tag_r = KISS_NARROW ? SX(744) - 10 : SX(760);
-    int tx = tag_r - lv_obj_get_width(s_theme_lbl);  // leave the safe area (overscan!)
+    // The FRAME's right edge, and the dot, the name and the caption hang off
+    // it. The tag used to be a bare word ending at 760, tucked inside the
+    // corner bracket's box (744..776, its lines on the far sides). A frame
+    // there would run its own lines 5 px inside the bracket's, so the wide
+    // boards end the frame 8 short of the bracket's box. The small board
+    // already ended the word ten pixels short of it ("MONO too close to the
+    // bottom bracket", from the bench) and ends the frame there now.
+    const int frame_r = KISS_NARROW ? SX(744) - 10 : SX(736);
+    const int padx = SX(10), pady = SY(5);
+    const int lh = lv_obj_get_height(s_theme_lbl);
+    const int tx = frame_r - padx - lv_obj_get_width(s_theme_lbl);
+    const int dx = tx - SX(26);                  // the dot, and its gap to the name
+    const int fy = SY(428) - pady;               // the frame's top
     lv_obj_set_pos(s_theme_lbl, tx, SY(428));
-    if (s_theme_dot) lv_obj_set_pos(s_theme_dot, tx - SX(26), SY(430));
+    if (s_theme_dot) lv_obj_set_pos(s_theme_dot, dx, SY(428) + (lh - SX(16)) / 2);
+    if (s_theme_frame) {
+      lv_obj_set_pos(s_theme_frame, dx - padx, fy);
+      lv_obj_set_size(s_theme_frame, frame_r - (dx - padx), lh + 2 * pady);
+    }
+    int top = fy;
     if (s_theme_cap) {
       lv_obj_update_layout(s_theme_cap);
-      lv_obj_set_pos(s_theme_cap, tag_r - lv_obj_get_width(s_theme_cap), SY(406));
+      top = fy - SY(4) - lv_obj_get_height(s_theme_cap);   // the caption rides the frame
+      lv_obj_set_pos(s_theme_cap, frame_r - lv_obj_get_width(s_theme_cap), top);
     }
+    // What counts as a press on it: the frame and its caption with a finger's
+    // margin, and everything from there out to the corner. Nothing else on
+    // this page lives below the tiles on the right.
+    s_theme_hx0 = dx - padx - SX(16);
+    s_theme_hy0 = top - SY(8);
   }
   for (int i = 0; i < N_MOTES; i++)
     if (s_mote[i]) lv_obj_set_style_bg_color(s_mote[i], ac, 0);
@@ -2882,12 +2907,12 @@ static void game_tick(lv_timer_t *t) {
       uint32_t tri = ph < 60 ? ph : 120 - ph;        // 0..60..0
       lv_obj_set_style_opa(s_sd_badge, (lv_opa_t)(180 + tri * 75 / 60), 0);
     }
-    // A new press arms at most one of the two below, so it starts from none.
+    // A new press arms at most one of the three below, so it starts from none.
     // They are cleared on the lift that fires them and nowhere else, so a press
     // whose lift this block never saw (the page changed under the finger)
     // fired at the NEXT lift instead and left the newer press armed for the
     // one after: the wrong thing opened, one tap late.
-    if (pressed && !s_prev_press) { s_fp_pend = false; s_tile_pend = 0; }
+    if (pressed && !s_prev_press) { s_fp_pend = false; s_theme_pend = false; s_tile_pend = 0; }
     if (!cam_on && pressed && !s_prev_press && tx < SX(88) && ty < SY(88)) {
       kiss_lock();
     } else if (cam_on) {
@@ -2908,6 +2933,8 @@ static void game_tick(lv_timer_t *t) {
       }
     } else if (pressed && !s_prev_press && tx >= HOME_CHIP_HIT_X && ty < SY(110)) {
       s_fp_pend = true;                  // fingerprint chip: open the card on release
+    } else if (pressed && !s_prev_press && tx >= s_theme_hx0 && ty >= s_theme_hy0) {
+      s_theme_pend = true;               // theme tag: the next theme on release
     } else if (pressed && !s_prev_press &&
                TILE_HIT(0, 40, 220) && ty >= SY(140) && ty <= SY(340)) {  // Sign tile
       s_tile_pend = 1;
@@ -2923,6 +2950,10 @@ static void game_tick(lv_timer_t *t) {
     } else if (!pressed && s_prev_press && s_fp_pend) {           // finger lifted: card
       s_fp_pend = false;
       fp_card_open();
+    } else if (!pressed && s_prev_press && s_theme_pend) {        // finger lifted: next theme
+      s_theme_pend = false;
+      kiss_settings_theme_next();        // the Settings swatch's own step, stored
+      kiss_home_refresh();               // and this page repaints where it stands
     } else if (!pressed && s_prev_press && s_tile_pend) {          // finger lifted: open
       int tile = s_tile_pend;                        // not 't': that is the timer
       s_tile_pend = 0;
@@ -2934,10 +2965,12 @@ static void game_tick(lv_timer_t *t) {
     if (!pressed) s_zoom_drag = false;
 #else
     // As above: a new press starts from nothing pending.
-    if (pressed && !s_prev_press) { s_fp_pend = false; s_tile_pend = 0; }
+    if (pressed && !s_prev_press) { s_fp_pend = false; s_theme_pend = false; s_tile_pend = 0; }
     if (pressed && !s_prev_press && tx < SX(88) && ty < SY(88)) kiss_lock();
     else if (pressed && !s_prev_press && tx >= HOME_CHIP_HIT_X && ty < SY(110))
       s_fp_pend = true;                  // fingerprint chip: open the card on release
+    else if (pressed && !s_prev_press && tx >= s_theme_hx0 && ty >= s_theme_hy0)
+      s_theme_pend = true;               // theme tag: the next theme on release
     else if (pressed && !s_prev_press && TILE_HIT(0, 40, 220) && ty >= SY(140) && ty <= SY(340))
       s_tile_pend = 1;
     else if (pressed && !s_prev_press && TILE_HIT(1, 230, 390) && ty >= SY(140) && ty <= SY(340))
@@ -2949,6 +2982,10 @@ static void game_tick(lv_timer_t *t) {
     else if (!pressed && s_prev_press && s_fp_pend) {
       s_fp_pend = false;
       fp_card_open();
+    } else if (!pressed && s_prev_press && s_theme_pend) {
+      s_theme_pend = false;
+      kiss_settings_theme_next();
+      kiss_home_refresh();
     } else if (!pressed && s_prev_press && s_tile_pend) {
       int t = s_tile_pend;
       s_tile_pend = 0;
@@ -3519,6 +3556,17 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   lv_obj_set_style_border_width(s_chip_frame, 2, 0);
   lv_obj_remove_flag(s_chip_frame, LV_OBJ_FLAG_CLICKABLE);
   // live theme tag, bottom-right (replaces the baked dot that always lied MONO)
+  //
+  // In a FRAME, the fingerprint chip's own. A bare dot and a word read as a
+  // status line, and this is a control: a tap steps to the next theme, the
+  // Settings swatch's step, on the page where the theme is most visible. The
+  // thin outline is what this page already teaches as "tap me". Sized by
+  // kiss_home_restyle, because the name is a different width in every theme.
+  s_theme_frame = lv_obj_create(s_home);
+  lv_obj_remove_style_all(s_theme_frame);
+  lv_obj_set_style_radius(s_theme_frame, SX(10), 0);
+  lv_obj_set_style_border_width(s_theme_frame, 2, 0);
+  lv_obj_remove_flag(s_theme_frame, LV_OBJ_FLAG_CLICKABLE);
   s_theme_dot = lv_obj_create(s_home);
   lv_obj_remove_style_all(s_theme_dot);
   lv_obj_set_pos(s_theme_dot, SX(676), SY(426));

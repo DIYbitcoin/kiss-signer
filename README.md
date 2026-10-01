@@ -260,8 +260,8 @@ link your addresses, tiny change, and change your coordinator cannot see.
 
 **🌍 22 languages**, and a **?** on any Bitcoin term opens a plain words card.
 
-**🎨 Four themes:** MONO, GREEN, CYPHERPINK and ORANGE. Tap the colour swatch at
-the top of Settings to switch; the home page shows which one is on.
+**🎨 Four themes:** MONO, GREEN, CYPHERPINK and ORANGE. Tap the theme's name on
+the home page to switch, or the colour swatch at the top of Settings.
 
 ## Docs
 

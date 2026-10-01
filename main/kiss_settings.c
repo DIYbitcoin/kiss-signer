@@ -1320,11 +1320,16 @@ static void duress_cb(lv_event_t *e)
 // it is the control that makes the case for tapping in place loudest: the
 // result of the pick is the PAGE, so the page is the only honest preview.
 // Tap, and every mark on every tab is the new colour before the finger lifts.
+void kiss_settings_theme_next(void)
+{
+    wt_accent_set((wt_accent_get() + 1) % WT_ACC_N);
+    store_u8("accent", (uint8_t)wt_accent_get());
+}
+
 static void theme_cb(lv_event_t *e)
 {
     (void)e;
-    wt_accent_set((wt_accent_get() + 1) % WT_ACC_N);
-    store_u8("accent", (uint8_t)wt_accent_get());
+    kiss_settings_theme_next();
     kiss_home_refresh();
     // The whole page takes the new accent, not one swatch. Every chevron on
     // every tab is accent inked, so a rebuild is both simpler and more honest
