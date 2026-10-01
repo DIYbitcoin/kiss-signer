@@ -72,6 +72,15 @@
 //                          whether a battery is fitted and how full it is
 //                          (the 3.5in's AXP2101); 0 where there is nothing
 //                          to ask, and the home shows no battery at all
+//   KISS_LV_EXTRA_POOL     bytes of a SECOND LVGL pool added at start, in the
+//                          large memory, over the 128 KB internal one every
+//                          board has (CONFIG_LV_MEM_SIZE_KILOBYTES, mirrored
+//                          by sim/lv_conf.h). 0 on the boards whose walks fit
+//                          the first pool. Drawing scales with pixels: the
+//                          shadow and layer buffers a screen needs at
+//                          1280x720 are 2.4 times the 4.3in's, and a failed
+//                          lv_malloc mid-draw is an assert, which is an
+//                          infinite loop on the device and in the simulator.
 #if defined(KISS_BOARD_WS35)
 #define KISS_BOARD_ID "ws35"
 #define KISS_BOARD_NAME "Waveshare ESP32-P4-WIFI6-Touch-LCD-3.5"
@@ -109,6 +118,7 @@
 #define KISS_CAM_ORIENT_LOG 1
 #define KISS_BLADE_LANDING 0
 #define KISS_PMIC 1
+#define KISS_LV_EXTRA_POOL 0
 #elif defined(KISS_BOARD_GUITION)
 #define KISS_BOARD_ID "guition"
 #define KISS_BOARD_NAME "Guition JC4880P443C"
@@ -130,6 +140,7 @@
 #define KISS_CAM_ORIENT_LOG 0
 #define KISS_BLADE_LANDING 0
 #define KISS_PMIC 0
+#define KISS_LV_EXTRA_POOL 0
 #elif defined(KISS_BOARD_JC1060)
 #define KISS_BOARD_ID "jc1060"
 #define KISS_BOARD_NAME "Guition JC1060P470C"
@@ -156,6 +167,7 @@
 // longest of the three; that is a model, and the pass has not been measured.
 #define KISS_BLADE_LANDING 1
 #define KISS_PMIC 0
+#define KISS_LV_EXTRA_POOL 0
 #elif defined(KISS_BOARD_WS5)
 #define KISS_BOARD_ID "ws5"
 #define KISS_BOARD_NAME "Waveshare ESP32-P4-WiFi6-Touch-LCD-5"
@@ -186,6 +198,11 @@
 // measurement, until the glass has played it.
 #define KISS_BLADE_LANDING 1
 #define KISS_PMIC 0
+// The first canvas whose walk did not fit the 128 KB pool: with its own art
+// the overlap walk spun in a box shadow's draw at 100% CPU. The 4.3in peaks at
+// 84% of that pool and this canvas draws 2.4 times the pixels, so a second
+// pool twice the size, in PSRAM, where it costs the internal RAM nothing.
+#define KISS_LV_EXTRA_POOL (256 * 1024)
 #else
 #error "no arm for this board in main/kiss_board.h"
 #endif
@@ -198,8 +215,17 @@
     !defined(KISS_NARROW) || !defined(KISS_CAM_ORIENT) ||                       \
     !defined(KISS_CAM_RAW_MIRRORED) || !defined(KISS_PANEL_SPI) ||              \
     !defined(KISS_PANEL_SWROT) || !defined(KISS_CAM_ORIENT_LOG) ||              \
-    !defined(KISS_BLADE_LANDING) || !defined(KISS_PMIC)
+    !defined(KISS_BLADE_LANDING) || !defined(KISS_PMIC) || !defined(KISS_LV_EXTRA_POOL)
 #error "a board arm in main/kiss_board.h leaves a capability undefined"
+#endif
+
+#if KISS_LV_EXTRA_POOL
+// Adds the second pool, right after lv_init and before the first object. In
+// main/kiss_theme.c, the one file above LVGL that the device and the desktop
+// both compile, so the simulator's heap gate measures the same two pools the
+// device runs on; each board file and the simulator call it from beside their
+// lv_init. Compiled on no other board, so their images do not move.
+void kiss_lv_pool_extend(void);
 #endif
 
 // THE UI IS DRAWN ONCE, ON THE WIDE CANVAS. Every length in the screens and

@@ -10,6 +10,46 @@
 #include "i18n.h"
 #include "kiss_fonts.h"
 
+#if KISS_LV_EXTRA_POOL
+// The board's second LVGL pool (kiss_board.h says which board and why). Added
+// once, before the first object: from the large memory on the device, from
+// the C heap on the desktop, so lv_mem_monitor counts the same total on both
+// and the overlap gate's ceiling is a ceiling on what ships. A pool LVGL
+// cannot take leaves the first one standing alone, which is the state this
+// board spun in, so it is loud: a panic on the device, which reboots into the
+// last known good image, and an exit on the desktop.
+#ifdef ESP_PLATFORM
+#include "esp_heap_caps.h"
+#include "esp_log.h"
+#endif
+void kiss_lv_pool_extend(void)
+{
+    static bool done;
+    if (done) return;
+    done = true;
+    // In pools no larger than the first one. The allocator sizes its index
+    // by LV_MEM_SIZE and refuses a pool, or a block, past that: 256 KB in one
+    // piece came back refused on the desktop. Two 128 KB pools take the same
+    // bytes, and no single buffer a screen draws needs more than one of them.
+    for (size_t added = 0; added < (size_t)KISS_LV_EXTRA_POOL; added += LV_MEM_SIZE) {
+#ifdef ESP_PLATFORM
+        void *mem = heap_caps_malloc(LV_MEM_SIZE, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+#else
+        void *mem = malloc(LV_MEM_SIZE);
+#endif
+        if (!mem || !lv_mem_add_pool(mem, LV_MEM_SIZE)) {
+#ifdef ESP_PLATFORM
+            ESP_LOGE("kiss", "LVGL extra pool: %u bytes refused", (unsigned)LV_MEM_SIZE);
+            abort();
+#else
+            fprintf(stderr, "LVGL extra pool: %u bytes refused\n", (unsigned)LV_MEM_SIZE);
+            exit(1);
+#endif
+        }
+    }
+}
+#endif
+
 // Object identity, stamped into user_data. The addresses are what matter, not
 // the strings: they let action_bar_ensure tell a screen built by wt_screen from
 // an explainer card that happens to be the same size, and find the one bar it

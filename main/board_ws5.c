@@ -300,6 +300,7 @@ lv_display_t *kiss_board_display_start(void) {
 
   // Manual LVGL setup (no esp_lvgl_port display): logical canvas is 1280x720 landscape.
   lv_init();
+  kiss_lv_pool_extend();           // the second LVGL pool (kiss_board.h says why)
   const esp_timer_create_args_t tcfg = {.callback = lv_tick_cb, .name = "lvtick"};
   esp_timer_handle_t tick;
   ESP_ERROR_CHECK(esp_timer_create(&tcfg, &tick));

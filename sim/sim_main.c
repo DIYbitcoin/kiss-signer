@@ -2875,6 +2875,9 @@ int main(void) {
   kiss_trng_start();
 
   lv_init();
+#if KISS_LV_EXTRA_POOL
+  kiss_lv_pool_extend();   // the board's second LVGL pool, as its board file adds it
+#endif
   lv_display_t *d = lv_display_create(HRES, VRES);
   lv_display_set_color_format(d, LV_COLOR_FORMAT_RGB565);
   static uint8_t buf[HRES * 60 * 2];
