@@ -9514,8 +9514,18 @@ lv_obj_t *wt_diagram_airgap(lv_obj_t *parent)
 // "16 more inputs" ran 57 px past the graph's left edge there. Never under
 // 206, because the 3.5in reins its lane in at its own junction instead (see
 // wt_bundle).
+//
+// The 5in sets the group row's words two rungs up, in the 23 face where the
+// 4.3in has the 14: that is 23/14 of the width on a canvas 8/5 as wide, so the
+// scaled cap came out 5 px short and "16 more inputs" lost the start of its
+// count. Its cap follows the type. The junction is at 464 there, so the
+// strands keep a run of over 100 px.
 #define BLANE_MIN SY(104)
+#if WT_TYPE_UP == 2
+#define BLANE_MAX (206 * 23 / 14)
+#else
 #define BLANE_MAX LV_MAX(206, SX(206))
+#endif
 #define BLANE_GAP  SY(16)
 // The gap between an input row's words and its figure. bundle_row pads by it
 // and the lane measure in wt_bundle adds it, so it is one number. It was two,
