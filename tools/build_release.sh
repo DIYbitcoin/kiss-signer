@@ -191,6 +191,13 @@ PY
 # its length disagreeing with the field next to it.
 GIT_REV=$(git rev-parse --short HEAD 2>/dev/null || echo nogit)
 git diff --quiet HEAD 2>/dev/null || GIT_REV="$GIT_REV-dirty"
+# KISS_GIT_REV replaces the stamp. It exists for one check: proving that a
+# tree with a new board added still builds the OLD boards' images byte for
+# byte, against a pristine export of the commit before. The two trees are at
+# different commits, so left alone this one string would differ in images
+# that are otherwise identical, and tools/check_repro_match.py fails on any
+# byte outside its three windows. Unset everywhere else, including CI.
+GIT_REV="${KISS_GIT_REV:-$GIT_REV}"
 echo "commit: $GIT_REV"
 
 # BOARD_ARGS is empty for the Guition, so its command line is the one this
