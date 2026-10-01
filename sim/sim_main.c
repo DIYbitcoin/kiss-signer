@@ -3934,9 +3934,17 @@ int main(void) {
   save("/tmp/sim_sp_key_zoom.ppm");
   touch(763, 35); pump(3); release(); pump(6);      // close zoom
   tap_str(STR_C_DONE, 3, 6);     // DONE -> WALLET screen
-  tap_str(STR_C_BACK, 3, 6);     // BACK -> section home
-  touch(680, 430); pump(3); release(); pump(6);     // BACK -> section home
-  touch(680, 430); pump(3); release(); pump(6);     // BACK -> home
+  tap_str(STR_C_BACK, 3, 6);     // BACK -> home
+  // Two presses at (680, 430) used to follow, written as BACK for a layout
+  // two redesigns ago. The page was already home, so they landed on nothing --
+  // until the theme tag became a control in that corner, and then they
+  // stepped the theme twice and every frame after this one was drawn in pink.
+  // So this stop says what it expects: the walk is dressed as it began.
+  if (wt_accent_get() != WT_ACC_MONO) {
+    printf("FAIL: home/end: the theme is %s, so a walk tap stepped it\n",
+           wt_accent_name());
+    g_walk_fails++;
+  }
   save("/tmp/sim_home_end.ppm");
   kiss_usage_wipe();             // the coordinator's word was the walk's, not the owner's
 
