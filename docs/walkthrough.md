@@ -14,6 +14,8 @@ Three rules first. Everything below assumes them.
 2. The fingerprint on the home screen is how you tell which keys you opened. Write yours down once.
 3. This signer is never online. Your coordinator does all the talking to the network.
 
+The one path: draw K I S S, choose NEW SEED WORDS, keep them in FLASH, make them with CAMERA AND TAPS, write them on paper, set a passphrase and write it on a second paper kept apart, then set YOUR SWIPE for the decoy. Every day after that: draw KISS, draw your swipe, type your passphrase. Everything else below is an alternative, and [the guide](guide.html#firstboot) says what each one costs.
+
 ## Returning from Fruit Island
 
 The signer has no icon and no launcher. You get back to it by drawing the letters K, I, S, S on the game menu with a fingertip. Nothing on the screen invites you to, and a wrong gesture does nothing at all.

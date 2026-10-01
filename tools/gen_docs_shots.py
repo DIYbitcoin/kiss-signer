@@ -786,6 +786,18 @@ def write_md():
            "you opened. Write yours down once.",
            "3. This signer is never online. Your coordinator does all the "
            "talking to the network.",
+           "",
+           # The one path, said once before the screens. Readers asked for a
+           # single suggested way through instead of three storage modes and
+           # two backups weighed side by side; the guide's Create your keys
+           # carries the same list and the alternatives.
+           "The one path: draw K I S S, choose NEW SEED WORDS, keep them in "
+           "FLASH, make them with CAMERA AND TAPS, write them on paper, set a "
+           "passphrase and write it on a second paper kept apart, then set "
+           "YOUR SWIPE for the decoy. Every day after that: draw KISS, draw "
+           "your swipe, type your passphrase. Everything else below is an "
+           "alternative, and [the guide](guide.html#firstboot) says what each "
+           "one costs.",
            ""]
     for title, intro, items in SECTIONS:
         out += ["## " + title, "", intro, ""]

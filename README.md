@@ -6,7 +6,8 @@
 
 <img src="docs/media/kiss-reveal.gif" alt="Drawing the word KISS on the game menu, which opens the signer" width="560">
 
-**Draw KISS on the menu to enter.** You can customize the swipe after setup.
+**Draw KISS on the menu to enter.** After setup, KISS followed by your own
+swipe opens your real keys, and KISS alone opens a decoy.
 
 <table>
 <tr>
@@ -140,10 +141,46 @@ Each writes its image to its own `build-release*` folder; hash it with
 Copy your board's `-update.bin` from the latest release to an SD card, then
 **SETTINGS > FIRMWARE**. Your keys stay.
 
-## First boot
+## First boot: the one path
 
-Draw KISS on the menu. Setup takes two minutes: generate or restore a BIP39
-seed, write down the seed words, verify the backup, set a passphrase.
+KISS suggests one way through. Every screen offers alternatives, and you need
+none of them.
+
+1. Draw **K I S S** on the game menu.
+2. **SET UP THIS SIGNER** > **NEW SEED WORDS**.
+3. Keep them in **FLASH**.
+4. Make the randomness with **CAMERA AND TAPS**.
+5. Write the seed words on paper, then pass the quiz.
+6. Set a **passphrase** and write it on a second paper, kept apart from the
+   seed words. It is never stored and it guards your real funds, so make it
+   long and not guessable.
+7. Set **YOUR SWIPE** when setup offers the decoy. KISS alone now opens decoy
+   keys; KISS and your swipe ask for the passphrase. Put a little in the decoy.
+8. Write the fingerprint from the home screen on the seed words paper.
+
+Every day: draw KISS, draw your swipe, type your passphrase, check the
+fingerprint. Your backup is the two pieces of paper.
+
+**What goes where**
+
+- **Seed words:** on paper, always; that paper is the backup. The signer keeps
+  a working copy in **FLASH** by default, as a file on an **SD CARD**, or
+  nowhere (**AMNESIC**).
+- **Passphrase:** in your head and on a second paper. Never on the signer, a
+  card or a QR.
+- **Encrypted backup, optional:** an extra copy of the seed words (not the
+  passphrase), locked with a password you choose. A QR you keep or a `.kef`
+  file on an SD card, from SETTINGS > BACKUP > SEED WORDS > ENCRYPTED. Opens on
+  any KISS and on Krux.
+- **SD CARD storage, an alternative to FLASH:** a file only this signer can
+  open, so no password and useless anywhere else. Not a backup.
+
+With AMNESIC, the signer asks for the seed words each time: type them, scan
+the encrypted backup QR, or open the `.kef` file from the card. Other
+alternatives, none needed: dice, coins or a blind draw for randomness, and
+restoring seed words you already have. The
+[guide](https://diybitcoin.github.io/kiss-signer/guide.html#firstboot) says
+what each one costs.
 
 <table>
 <tr>
@@ -200,16 +237,20 @@ link your addresses, tiny change, and change your coordinator cannot see.
 - Your real keys sit behind your own extra swipe and your passphrase. You can
   also replace KISS with your own drawing.
 
-**💾 Where your seed words live**, your choice
-- **Flash:** on the device, unencrypted in this beta.
-- **SD card:** sealed to this device, so the card alone opens nothing. Not a
-  backup.
-- **Amnesic:** RAM only, gone at power off. Load your seed words every session.
+**💾 Where your seed words live**
+- **Flash, the default:** on the device, unencrypted in this beta. With a
+  passphrase they open only the decoy; with none, they are your keys.
+- **SD card, an alternative:** sealed to this device, so the card alone opens
+  nothing. Not a backup.
+- **Amnesic, an alternative:** RAM only, gone at power off. Load your seed
+  words every session.
 
 **🔑 Backups**
-- Seed words on paper, verified on the device without showing them.
-- An encrypted backup as a QR or a file on the SD card, in Krux's KEF format,
-  opened only with your password.
+- Seed words and passphrase on paper, kept apart: the backup. The seed words
+  are checked on the device without showing them.
+- Optional extra copy: an encrypted backup as a QR or a file on the SD card, in
+  Krux's KEF format, opened only with your password. Krux backups open here
+  too.
 
 **🛡️ Firmware you can trust**
 - Reproducible builds and GPG signed releases.

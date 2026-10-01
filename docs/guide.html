@@ -1991,19 +1991,88 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           <a href="sim/index.html">Try it in the simulator</a>
           Walk the setup once here first. The word list and the derivation are the real ones.
         </p>
+        <h3>The one path</h3>
+        <p>
+          KISS suggests one way through. Every screen offers alternatives,
+          listed after this, and you need none of them.
+        </p>
         <ol>
+          <li>Draw <strong>K I S S</strong> on the game menu.</li>
+          <li><strong>SET UP THIS SIGNER</strong> &rarr;
+            <strong>NEW SEED WORDS</strong>.</li>
+          <li>Keep them in <strong>FLASH</strong>.</li>
+          <li>Make the randomness with <strong>CAMERA AND TAPS</strong>.</li>
+          <li>Write the seed words on paper, then pass the quiz.</li>
           <li>
-            First time: <strong>SET UP THIS SIGNER</strong> &rarr;
-            <strong>NEW SEED WORDS</strong>. Pick where the randomness comes
-            from, write the seed words on paper, pass the quiz, choose where
-            they are kept, set your passphrase.
+            Set a <strong>passphrase</strong> and write it on a second piece
+            of paper, kept somewhere other than the seed words. It is never
+            stored, and it is what guards your real funds: with the seed
+            words on the chip, it is the only thing between someone holding
+            the device and your coins, so make it long and not guessable.
           </li>
           <li>
-            Write the passphrase down too, and keep it somewhere other than the
-            seed words. Together they are your keys; in one place they are one
-            secret, and whoever finds it has everything. Apart, neither half
-            spends on its own.
+            Set <strong>YOUR SWIPE</strong> when setup offers the decoy. From
+            then on, drawing KISS alone opens decoy keys with no passphrase,
+            and KISS followed by your swipe asks for your passphrase. Put a
+            little in the decoy.
           </li>
+          <li>Write the fingerprint from the home screen on the seed words
+            paper.</li>
+        </ol>
+        <p>
+          <strong>Every day after that:</strong> draw KISS, draw your swipe,
+          type your passphrase, and check the fingerprint matches your paper.
+          Your backup is the two pieces of paper.
+        </p>
+        <h3>What goes where</h3>
+        <ul>
+          <li>
+            <strong>Seed words:</strong> on paper, always, and that paper is
+            the backup. The signer also keeps a working copy so you do not
+            type them every day: in <strong>FLASH</strong> by default, as a
+            file on an <strong>SD CARD</strong>, or nowhere
+            (<strong>AMNESIC</strong>).
+          </li>
+          <li>
+            <strong>Passphrase:</strong> in your head and on a second paper.
+            Never on the signer, a card or a QR, in any mode.
+          </li>
+          <li>
+            <strong>Encrypted backup</strong>, optional: an extra copy of the
+            seed words, without the passphrase, locked with a password you
+            choose. It is a QR you keep or a .kef file on an SD card, made
+            under <strong>SETTINGS &rarr; BACKUP &rarr; SEED WORDS &rarr;
+            ENCRYPTED</strong>, and it opens on any KISS and on Krux.
+          </li>
+          <li>
+            <strong>SD CARD storage</strong>, an alternative to FLASH: a file
+            only this signer can open, so it needs no password and is useless
+            anywhere else. It is not a backup.
+          </li>
+        </ul>
+        <p>
+          Two different things are encrypted, and they are easy to mix up.
+          The encrypted backup is locked with your password and opens on any
+          signer that has it. SD CARD storage is locked to this signer and
+          opens nowhere else.
+        </p>
+        <p>
+          <strong>Getting back in:</strong> with FLASH, draw KISS, your swipe,
+          then your passphrase. With SD CARD, the same with the card in. With
+          AMNESIC, the signer first asks for the seed words:
+          <strong>TYPE MY SEED WORDS</strong> from paper,
+          <strong>SCAN MY BACKUP</strong> for the encrypted QR, or
+          <strong>SD CARD</strong> for a .kef file.
+        </p>
+        <p>
+          <strong>Other alternatives, none of them needed:</strong>
+          <strong>DICE OR COIN</strong> or <strong>BLIND DRAW</strong> instead
+          of the camera, and <strong>RESTORE SEED WORDS</strong> for seed
+          words you already have. <a href="#storage">What each storage mode
+          costs</a> is further down.
+        </p>
+        <h3>Then</h3>
+        <ol>
           <li>
             Then take the optional <strong>VERIFY FULL BACKUP</strong>
             rehearsal: type every word from paper and the exact passphrase
@@ -2208,9 +2277,20 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         </div>
 
         <p>
-          <strong>On beta firmware, pick AMNESIC for anything that matters.</strong>
-          You load your seed words each time, by typing them or opening an encrypted
-          backup. SD CARD is the better of the two that remember.
+          <strong>The default is FLASH, with a passphrase.</strong> On this
+          beta FLASH is not encrypted, so whoever takes the device can read the
+          seed words. With a passphrase those seed words open only the decoy, and
+          your real keys stay behind the passphrase, which is never stored.
+          That holds only if your real funds sit behind a passphrase and the
+          decoy holds a little: with no passphrase, the seed words on the chip
+          are your keys.
+        </p>
+        <p>
+          The alternatives: <strong>SD CARD</strong> if you want the device
+          alone to hold nothing, at the cost of carrying the card;
+          <strong>AMNESIC</strong> if you want nothing to remain at all, at the
+          cost of loading your seed words every session, by typing them or
+          scanning an encrypted backup.
         </p>
 
         <p class="try">
