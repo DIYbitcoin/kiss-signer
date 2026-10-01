@@ -260,6 +260,9 @@ link your addresses, tiny change, and change your coordinator cannot see.
 
 **🌍 22 languages**, and a **?** on any Bitcoin term opens a plain words card.
 
+**🎨 Four themes:** MONO, GREEN, CYPHERPINK and ORANGE. Tap the colour swatch at
+the top of Settings to switch; the home page shows which one is on.
+
 ## Docs
 
 The [guide](https://diybitcoin.github.io/kiss-signer/guide.html) has the details.
