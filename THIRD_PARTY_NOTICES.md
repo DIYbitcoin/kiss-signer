@@ -20,6 +20,7 @@ recipient receives the required attributions and license texts.
 | k_quirc (quirc) | QR decoding | MIT | [`components/k_quirc/LICENSE`](components/k_quirc/LICENSE) |
 | slhdsa-c | SLH-DSA (FIPS 205), post quantum firmware signature | Apache-2.0 OR ISC OR MIT | [`components/slhdsa/upstream/LICENSE`](components/slhdsa/upstream/LICENSE) |
 | esp_cam_sensor | camera sensor driver | Apache-2.0 | [`components/esp_cam_sensor/LICENSE`](components/esp_cam_sensor/LICENSE) |
+| esp_lcd_hx8394 | HX8394 MIPI-DSI panel driver, the Waveshare 5in's glass | MIT | [`components/esp_lcd_hx8394/LICENSE`](components/esp_lcd_hx8394/LICENSE) |
 
 ## Software components (fetched at build, not in this tree)
 
