@@ -75,6 +75,13 @@
 // occasionally laps a pixel. Two pixels in BOTH axes is the smallest overlap
 // that means something is actually drawn on top of something else.
 #define OC_SLOP 2
+// ...and the same two, in the canvas's own pixels, for boxes stacked down the
+// page. Line boxes come from the faces and the rows from SY(), and the two do
+// not round alike: the 5in's 34 face stands 38 where its canvas scales the
+// 4.3in's 25 to 37, so a trail and the column under it share 2 px there for
+// the 1 they share on the 4.3in. Never under 2, so the smaller canvas keeps
+// the rule it had.
+#define OC_VSLOP (SY(2) > OC_SLOP ? SY(2) : OC_SLOP)
 
 // A backdrop covering essentially the whole screen is a backdrop, not content.
 // Used twice: such a thing is never itself a layout fault, and anything painted
@@ -126,10 +133,10 @@ static bool oc_multiline(const oc_node_t *n)
 // held to the hairline.
 static int oc_vslop(const oc_node_t *a, const oc_node_t *b)
 {
-    if (oc_multiline(a) || oc_multiline(b)) return OC_SLOP;
+    if (oc_multiline(a) || oc_multiline(b)) return OC_VSLOP;
     int lh = a->lh < b->lh ? a->lh : b->lh;
     int slop = lh / 2;
-    return slop > OC_SLOP ? slop : OC_SLOP;
+    return slop > OC_VSLOP ? slop : OC_VSLOP;
 }
 
 static oc_node_t s_node[OC_MAX_NODES];
