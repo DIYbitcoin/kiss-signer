@@ -23,12 +23,13 @@ MONO=vendor/IoskeleyMono-Medium-ascii.ttf
 OUT=../../main
 
 # With no argument every face below is regenerated. `gen_fonts.sh jc1060`
-# writes the 7in board's four faces (jc1060_faces, below) and nothing else, so
-# adding them never rewrites a committed face.
+# writes the 7in board's four faces (jc1060_faces, below) and nothing else, and
+# `gen_fonts.sh ws5` the 5in's four (ws5_faces), so adding a board's faces
+# never rewrites a committed face.
 ONLY="${1:-}"
 case "$ONLY" in
-  ''|jc1060) ;;
-  *) echo "usage: $0 [jc1060]" >&2; exit 2 ;;
+  ''|jc1060|ws5) ;;
+  *) echo "usage: $0 [jc1060|ws5]" >&2; exit 2 ;;
 esac
 
 [ -d "$LVF" ] || { echo "LVGL component not fetched (need $LVF)"; exit 1; }
@@ -113,6 +114,44 @@ jc1060_faces() {
   perl -0pi -e 's/\n+\z/\n/' "$OUT/font_kiss_lat43.c" "$OUT/font_kiss_mono26.c" \
     "$OUT/font_kiss_mono43.c" "$OUT/font_kiss_num60.c"
 }
+
+# The 5in board's faces. Its canvas is 1280x720, 1.6 times the 4.3in's across
+# and 1.5 down, so kiss_theme.c sets every name TWO rungs up there: 14 -> 23,
+# 23 -> 34, 28 -> 43, 34 -> 54. Everything up to 43 exists already (43 is the
+# 7in's). These four are the ones no other board had, each made with the same
+# range and flags as its family's neighbour:
+#   lat54   the top rung, 34 x 1.59. Latin/Cyrillic only like lat34 and
+#           lat43, its chain ending in the 28px Japanese face.
+#   mono32  a closed row's value (mono21) two rungs up. mono34 would be
+#           1.62 times the size on lanes 1.6 times as wide.
+#   mono54  the top rung's body face, in front of lat54.
+#   num76   the Sign hero, 48 x 1.58, with num48's glyphs and no others.
+ws5_faces() {
+  echo "== font_kiss_lat54"
+  conv --size 54 \
+    --font "$LVF/Montserrat-Medium.ttf" -r "$LAT" \
+    --font "$LVF/FontAwesome5-Solid+Brands+Regular.woff" -r "$SYMS" \
+    --lv-fallback font_kiss_ja28 \
+    -o "$OUT/font_kiss_lat54.c"
+  for SZ in 32 54; do
+    echo "== font_kiss_mono$SZ"
+    conv --size $SZ --font "$MONO" -r 0x20-0x7E -r 0xB7 -r 0x2022 -r 0x2026 \
+      -o "$OUT/font_kiss_mono$SZ.c"
+  done
+  echo "== font_kiss_num76"
+  conv --size 76 --font "$MONO" -r 0x20 -r 0x2E -r 0x30-0x39 -r 0x41-0x46 \
+    -o "$OUT/font_kiss_num76.c"
+  perl -0pi -e 's/\n+\z/\n/' "$OUT/font_kiss_lat54.c" "$OUT/font_kiss_mono32.c" \
+    "$OUT/font_kiss_mono54.c" "$OUT/font_kiss_num76.c"
+}
+
+if [ "$ONLY" = ws5 ]; then
+  ws5_faces
+  ls -la "$OUT/font_kiss_lat54.c" "$OUT/font_kiss_mono32.c" \
+    "$OUT/font_kiss_mono54.c" "$OUT/font_kiss_num76.c"
+  echo "ws5 fonts generated"
+  exit 0
+fi
 
 if [ "$ONLY" = jc1060 ]; then
   jc1060_faces
@@ -299,6 +338,9 @@ conv --size 28 --font "$MONO" -r 0x20 -r 0x2E -r 0x30-0x39 -r 0x41-0x46 \
 
 # The 7in board's four faces (jc1060_faces, near the top, says why).
 jc1060_faces
+
+# The 5in board's four (ws5_faces, beside them).
+ws5_faces
 
 # The 3.5in board's small faces, again, with STRONG autohinting, into
 # main/fonts_ws35/ under the same names. That glass has about 165 pixels to the

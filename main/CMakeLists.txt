@@ -63,8 +63,9 @@ elseif(CONFIG_KISS_BOARD_WS5)
     set(KISS_F_MONO21 "font_kiss_mono21.c")
     set(KISS_F_MONO23 "font_kiss_mono23.c")
     set(KISS_F_NUM28 "font_kiss_num28.c")
-    # The 7in's ladder, one rung up, so the 7in's four faces (kiss_theme.c).
-    set(KISS_F_EXTRA "font_kiss_lat43.c" "font_kiss_mono26.c" "font_kiss_mono43.c" "font_kiss_num60.c")
+    # Two rungs up (kiss_theme.c's ladder): the 7in's 43 pair for the second
+    # rung from the top, and four faces of its own for the rest.
+    set(KISS_F_EXTRA "font_kiss_lat43.c" "font_kiss_mono43.c" "font_kiss_lat54.c" "font_kiss_mono32.c" "font_kiss_mono54.c" "font_kiss_num76.c")
 else()
     message(FATAL_ERROR "no source list for this board in main/CMakeLists.txt")
 endif()
