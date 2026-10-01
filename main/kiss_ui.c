@@ -1876,7 +1876,19 @@ static void show_fingerprint(void) {
   // a hex string scannable; a fixed advance already does that, and the extra
   // tracking on top pushed the 8 characters wider than the box.
   lv_obj_set_style_text_font(big, wt_font_num48(), 0);
-  lv_obj_align(big, LV_ALIGN_BOTTOM_MID, 0, -SY(18));
+  // The code hangs SY(18) off the box's bottom, as it always has, UNLESS the
+  // box has more room under the caption than the design had. The box scales
+  // with the canvas and the type steps by rungs, so on the 5in (box 1.5
+  // times, digits 1.25) the free space under the caption came to 83 px and a
+  // fixed bottom margin left 56 of it above the code and 27 below: off
+  // centre, reported from the glass. Two fifths of the free space under the
+  // code is the 4.3in's own split (18 of 45), so there, on the 7in and on the
+  // 3.5in this is the margin it always was, to the pixel.
+  lv_obj_update_layout(box);
+  const int fp_free = lv_obj_get_content_height(box)
+                    - (lv_obj_get_y(cap) + lv_obj_get_height(cap))
+                    - lv_obj_get_height(big);
+  lv_obj_align(big, LV_ALIGN_BOTTOM_MID, 0, -LV_MAX(SY(18), fp_free * 2 / 5));
 
   // the code card rises + fades in when the fingerprint is computed
   lv_anim_t pa;

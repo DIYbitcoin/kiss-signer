@@ -1418,7 +1418,13 @@ static void fp_chip_place(void) {
                  HOME_CHIP_Y + HOME_CHIP_H + 3);
 #else
   lv_obj_update_layout(s_fp_chip);
-  lv_obj_set_pos(s_fp_chip, SX(663) - lv_obj_get_width(s_fp_chip) / 2, SY(46));
+  // Centred in the baked frame by its own height, as the 3.5in's arm does.
+  // The top was a fixed SY(46), which is the centre for the 4.3in's face in
+  // the 4.3in's frame; the frame scales with the canvas and the face steps by
+  // rungs, so the 5in's code sat 5 px high in it, reported from the glass.
+  // The 4.3in lands on 46 as before and the 7in moves down one pixel.
+  lv_obj_set_pos(s_fp_chip, SX(663) - lv_obj_get_width(s_fp_chip) / 2,
+                 SY(39) + (SY(86) - SY(39) - lv_obj_get_height(s_fp_chip)) / 2);
   lv_obj_update_layout(s_fp_cap);
   lv_obj_set_pos(s_fp_cap, SX(663) - lv_obj_get_width(s_fp_cap) / 2, SY(92));
 #endif
