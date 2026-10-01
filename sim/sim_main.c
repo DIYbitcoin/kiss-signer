@@ -7966,6 +7966,8 @@ int main(void) {
 #define SIM_OTHER_PROJECT "guition_kiss_bringup"
 #elif defined(KISS_BOARD_JC1060)
 #define SIM_OTHER_PROJECT "guition_kiss_bringup"
+#elif defined(KISS_BOARD_WS5)
+#define SIM_OTHER_PROJECT "guition_kiss_bringup"
 #else
 #error "name another board's image for the wrong-device frame"
 #endif

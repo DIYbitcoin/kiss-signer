@@ -109,6 +109,11 @@ static lv_obj_t *wt_tagged(lv_obj_t *scr, const char *tag)
 //   7in    one rung UP. Its canvas is 1.28 times the 4.3in's across and 1.25
 //          down, so the same string at one rung larger fills the same scaled
 //          lane: 14 -> 18, 23 -> 28, 28 -> 34, 34 -> 43.
+//   5in    one rung UP as well, the 7in's faces. Its canvas is 1.6 across and
+//          1.5 down, more than the step buys, so a string fills about four
+//          fifths of its lane; its glass is also a third denser than the
+//          4.3in's, so the type reads a touch smaller than there and larger
+//          than on the 3.5in. Two rungs would want faces nobody has drawn.
 // Both switches off is the 4.3in. A board missing from this chain stops the
 // build rather than borrowing the 4.3in's ladder in silence.
 #if defined(KISS_BOARD_GUITION)
@@ -118,6 +123,9 @@ static lv_obj_t *wt_tagged(lv_obj_t *scr, const char *tag)
 #define WT_TYPE_NARROW 1
 #define WT_TYPE_UP     0
 #elif defined(KISS_BOARD_JC1060)
+#define WT_TYPE_NARROW 0
+#define WT_TYPE_UP     1
+#elif defined(KISS_BOARD_WS5)
 #define WT_TYPE_NARROW 0
 #define WT_TYPE_UP     1
 #else

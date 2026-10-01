@@ -17,9 +17,9 @@ cmake_minimum_required(VERSION 3.16)
 #
 # Above the include on purpose: project.cmake reads SDKCONFIG the moment it is
 # included, so a value set after that line is a value it never sees.
-set(KISS_BOARD "guition" CACHE STRING "board profile: guition (default), ws35 or jc1060")
-if(NOT KISS_BOARD MATCHES "^(guition|ws35|jc1060)$")
-    message(FATAL_ERROR "KISS_BOARD=${KISS_BOARD}: this tree knows guition, ws35 and jc1060")
+set(KISS_BOARD "guition" CACHE STRING "board profile: guition (default), ws35, jc1060 or ws5")
+if(NOT KISS_BOARD MATCHES "^(guition|ws35|jc1060|ws5)$")
+    message(FATAL_ERROR "KISS_BOARD=${KISS_BOARD}: this tree knows guition, ws35, jc1060 and ws5")
 endif()
 # The Guition is the one board whose profile IS the committed sdkconfig. Every
 # other board is that plus its own fragment, sdkconfig.<id>, which must exist:

@@ -87,8 +87,10 @@ static const char *TAG = "kiss";
 // owner calls right has never run the design's 62.5 steps a second: it
 // measured 58 with nobody cutting and 43 to 51 under a finger. 18 ms is 55
 // a second, the middle of that, so the 7in plays at the pace the 4.3in is
-// played at rather than one nobody has held.
-#if defined(KISS_BOARD_JC1060)
+// played at rather than one nobody has held. The 5in blends 2.4 times the
+// 4.3in's pixels and turns every band a quarter besides, so it takes the same
+// catch-up with the same numbers until its glass has been timed.
+#if defined(KISS_BOARD_JC1060) || defined(KISS_BOARD_WS5)
 #define KISS_GAME_CATCHUP 1
 #define GAME_MAX_STEPS 3
 #define GAME_STEP_MS 18
@@ -820,10 +822,11 @@ static void update_hearts(void) {
 // NEW BEST ribbon lay across the card's top. The score steps down to 40 px
 // (digits 153..181 over the rule at 188), BEST takes 195..215 of a card that
 // ends at 226, and the ribbon rides 60..116, clear of the title and the card.
-// The in-game score: 40 px on the 4.3in and the 3.5in. The 7in sets its type a
-// rung up and 48, the largest built-in face, is that rung here. The game-over
-// number below is already 48 on the wide boards and has no rung above it.
-#if defined(KISS_BOARD_JC1060)
+// The in-game score: 40 px on the 4.3in and the 3.5in. The 7in and the 5in set
+// their type a rung up and 48, the largest built-in face, is that rung here.
+// The game-over number below is already 48 on the wide boards and has no rung
+// above it.
+#if defined(KISS_BOARD_JC1060) || defined(KISS_BOARD_WS5)
 #define HUD_SCORE_FONT (&lv_font_montserrat_48)
 #elif defined(KISS_BOARD_GUITION) || defined(KISS_BOARD_WS35)
 #define HUD_SCORE_FONT (&lv_font_montserrat_40)

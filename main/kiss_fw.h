@@ -78,7 +78,8 @@ typedef struct {
 const char *kiss_fw_running_version(void);
 
 // Which board this firmware was built for, in the words the app descriptor
-// uses: "guition_kiss_bringup", "ws35_kiss_bringup" or "jc1060_kiss_bringup".
+// uses: "guition_kiss_bringup", "ws35_kiss_bringup", "jc1060_kiss_bringup" or
+// "ws5_kiss_bringup".
 // Read off the running app on device; the sim answers for the board it was
 // compiled as.
 const char *kiss_fw_running_project(void);

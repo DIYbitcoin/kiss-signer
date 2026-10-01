@@ -1321,6 +1321,8 @@ CONFIG_KISS_BOARD_GUITION=y
 # CONFIG_KISS_BOARD_WS35 is not set
 # default:
 # CONFIG_KISS_BOARD_JC1060 is not set
+# default:
+# CONFIG_KISS_BOARD_WS5 is not set
 # end of KISS board
 
 #

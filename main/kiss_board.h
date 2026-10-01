@@ -5,9 +5,9 @@
 // on the device and by -DKISS_BOARD_WS35 on the desktop; nothing detects a
 // board at runtime.
 //
-// One board, one file: board_guition.c, board_ws35.c, board_jc1060.c. Each is
-// compiled only into its own image, so none carries a dead arm of another, and
-// the -Werror lint set compiles every line it ships.
+// One board, one file: board_guition.c, board_ws35.c, board_jc1060.c,
+// board_ws5.c. Each is compiled only into its own image, so none carries a
+// dead arm of another, and the -Werror lint set compiles every line it ships.
 //
 // EVERY BOARD IS NAMED. A test that names one board and lets `#else` stand for
 // "the other one" was true while there were two, and the day a third arrives it
@@ -32,17 +32,22 @@
 #if defined(CONFIG_KISS_BOARD_JC1060) && !defined(KISS_BOARD_JC1060)
 #define KISS_BOARD_JC1060 1
 #endif
+#if defined(CONFIG_KISS_BOARD_WS5) && !defined(KISS_BOARD_WS5)
+#define KISS_BOARD_WS5 1
+#endif
 #else
 // The desktop builds take the board from -DKISS_BOARD_<ID>=1 (sim/sim_tmp.sh),
 // and no flag at all means the 4.3in, as every sim command in the house rules
 // and the browser build assume. A default is not a fallback: a board that
 // passes its own flag can never land here.
-#if !defined(KISS_BOARD_GUITION) && !defined(KISS_BOARD_WS35) && !defined(KISS_BOARD_JC1060)
+#if !defined(KISS_BOARD_GUITION) && !defined(KISS_BOARD_WS35) && !defined(KISS_BOARD_JC1060) && \
+    !defined(KISS_BOARD_WS5)
 #define KISS_BOARD_GUITION 1
 #endif
 #endif
 
-#if defined(KISS_BOARD_GUITION) + defined(KISS_BOARD_WS35) + defined(KISS_BOARD_JC1060) != 1
+#if defined(KISS_BOARD_GUITION) + defined(KISS_BOARD_WS35) + defined(KISS_BOARD_JC1060) + \
+        defined(KISS_BOARD_WS5) != 1
 #error "exactly one KISS_BOARD_<ID> must be defined (main/Kconfig.projbuild, sim/sim_tmp.sh)"
 #endif
 
@@ -149,6 +154,36 @@
 // glass has played it, and what it buys grows with the game pass. This board
 // draws 1.6 times the 4.3in's pixels, so its pass is expected to be the
 // longest of the three; that is a model, and the pass has not been measured.
+#define KISS_BLADE_LANDING 1
+#define KISS_PMIC 0
+#elif defined(KISS_BOARD_WS5)
+#define KISS_BOARD_ID "ws5"
+#define KISS_BOARD_NAME "Waveshare ESP32-P4-WiFi6-Touch-LCD-5"
+// The Guition's shape at the next size up: a PORTRAIT 720x1280 glass under the
+// LANDSCAPE UI, so board_ws5.c turns each region a quarter on the way out and
+// reflects the touch on the way in, exactly as board_guition.c does at
+// 480x800. The screens are the wide ones, scaled up by SX/SY (1.6 across, 1.5
+// down; the two differ by more than they do on the 7in, which is what SQ() is
+// for).
+#define SCREEN_W 1280
+#define SCREEN_H 720
+#define KISS_PANEL_W 720
+#define KISS_PANEL_H 1280
+#define KISS_NARROW 0
+// The 3.5in's OV5647 on this board's ribbon, facing away from the owner. That
+// sensor's raw frame arrives unmirrored (kiss_board.h's 3.5in arm has the
+// evidence), and this panel is portrait like the Guition's, so the first guess
+// is the Guition's index without its mirror. A guess until this glass says
+// otherwise, which is why KISS_CAM_ORIENT_LOG prints both every session.
+#define KISS_CAM_ORIENT 0
+#define KISS_CAM_RAW_MIRRORED 0
+#define KISS_PANEL_SPI 0
+#define KISS_PANEL_SWROT 1
+#define KISS_CAM_ORIENT_LOG 1
+// On for the 7in's reason, more so: this board draws 2.4 times the 4.3in's
+// pixels through the same scalar code and the same software quarter turn, so
+// its game pass is expected to be the longest of the four. A model, not a
+// measurement, until the glass has played it.
 #define KISS_BLADE_LANDING 1
 #define KISS_PMIC 0
 #else

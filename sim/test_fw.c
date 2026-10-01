@@ -276,7 +276,7 @@ int test_fw(void)
     // than for whichever one a two-way pick happened to name. A board missing
     // from this list fails the first check instead of testing against nothing.
     static const char *const boards[] = { "guition_kiss_bringup", "ws35_kiss_bringup",
-                                          "jc1060_kiss_bringup" };
+                                          "jc1060_kiss_bringup", "ws5_kiss_bringup" };
     const size_t nboards = sizeof boards / sizeof boards[0];
     bool listed = false;
     const char *other = NULL;

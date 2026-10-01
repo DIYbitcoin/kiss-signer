@@ -193,6 +193,19 @@ static const zoom_lvl_t s_zoom_tab[2][ZOOM_LEVELS] = {
     {{1248, 720, 13}, {1088, 640, 15}, {816, 480, 20}, {544, 320, 30}, {408, 240, 40}, {272, 160, 60}},
     {{960, 720, 10}, {480, 720, 20}, {320, 544, 30}, {240, 408, 40}, {160, 272, 60}, {120, 204, 80}},
 };
+#elif defined(KISS_BOARD_WS5)
+// The 3.5in's 1280x960 sensor onto a 720x1280 PORTRAIT panel, the Guition's
+// geometry with this board's numbers, and a FIRST GUESS until this glass has
+// been looked at: the whole ladder assumes the module sits the way the
+// Guition's does, long side across the short panel. At rot 0/180 L0 is the
+// whole sensor at 1:1, which fills the width with bars top and bottom; L1
+// fills the panel and every level after punches in at a clean N/16 that
+// lands on 720x1280 exactly. At a quarter turn the sensor's long side runs
+// along the panel's, so L0 there is the 720 tall crop that fills it outright.
+static const zoom_lvl_t s_zoom_tab[2][ZOOM_LEVELS] = {
+    {{720, 960, 16}, {360, 640, 32}, {288, 512, 40}, {180, 320, 64}, {144, 256, 80}, {90, 160, 128}},
+    {{1280, 720, 16}, {1024, 576, 20}, {640, 360, 32}, {512, 288, 40}, {320, 180, 64}, {256, 144, 80}},
+};
 #else
 #error "measured on each board's glass: add this board's value"
 #endif
@@ -670,6 +683,13 @@ static void ent_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
 // The 4.3in's band, measured from the same edge: the top of the landscape
 // screen is the far end of the chrome frame's x, and a band scaled from zero
 // would slide off it toward the middle of the picture.
+#define BAND_TOP_X0 ((OSD_W - 1) - ACROSS(104))
+#define BAND_TOP_X1 ((OSD_W - 1) - ACROSS(28))
+#define STRIP_TOP_PX ((OSD_W - 1) - ACROSS(36))
+#elif defined(KISS_BOARD_WS5)
+// The Guition's band on a panel one and a half times as wide: the same
+// portrait frame, so the same edge and the same scale as the 7in's arm, and a
+// first guess until the glass has been read.
 #define BAND_TOP_X0 ((OSD_W - 1) - ACROSS(104))
 #define BAND_TOP_X1 ((OSD_W - 1) - ACROSS(28))
 #define STRIP_TOP_PX ((OSD_W - 1) - ACROSS(36))
@@ -2124,6 +2144,13 @@ bool camera_scan_start(void *bus_v, void (*on_decode)(const char *, size_t)) {
     // the whole sensor, two and a half times the pixels on every pass.
     int cw = 480;
     int ch = 728;
+#elif defined(KISS_BOARD_WS5)
+    // The 3.5in's budget for the 3.5in's sensor: 640x480 reads the whole
+    // 1280x960 frame at exactly half resolution, the recipe the wide pass was
+    // written for, and this board's L0 is the whole sensor at 1:1, two and a
+    // half times the pixels on every pass.
+    int cw = 640;
+    int ch = 480;
 #else
 #error "measured on each board's glass: add this board's value"
 #endif

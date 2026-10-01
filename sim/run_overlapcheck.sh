@@ -122,6 +122,7 @@ case "${KISS_BOARD:-guition}" in
     guition) default_ceilings=sim/overlap_ceilings.txt ;;
     ws35)    default_ceilings=sim/overlap_ceilings_ws35.txt ;;
     jc1060)  default_ceilings=sim/overlap_ceilings_jc1060.txt ;;
+    ws5)     default_ceilings=sim/overlap_ceilings_ws5.txt ;;
     *) echo "text overlap gate: no ceilings row for KISS_BOARD=$KISS_BOARD" >&2; exit 1 ;;
 esac
 ceilfile="${OVERLAPCHECK_CEILINGS:-$default_ceilings}"

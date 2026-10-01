@@ -1,0 +1,9 @@
+# The Waveshare 5in board's ceilings: one line per locale, the number of
+# overlapcheck findings it may have on the 1280x720 canvas. Read by
+# sim/run_overlapcheck.sh when KISS_BOARD=ws5. Its own file and never the
+# 4.3in's or the 7in's, because every count is measured on its own lanes,
+# which here are 1.5 to 1.6 times as wide as the 4.3in's with the type one
+# rung up, the 7in's ladder.
+#
+# SHRINK ONLY, like the other three. English is deliberately absent: it has no
+# allowance.

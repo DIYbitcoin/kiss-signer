@@ -33,7 +33,7 @@ mkdir -p "$KISS_SIM_TMP"
 KISS_BOARD="${KISS_BOARD:-guition}"
 # Every board the simulator builds, in the order tools/preflight.sh runs their
 # lanes. The case below has a row for each, and anything else stops the build.
-KISS_SIM_BOARD_IDS="guition ws35 jc1060"
+KISS_SIM_BOARD_IDS="guition ws35 jc1060 ws5"
 # KISS_ART_SRCS is the board's set of baked backdrops and KISS_SPRITES_SRC
 # its game sprites (main/CMakeLists.txt makes the same choice for the
 # device): the same pictures, drawn at each board's size by the same
@@ -50,6 +50,12 @@ case "$KISS_BOARD" in
     jc1060)  KISS_BOARD_CFLAGS="-DKISS_BOARD_JC1060=1"
              KISS_ART_SRCS="main/menu_img_jc1060.c main/menu_logo_jc1060.c main/gameover_img_jc1060.c main/kiss_img_jc1060.c"
              KISS_SPRITES_SRC="main/sprites_jc1060.c"
+             KISS_FONT_DIR="" ;;
+    # Bring-up: the 4.3in's pictures until the 5in's own are drawn at 1280x720
+    # (main/CMakeLists.txt makes the same interim choice for the device).
+    ws5)     KISS_BOARD_CFLAGS="-DKISS_BOARD_WS5=1"
+             KISS_ART_SRCS="main/menu_img.c main/menu_logo.c main/gameover_img.c main/kiss_img.c"
+             KISS_SPRITES_SRC="main/sprites.c"
              KISS_FONT_DIR="" ;;
     *) echo "sim: KISS_BOARD must be one of: $KISS_SIM_BOARD_IDS (got '$KISS_BOARD')" >&2; exit 1 ;;
 esac
