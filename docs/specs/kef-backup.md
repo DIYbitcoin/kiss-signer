@@ -16,7 +16,8 @@ off        len       field
   0          1       len_id, 0..252
   1     len_id       id: the PBKDF2 salt, visible in the clear.
                      KISS writes the master fingerprint, 8 ASCII hex chars.
-1+len_id     1       version. KISS makes and opens only 20 (AES-256-GCM).
+1+len_id     1       version. KISS makes only 20 (AES-256-GCM); it also
+                     opens Krux's uncompressed 0, 1, 5, 6, 10, 11, 15.
 2+len_id     3       iterations, stored form (below)
 5+len_id     N       payload, version 20: iv(12) | ciphertext | tag(4)
 ```
@@ -55,11 +56,19 @@ On open, two guards:
 ## Encrypt strict, decrypt vague
 
 Per the format's own rule. Seal produces only version 20 and fails loudly.
-Open refuses every other version, every malformed header, every truncated
-payload and every wrong password through ONE failure code with the output
-buffer zeroed; on screen that is one sentence, and nothing downstream can
-tell which check failed. The single deliberate distinction: an envelope that
-is structurally KEF but not openable here (other version, over-cap) is
+Open also reads Krux's uncompressed ECB, CBC and CTR versions (0, 1, 5, 6,
+10, 11, 15): Krux's default was ECB until Krux 25.09, so a Krux backup made
+before then is one of these, and reading one adds no choice for the owner.
+The rules are Krux's decrypt and authenticate, step for step, proven in
+sim/test_kef.c against Krux's own stored vectors and envelopes made by its
+kef.py. The compressed versions (7, 12, 16, 21) stay refused: Krux only
+compresses plaintext of 120 bytes or more, or ECB plaintext with a repeated
+block, so no seed backup is one, and opening them would need an inflater.
+Open refuses those, every malformed header, every truncated payload and
+every wrong password through ONE failure code with the output buffer
+zeroed; on screen that is one sentence, and nothing downstream can tell
+which check failed. The single deliberate distinction: an envelope that is
+structurally KEF but not openable here (compressed version, over-cap) is
 refused before the password prompt — that is structure, not an oracle.
 
 ## Why the GCM is homegrown

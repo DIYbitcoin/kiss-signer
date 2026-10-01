@@ -943,6 +943,42 @@ int main(void)
         }
         printf("PASS: 800 damaged kef envelopes never a foreign plaintext\n");
 
+        // Krux's older versions decrypt first and check after, on bytes
+        // anyone can put in a QR: random payloads of every legal shape under
+        // each of those version bytes must never open, never leave output
+        // behind and never read or write past a buffer.
+        static const uint8_t older[] = { 0, 1, 5, 6, 10, 11, 15 };
+        int older_parsed = 0, older_opened = 0, older_left = 0;
+        for (int i = 0; i < 350; i++) {
+            uint8_t v = older[i % sizeof older];
+            size_t iv_len = (v == 1 || v == 10 || v == 11) ? 16
+                          : v == 15 ? 12 : 0;
+            size_t tail = v == 5 ? 3 : v == 10 ? 4 : 0;
+            size_t pl = v == 15 ? 17 + rnd() % 260
+                                : iv_len + tail + 16 * (1 + rnd() % 17);
+            size_t h = kef_emit_header(dmg, sizeof dmg, (const uint8_t *)"FZ",
+                                       2, v, 10001);
+            if (!h || h + pl > sizeof dmg) continue;
+            for (size_t j = 0; j < pl; j++) dmg[h + j] = (uint8_t)rnd();
+            kef_env_t e;
+            if (kef_parse(dmg, h + pl, &e) != 0) continue;
+            older_parsed++;
+            memset(back, 0xee, sizeof back);
+            blen = 1;
+            if (kiss_kef_open("fz", 2, dmg, h + pl, back, sizeof back,
+                              &blen) == 0) {
+                older_opened++;
+                continue;
+            }
+            if (blen) older_left++;
+            for (size_t j = 0; j < sizeof back; j++)
+                if (back[j]) { older_left++; break; }
+        }
+        chkb("kef: random older-version envelopes all parse",
+             older_parsed == 350);
+        chkb("kef: none of them opens", older_opened == 0);
+        chkb("kef: every refusal zeroed the output", older_left == 0);
+
         // random buffers through parse and sniff; whenever the sniff claims
         // one, the plaintext reader must not (and neither may crash)
         int both = 0, sniffed = 0;

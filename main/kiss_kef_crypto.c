@@ -8,7 +8,10 @@
 //
 // Decrypt verifies the tag BEFORE decrypting (the tag depends only on the
 // ciphertext), so tampered bytes never reach the output buffer, and every
-// failure leaves that buffer zeroed. One failure code for everything — a
+// failure leaves that buffer zeroed. Krux's older ECB, CBC and CTR versions
+// are read too (see "the versions KISS only reads" below); those carry their
+// check inside or beside the ciphertext, so they decrypt first and check
+// after, and a failure still zeroes the buffer. One failure code for everything — a
 // wrong password, a wrong version and a truncated envelope must be
 // indistinguishable to the caller (kiss_kef.h: encrypt strict, decrypt
 // vague).
@@ -199,6 +202,161 @@ int kiss_kef_test_gcm(const uint8_t key[32], const uint8_t iv[KEF_IV_LEN],
 }
 #endif
 
+// ---- the versions KISS only reads --------------------------------------
+// KISS writes version 20 and nothing else, but Krux's default mode was ECB
+// until Krux 25.09, and its owner can still pick ECB, CBC or CTR, so a Krux
+// backup in someone's drawer is often one of these. The rules are Krux's
+// Cipher.decrypt and Cipher._authenticate (src/krux/kef.py), step for step,
+// and sim/test_kef.c holds envelopes made by that code, including Krux's own
+// stored test vectors.
+//
+// auth < 0: sha256(plaintext) truncated, appended to the plaintext before
+// encrypting. auth > 0: sha256(version | iv | plaintext | key) truncated,
+// appended after the ciphertext. NUL padding cannot tell padding from a
+// plaintext or check that ends in 0x00, so, as Krux does, a failed check is
+// retried a bounded number of times with those zeros put back.
+enum { M_ECB, M_CBC, M_CTR };
+enum { PAD_NUL, PAD_PKCS, PAD_NONE };
+
+typedef struct {
+    uint8_t version, mode, iv_len, pad;
+    int8_t  auth;
+} kef_legacy_t;
+
+static const kef_legacy_t LEGACY[] = {
+    {  0, M_ECB,  0, PAD_NUL,  -16 },   // AES-ECB v1
+    {  1, M_CBC, 16, PAD_NUL,  -16 },   // AES-CBC v1
+    {  5, M_ECB,  0, PAD_NUL,    3 },   // AES-ECB
+    {  6, M_ECB,  0, PAD_PKCS,  -4 },   // AES-ECB +p
+    { 10, M_CBC, 16, PAD_NUL,    4 },   // AES-CBC
+    { 11, M_CBC, 16, PAD_PKCS,  -4 },   // AES-CBC +p
+    { 15, M_CTR, 12, PAD_NONE,  -4 },   // AES-CTR
+};
+
+// The largest ciphertext read here: a 24 word text mnemonic with its check
+// fits, and it bounds the one stack buffer the public check hashes from.
+#define LEGACY_MAX_CT 256
+
+static const kef_legacy_t *legacy(uint8_t version)
+{
+    for (size_t i = 0; i < sizeof LEGACY / sizeof LEGACY[0]; i++)
+        if (LEGACY[i].version == version) return &LEGACY[i];
+    return NULL;
+}
+
+static int legacy_decrypt(const kef_legacy_t *L, const uint8_t key[32],
+                          const uint8_t *iv, const uint8_t *ct, size_t n,
+                          uint8_t *out)
+{
+    uint8_t ctr[16], ks[16];
+    int rc = 0;
+    if (L->mode == M_CTR) {                       // nonce | 32 bit count from 0
+        memcpy(ctr, iv, 12);
+        memset(ctr + 12, 0, 4);
+    }
+    for (size_t off = 0; off < n && rc == 0; off += 16) {
+        size_t take = n - off < 16 ? n - off : 16;
+        if (L->mode == M_CTR) {
+            rc = aes_block(key, ctr, ks);
+            for (size_t i = 0; i < take; i++) out[off + i] = ct[off + i] ^ ks[i];
+            inc32(ctr);
+            continue;
+        }
+        rc = wally_aes(key, 32, ct + off, 16, AES_FLAG_DECRYPT, out + off,
+                       16) == WALLY_OK ? 0 : -1;
+        if (rc == 0 && L->mode == M_CBC) {
+            const uint8_t *prev = off ? ct + off - 16 : iv;
+            for (int i = 0; i < 16; i++) out[off + i] ^= prev[i];
+        }
+    }
+    kiss_wipe(ctr, sizeof ctr);
+    kiss_wipe(ks, sizeof ks);
+    return rc;
+}
+
+static int legacy_open(const kef_legacy_t *L, const uint8_t key[32],
+                       const kef_env_t *e, uint8_t *plain, size_t plain_cap,
+                       size_t *plain_len)
+{
+    size_t alen = (size_t)(L->auth < 0 ? -L->auth : L->auth);
+    const uint8_t *iv = e->payload;
+    const uint8_t *ct = e->payload + L->iv_len;
+    // kef_parse already holds the payload to its version's floor and, for
+    // ECB and CBC, to whole blocks after the iv and any appended check.
+    size_t n = e->payload_len - L->iv_len - (L->auth > 0 ? alen : 0);
+    if (n == 0 || n > plain_cap || n > LEGACY_MAX_CT) return -1;
+    if (L->mode != M_CTR && n % 16) return -1;
+
+    uint8_t a[16], sum[32];
+    uint8_t hin[1 + 16 + LEGACY_MAX_CT + 32];
+    int rc = legacy_decrypt(L, key, iv, ct, n, plain);
+
+    size_t len = n;
+    if (rc == 0 && L->pad == PAD_NUL) {
+        while (len && plain[len - 1] == 0) len--;
+    } else if (rc == 0 && L->pad == PAD_PKCS) {
+        uint8_t p = plain[len - 1];
+        if (p == 0 || p > len) rc = -1;           // Krux's unpad leaves nothing
+        else len -= p;
+    }
+    if (rc == 0 && L->auth < 0) {
+        if (len < alen) rc = -1;
+        else {
+            len -= alen;
+            memcpy(a, plain + len, alen);
+        }
+    } else if (rc == 0) {
+        memcpy(a, ct + n, alen);
+    }
+
+    int ok = 0;
+    if (rc == 0) {
+        size_t tries = 1;
+        if (L->pad == PAD_NUL) {
+            size_t gone = n - len;               // padding, plus the check if inside
+            tries = (gone < alen + 1 ? gone : alen + 1) + 1;
+        }
+        for (size_t t = 0; t < tries && !ok && rc == 0; t++) {
+            if (L->auth > 0) {
+                size_t h = 0;
+                hin[h++] = L->version;
+                memcpy(hin + h, iv, L->iv_len);
+                h += L->iv_len;
+                memcpy(hin + h, plain, len);
+                h += len;
+                memcpy(hin + h, key, 32);
+                h += 32;
+                rc = wally_sha256(hin, h, sum, sizeof sum) == WALLY_OK ? 0 : -1;
+            } else {
+                rc = wally_sha256(plain, len, sum, sizeof sum) == WALLY_OK
+                         ? 0 : -1;
+            }
+            if (rc == 0 && ct_equal(sum, a, alen)) ok = 1;
+            else if (rc == 0 && t + 1 < tries) {
+                // Put one stripped zero back and look again. Inside the
+                // plaintext, the check's first byte was really plaintext and
+                // a zero belongs at the check's end; outside, the zero was
+                // plaintext. Either way len stays within the n decrypted.
+                if (L->auth < 0) {
+                    plain[len++] = a[0];
+                    memmove(a, a + 1, alen - 1);
+                    a[alen - 1] = 0;
+                } else {
+                    plain[len++] = 0;
+                }
+            }
+        }
+    }
+    if (ok) {
+        memset(plain + len, 0, plain_cap - len);  // the check and the padding
+        *plain_len = len;
+    }
+    kiss_wipe(a, sizeof a);
+    kiss_wipe(sum, sizeof sum);
+    kiss_wipe(hin, sizeof hin);
+    return ok ? 0 : -1;
+}
+
 static int derive_key(const char *password, size_t pass_len,
                       const uint8_t *id, size_t id_len, uint32_t iters,
                       uint8_t key[32])
@@ -278,8 +436,21 @@ int kiss_kef_open(const char *password, size_t pass_len,
     kef_env_t e;
     uint8_t key[32], tag[16];
     int rc = kef_parse(env, env_len, &e);
-    if (rc == 0 && e.version != KEF_VERSION_AES_GCM) rc = -1;
+    if (rc == 0 && !kef_can_open(e.version)) rc = -1;
     if (rc == 0 && e.iter_eff > KEF_MAX_EFF_ITER) rc = -1;
+
+    if (rc == 0 && e.version != KEF_VERSION_AES_GCM) {
+        const kef_legacy_t *L = legacy(e.version);
+        rc = L ? derive_key(password, pass_len, e.id, e.id_len, e.iter_eff,
+                            key) : -1;
+        if (rc == 0) rc = legacy_open(L, key, &e, plain, plain_cap, plain_len);
+        if (rc != 0) {
+            memset(plain, 0, plain_cap);
+            *plain_len = 0;
+        }
+        kiss_wipe(key, sizeof key);
+        return rc == 0 ? 0 : -1;
+    }
 
     size_t ct_len = 0;
     const uint8_t *iv = NULL, *ct = NULL;

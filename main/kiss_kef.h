@@ -31,10 +31,12 @@
 // 100M, Krux's own UI stays far below the cap.
 //
 // Encrypt strict, decrypt vague (per the KEF spec): seal makes only version
-// 20 and fails loudly; open refuses every other version, every malformed
-// header and every wrong password through the SAME single failure code, with
-// the output buffer zeroed. Nothing downstream can tell which check failed,
-// so nothing downstream can leak it.
+// 20 and fails loudly; open also reads Krux's uncompressed ECB, CBC and CTR
+// versions (0, 1, 5, 6, 10, 11, 15), which older Krux firmware made by
+// default, and refuses the compressed ones, every malformed header and every
+// wrong password through the SAME single failure code, with the output
+// buffer zeroed. Nothing downstream can tell which check failed, so nothing
+// downstream can leak it.
 #ifndef KISS_KEF_H
 #define KISS_KEF_H
 
@@ -72,6 +74,11 @@ typedef struct {
 // KEF_MAX_EFF_ITER cap is NOT applied here — an over-cap envelope is still
 // structurally KEF, and the caller wants to know that to refuse it as one.
 int kef_parse(const uint8_t *buf, size_t len, kef_env_t *out);
+
+// 1 = kiss_kef_open can read this version; 0 = it cannot (the compressed
+// versions and anything unknown). One answer for the opener and the router,
+// so the password prompt is never offered for an envelope that cannot open.
+int kef_can_open(uint8_t version);
 
 // 1 = structurally KEF and worth routing to the password/refusal path;
 // 0 = not KEF, and since the seed-QR door was removed that means the scan is

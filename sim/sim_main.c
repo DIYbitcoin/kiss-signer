@@ -523,7 +523,7 @@ int kiss_kef_open(const char *password, size_t pass_len, const uint8_t *env,
   if (plain && plain_cap) plain[0] = 0;
   if (plain_len) *plain_len = 0;
   kef_env_t e;
-  if (kef_parse(env, env_len, &e) != 0 || e.version != KEF_VERSION_AES_GCM)
+  if (kef_parse(env, env_len, &e) != 0 || !kef_can_open(e.version))
     return -1;
   if (pass_len != 3 || memcmp(password, "kef", 3) != 0) return -1;
   size_t o = 0;

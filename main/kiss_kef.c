@@ -39,21 +39,22 @@ typedef struct {
     uint8_t auth_pos;      // appended tag bytes (0 when embedded)
     uint8_t block;         // 1 = ECB/CBC alignment rules apply
     uint8_t min_payload;
+    uint8_t deflated;      // 1 = the plaintext was compressed before sealing
 } kef_vinfo_t;
 
 static const kef_vinfo_t VINFO[] = {
-    { 0,  0, 0, 1, 16 },   // AES-ECB v1, embedded 16B auth
-    { 1, 16, 0, 1, 32 },   // AES-CBC v1, embedded 16B auth
-    { 5,  0, 3, 1, 19 },   // AES-ECB, appended 3B auth
-    { 6,  0, 0, 1, 16 },   // AES-ECB +p, embedded 4B auth
-    { 7,  0, 0, 1, 16 },   // AES-ECB +c
-    { 10, 16, 4, 1, 36 },  // AES-CBC, appended 4B auth
-    { 11, 16, 0, 1, 32 },  // AES-CBC +p
-    { 12, 16, 0, 1, 32 },  // AES-CBC +c
-    { 15, 12, 0, 0, 17 },  // AES-CTR, embedded 4B auth
-    { 16, 12, 0, 0, 17 },  // AES-CTR +c
-    { 20, 12, 4, 0, 17 },  // AES-GCM: iv(12) | ct(>=1) | tag(4)
-    { 21, 12, 4, 0, 17 },  // AES-GCM +c
+    { 0,  0, 0, 1, 16, 0 },   // AES-ECB v1, embedded 16B auth
+    { 1, 16, 0, 1, 32, 0 },   // AES-CBC v1, embedded 16B auth
+    { 5,  0, 3, 1, 19, 0 },   // AES-ECB, appended 3B auth
+    { 6,  0, 0, 1, 16, 0 },   // AES-ECB +p, embedded 4B auth
+    { 7,  0, 0, 1, 16, 1 },   // AES-ECB +c
+    { 10, 16, 4, 1, 36, 0 },  // AES-CBC, appended 4B auth
+    { 11, 16, 0, 1, 32, 0 },  // AES-CBC +p
+    { 12, 16, 0, 1, 32, 1 },  // AES-CBC +c
+    { 15, 12, 0, 0, 17, 0 },  // AES-CTR, embedded 4B auth
+    { 16, 12, 0, 0, 17, 1 },  // AES-CTR +c
+    { 20, 12, 4, 0, 17, 0 },  // AES-GCM: iv(12) | ct(>=1) | tag(4)
+    { 21, 12, 4, 0, 17, 1 },  // AES-GCM +c
 };
 
 static const kef_vinfo_t *vinfo(uint8_t version)
@@ -100,6 +101,16 @@ int kef_parse(const uint8_t *buf, size_t len, kef_env_t *out)
     out->payload = buf + 5 + id_len;
     out->payload_len = payload_len;
     return 0;
+}
+
+int kef_can_open(uint8_t version)
+{
+    // Every version but the compressed ones. Krux compresses only plaintext
+    // of 120 bytes or more, or ECB plaintext with a repeated 16 byte block,
+    // and a seed backup is 16 to 32 bytes of random entropy, so a real seed
+    // backup never lands here. Opening them would take an inflater.
+    const kef_vinfo_t *vi = vinfo(version);
+    return vi && !vi->deflated;
 }
 
 int kef_sniff(const uint8_t *buf, size_t len)

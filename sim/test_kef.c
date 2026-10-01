@@ -135,6 +135,161 @@ static void test_goldens(void)
     }
 }
 
+// ---- Krux's other versions: read only -----------------------------------
+// The first six are Krux's own stored vectors (tests/test_encryption.py,
+// password "test key"), including the two its pre-25.09 firmware wrote
+// (v0, v1). The rest came out of Krux's src/krux/kef.py driving pycryptodome
+// the way its test suite does, each opened back by the same code first: the
+// shapes a seed backup takes in every uncompressed mode, a text mnemonic, and
+// the NUL padding cases older firmware could write, where a check or a
+// plaintext ends in 0x00 and only the reader's retry finds it.
+static const struct {
+    const char *name, *password, *env, *plain;
+} KRUX[] = {
+    { "krux vector: oldecb qr (v0)", "test key",
+      "07746573742049440000000a2ae19dc582c1199bb726f23f03c76ff6af9e8123"
+      "462c5173e61debd159a02fcf",
+      "350e7b31a36727c5f2fc76b58304668c" },
+    { "krux vector: oldcbc qr (v1)", "test key",
+      "07746573742049440100000a4f52a1936c3e3271209e9d64059ed78e01036075"
+      "5fd7ab2f4ebc4019cc0a22c58a5e337874a4b30b4bca8a4082da7ad3",
+      "350e7b31a36727c5f2fc76b58304668c" },
+    { "krux vector: ecb qr (v5)", "test key",
+      "07746573742049440500000a2ae19dc582c1199bb726f23f03c76ff6523e23",
+      "350e7b31a36727c5f2fc76b58304668c" },
+    { "krux vector: cbc qr (v10)", "test key",
+      "07746573742049440a00000a4f52a1936c3e3271209e9d64059ed78e01036075"
+      "5fd7ab2f4ebc4019cc0a22c543fa9690",
+      "350e7b31a36727c5f2fc76b58304668c" },
+    { "krux vector: ctr qr (v15)", "test key",
+      "07746573742049440f00000a4f52a1936c3e3271209e9d64f49120c7a26d12de"
+      "7b0ff0268c9691e689b02494f0af52c21c295b57b5347e9a86ee2a40",
+      "ec54ea346caa1ed06cb35c96c4ef23228a26a2e0996c71d0608ec2ba49ce2316" },
+    { "krux vector: gcm qr (v20)", "test key",
+      "07746573742049441400000a4f52a1936c3e3271209e9d64bfb7766f5d5d8a4f"
+      "908e86e738344c025d8fed54",
+      "350e7b31a36727c5f2fc76b58304668c" },
+    { "krux kef.py: v0 32B", "kiss test",
+      "0837334335444130410000000ab8618190ce182b6bd317964a57bc39d810b7f8"
+      "61e5f613b8eee67b344cbb805438a8eacbe90c91b68e40efbda2132322",
+      "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f" },
+    { "krux kef.py: v1 32B", "kiss test",
+      "0837334335444130410100000aa0a1a2a3a4a5a6a7a8a9aaabacadaeafab6862"
+      "bba92b2ca860ca4a3952b5052b9e1a63bddcd6ad6f0487736b9c13728ce89e2d"
+      "3e8b975e56d440c8ed050210fd",
+      "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f" },
+    { "krux kef.py: v5 32B", "kiss test",
+      "0837334335444130410500000ab8618190ce182b6bd317964a57bc39d810b7f8"
+      "61e5f613b8eee67b344cbb805456f351",
+      "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f" },
+    { "krux kef.py: v10 20B", "kiss test",
+      "0837334335444130410a00000aa0a1a2a3a4a5a6a7a8a9aaabacadaeafe2aab1"
+      "0d8a8d834bb77e5e78f178cb2b1f6ab9c9d84b01e1a66016fb648110703174f1"
+      "b8",
+      "707172737475767778797a7b7c7d7e7f80818283" },
+    { "krux kef.py: v15 24B", "kiss test",
+      "0837334335444130410f00000ac0c1c2c3c4c5c6c7c8c9cacb1954605a6042c9"
+      "6bd3bc5311ef0962b71d6ccced146b0100f86764ba",
+      "1112131415161718191a1b1c1d1e1f202122232425262728" },
+    { "krux kef.py: v6 16B ending 00", "kiss test",
+      "0837334335444130410600000a86f106a71960587ecf76721c900b6bca081e47"
+      "58848472473b05f68176dd6243",
+      "0102030405060708090a0b0c0d0e0f00" },
+    { "krux kef.py: v11 16B ending 00", "kiss test",
+      "0837334335444130410b00000aa0a1a2a3a4a5a6a7a8a9aaabacadaeaf1b83ba"
+      "b7e344d07cc922c2a80e8d7908970ccf8df1738f955c85139965a7874b",
+      "0102030405060708090a0b0c0d0e0f00" },
+    { "krux kef.py: v11 text mnemonic", "kiss test",
+      "0837334335444130410b00000aa0a1a2a3a4a5a6a7a8a9aaabacadaeaf66e6e3"
+      "223b4de4a9a577be6c24b40429d4031462a4f494de0310be489d8065441955dd"
+      "81640d0ce5ec2ba702246ae63f8348198f2479595f924c8c1522acdd5f13479a"
+      "1b1d5038df1062792da157be3d",
+      "637275736820696e686572697420736d616c6c2065676720696e636c75646520"
+      "7469746c6520736c6f67616e206d6f6d2072656d61696e20626c6f7573652062"
+      "6f6f737420626f6e7573" },
+    { "krux kef.py: v15 text mnemonic", "kiss test",
+      "0837334335444130410f00000ac0c1c2c3c4c5c6c7c8c9cacb6b34063d1d74b7"
+      "1da2c33a6486370efa5d2283e9542a4108c3c834743491420948574c8f779414"
+      "ebcab9b7a1dffcea01655b009e82e5ae8d98bff82112567867f9ddd7b2fd7afc"
+      "00bce0a2b943d2",
+      "637275736820696e686572697420736d616c6c2065676720696e636c75646520"
+      "7469746c6520736c6f67616e206d6f6d2072656d61696e20626c6f7573652062"
+      "6f6f737420626f6e7573" },
+    { "krux kef.py: v0 auth ends 00", "kiss test",
+      "0837334335444130410000000a64acc48dd5f402dbff313d4a05b576f7990a6f"
+      "27235c0ec37e3e82e31ab95ac0",
+      "2515d9435df146d1588e66959f9ec3e3" },
+    { "krux kef.py: v1 auth ends 00", "kiss test",
+      "0837334335444130410100000aa0a1a2a3a4a5a6a7a8a9aaabacadaeaf1ae764"
+      "27970bc7093f20acf515c8fbde2a2829376c22a96d365afa02e1f8b62b",
+      "2515d9435df146d1588e66959f9ec3e3" },
+    { "krux kef.py: v5 plain ends 00", "kiss test",
+      "0837334335444130410500000a86f106a71960587ecf76721c900b6bca178f06",
+      "0102030405060708090a0b0c0d0e0f00" },
+    { "krux kef.py: v10 plain ends 00", "kiss test",
+      "0837334335444130410a00000aa0a1a2a3a4a5a6a7a8a9aaabacadaeaf1b83ba"
+      "b7e344d07cc922c2a80e8d79089f6a9f9b",
+      "0102030405060708090a0b0c0d0e0f00" },
+};
+
+static void test_krux_versions(void)
+{
+    for (size_t i = 0; i < sizeof KRUX / sizeof KRUX[0]; i++) {
+        uint8_t env[KEF_MAX_ENV], want[128], plain[128];
+        size_t elen = unhex(KRUX[i].env, env, sizeof env);
+        size_t wlen = unhex(KRUX[i].plain, want, sizeof want);
+        size_t plen = 0;
+        const char *pw = KRUX[i].password;
+        int rc = kiss_kef_open(pw, strlen(pw), env, elen, plain, sizeof plain,
+                               &plen);
+        dchk(KRUX[i].name, rc == 0 && plen == wlen
+                               && memcmp(plain, want, wlen) == 0);
+
+        int wrong_ok = kiss_kef_open("wrong", 5, env, elen, plain,
+                                     sizeof plain, &plen) == -1 && plen == 0;
+        for (size_t k = 0; k < sizeof plain; k++)
+            if (plain[k]) wrong_ok = 0;
+        // One flip in every 16 bytes of the payload and one in its last
+        // byte, so every iv, every cipher block and every appended check is
+        // hit. The header is left to the goldens and test_iterations, and
+        // every flip here costs a full key derivation.
+        kef_env_t e;
+        int flip_ok = kef_parse(env, elen, &e) == 0;
+        size_t first = flip_ok ? (size_t)(e.payload - env) : elen;
+        for (size_t k = first; flip_ok && k < elen;
+             k = (k + 16 < elen || k == elen - 1) ? k + 16 : elen - 1) {
+            env[k] ^= 0x01;
+            if (kiss_kef_open(pw, strlen(pw), env, elen, plain, sizeof plain,
+                              &plen) == 0) flip_ok = 0;
+            env[k] ^= 0x01;
+        }
+        dchk("  ...wrong password refused, output zeroed", wrong_ok);
+        dchk("  ...a flip in every payload block refused", flip_ok);
+    }
+
+    const uint8_t opens[] = { 0, 1, 5, 6, 10, 11, 15, 20 };
+    const uint8_t never[] = { 2, 7, 12, 16, 21, 99 };
+    int can_ok = 1;
+    for (size_t i = 0; i < sizeof opens; i++)
+        if (!kef_can_open(opens[i])) can_ok = 0;
+    for (size_t i = 0; i < sizeof never; i++)
+        if (kef_can_open(never[i])) can_ok = 0;
+    dchk("kef_can_open: every uncompressed version, no compressed one",
+         can_ok);
+
+    // The plaintext buffer is the bound: too small refuses, zeroed.
+    uint8_t env[KEF_MAX_ENV], small[16];
+    size_t elen = unhex(KRUX[6].env, env, sizeof env), plen = 1;
+    memset(small, 0xee, sizeof small);
+    int small_ok = kiss_kef_open(KRUX[6].password, strlen(KRUX[6].password),
+                                 env, elen, small, sizeof small, &plen) == -1
+                   && plen == 0;
+    for (size_t k = 0; k < sizeof small; k++)
+        if (small[k]) small_ok = 0;
+    dchk("older version too big for the caller's buffer refused, zeroed",
+         small_ok);
+}
+
 // ---- iteration rule edges ----------------------------------------------
 static size_t mk_env(uint32_t iter_raw, uint8_t version, size_t payload_len,
                      uint8_t *out, size_t cap)
@@ -237,7 +392,12 @@ static void test_roundtrip(void)
          kiss_kef_seal(NULL, 0, "", 0, plain16, 16, env, sizeof env,
                        &elen) == -1);
 
-    // every other version refused identically by open
+    // The same bytes under any other version byte refused identically by
+    // open: the compressed and unknown ones outright, the older ones because
+    // their own check fails. IV pinned so the result cannot vary by run.
+    static const uint8_t fixed_iv[KEF_IV_LEN] = { 7, 7, 7, 7, 7, 7,
+                                                  7, 7, 7, 7, 7, 7 };
+    kiss_kef_test_fix_iv(fixed_iv);
     kiss_kef_seal((const uint8_t *)"id", 2, "pw", 2, plain16, 16, env,
                   sizeof env, &elen);
     const uint8_t others[] = { 0, 1, 5, 6, 7, 10, 11, 12, 15, 16, 21, 99 };
@@ -248,7 +408,8 @@ static void test_roundtrip(void)
                           &blen) != -1) versions_ok = 0;
     }
     env[3] = KEF_VERSION_AES_GCM;
-    dchk("all non-20 versions refused by open", versions_ok);
+    dchk("a v20 envelope under every other version byte refused",
+         versions_ok);
 }
 
 // ---- the sniff must never claim a plaintext shape -----------------------
@@ -422,6 +583,7 @@ int test_kef(void)
     dfails = 0;
     test_gcm_vectors();
     test_goldens();
+    test_krux_versions();
     test_iterations();
     test_roundtrip();
     test_sniff();

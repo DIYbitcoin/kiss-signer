@@ -4136,7 +4136,7 @@ static int kef_route(const uint8_t *data, size_t len)
     if (!kef_sniff(data, len)) return 0;
     kef_env_t e;
     if (len <= sizeof s_kef_env && kef_parse(data, len, &e) == 0
-        && e.version == KEF_VERSION_AES_GCM
+        && kef_can_open(e.version)
         && e.iter_eff <= KEF_MAX_EFF_ITER) {
         memcpy(s_kef_env, data, len);
         s_kef_env_len = len;
