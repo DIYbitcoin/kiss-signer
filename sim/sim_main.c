@@ -7405,13 +7405,17 @@ int main(void) {
   must_show("seed square refused", tr(STR_W_QRBAD_T));
   tap_str(STR_C_TRY_AGAIN, 3, 6);     // TRY AGAIN -> load screen
 
-  // An encrypted backup in a mode this signer refuses (CTR, version 15):
-  // recognized as KEF and refused BEFORE any password is asked for. The
-  // envelope is built with the same kef_emit_header the firmware uses.
+  // An encrypted backup in a mode this signer refuses: recognized as KEF and
+  // refused BEFORE any password is asked for. Version 16 is CTR with the
+  // plaintext deflated, and kef_can_open refuses every deflated version:
+  // Krux compresses only plaintext a seed backup never is, and this signer
+  // carries no inflater. It was version 15, plain CTR, until the opener
+  // learned Krux's older modes and 15 became one it opens. The envelope is
+  // built with the same kef_emit_header the firmware uses.
   tap_str(STR_W_SCAN_KEF_QR, 3, 6);                 // SCAN MY BACKUP
   {
     uint8_t fx[64];
-    size_t h = kef_emit_header(fx, sizeof fx, (const uint8_t *)"id", 2, 15, 10);
+    size_t h = kef_emit_header(fx, sizeof fx, (const uint8_t *)"id", 2, 16, 10);
     for (int i = 0; i < 24; i++) fx[h + i] = (uint8_t)i;  // iv12+ct8+auth4 shape
     kiss_scan_inject((const char *)fx, h + 24);
   }
