@@ -157,7 +157,7 @@ seed, write down the seed words, verify the backup, set a passphrase.
 </table>
 
 > [!TIP]
-> **Check your backup before you fund it**: KEYS > BACKUP > SEED WORDS. Also
+> **Check your backup before you fund it**: SETTINGS > BACKUP > SEED WORDS. Also
 > write down the fingerprint on the home screen. A mistyped passphrase gives no
 > error, it just opens different, empty keys.
 
