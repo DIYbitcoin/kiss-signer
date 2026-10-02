@@ -2,7 +2,7 @@
 
 # KISS Signer 💋
 
-**An offline single-sig Bitcoin signer hidden behind a fruit slashing arcade game.**
+**An offline single-sig bitcoin signer hidden behind a fruit slashing arcade game.**
 
 <img src="docs/media/kiss-reveal.gif" alt="Drawing the word KISS on the game menu, which opens the signer" width="560">
 
@@ -64,7 +64,7 @@ Boards with the newer v3.x ESP32-P4 chip are not supported yet
 ([roadmap](docs/ROADMAP.md)).
 
 Inspired by [Bowser](https://github.com/arcbtc/bowser-bitcoin-hardware-wallet),
-a Bitcoin signer hidden under a Tetris game.
+a bitcoin signer hidden under a Tetris game.
 
 ## Install
 
@@ -261,7 +261,7 @@ link your addresses, tiny change, and change your coordinator cannot see.
   post quantum SLH-DSA, and roll back by themselves if the new firmware fails
   to start.
 
-**🌍 22 languages**, and a **?** on any Bitcoin term opens a plain words card.
+**🌍 22 languages**, and a **?** on any bitcoin term opens a plain words card.
 
 **🎨 Four themes:** MONO, GREEN, CYPHERPINK and ORANGE. Tap the theme's name on
 the home page to switch, or the colour swatch at the top of Settings.
