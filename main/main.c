@@ -1713,15 +1713,18 @@ static void kiss_home_restyle(void) {
     lv_obj_set_pos(s_theme_lbl, tx, SY(428));
     if (s_theme_dot) lv_obj_set_pos(s_theme_dot, dx, SY(428) + (lh - SX(16)) / 2);
     int top = SY(428);
+    int left = dx;                               // the caption can run wider than the row
     if (s_theme_cap) {
       lv_obj_update_layout(s_theme_cap);
       top = SY(428) - SY(4) - lv_obj_get_height(s_theme_cap);   // the caption rides the row
-      lv_obj_set_pos(s_theme_cap, row_r - lv_obj_get_width(s_theme_cap), top);
+      const int cx = row_r - lv_obj_get_width(s_theme_cap);
+      lv_obj_set_pos(s_theme_cap, cx, top);
+      if (cx < left) left = cx;
     }
     // What counts as a press on it: the row and its caption with a finger's
     // margin, and everything from there out to the corner. Nothing else on
     // this page lives below the tiles on the right.
-    s_theme_hx0 = dx - SX(26);
+    s_theme_hx0 = left - SX(26);
     s_theme_hy0 = top - SY(8);
   }
   for (int i = 0; i < N_MOTES; i++)
