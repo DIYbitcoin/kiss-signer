@@ -823,6 +823,20 @@ static void update_hearts(void) {
     lv_image_set_src(s_hearts[i], i < s_lives ? &img_heart : &img_heart_empty);
 }
 
+// The home page's three small words: "fingerprint" under the chip, "theme"
+// and the theme's name in the corner. The caption rung everywhere but the
+// 5in, where even two rungs up they came off the glass as tiny beside a page
+// of 34 px words ("make it bigger or proportional to everything else"), so
+// that board sets them at the size of the page's other words.
+#if defined(KISS_BOARD_WS5)
+#define home_small_font() wt_font23()
+#elif defined(KISS_BOARD_GUITION) || defined(KISS_BOARD_WS35) || \
+      defined(KISS_BOARD_JC1060) || defined(KISS_BOARD_WS43)
+#define home_small_font() wt_font14()
+#else
+#error "main.c: no size for the home page's small words on this board"
+#endif
+
 // The game over card's live rows. On the 3.5in they are pixels, one stack with
 // the card gameover_mock.py draws there: at the scaled 48 px the score sat on
 // the card's rule and the 28 px BEST ran through its bottom border, and the
@@ -1649,11 +1663,11 @@ static void kiss_home_restyle(void) {
       lv_label_set_text(s_tile_ttl[i], tr(TILE_TTL_STR[i]));
     }
   if (s_theme_cap) {
-    lv_obj_set_style_text_font(s_theme_cap, wt_font14(), 0);
+    lv_obj_set_style_text_font(s_theme_cap, home_small_font(), 0);
     lv_label_set_text(s_theme_cap, tr(STR_H_THEME));
   }
   if (s_fp_cap) {
-    lv_obj_set_style_text_font(s_fp_cap, wt_font14(), 0);
+    lv_obj_set_style_text_font(s_fp_cap, home_small_font(), 0);
     lv_label_set_text(s_fp_cap, tr(STR_H_FINGERPRINT));
     fp_chip_place();
   }
@@ -3574,15 +3588,15 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   s_theme_cap = lv_label_create(s_home);
   lv_label_set_text(s_theme_cap, tr(STR_H_THEME));
   lv_obj_set_style_text_color(s_theme_cap, lv_color_hex(0x7A869C), 0);
-  lv_obj_set_style_text_font(s_theme_cap, wt_font14(), 0);
+  lv_obj_set_style_text_font(s_theme_cap, home_small_font(), 0);
   lv_obj_set_pos(s_theme_cap, SX(704), SY(408));
   s_theme_lbl = lv_label_create(s_home);
-  lv_obj_set_style_text_font(s_theme_lbl, wt_font14(), 0);
+  lv_obj_set_style_text_font(s_theme_lbl, home_small_font(), 0);
   lv_obj_set_style_text_letter_space(s_theme_lbl, 1, 0);
   lv_obj_set_pos(s_theme_lbl, SX(704), SY(428));
   s_theme_loop = lv_label_create(s_home);
   lv_label_set_text(s_theme_loop, LV_SYMBOL_LOOP);
-  lv_obj_set_style_text_font(s_theme_loop, wt_font14(), 0);
+  lv_obj_set_style_text_font(s_theme_loop, home_small_font(), 0);
   lv_obj_set_style_text_color(s_theme_loop, wt_accent(), 0);
 
   // Fingerprint chip (top-right) — the baked art leaves this area BLANK (dynamic
@@ -3601,7 +3615,7 @@ void build_game(void) {  // non-static: the simulator harness calls this too
   s_fp_cap = lv_label_create(s_home);
   lv_label_set_text(s_fp_cap, tr(STR_H_FINGERPRINT));
   lv_obj_set_style_text_color(s_fp_cap, lv_color_hex(0x7A869C), 0);   // muted, like the mock
-  lv_obj_set_style_text_font(s_fp_cap, KISS_NARROW ? wt_font28() : wt_font14(), 0);
+  lv_obj_set_style_text_font(s_fp_cap, KISS_NARROW ? wt_font28() : home_small_font(), 0);
   fp_chip_place();
 
   s_cam_lbl = lv_label_create(s_home);         // bottom-center status/error slot: blank
