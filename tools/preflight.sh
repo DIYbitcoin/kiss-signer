@@ -327,7 +327,11 @@ for B in $PF_BOARDS; do
     # its continue-on-error, in one commit.
     # The builds sit OUTSIDE the "|| true": a walk that does not compile is a
     # failure, only its count is advisory.
-    run --note-if "text overlap gate: [1-9]" "$B: screen walk (en, advisory)" \
+    # The count line, not the header: "text overlap gate: 1 locales" opens every
+    # run, so a bare [1-9] put a NOTE on a board with nothing to report. And any
+    # FAILED line, because a walk that died counts zero findings and the
+    # "|| true" below would otherwise pass it as clean.
+    run --note-if "text overlap gate: [1-9][0-9]* findings|^FAILED" "$B: screen walk (en, advisory)" \
         "$WS bash sim/build_sim.sh && $WS bash sim/build_overlapcheck.sh \
          && ($WS OVERLAPCHECK_LANGS=en bash sim/run_overlapcheck.sh || true)"
     run "$B: screens no gate sees" "$WS python3 tools/check_screen_coverage.py"
