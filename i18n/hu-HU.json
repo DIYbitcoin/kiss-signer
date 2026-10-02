@@ -389,6 +389,7 @@
   "L_WEAK": "GYENGE",
   "L_WEAK_ACK": "aki megtalálja a seed szavaidat, offline örökké próbálkozhat.\nnéhány szó, amit fejben tartasz, jobb egy rövidnél.",
   "L_WEAK_T": "GYENGE JELMONDAT",
+  "N_BIGGER": "nagyítsd fel a kódot az azt mutató kijelzőn",
   "N_CAM_STOP": "kamera leállt",
   "N_FOR_ADDR": "itt nem történik aláírás. ez csak arra válaszol, hogy a cím a tiéd-e.",
   "N_FOR_PASS": "aki el tudja olvasni azt a QR-kódot, kinyitja a kulcsaidat.",

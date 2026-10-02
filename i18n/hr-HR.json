@@ -389,6 +389,7 @@
   "L_WEAK": "SLABA",
   "L_WEAK_ACK": "tko nađe vaše riječi može pogađati beskonačno, izvan mreže.\nnekoliko riječi kojih se sjećate tuku jednu kratku.",
   "L_WEAK_T": "SLABA KODNA FRAZA",
+  "N_BIGGER": "povećaj kod na zaslonu koji ga prikazuje",
   "N_CAM_STOP": "kamera je zaustavljena",
   "N_FOR_ADDR": "ovdje se ništa ne potpisuje. samo govori je li adresa tvoja.",
   "N_FOR_PASS": "tko pročita taj QR, može otvoriti ove ključeve.",

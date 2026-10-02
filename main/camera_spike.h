@@ -138,3 +138,9 @@ void camera_scan_stop(void);
 // Assembly progress, drawn as a bar into the video when the preview is full
 // screen; a screen with a preview rect shows it in LVGL beside the video.
 void camera_scan_progress(int seen, int total);
+// What the decoder made of its last pass: one of osd_strips.h's OSD_SEARCH,
+// OSD_SEEN, OSD_STUCK, OSD_CUTOFF or OSD_READ. A full screen preview says it
+// in the bands' strips; a screen with a preview rect has to word it itself,
+// in LVGL beside the video. *fill is how much of the picture's short side the
+// located code spans, in 1/256ths, and 0 while none is located.
+int camera_scan_state(int *fill);

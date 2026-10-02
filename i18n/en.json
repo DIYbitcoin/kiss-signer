@@ -389,6 +389,7 @@
   "L_WEAK": "WEAK",
   "L_WEAK_ACK": "anyone who finds your seed words can guess at it forever, offline.\na few words you remember beat one short one.",
   "L_WEAK_T": "WEAK PASSPHRASE",
+  "N_BIGGER": "make the code bigger on the screen showing it",
   "N_CAM_STOP": "camera stopped",
   "N_FOR_ADDR": "nothing is signed here. this only answers whether an address is yours.",
   "N_FOR_PASS": "whoever can read that QR can open these keys.",

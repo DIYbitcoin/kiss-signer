@@ -389,6 +389,7 @@
   "L_WEAK": "DEBOLE",
   "L_WEAK_ACK": "chi trova le tue parole può tentare all'infinito, offline.\nqualche parola che ricordi batte una corta.",
   "L_WEAK_T": "PASSPHRASE DEBOLE",
+  "N_BIGGER": "ingrandisci il codice sullo schermo che lo mostra",
   "N_CAM_STOP": "fotocamera ferma",
   "N_FOR_ADDR": "qui non si firma nulla. dice solo se un indirizzo è tuo.",
   "N_FOR_PASS": "chi riesce a leggere quel QR può aprire queste chiavi.",

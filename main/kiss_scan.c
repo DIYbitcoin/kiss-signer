@@ -14,6 +14,7 @@
 #include "i18n.h"
 #include "kiss_theme.h"
 #include "kiss_wipe.h"
+#include "osd_strips.h"   // the decoder's states: OSD_SEARCH, OSD_SEEN, ...
 
 // A QR that decodes cleanly but is not a transport format we know is dropped
 // on the floor below (rc != 0, "some other QR in view"). That rule is right --
@@ -45,6 +46,34 @@ static lv_obj_t *s_prog, *s_hint;
 // is a fact. Cleared when a part of a real transfer lands, so a code shown
 // after a refusal still reports.
 static bool s_said_wrong;
+
+// The status line while nothing has been read. On this page the camera is a
+// box beside a column of words, and the words the decoder says for itself --
+// looking, found it, move back, cannot read this one -- are drawn on the video
+// only when the video is the whole screen (camera_spike.c's bands). So here
+// the line said "waiting for QR" through all four. An owner holding up a code
+// the camera could see and not read, or one too small for it to find at all,
+// was told nothing: "i get no feedback when trying to scan", from the bench,
+// with a 15 mm address code that the decoder locates at 70 px across and
+// reads from 100.
+//
+// s_live says the line is still the decoder's to write. Anything feed() or a
+// camera failure writes takes the line and keeps it: a refusal is a fact about
+// the code, and "waiting" must not paint over it a second later.
+static bool s_live;
+static int  s_live_shown;            // what the line says now, so it is written on change
+static uint32_t s_seen_at;           // the last tick the decoder had a code located
+static uint32_t s_search_from;       // when the current stretch of finding nothing began
+static kiss_scan_task_t s_task;
+// A located code drops out for a pass or two all the time, and a line that
+// swapped sentences at that rate would be a flicker. It goes back to
+// "waiting" only after this long with nothing located.
+#define SCAN_LOST_MS   1200
+// How long finding nothing stays quiet before the hint says what to change.
+#define SCAN_HINT_MS   6000
+// A code this much of the picture's short side, located and still unread, is
+// a dense one: too many modules, not too few pixels.
+#define SCAN_FILL_DENSE 150
 
 static lv_timer_t *s_tmr;
 static qrt_parser_t *s_parser;
@@ -202,6 +231,7 @@ static void feed(const char *data, size_t len)
     if (rc == QRT_FEED_TOO_BIG) {
         SCAN_LOG("REFUSED: transfer larger than %u bytes", (unsigned)QRT_MAX_PSBT);
         qrt_parser_reset(s_parser);
+        s_live = false;
         if (s_prog) scan_status(tr(STR_N_TOO_BIG), "");
         return;
     }
@@ -213,6 +243,7 @@ static void feed(const char *data, size_t len)
     if (rc == QRT_FEED_CORRUPT) {
         SCAN_LOG("REFUSED: completed transfer failed checksum or encoding");
         qrt_parser_reset(s_parser);
+        s_live = false;
         if (s_prog) scan_status(tr(STR_N_RETRY), "");
         return;
     }
@@ -227,6 +258,7 @@ static void feed(const char *data, size_t len)
         // Only before a transfer has started. Mid-set the counter is the news,
         // and a stray code in frame may not displace it.
         if (s_prog && seen == 0 && !s_said_wrong) {
+            s_live = false;
             scan_status(tr(STR_N_NOT_TX), "");
             s_said_wrong = true;
         }
@@ -249,6 +281,7 @@ static void feed(const char *data, size_t len)
     }
     SCAN_LOG("part accepted: %u bytes, %d of %d", (unsigned)len, seen, total);
     s_said_wrong = false;                  // a real transfer outranks the refusal
+    s_live = false;                        // ...and the counter owns the line now
     if (s_prog) {
         char b[48];
         if (total > 1) snprintf(b, sizeof b, tr(STR_N_PARTS_FMT), seen, total);
@@ -274,6 +307,7 @@ static void feed(const char *data, size_t len)
                      rrc, (unsigned)sizeof s_psbt);
             kiss_wipe(s_psbt, sizeof s_psbt);
             qrt_parser_reset(s_parser);
+            s_live = false;
             if (s_prog)
                 scan_status(tr(rrc == QRT_FEED_TOO_BIG ? STR_N_TOO_BIG
                                                        : STR_N_RETRY), "");
@@ -287,6 +321,46 @@ static void feed(const char *data, size_t len)
 }
 
 void kiss_scan_inject(const char *data, size_t len) { feed(data, len); }
+
+// One poll's worth of the decoder's state, turned into the two lines.
+static void scan_live(int osd, int fill)
+{
+    if (!s_live || !s_prog) return;
+    const uint32_t now = lv_tick_get();
+    if (osd == OSD_READ) return;               // feed() has the line from here
+    if (osd == OSD_SEARCH) {
+        const bool located = s_live_shown != OSD_SEARCH && s_live_shown != OSD_SEARCH + 8;
+        if (located && now - s_seen_at < SCAN_LOST_MS)
+            return;                            // a dropped pass, not a lost code
+    } else {
+        s_seen_at = now;
+        s_search_from = now;
+    }
+    // 0..3 are the states; +8 is the searching line once its hint is due, +16
+    // a located code that is small rather than dense.
+    int show = osd;
+    if (osd == OSD_SEARCH && now - s_search_from >= SCAN_HINT_MS) show += 8;
+    if (osd == OSD_STUCK &&
+        !(s_task == KISS_SCAN_TASK_PSBT && fill >= SCAN_FILL_DENSE)) show += 16;
+    if (show == s_live_shown) return;
+    s_live_shown = show;
+    switch (show) {
+    case OSD_SEARCH:      scan_status(tr(STR_N_WAIT_QR), ""); break;
+    case OSD_SEARCH + 8:  scan_status(tr(STR_N_WAIT_QR), tr(STR_N_BIGGER)); break;
+    case OSD_SEEN:        scan_status(tr(STR_C_OSD_SEEN_T), ""); break;
+    case OSD_CUTOFF:      scan_status(tr(STR_C_OSD_CUTOFF_T), tr(STR_C_OSD_CUTOFF_S)); break;
+    case OSD_STUCK:       scan_status(tr(STR_C_OSD_STUCK_T), tr(STR_C_OSD_STUCK_S)); break;
+    case OSD_STUCK + 16:  scan_status(tr(STR_C_OSD_SEEN_T), tr(STR_N_BIGGER)); break;
+    default: break;
+    }
+}
+
+#ifdef SIMULATOR
+// The decoder's state, set by the walk: there is no camera on the desktop, and
+// these are sentences the gates have to measure on every board.
+static int s_test_osd = OSD_SEARCH, s_test_fill;
+void kiss_scan_test_state(int osd, int fill) { s_test_osd = osd; s_test_fill = fill; }
+#endif
 
 static void poll_cb(lv_timer_t *t)
 {
@@ -304,9 +378,18 @@ static void poll_cb(lv_timer_t *t)
         return;
     }
     if (camera_spike_check_died() && s_prog) {
+        s_live = false;
         scan_status(tr(STR_N_CAM_STOP), tr(STR_N_RETRY));
         lv_obj_invalidate(lv_screen_active()); // video gone: repaint the LVGL screen
+        return;
     }
+    {
+        int fill = 0;
+        const int osd = camera_scan_state(&fill);
+        scan_live(osd, fill);
+    }
+#else
+    scan_live(s_test_osd, s_test_fill);
 #endif
 }
 
@@ -421,6 +504,25 @@ void kiss_scan_view_rect(int *x, int *y, int *w, int *h)
 static void scan_line_set(lv_obj_t *l, const char *txt, int lines, bool big)
 {
     const lv_font_t *f = big ? wt_chrome28(txt) : wt_chrome18(txt);
+    // The status is ONE line, and it now wears sentences as well as states:
+    // "Too much packed into this QR" is 28 characters where "waiting for QR"
+    // is 14, and at the status rung it ended in dots on the 4.3in. It steps
+    // down a rung at a time until the sentence fits its line. On the 3.5in's
+    // 213 px column it does not fit at any rung, so there it takes a second
+    // row at the floor rung, and scan_status moves the hint down under it.
+    if (big) {
+        const lv_font_t *const rung[] = { f, wt_chrome23(txt), wt_chrome21(txt),
+                                          wt_chrome18(txt) };
+        bool fits = false;
+        for (size_t i = 0; i < sizeof rung / sizeof rung[0] && !fits; i++) {
+            lv_point_t sz;
+            f = rung[i];
+            lv_text_get_size(&sz, txt, f, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+            fits = sz.x <= SCN_COL_W;
+        }
+        lines = fits ? 1 : 2;
+        lv_label_set_long_mode(l, fits ? LV_LABEL_LONG_DOT : LV_LABEL_LONG_WRAP);
+    }
     lv_obj_set_style_text_font(l, f, 0);
     lv_obj_set_height(l, lines * lv_font_get_line_height(f));
     lv_label_set_text(l, txt);
@@ -450,7 +552,9 @@ static void scan_note_place(void)
     lv_obj_set_height(s_hint, empty ? 0 : 2 * hlh);
     lv_obj_update_layout(s_note);
     const int nh = lv_obj_get_height(s_note);
-    const int top = empty ? SY(168) : SY(168) + hint_h + 6;
+    // From where the hint IS: a two row status has moved it down.
+    const int hy = lv_obj_get_style_y(s_hint, LV_PART_MAIN);
+    const int top = empty ? hy : hy + hint_h + 6;
     int y = SY(232);
     if (y + nh > WT_CONTENT_BOTTOM) y = WT_CONTENT_BOTTOM - nh;
     if (y < top) y = top;
@@ -461,7 +565,13 @@ static void scan_note_place(void)
 static void scan_status(const char *state, const char *hint)
 {
     if (!s_prog || !s_hint) return;
-    if (state) scan_line_set(s_prog, state, 1, true);
+    if (state) {
+        scan_line_set(s_prog, state, 1, true);
+        // The hint keeps its row unless the status took a second one.
+        lv_obj_update_layout(s_prog);
+        const int under = SY(124) + lv_obj_get_height(s_prog) + 4;
+        lv_obj_set_y(s_hint, under > SY(168) ? under : SY(168));
+    }
     if (hint)  scan_line_set(s_hint, hint, 2, false);
 #if KISS_NARROW
     scan_note_place();
@@ -471,6 +581,9 @@ static void scan_status(const char *state, const char *hint)
 static void scan_open_common(lv_obj_t *parent, kiss_scan_task_t task)
 {
     s_said_wrong = false;
+    s_live = false;
+    s_live_shown = -1;
+    s_task = task;
     kiss_wipe(s_pend, sizeof s_pend);
     kiss_wipe(s_psbt, sizeof s_psbt);
     __atomic_store_n(&s_pend_len, 0, __ATOMIC_RELEASE);   // camera not started yet
@@ -563,10 +676,16 @@ static void scan_open_common(lv_obj_t *parent, kiss_scan_task_t task)
     camera_spike_set_preview_rect(SCN_CAM_X, SCN_CAM_Y, SCN_CAM_W, SCN_CAM_H);
     if (camera_scan_start(s_bus, decode_cb)) {
         scan_status(tr(STR_N_WAIT_QR), NULL);
+        s_live = true;
     } else {
         scan_status(tr(STR_C_CAM_UNAVAIL), camera_spike_status());
     }
 #else
     scan_status(tr(STR_N_WAIT_QR), NULL);
+    s_live = true;
+    s_test_osd = OSD_SEARCH;
+    s_test_fill = 0;
 #endif
+    s_live_shown = OSD_SEARCH;
+    s_seen_at = s_search_from = lv_tick_get();
 }

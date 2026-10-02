@@ -57,3 +57,9 @@ void kiss_scan_set_bus(void *i2c_bus);
 // Feed one decoded QR payload (sim script; also the device decode path lands
 // here via the poll timer).
 void kiss_scan_inject(const char *data, size_t len);
+#ifdef SIMULATOR
+// What the decoder "sees", for the walk: one of osd_strips.h's OSD_SEARCH,
+// OSD_SEEN, OSD_STUCK or OSD_CUTOFF, and how much of the picture the code
+// fills in 1/256ths. The desktop has no camera to say it.
+void kiss_scan_test_state(int osd, int fill);
+#endif

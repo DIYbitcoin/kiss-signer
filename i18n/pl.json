@@ -389,6 +389,7 @@
   "L_WEAK": "SŁABE",
   "L_WEAK_ACK": "kto znajdzie twoje słowa, może zgadywać bez końca, offline.\nkilka słów, które pamiętasz, bije jedno krótkie.",
   "L_WEAK_T": "SŁABA FRAZA DOSTĘPU",
+  "N_BIGGER": "powiększ kod na ekranie, który go pokazuje",
   "N_CAM_STOP": "kamera zatrzymana",
   "N_FOR_ADDR": "tutaj nic nie jest podpisywane. to mówi tylko, czy adres jest twój.",
   "N_FOR_PASS": "kto odczyta ten QR, otworzy te klucze.",

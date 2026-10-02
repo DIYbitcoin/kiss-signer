@@ -392,6 +392,7 @@ enum {
     STR_L_WEAK,
     STR_L_WEAK_ACK,
     STR_L_WEAK_T,
+    STR_N_BIGGER,
     STR_N_CAM_STOP,
     STR_N_FOR_ADDR,
     STR_N_FOR_PASS,

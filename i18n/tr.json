@@ -389,6 +389,7 @@
   "L_WEAK": "ZAYIF",
   "L_WEAK_ACK": "kelimelerinizi bulan kişi sonsuza dek deneyebilir, çevrimdışı.\nhatırladığınız birkaç kelime kısa bir tanesini yener.",
   "L_WEAK_T": "ZAYIF PASSPHRASE",
+  "N_BIGGER": "kodu gösterildiği ekranda büyütün",
   "N_CAM_STOP": "kamera durdu",
   "N_FOR_ADDR": "burada hiçbir şey imzalanmaz. bu yalnızca bir adresin senin olup olmadığını söyler.",
   "N_FOR_PASS": "bu QR kodu okuyabilen herkes bu anahtarları açabilir.",

@@ -758,6 +758,7 @@ int kiss_session_descriptor(char *out, unsigned long len) {
 // by injecting decoded strings via kiss_scan_inject.)
 #include "kiss_psbt.h"
 #include "kiss_scan.h"
+#include "osd_strips.h"   // the scan states the walk sets
 #include "qr_transport.h"
 #include <string.h>
 static bool s_sim_payee_known;
@@ -5012,6 +5013,32 @@ int main(void) {
   tap_str(STR_S_SCAN_QR, 3, 30);                    // SCAN QR tab (page was on SD)
   tap_str(STR_S_OPEN_CAM, 3, 6);                    // OPEN CAMERA -> scan screen
   save("/tmp/sim_qr_scan.ppm");
+
+  // What the decoder sees, said in the column beside the box. On the device
+  // the camera sets these; here the walk does, one state a stop, so every
+  // sentence the status line can wear is drawn and measured on every board.
+  kiss_scan_test_state(OSD_SEEN, 60); pump(8);
+  save("/tmp/sim_qr_scan_seen.ppm");
+  must_show("scan/found", tr(STR_C_OSD_SEEN_T));
+  kiss_scan_test_state(OSD_CUTOFF, 200); pump(8);
+  save("/tmp/sim_qr_scan_cut.ppm");
+  must_show("scan/move back", tr(STR_C_OSD_CUTOFF_T));
+  kiss_scan_test_state(OSD_STUCK, 220); pump(8);     // fills the box: a dense code
+  save("/tmp/sim_qr_scan_dense.ppm");
+  must_show("scan/dense", tr(STR_C_OSD_STUCK_T));
+  kiss_scan_test_state(OSD_STUCK, 60); pump(8);      // small in the box
+  save("/tmp/sim_qr_scan_small.ppm");
+  must_show("scan/small", tr(STR_N_BIGGER));
+  // Lost. The line holds for a moment, so a dropped pass is not a flicker,
+  // then goes back to waiting, and says what to change once six seconds have
+  // found nothing.
+  kiss_scan_test_state(OSD_SEARCH, 0); pump(8);
+  must_show("scan/held through a dropped pass", tr(STR_C_OSD_SEEN_T));
+  pump(100);
+  must_show("scan/waiting again", tr(STR_N_WAIT_QR));
+  pump(400);
+  save("/tmp/sim_qr_scan_hint.ppm");
+  must_show("scan/nothing found for a while", tr(STR_N_BIGGER));
 
   // A pMofN set too large for this device, refused at the first part. The
   // old parser measured only the NUMBER of parts, so a set like this was

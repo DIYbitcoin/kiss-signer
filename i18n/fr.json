@@ -389,6 +389,7 @@
   "L_WEAK": "FAIBLE",
   "L_WEAK_ACK": "qui trouve vos mots de récupération peut deviner sans fin, hors ligne.\nquelques mots retenus valent mieux qu'un court.",
   "L_WEAK_T": "PHRASE SECRÈTE FAIBLE",
+  "N_BIGGER": "agrandissez le code sur l'écran qui l'affiche",
   "N_CAM_STOP": "caméra arrêtée",
   "N_FOR_ADDR": "rien n'est signé ici. cela dit seulement si une adresse est à vous.",
   "N_FOR_PASS": "qui peut lire ce QR peut ouvrir ces clés.",

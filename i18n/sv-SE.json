@@ -389,6 +389,7 @@
   "L_WEAK": "SVAG",
   "L_WEAK_ACK": "den som hittar dina seed-ord kan gissa hur länge som helst, offline.\nnågra ord du minns slår ett kort.",
   "L_WEAK_T": "SVAG LÖSENFRAS",
+  "N_BIGGER": "gör koden större på skärmen som visar den",
   "N_CAM_STOP": "kameran stannade",
   "N_FOR_ADDR": "här signeras ingenting. det säger bara om en adress är din.",
   "N_FOR_PASS": "den som kan läsa den QR-koden kan öppna dessa nycklar.",

@@ -389,6 +389,7 @@
   "L_WEAK": "SVAK",
   "L_WEAK_ACK": "den som finner ordene dine kan gjette i det uendelige, offline.\net par ord du husker slår ett kort.",
   "L_WEAK_T": "SVAK PASSORDFRASE",
+  "N_BIGGER": "gjør koden større på skjermen som viser den",
   "N_CAM_STOP": "kameraet stoppet",
   "N_FOR_ADDR": "her signeres ingenting. dette sier bare om en adresse er din.",
   "N_FOR_PASS": "den som kan lese den QR-koden kan åpne disse nøklene.",

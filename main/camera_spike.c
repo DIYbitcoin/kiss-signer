@@ -1508,6 +1508,11 @@ static void draw_scan_bar(uint16_t *fb) {
   }
 }
 
+int camera_scan_state(int *fill) {
+  if (fill) *fill = s_scan_found > 0 ? s_qr_fill : 0;
+  return s_scan_osd;
+}
+
 // stream-task context: un-mirrored half-res grayscale (green channel of RGB565
 // is plenty for black/white QR), then decode.
 static void scan_decode(const uint8_t *frame, uint32_t w, uint32_t h) {
