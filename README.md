@@ -38,6 +38,9 @@ swipe opens your real keys, and KISS alone opens a decoy.
 
 ## What it is
 
+- **Your own way in.** Draw KISS, or replace it with your own drawing. After
+  setup, the drawing alone opens a decoy; add your own swipe and it asks for
+  your passphrase.
 - **BIP39 seed plus passphrase.** 12 or 24 words. The passphrase is typed or
   scanned every session and never stored.
 - **Single-sig:** native SegWit (BIP84, the default), nested SegWit (BIP49) and
