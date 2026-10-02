@@ -2,7 +2,7 @@
 
 # KISS Signer 💋
 
-**An airgapped single-sig Bitcoin signer hidden behind a fruit slashing arcade game.**
+**An offline single-sig Bitcoin signer hidden behind a fruit slashing arcade game.**
 
 <img src="docs/media/kiss-reveal.gif" alt="Drawing the word KISS on the game menu, which opens the signer" width="560">
 
@@ -45,7 +45,7 @@ swipe opens your real keys, and KISS alone opens a decoy.
   scanned every session and never stored.
 - **Single-sig:** native SegWit (BIP84, the default), nested SegWit (BIP49) and
   legacy (BIP44), plus Silent Payments: receive, send and spend (BIP352).
-- **Airgapped.** PSBTs move by QR (BC-UR) or SD card. The radio chip is held in
+- **Offline.** PSBTs move by QR (BC-UR) or SD card. The radio chip is held in
   reset from the first instruction of every boot.
 - **Works with Sparrow and BlueWallet.** Other coordinators work if they import
   a watch-only output descriptor (or a zpub) and exchange PSBTs by QR (BC-UR) or
