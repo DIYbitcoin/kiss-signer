@@ -160,7 +160,7 @@ static lv_obj_t *wt_tagged(lv_obj_t *scr, const char *tag)
 // WT_TYPE_UP is the number of rungs. Both switches off is the 4.3in. A board
 // missing from this chain stops the
 // build rather than borrowing the 4.3in's ladder in silence.
-#if defined(KISS_BOARD_GUITION)
+#if defined(KISS_BOARD_GUITION) || defined(KISS_BOARD_WS43)
 #define WT_TYPE_NARROW 0
 #define WT_TYPE_UP     0
 #elif defined(KISS_BOARD_WS35)

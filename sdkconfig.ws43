@@ -1,0 +1,35 @@
+# Waveshare ESP32-P4-WiFi6-Touch-LCD-4.3, 4.3in ("ws43").
+#
+# Layered by the root CMakeLists.txt OVER the committed sdkconfig (the Guition
+# 4.3in profile) when -DKISS_BOARD=ws43, so every line here is a DIFFERENCE
+# between the two boards and anything absent is shared: the same 32 MB of
+# PSRAM in HEX mode, every LVGL setting tools/check_lv_conf.py pins against
+# the simulator, rollback, stack canaries, log levels. The flash chip is a
+# 32 MB part per Waveshare's board package; the image stays the shared 16 MB
+# layout, which the bootloader accepts on a larger chip, and
+# CONFIG_SPI_FLASH_AUTO_SUSPEND stays off as it is for everyone. Never
+# hand-edit build_ws43/sdkconfig; it is generated from this chain, and after a
+# change to this file or to the committed sdkconfig, delete it and
+# reconfigure.
+CONFIG_KISS_BOARD_GUITION=n
+CONFIG_KISS_BOARD_WS43=y
+
+# --- camera: OV5647 on the ribbon, MIPI-CSI 2-lane ---
+# The 3.5in's sensor and the 3.5in's lines (sdkconfig.ws35 says why each is
+# set): Waveshare sells the same OV5647 module for this board, on the same
+# 15 pin 0.5 mm plug, with its SCCB on the touch bus at 0x36. That is the
+# Guition's OV02C10 address too, so exactly one of the two drivers may be
+# compiled in; main/CMakeLists.txt refuses both.
+CONFIG_CAMERA_OV02C10=n
+CONFIG_CAMERA_OV5647=y
+CONFIG_CAMERA_OV5647_MIPI_RAW8_800X800_50FPS=n
+CONFIG_CAMERA_OV5647_MIPI_RAW10_1280X960_BINNING_45FPS=y
+CONFIG_CAMERA_OV5647_MIPI_DEFAULT_FMT_RAW10_1280X960_BINNING_45FPS=y
+
+# --- chip revision ---
+# Waveshare's own build for this board targets v3.x P4 silicon by default, and
+# an image built for v1.x refuses to boot on v3.x and the reverse. The
+# committed sdkconfig is the v1.x profile and this fragment keeps it. A v3.x
+# board is a separate image from a separate build directory, with the v3
+# profile layered over this file; that profile is not in this tree until a
+# v3.x board has booted one.

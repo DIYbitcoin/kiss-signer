@@ -66,6 +66,20 @@ elseif(CONFIG_KISS_BOARD_WS5)
     # Two rungs up (kiss_theme.c's ladder): the 7in's 43 pair for the second
     # rung from the top, and four faces of its own for the rest.
     set(KISS_F_EXTRA "font_kiss_lat43.c" "font_kiss_mono43.c" "font_kiss_lat54.c" "font_kiss_mono32.c" "font_kiss_mono54.c" "font_kiss_num76.c")
+elseif(CONFIG_KISS_BOARD_WS43)
+    set(KISS_BOARD_SRC "board_ws43.c")
+    # The Guition 4.3in's art, sprites and faces, file for file: the two boards
+    # share a canvas, so nothing is drawn or baked for this one.
+    set(KISS_ART_SRCS "menu_img.c" "menu_logo.c" "gameover_img.c" "game_bg.c" "kiss_img.c")
+    set(KISS_SPRITES_SRC "sprites.c")
+    set(KISS_F_LAT14 "font_kiss_lat14.c")
+    set(KISS_F_LAT18 "font_kiss_lat18.c")
+    set(KISS_F_LAT23 "font_kiss_lat23.c")
+    set(KISS_F_MONO14 "font_kiss_mono14.c")
+    set(KISS_F_MONO18 "font_kiss_mono18.c")
+    set(KISS_F_MONO21 "font_kiss_mono21.c")
+    set(KISS_F_MONO23 "font_kiss_mono23.c")
+    set(KISS_F_NUM28 "font_kiss_num28.c")
 else()
     message(FATAL_ERROR "no source list for this board in main/CMakeLists.txt")
 endif()

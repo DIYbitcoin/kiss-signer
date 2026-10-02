@@ -94,7 +94,7 @@ static const char *TAG = "kiss";
 #define KISS_GAME_CATCHUP 1
 #define GAME_MAX_STEPS 3
 #define GAME_STEP_MS 18
-#elif defined(KISS_BOARD_GUITION) || defined(KISS_BOARD_WS35)
+#elif defined(KISS_BOARD_GUITION) || defined(KISS_BOARD_WS35) || defined(KISS_BOARD_WS43)
 #define KISS_GAME_CATCHUP 0
 #else
 #error "main.c: no physics catch-up choice for this board"
@@ -835,7 +835,7 @@ static void update_hearts(void) {
 // above it.
 #if defined(KISS_BOARD_JC1060) || defined(KISS_BOARD_WS5)
 #define HUD_SCORE_FONT (&lv_font_montserrat_48)
-#elif defined(KISS_BOARD_GUITION) || defined(KISS_BOARD_WS35)
+#elif defined(KISS_BOARD_GUITION) || defined(KISS_BOARD_WS35) || defined(KISS_BOARD_WS43)
 #define HUD_SCORE_FONT (&lv_font_montserrat_40)
 #else
 #error "main.c: no in-game score size for this board"

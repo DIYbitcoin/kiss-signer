@@ -6,7 +6,7 @@
 // board at runtime.
 //
 // One board, one file: board_guition.c, board_ws35.c, board_jc1060.c,
-// board_ws5.c. Each is compiled only into its own image, so none carries a
+// board_ws5.c, board_ws43.c. Each is compiled only into its own image, so none carries a
 // dead arm of another, and the -Werror lint set compiles every line it ships.
 //
 // EVERY BOARD IS NAMED. A test that names one board and lets `#else` stand for
@@ -35,19 +35,22 @@
 #if defined(CONFIG_KISS_BOARD_WS5) && !defined(KISS_BOARD_WS5)
 #define KISS_BOARD_WS5 1
 #endif
+#if defined(CONFIG_KISS_BOARD_WS43) && !defined(KISS_BOARD_WS43)
+#define KISS_BOARD_WS43 1
+#endif
 #else
 // The desktop builds take the board from -DKISS_BOARD_<ID>=1 (sim/sim_tmp.sh),
 // and no flag at all means the 4.3in, as every sim command in the house rules
 // and the browser build assume. A default is not a fallback: a board that
 // passes its own flag can never land here.
 #if !defined(KISS_BOARD_GUITION) && !defined(KISS_BOARD_WS35) && !defined(KISS_BOARD_JC1060) && \
-    !defined(KISS_BOARD_WS5)
+    !defined(KISS_BOARD_WS5) && !defined(KISS_BOARD_WS43)
 #define KISS_BOARD_GUITION 1
 #endif
 #endif
 
 #if defined(KISS_BOARD_GUITION) + defined(KISS_BOARD_WS35) + defined(KISS_BOARD_JC1060) + \
-        defined(KISS_BOARD_WS5) != 1
+        defined(KISS_BOARD_WS5) + defined(KISS_BOARD_WS43) != 1
 #error "exactly one KISS_BOARD_<ID> must be defined (main/Kconfig.projbuild, sim/sim_tmp.sh)"
 #endif
 
@@ -203,6 +206,32 @@
 // 84% of that pool and this canvas draws 2.4 times the pixels, so a second
 // pool twice the size, in PSRAM, where it costs the internal RAM nothing.
 #define KISS_LV_EXTRA_POOL (256 * 1024)
+#elif defined(KISS_BOARD_WS43)
+#define KISS_BOARD_ID "ws43"
+#define KISS_BOARD_NAME "Waveshare ESP32-P4-WiFi6-Touch-LCD-4.3"
+// The Guition 4.3in's twin: the same ST7701 glass, 480x800 portrait under the
+// landscape UI, turned a quarter in software by board_ws43.c. Every screen
+// number is the Guition's, so this image draws the Guition's frames from the
+// Guition's art and type; what differs is wiring and the camera.
+#define SCREEN_W 800
+#define SCREEN_H 480
+#define KISS_PANEL_W 480
+#define KISS_PANEL_H 800
+#define KISS_NARROW 0
+// The 3.5in's OV5647 on this board's ribbon, as on the 5in, and the 5in's
+// first guess for the same reason: an unmirrored raw frame onto a portrait
+// panel. A guess until this glass says otherwise, which is why
+// KISS_CAM_ORIENT_LOG prints both every session.
+#define KISS_CAM_ORIENT 0
+#define KISS_CAM_RAW_MIRRORED 0
+#define KISS_PANEL_SPI 0
+#define KISS_PANEL_SWROT 1
+#define KISS_CAM_ORIENT_LOG 1
+// The Guition's three: the same pixel count through the same flush, so the
+// same game pass, no power chip to ask, and a walk that fits the first pool.
+#define KISS_BLADE_LANDING 0
+#define KISS_PMIC 0
+#define KISS_LV_EXTRA_POOL 0
 #else
 #error "no arm for this board in main/kiss_board.h"
 #endif

@@ -43,7 +43,7 @@ int test_defrow(void)
     dchk("n=3 closed is 142", wt_def_h_closed(3) == 142);
     dchk("n=3 open is 324", wt_def_h_open(3) == 324);
     dchk("a ghost is 51", wt_def_h_ghost() == 51);
-#elif defined(KISS_BOARD_GUITION)
+#elif defined(KISS_BOARD_GUITION) || defined(KISS_BOARD_WS43)
     dchk("n=4 closed is 71", wt_def_h_closed(4) == 71);
     dchk("n=4 open is 182", wt_def_h_open(4) == 182);
     dchk("n=3 closed is 94", wt_def_h_closed(3) == 94);

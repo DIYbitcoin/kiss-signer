@@ -206,6 +206,18 @@ static const zoom_lvl_t s_zoom_tab[2][ZOOM_LEVELS] = {
     {{720, 960, 16}, {360, 640, 32}, {288, 512, 40}, {180, 320, 64}, {144, 256, 80}, {90, 160, 128}},
     {{1280, 720, 16}, {1024, 576, 20}, {640, 360, 32}, {512, 288, 40}, {320, 180, 64}, {256, 144, 80}},
 };
+#elif defined(KISS_BOARD_WS43)
+// The 3.5in's 1280x960 sensor onto the Guition's 480x800 portrait panel, and a
+// FIRST GUESS until this glass has been looked at: the ladder assumes the
+// module sits the way the Guition's does, long side across the short panel.
+// The Guition's rows from L1 down are crops this sensor holds too, and each
+// lands on 480x800 exactly. L0 is this sensor's own: its whole 960 px height
+// at 13/16, which is 468x780 with thin bars all round. At a quarter turn L0
+// is the sensor's full width, 1280x768 at 10/16, which fills the panel.
+static const zoom_lvl_t s_zoom_tab[2][ZOOM_LEVELS] = {
+    {{576, 960, 13}, {480, 800, 16}, {384, 640, 20}, {240, 400, 32}, {192, 320, 40}, {120, 200, 64}},
+    {{1280, 768, 10}, {800, 480, 16}, {640, 384, 20}, {400, 240, 32}, {320, 192, 40}, {200, 120, 64}},
+};
 #else
 #error "measured on each board's glass: add this board's value"
 #endif
@@ -675,7 +687,8 @@ static void ent_frame(const uint8_t *frame, uint32_t w, uint32_t h) {
 #define BAND_TOP_X0 232
 #define BAND_TOP_X1 306
 #define STRIP_TOP_PX 299
-#elif defined(KISS_BOARD_GUITION)
+#elif defined(KISS_BOARD_GUITION) || defined(KISS_BOARD_WS43)
+// The Waveshare 4.3in is the same 480x800 portrait frame, so the same band.
 #define BAND_TOP_X0 375     // panel x range of the landscape-top band (deep
 #define BAND_TOP_X1 451     // enough for a title + subtitle strip)
 #define STRIP_TOP_PX 443    // panel x of a top-band strip's first text row
@@ -2149,6 +2162,11 @@ bool camera_scan_start(void *bus_v, void (*on_decode)(const char *, size_t)) {
     // 1280x960 frame at exactly half resolution, the recipe the wide pass was
     // written for, and this board's L0 is the whole sensor at 1:1, two and a
     // half times the pixels on every pass.
+    int cw = 640;
+    int ch = 480;
+#elif defined(KISS_BOARD_WS43)
+    // The same sensor again, so the same budget: its L0 is the sensor's whole
+    // height, 576x960, more than twice the pixels on every pass.
     int cw = 640;
     int ch = 480;
 #else

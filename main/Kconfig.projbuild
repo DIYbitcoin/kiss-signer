@@ -17,7 +17,7 @@ menu "KISS board"
         default KISS_BOARD_GUITION
         help
             Which board this image is for. Chosen by the root CMakeLists.txt
-            from -DKISS_BOARD=<guition|ws35|jc1060|ws5>; the committed
+            from -DKISS_BOARD=<guition|ws35|jc1060|ws5|ws43>; the committed
             sdkconfig is the Guition profile and every other board gets its
             own generated one inside its build directory.
 
@@ -32,6 +32,9 @@ menu "KISS board"
 
         config KISS_BOARD_WS5
             bool "Waveshare ESP32-P4-WiFi6-Touch-LCD-5 (5.0in HX8394 MIPI-DSI 720x1280, GT911, OV5647)"
+
+        config KISS_BOARD_WS43
+            bool "Waveshare ESP32-P4-WiFi6-Touch-LCD-4.3 (4.3in ST7701 MIPI-DSI 480x800, GT911, OV5647)"
     endchoice
 
 endmenu
