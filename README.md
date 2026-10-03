@@ -261,7 +261,7 @@ link your addresses, tiny change, and change your coordinator cannot see.
   post quantum SLH-DSA, and roll back by themselves if the new firmware fails
   to start.
 
-**🌍 22 languages**, and a **?** on any bitcoin term opens a plain words card.
+**🌍 20 languages**, and a **?** on any bitcoin term opens a plain words card.
 
 **🎨 Four themes:** MONO, GREEN, CYPHERPINK and ORANGE. Tap the theme's name on
 the home page to switch, or the colour swatch at the top of Settings.
