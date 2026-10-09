@@ -5787,12 +5787,11 @@ int main(void) {
   // confirmation behind the button carries its amber qualifier -- the branch
   // that goes unreachable once step 9 has verified.
   set_tab(SET_NOUNDO);
-#if KISS_NARROW
-  // The card is 160 tall on the 3.5in and its action sits above this y.
+  // By its label on every board. A fixed y found the action where the English
+  // card puts it, and the 7in's CJK card sets it lower: the tap landed on the
+  // card, CANCEL was never on screen, and the rest of the zh-CN walk
+  // photographed the wrong screens.
   tap_str(STR_I_ERASE_BTN, 3, 8);                   // ERASE SEED WORDS
-#else
-  touch(200, SET_ROW_Y(3)); pump(3); release(); pump(8);  // ERASE SEED WORDS
-#endif
   save("/tmp/sim_endwords_unchecked.ppm");          // amber "paper never checked"
   tap_str(STR_C_CANCEL, 3, 8);   // CANCEL -> Settings, NO UNDO tab: a gate's
                                  // exit names the refusal, not the direction
@@ -7396,12 +7395,11 @@ int main(void) {
   // a second door to the same room, and both ended at the same whole partition
   // erase.
   set_tab(SET_NOUNDO);
-#if KISS_NARROW
-  // The card is 160 tall on the 3.5in and its action sits above this y.
+  // By its label on every board. A fixed y found the action where the English
+  // card puts it, and the 7in's CJK card sets it lower: the tap landed on the
+  // card, CANCEL was never on screen, and the rest of the zh-CN walk
+  // photographed the wrong screens.
   tap_str(STR_I_ERASE_BTN, 3, 8);                   // ERASE SEED WORDS
-#else
-  touch(200, SET_ROW_Y(3)); pump(3); release(); pump(8);  // ERASE SEED WORDS
-#endif
   lv_refr_now(NULL); pump(2);
   save("/tmp/sim_wipe_confirm.ppm");                // fingerprint, the pair, HOLD
   must_show("erase/title", tr(STR_G_WIPEC_T));
