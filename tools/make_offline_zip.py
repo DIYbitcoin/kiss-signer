@@ -194,7 +194,7 @@ OFFLINE_INDEX = """<!doctype html>
         <ol class="install-steps">
           <li>
             <h3>Plug it in</h3>
-            <p>Connect the device by USB. Chrome, Brave or Edge only &mdash; Safari and Firefox cannot talk to it.</p>
+            <p>Connect the device by USB. Chrome or Brave only &mdash; Safari and Firefox cannot talk to it.</p>
           </li>
           <li>
             <h3>Install</h3>
@@ -259,7 +259,7 @@ OFFLINE_INDEX = """<!doctype html>
         </div>
 
         <p class="browser-note" id="browser-note" hidden>
-          Use Chrome, Brave or Edge to install over USB, or
+          Use Chrome or Brave to install over USB, or
           <a href="guide.html#esptool">flash from the command line</a>.
         </p>
 
@@ -346,7 +346,7 @@ def main():
     print()
     print("  KISS Signer, offline installer")
     print()
-    print("  Open this address in Chrome, Brave or Edge:")
+    print("  Open this address in Chrome or Brave:")
     print()
     print("      http://localhost:%d/" % port)
     print()
@@ -507,7 +507,7 @@ def render_start_here(version: str, images: list[tuple[str, str, str | None]],
         "",
         "     It prints an address that begins with http://localhost.",
         "",
-        "  2. Open that address in Chrome, Brave or Edge.",
+        "  2. Open that address in Chrome or Brave.",
         "",
         "     Safari and Firefox cannot reach a device over USB. That is a",
         "     limit of those browsers and nothing here can work around it.",

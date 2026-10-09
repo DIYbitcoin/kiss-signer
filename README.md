@@ -72,7 +72,7 @@ Pick one. All three end the same way: **unplug, wait 3 seconds, plug back in.**
 
 | | How | You need |
 | --- | --- | --- |
-| 🟢 **Easy** | Install page in your browser | Chrome, Brave or Edge, a USB cable |
+| 🟢 **Easy** | Install page in your browser | Chrome or Brave, a USB cable |
 | 🟡 **Medium** | Verify the files yourself, then flash | A terminal, `gpg`, `esptool` |
 | 🔴 **Hard** | Build it from source | Docker |
 
