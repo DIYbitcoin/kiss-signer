@@ -4,22 +4,22 @@
     {
       "id": "ws43",
       "name": "Waveshare 4.3in",
-      "commit": "13c13bad",
+      "commit": "c9ce193f",
       "built": "2026-10-09",
       "images": [
         {
-          "path": "firmware/kiss-test-13c13bad-ws43-v1.bin",
+          "path": "firmware/kiss-test-c9ce193f-ws43-v1.bin",
           "minChipRevision": 100,
           "maxChipRevision": 199,
-          "size": 5004320,
-          "sha256": "420d6c3c6d2ca6b734e96fa18887db6bb8e857b1bc16eb23cd7068eb9737083d"
+          "size": 5003040,
+          "sha256": "a9aa5ba1544c45b1c2d120b689b80dbcb7ea69dfed4d250135078d99778c39ed"
         },
         {
-          "path": "firmware/kiss-test-13c13bad-ws43-v3.bin",
+          "path": "firmware/kiss-test-c9ce193f-ws43-v3.bin",
           "minChipRevision": 300,
           "maxChipRevision": 399,
-          "size": 5020816,
-          "sha256": "1ff047f323a72ee92495b4651f28cf45b46c0d28e7a1e28ffddaf541f15c3487"
+          "size": 5019520,
+          "sha256": "f603e52054e9f2ac40c4255a44b1870ee6efe525c044f3e44ce5326602e9ec72"
         }
       ]
     }
