@@ -16,7 +16,7 @@
 #include "i18n.h"
 #include "kiss_crypto.h"   // kiss_entropy_mix3: camera + chip + taps -> seed
 #include "kiss_kef.h"      // encrypted backups arriving through restore
-#include "kiss_scan.h"     // kiss_scan_open_raw: the locked-backup QR door
+#include "kiss_scan.h"     // kiss_scan_open_raw: the seed and backup QR door
 #include "kiss_seed.h"
 #include "kiss_ui.h"       // the borrowed KEF password keyboard
 #include "kiss_settings.h"   // kiss_lang_picker_open: first-boot language switch
@@ -4024,14 +4024,12 @@ static void choose_screen(void)
     }
 }
 
-// ---- AMNESIC per-session load: type the words, or open a backup ----
-// The signer used to read a bare SeedQR here. It no longer does: an unlocked
-// square of a seed is a seed to anyone who photographs it, and this device
-// never wrote one, so it was only ever a door for somebody else's. The QR that
-// remains is the locked one this device does write (kiss_kef.h), which is what
-// makes "power on, load, sign, power off" bearable without leaving a readable
-// seed on paper. Everything here stages into RAM; nothing can reach flash
-// because kiss_seed_commit is a no-op in this mode.
+// ---- AMNESIC per-session load: type the words, or scan them ----
+// The scan takes a seed QR made on Krux or SeedSigner (SeedQR, CompactSeedQR
+// or the plain words) and the encrypted backup this device writes
+// (kiss_kef.h). This device never writes an unencrypted seed QR. Everything
+// here stages into RAM; nothing can reach flash because kiss_seed_commit is a
+// no-op in this mode.
 static void load_screen(void);
 static void load_screen_fwd(void) { load_screen(); }
 
@@ -4051,14 +4049,13 @@ static void load_new_cb(lv_event_t *e)
 
 static void load_back_cb(lv_event_t *e) { (void)e; load_screen(); }
 
-// ---- KEF: the only envelope either door accepts ----
+// ---- KEF: an encrypted backup arriving where a seed was expected ----
 // The chokepoint is qr_text_cb (and the file picker below): the payload still
-// has its real length and no string assumption has been made. Version 20
-// within the work-factor cap gets the password keyboard; every other
-// well-formed envelope is refused BEFORE a password is asked for — nothing the
-// owner could type changes that answer. What kef_sniff does not claim at all
-// no longer reaches a seed parser, so the camera cannot hand this device
-// words: it can only hand it an envelope that a password still has to open.
+// has its real length and no string assumption has been made. kef_sniff can
+// never claim a seed QR's shape (kiss_kef.h), so a plain seed square never
+// meets a password prompt. Version 20 within the work-factor cap gets the
+// password keyboard; every other well-formed envelope is refused BEFORE a
+// password is asked for — nothing the owner could type changes that answer.
 static uint8_t s_kef_env[KEF_MAX_ENV];
 static size_t  s_kef_env_len;
 
@@ -4243,14 +4240,28 @@ static void qr_bad_screen(void)
                     s_qr_from_restore ? goto_count_cb : load_back_cb, NULL);
 }
 
-// The scan screen owns the camera; it hands us the first decoded payload. A
-// locked backup is the only thing it can be now: kef_route takes it to the
-// password or refuses it, and everything else -- including the bare seed
-// square this signer used to read -- lands on the screen above.
+// The scan screen owns the camera; it hands us the first decoded payload. An
+// encrypted backup goes to its password; a seed QR becomes the words; anything
+// else lands on the screen above with nothing loaded.
 static void qr_text_cb(const char *txt, size_t len)
 {
-    if (!kef_route((const uint8_t *)txt, len))
-        qr_bad_screen();
+    if (kef_route((const uint8_t *)txt, len))
+        return;                          // an encrypted backup, not a seed QR
+    char words[WSEED_MAX_MNEMONIC];
+    int rc = kiss_seed_from_qr(txt, len, words, sizeof words);
+    if (rc == 0)
+        rc = kiss_seed_stage(words);
+    kiss_wipe(words, sizeof words);      // a scanned mnemonic must not linger
+    if (rc != 0) { qr_bad_screen(); return; }
+    // Somebody else's draw, with nothing to say about it: write 0 rather than
+    // skip the write, or a note left by a seed made here BEFORE the import
+    // would describe a draw that has nothing to do with this one.
+    kiss_seed_set_entropy_note(WSEED_ENTQ_NONE);
+    kiss_seed_set_source(WSEED_SRC_QR);
+    void (*cb)(void) = s_done;           // straight on, the same as typing
+    s_load = false;
+    close_all();
+    if (cb) cb();
 }
 
 static void qr_cancel_cb(void) { load_screen(); }

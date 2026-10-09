@@ -1098,10 +1098,8 @@ static void made_labels(int src, const char **label, const char **note)
                                 *note  = tr(STR_W_MADE_ELSE);     break;
         case WSEED_SRC_KEF:     *label = tr(STR_I_ROW_KEF);
                                 *note  = tr(STR_W_MADE_ELSE);     break;
-        // Includes the retired seed-QR source (kiss_seed.h): a device upgraded
-        // across its removal still has that number in flash, and the honest
-        // answer for a path this firmware no longer has is that it did not
-        // record one.
+        case WSEED_SRC_QR:      *label = tr(STR_W_MADE_QR);
+                                *note  = tr(STR_W_MADE_ELSE);     break;
         default:                *label = tr(STR_W_MADE_NOREC);
                                 *note  = tr(STR_W_MADE_NONE);     break;
     }

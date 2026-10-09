@@ -407,6 +407,9 @@ UNTRANSLATED_OK = {
     # Born under the English-only rule, like the KEF block above.
     "W_MADE_T", "W_MADE_S", "W_MADE_CAP", "W_MADE_NONE", "W_MADE_ELSE",
     "W_MADE_NOREC",
+    # SEED QR names the format, which Krux and SeedSigner print in English
+    # in every language.
+    "W_MADE_QR",
     "W_RNG_T", "W_RNG_S", "W_RNG_SRC", "W_RNG_SRC_SUB",
     "W_RNG_ON", "W_RNG_OFF",
     "W_RNG_WHY1_H", "W_RNG_WHY1_B", "W_RNG_WHY2_H", "W_RNG_WHY2_B",

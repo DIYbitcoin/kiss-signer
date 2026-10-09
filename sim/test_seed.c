@@ -19,10 +19,9 @@
 
 static int sfails;
 
-// mnemonic -> numeric SeedQR digits. The parser that read these is gone; this
-// builds a WELL-FORMED one so the tests can prove it is refused rather than
-// only proving that junk is. Returns the digit count, or 0 if a word is not on
-// the list.
+// mnemonic -> numeric SeedQR digits, built from a real mnemonic so the tests
+// prove a WELL-FORMED one is read, not only that junk is refused. Returns the
+// digit count, or 0 if a word is not on the list.
 static size_t seed_digits(const char *mnemonic, char *out, size_t out_len)
 {
     size_t d = 0;
@@ -197,16 +196,9 @@ int test_seed_layer(void) {
         schk("plaintext: the 0x80 vector refused as text",
              kiss_seed_from_plaintext(ALT_WORDS, strlen(ALT_WORDS), got, sizeof got) != 0);
 
-        // 2. numeric SeedQR: REMOVED, and pinned removed.
-        // 48 or 96 ASCII digits, four per wordlist index, was a shape this
-        // signer read straight off a printed square. It no longer does: a bare
-        // seed square is a seed to whoever photographs it, this device never
-        // wrote one, and the only thing a camera can hand it now is an
-        // envelope a password still has to open.
-        //
-        // A WELL-FORMED one is the test that matters. Junk was always refused,
-        // so junk proves nothing about the removal; digits built from a real
-        // mnemonic used to restore it, and must not any more.
+        // 2. digits are not an envelope's plaintext. A SeedQR off the camera
+        // goes through kiss_seed_from_qr (tested below); an opened backup
+        // holds entropy bytes or words, never the digit form.
         {
             char d12[49], d24[97];
             schk("plaintext: built 48 digits for 12 words",
@@ -274,6 +266,54 @@ int test_seed_layer(void) {
         got[0] = 'x';
         kiss_seed_from_plaintext("hello world", 11, got, sizeof got);
         schk("plaintext: output cleared on failure", got[0] == 0);
+
+        // ---- seed QR off the camera: all three shapes Krux and SeedSigner
+        // write, built from real mnemonics ----
+        {
+            char d12[49], d24[97];
+            seed_digits(good12, d12, sizeof d12);
+            seed_digits(good24, d24, sizeof d24);
+            schk("seedqr: 48 digits read",
+                 kiss_seed_from_qr(d12, 48, got, sizeof got) == 0 &&
+                 strcmp(got, good12) == 0);
+            schk("seedqr: 96 digits read",
+                 kiss_seed_from_qr(d24, 96, got, sizeof got) == 0 &&
+                 strcmp(got, good24) == 0);
+            schk("seedqr: 47 digits refused",
+                 kiss_seed_from_qr(d12, 47, got, sizeof got) != 0 && got[0] == 0);
+            d12[0] = '9';                // index 9xxx is past the 2048 words
+            schk("seedqr: an index past the list refused",
+                 kiss_seed_from_qr(d12, 48, got, sizeof got) != 0 && got[0] == 0);
+        }
+        for (size_t i = 0; i < sizeof ent; i++) ent[i] = (uint8_t)(i * 37 + 11);
+        schk("seedqr: compact 16 bytes read",
+             kiss_seed_from_qr((const char *)ent, 16, got, sizeof got) == 0 &&
+             strcmp(got, good12) == 0);
+        schk("seedqr: compact 32 bytes read",
+             kiss_seed_from_qr((const char *)ent, 32, got, sizeof got) == 0 &&
+             strcmp(got, good24) == 0);
+        schk("seedqr: plain words read",
+             kiss_seed_from_qr(good12, strlen(good12), got, sizeof got) == 0 &&
+             strcmp(got, good12) == 0);
+        {
+            char up[WSEED_MAX_MNEMONIC];
+            size_t n = strlen(good12);
+            for (size_t i = 0; i <= n; i++)
+                up[i] = (good12[i] >= 'a' && good12[i] <= 'z')
+                            ? (char)(good12[i] - 32) : good12[i];
+            schk("seedqr: plain words in capitals read",
+                 kiss_seed_from_qr(up, n, got, sizeof got) == 0 &&
+                 strcmp(got, good12) == 0);
+        }
+        {
+            char d[49];
+            seed_digits(ALT_WORDS, d, sizeof d);
+            schk("seedqr: the 0x80 vector as digits refused",
+                 kiss_seed_from_qr(d, 48, got, sizeof got) != 0);
+        }
+        schk("seedqr: an address refused",
+             kiss_seed_from_qr("bc1qw5njfxslmnrm08fk4ta5ghut7tnkx8sva90336", 42,
+                               got, sizeof got) != 0 && got[0] == 0);
 
         // ---- the gate itself, straight ----
         // Two arms: degenerate BYTES, and a word sequence the blind draw's

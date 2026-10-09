@@ -1682,7 +1682,8 @@ static void setup_warn_screen(void) {
   // it at all, which is what that colour was always for.
   const int made_by = kiss_seed_source();
   const int restored = !s_backup_verified
-                       && (made_by == WSEED_SRC_KEF || made_by == WSEED_SRC_RESTORE);
+                       && (made_by == WSEED_SRC_KEF || made_by == WSEED_SRC_RESTORE
+                           || made_by == WSEED_SRC_QR);
   const lv_color_t state_col = s_backup_verified ? WT_OK
                                : restored        ? WT_WARN
                                                  : WT_STOP;

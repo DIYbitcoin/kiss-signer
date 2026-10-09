@@ -1607,6 +1607,66 @@ fail:
     return -1;
 }
 
+// ---- seed QR (see kiss_seed.h) ----
+static bool all_digits(const char *p, size_t n)
+{
+    for (size_t i = 0; i < n; i++)
+        if (p[i] < '0' || p[i] > '9') return false;
+    return n > 0;
+}
+
+// 48 or 96 ASCII digits, four per wordlist index. Rebuilding the words from
+// indices means a damaged QR shows up as a checksum failure below, not as a
+// silently different wallet.
+static int from_numeric_seedqr(const char *p, size_t n, char *out, size_t out_len)
+{
+    size_t words_n = n / 4;
+    size_t o = 0;
+    for (size_t w = 0; w < words_n; w++) {
+        int idx = 0;
+        for (int d = 0; d < 4; d++) idx = idx * 10 + (p[w * 4 + d] - '0');
+        const char *word = NULL;
+        if (kiss_seed_word(idx, &word) != 0 || !word)   // 2048+ lands here
+            return -1;
+        int need = snprintf(out + o, out_len - o, "%s%s", w ? " " : "", word);
+        if (need < 0 || (size_t)need >= out_len - o)
+            return -1;
+        o += (size_t)need;
+    }
+    return 0;
+}
+
+int kiss_seed_from_qr(const char *data, size_t len, char *out, size_t out_len)
+{
+    if (out && out_len) out[0] = 0;      // never leave a stale value behind
+    if (!data || !out || out_len < 2 || len == 0)
+        return -1;
+
+    // SeedQR: the only all-digit form, and its lengths (48/96) cannot be
+    // mistaken for a CompactSeedQR (16/32).
+    if ((len == 48 || len == 96) && all_digits(data, len)) {
+        if (from_numeric_seedqr(data, len, out, out_len) != 0 ||
+            kiss_seed_validate(out) != 0 || kiss_seed_degenerate(out)) {
+            wally_bzero(out, out_len);
+            return -1;
+        }
+        return 0;
+    }
+
+    // CompactSeedQR is raw entropy and a plain QR is the words as text: the
+    // same two shapes an opened backup holds, through the same gates. A text
+    // QR may arrive in capitals, which the wordlist does not.
+    if (len != 16 && len != 32 && len < WSEED_MAX_MNEMONIC) {
+        char low[WSEED_MAX_MNEMONIC];
+        for (size_t i = 0; i < len; i++)
+            low[i] = (data[i] >= 'A' && data[i] <= 'Z') ? (char)(data[i] + 32) : data[i];
+        int rc = kiss_seed_from_plaintext(low, len, out, out_len);
+        wally_bzero(low, sizeof low);
+        return rc;
+    }
+    return kiss_seed_from_plaintext(data, len, out, out_len);
+}
+
 // ---- wordlist access ----
 int kiss_seed_word(int index, const char **out)
 {

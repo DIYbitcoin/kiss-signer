@@ -153,10 +153,18 @@ int kiss_seed_from_entropy(const uint8_t *entropy, size_t len,
 // data may contain NULs, so len is authoritative. 0 on success; out is always
 // NUL-terminated and is CLEARED on any failure (never a stale half-seed).
 //
-// This is the ONLY way a seed enters the device without being typed, and it is
-// the far side of a password. Nothing feeds it straight off the camera: the
-// signer used to read SeedQR and CompactSeedQR squares, and no longer does.
 int kiss_seed_from_plaintext(const char *data, size_t len, char *out, size_t out_len);
+
+// ---- seed QR -> words ----
+// One decoded QR payload that holds seed words with nothing over them, as
+// Krux and SeedSigner write them. Three shapes, told apart by content:
+//   * SeedQR: 48 or 96 ASCII digits, four per wordlist index
+//   * CompactSeedQR: 16 or 32 raw entropy bytes
+//   * a plain QR of the words as text, in either case
+// Same contract and the same degenerate gate as kiss_seed_from_plaintext.
+// This signer reads these and never writes one: its own QR backup is the
+// encrypted envelope (kiss_kef.h), which the scan tries first.
+int kiss_seed_from_qr(const char *data, size_t len, char *out, size_t out_len);
 
 // ---- wordlist access (RESTORE autocomplete + prove-backup quiz decoys) ----
 // Up to n wordlist words starting with prefix into out[]; returns the count.
@@ -238,10 +246,7 @@ int  kiss_seed_entropy_note(void);
 #define WSEED_SRC_DICE     2   // d6 rolls, hashed
 #define WSEED_SRC_CARDS    3   // the owner's own blind draw
 #define WSEED_SRC_RESTORE  4   // words typed in from elsewhere
-// 5 was a seed QR, which this signer no longer reads. The number stays retired
-// rather than reused: a device upgraded across the removal still has it in
-// flash, and made_labels answers it the way it answers any source it does not
-// recognise -- not recorded -- instead of naming whatever took its slot.
+#define WSEED_SRC_QR       5   // a seed QR, read off the camera
 #define WSEED_SRC_KEF      6   // an encrypted backup
 #define WSEED_SRC_COIN     7   // coin flips, hashed: the dice path in base 2.
                                // Its own number rather than folded into DICE,

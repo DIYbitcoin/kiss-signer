@@ -115,9 +115,10 @@ int kef_can_open(uint8_t version)
 
 int kef_sniff(const uint8_t *buf, size_t len)
 {
-    // 16 and 32 bytes are an envelope's own plaintext, and no envelope that
-    // small can hold a seed. A text mnemonic cannot collide either: its bytes
-    // are all >= 0x20 and every known version byte is < 0x20.
+    // 16 and 32 bytes are CompactSeedQR's, and an envelope's own plaintext,
+    // and no envelope that small can hold a seed. The other seed QR shapes
+    // cannot collide: their bytes are all >= 0x20 and every known version
+    // byte is < 0x20.
     if (len == 16 || len == 32) return 0;
     kef_env_t e;
     return kef_parse(buf, len, &e) == 0 ? 1 : 0;

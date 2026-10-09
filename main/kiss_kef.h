@@ -81,13 +81,11 @@ int kef_parse(const uint8_t *buf, size_t len, kef_env_t *out);
 int kef_can_open(uint8_t version);
 
 // 1 = structurally KEF and worth routing to the password/refusal path;
-// 0 = not KEF, and since the seed-QR door was removed that means the scan is
-// refused outright. Lengths 16 and 32 are 0 unconditionally: those are the
-// lengths of an envelope's own PLAINTEXT (raw BIP39 entropy), and no KEF
-// envelope that small can hold a seed, so an opened backup can never be
-// mistaken for another envelope. Every byte of a text mnemonic is >= 0x20 and
-// every KEF version byte is < 0x20, so the other plaintext shape cannot
-// collide either (both pinned by tests).
+// 0 = not KEF, let the seed QR reader have it. Lengths 16 and 32 are 0
+// unconditionally: those are CompactSeedQR's, and an envelope's own plaintext,
+// and no KEF envelope that small can hold a seed. Every byte a text mnemonic
+// or a numeric SeedQR can contain is >= 0x20, and every KEF version byte is
+// < 0x20, so no seed QR shape can ever sniff as KEF (pinned by tests).
 int kef_sniff(const uint8_t *buf, size_t len);
 
 // Writes the 5+id_len byte header. Returns its length, or 0 if it does not
