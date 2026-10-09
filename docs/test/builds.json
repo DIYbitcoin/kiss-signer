@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "boards": [
+    {
+      "id": "ws43",
+      "name": "Waveshare 4.3in",
+      "commit": "795d7061",
+      "built": "2026-10-08",
+      "images": [
+        {
+          "path": "firmware/kiss-test-795d7061-ws43-v1.bin",
+          "minChipRevision": 100,
+          "maxChipRevision": 199,
+          "size": 5022480,
+          "sha256": "233bd3de96e4a60a166918952a03854e0b39d6d19f1ab507569ade018de853d0"
+        },
+        {
+          "path": "firmware/kiss-test-795d7061-ws43-v3.bin",
+          "minChipRevision": 300,
+          "maxChipRevision": 399,
+          "size": 5038944,
+          "sha256": "e6b0e1016d55b0e5ada16c2268d3624167b5849fa15539609d83b53762e5701e"
+        }
+      ]
+    }
+  ]
+}
