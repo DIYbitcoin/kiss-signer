@@ -2024,6 +2024,34 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           type your passphrase, and check the fingerprint matches your paper.
           Your backup is the two pieces of paper.
         </p>
+        <h3 id="restore">Already have seed words</h3>
+        <ol>
+          <li>Draw <strong>K I S S</strong>, then <strong>SET UP THIS
+            SIGNER</strong> &rarr; <strong>RESTORE SEED WORDS</strong>.</li>
+          <li>Choose where to keep them, as above.</li>
+          <li>Choose <strong>12 WORDS</strong> or <strong>24 WORDS</strong>
+            and type each one, or choose <strong>SCAN MY BACKUP</strong> for an
+            encrypted backup QR made by KISS or Krux.</li>
+        </ol>
+        <p>
+          A SeedQR does not load. Type the seed words it holds instead.
+        </p>
+        <h3 id="scanning">What to scan, and where</h3>
+        <ul>
+          <li><strong>SIGN:</strong> the QR of the unsigned transaction your
+            coordinator shows. The signer then shows the signed one for your
+            coordinator to scan back.</li>
+          <li><strong>RECEIVE &rarr; VERIFY:</strong> an address QR, to check
+            it belongs to these keys.</li>
+          <li><strong>SCAN MY BACKUP:</strong> an encrypted backup QR, and
+            nothing else.</li>
+          <li><strong>KEYS:</strong> nothing to scan. The signer shows a QR
+            and your coordinator scans it.</li>
+        </ul>
+        <p>
+          The line next to the camera picture says what the signer sees. If it
+          finds nothing, make the code bigger on the other screen.
+        </p>
         <h3>What goes where</h3>
         <ul>
           <li>
