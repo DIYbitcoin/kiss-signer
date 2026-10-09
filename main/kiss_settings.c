@@ -1648,7 +1648,7 @@ void kiss_lang_picker_open(lv_obj_t *parent, void (*picked_cb)(void))
     // NO TITLE on the 3.5in: the grid is the page. Under the heading, on the
     // scaled 32px pitch, the seventh row sat in the band's moat and the eighth
     // below it, and a heading plus eight rows only fits above the floor at a
-    // pitch too small for a thumb. Twenty two names, each in its own script
+    // pitch too small for a thumb. Twenty three names, each in its own script
     // beside its flag, say what this screen is in every language at once;
     // the heading said it in one. Without it the rows get a 31px pitch from
     // the top and all eight end above the floor.
@@ -1665,7 +1665,7 @@ void kiss_lang_picker_open(lv_obj_t *parent, void (*picked_cb)(void))
     lv_obj_set_pos(t, SX(48), SY(30));
 #endif
 
-    // 22 locales in 3x8. Fixed rows keep every language one tap away without
+    // 23 locales in 3x8. Fixed rows keep every language one tap away without
     // scrolling, while the compact labels still leave room for each flag.
     // i18n_pick_order (generated) = alphabetical display order, decoupled
     // from the append-only enum whose index is the stored NVS value.
@@ -1679,7 +1679,7 @@ void kiss_lang_picker_open(lv_obj_t *parent, void (*picked_cb)(void))
     // at 67) keeps the same 9px of air it has always had. Three columns is not
     // a choice either: PORTUGUES (PORTUGAL) measures 185px at font14 and the
     // flag plus the flex pad take 40 more, so a fourth column has nowhere to
-    // go on 800px. 24 slots for 22 languages is the headroom this now has.
+    // go on 800px. 24 slots for 23 languages is the headroom this now has.
     for (int i = 0; i < I18N_LANG_N; i++) {
         int id = i18n_pick_order[i];
         const bool on = id == i18n_get_lang();

@@ -41,6 +41,7 @@ LANGS = [
     ("cs", "1f1e8-1f1ff"),
     ("hr", "1f1ed-1f1f7"),
     ("hu", "1f1ed-1f1fa"),
+    ("ms", "1f1f2-1f1fe"),
 ]
 
 c_lines = ['#include "lvgl.h"', ""]

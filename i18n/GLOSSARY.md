@@ -1,6 +1,6 @@
 # KISS Signer translation glossary
 
-The 22 locale files cover 20 languages. Spanish (`es-MX`, `es-ES`) and
+The 23 locale files cover 21 languages. Spanish (`es-MX`, `es-ES`) and
 Portuguese (`pt-BR`, `pt-PT`) have regional variants. The table below records
 shared Bitcoin terminology; regional copy still follows the vocabulary of its
 locale, such as `billetera` versus `cartera` and `arquivo` versus `ficheiro`.
@@ -127,12 +127,15 @@ locale, such as `billetera` versus `cartera` and `arquivo` versus `ficheiro`.
   pl `fraza dostępu`, ru `кодовая фраза`, tr `Passphrase`,
   vi `cụm mật khẩu`, ja `パスフレーズ`, ko `패스프레이즈`, and
   zh-CN `密码短语`; nb-NO `passordfrase`, sv-SE `lösenfras`, da-DK
-  `adgangsfrase`, cs-CZ `přístupová fráze`, hr-HR `kodna fraza`, and
-  hu-HU `jelmondat`. The Hungarian is a deliberate choice and not a
-  synonym pick: the translator of Trezor's Hungarian wrote down that they
-  rendered passphrase as `jelmondat` rather than `jelszó` precisely so it
-  could not be confused with a password, which is the rule above arrived at
-  independently. `jelszó` therefore stays reserved for an actual password.
+  `adgangsfrase`, cs-CZ `přístupová fráze`, hr-HR `kodna fraza`,
+  hu-HU `jelmondat`, and ms-MY `frasa laluan`. The Hungarian is a
+  deliberate choice and not a synonym pick: the translator of Trezor's
+  Hungarian wrote down that they rendered passphrase as `jelmondat` rather
+  than `jelszó` precisely so it could not be confused with a password, which
+  is the rule above arrived at independently. `jelszó` therefore stays reserved for an actual password.
+  Malay has the same pair built in: Bitcoin Core and BlueWallet both write
+  `frasa laluan` for the passphrase and `kata laluan` for a password, so the
+  KEF backup password is `kata laluan sandaran` and never a `frasa`.
 - A strong passphrase can protect funds when recovery words are exposed, but
   exposed words let an attacker test passphrase guesses offline. Never imply
   that a weak passphrase provides encryption-strength protection.
@@ -264,6 +267,20 @@ Do not use "signer" where the sentence means the key set, and do not use
 - **Hungarian may not use `„` (U+201E)**, its own opening quote, and neither may
   any locale. It is outside the generated font ranges, and a missing glyph hangs
   LVGL rather than drawing badly. ASCII `"` or no quotes.
+- **Malay is written with `anda` and bare imperatives**, as Bitcoin Core,
+  BlueWallet and Malaysian phone settings all are ("Imbas", "Masukkan kata
+  laluan"). No `sila` (please) on the device: it costs a word on every line
+  and no screen here is a request. The signer keeps the word `signer`, as
+  most of the other locales do: `penandatangan` is what Bitcoin Core writes for an
+  external signer, but at thirteen letters it could not hold the settings tab
+  strip, and the device names itself on its own home screen.
+- **Malay is all ASCII, so it is set in the narrow mono face** that Hungarian
+  could not use. That is the only reason its tab strip fits: SIGNER, PERISAI,
+  SANDARAN, PERANTI and AKHIR are 33 letters, the same as the English five.
+  `KESELAMATAN` for SECURITY and `MUKTAMAD` for NO UNDO were tried first,
+  and the walk could no longer find four of the five tabs by name. Any text
+  naming a tab (W_VBAD_B, S_STOP_NET_B, I_PERSIST_DEAD_PLAIN) must use these
+  exact words.
 
 ## Anchor terms
 
@@ -295,7 +312,7 @@ Do not use "signer" where the sentence means the key set, and do not use
 
 Decimal separator: de, es, fr, it, nl, pl, pt, ru, tr, and vi use a comma
 (`%u,%u sat/vB`), as do nb-NO, sv-SE, da-DK, cs-CZ, hr-HR, and hu-HU.
-ja, ko, and zh-CN keep the period.
+ja, ko, zh-CN, and ms-MY keep the period, as Malaysia does.
 
 ### Added European locale anchors
 
@@ -314,6 +331,34 @@ ja, ko, and zh-CN keep the period.
 | derivation path | derivasjonssti | härledningsväg | afledningssti | derivační cesta | put derivacije | származtatási útvonal |
 | watch-only | kun observasjon | endast bevakning | kun visning | pouze pro sledování | promatrački (watch-only) | megfigyelő |
 | CANCEL (keyboard) | AVBRYT | AVBRYT | AFBRYD | ZRUŠIT | OTKAŽI | MÉGSE |
+
+### Malay anchors
+
+| term | ms-MY |
+|---|---|
+| wallet | dompet |
+| signer (the device) | signer |
+| keys (what it holds) | kunci |
+| seed words | kata benih |
+| passphrase | frasa laluan |
+| password (KEF backup) | kata laluan |
+| fingerprint | cap jari |
+| address | alamat |
+| change (back) | baki |
+| transaction | transaksi |
+| fee | yuran |
+| silent payment | silent payment |
+| derivation path | laluan terbitan |
+| coordinator | koordinator |
+| pair (a coordinator) | gandingkan |
+| broadcast | siarkan |
+| backup | sandaran |
+| device | peranti |
+| decoy | umpan |
+| duress | paksaan |
+| slide (to act) | leret |
+| coin (heads / tails) | syiling (kepala / bunga) |
+| CANCEL (keyboard) | BATAL |
 
 Terminology sources: the [BIP39 specification](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki),
 [BIP32 specification](https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki),
@@ -351,6 +396,7 @@ recognition aliases, but does not override BIP semantics.
 | cs-CZ | [Trezor Czech wallet guidance](https://trezor.io/cs), [Czech Bitcoin glossary](https://btc-slovnik.cz/) plus the Bitcoin Core `cs` and BlueWallet `cs_CZ` corpora |
 | hr-HR | [Bitcoin Store seed-phrase guide](https://www.bitstore.net/hr/blog/sto-je-cryptotag/), [CroBitcoin wallet guide](https://crobitcoin.com/vodic/otvorite-wallet/) plus the Bitcoin Core `hr` and BlueWallet `hr_HR` corpora |
 | hu-HU | [Trezor Hungarian launch, where the translator records rendering passphrase as `jelmondat` not `jelszó`](https://kriptoakademia.com/2021/10/29/magyar-nyelvi-tamogatast-kap-a-trezor), [Bitcoin Bazis glossary](https://www.bitcoinbazis.hu/bitcoin-szojegyzek/), [bitcoin.org Hungarian](https://bitcoin.org/hu/) plus the Bitcoin Core `hu`, Electrum `hu`, Trezor Suite `hu` and BlueWallet `hu_hu` corpora |
+| ms-MY | the Bitcoin Core `ms` and BlueWallet `ms` corpora; `gandingkan` for pairing follows Android's own Malay Bluetooth wording |
 
 This corpus review can catch incorrect or imported terminology and regional
 drift. It is not a substitute for final in-context review by one native Bitcoin

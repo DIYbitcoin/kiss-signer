@@ -57,6 +57,7 @@ LOCALES = [
     ("cs-CZ", "cs", "lat", "ČEŠTINA"),
     ("hr-HR", "hr", "lat", "HRVATSKI"),
     ("hu-HU", "hu", "lat", "MAGYAR"),
+    ("ms-MY", "ms", "lat", "MELAYU"),
 ]
 
 # Every locale that has shipped in a release, frozen at its NVS value. A

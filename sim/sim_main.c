@@ -6107,7 +6107,7 @@ int main(void) {
   // LANGUAGE lives on the action band now, its label the active language's
   // own name -- so it is on EVERY tab, and the picker behind it is unchanged.
   band_lang();                                      // -> the full screen picker
-  save("/tmp/sim_lang_picker.ppm");                 // 22 locale choices, current selected
+  save("/tmp/sim_lang_picker.ppm");                 // 23 locale choices, current selected
   {                                                 // re-pick the ACTIVE language so a
     int li = kiss_lang_pick_slot(i18n_get_lang()); // SIM_LANG walk stays in its locale
     // The cells are flag + word now, left aligned and content sized, so the
