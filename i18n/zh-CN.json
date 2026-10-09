@@ -371,6 +371,7 @@
   "L_RECOVER_T": "尚未存入本设备",
   "L_SCAN_BTN": "扫描",
   "L_SCAN_GO": "扫描",
+  "L_SCAN_REFUSED": "此键盘无法输入该二维码的内容。",
   "L_SCAN_WARN_B": "能读到这个二维码的人\n就能打开这组密钥。\n\n拍下来的照片和二维码一样。\n\n扫到什么就照样使用。",
   "L_SCAN_WARN_S": "先读这个",
   "L_SCAN_WARN_T": "用二维码输入密码短语",

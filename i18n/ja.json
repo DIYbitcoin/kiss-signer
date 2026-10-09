@@ -371,6 +371,7 @@
   "L_RECOVER_T": "まだこの端末にありません",
   "L_SCAN_BTN": "スキャン",
   "L_SCAN_GO": "スキャン",
+  "L_SCAN_REFUSED": "このキーボードではそのQRを入力できません。",
   "L_SCAN_WARN_B": "そのQRを読める人は\nこの鍵を開けます。\n\n写真もQRと同じです。\n\n読み取りは表示のとおりに使われます。",
   "L_SCAN_WARN_S": "先に読んでください",
   "L_SCAN_WARN_T": "QRからパスフレーズ",

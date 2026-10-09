@@ -371,6 +371,7 @@
   "L_RECOVER_T": "HENÜZ BU CİHAZDA DEĞİL",
   "L_SCAN_BTN": "TARA",
   "L_SCAN_GO": "TARA",
+  "L_SCAN_REFUSED": "BU KLAVYE O QR'I YAZAMAZ.",
   "L_SCAN_WARN_B": "bu QR kodu okuyabilen herkes\nbu anahtarları açabilir.\n\nfotoğrafı da QR ile aynıdır.\n\ntarama tam basıldığı gibi kullanılır.",
   "L_SCAN_WARN_S": "önce bunu oku",
   "L_SCAN_WARN_T": "QR İLE PASSPHRASE",

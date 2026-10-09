@@ -371,6 +371,7 @@
   "L_RECOVER_T": "NOG NIET OP DIT APPARAAT",
   "L_SCAN_BTN": "SCANNEN",
   "L_SCAN_GO": "SCANNEN",
+  "L_SCAN_REFUSED": "DIT TOETSENBORD KAN DIE QR NIET TYPEN.",
   "L_SCAN_WARN_B": "wie die QR kan lezen kan\ndeze sleutels openen.\n\neen foto ervan is hetzelfde als de QR.\n\nde scan wordt precies zo gebruikt als gedrukt.",
   "L_SCAN_WARN_S": "lees dit eerst",
   "L_SCAN_WARN_T": "PASSPHRASE UIT EEN QR",

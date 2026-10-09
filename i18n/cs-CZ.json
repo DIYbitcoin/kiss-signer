@@ -371,6 +371,7 @@
   "L_RECOVER_T": "V TOMTO ZAŘÍZENÍ JEŠTĚ NE",
   "L_SCAN_BTN": "SKEN",
   "L_SCAN_GO": "NAČÍST QR",
+  "L_SCAN_REFUSED": "TATO KLÁVESNICE TENTO QR NENAPÍŠE.",
   "L_SCAN_WARN_B": "kdo přečte ten QR, otevře\ntyto klíče.\n\nfotka toho QR je totéž co QR.\n\nsken se použije přesně tak, jak je vytištěn.",
   "L_SCAN_WARN_S": "přečti si to nejdřív",
   "L_SCAN_WARN_T": "PŘÍSTUPOVÁ FRÁZE Z QR",

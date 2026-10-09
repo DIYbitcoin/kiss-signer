@@ -371,6 +371,7 @@
   "L_RECOVER_T": "IKKE PÅ DENNE ENHETEN ENNÅ",
   "L_SCAN_BTN": "SKANN",
   "L_SCAN_GO": "SKANN DEN",
+  "L_SCAN_REFUSED": "TASTATURET KAN IKKE SKRIVE DEN QR-EN.",
   "L_SCAN_WARN_B": "den som kan lese den QR-koden kan åpne\ndisse nøklene.\n\net bilde av den er det samme som QR-koden.\n\nskanningen brukes nøyaktig som trykt.",
   "L_SCAN_WARN_S": "les dette først",
   "L_SCAN_WARN_T": "PASSORDFRASE FRA EN QR",

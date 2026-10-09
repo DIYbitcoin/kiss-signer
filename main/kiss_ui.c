@@ -611,8 +611,17 @@ static void flash_last(void) {
 #else
 #define CAP_W SX(486)
 #endif
+// What the caption says now, kept so a refused scan can hand the stage prompt
+// back (scan_cap_restore). Every caller passes a tr() string, which lives as
+// long as the firmware does.
+static const char *s_cap_txt;
+static lv_color_t s_cap_col;
+static bool s_cap_alert;
 static void cap_set(const char *txt, lv_color_t col, bool alert) {
   if (!s_cap) return;
+  s_cap_txt = txt;
+  s_cap_col = col;
+  s_cap_alert = alert;
   lv_label_set_text(s_cap, txt);
   lv_obj_set_style_text_color(s_cap, col, 0);
   // The ladder on EVERY path. This branched on `alert`, which is a colour
@@ -637,8 +646,30 @@ static void cap_set(const char *txt, lv_color_t col, bool alert) {
 #endif
 }
 
+// A refused scan says so in the caption, over whatever prompt was there. The
+// next edit or a scan that is used puts that prompt back; anything else that
+// sets the caption in between has moved the stage on, and wins.
+static const char *s_cap_prev_txt;
+static lv_color_t s_cap_prev_col;
+static bool s_cap_prev_alert;
+static void scan_cap_refuse(void) {
+  const char *msg = tr(STR_L_SCAN_REFUSED);
+  if (s_cap_txt != msg) {
+    s_cap_prev_txt = s_cap_txt;
+    s_cap_prev_col = s_cap_col;
+    s_cap_prev_alert = s_cap_alert;
+  }
+  cap_set(msg, WT_STOP, true);
+}
+
+static void scan_cap_restore(void) {
+  if (s_cap_txt == tr(STR_L_SCAN_REFUSED) && s_cap_prev_txt)
+    cap_set(s_cap_prev_txt, s_cap_prev_col, s_cap_prev_alert);
+}
+
 // after a weak-ack warning, any edit returns the caption to the stage prompt
 static void setup_cap_reset(void) {
+  scan_cap_restore();
   if ((!s_setup_mode && !s_kef_create) || !s_weak_ack || !s_cap) return;
   s_weak_ack = false;
   if (s_kef_mode) {
@@ -2352,16 +2383,22 @@ static void kb_long_cb(lv_event_t *e) {
 // The scanned text becomes the passphrase exactly as decoded, including case
 // and spaces: a passphrase that cannot be reproduced byte for byte is a wallet
 // nobody can reopen. Refuse anything the keyboard could not have typed, for
-// the same reason (see the printable-ASCII rule above).
+// the same reason (see the printable-ASCII rule above), and say so: a refusal
+// with no word looked like the scan had simply not happened.
 // The scan screen closes itself before calling back, so the keyboard underneath
 // is already visible again: fill it in place rather than rebuilding it (which
 // kiss_login_open would refuse to do anyway while a login is open).
 static void pp_scan_text_cb(const char *txt, size_t len) {
-  if (!s_login || len == 0 || len > PASS_MAX)
-    return;                                 // unusable: leave what was typed
-  for (size_t i = 0; i < len; i++)
+  if (!s_login) return;
+  bool typeable = len > 0 && len <= PASS_MAX;
+  for (size_t i = 0; typeable && i < len; i++)
     if (txt[i] < 0x20 || txt[i] > 0x7E)
-      return;
+      typeable = false;
+  if (!typeable) {
+    scan_cap_refuse();                      // and leave what was typed
+    return;
+  }
+  scan_cap_restore();
   memcpy(s_pass, txt, len);
   s_pass[len] = 0;
   s_plen = (int)len;

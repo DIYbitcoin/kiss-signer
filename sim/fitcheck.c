@@ -297,11 +297,13 @@ static const slot_t SLOTS[] = {
 #if KISS_NARROW
     { "login/cap-again",  STR_L_TYPE_AGAIN,     312 - 12 - SX(48), SY(58) },
     { "login/cap-nomatch",STR_L_NO_MATCH,       312 - 12 - SX(48), SY(58) },
+    { "login/cap-scanno", STR_L_SCAN_REFUSED,   312 - 12 - SX(48), SY(58) },
     { "login/cap-badpass",STR_L_BACKUP_PASS_BAD,392 - 12 - SX(48), SY(58) },
     { "login/cap-verify", STR_L_VERIFY_PASS,    392 - 12 - SX(48), SY(58) },
 #else
     { "login/cap-again",  STR_L_TYPE_AGAIN,     SX(486), SY(58) },
     { "login/cap-nomatch",STR_L_NO_MATCH,       SX(486), SY(58) },
+    { "login/cap-scanno", STR_L_SCAN_REFUSED,   SX(486), SY(58) },
     { "login/cap-badpass",STR_L_BACKUP_PASS_BAD,SX(486), SY(58) },
     { "login/cap-verify", STR_L_VERIFY_PASS,    SX(486), SY(58) },
 #endif

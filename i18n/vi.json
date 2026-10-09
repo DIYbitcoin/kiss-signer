@@ -371,6 +371,7 @@
   "L_RECOVER_T": "CHƯA CÓ TRÊN THIẾT BỊ NÀY",
   "L_SCAN_BTN": "QUÉT",
   "L_SCAN_GO": "QUÉT MÃ",
+  "L_SCAN_REFUSED": "BÀN PHÍM NÀY KHÔNG GÕ ĐƯỢC MÃ QR ĐÓ.",
   "L_SCAN_WARN_B": "ai đọc được QR đó đều mở được\nbộ khóa này.\n\nảnh chụp nó cũng như chính QR.\n\nbản quét được dùng đúng như in ra.",
   "L_SCAN_WARN_S": "đọc cái này trước",
   "L_SCAN_WARN_T": "CỤM MẬT KHẨU TỪ QR",

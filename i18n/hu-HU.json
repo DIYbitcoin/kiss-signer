@@ -371,6 +371,7 @@
   "L_RECOVER_T": "EZEN AZ ESZKÖZÖN MÉG NINCS",
   "L_SCAN_BTN": "OLVASD",
   "L_SCAN_GO": "OLVASD BE",
+  "L_SCAN_REFUSED": "EZT A QR-KÓDOT ITT NEM LEHET BEGÉPELNI.",
   "L_SCAN_WARN_B": "aki be tudja olvasni azt a QR-kódot,\nmeg tudja nyitni ezeket a kulcsokat.\n\negy fotó róla ugyanaz, mint a QR-kód.\n\na beolvasás pontosan a nyomtatott szöveget használja.",
   "L_SCAN_WARN_S": "ezt olvasd el először",
   "L_SCAN_WARN_T": "JELMONDAT QR-KÓDBÓL",

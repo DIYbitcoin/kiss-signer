@@ -371,6 +371,7 @@
   "L_RECOVER_T": "NOT ON THIS DEVICE YET",
   "L_SCAN_BTN": "SCAN",
   "L_SCAN_GO": "SCAN IT",
+  "L_SCAN_REFUSED": "THIS KEYBOARD CANNOT TYPE THAT QR.",
   "L_SCAN_WARN_B": "whoever can read that QR can open\nthese keys.\n\na photo of it is the same as the QR.\n\nthe scan is used exactly as printed.",
   "L_SCAN_WARN_S": "read this first",
   "L_SCAN_WARN_T": "PASSPHRASE FROM A QR",

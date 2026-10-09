@@ -371,6 +371,7 @@
   "L_RECOVER_T": "INTE PÅ DEN HÄR ENHETEN ÄN",
   "L_SCAN_BTN": "SKANNA",
   "L_SCAN_GO": "SKANNA DEN",
+  "L_SCAN_REFUSED": "TANGENTBORDET KAN INTE SKRIVA DEN QR-KODEN.",
   "L_SCAN_WARN_B": "den som kan läsa den QR-koden kan öppna\ndessa nycklar.\n\nett foto av den är samma sak som QR-koden.\n\nskanningen används exakt som den är tryckt.",
   "L_SCAN_WARN_S": "läs det här först",
   "L_SCAN_WARN_T": "LÖSENFRAS FRÅN EN QR",

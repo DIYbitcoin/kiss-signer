@@ -371,6 +371,7 @@
   "L_RECOVER_T": "AINDA NÃO NESTE DISPOSITIVO",
   "L_SCAN_BTN": "LER QR",
   "L_SCAN_GO": "LER O QR",
+  "L_SCAN_REFUSED": "ESTE TECLADO NÃO CONSEGUE ESCREVER ESSE QR.",
   "L_SCAN_WARN_B": "quem conseguir ler esse QR pode abrir\nestas chaves.\n\numa foto dele é igual ao QR.\n\no scan é usado exatamente como impresso.",
   "L_SCAN_WARN_S": "leia isto primeiro",
   "L_SCAN_WARN_T": "PASSPHRASE DE UM QR",

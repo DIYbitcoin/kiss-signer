@@ -7523,6 +7523,15 @@ int main(void) {
   touch(725, 430); pump(3); release(); pump(20);    // OK -> unlocked -> login
   save("/tmp/sim_amnesic_pass.ppm");                // straight to the passphrase
 
+  // A QR the keyboard could not have typed is refused, and the caption says
+  // so: it used to drop back to the keyboard with no word at all.
+  touch(596, 38); pump(3); release(); pump(6);      // SCAN
+  tap_str(STR_L_SCAN_GO, 3, 6);
+  kiss_scan_inject("caf\xc3\xa9", 5);              // "cafe" with an accent
+  pump(6);
+  save("/tmp/sim_pp_scan_refused.ppm");
+  must_show("passphrase scan/non-ASCII refused", tr(STR_L_SCAN_REFUSED));
+
   // a passphrase can come from a QR too, behind one warning screen
   touch(596, 38); pump(3); release(); pump(6);      // SCAN
   save("/tmp/sim_amnesic_ppwarn.ppm");              // PASSPHRASE FROM A QR
@@ -7530,6 +7539,8 @@ int main(void) {
   kiss_scan_inject("correct horse battery staple correct horse battery "
                      "staple correct horse battery staple xyz", 90);
   pump(6);
+  must_not_show("passphrase scan/used scan clears the refusal",
+                tr(STR_L_SCAN_REFUSED));
   touch(696, 38); pump(3); release(); pump(4);      // SHOW
   save("/tmp/sim_kb_show_long.ppm");                // 90 chars, wrapped not "..."
   for (int i = 0; i < 90; i++) { touch(752, 355); pump(1); release(); pump(1); }
