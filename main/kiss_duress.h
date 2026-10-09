@@ -175,10 +175,12 @@ int kiss_duress_word_set(const uint8_t *marks, int n);
 // what is left over, and kiss_duress_route still decides.
 int kiss_duress_word_match(const uint8_t *marks, int n);
 
-// Which signer a custom word opens. `marked` is whether a mark followed it.
-// The same rule as kiss_duress_route and implemented on top of it, so a WDF_*
-// id never has to be passed into a WDG_* parameter.
-int kiss_duress_route_marked(bool word_ok, bool marked);
+// Which signer a custom word opens. `marked` is whether a mark followed it;
+// `stroke` is that mark read against the drawing's own box by
+// kiss_duress_classify, WDG_NONE when it is no shape it knows. With no swipe
+// chosen any mark reaches the passphrase, as it always has; with one chosen,
+// only that swipe does, exactly as after KISS.
+int kiss_duress_route_marked(bool word_ok, bool marked, int stroke);
 
 // Display name key for a modifier id (an STR_* index from i18n_keys.h), so the
 // picker and the confirm screens name them identically. Returns -1 if invalid.

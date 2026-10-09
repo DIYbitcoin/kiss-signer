@@ -228,21 +228,28 @@ int test_duress(void) {
         dchk("the bare word opens the decoy whatever is configured", bare_stable);
     }
 
-    // A custom drawing's final mark is a FREE mark with no word box behind it,
-    // so it has no WDG_* identity to compare. That path stays any-mark on
-    // purpose, and must not start depending on the stroke: it used to hand
-    // kiss_duress_route a fabricated WDG_STRIKE, which now would mean "works
-    // only for owners who happened to pick line-through".
+    // A custom drawing's mark is read against the drawing's own box, so it has
+    // a WDG_* identity and the chosen swipe applies after it as after KISS.
+    // With nothing chosen any mark still opens the real keys, scribbles too.
     {
-        int marked_ok = 1;
+        int bare_ok = 1, open_ok = 1, chosen_ok = 1;
+        kiss_duress_set(WDG_NONE);
+        for (int s = WDG_NONE; s < WDG_N; s++)
+            if (kiss_duress_route_marked(true, true, s) != WDR_REAL) open_ok = 0;
         for (int cfg = WDG_NONE; cfg < WDG_N; cfg++) {
             kiss_duress_set(cfg);
-            if (kiss_duress_route_marked(true, true) != WDR_REAL) marked_ok = 0;
-            if (kiss_duress_route_marked(true, false) != WDR_DECOY) marked_ok = 0;
-            if (kiss_duress_route_marked(false, true) != WDR_NONE) marked_ok = 0;
+            if (kiss_duress_route_marked(true, false, WDG_NONE) != WDR_DECOY) bare_ok = 0;
+            if (kiss_duress_route_marked(false, true, cfg) != WDR_NONE) bare_ok = 0;
+            if (cfg == WDG_NONE) continue;
+            for (int s = WDG_NONE; s < WDG_N; s++) {
+                const int want = (s == cfg) ? WDR_REAL : WDR_DECOY;
+                if (kiss_duress_route_marked(true, true, s) != want) chosen_ok = 0;
+            }
         }
-        dchk("a custom drawing routes on any mark, whatever stroke is set",
-             marked_ok);
+        dchk("a custom drawing alone opens the spare, whatever is set", bare_ok);
+        dchk("a custom drawing with no swipe chosen opens on any mark", open_ok);
+        dchk("a custom drawing with a swipe chosen opens only on that swipe",
+             chosen_ok);
     }
     kiss_duress_set(WDG_NONE);
 

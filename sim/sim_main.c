@@ -2471,6 +2471,17 @@ static void draw_cover_underlined(void)
   pump(40);
 }
 
+// The word, then one diagonal across all of it: WDG_SLASH, the wrong swipe
+// for a device whose chosen one is the underline.
+static void draw_cover_slashed(void)
+{
+  draw_cover_word();
+  pump(2);
+  for (int i = 0; i <= 20; i++) { touch(150 + i * 20, 125 + i * 9); pump(1); }
+  release();
+  pump(40);
+}
+
 // The two tap way in, drawn where a finger draws it: the same corner twice,
 // well inside CW_QT_MS. Coordinates are the top left box kiss_coverword.h
 // defines, which is also where the logo sits on the home screen.
@@ -3219,6 +3230,38 @@ int main(void) {
       touch(725, 430); pump(3); release(); pump(25);
       tap_str(STR_L_TAP_TO_OPEN, 3, 12);
       pump(120);
+
+      // With a swipe chosen, the drawing obeys it exactly as KISS does: the
+      // wrong shape opens the spare, the chosen one asks for the passphrase.
+      kiss_duress_set(WDG_UNDERLINE);
+      lock_to_menu();
+      g_last_unlock_kind = -2;
+      draw_cover_slashed();
+      if (g_last_unlock_kind != WDR_DECOY) {
+        printf("FAIL: written word: the wrong swipe routed %d, expected WDR_DECOY (%d)\n",
+               g_last_unlock_kind, WDR_DECOY);
+        g_walk_fails++;
+      }
+      must_not_show("written/wrong-swipe", tr(STR_L_TYPE_PROMPT));
+      lock_to_menu();
+      g_last_unlock_kind = -2;
+      draw_cover_underlined();
+      if (g_last_unlock_kind != WDR_REAL) {
+        printf("FAIL: written word: the chosen swipe routed %d, expected WDR_REAL (%d)\n",
+               g_last_unlock_kind, WDR_REAL);
+        g_walk_fails++;
+      }
+      type_pass9();
+      touch(725, 430); pump(3); release(); pump(25);
+      tap_str(STR_L_TAP_TO_OPEN, 3, 12);
+      pump(120);
+      kiss_duress_set(WDG_NONE);
+      // One frame more, so the rest of the walk keeps its phase against the
+      // input poll, which comes round every three frames. Without it every
+      // later press photographed mid fade (sim_recv_held, the sign row held
+      // and pressed) lands on another shade of the wash and the contrast gate
+      // counts each shade as a new pairing.
+      pump(1);
 
       // A FAILED attempt must not poison the next one. Every case above is
       // preceded by lock_to_menu() and a long pump, so the walk had only ever

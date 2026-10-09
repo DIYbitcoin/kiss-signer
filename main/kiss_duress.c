@@ -234,25 +234,26 @@ int kiss_duress_label_key(int gesture)
 // The same rule, stated for a word made of FREE marks. `marked` is simply
 // whether a mark followed the word.
 //
-// Routed through kiss_duress_route rather than repeating its body, so there
-// stays exactly one place in this firmware that decides which signer a draw
-// opens. The WDG id handed over is a stand-in for "yes, there was one", which
-// is the only thing route reads -- and it is written here rather than at the
-// call site so that a WDF_* id is never passed into a WDG_* parameter. Those
-// two sets share numbers and mean different things; letting them meet would be
-// the bug the separate enum exists to prevent.
-int kiss_duress_route_marked(bool word_ok, bool marked)
+// The mark is measured against the drawing's own bounding box, the way a mark
+// after KISS is measured against KISS, so it carries a real WDG_* identity and
+// the chosen swipe means the same thing whichever word comes before it. An
+// owner who set a drawing and then a swipe used to find the swipe ignored:
+// any mark at all opened the real keys.
+int kiss_duress_route_marked(bool word_ok, bool marked, int stroke)
 {
     if (!word_ok)
         return WDR_NONE;
-    // A custom drawing's final mark is a FREE mark: classified with no word box
-    // to measure it against, so it carries no WDG_* identity that could be
-    // compared with the configured stroke. On that path the DRAWING is the
-    // secret and the mark is only ever "yes, there was one". Said here rather
-    // than by handing kiss_duress_route a fabricated WDG_STRIKE, which used to
-    // be true by accident and would now silently mean "matches only owners who
-    // picked line-through".
-    return marked ? WDR_REAL : WDR_DECOY;
+    if (!marked)
+        return WDR_DECOY;
+    // No swipe chosen: any mark reaches the passphrase, which is the way in a
+    // drawing has always had, scribbles included. Routing those through the
+    // classifier would send an owner who never opened the picker to the spare
+    // the first time their mark is not one of the six shapes.
+    if (kiss_duress_real() == WDG_NONE)
+        return WDR_REAL;
+    // Chosen: only theirs. A wrong shape or a scribble lands on the spare,
+    // where no mark lands, so the two cannot be told apart from outside.
+    return kiss_duress_route(true, stroke);
 }
 
 int kiss_duress_route(bool word_ok, int stroke)

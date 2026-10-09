@@ -2168,6 +2168,30 @@ static int written_word_match(const gw_template_t *stored)
     return gw_matches(stored, &t) ? stored->strokes : 0;
 }
 
+// The one mark after the owner's own word, read the way a mark after KISS is:
+// against the bounding box of the word's ink, here the first `word_strokes`
+// strokes. WDG_NONE when there is no mark or it is no shape the classifier
+// knows.
+static int word_mark(int word_strokes)
+{
+    int bx0 = 0, by0 = 0, bx1 = -1, by1 = -1, n = 0;
+    for (int i = 0; i < s_gn; i++) {
+        const int x = s_gpt[i].x, y = s_gpt[i].y;
+        if (s_gid[i] <= word_strokes) {
+            if (bx1 < bx0) { bx0 = bx1 = x; by0 = by1 = y; continue; }
+            if (x < bx0) bx0 = x;
+            if (x > bx1) bx1 = x;
+            if (y < by0) by0 = y;
+            if (y > by1) by1 = y;
+        } else {
+            s_mx[n] = x; s_my[n] = y; n++;
+        }
+    }
+    if (bx1 < bx0 || n == 0)
+        return WDG_NONE;
+    return kiss_duress_classify(s_mx, s_my, n, bx0, by0, bx1, by1);
+}
+
 // A word used to be read as a run of classified free marks, one per stroke;
 // free_marks lived here and did that. 1b24d57 replaced it with shape matching
 // (written_word_match above), which asks whether the draw LOOKS like the one it
@@ -2197,10 +2221,10 @@ static int unlock_kind(void) {
   // Island, the branding only exists past the unlock, and a device that does
   // not answer to the word has the honest cover story of not being a signer.
   //
-  // Same two doors, same rule. The word alone opens the spare; the word plus
-  // one more mark asks for the passphrase. kiss_duress_route still decides,
-  // through route_marked, so the property the audit closed holds here too --
-  // the door is picked by whether there was an extra mark, never by which one.
+  // Same two doors, same rule as KISS. The word alone opens the spare; the
+  // word plus one more mark asks for the passphrase, and once a swipe is
+  // chosen that mark has to be it. kiss_duress_route still decides, through
+  // route_marked, so the bare word opens the spare whatever is configured.
   gw_template_t stored;
   if (gw_stored_get(&stored)) {
     int used = written_word_match(&stored);
@@ -2211,7 +2235,8 @@ static int unlock_kind(void) {
     // in either -- a door is the word and at most one mark, never a paragraph.
     int k = WDR_NONE;
     if (used > 0 && n - used <= 1)
-      k = kiss_duress_route_marked(true, n - used == 1);
+      k = kiss_duress_route_marked(true, n - used == 1,
+                                   n - used == 1 ? word_mark(used) : WDG_NONE);
     // DECIDED: a draw that can no longer become the word is cleared HERE, on
     // the lift, not left to the 3s idle. The word is the FIRST stored.strokes
     // strokes of the buffer, so once that many have been drawn without
