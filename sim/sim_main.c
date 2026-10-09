@@ -6395,9 +6395,12 @@ int main(void) {
   }
   save("/tmp/sim_setup_storage.ppm");               // FLASH / SD CARD / AMNESIC
   touch(174, 144); pump(3); release(); pump(4);     // FLASH
-  // restoring shows a third option here: an encrypted backup carries its own
-  // length, so it sits beside 12/24 rather than after them
-  save("/tmp/sim_setup_count_restore.ppm");         // 12 / 24 / SCAN LOCKED QR
+  // restoring asks first what the words are on: paper, a QR or a card. Only
+  // typing goes on to the count.
+  save("/tmp/sim_setup_restore_how.ppm");           // TYPE / SCAN A QR / SD CARD
+  must_show("setup/restore how", tr(STR_W_RESTORE_HOW_S));
+  tap_str(STR_W_TYPE_MY_WORDS, 3, 4);               // TYPE MY SEED WORDS
+  save("/tmp/sim_setup_count_restore.ppm");         // 12 / 24
   touch(218, 176); pump(3); release(); pump(4);     // 12 WORDS
   save("/tmp/sim_setup_restore.ppm");
   type_restore_prefix(SIM_12_PREFIXES[0]);
@@ -8215,6 +8218,7 @@ int main(void) {
   // twelve times.
   touch(218, 240); pump(3); release(); pump(4);     // RESTORE FROM WORDS
   touch(174, 144); pump(3); release(); pump(4);     // FLASH
+  tap_str(STR_W_TYPE_MY_WORDS, 3, 4);               // TYPE MY SEED WORDS
   touch(218, 176); pump(3); release(); pump(4);     // 12 WORDS
   for (int i = 0; i < 12; i++) restore_word("g");   // the same word, twelve times
   pump(6);

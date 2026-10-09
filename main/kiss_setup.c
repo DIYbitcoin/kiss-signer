@@ -116,7 +116,8 @@ static void whatseed_count_cb(lv_event_t *e);   // the seed explainer, count scr
 // only the way back differs.
 static void restore_scan_cb(lv_event_t *e);
 static void cancel_cb(lv_event_t *e);
-static void goto_count_cb(lv_event_t *e);
+static void how_screen(void);
+static void goto_how_cb(lv_event_t *e);
 static bool s_qr_from_restore;
 static void entropy_screen(void);
 static void dice_screen(void);
@@ -3660,33 +3661,22 @@ static void count_screen(void)
     // explaining why a title is unconditional.
     mk_screen(s_restore ? tr(STR_W_RESTORE_T) : tr(STR_W_NEW_T), tr(STR_W_HOWMANY));
     // Rows, on the chooser grid the storage and create-or-restore screens use.
-    // Three pills each trailing a note in a column 380px away was the last
-    // place on this device where a control and its explanation were separate
-    // objects that happened to share a y.
+    // LIST for a count of words. No tick on either: the paper decides how many
+    // words there are, so the device has no current answer to mark.
     //
-    // LIST for a count of words, and WT_ICON_QR for the locked backup, which
-    // carries its own. No tick on any of them: the paper decides how many words
-    // there are, so the device has no current answer to mark.
-    // One size across all three, the third included: it is on the page whenever
-    // restoring, and it is the row whose sentence is shortest.
-    const char *const CSUB[3] = { tr(STR_W_12_NOTE), tr(STR_W_24_NOTE),
-                                  tr(STR_W_LOAD_SCAN_NOTE) };
-    const lv_font_t *csf = wt_row_sub_font(CSUB, s_restore ? 3 : 2,
-                                           WT_CHOICE_W, SETUP_CHOICE_H, true, true);
+    // Only typing reaches this screen. A QR or a card carries its own length,
+    // and both are offered one screen earlier (how_screen), so this page asks
+    // one question and every answer on it is a number.
+    const char *const CSUB[2] = { tr(STR_W_12_NOTE), tr(STR_W_24_NOTE) };
+    const lv_font_t *csf = wt_row_sub_font(CSUB, 2, WT_CHOICE_W, SETUP_CHOICE_H,
+                                           true, true);
     wt_row_x(s_scr, LV_SYMBOL_LIST, tr(STR_W_12), tr(STR_W_12_NOTE), csf,
              NULL, NULL, WT_INK, false, WT_CHOICE_X, SETUP_CHOICE_Y(0),
              WT_CHOICE_W, SETUP_CHOICE_H, count_pick_cb, (void *)(intptr_t)12);
     wt_row_x(s_scr, LV_SYMBOL_LIST, tr(STR_W_24), tr(STR_W_24_NOTE), csf,
              NULL, NULL, WT_INK, false, WT_CHOICE_X, SETUP_CHOICE_Y(1),
              WT_CHOICE_W, SETUP_CHOICE_H, count_pick_cb, (void *)(intptr_t)24);
-    // An encrypted backup carries its own length, so it sits beside the count
-    // rather than after it.
-    if (s_restore)
-        wt_row_x(s_scr, WT_ICON_QR, tr(STR_W_SCAN_KEF_QR),
-                 tr(STR_W_LOAD_SCAN_NOTE), csf, NULL, NULL, WT_INK, false,
-                 WT_CHOICE_X, SETUP_CHOICE_Y(2), WT_CHOICE_W, SETUP_CHOICE_H,
-                 restore_scan_cb, NULL);
-    else {
+    if (!s_restore) {
         // UNREACHABLE, and left standing on purpose for one release.
         //
         // This was the seed explainer's second door: creating, row 2 was free,
@@ -3707,18 +3697,46 @@ static void count_screen(void)
         lv_obj_add_flag(hc, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_add_event_cb(hc, whatseed_count_cb, LV_EVENT_CLICKED, NULL);
     }
-    // Restore is the only way in now, so BACK has one destination again.
+    // BACK to the screen that sent the owner here: the restore chooser, or
+    // the amnesic load screen, which offers the same three ways in.
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_BACK_X,
+                    WT_ACTION_Y, SX(140), true, goto_how_cb, NULL);
+}
+
+// ---- restore: what the seed words are on ----
+// One question per screen. The count screen used to offer SCAN MY BACKUP as a
+// third answer to "how many seed words?", and a tester holding a SeedQR read
+// "backup" as somebody else's encrypted file and stopped there. This asks
+// first what the owner is holding -- paper, a QR, a card -- and only typing
+// goes on to the count. The amnesic load screen draws the same three rows,
+// so both doors teach one shape.
+static void how_type_cb(lv_event_t *e) { (void)e; count_screen(); }
+
+static void how_rows(lv_event_cb_t type_cb, lv_event_cb_t scan_cb,
+                     lv_event_cb_t sd_cb)
+{
+    static const char *const ICON[3] = {
+        LV_SYMBOL_KEYBOARD, WT_ICON_QR, WT_ICON_SD
+    };
+    const int LBL[3] = { STR_W_TYPE_MY_WORDS, STR_W_SCAN_KEF_QR, STR_S_FROM_SD };
+    const lv_event_cb_t CB[3] = { type_cb, scan_cb, sd_cb };
+    const char *const SUB[3] = { tr(STR_W_LOAD_TYPE_NOTE),
+                                 tr(STR_W_LOAD_SCAN_NOTE),
+                                 tr(STR_W_LOAD_SD_NOTE) };
+    const lv_font_t *f = wt_row_sub_font(SUB, 3, WT_CHOICE_W, SETUP_CHOICE_H,
+                                         true, true);
+    for (int i = 0; i < 3; i++)
+        wt_row_x(s_scr, ICON[i], tr(LBL[i]), SUB[i], f, NULL, NULL, WT_INK,
+                 false, WT_CHOICE_X, SETUP_CHOICE_Y(i), WT_CHOICE_W,
+                 SETUP_CHOICE_H, CB[i], NULL);
+}
+
+static void how_screen(void)
+{
+    mk_screen(tr(STR_W_RESTORE_T), tr(STR_W_RESTORE_HOW_S));
+    how_rows(how_type_cb, restore_scan_cb, kef_sd_open_restore_cb);
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_BACK_X,
                     WT_ACTION_Y, SX(140), true, goto_choose_cb, NULL);
-    // The same envelope off the card instead of the glass: a .kef file. The
-    // chooser grid is full at three, so the card path sits on the action row,
-    // wearing the SD mark the word action gives it.
-    if (s_restore) {
-        lv_obj_t *sd = wt_word_action(s_scr, WT_ICON_SD, tr(STR_S_FROM_SD),
-                                      true, WT_INK, false,
-                                      kef_sd_open_restore_cb, NULL);
-        lv_obj_set_pos(sd, WT_ACT_X, WT_ACTION_Y + SY(6));
-    }
 }
 
 // ---- storage mode: the one question that decides what this device holds ----
@@ -3730,7 +3748,7 @@ static void storage_pick_cb(lv_event_t *e)
 {
     kiss_seed_stage_mode((int)(intptr_t)lv_event_get_user_data(e));
     if (s_restore) {
-        count_screen();          // restoring: the paper decides, 12 or 24
+        how_screen();            // restoring: paper, a QR or a card
         return;
     }
     // CREATING: 12 is the DEFAULT, and it is the right one. 128 bits is not
@@ -4071,7 +4089,7 @@ static void kef_bad_screen(void)
     wt_body_para(s_scr, tr(STR_W_KEF_BAD_B), SY(140));
     wt_arrow_action(s_scr, tr(STR_C_TRY_AGAIN), false, true, SX(452),
                     WT_ACTION_Y, SX(300), true,
-                    s_qr_from_restore ? goto_count_cb : load_back_cb, NULL);
+                    s_qr_from_restore ? goto_how_cb : load_back_cb, NULL);
 }
 
 static int kef_open_cb(const char *pass, size_t len)
@@ -4109,7 +4127,7 @@ static void kef_done_cb(void)
 static void kef_cancel_cb(void)
 {
     kef_wipe_env();
-    if (s_qr_from_restore) count_screen();
+    if (s_qr_from_restore) how_screen();
     else load_screen();
 }
 
@@ -4154,7 +4172,7 @@ static void kef_sd_retry_cb(lv_event_t *e) { (void)e; kef_sd_pick_screen(); }
 static void kef_pick_back_cb(lv_event_t *e)
 {
     (void)e;
-    if (s_qr_from_restore) count_screen();
+    if (s_qr_from_restore) how_screen();
     else load_screen();
 }
 
@@ -4220,7 +4238,7 @@ static void kef_sd_pick_screen(void)
 static void kef_sd_open_restore_cb(lv_event_t *e)
 {
     (void)e;
-    s_qr_from_restore = true;           // refusals return to the count screen
+    s_qr_from_restore = true;           // refusals return to the restore chooser
     kef_sd_pick_screen();
 }
 
@@ -4237,7 +4255,7 @@ static void qr_bad_screen(void)
     wt_body_para(s_scr, tr(STR_W_QRBAD_B), SY(140));
     wt_arrow_action(s_scr, tr(STR_C_TRY_AGAIN), false, true, SX(452),
                     WT_ACTION_Y, SX(300), true,
-                    s_qr_from_restore ? goto_count_cb : load_back_cb, NULL);
+                    s_qr_from_restore ? goto_how_cb : load_back_cb, NULL);
 }
 
 // The scan screen owns the camera; it hands us the first decoded payload. An
@@ -4268,8 +4286,15 @@ static void qr_cancel_cb(void) { load_screen(); }
 
 // Same scan, reached from the wizard's word-count screen instead. Cancel and a
 // bad scan go back there rather than to the amnesic load screen.
-static void goto_count_cb(lv_event_t *e) { (void)e; count_screen(); }
-static void restore_qr_cancel_cb(void)   { count_screen(); }
+// The restore chooser, or the amnesic load screen when that is the door the
+// owner came in by: both offer the same three ways in.
+static void goto_how_cb(lv_event_t *e)
+{
+    (void)e;
+    if (s_load) load_screen();
+    else how_screen();
+}
+static void restore_qr_cancel_cb(void)   { how_screen(); }
 
 static void restore_scan_cb(lv_event_t *e)
 {
@@ -4289,35 +4314,11 @@ static void load_scan_cb(lv_event_t *e)
 static void load_screen(void)
 {
     mk_screen(tr(STR_W_LOAD_T), tr(STR_W_LOAD_S));
-    // Two ways in, each a destination wearing the chevron, each explained by
-    // the note beside it.
-    lv_obj_t *ld = wt_word_action(s_scr, WT_ICON_ARR_R,
-                                  tr(STR_W_TYPE_MY_WORDS), false,
-                                  wt_accent(), true, load_type_cb, NULL);
-    lv_obj_t *sc = wt_word_action(s_scr, WT_ICON_ARR_R,
-                                  tr(STR_W_SCAN_KEF_QR), false, WT_INK,
-                                  false, load_scan_cb, NULL);
-#if KISS_NARROW
-    // Stacked on the 3.5in, each note under its own action on the whole lane.
-    // Beside them the notes had 204 px and wrapped to three ragged lines each,
-    // stranding "paper." and "opens", next to a column of two short labels.
-    lv_obj_set_pos(ld, SX(48), 84);
-    lv_obj_set_pos(sc, SX(48), 170);
-    wt_wraph(s_scr, tr(STR_W_LOAD_TYPE_NOTE), SX(48), 112, SX(704), 50);
-    wt_wraph(s_scr, tr(STR_W_LOAD_SCAN_NOTE), SX(48), 198, SX(704), 50);
-#else
-    lv_obj_set_pos(ld, SX(48), SY(156));
-    lv_obj_set_pos(sc, SX(48), SY(270));
-    wt_wraph(s_scr, tr(STR_W_LOAD_TYPE_NOTE), SX(430), SY(150), SX(340), SY(110));
-    wt_wraph(s_scr, tr(STR_W_LOAD_SCAN_NOTE), SX(430), SY(266), SX(340), SY(130));
-#endif
+    // The restore chooser's three rows, so the two doors read the same: type
+    // the words, scan a QR, or open a file on the card.
+    how_rows(load_type_cb, load_scan_cb, kef_sd_open_load_cb);
     wt_arrow_action(s_scr, tr(STR_W_CREATE_NEW), false, false, SX(560),
                     WT_ACTION_Y, SX(190), true, load_new_cb, NULL);
-    // An amnesic session restores from a .kef backup the same way the wizard
-    // does: the card path shares the action row with CREATE NEW.
-    lv_obj_t *sd = wt_word_action(s_scr, WT_ICON_SD, tr(STR_S_FROM_SD), true,
-                                  WT_INK, false, kef_sd_open_load_cb, NULL);
-    lv_obj_set_pos(sd, WT_ACT_X, WT_ACTION_Y + SY(6));
 }
 
 // ---- configured SD wallet: card/file gate before passphrase entry ----
