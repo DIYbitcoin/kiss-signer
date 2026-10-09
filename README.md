@@ -159,10 +159,9 @@ none of them.
    long and not guessable.
 7. Set **YOUR SWIPE** when setup offers the decoy. KISS alone now opens decoy
    keys; KISS and your swipe ask for the passphrase. Put a little in the decoy.
-8. Write the fingerprint from the home screen on the seed words paper.
 
-Every day: draw KISS, draw your swipe, type your passphrase, check the
-fingerprint. Your backup is the two pieces of paper.
+Every day: draw KISS, draw your swipe, type your passphrase. Your backup is the
+two pieces of paper.
 
 **What goes where**
 
@@ -197,9 +196,9 @@ what each one costs.
 </table>
 
 > [!TIP]
-> **Check your backup before you fund it**: SETTINGS > BACKUP > SEED WORDS. Also
-> write down the fingerprint on the home screen. A mistyped passphrase gives no
-> error, it just opens different, empty keys.
+> **Check your backup before you fund it**: SETTINGS > BACKUP > SEED WORDS. A
+> mistyped passphrase gives no error: it opens different, empty keys, and the
+> fingerprint on the home screen changes.
 
 ## Day to day
 

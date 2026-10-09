@@ -783,7 +783,7 @@ def write_md():
            "1. Every passphrase opens keys. There is no wrong passphrase "
            "error, and there never will be.",
            "2. The fingerprint on the home screen is how you tell which keys "
-           "you opened. Write yours down once.",
+           "you opened.",
            "3. This signer is never online. Your coordinator does all the "
            "talking to the network.",
            "",
