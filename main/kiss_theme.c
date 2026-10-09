@@ -5488,6 +5488,35 @@ static void explain_to(lv_obj_t *scr, const char *headline, const char *para,
             para_lines = 3;
         else if (top + 2 * lh > bottom)
             para_lines = 1;
+
+        // TIGHTER ROWS before a paragraph that cannot be set at all. The
+        // lines above are counted against the rows at their full pad, so a
+        // two sentence paragraph over three facts got one line and fell off
+        // the ladder in every language, English included -- the settings
+        // [ ? ] page did it with "Seed words + passphrase = your signer.
+        // Seed words = the decoy signer." facts_fit already closes the rows
+        // to SY(6) and steps their captions to 23 when they would cross the
+        // floor, so lines are counted against that tightest block here, and
+        // against the same floor it closes them to (the band, not the gap
+        // above it), and only for as many as the paragraph actually needs: a
+        // paragraph that fits leaves its rows exactly as they were.
+        lv_point_t ps28;
+        const lv_font_t *f28 = chrome28(para);
+        lv_text_get_size(&ps28, para, f28, 0, 0, wrap_w(f28, para, SX(690), 690),
+                         LV_TEXT_FLAG_NONE);
+        const int need = (ps28.y + lh - 1) / lh;
+        if (need > para_lines && n > 0 && n <= WT_FACTS_FIT_MAX) {
+            wt_fact_t tight[WT_FACTS_FIT_MAX];
+            for (int i = 0; i < n; i++) {
+                tight[i] = facts[i];
+                if (!tight[i].cap_font) tight[i].cap_font = chrome23(tight[i].cap);
+            }
+            const int ttop = WT_EXPLAIN_PARA_Y + WT_FACT_PAD +
+                             facts_block_h(tight, n, SY(6));
+            while (para_lines < need &&
+                   ttop + (para_lines + 1) * lh <= bottom)
+                para_lines++;
+        }
     }
     const lv_font_t *pf = explain_para_font(para, 690, para_lines);
 #else
