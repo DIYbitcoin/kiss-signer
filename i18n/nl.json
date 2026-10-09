@@ -531,7 +531,7 @@
   "S_FILE_UNSIGNED": "ONGETEKEND",
   "S_FIX_SD": "save the .psbt from your coordinator onto this card, then insert it again.",
   "S_FROM_SD": "SD-KAART",
-  "S_GLOSSARY_B": "INPUTS: de munten die deze transactie uitgeeft.\nOUTPUTS: elke plek waar hij heen stuurt.\nWISSELGELD: wat terugkomt naar je eigen sleutels.\nFEE: wat de miners krijgen. het verschil.\nVBYTES: de maat van deze transactie.\nSAT PER VBYTE: de prijs per maat.\nPSBT: het bestand dat je coordinator bouwde.\nFINGERPRINT: de korte code die je sleutels benoemt.",
+  "S_GLOSSARY_B": "INVOER: de bitcoin die deze transactie uitgeeft.\nUITVOER: elke plek waar ze bitcoin heen stuurt.\nWISSELGELD: het deel dat naar je terugkomt.\nTXID: de volg-ID na het versturen.\nTARIEF: fee per eenheid grootte.\nLOCKTIME: het eerste blok waarin ze mag.\nAFLEIDINGSPAD: waar je sleutels vertakken.\nDESCRIPTOR: laat een coordinator meekijken.",
   "S_GLOSSARY_T": "TERMEN",
   "S_HELP_BODY": "Een PSBT is een niet getekende transactie. Je sleutels verlaten deze signer nooit.",
   "S_HELP_F1C": "COÖRDINATOR",
