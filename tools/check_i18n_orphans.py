@@ -9,8 +9,8 @@ rebuilt, its old strings stop being called, and the keys sit there translated.
 look.
 
 So this is the check that looks. It reads the enum in main/i18n_keys.h -- which
-gen_i18n.py writes from en.json, so it is the full set -- and greps every C and
-Python source that could name one. What is left over is unreferenced.
+gen_i18n.py writes from en.json, so it is the full set -- and greps the firmware
+sources for each one. What is left over is unreferenced.
 
 The backlog is EMPTY, and that is the state to keep it in: it held 55 keys,
 recorded so the gate could fail on the fifty-sixth, and they were deleted in
@@ -36,7 +36,17 @@ ROOT = Path(__file__).resolve().parents[1]
 # i18n_tables.c is the generated value table, so neither counts as a use --
 # and neither does THIS FILE, which names nineteen keys in its backlog and
 # would otherwise report every one of them as back in use, itself.
-SEARCH_DIRS = ("main", "sim", "tools")
+#
+# Only the firmware counts. sim/ and tools/ used to, and a key a fit check
+# slot or a tool list still named passed as used for months after its screen
+# dropped it: nine of them, two failing the 3.5in fit check on a box nothing
+# draws. A test naming a string measures it; it does not draw it.
+SEARCH_DIRS = ("main",)
+
+# The one exception, and it is a guard rather than a use: the walk asserts
+# this string is NOT on the weak and degenerate refusals it reaches, so that
+# "use anyway" cannot come back as a way past them.
+GUARD_NEEDLES = frozenset({"STR_L_USE_ANYWAY"})
 SEARCH_EXT = (".c", ".h", ".cpp", ".py")
 GENERATED = ("i18n_keys.h", "i18n_tables.c")
 SELF = Path(__file__).resolve()
@@ -90,7 +100,7 @@ def referenced():
                 continue
             names |= set(KEY_RE.findall(
                 path.read_text(encoding="utf-8", errors="ignore")))
-    return names
+    return names | GUARD_NEEDLES
 
 
 def orphans_of(keys, used):
