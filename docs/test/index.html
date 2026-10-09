@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="../assets/kiss-mark.svg" type="image/svg+xml">
+    <meta name="theme-color" content="#070a10">
+    <!-- Not for search engines: a test build is for the few people we sent the
+         link to, and a stranger who lands here from a search should not take
+         an unsigned image for a release. -->
+    <meta name="robots" content="noindex">
+    <meta
+      name="description"
+      content="Install a KISS Signer test build. Only for people who were asked to test one."
+    >
+    <title>KISS Signer Test Builds</title>
+    <style>
+      /* The release check page's look, restated rather than linked, so this
+         page stays one folder that can be read on its own. */
+      * { box-sizing: border-box; }
+      html { font-size: 125%; }
+      body {
+        margin: 0;
+        background: #070a10;
+        color: #e8eef7;
+        font: 18px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+      .topbar {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 13px 24px;
+        border-bottom: 1px solid #1e2531;
+        font-size: .76rem;
+        font-weight: 500;
+        letter-spacing: .18em;
+      }
+      .topbar .dot { width: 9px; height: 9px; border-radius: 50%; background: #f2b84b; }
+      main { max-width: 760px; margin: 0 auto; padding: 28px 16px 60px; }
+      h1 { font-size: 2.1rem; margin: 0 0 4px; letter-spacing: -.02em; }
+      h2 { font-size: 1.05rem; margin: 0 0 8px; letter-spacing: .04em; color: #7a869c; text-transform: uppercase; }
+      h2::before { content: "[ "; color: #2a3346; }
+      h2::after { content: " ]"; color: #2a3346; }
+      p { margin: 8px 0; }
+      .mut { color: #7a869c; }
+      .card {
+        border: 1px solid #1e2531;
+        border-radius: 12px;
+        background: #0b0e14;
+        padding: 18px 20px;
+        margin-top: 16px;
+      }
+      .warn { border-color: #f2b84b; }
+      .warn strong { color: #f2b84b; }
+      select, button {
+        font: inherit;
+        color: #e8eef7;
+        background: #121722;
+        border: 1px solid #2a3346;
+        border-radius: 10px;
+        padding: 10px 14px;
+        width: 100%;
+      }
+      button {
+        margin-top: 14px;
+        background: #35d07f;
+        border-color: #35d07f;
+        color: #070a10;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      button:disabled { background: #1e2531; border-color: #1e2531; color: #7a869c; cursor: default; }
+      #status { margin-top: 14px; min-height: 1.6em; overflow-wrap: anywhere; }
+      #status.ok { color: #35d07f; }
+      #status.bad { color: #ff4d5e; }
+      .bar { height: 10px; border-radius: 5px; background: #1e2531; margin-top: 10px; overflow: hidden; display: none; }
+      .bar.on { display: block; }
+      .bar span { display: block; height: 100%; width: 0; background: #35d07f; }
+      details { margin-top: 14px; }
+      summary { cursor: pointer; color: #7a869c; }
+      #log {
+        margin: 8px 0 0;
+        padding: 10px 12px;
+        max-height: 240px;
+        overflow: auto;
+        background: #070a10;
+        border: 1px solid #1e2531;
+        border-radius: 8px;
+        font-size: .7rem;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+      #nobrowser { display: none; border-color: #ff4d5e; }
+      a { color: #e8eef7; border-bottom: 1px solid #2a3346; text-decoration: none; }
+      a:hover { border-bottom-color: #e8eef7; }
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <span class="dot"></span>
+      KISS-SIGNER TEST BUILDS
+    </header>
+    <main>
+      <h1>Test builds</h1>
+      <div class="card warn">
+        <p style="margin-top:0"><strong>Only if we asked you to test.</strong>
+          These builds go to a few testers before a release. They are not signed
+          and not checked the way a release is, so use testnet or play money only.</p>
+        <p class="mut" style="margin-bottom:0">For a normal install use the
+          <a href="../">installer</a>.</p>
+      </div>
+
+      <div class="card" id="nobrowser">
+        <p style="margin:0">This browser cannot talk to the board. Open this page
+          in Chrome, Edge, Brave or Opera on a computer.</p>
+      </div>
+
+      <div class="card">
+        <h2>1. Your board</h2>
+        <select id="board" disabled>
+          <option>Loading the test builds…</option>
+        </select>
+        <p class="mut" id="buildnote"></p>
+      </div>
+
+      <div class="card">
+        <h2>2. Install</h2>
+        <p class="mut" style="margin-top:0">Plug the board in with a USB cable that
+          carries data, press the button and pick the board in the list. The page
+          reads your chip and picks the build that fits it.</p>
+        <p style="margin-bottom:0">Installing replaces what is on the board,
+          including any seed words and settings stored on it.</p>
+        <button id="go" disabled>Connect and install</button>
+        <div class="bar" id="bar"><span id="fill"></span></div>
+        <div id="status"></div>
+        <details>
+          <summary>Details</summary>
+          <pre id="log"></pre>
+        </details>
+      </div>
+    </main>
+    <script type="module" src="test.js"></script>
+  </body>
+</html>
