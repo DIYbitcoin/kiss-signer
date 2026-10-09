@@ -352,6 +352,7 @@ LOCALE_WORDS = {
     "hr-HR": r"plaćanj|placanj",
     "hu-HU": r"fizet",
     "it":    r"pagament",
+    "ms-MY": r"bayaran",
     "ja":    r"支払",
     "ko":    r"결제",
     "nb-NO": r"betaling",

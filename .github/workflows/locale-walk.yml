@@ -75,7 +75,8 @@ jobs:
         # 3.5in's 480x320 (sim/sim_tmp.sh builds the right one from KISS_BOARD).
         board: [guition, ws35]
         lang: [en, cs-CZ, da-DK, de, es-ES, es-MX, fr, hr-HR, hu-HU, it, ja,
-               ko, nb-NO, nl, pl, pt-BR, pt-PT, ru, sv-SE, tr, vi, zh-CN]
+               ko, ms-MY, nb-NO, nl, pl, pt-BR, pt-PT, ru, sv-SE, tr, vi,
+               zh-CN]
     env:
       KISS_BOARD: ${{ matrix.board }}
     steps:

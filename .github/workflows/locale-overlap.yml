@@ -51,12 +51,12 @@ jobs:
 
       # STRICT is still set: it is what fails a locale with no ceiling, which
       # is English and only English.
-      - name: overlap gate, twenty two locales
+      - name: overlap gate, twenty three locales
         env:
           OVERLAPCHECK_STRICT: '1'
           OVERLAPCHECK_LANGS: >-
-            en cs-CZ da-DK de es-ES es-MX fr hr-HR hu-HU it ja ko nb-NO nl
-            pl pt-BR pt-PT ru sv-SE tr vi zh-CN
+            en cs-CZ da-DK de es-ES es-MX fr hr-HR hu-HU it ja ko ms-MY
+            nb-NO nl pl pt-BR pt-PT ru sv-SE tr vi zh-CN
         run: bash sim/run_overlapcheck.sh
 
   overlap-narrow:
@@ -74,7 +74,7 @@ jobs:
 
       - uses: ./.github/actions/fetch-lvgl
 
-      # The twenty one translations and not English. On this board English
+      # The twenty two translations and not English. On this board English
       # still has findings of its own, and it has no ceiling by design: the
       # push lane (desktop-tests.yml, desktop-narrow) reports it on every
       # commit, advisory until its count reaches zero. Listed here it would
@@ -88,9 +88,9 @@ jobs:
       # with English's findings it exits non-zero with no ROLE finding, which
       # the runner rightly reads as a dead walk. The ceilings, the dead walk
       # check, the heap and the contrast verdicts all run without it.
-      - name: overlap gate, 3.5in, twenty one translations
+      - name: overlap gate, 3.5in, twenty two translations
         env:
           OVERLAPCHECK_LANGS: >-
-            cs-CZ da-DK de es-ES es-MX fr hr-HR hu-HU it ja ko nb-NO nl
-            pl pt-BR pt-PT ru sv-SE tr vi zh-CN
+            cs-CZ da-DK de es-ES es-MX fr hr-HR hu-HU it ja ko ms-MY nb-NO
+            nl pl pt-BR pt-PT ru sv-SE tr vi zh-CN
         run: bash sim/run_overlapcheck.sh

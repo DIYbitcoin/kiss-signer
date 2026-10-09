@@ -73,6 +73,17 @@
 # card), and the descriptor's second page stopped running its Turkish
 # sentence off the glass. Japanese and Chinese had also been sitting under
 # their numbers before this; they take the measurement too.
+# ms-MY joins at 3, and 2 on the 3.5in: only Korean is lower anywhere. The
+# first sweep said 110 here and 65 there, nearly twice what Hungarian started
+# at. Malay often says in two words what English says in one, and a sentence
+# that fits at the English length wraps to a line its box does not have.
+# Every one of the 107 that went was copy, cut back to the English length or
+# under, not a ceiling raised. Malay is all ASCII, so unlike Hungarian it is
+# set in the narrow mono face and only has to match English, not beat it.
+# What is left is the reasons grid on the sign screen, where four Malay
+# reasons in two columns stand taller than four English ones, and the warning
+# beside SETERUSNYA on the seed words page, which is the standard Malaysian
+# word for NEXT and stays.
 cs-CZ 7
 da-DK 15
 de 23
@@ -84,6 +95,7 @@ hu-HU 20
 it 14
 ja 8
 ko 3
+ms-MY 3
 nb-NO 12
 nl 31
 pl 21
