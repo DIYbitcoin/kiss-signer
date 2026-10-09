@@ -350,6 +350,35 @@ void kiss_flip_set(bool on, bool repaint);
 #ifdef ESP_PLATFORM
 #include "lvgl.h"
 #include "driver/i2c_master.h"
+#if CONFIG_ESP32P4_REV_MIN_FULL >= 300
+#include "soc/hp_system_reg.h"
+#include "soc/soc.h"
+#endif
+
+// The DSI PHY's reference clock, for the four boards on a DSI panel. IDF's
+// MIPI_DSI_PHY_CLK_SRC_DEFAULT is the v1.x PLL_F20M, which v3.x silicon does
+// not have, so a v3 image that names it aborts in esp_lcd_new_dsi_bus before
+// the first frame. Zero lets the driver pick: PLL_F20M below v3.0, XTAL from
+// v3.0. A v1 image keeps naming it, so its bytes stay the ones tested on glass.
+#if CONFIG_ESP32P4_REV_MIN_FULL >= 300
+#define KISS_DSI_PHY_CLK 0
+#else
+#define KISS_DSI_PHY_CLK MIPI_DSI_PHY_CLK_SRC_DEFAULT
+#endif
+
+// ESP32-P4 v3.x can hold a core load or store on the PSRAM path for longer
+// than the core bus timeout allows (65535 cycles, the register's maximum).
+// The access would complete, but the timeout turns it into a fault the core
+// cannot retry. It stays on through startup, where a stall that never ends is
+// better ended by its panic, and goes off as app_main begins. v1.x: nothing.
+static inline void kiss_board_bus_timeout_off(void)
+{
+#if CONFIG_ESP32P4_REV_MIN_FULL >= 300
+  REG_CLR_BIT(HP_SYSTEM_CORE_DBUS_TIMEOUT_REG, HP_SYSTEM_CORE_DBUS_TIMEOUT_EN);
+  REG_CLR_BIT(HP_SYSTEM_CORE_IBUS_TIMEOUT_REG, HP_SYSTEM_CORE_IBUS_TIMEOUT_EN);
+#endif
+}
+
 // In the order app_main calls them. The radio hold comes first, before
 // anything else runs, so the window in which the C6 could execute its
 // factory firmware is as small as the boot ROM leaves it.

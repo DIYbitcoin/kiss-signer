@@ -3806,6 +3806,7 @@ void build_game(void) {  // non-static: the simulator harness calls this too
 #ifndef SIMULATOR
 void app_main(void) {
   kiss_board_radio_hold();   // before anything else: smallest window for the C6
+  kiss_board_bus_timeout_off();
   kiss_board_log_info();
 #ifndef KISS_RELEASE
   {  // step 1 of the signer build order: prove the crypto stack (libwally)

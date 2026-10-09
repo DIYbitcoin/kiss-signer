@@ -337,7 +337,7 @@ lv_display_t *kiss_board_display_start(void) {
   ESP_ERROR_CHECK(esp_ldo_acquire_channel(&ldo_cfg, &ldo));
   esp_lcd_dsi_bus_handle_t dsi_bus = NULL;
   esp_lcd_dsi_bus_config_t bus_cfg = {.bus_id = 0, .num_data_lanes = DSI_LANES,
-                                      .phy_clk_src = MIPI_DSI_PHY_CLK_SRC_DEFAULT,
+                                      .phy_clk_src = KISS_DSI_PHY_CLK,
                                       .lane_bit_rate_mbps = DSI_LANE_BITRATE_MBPS};
   ESP_ERROR_CHECK(esp_lcd_new_dsi_bus(&bus_cfg, &dsi_bus));
   vTaskDelay(pdMS_TO_TICKS(50));
