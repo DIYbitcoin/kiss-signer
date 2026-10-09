@@ -20,7 +20,7 @@
   "C_OSD_SEARCH_S": "kamerayı kodun gösterildiği ekrana tutun",
   "C_OSD_SEARCH_T": "QR kodu aranıyor",
   "C_OSD_SEEN_T": "Bulundu: sabit tutun",
-  "C_OSD_STUCK_S": "koordinatör uygulamanızdan hareketli QR isteyin",
+  "C_OSD_STUCK_S": "koordinatörden hareketli QR isteyin",
   "C_OSD_STUCK_T": "Bu QR'da çok fazla veri var",
   "C_SESSION_LOCKED": "KİLİTLİ",
   "C_SURVIVES": "NE KALIR",
