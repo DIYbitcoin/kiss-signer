@@ -1640,7 +1640,24 @@ static void net_to(int want)
 }
 // LANGUAGE on the band: its box is right-aligned to 512, so a tap near that
 // right edge holds for any locale's name.
-static void band_lang(void)  { touch_at(SX(490), WT_ACTION_Y + SY(26)); pump(3); release(); pump(8); }
+// The LANGUAGE action by its label, the active language's short native name
+// (a hand copy of the shortening in kiss_settings.c's band). A fixed x found
+// the action where a long name reaches, and missed the 3.5in's short 中文:
+// the picker never opened and its cell tap landed on a settings row.
+static void tap_label_exact(const char *txt);
+static void band_lang(void)
+{
+  const int li = i18n_get_lang();
+  const char *nat = i18n_lang_info(li)->native;
+  if (li == I18N_NB) nat = "BOKM\xC3\x85L";
+  const char *par = strstr(nat, " (");
+  char shortname[24];
+  size_t sn = par ? (size_t)(par - nat) : strlen(nat);
+  if (sn >= sizeof shortname) sn = sizeof shortname - 1;
+  memcpy(shortname, nat, sn);
+  shortname[sn] = 0;
+  tap_label_exact(shortname);
+}
 // THEME is not on the band any more -- it is the swatch and name in the chrome
 // column, right-aligned to 752 above [ ? ], 10..50. 30 is its vertical middle.
 // 740 is 12 inside the RIGHT edge, which is the pinned one: the box grows
@@ -6081,7 +6098,10 @@ int main(void) {
   def_row(3, 0);                                    // Firmware -> the update screen
   pump(FW_SETTLE);                                  // the body and the row arrive late
   save("/tmp/sim_settings_fw.ppm");                 // reached from settings, not directly
-  touch_at(WT_EXIT_X + SX(70), WT_ACTION_Y + SY(26)); pump(3); release(); pump(8);  // BACK -> settings
+  // BACK by its label: a fixed x sized for the English word missed the
+  // shorter, right aligned Japanese one on the 5in, and the rest of that
+  // walk ran on the firmware screen.
+  tap_str(STR_C_BACK, 3, 8);                        // BACK -> settings
   save("/tmp/sim_settings_fw_back.ppm");            // one settings page, rebuilt
 
   // LANGUAGE lives on the action band now, its label the active language's
@@ -7613,10 +7633,12 @@ int main(void) {
   touch(44, 44); pump(3); release(); pump(20);      // explicit lock -> game
   draw_cover();
   save("/tmp/sim_sd_missing.ppm");
-  touch(168, 430); pump(3); release(); pump(8);      // TRY AGAIN, still absent
+  // TRY AGAIN by its label: the fixed point missed the shorter CJK label on
+  // the 5in, the gate never left, and the rest of those walks ran under it.
+  tap_str(STR_C_TRY_AGAIN, 3, 8);                    // TRY AGAIN, still absent
   save("/tmp/sim_sd_missing_retry.ppm");            // still the missing-card gate
   s_sim_sd_present = 1;
-  touch(168, 430); pump(3); release(); pump(12);     // hot-plug retry -> login
+  tap_str(STR_C_TRY_AGAIN, 3, 12);                   // hot-plug retry -> login
   save("/tmp/sim_sd_reinserted_login.ppm");
 
   // The one duress screen the walk above cannot reach. ST_NOPASS only appears
