@@ -133,7 +133,7 @@
   "G_FW_WRITING_T": "FIRMWARE WIRD GESCHRIEBEN",
   "G_FW_WRONG_B": "dieses Abbild wurde für ein anderes Gerät gebaut. es ist nicht der Build für dieses Gerät.",
   "G_FW_WRONG_H": "falsches Gerät",
-  "G_HELP_BODY": "Seed-Wörter + Passphrase = Ihre Schlüssel.",
+  "G_HELP_BODY": "Seed-Wörter + Passphrase = Ihr Signer. Seed-Wörter = der Köder.",
   "G_HELP_F1C": "DER KREIS",
   "G_HELP_F1V": "tippen zum Wechseln",
   "G_HELP_F2C": "DER PUNKT",

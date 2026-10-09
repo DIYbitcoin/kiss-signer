@@ -133,7 +133,7 @@
   "G_FW_WRITING_T": "FIRMWARE ÍRÁSA",
   "G_FW_WRONG_B": "ez a firmware egy másik eszközhöz készült. nem ehhez az eszközhöz való build.",
   "G_FW_WRONG_H": "rossz eszköz",
-  "G_HELP_BODY": "Seed szavak + jelmondat = a signered. Seed szavak önmagukban = a csali signer.",
+  "G_HELP_BODY": "Seed szavak + jelmondat = a signered. Seed szavak = a csali signer.",
   "G_HELP_F1C": "A KÖR",
   "G_HELP_F1V": "koppintásra vált",
   "G_HELP_F2C": "A PONT",

@@ -133,7 +133,7 @@
   "G_FW_WRITING_T": "GRAVANDO FIRMWARE",
   "G_FW_WRONG_B": "esta imagem foi feita para outro dispositivo. não é a versão deste dispositivo.",
   "G_FW_WRONG_H": "dispositivo errado",
-  "G_HELP_BODY": "Palavras de recuperação + passphrase = suas chaves.",
+  "G_HELP_BODY": "Palavras de recuperação + passphrase = seu signer. Palavras de recuperação = a isca.",
   "G_HELP_F1C": "O CICLO",
   "G_HELP_F1V": "toque para trocar",
   "G_HELP_F2C": "O PONTO",

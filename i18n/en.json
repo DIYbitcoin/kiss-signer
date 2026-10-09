@@ -133,7 +133,7 @@
   "G_FW_WRITING_T": "WRITING FIRMWARE",
   "G_FW_WRONG_B": "this image was built for a different device. it is not the build for this one.",
   "G_FW_WRONG_H": "wrong device",
-  "G_HELP_BODY": "Seed words + passphrase = your signer. Seed words alone = the decoy signer.",
+  "G_HELP_BODY": "Seed words + passphrase = your signer. Seed words = the decoy signer.",
   "G_HELP_F1C": "THE LOOP",
   "G_HELP_F1V": "tap to cycle",
   "G_HELP_F2C": "THE DOT",

@@ -133,7 +133,7 @@
   "G_FW_WRITING_T": "SKRIVER FIRMWARE",
   "G_FW_WRONG_B": "dette billede er lavet til en anden enhed. det er ikke versionen til denne enhed.",
   "G_FW_WRONG_H": "forkert enhed",
-  "G_HELP_BODY": "Gendannelsesord + adgangsfrase = dine nøgler.",
+  "G_HELP_BODY": "Gendannelsesord + adgangsfrase = din signer. Gendannelsesord = lokkemaden.",
   "G_HELP_F1C": "SLØJFEN",
   "G_HELP_F1V": "tryk for at skifte",
   "G_HELP_F2C": "PRIKKEN",
