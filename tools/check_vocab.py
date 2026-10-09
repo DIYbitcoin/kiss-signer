@@ -288,7 +288,7 @@ RULES = [
             # teaching paragraph rather than an instruction. They shrink when
             # their screen is next touched.
             "G_FW_BIG_B", "G_FW_OK_B", "G_STORAGE_CLEANUP_B",
-            "S_COINS_HELP_B", "W_CARDS_HELP_B",
+            "W_CARDS_HELP_B",
         ],
         fires_on="your coordinator built a bitcoin transaction and this "
                  "signer will now show you every part of it before anything "

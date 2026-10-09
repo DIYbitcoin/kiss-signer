@@ -41,7 +41,6 @@ static const slot_t SLOTS[] = {
     // DESCRIPTOR and FINGERPRINT as term rows now, and a definition row is
     // measured by the TERM gate rather than by a slot here.
     { "wallet/?fp",       STR_I_H_FP_B,     SX(720), SY(155) },
-    { "wallet/?type",     STR_I_H_TYPE_B,   SX(720), SY(225) },
     // kiss_info.c:263,326 — full-screen warnings
     { "wallet/sp-warn",   STR_R_SP_WARN_B,  SX(700), SY(145) },
     { "wallet/sp-find",   STR_R_SP_FACT_FIND,     SX(482), SY(29) },
@@ -53,7 +52,6 @@ static const slot_t SLOTS[] = {
     // kiss_sign.c:355,394,966
     { "sign/why",         -1,               SX(720), SY(300) },   // composed below
     { "sign/?address",    STR_S_ADDR_HELP_B, SX(720), SY(230) },
-    { "sign/?coins",      STR_S_COINS_HELP_B, SX(720), SY(230) },
     // kiss_ui.c login warning: no slot. Both warn bodies render as ruled
     // rows split on their blank lines, and since the passphrase body grew its
     // second claim (write it down) neither is a single block a whole-key slot
@@ -170,8 +168,6 @@ static const slot_t SLOTS[] = {
     // string is gone: it was the ADDRESS TYPE subtitle and, doing second duty,
     // the filler in a decoy session's duress slot. It told nobody anything the
     // three rows above already say. Neither box has a string to measure now.
-    { "set/create-note",  STR_G_CREATE_NOTE,  SX(340), SY(34), 1 },
-    { "set/words-note",   STR_I_WORDS_BTN_NOTE,SX(340), SY(34), 1 },
     // kiss_duress_ui.c ST_DONE: wt_why_body at y=250 under the two-ways
     // diagram, so the body has WT_CONTENT_BOTTOM - 250 = 148 to live in.
     { "duress/done",      STR_GD_DONE_B,      SX(700), SY(148), 0 },
@@ -185,9 +181,7 @@ static const slot_t SLOTS[] = {
 #else
     { "sub/receive",      STR_R_S,            SX(704), SY(30), 0 },
 #endif
-    { "sub/wallet",       STR_I_S,            SX(340), SY(58), 0 },
     { "sub/verify",       STR_R_VS,           SX(704), SY(30), 0 },
-    { "sub/sp-warn",      STR_R_SP_WARN_S,    SX(704), SY(30), 0 },
     // Every remaining wt_screen subtitle. One line at 23 or it drops to 14 --
     // the header geometry in wt_screen() is fixed, so the only lever here is
     // the length of the sentence.
@@ -255,7 +249,6 @@ static const slot_t SLOTS[] = {
     // there (kiss_sign.c qr_out_screen), and no fit helper measures it.
     { "sub/qr-out",       STR_S_QR_SUB,       SX(704), SY(30), 0 },
 #endif
-    { "sub/done-sd",      STR_S_DONE_SD_SUB,  SX(704), SY(58), 0 },  // own 2-line subtitle
     { "sub/qr-fail",      STR_S_QR_FAIL_ENC,  SX(704), SY(30), 0 },
     // Procedural, read once with the device in hand, and wedged into a 360px
     // column beside a QR. They auto-fit like everything else, so they grow if
@@ -264,10 +257,6 @@ static const slot_t SLOTS[] = {
     // button. The note was cut long ago and the string is now gone too, so
     // this slot was measuring text no screen drew. The button remains, with
     // its own label, on the receive detail screen.
-    // Under the QR on the address detail screen. This is the whole standing
-    // privacy reminder now, so the zoomable smaller card gives it three lines
-    // at font23.
-    { "recv/one-each",    STR_R_ONE_EACH,     SX(308), SY(87), 0 },
 #if KISS_NARROW
     // kiss_info.c pair_instructions_cb, as the 3.5in cuts it: both notes on
     // the card's 688 lane, in cards sized to them between 64 and 248. Each
@@ -331,7 +320,6 @@ static const slot_t SLOTS[] = {
     // That box is the tighter of the two, so measuring only the 360x140 one
     // let this render at 14 next to a PAIR COORDINATOR note at 23.
     { "wallet/sp-btn",    STR_R_SP_EXPORT_NOTE, SX(340), SY(90) },
-    { "wallet/pair-note", STR_I_PAIR_BTN_NOTE,  SX(340), SY(62) },
     // The two word-count notes sit in the 80px gaps of a three-action stack (12
     // WORDS at y=150, 24 WORDS at 230, SCAN LOCKED QR at 310) in a 340px column.
     // Both run to three or four lines at 23 -- 87px and 116px -- so neither can
