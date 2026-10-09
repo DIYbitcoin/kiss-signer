@@ -632,9 +632,17 @@ static const lv_font_t *title_pick(const char *txt, int lane, bool chrome,
     return picked;
 }
 
+// Smallest only where the top rung is a different face. On the 7in and the
+// 5in a CJK locale's whole title ladder is the 28 composite, because no CJK
+// face exists above 28 (kiss_theme.c nat23), so a title there is already as
+// large as the locale can be set and nothing beside it squeezed it. The top
+// rung, not the next one up: the 3.5in's mono 23 and 18 are one face too,
+// while its 28 is larger.
 static bool title_is_smallest(const lv_font_t *f)
 {
-    return f == wt_font_mono18() || f == wt_font23();
+    if (f == wt_font_mono18()) return wt_font_mono28() != f;
+    if (f == wt_font23())      return wt_font34() != f;
+    return false;
 }
 
 // The pill lane is gone with the pills. Every action is an arrow or word
@@ -823,6 +831,18 @@ static int check_addr_lift(void)
         lv_obj_update_layout(flat);
         lv_obj_update_layout(lift);
         int hf = (int)lv_obj_get_height(flat), hl = (int)lv_obj_get_height(lift);
+        // The 3.5in has no rung above 14: its mono 14 and 23 are one face
+        // (kiss_theme.c, type at three fifths), so the lift is a no-op there
+        // and must stay one. That board was cleared on glass with the tail
+        // marked by colour alone.
+        if (wt_font_mono23() == wt_font_mono14()) {
+            if (hl != hf) {
+                printf("  %-28s lift changed a board with no rung above "
+                       "(%dpx to %dpx)\n", cases[i].name, hf, hl);
+                bad++;
+            }
+            continue;
+        }
         // lifted must actually be taller (the bug was that it was not) ...
         if (hl <= hf) {
             printf("  %-28s lift did nothing (%dpx both)\n", cases[i].name, hf);
