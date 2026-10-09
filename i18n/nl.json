@@ -813,7 +813,7 @@
   "W_RNG_RETRY": "eerlijke chip: zakt 1 op 500. doe het nog eens.",
   "W_RNG_S": "test de toevalsgetallen van de chip",
   "W_RNG_SRC": "toevalsgetallen",
-  "W_RNG_SRC_SUB": "gemaakt door de chip, niet door software",
+  "W_RNG_SRC_SUB": "van de chip, niet van software",
   "W_RNG_T": "AUDIT VAN WILLEKEUR",
   "W_RNG_TOOEVEN": "TE GELIJKMATIG",
   "W_RNG_WHY1_B": "trekt 5000 getallen",

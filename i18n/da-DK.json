@@ -759,7 +759,7 @@
   "W_ENT_TAP_NOTE": "tryk hvor som helst her. enhver rytme.",
   "W_ENT_TAP_S": "din timing kan ingen producent gætte.",
   "W_ENT_TAP_T": "TRYK FOR TILFÆLDIGHED",
-  "W_FLASH_ENC_NOTE": "gemt her krypteret. din adgangsfrase vogter dine rigtige nøgler og gemmes aldrig her.",
+  "W_FLASH_ENC_NOTE": "gemt her krypteret. din adgangsfrase vogter de rigtige nøgler og gemmes aldrig.",
   "W_GRID_WARN": "DEN DER LÆSER DISSE KAN BRUGE MØNTERNE",
   "W_HOLD_SHOW": "SKUB: VIS",
   "W_HOWMANY": "hvor mange ord?",

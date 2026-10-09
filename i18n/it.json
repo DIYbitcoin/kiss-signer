@@ -531,7 +531,7 @@
   "S_FILE_UNSIGNED": "NON FIRMATO",
   "S_FIX_SD": "save the .psbt from your coordinator onto this card, then insert it again.",
   "S_FROM_SD": "SCHEDA SD",
-  "S_GLOSSARY_B": "INPUT: i bitcoin che questa transazione spende.\nOUTPUT: ogni posto a cui manda.\nRESTO: la parte che ti torna.\nTXID: l'id per seguirlo dopo l'invio.\nTASSO: commissione per unità di dimensione.\nLOCKTIME: il primo blocco in cui può entrare.\nPERCORSO DI DERIVAZIONE: dove si ramificano le chiavi.\nDESCRIPTOR: fa guardare un coordinatore.",
+  "S_GLOSSARY_B": "INPUT: i bitcoin che la transazione spende.\nOUTPUT: ogni destinazione dei bitcoin.\nRESTO: la parte che ti torna.\nTXID: l'id per seguirlo dopo l'invio.\nTASSO: commissione per unità di dimensione.\nLOCKTIME: il primo blocco possibile.\nPERCORSO DI DERIVAZIONE: i rami delle chiavi.\nDESCRIPTOR: fa guardare un coordinatore.",
   "S_GLOSSARY_T": "TERMINI",
   "S_HELP_BODY": "Un PSBT è una transazione non firmata. Le tue chiavi non lasciano mai questo signer.",
   "S_HELP_F1C": "COORDINATORE",

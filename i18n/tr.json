@@ -759,7 +759,7 @@
   "W_ENT_TAP_NOTE": "burada bir yere dokunun. her ritim olur.",
   "W_ENT_TAP_S": "senin ritmini hiçbir üretici tahmin edemez.",
   "W_ENT_TAP_T": "RASTGELELİK İÇİN DOKUN",
-  "W_FLASH_ENC_NOTE": "burada şifreli kaydedilir. passphrase gerçek anahtarlarınızı korur ve buraya asla kaydedilmez.",
+  "W_FLASH_ENC_NOTE": "burada şifreli. passphrase gerçek anahtarlarınızı korur, buraya hiç kaydedilmez.",
   "W_GRID_WARN": "BUNU OKUYAN COİNLERİ HARCAYABİLİR",
   "W_HOLD_SHOW": "KAYDIR: GÖSTER",
   "W_HOWMANY": "kaç kelime?",

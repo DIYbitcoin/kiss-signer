@@ -557,7 +557,7 @@
   "S_PAYEE_HELP": "JUŻ PŁACONE: te klucze już podpisały na ten adres.",
   "S_POINT_CAM": "skieruj aparat na koordynatora",
   "S_QR_FAIL_ENC": "nie udało się zakodować podpisanej transakcji",
-  "S_QR_LOOP": "zapętla się, trzymaj równo",
+  "S_QR_LOOP": "w pętli, trzymaj równo",
   "S_QR_PART_FMT": "%d/%d",
   "S_QR_SINGLE": "pojedynczy QR",
   "S_QR_SUB": "scan this QR in your coordinator, then broadcast",
