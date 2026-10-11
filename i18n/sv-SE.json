@@ -416,6 +416,7 @@
   "P_SP_DERIVE": "kunde inte bygga den tysta betalningen säkert",
   "P_SP_INFO": "felformad utgång för tyst betalning",
   "P_SP_INPUTS": "tysta betalningar kräver native segwit-ingångar",
+  "P_SP_CARD": "tysta betalningar kan inte signeras med en Satochip",
   "P_SP_NEED_V2": "tyst betalning kräver en v2-transaktion",
   "P_TOO_MANY_OUTS": "för många utdata",
   "P_TOO_MANY_VERIFY": "för många för att kontrollera säkert",

@@ -416,6 +416,7 @@
   "P_SP_DERIVE": "nije moguće sigurno izraditi tihu uplatu",
   "P_SP_INFO": "neispravan izlaz tihe uplate",
   "P_SP_INPUTS": "tihe uplate zahtijevaju native segwit ulaze",
+  "P_SP_CARD": "tihe uplate ne mogu se potpisati karticom Satochip",
   "P_SP_NEED_V2": "tiha uplata zahtijeva v2 transakciju",
   "P_TOO_MANY_OUTS": "previše izlaza",
   "P_TOO_MANY_VERIFY": "previše za sigurnu provjeru",

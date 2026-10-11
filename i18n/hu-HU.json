@@ -416,6 +416,7 @@
   "P_SP_DERIVE": "a silent paymentet nem sikerült biztonságosan felépíteni",
   "P_SP_INFO": "hibás silent payment-kimenet",
   "P_SP_INPUTS": "a silent paymenthez native segwit-bemenetek kellenek",
+  "P_SP_CARD": "a silent paymentet nem lehet Satochippel aláírni",
   "P_SP_NEED_V2": "a silent paymenthez v2 tranzakció kell",
   "P_TOO_MANY_OUTS": "túl sok kimenet",
   "P_TOO_MANY_VERIFY": "túl sok a biztonságos ellenőrzéshez",

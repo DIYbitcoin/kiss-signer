@@ -416,6 +416,7 @@
   "P_SP_DERIVE": "kon de stille betaling niet veilig opbouwen",
   "P_SP_INFO": "misvormde uitvoer voor stille betaling",
   "P_SP_INPUTS": "stille betalingen vereisen native segwit-invoer",
+  "P_SP_CARD": "stille betalingen kunnen niet met een Satochip worden ondertekend",
   "P_SP_NEED_V2": "stille betaling vereist een v2-transactie",
   "P_TOO_MANY_OUTS": "te veel outputs",
   "P_TOO_MANY_VERIFY": "te veel om veilig te controleren",

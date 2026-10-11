@@ -416,6 +416,7 @@
   "P_SP_DERIVE": "nie udało się bezpiecznie utworzyć cichej płatności",
   "P_SP_INFO": "zniekształcone wyjście cichej płatności",
   "P_SP_INPUTS": "ciche płatności wymagają wejść native segwit",
+  "P_SP_CARD": "ciche płatności nie mogą być podpisane kartą Satochip",
   "P_SP_NEED_V2": "cicha płatność wymaga transakcji v2",
   "P_TOO_MANY_OUTS": "za dużo wyjść",
   "P_TOO_MANY_VERIFY": "za dużo, by bezpiecznie sprawdzić",

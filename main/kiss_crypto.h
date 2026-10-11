@@ -194,6 +194,14 @@ void kiss_session_close(void);
 // signer. Screens that would reveal a second signer exists (the unlock-stroke
 // settings) must be absent, not disabled, whenever this is true.
 int kiss_session_decoy(void);
+// Open a session on the Satochip card kiss_cardwallet_unlock just opened. The
+// keys stay on the card: kiss_session_master() is NULL for the whole session,
+// so every path that needs a private key refuses, and addresses, descriptors
+// and exports come from the account keys the card handed out. Closed by
+// kiss_session_close like any other. 0 on success.
+int kiss_session_open_card(void);
+// 1 while the open session's keys are on a card.
+int kiss_session_card(void);
 // Master fingerprint of the OPEN session, taken from the key already in RAM.
 // kiss_fingerprint derives from the stored seed and costs a full PBKDF2; this
 // costs a hash, and returns the same four bytes whenever a session is open

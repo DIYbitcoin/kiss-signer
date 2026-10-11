@@ -416,6 +416,7 @@
   "P_SP_DERIVE": "không thể tạo thanh toán im lặng an toàn",
   "P_SP_INFO": "đầu ra thanh toán im lặng bị lỗi",
   "P_SP_INPUTS": "thanh toán im lặng cần đầu vào native segwit",
+  "P_SP_CARD": "không thể ký thanh toán im lặng bằng Satochip",
   "P_SP_NEED_V2": "thanh toán im lặng cần giao dịch v2",
   "P_TOO_MANY_OUTS": "quá nhiều đầu ra",
   "P_TOO_MANY_VERIFY": "quá nhiều để kiểm tra an toàn",

@@ -416,6 +416,7 @@
   "P_SP_DERIVE": "Silent Payment konnte nicht sicher erstellt werden",
   "P_SP_INFO": "fehlerhafte Silent-Payment-Ausgabe",
   "P_SP_INPUTS": "Silent Payments brauchen native SegWit-Eingänge",
+  "P_SP_CARD": "Silent Payments können nicht mit einer Satochip signiert werden",
   "P_SP_NEED_V2": "Silent Payment braucht eine v2-Transaktion",
   "P_TOO_MANY_OUTS": "zu viele Ausgänge",
   "P_TOO_MANY_VERIFY": "zu viele, um sicher zu prüfen",

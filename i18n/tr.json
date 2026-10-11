@@ -416,6 +416,7 @@
   "P_SP_DERIVE": "sessiz ödeme güvenli şekilde oluşturulamadı",
   "P_SP_INFO": "bozuk sessiz ödeme çıkışı",
   "P_SP_INPUTS": "sessiz ödemeler native segwit girişleri gerektirir",
+  "P_SP_CARD": "sessiz ödemeler Satochip ile imzalanamaz",
   "P_SP_NEED_V2": "sessiz ödeme v2 işlem gerektirir",
   "P_TOO_MANY_OUTS": "çok fazla çıktı",
   "P_TOO_MANY_VERIFY": "güvenle doğrulanamayacak kadar çok",

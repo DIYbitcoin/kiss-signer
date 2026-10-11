@@ -25,7 +25,7 @@ clang -O1 -Wall -Wextra -Wno-unused-parameter -Wno-implicit-const-int-float-conv
   -Imain \
   -Icomponents/cUR/src \
   "$WALLY/upstream/src/amalgamation/combined.c" \
-  main/kiss_crypto.c main/kiss_psbt.c main/kiss_sp.c \
+  main/kiss_crypto.c main/kiss_psbt.c main/kiss_cardwallet.c main/kiss_satochip.c main/kiss_satocard.c main/kiss_sp.c \
   main/kiss_seed.c main/kiss_seed_sd.c main/platform_sd.c \
   main/kiss_usage.c main/kiss_backup.c main/kiss_duress.c \
   main/kiss_cards_q.c main/kiss_payee.c \

@@ -20,6 +20,7 @@
 
 #include "sha256/sha256.h"   // streaming sha256, bundled with components/cUR
 #include "kiss_crypto.h"
+#include "kiss_cardwallet.h"
 #include "kiss_sp.h"
 
 static struct wally_psbt *s_psbt;
@@ -228,6 +229,35 @@ static uint64_t spk_key(const uint8_t *spk, size_t len)
 // otherwise passes review, but libwally silently skips it at sign time and
 // returns success with no signature.
 // 0 = match, 1 = script/path mismatch/error, 2 = keypath pubkey mismatch.
+// The public key at one of our paths, from whichever holds the wallet: the
+// master in RAM, or the account key a Satochip card handed out at unlock (the
+// path is m/purpose'/coin'/0'/change/index, so the last two steps are public
+// derivations anyone holding the account key can make). 0 on success.
+static int path_pubkey(const uint32_t *path, size_t path_len, uint8_t pub[33])
+{
+    const struct ext_key *master = kiss_session_master();
+    struct ext_key k;
+    int rc = 1;
+    if (master) {
+        if (bip32_key_from_parent_path(master, path, path_len,
+                                       BIP32_FLAG_KEY_PRIVATE, &k) == WALLY_OK) {
+            memcpy(pub, k.pub_key, 33);
+            rc = 0;
+        }
+    } else if (kiss_session_card() && path_len == 5) {
+        const struct ext_key *acct =
+            kiss_cardwallet_account(path[0] - BIP32_INITIAL_HARDENED_CHILD,
+                                    path[1] == BIP32_INITIAL_HARDENED_CHILD + 1);
+        if (acct && bip32_key_from_parent_path(acct, path + 3, 2,
+                                               BIP32_FLAG_KEY_PUBLIC, &k) == WALLY_OK) {
+            memcpy(pub, k.pub_key, 33);
+            rc = 0;
+        }
+    }
+    wally_bzero(&k, sizeof k);
+    return rc;
+}
+
 static int rederive_matches(const uint32_t *path, size_t path_len,
                             const uint8_t *spk, size_t spk_len,
                             const struct wally_map_item *keypath)
@@ -235,21 +265,16 @@ static int rederive_matches(const uint32_t *path, size_t path_len,
     uint32_t purpose = our_purpose(path, path_len);   // build the spk for the path's OWN type
     if (!purpose)
         return 1;
-    const struct ext_key *master = kiss_session_master();
-    struct ext_key k;
-    uint8_t want[25];
+    uint8_t pub[33], want[25];
     size_t wl = 0;
     int rc = 1;
-    if (master &&
-        bip32_key_from_parent_path(master, path, path_len,
-                                   BIP32_FLAG_KEY_PRIVATE, &k) == WALLY_OK) {
-        if (keypath && (keypath->key_len != sizeof k.pub_key ||
-                        memcmp(keypath->key, k.pub_key, sizeof k.pub_key) != 0))
+    if (path_pubkey(path, path_len, pub) == 0) {
+        if (keypath && (keypath->key_len != sizeof pub ||
+                        memcmp(keypath->key, pub, sizeof pub) != 0))
             rc = 2;
-        else if (expected_spk(k.pub_key, purpose, want, sizeof want, &wl) == 0 &&
+        else if (expected_spk(pub, purpose, want, sizeof want, &wl) == 0 &&
             wl == spk_len && memcmp(want, spk, wl) == 0)
             rc = 0;
-        wally_bzero(&k, sizeof k);
     }
     return rc;
 }
@@ -591,8 +616,8 @@ out:
 
 int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
 {
-    const struct ext_key *master = kiss_session_master();
-    if (!s || !master)
+    const struct ext_key *master = kiss_session_master();   // NULL on a card
+    if (!s || (!master && !kiss_session_card()))
         return -1;
 
     kiss_psbt_free();
@@ -690,9 +715,8 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     s->net     = (uint8_t)kiss_network();
 
     uint8_t fp[BIP32_KEY_FINGERPRINT_LEN];
-    struct ext_key m = *master;                    // fingerprint API wants non-const
-    bip32_key_get_fingerprint(&m, fp, sizeof fp);
-    wally_bzero(&m, sizeof m);
+    if (kiss_session_fingerprint(fp) != 0)
+        return -1;
     memcpy(s->our_fp, fp, 4);
 
     // Both sides of the ownership memcmp, captured before any verdict. Costs
@@ -721,6 +745,10 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
             if (sh != 0 && sh != WALLY_SIGHASH_ALL)
                 stop(s, "sighash is not ALL");
         }
+        // Paying one takes every input's private key (the ECDH share), which
+        // a card never hands out.
+        if (s->status != WPSBT_STOP && !master)
+            stop(s, "silent payments cannot be signed by a Satochip");
         if (s->status != WPSBT_STOP)
             sp_fill(s, master, fp, psbt_hash);
     }
@@ -813,6 +841,10 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
             const struct wally_tx_output *u = in->witness_utxo;
             if (!u || u->script_len != 34 || u->script[0] != 0x51 || u->script[1] != 0x20) {
                 stop(s, "silent-payment input must be taproot");
+                continue;
+            }
+            if (!master) {             // the spend private key is on the card
+                stop(s, "silent payments cannot be signed by a Satochip");
                 continue;
             }
             uint8_t spend_priv[32], d[32];
@@ -1151,8 +1183,7 @@ int kiss_psbt_details(wpsbt_details_t *d)
     // decide: the signer already refused)
     if (!d || !s_psbt || !tx || s_status == WPSBT_STOP)
         return -1;
-    const struct ext_key *master = kiss_session_master();
-    if (!master)
+    if (!kiss_session_master() && !kiss_session_card())
         return -1;
     memset(d, 0, sizeof *d);
 
@@ -1160,9 +1191,8 @@ int kiss_psbt_details(wpsbt_details_t *d)
     d->locktime = tx->locktime;
 
     uint8_t fp[BIP32_KEY_FINGERPRINT_LEN];
-    struct ext_key m = *master;
-    bip32_key_get_fingerprint(&m, fp, sizeof fp);
-    wally_bzero(&m, sizeof m);
+    if (kiss_session_fingerprint(fp) != 0)
+        return -1;
 
     uint8_t h[32];
     if (wally_tx_get_txid((struct wally_tx *)tx, h, sizeof h) == WALLY_OK)
@@ -1292,10 +1322,52 @@ static bool psbt_has_signature(const struct wally_psbt *p)
     return false;
 }
 
+// The card's path through the same steps wally_psbt_sign_bip32 takes for each
+// input: signing script, scriptCode, sighash. Only the signature itself comes
+// from the card, and it is checked against the input's own key before it goes
+// into the PSBT. The load gate admitted nothing but inputs at our paths, so an
+// input with no keypath of ours here is an error, not one to skip.
+static int sign_with_card(void)
+{
+    const struct wally_tx *tx = psbt_tx();
+    uint8_t fp[4];
+    if (!tx || kiss_session_fingerprint(fp) != 0)
+        return -2;
+    for (size_t i = 0; i < s_psbt->num_inputs; i++) {
+        const struct wally_psbt_input *in = &s_psbt->inputs[i];
+        uint32_t path[8];
+        size_t path_len = 8;
+        const struct wally_map_item *kp = NULL;
+        if (!our_keypath(&in->keypaths, fp, path, &path_len, &kp) || !kp ||
+            kp->key_len != EC_PUBLIC_KEY_LEN)
+            return -2;
+
+        uint8_t script[64], code[64], h[32], der[EC_SIGNATURE_DER_MAX_LEN + 1], sig[64];
+        size_t sl = 0, cl = 0, dl = 0;
+        if (wally_psbt_get_input_signing_script(s_psbt, i, script, sizeof script, &sl) != WALLY_OK ||
+            sl > sizeof script ||
+            wally_psbt_get_input_scriptcode(s_psbt, i, script, sl, code, sizeof code, &cl) != WALLY_OK ||
+            cl > sizeof code ||
+            wally_psbt_get_input_signature_hash(s_psbt, i, tx, code, cl, 0, h, sizeof h) != WALLY_OK)
+            return -2;
+        int rc = kiss_cardwallet_sign(path, (int)path_len, h, der, &dl);
+        if (rc != 0)
+            return rc == SC_ERR_IO ? -9 : -10;
+        if (wally_ec_sig_from_der(der, dl, sig, sizeof sig) != WALLY_OK ||
+            wally_ec_sig_verify(kp->key, kp->key_len, h, sizeof h, EC_FLAG_ECDSA,
+                                sig, sizeof sig) != WALLY_OK)
+            return -10;
+        der[dl++] = (uint8_t)(in->sighash ? in->sighash : WALLY_SIGHASH_ALL);
+        if (wally_psbt_add_input_signature(s_psbt, i, kp->key, kp->key_len, der, dl) != WALLY_OK)
+            return -2;
+    }
+    return 0;
+}
+
 int kiss_psbt_sign(uint8_t *out, size_t out_len, size_t *written)
 {
-    const struct ext_key *master = kiss_session_master();
-    if (!s_psbt || !master || s_status == WPSBT_STOP)
+    const struct ext_key *master = kiss_session_master();   // NULL on a card
+    if (!s_psbt || (!master && !kiss_session_card()) || s_status == WPSBT_STOP)
         return -1;
     // The curve code must have reproduced the golden vectors on THIS chip
     // before it is trusted with a real key. Cached after the first run, so the
@@ -1303,10 +1375,16 @@ int kiss_psbt_sign(uint8_t *out, size_t out_len, size_t *written)
     // than emitting a signature whose nonce nobody has ever checked.
     if (kiss_sign_selftest() != 0)
         return -6;
-    if (wally_psbt_sign_bip32(s_psbt, master, EC_FLAG_GRIND_R) != WALLY_OK)
-        return -2;
-    if (sign_sp_spends(master) != 0)
-        return -5;
+    if (!master) {
+        int rc = sign_with_card();
+        if (rc != 0)
+            return rc;
+    } else {
+        if (wally_psbt_sign_bip32(s_psbt, master, EC_FLAG_GRIND_R) != WALLY_OK)
+            return -2;
+        if (sign_sp_spends(master) != 0)
+            return -5;
+    }
     if (!psbt_has_signature(s_psbt))
         return -7;
     // BIP370 signer rule: once a non-ANYONECANPAY signature exists the inputs

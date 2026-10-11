@@ -416,6 +416,7 @@
   "P_SP_DERIVE": "无法安全地构建静默支付",
   "P_SP_INFO": "格式错误的静默支付输出",
   "P_SP_INPUTS": "静默支付需要原生隔离见证输入",
+  "P_SP_CARD": "静默支付无法用 Satochip 签名",
   "P_SP_NEED_V2": "静默支付需要 v2 交易",
   "P_TOO_MANY_OUTS": "输出太多",
   "P_TOO_MANY_VERIFY": "太多了，没法安全核对",

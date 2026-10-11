@@ -22,6 +22,8 @@
 #include <wally_core.h>
 #include <wally_crypto.h>
 
+#include "kiss_cardwallet.h"
+#include "kiss_crypto.h"
 #include "kiss_satochip.h"
 #include "kiss_satocard.h"
 #include "kiss_seed.h"
@@ -893,6 +895,37 @@ static void test_seedkeeper(void)
     kiss_satocard_close(&c);
 }
 
+// ---- for test_crypto.c: a card session on the emulated card ----
+// The card holds the dev seed, so its wallet is the one the PSBT fixtures
+// are built for, and seed mode and card mode can be compared output for
+// output.
+static fake_card s_sess_card;
+
+int test_satocard_open_session(void)
+{
+    if (!T_CTX)
+        T_CTX = secp256k1_context_create(SECP256K1_CONTEXT_NONE);
+    uint8_t anchor[65];
+    unhex(SUBCA_PUB, anchor, 65);
+    card_new(&s_sess_card, SC_APPLET_SATOCHIP);
+    s_sess_card.high_s = true;
+    kiss_satocard_test_set_anchor(anchor);
+    int tries = 0, rc = kiss_cardwallet_connect(fake_xfer, &s_sess_card, fixed_rng, &tries);
+    if (rc == SC_OK)
+        rc = kiss_cardwallet_unlock("123456", 6, NULL, NULL);
+    kiss_satocard_test_set_anchor(NULL);
+    if (rc == SC_OK)
+        rc = kiss_session_open_card();
+    return rc;
+}
+
+// 0 none, 1 the card is pulled, 2 the card signs with a different key
+void test_satocard_fault(int fault)
+{
+    s_sess_card.fail_io = fault == 1;
+    s_sess_card.sign_wrong_key = fault == 2;
+}
+
 int test_satocard(void)
 {
     tfails = 0;
@@ -909,6 +942,5 @@ int test_satocard(void)
     test_seedkeeper();
     kiss_satocard_test_set_anchor(NULL);
 
-    secp256k1_context_destroy(T_CTX);
     return tfails;
 }

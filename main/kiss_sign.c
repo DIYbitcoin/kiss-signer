@@ -577,6 +577,9 @@ static const char *tr_reason(const char *r)
         {"unknown data in this transaction", STR_P_UNKNOWN_DATA},
         {"SP output needs PSBTv2", STR_P_SP_NEED_V2},
         {"silent payments need native segwit inputs", STR_P_SP_INPUTS},
+        // A Satochip signs ECDSA hashes and never hands out a private key,
+        // and both sides of a silent payment need one (kiss_psbt.c).
+        {"silent payments cannot be signed by a Satochip", STR_P_SP_CARD},
         // BIP376 receive-spend failures. "not this wallet's" reuses the exact
         // send-side wording; the malformed-field cases map to the generic
         // malformed-tx string (rare, hostile-input paths) to avoid new i18n keys.

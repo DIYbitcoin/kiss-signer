@@ -14,6 +14,7 @@
 #include <wally_crypto.h>
 
 #include "kiss_seed.h"
+#include "kiss_cardwallet.h"
 #include "boot_sign_vectors.h"   // golden bytes kiss_sign_selftest re-signs
 
 #ifdef ESP_PLATFORM
@@ -309,6 +310,10 @@ static bool s_prepared_decoy;
 // unlock strokes must not exist inside a decoy session, or the decoy proves a
 // second signer is configurable.
 static bool s_session_decoy;
+// The open session's keys are on a Satochip card (kiss_cardwallet.h): s_master
+// stays zero, kiss_session_master() answers NULL so every path that needs a
+// private key refuses, and the public ones read the card's account keys.
+static bool s_session_card;
 
 static void account_forget(void);   // defined with the account-key cache below
 
@@ -362,6 +367,9 @@ int kiss_session_activate_prepared(void)
     // hardening measure for a lockout -- and it cannot fail without wally_sha256
     // failing first, which nothing else in this file survives either.
     (void)kiss_secp_randomize();
+    if (s_session_card)
+        kiss_cardwallet_close();       // a seed session replaces a card one
+    s_session_card = false;
     s_session = true;
     s_session_decoy = s_prepared_decoy;
     kiss_session_discard_prepared();
@@ -394,9 +402,30 @@ void kiss_session_close(void)
     kiss_session_discard_prepared();
     wally_bzero(&s_master, sizeof(s_master));
     account_forget();
+    if (s_session_card)
+        kiss_cardwallet_close();
     s_session = false;
     s_session_decoy = false;
+    s_session_card = false;
     kiss_seed_forget();
+}
+
+int kiss_session_open_card(void)
+{
+    if (!kiss_cardwallet_active())
+        return 1;
+    kiss_session_discard_prepared();
+    wally_bzero(&s_master, sizeof s_master);
+    account_forget();
+    s_session = true;
+    s_session_decoy = false;           // a card holds one wallet; no decoy
+    s_session_card = true;
+    return 0;
+}
+
+int kiss_session_card(void)
+{
+    return s_session && s_session_card;
 }
 
 int kiss_session_decoy(void)
@@ -418,6 +447,8 @@ int kiss_session_fingerprint(uint8_t out[4])
 {
     if (!s_session || !out)
         return 1;
+    if (s_session_card)
+        return kiss_cardwallet_fingerprint(out) == 0 ? 0 : 2;
     uint8_t fp[BIP32_KEY_FINGERPRINT_LEN];
     if (bip32_key_get_fingerprint(&s_master, fp, sizeof fp) != WALLY_OK)
         return 2;
@@ -443,7 +474,7 @@ int kiss_session_prepared_fingerprint(uint8_t out[4])
 
 const struct ext_key *kiss_session_master(void)
 {
-    return s_session ? &s_master : NULL;
+    return s_session && !s_session_card ? &s_master : NULL;
 }
 
 // ---- network. The master key is network-free; a test network only changes
@@ -512,6 +543,14 @@ static void account_forget(void)
 
 static int account_key(struct ext_key *out)    // m/<purpose>h/<coin>h/0h
 {
+    if (s_session_card) {
+        // read off the card at unlock, public only, already the right network
+        const struct ext_key *k = kiss_cardwallet_account(script_purpose(), s_testnet);
+        if (!k)
+            return 1;
+        memcpy(out, k, sizeof *out);
+        return 0;
+    }
     if (s_acct_valid && s_acct_testnet == s_testnet && s_acct_script == s_script) {
         memcpy(out, &s_acct, sizeof *out);
         return 0;
@@ -603,6 +642,8 @@ int kiss_session_sp_address(char *out, size_t out_len)
 {
     if (!s_session)
         return 1;
+    if (s_session_card)
+        return 6;           // needs the scan and spend keys' hardened path
     uint8_t scan[33], spend[33];
     if (sp_receive_keys(&s_master, s_testnet, scan, spend) != 0)
         return 2;
@@ -616,8 +657,8 @@ int kiss_session_sp_address(char *out, size_t out_len)
 // shows [fp/84h/coinh/0h].
 int kiss_session_sp_scan_export(char *out, size_t out_len)
 {
-    if (!s_session)
-        return 1;
+    if (!s_session || s_session_card)
+        return 1;           // the scan PRIVATE key never leaves a card
     uint8_t scan_priv[32], spend_pub[33];
     int rc = sp_scan_export_keys(&s_master, s_testnet, scan_priv, spend_pub) == 0 ? 0 : 2;
     uint8_t fp[BIP32_KEY_FINGERPRINT_LEN];
@@ -647,10 +688,10 @@ int kiss_session_descriptor(char *out, size_t out_len)
     if (account_key(&acct))
         return 2;
     uint8_t fp[BIP32_KEY_FINGERPRINT_LEN];
-    int rc = bip32_key_get_fingerprint(&s_master, fp, sizeof(fp)) == WALLY_OK ? 0 : 3;
+    int rc = kiss_session_fingerprint(fp) == 0 ? 0 : 3;
     if (rc == 0) {
         char *xpub = NULL;
-        if (s_testnet)
+        if (s_testnet && !s_session_card)
             acct.version = BIP32_VER_TEST_PRIVATE;   // serializes as tpub below
         if (bip32_key_to_base58(&acct, BIP32_FLAG_KEY_PUBLIC, &xpub) == WALLY_OK) {
             // descriptor wrapper matches the script type; xpub/tpub carries the
@@ -689,7 +730,7 @@ int kiss_session_bw_export(char *out, size_t out_len)
     if (account_key(&acct))
         return 2;
     uint8_t fp[BIP32_KEY_FINGERPRINT_LEN];
-    int rc = bip32_key_get_fingerprint(&s_master, fp, sizeof(fp)) == WALLY_OK ? 0 : 3;
+    int rc = kiss_session_fingerprint(fp) == 0 ? 0 : 3;
     if (rc == 0) {
         uint8_t ser[BIP32_SERIALIZED_LEN];
         if (bip32_key_serialize(&acct, BIP32_FLAG_KEY_PUBLIC, ser, sizeof ser) == WALLY_OK) {

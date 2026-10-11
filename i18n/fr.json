@@ -416,6 +416,7 @@
   "P_SP_DERIVE": "impossible de créer le paiement silencieux en toute sécurité",
   "P_SP_INFO": "sortie de paiement silencieux mal formée",
   "P_SP_INPUTS": "les paiements silencieux exigent des entrées native segwit",
+  "P_SP_CARD": "les paiements silencieux ne peuvent pas être signés par une Satochip",
   "P_SP_NEED_V2": "le paiement silencieux exige une transaction v2",
   "P_TOO_MANY_OUTS": "trop de sorties",
   "P_TOO_MANY_VERIFY": "trop nombreux à vérifier sûrement",

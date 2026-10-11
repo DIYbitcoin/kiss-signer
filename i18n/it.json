@@ -416,6 +416,7 @@
   "P_SP_DERIVE": "impossibile creare il pagamento silenzioso in sicurezza",
   "P_SP_INFO": "output di pagamento silenzioso malformato",
   "P_SP_INPUTS": "i pagamenti silenziosi richiedono input native segwit",
+  "P_SP_CARD": "i pagamenti silenziosi non si possono firmare con una Satochip",
   "P_SP_NEED_V2": "il pagamento silenzioso richiede una transazione v2",
   "P_TOO_MANY_OUTS": "troppe uscite",
   "P_TOO_MANY_VERIFY": "troppi per verificarli in sicurezza",

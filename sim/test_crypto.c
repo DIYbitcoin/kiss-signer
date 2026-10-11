@@ -8,6 +8,7 @@
 #include "kiss_simpath.h"  // the scratch, and the lock on it
 #include "kiss_sp.h"   // sp_schnorr_sign: the second secp context
 #include "kiss_psbt.h"
+#include "kiss_cardwallet.h"
 #include "kiss_usage.h"
 #include "kiss_payee.h"
 #include "qr_transport.h"
@@ -39,6 +40,8 @@ int test_sdseed_layer(void);
 // sim/test_kef.c — the password-locked KEF backup envelope
 int test_kef(void);
 int test_satocard(void);
+int test_satocard_open_session(void);
+void test_satocard_fault(int fault);
 // sim/test_duress.c — the duress unlock stroke classifier
 int test_duress(void);
 int test_gword(void);
@@ -838,6 +841,138 @@ static void test_secp_randomize(void) {
     int ok2 = sp_schnorr_sign(d, msg, sig2) == 0;
     chkb("schnorr is identical either side of a randomize",
          ok1 && ok2 && memcmp(sig1, sig2, sizeof sig1) == 0);
+}
+
+// ---- card mode: the same wallet with its keys on a Satochip ----
+// The emulated card holds the dev seed, so every public answer must equal the
+// seed session's, and every signature it makes must verify against a sighash
+// computed here independently, with libwally's transaction API rather than
+// the PSBT one the signer used.
+static int card_sigs_verify(const uint8_t *signed_psbt, size_t len)
+{
+    struct wally_psbt *p = NULL;
+    struct wally_tx *tx = NULL;
+    int ok = wally_psbt_from_bytes(signed_psbt, len, 0, &p) == WALLY_OK &&
+             wally_psbt_extract(p, WALLY_PSBT_EXTRACT_NON_FINAL, &tx) == WALLY_OK;
+    for (size_t i = 0; ok && i < p->num_inputs; i++) {
+        const struct wally_psbt_input *in = &p->inputs[i];
+        if (in->signatures.num_items != 1) { ok = 0; break; }
+        const struct wally_map_item *it = &in->signatures.items[0];
+        uint8_t sc[25], h[32], sig[64], norm[64];
+        size_t scl = 0;
+        uint64_t amount;
+        uint32_t flags = 0;
+        if (in->witness_utxo) {                     // BIP143 with the p2pkh scriptCode
+            amount = in->witness_utxo->satoshi;
+            wally_scriptpubkey_p2pkh_from_bytes(it->key, 33, WALLY_SCRIPT_HASH160,
+                                                sc, sizeof sc, &scl);
+            flags = WALLY_TX_FLAG_USE_WITNESS;
+        } else {                                    // legacy: the prevout script
+            const struct wally_tx_output *o = &in->utxo->outputs[tx->inputs[i].index];
+            amount = o->satoshi;
+            memcpy(sc, o->script, o->script_len);
+            scl = o->script_len;
+        }
+        ok = it->value[it->value_len - 1] == WALLY_SIGHASH_ALL &&
+             wally_tx_get_btc_signature_hash(tx, i, sc, scl, amount, WALLY_SIGHASH_ALL,
+                                             flags, h, sizeof h) == WALLY_OK &&
+             wally_ec_sig_from_der(it->value, it->value_len - 1, sig, sizeof sig) == WALLY_OK &&
+             wally_ec_sig_verify(it->key, 33, h, 32, EC_FLAG_ECDSA, sig, 64) == WALLY_OK &&
+             wally_ec_sig_normalize(sig, 64, norm, 64) == WALLY_OK &&
+             memcmp(sig, norm, 64) == 0;           // low S
+    }
+    wally_tx_free(tx);
+    wally_psbt_free(p);
+    return ok;
+}
+
+static void test_card_signing(void)
+{
+    static uint8_t pb[4096], out[QRT_MAX_SIGNED_PSBT];
+    char a[128], b[256], seed_desc[2][256], seed_bw[2][256], seed_addr[2][3][128];
+    wpsbt_summary_t sum;
+    size_t sw = 0;
+    uint8_t fp[4];
+    static const int scripts[3] = { WSCRIPT_NATIVE, WSCRIPT_NESTED, WSCRIPT_LEGACY };
+
+    // the seed session's public answers, on both networks and all three types
+    chki("card: seed session opens", kiss_session_open(NULL), 0);
+    for (int net = 0; net < 2; net++) {
+        kiss_set_network(net);
+        for (int t = 0; t < 3; t++) {
+            kiss_set_script(scripts[t]);
+            kiss_session_address(1, 7, seed_addr[net][t], sizeof seed_addr[net][t]);
+        }
+        kiss_set_script(WSCRIPT_NATIVE);
+        kiss_session_descriptor(seed_desc[net], sizeof seed_desc[net]);
+        kiss_session_bw_export(seed_bw[net], sizeof seed_bw[net]);
+    }
+    kiss_set_network(0);
+    kiss_session_close();
+
+    chki("card: emulated Satochip session opens", test_satocard_open_session(), 0);
+    chkb("card: session says card", kiss_session_card());
+    chkb("card: no master key in RAM", kiss_session_master() == NULL);
+    chkb("card: fingerprint is the seed's",
+         kiss_session_fingerprint(fp) == 0 && memcmp(fp, t_fp, 4) == 0);
+    int same = 1;
+    for (int net = 0; net < 2; net++) {
+        kiss_set_network(net);
+        for (int t = 0; t < 3; t++) {
+            kiss_set_script(scripts[t]);
+            if (kiss_session_address(1, 7, a, sizeof a) != 0 || strcmp(a, seed_addr[net][t]) != 0)
+                same = 0;
+        }
+        kiss_set_script(WSCRIPT_NATIVE);
+        if (kiss_session_descriptor(b, sizeof b) != 0 || strcmp(b, seed_desc[net]) != 0)
+            same = 0;
+        if (kiss_session_bw_export(b, sizeof b) != 0 || strcmp(b, seed_bw[net]) != 0)
+            same = 0;
+    }
+    kiss_set_network(0);
+    chkb("card: addresses, descriptors and exports match the seed's", same);
+    chkb("card: no silent-payment address", kiss_session_sp_address(a, sizeof a) != 0);
+    chkb("card: no scan key export", kiss_session_sp_scan_export(b, sizeof b) != 0);
+
+    // every script type signs on the card and verifies independently
+    static const uint32_t purposes[3] = { 84, 49, 44 };
+    for (int t = 0; t < 3; t++) {
+        char nm[64];
+        size_t pl = mk_typed_psbt(scripts[t], purposes[t], 0, pb, sizeof pb);
+        snprintf(nm, sizeof nm, "card: %u psbt loads READY", (unsigned)purposes[t]);
+        chkb(nm, kiss_psbt_load(pb, pl, &sum) == 0 && sum.status == WPSBT_READY);
+        snprintf(nm, sizeof nm, "card: %u psbt signs", (unsigned)purposes[t]);
+        chki(nm, kiss_psbt_sign(out, sizeof out, &sw), 0);
+        snprintf(nm, sizeof nm, "card: %u signature verifies, low S", (unsigned)purposes[t]);
+        chkb(nm, card_sigs_verify(out, sw));
+        kiss_psbt_free();
+    }
+    size_t pl = mk_nin_psbt(2, 100000, 2000, pb, sizeof pb);
+    chkb("card: 2-input psbt loads", kiss_psbt_load(pb, pl, &sum) == 0 && sum.status != WPSBT_STOP);
+    chki("card: 2-input psbt signs", kiss_psbt_sign(out, sizeof out, &sw), 0);
+    chkb("card: both inputs verify", card_sigs_verify(out, sw));
+    kiss_psbt_free();
+
+    // a foreign change output is still caught with public keys only
+    pl = mk_psbt(MUT_FAKE_CHG, pb, sizeof pb);
+    chkb("card: fake change still caught",
+         kiss_psbt_load(pb, pl, &sum) == 0 && sum.status != WPSBT_READY);
+    kiss_psbt_free();
+
+    pl = mk_typed_psbt(WSCRIPT_NATIVE, 84, 0, pb, sizeof pb);
+    kiss_psbt_load(pb, pl, &sum);
+    test_satocard_fault(1);
+    chki("card: card pulled mid-sign", kiss_psbt_sign(out, sizeof out, &sw), -9);
+    test_satocard_fault(2);
+    chki("card: a signature by another key is refused", kiss_psbt_sign(out, sizeof out, &sw), -10);
+    test_satocard_fault(0);
+    kiss_psbt_free();
+
+    kiss_session_close();
+    chkb("card: lock ends the card session", !kiss_session_card() && !kiss_cardwallet_active());
+    chkb("card: nothing derives after lock", kiss_session_address(0, 0, a, sizeof a) != 0);
+    kiss_set_script(WSCRIPT_NATIVE);
+    chki("card: seed session reopens for the rest", kiss_session_open(""), 0);
 }
 
 // Locking drops the transaction, not just the key. kiss_psbt_load returns -1
@@ -1997,6 +2132,8 @@ int main(int argc, char **argv) {
              sm.est_vsize > 200 && sm.est_vsize < 400);
         kiss_psbt_free();
     }
+    test_card_signing();
+
     // native 0/0 still equals the published BIP84 vector (no leakage)
     kiss_set_script(WSCRIPT_NATIVE);
     chki("native addr after type sweep rc", kiss_session_address(0, 0, addr, sizeof addr), 0);

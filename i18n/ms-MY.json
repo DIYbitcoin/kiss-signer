@@ -416,6 +416,7 @@
   "P_SP_DERIVE": "tidak dapat membina silent payment dengan selamat",
   "P_SP_INFO": "output silent payment cacat",
   "P_SP_INPUTS": "silent payment perlukan input native segwit",
+  "P_SP_CARD": "silent payment tidak boleh ditandatangani dengan Satochip",
   "P_SP_NEED_V2": "silent payment perlukan transaksi v2",
   "P_TOO_MANY_OUTS": "terlalu banyak output",
   "P_TOO_MANY_VERIFY": "terlalu banyak untuk semakan selamat",

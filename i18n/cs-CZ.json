@@ -416,6 +416,7 @@
   "P_SP_DERIVE": "tichou platbu se nepodařilo bezpečně vytvořit",
   "P_SP_INFO": "poškozený výstup tiché platby",
   "P_SP_INPUTS": "tiché platby vyžadují vstupy native segwit",
+  "P_SP_CARD": "tiché platby nelze podepsat kartou Satochip",
   "P_SP_NEED_V2": "tichá platba vyžaduje transakci v2",
   "P_TOO_MANY_OUTS": "příliš mnoho výstupů",
   "P_TOO_MANY_VERIFY": "příliš mnoho na bezpečné ověření",
