@@ -31,6 +31,7 @@ clang $KISS_BOARD_CFLAGS ${KISS_WERROR:+-Werror} -O1 -Wall -Wextra -Wno-unused-p
   main/kiss_sp.c \
   main/kiss_usage.c main/kiss_payee.c main/kiss_backup.c main/kiss_duress.c main/kiss_seed_sd.c main/platform_sd.c \
   main/kiss_kef.c main/kiss_kef_crypto.c main/kiss_pbkdf2.c \
+  main/kiss_satocard.c main/kiss_satochip.c main/kiss_seedkeeper.c \
   sim/test_fuzz.c \
   -lm -o "$KISS_SIM_TMP/kissfuzz"
 echo "built $KISS_SIM_TMP/kissfuzz"

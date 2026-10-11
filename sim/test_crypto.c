@@ -38,6 +38,7 @@ int test_sp(void);
 int test_sdseed_layer(void);
 // sim/test_kef.c — the password-locked KEF backup envelope
 int test_kef(void);
+int test_satocard(void);
 // sim/test_duress.c — the duress unlock stroke classifier
 int test_duress(void);
 int test_gword(void);
@@ -927,6 +928,7 @@ int main(int argc, char **argv) {
     fails += test_backup_layer();
     fails += test_sdseed_layer();
     fails += test_kef();
+    fails += test_satocard();
     fails += test_usage();
     fails += test_defrow();
     fails += test_duress();

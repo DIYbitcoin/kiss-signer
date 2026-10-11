@@ -36,6 +36,9 @@
 #include "kiss_crypto.h"
 #include "kiss_kef.h"
 #include "kiss_psbt.h"
+#include "kiss_satocard.h"
+#include "kiss_satochip.h"
+#include "kiss_seedkeeper.h"
 #include "kiss_seed.h"
 #include "kiss_seed_sd.h"
 #include "qr_transport.h"
@@ -317,6 +320,31 @@ static int mk_ur_part(char *out, size_t outsz, uint32_t seq_num, uint32_t seq_le
 // constant and not a clock: every run of this harness is the same run, and a
 // failure here reproduces by checking out the commit and running it again.
 #define FUZZ_SEED 0xC0FFEE01u
+
+
+// ---- a card that answers with noise ----
+// Every response a reader hands back is attacker-shaped, so the card layers
+// get random lengths and bytes behind status words they act on.
+static int noise_xfer(void *ctx, const uint8_t *cmd, size_t cmd_len,
+                      uint8_t *resp, size_t cap, size_t *resp_len, uint16_t *sw)
+{
+    (void)ctx; (void)cmd; (void)cmd_len;
+    static const uint16_t sws[] = { 0x9000, 0x9000, 0x9000, 0x63C1, 0x9C04,
+                                    0x9C0C, 0x9C12, 0x9C31, 0x6D00, 0x9C21 };
+    uint32_t r = rnd();
+    if (r % 97 == 0) return -1;
+    *sw = sws[r % (sizeof sws / sizeof sws[0])];
+    size_t n = rnd() % (cap + 8);       // sometimes more than the buffer
+    if (n > cap) { *resp_len = n; return 0; }
+    for (size_t i = 0; i < n; i++) resp[i] = (uint8_t)rnd();
+    *resp_len = n;
+    return 0;
+}
+
+static void noise_rng(uint8_t *out, size_t n)
+{
+    for (size_t i = 0; i < n; i++) out[i] = (uint8_t)rnd();
+}
 
 int main(void)
 {
@@ -1092,6 +1120,53 @@ int main(void)
         chkb("random psbts: the SIGNATURE code varies with the psbt", distinct);
         printf("PASS: %d random psbt shapes signed deterministically "
                "(%d skipped)\n", signed_n, skipped);
+    }
+
+    // ---- 10. the card layers under ASAN: noise from the reader ----
+    {
+        int opened = 0;
+        for (int i = 0; i < 3000; i++) {
+            kiss_satocard c;
+            kiss_satocard_init(&c, i & 1 ? SC_APPLET_SATOCHIP : SC_APPLET_SEEDKEEPER,
+                               noise_xfer, NULL, noise_rng);
+            if (kiss_satocard_open(&c) == SC_OK) {
+                opened++;
+                (void)kiss_satocard_verify_pin(&c, "123456", 6, NULL);
+                if (kiss_satocard_genuine(&c) == SC_OK) {
+                    printf("FAIL: a noise card passed the genuine check (iter %d)\n", i);
+                    fails++;
+                }
+            }
+            kiss_satocard_close(&c);
+        }
+        printf("PASS: 3000 noise cards (%d opened a channel)\n", opened);
+
+        uint8_t der[1200], anchor[65], pub[65];
+        int forged = 0;
+        for (int i = 0; i < 3000; i++) {
+            size_t n = rnd() % sizeof der;
+            for (size_t j = 0; j < n; j++) der[j] = (uint8_t)rnd();
+            if (n > 4 && (i & 1)) { der[0] = 0x30; der[1] = 0x82; }
+            for (size_t j = 0; j < 65; j++) anchor[j] = (uint8_t)rnd();
+            anchor[0] = 0x04;
+            if (kiss_satocard_check_cert(der, n, anchor, pub) == SC_OK)
+                forged++;
+        }
+        chkb("card noise: no random certificate verifies", forged == 0);
+
+        char words[WSEED_MAX_MNEMONIC], pass[64];
+        int bad = 0;
+        for (int i = 0; i < 20000; i++) {
+            size_t n = rnd() % 200;
+            for (size_t j = 0; j < n; j++) buf[j] = (uint8_t)rnd();
+            if (n && (i & 1)) buf[0] = (uint8_t)(rnd() % (n + 4));
+            uint8_t type = i % 3 == 0 ? SK_TYPE_BIP39 : SK_TYPE_MASTERSEED;
+            if (kiss_sk_decode(type, SK_SUBTYPE_BIP39, buf, n, words, sizeof words,
+                               pass, sizeof pass) == SC_OK &&
+                kiss_seed_validate(words) != 0)
+                bad++;
+        }
+        chkb("card noise: a decoded entry is always a valid mnemonic", bad == 0);
     }
 
     kiss_session_close();
