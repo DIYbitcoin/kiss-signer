@@ -561,6 +561,68 @@ int test_seed_layer(void) {
         }
     }
 
+    // ---- a temporary wallet leaves the stored one exactly as it was ----
+    // A seed card's words are loaded for one session. Opening, using, refusing
+    // writes and locking must all end with the stored wallet, its mode and its
+    // notes untouched, and nothing about the card wallet saved.
+    {
+        char got[WSEED_MAX_MNEMONIC];
+
+        schk("temp: start from KEEP", kiss_seed_set_mode(WSEED_MODE_KEEP) == 0);
+        schk("temp: a wallet is stored", kiss_seed_store(DEV_WORDS) == 0);
+        kiss_seed_set_source(WSEED_SRC_DICE);
+        kiss_seed_set_entropy_note(WSEED_ENTQ_CARDS | WC_Q_DUP);
+
+        schk("temp: bad words refused", kiss_seed_open_temp("abandon") != 0);
+        schk("temp: nothing opened by a refusal", !kiss_seed_temp_open());
+
+        schk("temp: opens", kiss_seed_open_temp(ALT_WORDS) == WSEED_OK);
+        schk("temp: reports open", kiss_seed_temp_open());
+        schk("temp: reads as nothing saved",
+             kiss_seed_mode() == WSEED_MODE_AMNESIC);
+        schk("temp: exists", kiss_seed_exists() == 1);
+        schk("temp: load returns the card words",
+             kiss_seed_load(got, sizeof got) == 0 && strcmp(got, ALT_WORDS) == 0);
+
+        // every way of writing or moving a wallet refuses while it is open
+        schk("temp: set_mode AMNESIC refused (would erase the stored wallet)",
+             kiss_seed_set_mode(WSEED_MODE_AMNESIC) != 0);
+        schk("temp: set_mode KEEP refused",
+             kiss_seed_set_mode(WSEED_MODE_KEEP) != 0);
+        schk("temp: move_to SD refused", kiss_seed_move_to(WSEED_MODE_SD) != 0);
+        schk("temp: move_to AMNESIC refused",
+             kiss_seed_move_to(WSEED_MODE_AMNESIC) != 0);
+        schk("temp: stage refused", kiss_seed_stage(ALT_WORDS) != 0);
+        schk("temp: commit refused", kiss_seed_commit() != 0);
+        schk("temp: store refused", kiss_seed_store(ALT_WORDS) != 0);
+
+        schk("temp: session opens", kiss_session_open("") == 0);
+        kiss_session_close();
+        schk("temp: gone after lock", !kiss_seed_temp_open());
+        schk("temp: stored mode is back", kiss_seed_mode() == WSEED_MODE_KEEP);
+        schk("temp: stored wallet unchanged after lock",
+             kiss_seed_load(got, sizeof got) == 0 && strcmp(got, DEV_WORDS) == 0);
+        schk("temp: source note unchanged",
+             kiss_seed_source() == WSEED_SRC_DICE);
+        schk("temp: entropy note unchanged",
+             kiss_seed_entropy_note() == (WSEED_ENTQ_CARDS | WC_Q_DUP));
+
+        // setup owns the session while it has anything staged
+        schk("temp: setup stages", kiss_seed_stage(ALT_WORDS) == 0);
+        schk("temp: refused mid setup", kiss_seed_open_temp(ALT_WORDS) != 0);
+        kiss_seed_discard();
+        kiss_seed_stage_mode(WSEED_MODE_SD);
+        schk("temp: refused with only a mode staged",
+             kiss_seed_open_temp(ALT_WORDS) != 0);
+        kiss_seed_discard();
+
+        // a wipe takes the temporary wallet with everything else
+        schk("temp: reopens", kiss_seed_open_temp(ALT_WORDS) == WSEED_OK);
+        schk("temp: wipe rc", kiss_seed_wipe() == WSEED_OK);
+        schk("temp: wipe closed it", !kiss_seed_temp_open() &&
+             kiss_seed_exists() == 0);
+    }
+
     // leave the dev seed stored: the rest of the suite depends on it
     schk("restore dev words for suite", kiss_seed_store(DEV_WORDS) == 0);
     return sfails;

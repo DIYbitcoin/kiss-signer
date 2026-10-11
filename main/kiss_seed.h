@@ -115,6 +115,16 @@ int kiss_seed_wipe(void);
 // nothing (flash still holds the words, which is the point of that mode).
 void kiss_seed_forget(void);
 
+// A wallet held in RAM for one session only, read from something that keeps
+// it elsewhere (a seed card). Whatever this device stores is left exactly as
+// it was: load and exists answer from the temporary copy, kiss_seed_mode()
+// answers AMNESIC so no metadata about it is saved, and every call that would
+// write or move a wallet (set_mode, move_to, stage, commit, store) refuses
+// until kiss_seed_forget() or kiss_session_close() drops it. Refused while
+// setup has anything staged. 0 on success.
+int  kiss_seed_open_temp(const char *mnemonic);
+bool kiss_seed_temp_open(void);
+
 // BIP39 checksum + wordlist validation only (nothing stored). 0 = valid.
 int kiss_seed_validate(const char *mnemonic);
 

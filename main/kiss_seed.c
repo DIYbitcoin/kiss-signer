@@ -988,11 +988,47 @@ static bool s_has_active_ram;
 // or a power cut and the words were gone with nothing to replace them.
 static int s_pending_mode = -1;
 
+// A wallet opened from somewhere that keeps it (a seed card), held for one
+// session and never written here. It sits beside whatever this device stores
+// and must leave that untouched: opening it, using it, cancelling it and
+// locking it all end with the stored wallet, its mode and its notes exactly as
+// they were. So while it is open every path that writes a wallet refuses.
+static char s_temp[WSEED_MAX_MNEMONIC];
+static bool s_has_temp;
+
+static void clear_temp(void)
+{
+    wally_bzero(s_temp, sizeof s_temp);
+    s_has_temp = false;
+}
+
 // The staged choice is what the wizard's own screens must reflect, so it wins
 // while it exists. Everywhere else there is nothing staged and this is flash.
+//
+// A temporary wallet answers AMNESIC: nothing about it is saved, and that is
+// the answer the metadata gates (kiss_usage, kiss_payee, kiss_backup) need so
+// that its fingerprint never lands in NVS either.
 int kiss_seed_mode(void)
 {
+    if (s_has_temp)
+        return WSEED_MODE_AMNESIC;
     return s_pending_mode >= 0 ? s_pending_mode : storage_mode_read();
+}
+
+int kiss_seed_open_temp(const char *mnemonic)
+{
+    if (s_has_pending || s_pending_mode >= 0)
+        return WSEED_ERR_INVALID;       // setup owns the session right now
+    if (kiss_seed_validate(mnemonic) != 0)
+        return WSEED_ERR_INVALID;
+    snprintf(s_temp, sizeof s_temp, "%s", mnemonic);
+    s_has_temp = true;
+    return WSEED_OK;
+}
+
+bool kiss_seed_temp_open(void)
+{
+    return s_has_temp;
 }
 
 void kiss_seed_stage_mode(int mode)
@@ -1004,6 +1040,8 @@ void kiss_seed_stage_mode(int mode)
 
 int kiss_seed_set_mode(int mode)
 {
+    if (s_has_temp)
+        return WSEED_ERR_INVALID;       // AMNESIC here would erase the stored wallet
     if (mode != WSEED_MODE_KEEP && mode != WSEED_MODE_AMNESIC &&
         mode != WSEED_MODE_SD)
         return WSEED_ERR_INVALID;
@@ -1032,6 +1070,8 @@ int kiss_seed_set_mode(int mode)
 
 int kiss_seed_stage(const char *mnemonic)
 {
+    if (s_has_temp)
+        return -1;
     if (kiss_seed_validate(mnemonic) != 0)
         return -1;
     // The per-boot AMNESIC load has no staged storage choice. It is the active
@@ -1063,6 +1103,8 @@ static void clear_active_ram(void)
 
 int kiss_seed_commit(void)
 {
+    if (s_has_temp)
+        return WSEED_ERR_INVALID;
     // Legacy AMNESIC load code stages+commits; the load is already the active
     // RAM wallet and committing it is intentionally a no-op.
     if (!s_has_pending)
@@ -1216,7 +1258,7 @@ void kiss_seed_discard(void)
 // ---- API ----
 int kiss_seed_exists(void)
 {
-    if (s_has_pending)
+    if (s_has_temp || s_has_pending)
         return 1;
     int mode = storage_mode_read();
     // A configured SD wallet still exists when its card is in the user's
@@ -1248,6 +1290,8 @@ int kiss_seed_validate(const char *mnemonic)
 
 int kiss_seed_store(const char *mnemonic)
 {
+    if (s_has_temp)
+        return -1;
     if (kiss_seed_validate(mnemonic) != 0)
         return -1;
     return storage_write_keep(mnemonic);
@@ -1258,6 +1302,13 @@ int kiss_seed_load(char *out, size_t out_len)
     if (!out || out_len < 2)
         return WSEED_ERR_INVALID;
     wally_bzero(out, out_len);
+    if (s_has_temp) {
+        size_t n = strlen(s_temp);
+        if (n >= out_len)
+            return WSEED_ERR_INVALID;
+        memcpy(out, s_temp, n + 1);
+        return WSEED_OK;
+    }
     if (s_has_pending) {               // staged setup: derive before it's flashed
         size_t n = strlen(s_pending);
         if (n >= out_len)
@@ -1293,6 +1344,7 @@ int kiss_seed_load(char *out, size_t out_len)
 
 int kiss_seed_wipe(void)
 {
+    clear_temp();
     clear_staged();
     clear_active_ram();
     kiss_usage_wipe();
@@ -1318,6 +1370,7 @@ int kiss_seed_wipe(void)
 
 void kiss_seed_forget(void)
 {
+    clear_temp();                      // a temporary wallet ends with its session
     // During Replace Wallet, closing a failed candidate session must not erase
     // the pre-existing AMNESIC wallet. The candidate is discarded separately.
     if (storage_mode_read() == WSEED_MODE_AMNESIC && !s_has_pending)
@@ -1332,8 +1385,9 @@ int kiss_seed_move_to(int mode)
         mode != WSEED_MODE_SD)
         return WSEED_ERR_INVALID;
 
-    if (s_has_pending)
-        return WSEED_ERR_INVALID;       // setup owns the staged candidate
+    if (s_has_pending || s_has_temp)
+        return WSEED_ERR_INVALID;       // setup owns the staged candidate, or the
+                                        // loaded wallet is not the stored one
     int source = storage_mode_read();
     if (source == mode)
         return WSEED_OK;
