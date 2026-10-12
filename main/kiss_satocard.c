@@ -204,7 +204,12 @@ static secp256k1_context *sc_ctx(kiss_sc_rng_fn rng)
         if (ctx && rng) {
             uint8_t seed[32];
             rng(seed, sizeof seed);
-            (void)secp256k1_context_randomize(ctx, seed);
+            // Blinding hardens the key operations against side channels; a
+            // context that could not take it still computes correctly, so a
+            // failure is not a reason to refuse. GCC will not let a (void)
+            // cast drop this result, so it is named and dropped instead.
+            int blinded = secp256k1_context_randomize(ctx, seed);
+            (void)blinded;
             kiss_wipe(seed, sizeof seed);
         }
     }
