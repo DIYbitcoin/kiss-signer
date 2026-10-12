@@ -919,6 +919,28 @@ int test_satocard_open_session(void)
     return rc;
 }
 
+// A fresh emulated Satochip holding the dev seed, reached one APDU at a time
+// (for the CCID tests, which put a reader between it and the card layers).
+void test_satocard_card_reset(void)
+{
+    if (!T_CTX)
+        T_CTX = secp256k1_context_create(SECP256K1_CONTEXT_NONE);
+    card_new(&s_sess_card, SC_APPLET_SATOCHIP);
+}
+
+int test_satocard_apdu(const uint8_t *cmd, size_t len, uint8_t *resp, size_t cap,
+                       size_t *rlen, uint16_t *sw)
+{
+    return fake_xfer(&s_sess_card, cmd, len, resp, cap, rlen, sw);
+}
+
+void test_satocard_anchor(int on)
+{
+    uint8_t anchor[65];
+    unhex(SUBCA_PUB, anchor, 65);
+    kiss_satocard_test_set_anchor(on ? anchor : NULL);
+}
+
 // 0 none, 1 the card is pulled, 2 the card signs with a different key
 void test_satocard_fault(int fault)
 {
