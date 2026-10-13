@@ -44,7 +44,10 @@ swipe opens your real keys, and KISS alone opens a decoy.
 - **BIP39 seed plus passphrase.** 12 or 24 words. The passphrase is typed or
   scanned every session and never stored.
 - **Single-sig:** native SegWit (BIP84, the default), nested SegWit (BIP49) and
-  legacy (BIP44), plus Silent Payments: receive, send and spend (BIP352).
+  legacy (BIP44).
+- **Silent Payments (BIP352): receive, send and spend.** The full flow has
+  only been tested on signet and Mutinynet through kiss-bdk, never on mainnet
+  and not yet through Sparrow. See the [validation details](docs/ROADMAP.md).
 - **Offline.** PSBTs move by QR (BC-UR) or SD card. The radio chip is held in
   reset from the first instruction of every boot.
 - **Works with Sparrow and BlueWallet.** Other coordinators work if they import
