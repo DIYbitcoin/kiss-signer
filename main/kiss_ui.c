@@ -101,6 +101,10 @@ static bool s_kef_mode;
 // envelope, and a caption saying the wrong one on a screen where the
 // owner is being asked to prove they remember theirs is the whole bug.
 static bool s_kef_pass;
+// The same keyboard collecting a Satochip card's PIN (kiss_card_ui.c): no
+// wallet, nothing derived here, and it opens on the number plane because
+// most card PINs are digits. The card counts the tries, not this screen.
+static bool s_card_pin;
 static bool s_kef_create;
 static bool s_kef_first_done;
 static char s_kef_first[PASS_MAX + 1];
@@ -501,7 +505,8 @@ static void entry_refresh_text(void) {
     // swapped), or making one from keys that have a passphrase. Making one
     // from keys with none keeps the plain prompt; there is nothing to confuse.
     const bool kef_vs_pp = !s_kef_create || !kiss_session_decoy();
-    lv_label_set_text(s_entry, tr(!s_kef_mode || s_kef_pass ? STR_L_TYPE_PROMPT
+    lv_label_set_text(s_entry, tr(s_card_pin ? STR_L_CARD_PIN_PROMPT
+                                  : !s_kef_mode || s_kef_pass ? STR_L_TYPE_PROMPT
                                   : kef_vs_pp ? STR_L_KEF_OPEN_PROMPT
                                               : STR_L_KEF_TYPE_PROMPT));
     lv_obj_set_style_text_color(s_entry, MUT_COL, 0);
@@ -716,6 +721,7 @@ static void wipe_and_close(void) {
   s_backup_verify_pass = false;
   s_kef_mode = false;
   s_kef_pass = false;
+  s_card_pin = false;
   s_kef_create = false;
   s_kef_first_done = false;
   kiss_wipe(s_kef_first, sizeof s_kef_first);
@@ -2231,7 +2237,8 @@ static void kb_cb(lv_event_t *e) {
         // passphrase: nothing is being opened, a fingerprint is being
         // rederived. The rehearsal's own prompt stands instead, which is the
         // instruction the owner is still carrying out.
-        cap_set(tr(s_kef_pass    ? STR_L_VERIFY_PASS
+        cap_set(tr(s_card_pin    ? STR_L_CARD_PIN
+                 : s_kef_pass    ? STR_L_VERIFY_PASS
                  : s_kef_create  ? STR_L_KEF_LOCKING : STR_L_KEF_UNLOCKING),
                 MUT_COL, true);
         lv_refr_now(NULL);
@@ -2246,7 +2253,8 @@ static void kb_cb(lv_event_t *e) {
           // that says what actually happened: the answer was not wrong about
           // a password, it opens DIFFERENT KEYS. Same string the setup
           // rehearsal has always used for the same moment.
-          cap_set(tr(s_kef_pass    ? STR_L_BACKUP_PASS_BAD
+          cap_set(tr(s_card_pin    ? STR_L_CARD_PIN_LEN
+                   : s_kef_pass    ? STR_L_BACKUP_PASS_BAD
                    : s_kef_create  ? STR_L_KEF_FAIL : STR_L_KEF_BAD),
                   lv_color_hex(0xFF4D5E), true);
           entry_refresh();
@@ -2632,7 +2640,8 @@ void kiss_login_open(void (*unlocked_cb)(void)) {
   // they already have is an instruction to invent a second one, which opens a
   // different wallet. Restoring gets the plain caption the ordinary unlock uses.
   cap_set(s_kef_mode
-              ? tr(s_kef_pass    ? STR_L_VERIFY_PASS
+              ? tr(s_card_pin    ? STR_L_CARD_PIN
+                 : s_kef_pass    ? STR_L_VERIFY_PASS
                  : s_kef_create  ? STR_L_KEF_PASS_NEW : STR_L_KEF_PASS_OPEN)
           : s_setup_mode && !s_restore_mode ? tr(STR_L_CREATE_YOUR_PASS)
                                             : tr(STR_L_PASSPHRASE_CAP),
@@ -2809,6 +2818,15 @@ void kiss_ui_verify_pass_open(int (*on_check)(const char *pass, size_t len),
   s_kef_pass = true;
   kiss_ui_kef_pass_open(false, on_check, on_done, on_cancel);
   if (!kiss_ui_active()) s_kef_pass = false;   // refused: leave no mode behind
+}
+
+void kiss_ui_card_pin_open(int (*on_check)(const char *pin, size_t len),
+                           void (*on_done)(void), void (*on_cancel)(void))
+{
+  s_card_pin = true;
+  kiss_ui_kef_pass_open(false, on_check, on_done, on_cancel);
+  if (!kiss_ui_active()) { s_card_pin = false; return; }
+  kb_plane(s_kb, MAP_SYM);
 }
 
 void kiss_ui_kef_pass_open(bool create,

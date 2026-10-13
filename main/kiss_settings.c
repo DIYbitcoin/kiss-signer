@@ -1992,14 +1992,20 @@ static void device_screen(void)
 // of the three conditions behind a single dot, so a device with both and no
 // duress problem says "2 NEED ATTENTION" under one mark. A tab has one dot to
 // give. Counting items and marking tabs is the trade, taken deliberately.
-static bool backup_unchecked(void) { return !kiss_ui_backup_checked(); }
+// A Satochip card session has no seed words here, no passphrase and no ways
+// in to set, so none of the three can be asked of it: no dot, no nag.
+static bool backup_unchecked(void)
+{
+    return !kiss_session_card() && !kiss_ui_backup_checked();
+}
 
 static bool words_unencrypted(void)
 {
-    return kiss_seed_mode() == WSEED_MODE_KEEP && !kiss_seed_flash_encrypted();
+    return !kiss_session_card() &&
+           kiss_seed_mode() == WSEED_MODE_KEEP && !kiss_seed_flash_encrypted();
 }
 
-static bool duress_unset(void) { return !gw_stored_any(); }
+static bool duress_unset(void) { return !kiss_session_card() && !gw_stored_any(); }
 
 // The fourth condition, and the only one that is not a fact about the signer.
 // The other three are read out of NVS and cost nothing; this one means reading
@@ -2233,6 +2239,7 @@ static void tab_security(void)
     // exactly how a test device ended up stuck with a stroke it could not
     // clear.
     bool set = !duress_unset();
+    const bool card = kiss_session_card();   // no door to the card's keys here
 
     // WHAT THIS SIGNER HAS SEEN is on DEVICE now. It sat here on the argument
     // that forgetting is a security property, which is true and is not the
@@ -2245,11 +2252,11 @@ static void tab_security(void)
         // Amber NOT SET beside "opens real keys" is the whole lesson; the
         // lamp breathes until the mark exists, the same beat as the tab dot.
         { .cap = tr(STR_I_ROW_WAYSIN),
-          .val = tr(set ? STR_GD_ON : STR_GD_OFF),
-          .val_col = set ? (lv_color_t){0} : WT_WARN,
-          .sub = tr(STR_I_WAYSIN_SHORT),
-          .lamp = true, .lamp_col = set ? WT_OK : WT_WARN, .lamp_pulse = !set,
-          .go = duress_cb },
+          .val = tr(card ? STR_CD_NOT_ON_CARD : set ? STR_GD_ON : STR_GD_OFF),
+          .val_col = set || card ? (lv_color_t){0} : WT_WARN,
+          .sub = card ? NULL : tr(STR_I_WAYSIN_SHORT),
+          .lamp = !card, .lamp_col = set ? WT_OK : WT_WARN, .lamp_pulse = !set,
+          .go = card ? NULL : duress_cb },
         // DECIDED: ONE door onto AUDIT, and it is this one. The row was
         // duplicated onto BACKUP because "how were these made" is a question
         // about the seed and an outside reader guessed that tab; that argument
@@ -2304,6 +2311,17 @@ static void seedwords_help_cb(lv_event_t *e)
 
 static void tab_backup(void)
 {
+    // Keys on a Satochip card: the seed words were written down when the card
+    // was set up, and this signer holds none of them, so there is nothing to
+    // show, check or store here. One still row says so, where the two doors
+    // would have led to screens about words this device does not have.
+    if (kiss_session_card()) {
+        wt_def_t card[1] = {
+            { .cap = tr(STR_I_ROW_WORDS), .val = tr(STR_CD_ON_CARD) },
+        };
+        def_list(card, 1);
+        return;
+    }
     bool ok = kiss_ui_backup_checked();
     int mode = kiss_seed_mode();
     int ssub = mode == WSEED_MODE_SD      ? STR_I_STORE_SD_SUB

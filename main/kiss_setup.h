@@ -61,3 +61,7 @@ void kiss_setup_entropy_note(int v);
 // typed once and checked against its fingerprint. Valid from the done
 // callback until the next run starts.
 bool kiss_setup_restoring(void);
+
+// Where the setup flow hands over once a Satochip card's keys are read: main.c
+// opens the card session (kiss_session_open_card) and the home.
+void kiss_setup_set_card_landing(void (*cb)(void));

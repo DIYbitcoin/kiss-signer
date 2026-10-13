@@ -31,6 +31,7 @@
 #include "kiss_duress.h"
 #include "kiss_gword.h"      // WDG_* , to reach ST_INTRO's configured state
 #include "kiss_setup.h"      // kiss_setup_restoring: which passphrase flow follows
+#include "kiss_cardtask.h"   // the card worker's states, set by hand: no reader here
 void kiss_begin_setup(void);  // main.c: the REPLACE WALLET door into the wizard
 #include "kiss_info.h"
 #include "kiss_recv.h"    // sim-only hook for the derivation path "?"
@@ -602,6 +603,7 @@ int kiss_script(void) { return s_sim_script; }
 
 // step-4 session seams: plausible-looking fakes so the Receive/Export screens render
 static int s_sim_decoy;
+static int s_sim_card;
 static int s_sim_prepared_decoy;
 static char s_sim_prep_pass[64], s_sim_sess_pass[64];
 int kiss_session_prepare(const char *passphrase) {
@@ -621,9 +623,20 @@ int kiss_session_open(const char *passphrase) {
 }
 void kiss_session_close(void) {
   s_sim_decoy = 0;
+  s_sim_card = 0;
   kiss_seed_forget();          // real kiss_crypto.c does the same on lock
 }
 int kiss_session_decoy(void) { return s_sim_decoy; }
+// A Satochip card session, as the walk opens one through sim_open_card: no
+// passphrase, the fake fingerprint of the empty one, and every private-key
+// door refused the way kiss_crypto.c refuses them.
+int kiss_session_open_card(void) {
+  s_sim_card = 1;
+  s_sim_decoy = 0;
+  s_sim_sess_pass[0] = 0;
+  return 0;
+}
+int kiss_session_card(void) { return s_sim_card; }
 // The device reads the fingerprint off the key the session holds; here the
 // session is a remembered passphrase, so it is the same fake by the same rule.
 int kiss_session_fingerprint(unsigned char out[4]) {
@@ -739,7 +752,7 @@ int kiss_address_validate(const char *addr) {
                                         : WADDR_WRONG_NETWORK;
 }
 int kiss_session_sp_address(char *out, unsigned long len) {
-  if (s_sim_session_locked) return -1;
+  if (s_sim_session_locked || s_sim_card) return -1;
   snprintf(out, len, "%s", s_sim_testnet
     ? "tsp1qqdpels3srq45dlezqvk20t3dlueftry6p5thc7msjm0s6jm3g84jzq5rxzzunfck6d45va2jcqxk429agt3e4klf3vzmcgp3zqthryhhqgnz4k3n"
     : "sp1qqfqnnv8czppwysafq3uwgwvsc638hc8rx3hscuddh0xa2yd746s7xqh6yy9ncjnqhqxazct0fzh98w7lpkm5fvlepqec2yy0sxlq4j6ccc3h6t0g");
@@ -749,7 +762,7 @@ int kiss_session_sp_address(char *out, unsigned long len) {
 // (sp_test_scan_export), so the sim lays out exactly what the device shows.
 static int s_sim_sp_export_fail;   // see the failure stop in the walk
 int kiss_session_sp_scan_export(char *out, unsigned long len) {
-  if (s_sim_sp_export_fail) return -1;
+  if (s_sim_sp_export_fail || s_sim_card) return -1;
   snprintf(out, len, "%s", s_sim_testnet
     ? "sp([73c5da0a/352h/1h/0h]tspscan1q8pjcdy7qzlzxl44chw2tsanvzg7dtwhkqf3nsvzmdavls2ekl8qq9qesshy6w9knddr825kqp442302zuwddh6vtqk7zqvgszace9aczgnuqn3)"
     : "sp([73c5da0a/352h/0h/0h]spscan1q0rnl6lft0gkpg4nsn528qgdpytfdej40atdqgrxpqqsg8c5r8vys973ppv7y5c9cphgkzm6g4efmhhcdkazt87ggxwz3pruphc9vkkxxhtvyag)");
@@ -6398,6 +6411,96 @@ int main(void) {
   touch(400, 344); pump(3); release(); pump(6);     // new here? what a seed phrase is
   save("/tmp/sim_setup_whatseed.ppm");               // YOUR SEED PHRASE
   tap_str(STR_C_BACK, 3, 6);     // BACK -> the chooser
+
+  // SATOCHIP CARD, the third way in, on a signer with no seed words. The
+  // card screen polls the worker every 150 ms, so each state gets 12 frames
+  // of 16 ms: 8 can land between two polls and photograph the state before.
+  // The
+  // simulator has no reader, so the worker is TOLD where it got to
+  // (kiss_cardtask_sim_set) and the screen is photographed in every state an
+  // owner can see: looking for the reader, for the card, the PIN keyboard,
+  // the check and its count, a wrong PIN, and each refusal.
+  must_show("card/chooser offers it", tr(STR_W_CARD_BTN));
+  tap_str(STR_W_CARD_BTN, 3, 8);
+  must_show("card/looking for the reader", tr(STR_CD_READER_B));
+  save("/tmp/sim_card_reader.ppm");
+  kiss_cardtask_sim_set(CT_FIND_CARD, 0); pump(12);
+  must_show("card/reader found", tr(STR_CD_CARD_B));
+  save("/tmp/sim_card_insert.ppm");
+  kiss_cardtask_sim_set(CT_NEED_PIN, 3); pump(14);  // the PIN keyboard opens itself
+  must_show("card/pin keyboard", tr(STR_L_CARD_PIN));
+  save("/tmp/sim_card_pin.ppm");
+  touch(57, 202); pump(3); release(); pump(3);      // 1, on the number plane
+  touch(725, 430); pump(3); release(); pump(6);     // OK: too short, stays up
+  must_show("card/pin too short", tr(STR_L_CARD_PIN_LEN));
+  save("/tmp/sim_card_pin_short.ppm");
+  // The refusal wiped what was typed, so the whole PIN again.
+  touch(57, 202); pump(3); release(); pump(3);      // 1
+  touch(129, 202); pump(3); release(); pump(3);     // 2
+  touch(201, 202); pump(3); release(); pump(3);     // 3
+  touch(273, 202); pump(3); release(); pump(3);     // 4
+  touch(725, 430); pump(3); release(); pump(8);     // OK -> sent to the card
+  if (kiss_ui_active()) {
+    printf("FAIL: card/a four digit PIN left the keyboard up\n");
+    g_walk_fails++;
+  }
+  kiss_cardtask_sim_set(CT_UNLOCKING, 5); pump(12);
+  save("/tmp/sim_card_checking.ppm");
+  kiss_cardtask_sim_set(CT_NEED_PIN, 2); pump(12);   // that PIN was wrong
+  must_show("card/wrong pin says tries", tr(STR_CD_ENTER_PIN));
+  save("/tmp/sim_card_pin_wrong.ppm");
+  {
+    static const struct { int code; const char *name; } F[] = {
+      { CT_E_NOT_GENUINE,  "/tmp/sim_card_fake.ppm" },
+      { CT_E_BLOCKED,      "/tmp/sim_card_blocked.ppm" },
+      { CT_E_BLANK,        "/tmp/sim_card_blank.ppm" },
+      { CT_E_NOT_SATOCHIP, "/tmp/sim_card_applet.ppm" },
+      { CT_E_NO_CERT,      "/tmp/sim_card_nocert.ppm" },
+      { CT_E_TWO_FA,       "/tmp/sim_card_2fa.ppm" },
+      { CT_E_NOT_CCID,     "/tmp/sim_card_notreader.ppm" },
+      { CT_E_GONE,         "/tmp/sim_card_gone.ppm" },
+      { CT_E_CARD,         "/tmp/sim_card_noanswer.ppm" },
+    };
+    for (size_t i = 0; i < sizeof F / sizeof F[0]; i++) {
+      kiss_cardtask_sim_set(CT_FAILED, F[i].code); pump(12);
+      save(F[i].name);
+    }
+  }
+  must_show("card/failure offers another go", tr(STR_C_TRY_AGAIN));
+  tap_str(STR_C_BACK, 3, 8);                        // BACK -> the chooser
+  must_show("card/back to the chooser", tr(STR_W_SETUP_T));
+
+  // And a card session itself: the home, and the pages that would otherwise
+  // describe seed words, a passphrase or silent payments this signer cannot
+  // have. Opened through the same landing the card screen uses.
+  {
+    extern void kiss_setup_close_for_test(void);   // kiss_setup.c
+    extern void sim_open_card(void);               // main.c
+    kiss_setup_close_for_test(); pump(10);
+    sim_open_card(); pump(60);
+    save("/tmp/sim_card_home.ppm");
+    kiss_settings_open(lv_screen_active()); pump(50);
+    set_tab(SET_BACKUP);
+    must_show("card/backup says the words are on the card", tr(STR_CD_ON_CARD));
+    save("/tmp/sim_card_settings_backup.ppm");
+    set_tab(SET_SECURITY);
+    must_show("card/no ways in to set", tr(STR_CD_NOT_ON_CARD));
+    save("/tmp/sim_card_settings_security.ppm");
+    tap_str(STR_C_BACK, 3, 20);
+    kiss_recv_open_sp(lv_screen_active()); pump(40);
+    must_show("card/no silent address", tr(STR_CD_NOT_ON_CARD));
+    save("/tmp/sim_card_recv_sp.ppm");
+    tap_str(STR_C_BACK, 3, 20);
+    touch(44, 44); pump(3); release(); pump(20);    // KISS logo -> lock
+    kiss_cardtask_sim_set(CT_IDLE, 0);
+    if (kiss_session_card()) {
+      printf("FAIL: card/lock left the card session open\n");
+      g_walk_fails++;
+    }
+    draw_cover_word(); release(); pump(20);         // no seed words: the chooser again
+    pump(15);
+    must_show("card/chooser after the card session", tr(STR_W_SETUP_T));
+  }
 
   // RESTORE, all the way through the warning's exit. This is the first-boot
   // door a real owner reaches, not a direct screen call: every word, both

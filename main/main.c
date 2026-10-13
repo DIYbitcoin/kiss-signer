@@ -35,6 +35,7 @@
 #include "kiss_setup.h"
 #include "kiss_seed.h"
 #include "kiss_crypto.h"
+#include "kiss_cardtask.h"   // a Satochip card session: its worker
 #include "kiss_cryptobench.h"
 #include "kiss_theme.h"
 #include "kiss_panel.h"
@@ -1962,7 +1963,9 @@ static void kiss_lock(void) {            // back to the game cover (tap the KISS
   s_home_swallow = false;
   s_real_pending = false;
   if (s_fp_card) { lv_obj_delete(s_fp_card); s_fp_card = NULL; }
+  bool card = kiss_session_card();
   kiss_session_close();                  // locked: no key material stays in RAM
+  if (card) kiss_cardtask_cancel();      // and the card is powered down
   kiss_ui_forget_fp();                   // and no memory of WHICH keys they were
   motes_stop();
   lv_obj_add_flag(s_home, LV_OBJ_FLAG_HIDDEN);
@@ -2077,6 +2080,24 @@ static void session_land(void) {
   home_fp_publish();
 }
 
+// A Satochip card's keys are read (kiss_setup.c's card screen saw the worker
+// reach CT_READY): open the session on them and the home, the way the decoy
+// opens -- no login keyboard, because the card already took its PIN.
+static void cover_pending_clear(void);   // with the door logic below
+static void card_landed(void) {
+  cover_pending_clear();             // no prepared seed session may survive this
+  s_real_pending = false;
+  if (kiss_session_open_card() != 0) {
+    kiss_cardtask_cancel();          // the card went between READY and here
+    return;
+  }
+  uint8_t fp[4] = {0};
+  (void)kiss_session_fingerprint(fp);
+  kiss_ui_set_last_fp(fp);
+  gesture_swallow();
+  kiss_start();
+}
+
 #ifdef SIMULATOR
 // The simulator's way past the wizard: open a known signer.
 //
@@ -2099,6 +2120,14 @@ static void session_land(void) {
 // this lives here rather than in the frontend -- same reason sim_capture_word
 // does, and it takes the same sequence kiss_open_decoy just above uses, which
 // is the one path in this file that reaches the home without a login screen.
+// The walk's way into a card session: no reader in the simulator, so the
+// worker is told it got there.
+void sim_open_card(void)
+{
+  kiss_cardtask_sim_set(CT_READY, 0);
+  card_landed();
+}
+
 void sim_open_signer(const char *mnemonic, const char *passphrase)
 {
     if (!mnemonic) return;
@@ -2771,6 +2800,26 @@ static void game_tick(lv_timer_t *t) {
       s_home_act_t = lv_tick_get();
       s_prev_press = pressed;
       return;
+    }
+    // A Satochip card session. Taking the card out locks: the keys were never
+    // here, and a signer showing a wallet whose card has left would be naming
+    // keys nothing can sign for. And nothing locks while the card's worker is
+    // mid sign, because the lock frees the transaction it is reading.
+    if (kiss_session_card()) {
+      if (kiss_cardtask_state() == CT_REMOVED && !kiss_cardtask_busy()) {
+        if (s_lock_warn) { lv_obj_delete(s_lock_warn); s_lock_warn = NULL; }
+        for (size_t i = 0; i < N_SCREENS; i++)
+          if (SCREENS[i].close && SCREENS[i].active())
+            SCREENS[i].close();
+        kiss_lock();
+        s_prev_press = pressed;
+        return;
+      }
+      if (kiss_cardtask_busy()) {
+        s_home_act_t = lv_tick_get();
+        s_prev_press = pressed;
+        return;
+      }
     }
     // Waiting for a plain finger-lift is not enough: the decoy opens ON a lift
     // (the end of one stroke), so the flag would clear before the NEXT stroke
@@ -3878,6 +3927,7 @@ void app_main(void) {
   // same analog block. Nothing needs randomness before a screen exists, so
   // this costs nothing and keeps boot order boring.
   kiss_trng_start();
+  kiss_setup_set_card_landing(card_landed);
   build_game();
 #if KISS_PANEL_SPI
   ESP_LOGI(TAG, "fruit game running (landscape, turned in the panel)");

@@ -38,6 +38,12 @@ bool kiss_ui_active(void);
 void kiss_ui_verify_pass_open(int (*on_check)(const char *pass, size_t len),
                               void (*on_done)(void), void (*on_cancel)(void));
 
+// The same keyboard collecting a Satochip card's PIN. on_check gets it and
+// answers 0 (taken: the keyboard folds, then on_done) or -1 (not a PIN the
+// card accepts, 4 to 16 characters: the keyboard stays up and says so).
+void kiss_ui_card_pin_open(int (*on_check)(const char *pin, size_t len),
+                           void (*on_done)(void), void (*on_cancel)(void));
+
 void kiss_ui_kef_pass_open(bool create,
                            int (*on_check)(const char *pass, size_t len),
                            void (*on_done)(void), void (*on_cancel)(void));

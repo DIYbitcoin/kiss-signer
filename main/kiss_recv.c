@@ -1773,11 +1773,14 @@ static void recv_tab_build(void) {
 #endif
   char sp[128];
   const bool sp_locked = kiss_session_sp_address(sp, sizeof sp) != 0;
+  // A Satochip card never hands out the scan and spend private keys a silent
+  // address is made from, so on a card there is no address and no door.
+  const bool card = kiss_session_card();
   if (sp_locked)
-    snprintf(sp, sizeof sp, "%s", tr(STR_C_SESSION_LOCKED));
+    snprintf(sp, sizeof sp, "%s", tr(card ? STR_CD_NOT_ON_CARD : STR_C_SESSION_LOCKED));
   lv_obj_t *r1 = wt_line_row(p, X, SY(120), W, H, tr(STR_R_SP_ADDR_CAP), NULL,
                              NULL, WT_INK, tr(STR_R_SP_QR_SUB), NULL,
-                             sp_open_cb, NULL);
+                             card ? NULL : sp_open_cb, NULL);
   // Words for the state, as on the list tab.
   lv_obj_t *sg = sp_locked ? wt_lbl(r1, sp, 0, 0, wt_chrome23(sp), WT_MUT)
                            : wt_addr_short(r1, sp, wt_font_mono23());
@@ -1824,11 +1827,11 @@ static void recv_tab_build(void) {
 #if KISS_NARROW
   wt_line_rule_draw(wt_line_rule(p, X, key_y - 4, W), 152, 320);
   wt_line_row(p, X, key_y, W, H, tr(STR_R_SP_SCAN_BTN), NULL, NULL, WT_INK,
-              tr(STR_K_SP_SUB), NULL, sp_scan_key_cb, NULL);
+              tr(STR_K_SP_SUB), NULL, card ? NULL : sp_scan_key_cb, NULL);
 #else
   wt_line_rule_draw(wt_line_rule(p, X, SY(316), W), 152, 320);
   wt_line_row(p, X, SY(320), W, H, tr(STR_R_SP_SCAN_BTN), NULL, NULL, WT_INK,
-              tr(STR_K_SP_SUB), NULL, sp_scan_key_cb, NULL);
+              tr(STR_K_SP_SUB), NULL, card ? NULL : sp_scan_key_cb, NULL);
 #endif
 }
 

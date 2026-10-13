@@ -2323,10 +2323,13 @@ static void info_tab_build(void)
     // silent payment tab. This is the only launcher now and the screens are
     // owned here. The prefix is historical; there is no RECEIVE screen to go
     // looking for, and renaming a key is 21 locale files for an internal name.
+    // A Satochip card keeps the scan private key: no export, no door.
+    const bool card = kiss_session_card();
     wt_line_row_stage(wt_line_row(p, X, Y0 + H, W, H, tr(STR_R_SP_BTN),
-                                  tr(STR_R_SP_SCAN_BTN), wt_font28(), WT_INK,
+                                  tr(card ? STR_CD_NOT_ON_CARD : STR_R_SP_SCAN_BTN),
+                                  wt_font28(), WT_INK,
                                   tr(STR_K_SP_SUB), NULL,
-                                  sp_key_warn_cb, NULL), 1);
+                                  card ? NULL : sp_key_warn_cb, NULL), 1);
     wt_line_rule_draw(wt_line_rule(p, X, Y0 + 2 * H, W), 152, 320);
 
     lv_obj_t *ar = wt_line_row(p, X, Y0 + 2 * H, W, H, tr(STR_I_SEC_FIRST), NULL,

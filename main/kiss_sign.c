@@ -17,6 +17,7 @@
 
 #include "kiss_crypto.h"
 #include "kiss_psbt.h"
+#include "kiss_cardtask.h"   // a Satochip card signs on its own task
 #include "kiss_scan.h"
 #include "kiss_theme.h"
 #include "kiss_wipe.h"
@@ -293,8 +294,15 @@ static void qr_widgets_drop(void)
 // reachable from another screen read it. kiss_ui's login_teardown says the
 // same thing from the other side, in a comment about the teardown that
 // dereferenced a freed entry label because an earlier one nulled only the root.
+// Card signing (kiss_cardtask.h): the card takes seconds, so it signs on the
+// worker and this polls. Declared here because widgets_drop ends the poll.
+static lv_timer_t *s_csign_tmr;
+static bool s_card_signing;
+
 static void widgets_drop(void)
 {
+    if (s_csign_tmr) { lv_timer_delete(s_csign_tmr); s_csign_tmr = NULL; }
+    s_card_signing = false;
     s_sign_lbl = NULL;
     s_graph = NULL; s_graph_cap = NULL; s_locked = NULL;
     s_inert[0] = NULL; s_page_lbl = NULL;
@@ -324,6 +332,11 @@ static void widgets_drop(void)
 static void close_cb(lv_event_t *e)
 {
     (void)e;
+    // Never tear the transaction down under a card that is signing it: the
+    // worker is reading it. main.c holds the autolock off while the worker is
+    // busy, so this is the backstop, not the plan.
+    if (s_card_signing && kiss_cardtask_state() == CT_SIGNING)
+        return;
     widgets_drop();
     kiss_psbt_free();
     platform_sd_unmount();
@@ -2220,16 +2233,10 @@ static void finish_sign_cb(lv_timer_t *t)
     mo_start(lv_obj_get_parent(s_scr), sw, s_src != SRC_QR);
 }
 
-static void do_sign_cb(lv_timer_t *t)
+// Everything after a signature exists, whoever made it: the fingerprint of
+// it, the marks, the reveal, and the hand-off to the QR or the card.
+static void sign_succeeded(size_t sw)
 {
-    lv_timer_delete(t);
-    size_t sw = 0;
-    if (kiss_psbt_sign(s_out, sizeof s_out, &sw) != 0) {
-        // Nothing on the graph moved: no strand ever wore the accent, because
-        // no signature was ever made.
-        fail_screen(tr(STR_S_FAIL_SIGN));
-        return;
-    }
     // Fingerprint the signature now, while the bytes are in hand, for both exit
     // screens. On the (unexpected) failure path it is left empty and the screens
     // just omit the aid.
@@ -2261,6 +2268,51 @@ static void do_sign_cb(lv_timer_t *t)
     sign_lbl_say(tr(STR_S_SIGNED_T));
     s_signed_len = sw;
     lv_timer_create(finish_sign_cb, REVEAL_MS, NULL);
+}
+
+// The card is signing on the worker: wait for it here. The bars and the
+// caption already say SIGNING; a catcher over the screen keeps every tap off
+// it until the card answers, because the LVGL loop is running meanwhile.
+static void card_sign_poll_cb(lv_timer_t *t)
+{
+    kiss_ct_state st = kiss_cardtask_state();
+    if (st == CT_SIGNING)
+        return;
+    lv_timer_delete(t);
+    s_csign_tmr = NULL;
+    s_card_signing = false;
+    int rc = kiss_cardtask_detail();
+    if (st == CT_SIGNED && rc == 0) {
+        sign_succeeded(kiss_cardtask_signed_len());
+        return;
+    }
+    // -9 is the card or the reader going away (kiss_psbt.c); the rest is a
+    // signature the card or this signer refused, said the ordinary way.
+    fail_screen(tr(st == CT_SIGNED && rc != -9 ? STR_S_FAIL_SIGN : STR_CD_SIGN_GONE));
+}
+
+static void do_sign_cb(lv_timer_t *t)
+{
+    lv_timer_delete(t);
+    if (kiss_session_card()) {
+        s_card_signing = true;
+        lv_obj_t *catcher = lv_obj_create(s_scr);
+        lv_obj_remove_style_all(catcher);
+        lv_obj_set_size(catcher, LV_PCT(100), LV_PCT(100));
+        lv_obj_add_flag(catcher, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_move_foreground(catcher);
+        kiss_cardtask_sign(s_out, sizeof s_out);
+        s_csign_tmr = lv_timer_create(card_sign_poll_cb, 100, NULL);
+        return;
+    }
+    size_t sw = 0;
+    if (kiss_psbt_sign(s_out, sizeof s_out, &sw) != 0) {
+        // Nothing on the graph moved: no strand ever wore the accent, because
+        // no signature was ever made.
+        fail_screen(tr(STR_S_FAIL_SIGN));
+        return;
+    }
+    sign_succeeded(sw);
 }
 
 // The output side settles the moment the owner commits, which is the press and
@@ -2355,6 +2407,11 @@ static void sign_slide_move(int per255, void *ud)
 
 static void slide_complete(void)
 {
+    // The spent bar re-arms on a new press, and with the card signing on its
+    // own task the screen is live meanwhile: a second slide must not sign
+    // twice.
+    if (s_card_signing)
+        return;
     // The fill stays where the gesture left it: full, with the lock in the
     // knob. It used to be crossfaded away over 240ms, because the
     // bench's complaint about the old 1200ms hold was that the reward for

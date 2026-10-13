@@ -18,6 +18,7 @@
 #include "kiss_kef.h"      // encrypted backups arriving through restore
 #include "kiss_scan.h"     // kiss_scan_open_raw: the seed and backup QR door
 #include "kiss_seed.h"
+#include "kiss_cardtask.h" // a Satochip card: the keys stay on it
 #include "kiss_ui.h"       // the borrowed KEF password keyboard
 #include "kiss_settings.h"   // kiss_lang_picker_open: first-boot language switch
 #include "kiss_tapent.h"   // source 3: the timing of the user's own taps
@@ -149,6 +150,7 @@ static void goto_choose_cb(lv_event_t *e)
     if (s_load) load_screen_fwd(); else choose_screen();
 }
 static void goto_restore_cb(lv_event_t *e) { (void)e; restore_screen(); }
+static void card_open_cb(lv_event_t *e);
 
 bool kiss_setup_active(void) { return s_scr != NULL; }
 
@@ -174,9 +176,12 @@ static void wipe_state(void)
     s_cq = (kiss_cards_q_t){0};
 }
 
+static void card_stop(void);
+
 static void close_all(void)
 {
     wipe_state();
+    card_stop();
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
 }
 
@@ -2193,6 +2198,7 @@ static int s_dice_bar_w = DICE_BAR_W;   // what the live columns were built at
 // to just as convincingly as a live one.
 static void widgets_drop(void)
 {
+    card_stop();
     memset(s_tap_bits, 0, sizeof s_tap_bits);
     s_tap_count = NULL; s_tap_card = NULL;
 
@@ -4012,6 +4018,14 @@ static void choose_screen(void)
     if (kiss_seed_exists())
         wt_arrow_action(s_scr, tr(STR_C_CANCEL), true, false, WT_BACK_X,
                         WT_ACTION_Y, SX(140), true, cancel_cb, NULL);
+    // The third way in, and the one that stores nothing: the keys stay on a
+    // Satochip card. Not a row, because it is not a way to make or bring
+    // back seed words; the bar's action slot is free on this screen. Only on
+    // a signer holding no seed words: with words stored, every backup and
+    // storage screen would describe those words, not the card's keys.
+    else
+        wt_arrow_action(s_scr, tr(STR_W_CARD_BTN), false, false, WT_ACT_X,
+                        WT_ACTION_Y, SX(320), false, card_open_cb, NULL);
 
     // first boot happens BEFORE Settings is reachable: a fresh device must not
     // trap its owner in English, so the language picker lives here too
@@ -4317,8 +4331,184 @@ static void load_screen(void)
     // The restore chooser's three rows, so the two doors read the same: type
     // the words, scan a QR, or open a file on the card.
     how_rows(load_type_cb, load_scan_cb, kef_sd_open_load_cb);
+    wt_arrow_action(s_scr, tr(STR_W_CARD_BTN), false, false, WT_ACT_X,
+                    WT_ACTION_Y, SX(320), false, card_open_cb, NULL);
     wt_arrow_action(s_scr, tr(STR_W_CREATE_NEW), false, false, SX(560),
                     WT_ACTION_Y, SX(190), true, load_new_cb, NULL);
+}
+
+// ---- a Satochip card: the keys stay on it ----
+// One screen that follows the card worker (kiss_cardtask.h): find the reader,
+// find the card, read it, the PIN, the genuine check and the keys, or say
+// what went wrong. The worker does all the talking on CPU1; this only polls
+// its state from a timer and redraws when the state changes. Nothing here is
+// stored: once the card's keys are read, main.c opens a card session and the
+// home, exactly as a finished login would.
+static void (*s_card_done)(void);
+static lv_timer_t *s_card_tmr;
+static lv_obj_t *s_card_body;
+static int s_card_shown = -1;        // the kiss_ct_state the screen was drawn for
+static int s_card_shown_detail = -1;
+static bool s_card_wrong;            // the last PIN was wrong: say so, do not reopen
+
+void kiss_setup_set_card_landing(void (*cb)(void)) { s_card_done = cb; }
+
+static void card_stop(void)
+{
+    if (s_card_tmr) { lv_timer_delete(s_card_tmr); s_card_tmr = NULL; }
+    s_card_body = NULL;
+    s_card_shown = -1;
+}
+
+static void card_screen(void);
+
+static void card_back_cb(lv_event_t *e)
+{
+    (void)e;
+    kiss_cardtask_cancel();
+    if (s_load) load_screen_fwd(); else choose_screen();
+}
+
+static int card_pin_check(const char *pin, size_t len)
+{
+    if (len < 4 || len > 16)
+        return -1;                   // not a PIN the card takes: nothing sent
+    s_card_wrong = false;
+    kiss_cardtask_pin(pin, len);
+    return 0;
+}
+static void card_pin_done(void) {}   // the timer shows what the card says
+static void card_pin_cancel(void) { card_back_cb(NULL); }
+
+static void card_pin_open_cb(lv_event_t *e)
+{
+    (void)e;
+    kiss_ui_card_pin_open(card_pin_check, card_pin_done, card_pin_cancel);
+}
+
+static void card_retry_cb(lv_event_t *e)
+{
+    (void)e;
+    s_card_wrong = false;
+    kiss_cardtask_begin();
+    card_screen();
+}
+
+static const char *card_fail_body(int code)
+{
+    switch (code) {
+    case CT_E_NOT_CCID:     return tr(STR_CD_E_READER_B);
+    case CT_E_NOT_SATOCHIP: return tr(STR_CD_E_APPLET_B);
+    case CT_E_BLANK:        return tr(STR_CD_E_BLANK_B);
+    case CT_E_BLOCKED:      return tr(STR_CD_E_BLOCKED_B);
+    case CT_E_NOT_GENUINE:  return tr(STR_CD_E_FAKE_B);
+    case CT_E_NO_CERT:      return tr(STR_CD_E_NOCERT_B);
+    case CT_E_TWO_FA:       return tr(STR_CD_E_2FA_B);
+    case CT_E_GONE:         return tr(STR_CD_E_GONE_B);
+    default:                return tr(STR_CD_E_CARD_B);
+    }
+}
+
+// The words for the state the worker is in; progress states share a screen.
+static const char *card_text(kiss_ct_state st, int detail, char *buf, size_t n)
+{
+    switch (st) {
+    case CT_FIND_CARD:   return tr(STR_CD_CARD_B);
+    case CT_CONNECTING:  return tr(STR_CD_READING_B);
+    case CT_NEED_PIN:
+        if (s_card_wrong) {
+            snprintf(buf, n, tr(STR_CD_PIN_BAD_FMT), detail);
+            return buf;
+        }
+        return tr(STR_CD_READING_B);
+    case CT_UNLOCKING:
+    case CT_READY:
+        snprintf(buf, n, tr(STR_CD_CHECK_FMT), st == CT_READY ? 13 : detail);
+        return buf;
+    case CT_FAILED:      return card_fail_body(detail);
+    case CT_REMOVED:     return tr(STR_CD_E_GONE_B);
+    default:             return tr(STR_CD_READER_B);
+    }
+}
+
+// Which actions a state offers: none while the card is being reached, ENTER
+// PIN after a wrong one, TRY AGAIN after a refusal.
+static int card_shape(kiss_ct_state st)
+{
+    if (st == CT_FAILED || st == CT_REMOVED) return 2;
+    if (st == CT_NEED_PIN && s_card_wrong)   return 1;
+    return 0;
+}
+
+static void card_poll_cb(lv_timer_t *t);
+
+static void card_screen(void)
+{
+    kiss_ct_state st = kiss_cardtask_state();
+    int detail = kiss_cardtask_detail();
+    bool fake = st == CT_FAILED && detail == CT_E_NOT_GENUINE;
+    mk_screen(tr(fake ? STR_CD_E_FAKE_T : STR_W_CARD_BTN), tr(STR_CD_S));
+    // One framed box, the shape the sign screen's empty states use: a mark,
+    // then the sentence. Amber is for the MARK alone, the caution glyph a
+    // refusal wears; the words are ink, and while the card is being reached
+    // the mark is the key, in the accent.
+    static char buf[160];
+    bool bad = st == CT_FAILED || st == CT_REMOVED;
+    lv_obj_t *box = wt_card(s_scr, WT_LANE_X, SY(116), WT_LANE_W, SY(236));
+    lv_obj_t *ic = wt_lbl(box, bad ? LV_SYMBOL_WARNING : WT_ICON_KEY, 0, 0,
+                          wt_font28(), bad ? WARN_COL : wt_accent());
+    if (!bad)
+        lv_obj_add_flag(ic, WT_FLAG_ACCENT);
+    lv_obj_align(ic, LV_ALIGN_TOP_LEFT, SX(28), SY(26));
+    // 540, under the 560 the overlap gate calls a wall: a refusal is a
+    // sentence or two, and a box drawn round a full-width paragraph reads as
+    // one.
+    s_card_body = wt_note(box, card_text(st, detail, buf, sizeof buf), SX(76),
+                          SY(22), SX(540), SY(236) - SY(44));
+    lv_obj_set_style_text_color(s_card_body, INK_COL, 0);
+    int shape = card_shape(st);
+    if (shape == 1)
+        wt_arrow_action(s_scr, tr(STR_CD_ENTER_PIN), false, true, WT_ACT_X,
+                        WT_ACTION_Y, SX(320), false, card_pin_open_cb, NULL);
+    else if (shape == 2)
+        wt_arrow_action(s_scr, tr(STR_C_TRY_AGAIN), false, true, WT_ACT_X,
+                        WT_ACTION_Y, SX(320), false, card_retry_cb, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_BACK_X,
+                    WT_ACTION_Y, SX(140), true, card_back_cb, NULL);
+    s_card_shown = (int)st;
+    s_card_shown_detail = detail;
+    if (!s_card_tmr)
+        s_card_tmr = lv_timer_create(card_poll_cb, 150, NULL);
+}
+
+static void card_poll_cb(lv_timer_t *t)
+{
+    (void)t;
+    kiss_ct_state st = kiss_cardtask_state();
+    int detail = kiss_cardtask_detail();
+    if (st == CT_READY) {
+        void (*cb)(void) = s_card_done;
+        close_all();
+        if (cb) cb();                    // main.c opens the card session
+        return;
+    }
+    // A PIN came back wrong: the worker is waiting for another one.
+    if (st == CT_NEED_PIN && s_card_shown == CT_UNLOCKING)
+        s_card_wrong = true;
+    if (st == (kiss_ct_state)s_card_shown && detail == s_card_shown_detail)
+        return;
+    bool open_pin = st == CT_NEED_PIN && !s_card_wrong;
+    card_screen();                       // the sentence and its mark change together
+    if (open_pin && !kiss_ui_active())
+        kiss_ui_card_pin_open(card_pin_check, card_pin_done, card_pin_cancel);
+}
+
+static void card_open_cb(lv_event_t *e)
+{
+    (void)e;
+    s_card_wrong = false;
+    kiss_cardtask_begin();
+    card_screen();
 }
 
 // ---- configured SD wallet: card/file gate before passphrase entry ----
