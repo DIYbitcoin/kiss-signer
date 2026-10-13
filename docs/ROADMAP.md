@@ -39,8 +39,8 @@ finding the payment, spending it, and silent payment change, with every
 transaction on chain in
 [kiss-bdk's proof](https://github.com/kkdao/kiss-bdk/blob/main/docs/proof.md).
 Sparrow supports both halves for airgapped signers: BIP375 sending since 2.4.0,
-receiving wallets since 2.5.0. What it has not had is a Sparrow round trip, a
-mainnet transaction, or any outside review.
+receiving wallets since 2.5.0. Silent Payments has also been tested through
+Sparrow on signet. Not tested on mainnet yet; no outside review.
 
 ## Keys and storage
 
@@ -125,4 +125,5 @@ that opens a modest set of keys. See `main/kiss_duress.h`.
 - **No support for v3.x ESP32-P4 chips yet.** The firmware will not start on
   one; `esptool` prints the chip revision when it connects.
 - **Silent Payments is proven on test networks only.** The full loop ran on
-  signet through kiss-bdk, but not yet through Sparrow and never on mainnet.
+  signet through kiss-bdk; Sparrow has also been tested on signet. Not tested
+  on mainnet yet.
