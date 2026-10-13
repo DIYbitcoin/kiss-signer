@@ -126,6 +126,11 @@ bool kiss_cardwallet_active(void)
     return s_active;
 }
 
+bool kiss_cardwallet_needs_2fa(void)
+{
+    return s_connected && s_card.needs_2fa;
+}
+
 int kiss_cardwallet_fingerprint(uint8_t out[4])
 {
     if (!s_active || !out)

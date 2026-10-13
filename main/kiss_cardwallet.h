@@ -35,6 +35,10 @@ int kiss_cardwallet_unlock(const char *pin, size_t pin_len, int *tries_left,
 
 bool kiss_cardwallet_active(void);
 
+// After connect: the card has 2FA on, so it signs only with a second device's
+// approval, which an offline signer can never give. Refuse before the PIN.
+bool kiss_cardwallet_needs_2fa(void);
+
 // The wallet's master fingerprint.
 int kiss_cardwallet_fingerprint(uint8_t out[4]);
 
