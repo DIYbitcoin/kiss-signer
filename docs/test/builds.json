@@ -2,6 +2,22 @@
   "schema": 1,
   "boards": [
     {
+      "id": "jc1060",
+      "name": "Guition 7in, V2 screen",
+      "commit": "0940e183",
+      "built": "2026-10-15",
+      "images": [
+        {
+          "path": "firmware/kiss-test-0940e183-jc1060-v1.bin",
+          "minChipRevision": 100,
+          "maxChipRevision": 199,
+          "size": 6155744,
+          "sha256": "f14708a9193f5d3123835408e7e4020f778c3ea4ff57271be7bc4d88457e1bc8"
+        }
+      ],
+      "note": "Only for the 7in whose case label says V2. Issue 27."
+    },
+    {
       "id": "ws43",
       "name": "Waveshare 4.3in",
       "commit": "c9ce193f",
