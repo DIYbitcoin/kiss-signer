@@ -16,14 +16,20 @@
     <title>KISS Signer Test Builds</title>
     <style>
       /* The release check page's look, restated rather than linked, so this
-         page stays one folder that can be read on its own. */
+         page stays one folder that can be read on its own. The type is the
+         rest of the site's, though: the same self-hosted faces styles.css
+         declares, since this page is only ever served from the site. */
+      @font-face { font-family: "Ioskeley Mono"; src: url("../fonts/IoskeleyMono-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+      @font-face { font-family: "Ioskeley Mono"; src: url("../fonts/IoskeleyMono-Medium.woff2") format("woff2"); font-weight: 500; font-display: swap; }
+      @font-face { font-family: "Ioskeley Mono"; src: url("../fonts/IoskeleyMono-Bold.woff2") format("woff2"); font-weight: 700; font-display: swap; }
+      @font-face { font-family: "IBM Plex Mono"; src: url("../fonts/IBMPlexMono-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
       * { box-sizing: border-box; }
       html { font-size: 125%; }
       body {
         margin: 0;
         background: #070a10;
         color: #e8eef7;
-        font: 18px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font: 18px/1.6 "Ioskeley Mono", "IBM Plex Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
       }
       .topbar {
         display: flex;
