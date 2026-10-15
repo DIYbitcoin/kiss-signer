@@ -1507,9 +1507,9 @@ int kiss_psbt_export_copy(const uint8_t *signed_psbt, size_t len,
     // A PSBTv2 goes whole. A coordinator can only combine a returned PSBT
     // into its own when both describe the same transaction, and a silent
     // payment's does not (the signer writes the output scripts), so a v2
-    // coordinator takes the signer's copy as the transaction and finalizes it
-    // alone -- which needs the derivations this would drop. kiss-bdk does
-    // exactly that for every v2.
+    // coordinator takes the signer's copy as the transaction and checks it
+    // alone. kiss-bdk does that for every v2, and its check reads the input
+    // public keys from the derivations this would drop.
     bool whole = p->version == 2 || p->unknowns.num_items != 0;
     for (size_t i = 0; !whole && i < p->num_inputs; i++)
         whole = p->inputs[i].unknowns.num_items != 0;
