@@ -1,8 +1,11 @@
 // Hostile-PSBT cases: what a coordinator can put in a PSBT to make the signer
-// report something other than the truth. Two families, each adapted from a
+// report something other than the truth. Three families, each adapted from a
 // published signer's attack suite and rebuilt here on this signer's own
 // fixtures:
 //
+//   - a PSBT that already carries a signature under one of our keys, so the
+//     signer's own signature never lands and "signed" is a claim about bytes
+//     somebody else wrote;
 //   - extra or contradictory key derivations naming this wallet's fingerprint
 //     on an input or an output;
 //   - a fingerprint that claims (or disclaims) ownership falsely.
@@ -180,9 +183,104 @@ static int input_sig_verifies(const uint8_t *psbt, size_t len, size_t i,
     return ok;
 }
 
+// And does a finalizer accept it end to end?
+static int finalizes(const uint8_t *psbt, size_t len)
+{
+    struct wally_psbt *p = NULL;
+    struct wally_tx *tx = NULL;
+    int ok = wally_psbt_from_bytes(psbt, len, 0, &p) == WALLY_OK &&
+             wally_psbt_finalize(p, 0) == WALLY_OK &&
+             wally_psbt_extract(p, 0, &tx) == WALLY_OK;
+    wally_tx_free(tx);
+    wally_psbt_free(p);
+    return ok;
+}
+
 static uint8_t pb[4096], sb[4096];
 
-// ---- 1. extra and contradictory derivations --------------------------------
+// ---- 1. a signature that is already there ---------------------------------
+
+static void test_presigned(void)
+{
+    struct ext_key kin, kchg;
+    derive(P_IN, 5, &kin);
+    derive(P_CHG, 5, &kchg);
+    wpsbt_summary_t s;
+    size_t pl, sw = 0;
+
+    // Garbage under OUR input key. libwally signs nothing for a key that
+    // already has a signature, by design -- so before the fix the signer
+    // returned success with these nine bytes as "its" signature.
+    static const uint8_t junk[9] = {0x30, 0x06, 0x02, 0x01, 0x01, 0x02, 0x01, 0x01, 0x01};
+    struct wally_psbt *p = base_psbt();
+    wally_psbt_add_input_signature(p, 0, kin.pub_key, 33, junk, sizeof junk);
+    pl = ser(p, pb, sizeof pb);
+    chkb("presigned junk: loads", kiss_psbt_load(pb, pl, &s) == 0 && s.status == WPSBT_READY);
+    int rc = kiss_psbt_sign(sb, sizeof sb, &sw);
+    chkb("presigned junk: never reports success over a bad signature",
+         rc != 0 || input_sig_verifies(sb, sw, 0, kin.pub_key));
+    chkb("presigned junk: signs, replacing it with a valid one",
+         rc == 0 && input_sig_verifies(sb, sw, 0, kin.pub_key) && finalizes(sb, sw));
+    kiss_psbt_free();
+
+    // A real signature by another key of ours, filed under our input key.
+    // Well formed, verifies against nothing: the same hole without the tell of
+    // a malformed DER.
+    {
+        uint8_t h[32], sig[64], der[73];
+        size_t dl = 0;
+        memset(h, 0x42, 32);
+        wally_ec_sig_from_bytes(kchg.priv_key + 1, 32, h, 32, EC_FLAG_ECDSA, sig, 64);
+        wally_ec_sig_to_der(sig, 64, der, sizeof der, &dl);
+        der[dl++] = WALLY_SIGHASH_ALL;
+        p = base_psbt();
+        wally_psbt_add_input_signature(p, 0, kin.pub_key, 33, der, dl);
+        pl = ser(p, pb, sizeof pb);
+        chkb("presigned wrong sig: loads", kiss_psbt_load(pb, pl, &s) == 0 && s.status == WPSBT_READY);
+        rc = kiss_psbt_sign(sb, sizeof sb, &sw);
+        chkb("presigned wrong sig: signs with a valid one",
+             rc == 0 && input_sig_verifies(sb, sw, 0, kin.pub_key) && finalizes(sb, sw));
+        kiss_psbt_free();
+    }
+
+    // Legitimate: the owner feeds back a PSBT this device already signed. It
+    // must sign again, to the same bytes (RFC6979 + grind is deterministic).
+    p = base_psbt();
+    pl = ser(p, pb, sizeof pb);
+    uint8_t first[4096];
+    size_t fl = 0;
+    kiss_psbt_load(pb, pl, &s);
+    chkb("resign: first sign", kiss_psbt_sign(first, sizeof first, &fl) == 0);
+    kiss_psbt_free();
+    chkb("resign: signed PSBT loads again",
+         kiss_psbt_load(first, fl, &s) == 0 && s.status == WPSBT_READY);
+    rc = kiss_psbt_sign(sb, sizeof sb, &sw);
+    chkb("resign: signs again, valid", rc == 0 && input_sig_verifies(sb, sw, 0, kin.pub_key));
+    char fa[9], fb[9];
+    chkb("resign: identical signature",
+         rc == 0 && kiss_psbt_sig_fingerprint(first, fl, fa) == 0 &&
+         kiss_psbt_sig_fingerprint(sb, sw, fb) == 0 && strcmp(fa, fb) == 0);
+    kiss_psbt_free();
+
+    // A signature under a key that is NOT ours rides along untouched and does
+    // not stop ours: a foreign partial signature is not this signer's to judge.
+    {
+        uint8_t other[33];
+        stranger_pub(0x33, other);
+        p = base_psbt();
+        wally_psbt_add_input_signature(p, 0, other, 33, junk, sizeof junk);
+        pl = ser(p, pb, sizeof pb);
+        chkb("foreign sig: loads", kiss_psbt_load(pb, pl, &s) == 0 && s.status == WPSBT_READY);
+        rc = kiss_psbt_sign(sb, sizeof sb, &sw);
+        chkb("foreign sig: ours still signs", rc == 0 && input_sig_verifies(sb, sw, 0, kin.pub_key));
+        kiss_psbt_free();
+    }
+
+    wally_bzero(&kin, sizeof kin);
+    wally_bzero(&kchg, sizeof kchg);
+}
+
+// ---- 2. extra and contradictory derivations --------------------------------
 
 static void test_extra_derivations(void)
 {
@@ -345,7 +443,7 @@ static void test_extra_derivations(void)
     wally_bzero(&kfar, sizeof kfar);
 }
 
-// ---- 2. fingerprints that lie ----------------------------------------------
+// ---- 3. fingerprints that lie ----------------------------------------------
 
 static void test_false_fingerprints(void)
 {
@@ -436,6 +534,7 @@ int test_psbt_attacks(void)
         printf("FAIL: attack session open\n");
         return 1;
     }
+    test_presigned();
     test_extra_derivations();
     test_false_fingerprints();
     wally_bzero(&a_master, sizeof a_master);

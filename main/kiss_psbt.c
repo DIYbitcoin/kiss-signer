@@ -1324,25 +1324,83 @@ static int sign_sp_spends(const struct ext_key *master)
     return rc;
 }
 
-// libwally deliberately treats "no matching key" as a successful no-op while
-// signing a PSBT. Verification above should make that state unreachable, but a
-// signing API that returns success with zero signatures makes the UI claim the
-// transaction was signed when its bytes are unchanged. Keep the end-to-end
-// invariant here as the last gate. Already-signed inputs are not conflated with
-// failure: their existing partial/taproot signature satisfies it.
-static bool psbt_has_signature(const struct wally_psbt *p)
+// The ECDSA sighash input i's signature must cover, by the same three steps
+// wally_psbt_sign_bip32 takes: signing script, scriptCode, sighash.
+static int input_sighash(size_t i, const struct wally_tx *tx, uint8_t h[32])
 {
-    if (!p)
-        return false;
-    for (size_t i = 0; i < p->num_inputs; i++) {
-        if (p->inputs[i].signatures.num_items)
-            return true;
-        const struct wally_map_item *tap =
-            wally_map_get_integer(&p->inputs[i].psbt_fields, 0x13);
-        if (tap && (tap->value_len == 64 || tap->value_len == 65))
-            return true;
+    uint8_t script[64], code[64];
+    size_t sl = 0, cl = 0;
+    if (wally_psbt_get_input_signing_script(s_psbt, i, script, sizeof script, &sl) != WALLY_OK ||
+        sl > sizeof script ||
+        wally_psbt_get_input_scriptcode(s_psbt, i, script, sl, code, sizeof code, &cl) != WALLY_OK ||
+        cl > sizeof code ||
+        wally_psbt_get_input_signature_hash(s_psbt, i, tx, code, cl, 0, h, 32) != WALLY_OK)
+        return -1;
+    return 0;
+}
+
+// libwally signs nothing for a key that already has a signature in the input,
+// by design, and still reports success; the card path's add is ignored the
+// same way. So a PSBT arriving with any bytes at all filed under one of our
+// keys came back "signed" carrying those bytes instead of ours, and the old
+// gate here -- some input has some signature -- passed on the very junk that
+// replaced the signature. Clear ours first so the fresh one always lands.
+// Signatures under other keys are not this signer's to judge and stay.
+static void drop_our_sigs(void)
+{
+    uint8_t fp[4];
+    if (kiss_session_fingerprint(fp) != 0)
+        return;
+    for (size_t i = 0; i < s_psbt->num_inputs; i++) {
+        uint32_t path[8];
+        size_t path_len = 8;
+        const struct wally_map_item *kp = NULL;
+        if (our_keypath(&s_psbt->inputs[i].keypaths, fp, path, &path_len, &kp) == 1)
+            wally_map_remove(&s_psbt->inputs[i].signatures, kp->key, kp->key_len);
     }
-    return false;
+}
+
+// The last gate, end to end: EVERY input (load admits nothing but ours) holds
+// a signature under the key load verified, and it verifies against the
+// sighash a finalizer will check. Nothing short of that is "signed".
+static int our_sigs_verify(void)
+{
+    const struct wally_tx *tx = psbt_tx();
+    uint8_t fp[4];
+    if (!tx || kiss_session_fingerprint(fp) != 0)
+        return -1;
+    for (size_t i = 0; i < s_psbt->num_inputs; i++) {
+        const struct wally_psbt_input *in = &s_psbt->inputs[i];
+        uint8_t h[32], sig[64];
+        if (i < WPSBT_MAX_INS && s_sp_in.present[i]) {
+            // BIP376: key-path Schnorr under the output key being spent
+            const struct wally_tx_output *u = in->witness_utxo;
+            const struct wally_map_item *tap = wally_map_get_integer(&in->psbt_fields, 0x13);
+            if (!u || u->script_len != 34 || !tap ||
+                (tap->value_len != 64 && tap->value_len != 65) ||
+                wally_psbt_get_input_signature_hash(s_psbt, i, tx, NULL, 0, 0, h, 32) != WALLY_OK ||
+                wally_ec_sig_verify(u->script + 2, 32, h, 32, EC_FLAG_SCHNORR,
+                                    tap->value, 64) != WALLY_OK)
+                return -1;
+            continue;
+        }
+        uint32_t path[8];
+        size_t path_len = 8, idx = 0;
+        const struct wally_map_item *kp = NULL;
+        if (our_keypath(&in->keypaths, fp, path, &path_len, &kp) != 1 ||
+            kp->key_len != EC_PUBLIC_KEY_LEN ||
+            wally_map_find(&in->signatures, kp->key, kp->key_len, &idx) != WALLY_OK || !idx)
+            return -1;
+        const struct wally_map_item *it = &in->signatures.items[idx - 1];
+        const uint32_t want = in->sighash ? in->sighash : WALLY_SIGHASH_ALL;
+        if (it->value_len < 2 || it->value[it->value_len - 1] != (uint8_t)want ||
+            wally_ec_sig_from_der(it->value, it->value_len - 1, sig, sizeof sig) != WALLY_OK ||
+            input_sighash(i, tx, h) != 0 ||
+            wally_ec_sig_verify(kp->key, kp->key_len, h, 32, EC_FLAG_ECDSA,
+                                sig, sizeof sig) != WALLY_OK)
+            return -1;
+    }
+    return 0;
 }
 
 // The card's path through the same steps wally_psbt_sign_bip32 takes for each
@@ -1365,13 +1423,9 @@ static int sign_with_card(void)
             kp->key_len != EC_PUBLIC_KEY_LEN)
             return -2;
 
-        uint8_t script[64], code[64], h[32], der[EC_SIGNATURE_DER_MAX_LEN + 1], sig[64];
-        size_t sl = 0, cl = 0, dl = 0;
-        if (wally_psbt_get_input_signing_script(s_psbt, i, script, sizeof script, &sl) != WALLY_OK ||
-            sl > sizeof script ||
-            wally_psbt_get_input_scriptcode(s_psbt, i, script, sl, code, sizeof code, &cl) != WALLY_OK ||
-            cl > sizeof code ||
-            wally_psbt_get_input_signature_hash(s_psbt, i, tx, code, cl, 0, h, sizeof h) != WALLY_OK)
+        uint8_t h[32], der[EC_SIGNATURE_DER_MAX_LEN + 1], sig[64];
+        size_t dl = 0;
+        if (input_sighash(i, tx, h) != 0)
             return -2;
         int rc = kiss_cardwallet_sign(path, (int)path_len, h, der, &dl);
         if (rc != 0)
@@ -1398,6 +1452,7 @@ int kiss_psbt_sign(uint8_t *out, size_t out_len, size_t *written)
     // than emitting a signature whose nonce nobody has ever checked.
     if (kiss_sign_selftest() != 0)
         return -6;
+    drop_our_sigs();
     if (!master) {
         int rc = sign_with_card();
         if (rc != 0)
@@ -1408,7 +1463,7 @@ int kiss_psbt_sign(uint8_t *out, size_t out_len, size_t *written)
         if (sign_sp_spends(master) != 0)
             return -5;
     }
-    if (!psbt_has_signature(s_psbt))
+    if (our_sigs_verify() != 0)
         return -7;
     // BIP370 signer rule: once a non-ANYONECANPAY signature exists the inputs
     // are closed, and once a non-NONE one does the outputs are. The load gate

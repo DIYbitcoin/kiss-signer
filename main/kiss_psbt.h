@@ -226,7 +226,8 @@ bool kiss_psbt_held(void);
 int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s);
 
 // Sign the loaded PSBT with the session key, serialize into out.
-// Refuses (nonzero) if nothing loaded, status is STOP, or session closed.
+// Refuses (nonzero) if nothing loaded, status is STOP, or session closed, and
+// if any input ends up without a signature of ours that verifies.
 int kiss_psbt_sign(uint8_t *out, size_t out_len, size_t *written);
 
 // First 8 lower-case hex of sha256 over every input's signature bytes,

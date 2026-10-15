@@ -956,6 +956,27 @@ static void test_card_signing(void)
     chkb("card: both inputs verify", card_sigs_verify(out, sw));
     kiss_psbt_free();
 
+    // Bytes already filed under the input key. The card's add is ignored
+    // exactly like libwally's, so before the sign path cleared them this
+    // returned success carrying the junk instead of the card's signature.
+    {
+        static const uint8_t junk[9] = {0x30, 0x06, 0x02, 0x01, 0x01, 0x02, 0x01, 0x01, 0x01};
+        struct wally_psbt *p = NULL;
+        pl = mk_typed_psbt(WSCRIPT_NATIVE, 84, 0, pb, sizeof pb);
+        if (wally_psbt_from_bytes(pb, pl, 0, &p) == WALLY_OK) {
+            const struct wally_map_item *k = &p->inputs[0].keypaths.items[0];
+            wally_psbt_add_input_signature(p, 0, k->key, k->key_len, junk, sizeof junk);
+            wally_psbt_to_bytes(p, 0, pb, sizeof pb, &pl);
+            wally_psbt_free(p);
+        }
+        chkb("card: presigned psbt loads READY",
+             kiss_psbt_load(pb, pl, &sum) == 0 && sum.status == WPSBT_READY);
+        int rc = kiss_psbt_sign(out, sizeof out, &sw);
+        chkb("card: presigned psbt gets the card's own signature",
+             rc == 0 && card_sigs_verify(out, sw));
+        kiss_psbt_free();
+    }
+
     // a foreign change output is still caught with public keys only
     pl = mk_psbt(MUT_FAKE_CHG, pb, sizeof pb);
     chkb("card: fake change still caught",
