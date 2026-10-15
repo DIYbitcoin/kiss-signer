@@ -74,6 +74,8 @@ int test_fw(void);
 int test_pq(void);
 // sim/test_psbt_attacks.c — PSBTs built to make the signer misreport
 int test_psbt_attacks(void);
+// sim/test_psbt_export.c — the trimmed copy a signed PSBT leaves by QR
+int test_psbt_export(void);
 
 static void chk(const char *name, const char *got, const char *want) {
     if (got && strcmp(got, want) == 0) {
@@ -948,6 +950,13 @@ static void test_card_signing(void)
         chki(nm, kiss_psbt_sign(out, sizeof out, &sw), 0);
         snprintf(nm, sizeof nm, "card: %u signature verifies, low S", (unsigned)purposes[t]);
         chkb(nm, card_sigs_verify(out, sw));
+        // the QR copy carries the card's signatures and what checks them
+        static uint8_t qr[QRT_MAX_SIGNED_PSBT];
+        size_t ql = 0;
+        snprintf(nm, sizeof nm, "card: %u QR copy is smaller and still verifies",
+                 (unsigned)purposes[t]);
+        chkb(nm, kiss_psbt_export_copy(out, sw, qr, sizeof qr, &ql) == 0 &&
+                 ql < sw && card_sigs_verify(qr, ql));
         kiss_psbt_free();
     }
     size_t pl = mk_nin_psbt(2, 100000, 2000, pb, sizeof pb);
@@ -1979,6 +1988,7 @@ int main(int argc, char **argv) {
     test_session_fingerprint();
     test_lock_drops_psbt(pb, pl);
     fails += test_psbt_attacks();
+    fails += test_psbt_export();
 
     kiss_session_close();
     if (kiss_session_address(0, 0, addr, sizeof addr) != 0) {

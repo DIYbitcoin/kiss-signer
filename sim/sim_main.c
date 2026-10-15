@@ -1023,6 +1023,15 @@ int kiss_psbt_sig_fingerprint(const uint8_t *b, size_t len, char out[9]) {
   out[8] = 0;
   return 0;
 }
+// No wally here either: decline, and the QR screen sends the stub's bytes
+// whole, exactly as it did before the device learned to trim. kisstest
+// covers the real copy.
+int kiss_psbt_export_copy(const uint8_t *b, size_t len, uint8_t *out, size_t cap,
+                          size_t *written) {
+  (void)b; (void)len; (void)out; (void)cap;
+  if (written) *written = 0;
+  return -1;
+}
 void kiss_psbt_free(void) {}
 
 static void flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px) {

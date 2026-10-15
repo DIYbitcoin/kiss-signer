@@ -7,6 +7,7 @@
 #include "kiss_sign.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 
@@ -5493,7 +5494,23 @@ static int qr_enc_start(void)
 #if KISS_NARROW
     if (!s_qr_ez && fmt != QRT_FMT_PMOFN) frag = QR_OUT_UR_FRAG;
 #endif
-    qrt_encoder_t *ne = qrt_encoder_new_frag(fmt, s_out, s_out_len, frag);
+    // The code carries the trimmed copy (kiss_psbt_export_copy); s_out keeps
+    // the whole signed PSBT for the card, the fingerprint and a retry. The
+    // encoder copies what it is given, so the trimmed bytes only live here.
+    // Any failure to trim sends the full PSBT, which is what this always did.
+    const uint8_t *src = s_out;
+    size_t n = s_out_len;
+    uint8_t *trim = malloc(s_out_len);
+    size_t tl = 0;
+    if (trim && kiss_psbt_export_copy(s_out, s_out_len, trim, s_out_len, &tl) == 0) {
+        src = trim;
+        n = tl;
+    }
+    qrt_encoder_t *ne = qrt_encoder_new_frag(fmt, src, n, frag);
+    if (trim) {
+        kiss_wipe(trim, s_out_len);
+        free(trim);
+    }
     if (!ne) return -1;
     if (s_qenc) qrt_encoder_free(s_qenc);
     s_qenc = ne;

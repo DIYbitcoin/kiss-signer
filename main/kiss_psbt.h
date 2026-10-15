@@ -230,6 +230,21 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s);
 // if any input ends up without a signature of ours that verifies.
 int kiss_psbt_sign(uint8_t *out, size_t out_len, size_t *written);
 
+// The copy of a signed PSBT that goes out by QR. The full signed PSBT stays
+// the device's record (the card write, the fingerprint, the retry screen);
+// this drops only what the coordinator already holds and no finalizer reads,
+// so the code on screen has fewer frames:
+//   - every BIP32 derivation, on inputs and outputs, and the global xpubs;
+//   - a segwit input's full previous transaction, when the input also
+//     carries its witness_utxo (amount and script, which BIP143 signs).
+// Kept: signatures, witness_utxo, redeem and witness scripts, sighash types,
+// every PSBTv2 field, and a legacy input's previous transaction (the only
+// place its script lives). A PSBT carrying anything this file does not
+// recognise -- in practice the silent payment fields -- is copied whole.
+// 0 with the copy in out; nonzero means the caller sends the full PSBT.
+int kiss_psbt_export_copy(const uint8_t *signed_psbt, size_t len,
+                          uint8_t *out, size_t cap, size_t *written);
+
 // First 8 lower-case hex of sha256 over every input's signature bytes,
 // concatenated in input order (ECDSA partial sigs = DER+sighash; taproot key
 // sig = the 64/65-byte 0x13 field). Writes 8 chars + NUL to out. Signatures

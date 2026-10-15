@@ -454,6 +454,12 @@ static void sp_test_spend_one(const char *tag, const char *b64,
     snprintf(name, sizeof name, "%s sign rc", tag);
     spchk(name, kiss_psbt_sign(out1, sizeof out1, &w1) == 0 && w1 > 0);
     kiss_psbt_free();
+    // The QR copy of a received-SP spend is the whole signed PSBT: its
+    // BIP376 fields are not trimmed through (kiss_psbt_export_copy).
+    snprintf(name, sizeof name, "%s QR copy is the whole PSBT", tag);
+    spchk(name, kiss_psbt_export_copy(out1, w1, out2, sizeof out2, &w2) == 0 &&
+                w2 == w1 && memcmp(out1, out2, w1) == 0);
+    w2 = 0;
 
     struct wally_psbt *p = NULL;
     snprintf(name, sizeof name, "%s signed psbt strict-parses", tag);
@@ -840,6 +846,12 @@ static void sp_test_sign(void) {
     spchk("sign: fixture loads READY", rc == 0 && sum.status == WPSBT_READY);
     spchk("sign rc", kiss_psbt_sign(out1, sizeof out1, &w1) == 0 && w1 > 0);
     kiss_psbt_free();
+    // The send's shares, proofs and SP output info are what the coordinator
+    // checks the derived outputs with, so its QR copy is never trimmed.
+    spchk("sign: QR copy is the whole PSBT",
+          kiss_psbt_export_copy(out1, w1, out2, sizeof out2, &w2) == 0 &&
+          w2 == w1 && memcmp(out1, out2, w1) == 0);
+    w2 = 0;
 
     struct wally_psbt *p = NULL;
     spchk("signed psbt strict-parses",

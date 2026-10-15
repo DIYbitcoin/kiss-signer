@@ -1486,6 +1486,50 @@ int kiss_psbt_sign(uint8_t *out, size_t out_len, size_t *written)
     return wally_psbt_to_bytes(s_psbt, 0, out, out_len, written) == WALLY_OK ? 0 : -4;
 }
 
+// The size is the previous transactions. A coordinator attaches one per
+// input so the signer can PROVE each amount (see the fee-lie note above), and
+// a payout from a large transaction is kilobytes; on the way back that proof
+// has done its work. The coordinator combines our signatures into its own
+// copy, which still has every field, and a coordinator that finalizes this
+// copy directly needs only what is kept: BIP143 signs the witness_utxo
+// amount and script, and the finalizer reads the pubkey off the signature.
+// SeedSigner returns less than this (the transaction and the signatures);
+// Krux drops the same metadata but keeps the previous transactions.
+int kiss_psbt_export_copy(const uint8_t *signed_psbt, size_t len,
+                          uint8_t *out, size_t cap, size_t *written)
+{
+    if (!signed_psbt || !out || !written)
+        return -1;
+    *written = 0;
+    struct wally_psbt *p = NULL;
+    if (wally_psbt_from_bytes(signed_psbt, len, 0, &p) != WALLY_OK || !p)
+        return -1;
+    bool whole = p->unknowns.num_items != 0;
+    for (size_t i = 0; !whole && i < p->num_inputs; i++)
+        whole = p->inputs[i].unknowns.num_items != 0;
+    for (size_t j = 0; !whole && j < p->num_outputs; j++)
+        whole = p->outputs[j].unknowns.num_items != 0;
+    if (!whole) {
+        wally_map_clear(&p->global_xpubs);
+        for (size_t i = 0; i < p->num_inputs; i++) {
+            struct wally_psbt_input *in = &p->inputs[i];
+            wally_map_clear(&in->keypaths);
+            if (in->witness_utxo && in->utxo &&
+                wally_psbt_input_set_utxo(in, NULL) != WALLY_OK) {
+                wally_psbt_free(p);
+                return -1;
+            }
+        }
+        for (size_t j = 0; j < p->num_outputs; j++)
+            wally_map_clear(&p->outputs[j].keypaths);
+    }
+    int rc = wally_psbt_to_bytes(p, 0, out, cap, written) == WALLY_OK ? 0 : -1;
+    wally_psbt_free(p);
+    if (rc != 0)
+        *written = 0;
+    return rc;
+}
+
 int kiss_psbt_sig_fingerprint(const uint8_t *signed_psbt, size_t len,
                                 char out[9])
 {

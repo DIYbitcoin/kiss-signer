@@ -418,6 +418,13 @@ int main(void)
             fails++;
         }
         kiss_psbt_free();
+        // the QR export copy parses the same bytes on its own
+        static uint8_t xc[8192];
+        size_t xl = 0;
+        if (kiss_psbt_export_copy(buf, vlen, xc, sizeof xc, &xl) == 0 && xl > sizeof xc) {
+            printf("FAIL: export copy overran its buffer (iter %d)\n", i);
+            fails++;
+        }
     }
     printf("PASS: 4000 bit-flipped PSBTs, no crash, status always defined\n");
 
@@ -1107,6 +1114,15 @@ int main(void)
                 kiss_psbt_sig_fingerprint(rb, wb, fb) != 0 ||
                 strcmp(fa, fb) != 0) {
                 printf("FAIL: SIGNATURE code moved across a re-sign (iter %d)\n", i);
+                fails++;
+            }
+            // the QR copy: always made, never bigger, same signatures
+            static uint8_t xc[sizeof ra];
+            size_t xl = 0;
+            char fx[9] = {0};
+            if (kiss_psbt_export_copy(ra, wa, xc, sizeof xc, &xl) != 0 || xl > wa ||
+                kiss_psbt_sig_fingerprint(xc, xl, fx) != 0 || strcmp(fx, fa) != 0) {
+                printf("FAIL: QR export copy lost or moved a signature (iter %d)\n", i);
                 fails++;
             }
             if (!first_fp[0]) memcpy(first_fp, fa, sizeof first_fp);
