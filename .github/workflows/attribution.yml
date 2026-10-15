@@ -27,6 +27,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: publication guard regressions
+        run: PYTHONDONTWRITEBYTECODE=1 python3 tools/hooks/test_publication_guard.py
+
+      - name: public branch and pull request metadata
+        run: python3 tools/hooks/publication_guard.py event "$GITHUB_EVENT_PATH"
+
       # The range every commit scan below reads, worked out ONCE and published
       # where the other steps can see it.
       #

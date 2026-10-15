@@ -3,6 +3,9 @@
 > **Found a vulnerability?** Do not open a pull request or an issue for it.
 > [SECURITY.md](SECURITY.md) says where to send it privately.
 
+Install local checks with `sh tools/install_hooks.sh`. Follow the full
+[publication review](dev/PUBLICATION.md) before any external submission.
+
 ## Branches
 
 Two long-lived branches. The split exists because this repo publishes

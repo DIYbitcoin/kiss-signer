@@ -1,42 +1,13 @@
 #!/bin/sh
-# Install the repository's git hooks into .git/hooks.
-#
-# Hooks are not tracked by git, so a fresh clone starts with none. Run this once
-# after cloning. See the Attribution section of dev/HOUSE-RULES.md for what the commit-msg
-# hook removes and why a written rule was not enough on its own.
-#
-# TWO GATES, and the test for both is the same: can CI still tell you in time?
-#
-# commit-msg is the first. A co-author trailer that reaches GitHub is permanent
-# -- refs/pull/*/head is written by GitHub and never rewritten -- so the only
-# lane that matters is the one before the commit is written.
-#
-# pre-push is the second and it guards one thing on one branch: the docs
-# picture stamp, when the ref being pushed is main. check_docs_fresh only
-# refuses under --strict, which runs as the FIRST step of the release job, so
-# a stale stamp skips the firmware build and takes the run red on the public
-# release branch. That happened. The warning had been sitting in the develop
-# lane for two commits saying exactly what would go wrong, because advisory is
-# the right verdict there and nothing carried it across the merge.
-#
-# There WAS a pre-push hook running the whole gate suite, and that one is still
-# gone, for the reason it always was: every gate it ran, desktop-tests.yml runs
-# too, along with a fuzz pass, a sanitized walk and the installer checks it
-# never touched, so it held a push for three minutes behind a UI with nowhere
-# to print why. This one runs a single check in about fifty milliseconds and
-# only on main. Run the gates while you are working, which is where they are
-# useful; read the CI result before calling something done.
-#
-# post-merge is the second file here and it is not a gate at all -- it refuses
-# nothing, prints nothing and holds nothing up. It sweeps the worktrees a merge
-# just finished with, because that is the moment they become finished and
-# nothing in git notices. See tools/hooks/post-merge for what it will and will
-# not remove.
+# Install publication checks and the existing post-merge cleanup hook.
+# Run after cloning. Tests use temporary local repositories, never a server.
+# Direct API submissions still require the explicit review in dev/PUBLICATION.md.
 set -e
 cd "$(dirname "$0")/.."
+PYTHONDONTWRITEBYTECODE=1 python3 tools/hooks/test_publication_guard.py
 DEST=$(git rev-parse --git-path hooks)
 mkdir -p "$DEST"
-for h in commit-msg post-merge pre-push; do
+for h in commit-msg post-merge pre-push publication_guard.py; do
     cp "tools/hooks/$h" "$DEST/$h"
     chmod +x "$DEST/$h"
     echo "installed: $DEST/$h"

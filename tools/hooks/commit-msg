@@ -34,6 +34,10 @@ if ! cmp -s "$MSG" "$TMP"; then
 fi
 rm -f "$TMP"
 
+# Check all prohibited names and author/committer identities before recording.
+GUARD=$(python3 -c 'from pathlib import Path; import sys; print(Path(sys.argv[1]).resolve().with_name("publication_guard.py"))' "$0")
+python3 "$GUARD" message "$MSG"
+
 # PROSE, which is the half the strip cannot handle. A trailer is a whole line
 # and deleting it loses nothing; a sentence naming a tool is carrying a real
 # fact, and a hook that deleted the line would delete the fact with it. So this
