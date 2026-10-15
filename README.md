@@ -57,17 +57,29 @@ swipe opens your real keys, and KISS alone opens a decoy.
   derived again on the device; change is verified, not trusted.
 
 Runs on three ESP32-P4 boards with a touch screen, camera and microSD slot. No
-soldering.
+soldering. See [Hardware](#-hardware) before you buy one.
+
+Inspired by [Bowser](https://github.com/arcbtc/bowser-bitcoin-hardware-wallet),
+a bitcoin signer hidden under a Tetris game.
+
+## 🔧 Hardware
 
 - Guition **JC4880P443C**, 4.3in, 800×480
 - Waveshare **ESP32-P4-WIFI6-Touch-LCD-3.5**, 3.5in, 480×320
 - Guition **JC1060P470C**, 7in, 1024×600
 
 Boards with the newer v3.x ESP32-P4 chip are not supported yet
-([roadmap](docs/ROADMAP.md)).
+([roadmap](docs/ROADMAP.md)). `esptool` prints the chip revision when it
+connects.
 
-Inspired by [Bowser](https://github.com/arcbtc/bowser-bitcoin-hardware-wallet),
-a bitcoin signer hidden under a Tetris game.
+### Guition boards: flip the camera
+
+Both Guition boards ship with the camera facing you. To scan a QR code from
+your phone or computer, the lens has to face out the back, away from you, so
+turn the camera module around once before first use. On the 4.3in the screen
+has to come off first; the [guide](https://diybitcoin.github.io/kiss-signer/guide.html#hardware)
+has the steps. For photos of either board, ask in the
+[Telegram chat](https://t.me/KISS_signer).
 
 ## Install
 
