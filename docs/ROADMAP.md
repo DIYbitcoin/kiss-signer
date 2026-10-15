@@ -42,6 +42,24 @@ Sparrow supports both halves for airgapped signers: BIP375 sending since 2.4.0,
 receiving wallets since 2.5.0. Silent Payments has also been tested through
 Sparrow on signet. Not tested on mainnet yet; no outside review.
 
+## Silent Payment interoperability
+
+- **In progress:** automated offline round trips with kiss-bdk using the real
+  C signer and independent Rust proof, output and signature verification.
+  See [the test bridge](../sim/SP_INTEROP.md). This does not exercise device UI
+  or transport.
+- **Planned:** a KISS adapter and single-signer BIP375/BIP376 scenarios in
+  [bip375-interop](https://github.com/macgyver13/bip375-interop), with pinned
+  [SPDK](https://github.com/macgyver13/spdk) and Caravan validators. Require
+  explicit validator success and transaction-intent checks, including rejected
+  mutations; a harness exit code alone is insufficient evidence.
+- Multiparty signing remains unsupported. The signer requires ownership of
+  every input and replaces incoming shares/proofs; do not advertise compatibility
+  with the harness's additive multisigner merge contract.
+- Track the [index-server specification](https://github.com/silent-payments/BIP0352-index-server-specification)
+  in kiss-bdk. Scanning and server compatibility belong to the coordinator;
+  the offline signer does not need a network client.
+
 ## Keys and storage
 
 | Feature | Status | Notes |
