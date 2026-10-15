@@ -331,6 +331,14 @@ static void one_shape(const shape_t *sh)
         printf("  status %d reason %s\n", s.status, s.reason);
         return;
     }
+    if (sh->version == 2) {
+        // A v2 coordinator may finalize the returned copy without combining,
+        // so it needs every field: sent whole.
+        snprintf(nm, sizeof nm, "export %s: goes whole", sh->name);
+        chkb(nm, kiss_psbt_export_copy(full, fl, trim, sizeof trim, &tl) == 0 &&
+                 tl == fl && memcmp(trim, full, fl) == 0);
+        return;
+    }
     snprintf(nm, sizeof nm, "export %s: trims", sh->name);
     chkb(nm, kiss_psbt_export_copy(full, fl, trim, sizeof trim, &tl) == 0 && tl > 0 && tl < fl);
 

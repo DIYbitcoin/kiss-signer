@@ -240,7 +240,8 @@ int kiss_psbt_sign(uint8_t *out, size_t out_len, size_t *written);
 // Kept: signatures, witness_utxo, redeem and witness scripts, sighash types,
 // every PSBTv2 field, and a legacy input's previous transaction (the only
 // place its script lives). A PSBT carrying anything this file does not
-// recognise -- in practice the silent payment fields -- is copied whole.
+// recognise -- in practice the silent payment fields -- is copied whole, and
+// so is every PSBTv2, which a coordinator may finalize without combining.
 // 0 with the copy in out; nonzero means the caller sends the full PSBT.
 int kiss_psbt_export_copy(const uint8_t *signed_psbt, size_t len,
                           uint8_t *out, size_t cap, size_t *written);
