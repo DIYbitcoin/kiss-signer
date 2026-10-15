@@ -582,10 +582,15 @@ static const char *tr_reason(const char *r)
         // fingerprint that matches, which would draw two identical
         // fingerprints under a refusal saying they differ.
         {"input derivation pubkey does not match", STR_P_IN_NO_DERIVE},
+        // A second derivation naming this wallet beside the real one, or one
+        // deeper than any key of ours: the claim cannot be checked, which is
+        // what both of these strings already tell the owner.
+        {"input key derivations conflict", STR_P_IN_NO_DERIVE},
         {"too many outputs to verify safely", STR_P_TOO_MANY_VERIFY},
         {"too many input addresses to count safely", STR_P_TOO_MANY_VERIFY},
         {"output amount over 21M BTC (corrupt)", STR_P_AMT_HUGE_OUT},
         {"change address does not re-derive", STR_P_CHANGE_NO_DERIVE},
+        {"output key derivations conflict", STR_P_CHANGE_NO_DERIVE},
         {"outputs exceed inputs", STR_P_OUT_GT_IN},
         {"unknown data in this transaction", STR_P_UNKNOWN_DATA},
         {"SP output needs PSBTv2", STR_P_SP_NEED_V2},

@@ -94,33 +94,48 @@ static uint64_t dust_floor(uint32_t purpose)
 // Find OUR keypath in a PSBT keypath map (master fingerprint match) and parse
 // its derivation path. If item_out is non-NULL it receives the matching entry,
 // whose map key is the public key the coordinator claims that path derives.
-// Returns 1 if found, 0 if the map holds no key of ours.
+// Returns 1 if exactly one entry is ours, 0 if none is, and -1 if the map
+// says something about this wallet that cannot be checked as one claim.
+//
+// -1 covers two shapes. Two or more entries naming our fingerprint: a
+// single-sig input spends one key and a single-sig output pays one, so a
+// second entry is either a forgery or a key the script does not use. This
+// used to return the FIRST match, which made the verdict depend on entry
+// order -- the real key first signed, the same forgery first refused. And an
+// entry naming our fingerprint at a depth no key of ours has: that used to
+// read as "not ours", so on an output a claim of ownership that cannot be
+// true was shown as an ordinary send, while the same claim at a plausible
+// depth with the wrong pubkey refused. Both are one claim the device cannot
+// verify, and every other such claim in this file is a STOP.
 static int our_keypath(const struct wally_map *m, const uint8_t fp[4],
                        uint32_t *path, size_t *path_len /* in: max, out: got */,
                        const struct wally_map_item **item_out)
 {
     if (item_out)
         *item_out = NULL;
+    const struct wally_map_item *hit = NULL;
     for (size_t i = 0; i < m->num_items; i++) {
         const struct wally_map_item *it = &m->items[i];
         if (it->value_len < 4 || (it->value_len - 4) % 4 != 0)
             continue;
         if (memcmp(it->value, fp, 4) != 0)
             continue;
-        size_t depth = (it->value_len - 4) / 4;
-        if (depth > *path_len)
-            return 0;                              // absurd depth: not ours
-        for (size_t d = 0; d < depth; d++) {
-            const uint8_t *v = it->value + 4 + d * 4;
-            path[d] = (uint32_t)v[0] | ((uint32_t)v[1] << 8) |
-                      ((uint32_t)v[2] << 16) | ((uint32_t)v[3] << 24);
-        }
-        *path_len = depth;
-        if (item_out)
-            *item_out = it;
-        return 1;
+        if (hit || (it->value_len - 4) / 4 > *path_len)
+            return -1;
+        hit = it;
     }
-    return 0;
+    if (!hit)
+        return 0;
+    size_t depth = (hit->value_len - 4) / 4;
+    for (size_t d = 0; d < depth; d++) {
+        const uint8_t *v = hit->value + 4 + d * 4;
+        path[d] = (uint32_t)v[0] | ((uint32_t)v[1] << 8) |
+                  ((uint32_t)v[2] << 16) | ((uint32_t)v[3] << 24);
+    }
+    *path_len = depth;
+    if (item_out)
+        *item_out = hit;
+    return 1;
 }
 
 // The three script types this wallet can sign, by BIP purpose.
@@ -486,8 +501,10 @@ static void sp_fill(wpsbt_summary_t *s, const struct ext_key *master,
 
         uint32_t path[8];
         size_t path_len = 8;
-        if (!our_keypath(&in->keypaths, fp, path, &path_len, NULL)) {
-            stop(s, "input is not this wallet's");
+        int kp = our_keypath(&in->keypaths, fp, path, &path_len, NULL);
+        if (kp != 1) {
+            stop(s, kp < 0 ? "input key derivations conflict"
+                           : "input is not this wallet's");
             goto out;
         }
         if (our_purpose(path, path_len) != 84) {
@@ -873,8 +890,10 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
         uint32_t path[8];
         size_t path_len = 8;
         const struct wally_map_item *keypath = NULL;
-        if (!our_keypath(&in->keypaths, fp, path, &path_len, &keypath)) {
-            stop(s, "input is not this wallet's");
+        int kp = our_keypath(&in->keypaths, fp, path, &path_len, &keypath);
+        if (kp != 1) {
+            stop(s, kp < 0 ? "input key derivations conflict"
+                           : "input is not this wallet's");
             continue;
         }
         uint32_t purpose = our_purpose(path, path_len);
@@ -1092,8 +1111,12 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
         uint32_t path[8];
         size_t path_len = 8;
         const struct wally_map_item *keypath = NULL;
-        if (our_keypath(&s_psbt->outputs[j].keypaths, fp, path, &path_len,
-                        &keypath)) {
+        int kp = our_keypath(&s_psbt->outputs[j].keypaths, fp, path, &path_len,
+                             &keypath);
+        if (kp < 0) {
+            stop(s, "output key derivations conflict");
+            s->send_sats += o->satoshi;
+        } else if (kp == 1) {
             if (!our_purpose(path, path_len) ||
                 rederive_matches(path, path_len, o->script, o->script_len,
                                  keypath) != 0) {
@@ -1228,7 +1251,7 @@ int kiss_psbt_details(wpsbt_details_t *d)
         } else {
             uint32_t path[8];
             size_t path_len = 8;
-            if (our_keypath(&in->keypaths, fp, path, &path_len, NULL) &&
+            if (our_keypath(&in->keypaths, fp, path, &path_len, NULL) == 1 &&
                 path_len == 5) {
                 di->purpose = our_purpose(path, path_len);
                 di->change = path[3];
@@ -1338,7 +1361,7 @@ static int sign_with_card(void)
         uint32_t path[8];
         size_t path_len = 8;
         const struct wally_map_item *kp = NULL;
-        if (!our_keypath(&in->keypaths, fp, path, &path_len, &kp) || !kp ||
+        if (our_keypath(&in->keypaths, fp, path, &path_len, &kp) != 1 || !kp ||
             kp->key_len != EC_PUBLIC_KEY_LEN)
             return -2;
 

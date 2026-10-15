@@ -72,6 +72,8 @@ int test_defrow(void);
 int test_fw(void);
 // sim/test_pq.c — SLH-DSA against NIST's own FIPS 205 vectors
 int test_pq(void);
+// sim/test_psbt_attacks.c — PSBTs built to make the signer misreport
+int test_psbt_attacks(void);
 
 static void chk(const char *name, const char *got, const char *want) {
     if (got && strcmp(got, want) == 0) {
@@ -1955,6 +1957,7 @@ int main(int argc, char **argv) {
     test_sign_refused_when_selftest_fails(pb, pl);
     test_session_fingerprint();
     test_lock_drops_psbt(pb, pl);
+    fails += test_psbt_attacks();
 
     kiss_session_close();
     if (kiss_session_address(0, 0, addr, sizeof addr) != 0) {
