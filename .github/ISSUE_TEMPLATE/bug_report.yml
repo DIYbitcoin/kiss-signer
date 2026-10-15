@@ -18,11 +18,39 @@ body:
     validations:
       required: true
 
-  - type: input
+  - type: dropdown
     id: board
     attributes:
       label: Board
-      description: Which ESP32-P4 board, and the display if it is not the stock one.
+      options:
+        - Guition JC4880P443C (4.3in)
+        - Waveshare ESP32-P4-WIFI6-Touch-LCD-3.5 (3.5in)
+        - Guition JC1060P470C (7in)
+        - Something else (say which under "What happened")
+    validations:
+      required: true
+
+  - type: dropdown
+    id: case-label
+    attributes:
+      label: Does the label on the back of the case say V2?
+      description: Guition sells two different screens under the same board name, and only the label tells them apart.
+      options:
+        - "No"
+        - "Yes"
+        - There is no label
+    validations:
+      required: true
+
+  - type: dropdown
+    id: camera
+    attributes:
+      label: Is the camera turned to face out the back, away from you?
+      description: The Guition boards ship with it facing you; QR scanning needs it facing out.
+      options:
+        - "Yes"
+        - "No"
+        - Not sure
     validations:
       required: true
 
