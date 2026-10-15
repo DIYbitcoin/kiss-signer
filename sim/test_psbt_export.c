@@ -380,6 +380,20 @@ static void untouched_when_unknown(void)
     chkb("export: a PSBT with silent payment fields is copied whole",
          ok && kiss_psbt_export_copy(b, bl, out, sizeof out, &ol) == 0 &&
          ol == bl && memcmp(out, b, bl) == 0);
+    // A buffer too small for the copy is a refusal, never a short copy
+    // reported as whole: wally answers OK with the length it needed.
+    {
+        static uint8_t sb[4096], signed_b[QRT_MAX_SIGNED_PSBT], small[64];
+        const shape_t one = {"small cap", 1, {84}, 2, 0, 0};
+        size_t ul = build(&one, sb, sizeof sb), fl = 0, cl = 1;
+        wpsbt_summary_t s;
+        int ok2 = ul > 0 && kiss_psbt_load(sb, ul, &s) == 0 &&
+                  kiss_psbt_sign(signed_b, sizeof signed_b, &fl) == 0;
+        kiss_psbt_free();
+        chkb("export: a buffer too small is refused",
+             ok2 && kiss_psbt_export_copy(signed_b, fl, small, sizeof small, &cl) != 0 &&
+             cl == 0);
+    }
     chkb("export: garbage is refused, so the caller sends the full PSBT",
          kiss_psbt_export_copy((const uint8_t *)"not a psbt", 10, out, sizeof out, &ol) != 0 &&
          ol == 0);

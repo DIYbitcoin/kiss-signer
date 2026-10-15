@@ -1523,7 +1523,10 @@ int kiss_psbt_export_copy(const uint8_t *signed_psbt, size_t len,
         for (size_t j = 0; j < p->num_outputs; j++)
             wally_map_clear(&p->outputs[j].keypaths);
     }
-    int rc = wally_psbt_to_bytes(p, 0, out, cap, written) == WALLY_OK ? 0 : -1;
+    // wally answers OK with the length it NEEDED when cap is short, and
+    // writes nothing past cap: a written over cap is a refusal, not a copy.
+    int rc = wally_psbt_to_bytes(p, 0, out, cap, written) == WALLY_OK &&
+             *written <= cap ? 0 : -1;
     wally_psbt_free(p);
     if (rc != 0)
         *written = 0;
