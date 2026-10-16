@@ -1512,7 +1512,7 @@
           <li>
             <h3>Pair a watch-only wallet</h3>
             <span class="step-where here"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 18.5h3"/></svg>On this device</span>
-            <p>KISS shows a QR of your public keys, a descriptor or a zpub. Your coordinator can then see the balance and hand out addresses. It cannot spend.</p>
+            <p>KISS-signer shows a QR of your public keys, a descriptor or a zpub. Your coordinator can then see the balance and hand out addresses. It cannot spend.</p>
           </li>
           <li>
             <h3>Build the transaction there</h3>
@@ -1522,7 +1522,7 @@
           <li>
             <h3>Verify and sign here</h3>
             <span class="step-where here"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 18.5h3"/></svg>On this device</span>
-            <p>Hand the PSBT over by QR or microSD. KISS recomputes every amount itself, shows you, and signs only on a deliberate hold.</p>
+            <p>Hand the PSBT over by QR or microSD. KISS-signer recomputes every amount itself, shows you, and signs only on a deliberate hold.</p>
           </li>
           <li>
             <h3>Broadcast from the coordinator</h3>
@@ -1549,7 +1549,7 @@
           <article>
             <div class="feat-head"><svg class="feat-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 14h3v3"/><path d="M21 17v4h-4"/><path d="M14 21h.01"/></svg><span>TOUCHSCREEN + QR</span></div>
             <h3>Transactions in and out by QR, or microSD</h3>
-            <p>A transaction does not fit in one QR. KISS splits it into numbered frames and loops them for your coordinator&rsquo;s camera, the BC-UR scheme. Or carry the file on a card. No cable ever carries your data.</p>
+            <p>A transaction does not fit in one QR. KISS-signer splits it into numbered frames and loops them for your coordinator&rsquo;s camera, the BC-UR scheme. Or carry the file on a card. No cable ever carries your data.</p>
         <figure class="urqr" aria-labelledby="urqr-cap">
           <div class="urqr-stage">
             <svg viewBox="0 0 17 17" aria-hidden="true">
@@ -1620,7 +1620,7 @@
         <p>
           The ESP32-P4 has no WiFi and no Bluetooth in silicon. The board carries
           a <em>second</em> chip that does, because the board is sold for other
-          products too. KISS holds that chip in reset before anything else runs,
+          products too. KISS-signer holds that chip in reset before anything else runs,
           and ships no wireless code at all.
         </p>
         <p>
@@ -2039,7 +2039,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
             Your seed words plus your passphrase make the master key, and the
             fingerprint, the descriptor and every address come from that key.
             Type a different passphrase and you get different keys with their
-            own fingerprint, so the fingerprint on the KISS home screen tells
+            own fingerprint, so the fingerprint on the KISS-signer home screen tells
             you which keys you opened.
           </figcaption>
         </figure>
@@ -2105,7 +2105,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           <li>Choose <strong>12 WORDS</strong> or <strong>24 WORDS</strong>
             and type each one, or choose <strong>SCAN MY BACKUP</strong> to
             scan a seed QR: a SeedQR, a CompactSeedQR, a QR of the seed words
-            as text, or an encrypted backup made by KISS or Krux.</li>
+            as text, or an encrypted backup made by KISS-signer, Krux or Kern.</li>
         </ol>
         <h3 id="scanning">What to scan, and where</h3>
         <ul>
@@ -2142,7 +2142,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
             seed words, without the passphrase, locked with a password you
             choose. It is a QR you keep or a .kef file on an SD card, made
             under <strong>SETTINGS &rarr; BACKUP &rarr; SEED WORDS &rarr;
-            ENCRYPTED</strong>, and it opens on any KISS and on Krux.
+            ENCRYPTED</strong>, and it opens on any KISS-signer, Krux or Kern.
           </li>
           <li>
             <strong>SD CARD storage</strong>, an alternative to FLASH: a file
@@ -2152,7 +2152,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         </ul>
         <p>
           Two different things are encrypted. The encrypted backup is locked
-          with a password you choose, and any KISS or Krux can open it, but
+          with a password you choose, and any KISS-signer, Krux or Kern can open it, but
           only with that password. SD CARD storage is locked to this one
           signer and opens nowhere else.
         </p>
@@ -2205,16 +2205,16 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
               menu, as in <a href="#firstboot">Create your keys</a>.</figcaption>
           </figure>
           <figure>
-            <img src="media/export-descriptor.png" alt="KISS descriptor QR for Sparrow">
+            <img src="media/export-descriptor.png" alt="KISS-signer descriptor QR for Sparrow">
             <figcaption><b>02</b>Pair Sparrow: KEYS &rarr; PAIR COORDINATOR
               &rarr; DESKTOP. In Sparrow, create an Airgapped Hardware Wallet
               and scan this descriptor.</figcaption>
           </figure>
           <figure>
-            <img src="media/qr-scan.png" alt="KISS camera scanner">
+            <img src="media/qr-scan.png" alt="KISS-signer camera scanner">
             <figcaption><b>03</b>Verify the first address: show address #0 in
-              Sparrow, then KISS &rarr; Receive &rarr; VERIFY and scan it.
-              Continue only when KISS says it is yours.</figcaption>
+              Sparrow, then KISS-signer &rarr; Receive &rarr; VERIFY and scan it.
+              Continue only when KISS-signer says it is yours.</figcaption>
           </figure>
           <figure>
             <img src="media/signer-home.png" alt="KISS Signer home">
@@ -2222,7 +2222,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
               to that verified address and wait for Sparrow to show it.</figcaption>
           </figure>
           <figure>
-            <img src="media/sign-verify.png" alt="KISS transaction verification screen">
+            <img src="media/sign-verify.png" alt="KISS-signer transaction verification screen">
             <figcaption><b>05</b>Practice spending: build the return payment in
               Sparrow, move its PSBT by QR or SD, compare RECIPIENT GETS,
               NETWORK FEE, TOTAL LEAVING, outputs and change, then hold
@@ -2239,15 +2239,15 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
       </section>
 <section class="doc-card reveal" id="cautions">
         <p class="eyebrow">11 / it checks, you confirm</p>
-        <h2>What KISS checks before you sign</h2>
+        <h2>What KISS-signer checks before you sign</h2>
         <p class="lede">
-          KISS re-derives the whole transaction on its own screen and speaks up
+          KISS-signer re-derives the whole transaction on its own screen and speaks up
           before you sign. Always a <strong>CAUTION</strong> you acknowledge,
           never a silent surprise.
         </p>
         <figure class="pins" aria-labelledby="pins-cap">
           <div class="pins-stage">
-            <img src="media/sign-verify.png" alt="The KISS signing screen, showing what the recipient gets, the inputs, the network fee and the change">
+            <img src="media/sign-verify.png" alt="The KISS-signer signing screen, showing what the recipient gets, the inputs, the network fee and the change">
             <svg viewBox="0 0 800 480" aria-hidden="true">
               <circle data-pin="1" cx="745" cy="31" r="15"/>
               <text data-pin="1" x="745" y="37">1</text>
@@ -2262,7 +2262,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           <ol class="pins-key">
             <li data-pin="1"><strong>Which keys are signing.</strong> It should be
               the fingerprint your home screen shows.</li>
-            <li data-pin="2"><strong>What the recipient gets.</strong> KISS worked
+            <li data-pin="2"><strong>What the recipient gets.</strong> KISS-signer worked
               this out from the transaction itself, not from what the coordinator
               claimed.</li>
             <li data-pin="3"><strong>The fee.</strong> It turns amber when it is a
@@ -2290,7 +2290,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
             louder.</li>
         </ul>
         <p>
-          Address reuse works differently. KISS never sees the chain, so it
+          Address reuse works differently. KISS-signer never sees the chain, so it
           cannot know which of your addresses were paid. Rather than guess,
           <strong>RECEIVE</strong> hands out a fresh address every time.
         </p>
@@ -2394,7 +2394,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           The mode chooser is under SETTINGS, and switching costs nothing there.
         </p>
         <div class="note">
-          Changing mode erases the old location. KISS writes the new copy,
+          Changing mode erases the old location. KISS-signer writes the new copy,
           verifies it, then removes the old one.
         </div>
       </section>

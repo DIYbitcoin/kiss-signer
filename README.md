@@ -199,7 +199,7 @@ two pieces of paper.
 - **Encrypted backup, optional:** an extra copy of the seed words (not the
   passphrase), locked with a password you choose. A QR you keep or a `.kef`
   file on an SD card, from SETTINGS > BACKUP > SEED WORDS > ENCRYPTED. Opens on
-  any KISS and on Krux.
+  any KISS-signer, Krux or Kern.
 - **SD CARD storage, an alternative to FLASH:** a file only this signer can
   open, so no password and useless anywhere else. Not a backup.
 
@@ -230,7 +230,7 @@ what each one costs.
 
 Under **KEYS > PAIR COORDINATOR**, export the watch-only output descriptor to
 Sparrow (or the zpub to BlueWallet). The coordinator tracks your UTXOs, builds
-the PSBT and broadcasts it; KISS verifies and signs.
+the PSBT and broadcasts it; KISS-signer verifies and signs.
 
 <table>
 <tr>
