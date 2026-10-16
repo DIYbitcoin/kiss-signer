@@ -2094,10 +2094,13 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
             keeps a red border.
           </li>
           <li>
-            Set <strong>YOUR SWIPE</strong> when setup offers the decoy. From
-            then on, drawing KISS alone opens decoy keys with no passphrase,
-            and KISS followed by your swipe asks for your passphrase. Put a
-            little in the decoy.
+            Set <strong>YOUR SWIPE</strong> when setup offers a decoy. Your
+            swipe is a short stroke you pick, like an underline or a circle,
+            drawn right after KISS. From then on, KISS alone opens decoy keys
+            with no passphrase, and KISS plus your swipe asks for your
+            passphrase and opens your real keys. If someone forces you to
+            open the signer, draw just KISS and show them the decoy. Put a
+            little bitcoin in the decoy so it looks real.
           </li>
         </ol>
         <p>

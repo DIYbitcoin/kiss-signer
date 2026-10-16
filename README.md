@@ -186,8 +186,12 @@ Do these steps in order.
 7. Tap **VERIFY FULL BACKUP** and type every seed word from your paper and the
    exact passphrase again. This proves your two papers bring back the same
    keys, so do it before you put any bitcoin on them.
-8. Set **YOUR SWIPE** when setup offers the decoy. KISS alone now opens decoy
-   keys; KISS and your swipe ask for the passphrase. Put a little in the decoy.
+8. Set **YOUR SWIPE** when setup offers a decoy: a short stroke you pick, like
+   an underline or a circle, drawn right after KISS. KISS alone now opens
+   decoy keys with no passphrase; KISS plus your swipe asks for your passphrase
+   and opens your real keys. If someone forces you to open the signer, draw
+   just KISS and show them the decoy. Put a little bitcoin in the decoy so it
+   looks real.
 
 Every day: draw KISS, draw your swipe, type your passphrase. Your backup is the
 two pieces of paper.
