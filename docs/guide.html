@@ -2087,6 +2087,13 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
             can open your keys, so guard it like the paper.
           </li>
           <li>
+            Tap <strong>VERIFY FULL BACKUP</strong> and type every seed word
+            from your paper and the exact passphrase again. This proves your
+            two papers bring back the same keys, so do it before you put any
+            bitcoin on them. Until it passes, <strong>I UNDERSTAND</strong>
+            keeps a red border.
+          </li>
+          <li>
             Set <strong>YOUR SWIPE</strong> when setup offers the decoy. From
             then on, drawing KISS alone opens decoy keys with no passphrase,
             and KISS followed by your swipe asks for your passphrase. Put a
@@ -2166,13 +2173,6 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         </p>
         <h3>Then</h3>
         <ol>
-          <li>
-            Then take the optional <strong>VERIFY FULL BACKUP</strong>
-            rehearsal: type every word from paper and the exact passphrase
-            again. Until both recreate the same fingerprint,
-            <strong>I UNDERSTAND</strong> keeps a red border. You can skip it,
-            and it is the strongest check you can make before funding.
-          </li>
           <li>
             Later, <strong>SETTINGS &rarr; BACKUP &rarr; SEED WORDS</strong>
             shows them behind a warning, or checks your paper copy without

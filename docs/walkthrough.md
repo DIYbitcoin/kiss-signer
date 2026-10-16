@@ -14,7 +14,7 @@ Three rules first. Everything below assumes them.
 2. The fingerprint on the home screen is how you tell which keys you opened.
 3. This signer is never online. Your coordinator does all the talking to the network.
 
-Setup in order: draw K I S S, choose NEW SEED WORDS, choose where the signer keeps them (FLASH, SD CARD or AMNESIC), make them with CAMERA AND TAPS, write them on paper, set a passphrase and write it on a second paper kept apart, then set YOUR SWIPE for the decoy. Every day after that: draw KISS, draw your swipe, type your passphrase. DICE OR COIN and BLIND DRAW are optional, and [the guide](guide.html#firstboot) says what each choice means.
+Setup in order: draw K I S S, choose NEW SEED WORDS, choose where the signer keeps them (FLASH, SD CARD or AMNESIC), make them with CAMERA AND TAPS, write them on paper, set a passphrase and write it on a second paper kept apart, check both papers with VERIFY FULL BACKUP, then set YOUR SWIPE for the decoy. Every day after that: draw KISS, draw your swipe, type your passphrase. DICE OR COIN and BLIND DRAW are optional, and [the guide](guide.html#firstboot) says what each choice means.
 
 ## Returning from Fruit Island
 
