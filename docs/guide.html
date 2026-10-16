@@ -765,9 +765,10 @@
         margin: 20px 0 6px;
         max-width: var(--figure);
       }
-      /* Squeezed into a phone the whole drawing scales with its box, and the
-         labels land near five pixels. It keeps its drawn size and scrolls
-         instead, which is what the storage table does one topic along. */
+      /* Squeezed into a phone the wide drawing scales with its box, and the
+         labels land near five pixels; scrolled instead, it hid the ADDRESS
+         box past the edge. Narrow screens get a tall drawing with the three
+         outputs stacked, at the same type size. */
       .derive-scroll {
         overflow-x: auto;
       }
@@ -779,6 +780,18 @@
         border: 1px solid var(--line);
         border-radius: 10px;
         background: var(--panel);
+      }
+      .derive svg.tall {
+        display: none;
+        min-width: 0;
+      }
+      @media (max-width: 600px) {
+        .derive svg.wide {
+          display: none;
+        }
+        .derive svg.tall {
+          display: block;
+        }
       }
       .derive text {
         font-family: var(--mono);
@@ -1934,7 +1947,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         </ul>
         <figure class="derive" aria-labelledby="derive-cap">
           <div class="derive-scroll">
-          <svg viewBox="0 0 560 334" role="img" aria-label="Seed words and a passphrase combine into a master key that never leaves the device. From it come three things that do leave: the fingerprint, which says which keys are open; the descriptor, which the coordinator imports; and a receive address, which goes to whoever is paying you.">
+          <svg class="wide" viewBox="0 0 560 334" role="img" aria-label="Seed words and a passphrase combine into a master key that never leaves the device. From it come three things that do leave: the fingerprint, which says which keys are open; the descriptor, which the coordinator imports; and a receive address, which goes to whoever is paying you.">
             <rect class="vault" x="12" y="8" width="536" height="184" rx="10"/>
             <text class="vault-label" x="280" y="26">NEVER LEAVES THIS DEVICE</text>
 
@@ -1978,6 +1991,48 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
             <text class="val" x="464" y="277">bc1q...</text>
             <text class="sub" x="464" y="296">what you hand to</text>
             <text class="sub" x="464" y="309">whoever is paying you</text>
+          </svg>
+          <svg class="tall" viewBox="0 0 340 424" role="img" aria-label="Seed words and a passphrase combine into a master key that never leaves the device. From it come three things that do leave: the fingerprint, which says which keys are open; the descriptor, which the coordinator imports; and a receive address, which goes to whoever is paying you.">
+            <rect class="vault" x="8" y="8" width="324" height="184" rx="10"/>
+            <text class="vault-label" x="170" y="26">NEVER LEAVES THIS DEVICE</text>
+
+            <rect class="box" x="14" y="44" width="154" height="46" rx="7"/>
+            <text class="ttl" x="91" y="66">SEED WORDS</text>
+            <text class="sub" x="91" y="81">on paper, in your hand</text>
+
+            <rect class="box" x="172" y="44" width="154" height="46" rx="7"/>
+            <text class="ttl" x="249" y="66">PASSPHRASE</text>
+            <text class="sub" x="249" y="81">typed, never stored</text>
+
+            <path class="flow" d="M91 90 V110 H170 V124"/>
+            <path class="flow" d="M249 90 V110 H170 V124"/>
+            <path class="head" d="M165 118 l5 6 5 -6"/>
+
+            <rect class="box key" x="60" y="128" width="220" height="48" rx="7"/>
+            <text class="ttl" x="170" y="150">MASTER KEY</text>
+            <text class="sub" x="170" y="165">the one secret worth stealing</text>
+
+            <path class="flow out" d="M170 176 V200 H20 V242 H32"/>
+            <path class="flow out" d="M170 176 V200 H20 V312 H32"/>
+            <path class="flow out" d="M170 176 V200 H20 V382 H32"/>
+            <path class="head out" d="M27 237 l6 5 -6 5"/>
+            <path class="head out" d="M27 307 l6 5 -6 5"/>
+            <path class="head out" d="M27 377 l6 5 -6 5"/>
+
+            <rect class="box" x="34" y="212" width="298" height="60" rx="7"/>
+            <text class="ttl" x="183" y="231">FINGERPRINT</text>
+            <text class="val" x="183" y="248">9A2C33E3</text>
+            <text class="sub" x="183" y="263">which keys you opened, on the home screen</text>
+
+            <rect class="box" x="34" y="282" width="298" height="60" rx="7"/>
+            <text class="ttl" x="183" y="301">DESCRIPTOR</text>
+            <text class="val" x="183" y="318">wpkh([..]zpub)</text>
+            <text class="sub" x="183" y="333">what your coordinator imports, watch-only</text>
+
+            <rect class="box" x="34" y="352" width="298" height="60" rx="7"/>
+            <text class="ttl" x="183" y="371">ADDRESS</text>
+            <text class="val" x="183" y="388">bc1q...</text>
+            <text class="sub" x="183" y="403">what you hand to whoever is paying you</text>
           </svg>
           </div>
           <figcaption id="derive-cap">
@@ -2658,32 +2713,36 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
          reach the master key, then three things come out of it. Drawn rather
          than faded, so the order of derivation is the order you watch. */
       (function () {
-        var svg = document.querySelector(".derive svg");
-        if (!svg) return;
-        var into = Array.prototype.slice.call(svg.querySelectorAll(".flow:not(.out), .head:not(.out)"));
-        var outof = Array.prototype.slice.call(svg.querySelectorAll(".flow.out, .head.out"));
+        var svgs = Array.prototype.slice.call(document.querySelectorAll(".derive svg"));
+        if (!svgs.length) return;
         var still = window.matchMedia("(prefers-reduced-motion: reduce)");
         var running = [];
 
         function stop() {
           running.forEach(function (a) { a.cancel(); });
           running = [];
-          svg.classList.remove("is-drawing");
+          svgs.forEach(function (svg) { svg.classList.remove("is-drawing"); });
         }
 
         window.__derive = function (on) {
           stop();
           if (!on || still.matches) return;
-          svg.classList.add("is-drawing");
-          [[into, 0], [outof, 620]].forEach(function (pair) {
-            pair[0].forEach(function (el) {
-              var len = el.getTotalLength();
-              el.style.strokeDasharray = len;
-              running.push(el.animate(
-                [{ strokeDashoffset: len, opacity: 1 },
-                 { strokeDashoffset: 0, opacity: 1 }],
-                { duration: 520, delay: pair[1], fill: "forwards", easing: "ease-out" }
-              ));
+          // only the drawing the width shows; the hidden one has no lengths
+          svgs.forEach(function (svg) {
+            if (!svg.getClientRects().length) return;
+            var into = svg.querySelectorAll(".flow:not(.out), .head:not(.out)");
+            var outof = svg.querySelectorAll(".flow.out, .head.out");
+            svg.classList.add("is-drawing");
+            [[into, 0], [outof, 620]].forEach(function (pair) {
+              Array.prototype.forEach.call(pair[0], function (el) {
+                var len = el.getTotalLength();
+                el.style.strokeDasharray = len;
+                running.push(el.animate(
+                  [{ strokeDashoffset: len, opacity: 1 },
+                   { strokeDashoffset: 0, opacity: 1 }],
+                  { duration: 520, delay: pair[1], fill: "forwards", easing: "ease-out" }
+                ));
+              });
             });
           });
         };
