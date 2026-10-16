@@ -2151,10 +2151,10 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           </li>
         </ul>
         <p>
-          Two different things are encrypted, and they are easy to mix up.
-          The encrypted backup is locked with your password and opens on any
-          signer that has it. SD CARD storage is locked to this signer and
-          opens nowhere else.
+          Two different things are encrypted. The encrypted backup is locked
+          with a password you choose, and any KISS or Krux can open it, but
+          only with that password. SD CARD storage is locked to this one
+          signer and opens nowhere else.
         </p>
         <p>
           <strong>Getting back in:</strong> with FLASH, draw KISS, your swipe,
