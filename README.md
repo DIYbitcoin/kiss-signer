@@ -169,11 +169,12 @@ Do these steps in order.
    (inside the signer), **SD CARD** (a file only this signer can open) or
    **AMNESIC** (nowhere; you type or scan them each time). The paper is the
    backup with all three.
-4. Choose **CAMERA AND TAPS** for the randomness. It mixes the camera, the
-   chip's random number generator, your tap timing and processor timing
-   noise, and the seed words are safe as long as any one of those is truly
-   random. **DICE OR COIN** is optional and replaces them with your own rolls:
-   not more random, but you can recompute the seed words on any computer.
+4. Choose **CAMERA AND TAPS** to make your seed words. The camera and your
+   taps are two random sources, and the signer adds two of its own: the chip's
+   hardware noise and tiny timing delays inside the board. All four are mixed
+   together, so one bad source cannot decide your seed words. **DICE OR COIN**
+   is optional and replaces them with your own rolls: not more random, but you
+   can recompute the seed words on any computer.
 5. Write the seed words on paper, then pass the quiz.
 6. Set a **passphrase** and write it on a second paper, kept apart from the
    seed words. It is never stored and it guards your real funds, so make it
