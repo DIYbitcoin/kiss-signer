@@ -2066,7 +2066,11 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
             The camera and your taps are two random sources, and the signer
             adds two of its own: the chip's hardware noise and tiny timing
             delays inside the board. All four are mixed together, so one bad
-            source cannot decide your seed words.
+            source cannot decide your seed words. To check it yourself later,
+            open <strong>SETTINGS &rarr; SECURITY &rarr; AUDIT</strong>:
+            <strong>RANDOMNESS AUDIT</strong> tests the chip's random numbers,
+            and <strong>HOW YOUR KEYS WERE MADE</strong> shows which sources
+            made yours.
             <br>
             Optional: <strong>DICE OR COIN</strong> makes them from your own
             rolls instead. It is not more random, but you can check the result

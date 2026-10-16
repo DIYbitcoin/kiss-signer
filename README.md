@@ -172,7 +172,9 @@ Do these steps in order.
 4. Choose **CAMERA AND TAPS** to make your seed words. The camera and your
    taps are two random sources, and the signer adds two of its own: the chip's
    hardware noise and tiny timing delays inside the board. All four are mixed
-   together, so one bad source cannot decide your seed words. **DICE OR COIN**
+   together, so one bad source cannot decide your seed words. To check it
+   later, **SETTINGS > SECURITY > AUDIT** has a **RANDOMNESS AUDIT** and shows
+   **HOW YOUR KEYS WERE MADE**. **DICE OR COIN**
    is optional and replaces them with your own rolls: not more random, but you
    can recompute the seed words on any computer.
 5. Write the seed words on paper, then pass the quiz.
