@@ -2047,17 +2047,30 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           <a href="sim/index.html">Try it in the simulator</a>
           Walk the setup once here first. The word list and the derivation are the real ones.
         </p>
-        <h3>The one path</h3>
-        <p>
-          KISS suggests one way through. Every screen offers alternatives,
-          listed after this, and you need none of them.
-        </p>
+        <h3>Set it up</h3>
+        <p>Do these steps in order.</p>
         <ol>
           <li>Draw <strong>K&nbsp;I&nbsp;S&nbsp;S</strong> on the game menu.</li>
           <li><strong>SET UP THIS SIGNER</strong> &rarr;
             <strong>NEW SEED WORDS</strong>.</li>
-          <li>Keep them in <strong>FLASH</strong>.</li>
-          <li>Make the randomness with <strong>CAMERA AND TAPS</strong>.</li>
+          <li>
+            Choose where the signer keeps your seed words, so you do not type
+            them every day: <strong>FLASH</strong> (inside the signer),
+            <strong>SD CARD</strong> (on a card only this signer can read) or
+            <strong>AMNESIC</strong> (nowhere, you enter them each time).
+            Either way, your paper is the backup.
+            <a href="#storage">What each one costs</a>.
+          </li>
+          <li>
+            Choose <strong>CAMERA AND TAPS</strong> to make your seed words.
+            The signer mixes four random sources, and one good one is enough,
+            so this is all you need.
+            <br>
+            Optional: <strong>DICE OR COIN</strong> makes them from your own
+            rolls instead. It is not more random, but you can check the result
+            on any computer. <strong>BLIND DRAW</strong> makes them from paper
+            word cards you draw by hand.
+          </li>
           <li>Write the seed words on paper, then pass the quiz.</li>
           <li>
             Set a <strong>passphrase</strong> and write it on a second piece
@@ -2142,13 +2155,6 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           <strong>TYPE MY SEED WORDS</strong> from paper,
           <strong>SCAN MY BACKUP</strong> for the encrypted QR, or
           <strong>SD CARD</strong> for a .kef file.
-        </p>
-        <p>
-          <strong>Other alternatives, none of them needed:</strong>
-          <strong>DICE OR COIN</strong> or <strong>BLIND DRAW</strong> instead
-          of the camera, and <strong>RESTORE SEED WORDS</strong> for seed
-          words you already have. <a href="#storage">What each storage mode
-          costs</a> is further down.
         </p>
         <h3>Then</h3>
         <ol>

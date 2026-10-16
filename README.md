@@ -159,15 +159,21 @@ Each writes its image to its own `build-release*` folder; hash it with
 Copy your board's `-update.bin` from the latest release to an SD card, then
 **SETTINGS > FIRMWARE**. Your keys stay.
 
-## First boot: the one path
+## First boot
 
-KISS suggests one way through. Every screen offers alternatives, and you need
-none of them.
+Do these steps in order.
 
 1. Draw **K I S S** on the game menu.
 2. **SET UP THIS SIGNER** > **NEW SEED WORDS**.
-3. Keep them in **FLASH**.
-4. Make the randomness with **CAMERA AND TAPS**.
+3. Choose where the signer keeps its copy of the seed words: **FLASH**
+   (inside the signer), **SD CARD** (a file only this signer can open) or
+   **AMNESIC** (nowhere; you type or scan them each time). The paper is the
+   backup with all three.
+4. Choose **CAMERA AND TAPS** for the randomness. It mixes the camera, the
+   chip's random number generator, your tap timing and processor timing
+   noise, and the seed words are safe as long as any one of those is truly
+   random. **DICE OR COIN** is optional and replaces them with your own rolls:
+   not more random, but you can recompute the seed words on any computer.
 5. Write the seed words on paper, then pass the quiz.
 6. Set a **passphrase** and write it on a second paper, kept apart from the
    seed words. It is never stored and it guards your real funds, so make it
