@@ -1470,7 +1470,7 @@
 <section class="doc-card reveal" id="how" aria-label="How it works">
         <p class="eyebrow">01 / start here</p>
         <h2>How signing works</h2>
-        <p class="lede">Your keys never leave this device. The online half is a separate app, called a coordinator.</p>
+        <p class="lede">Your keys never leave this device. The part that goes online is a separate app on your phone or computer, called a coordinator.</p>
         <figure class="airgap" aria-labelledby="airgap-cap">
           <svg viewBox="0 0 560 190" role="img" aria-label="Two machines with a gap between them. Public keys and signed transactions cross the gap as QR codes or on an SD card. The seed never leaves the signer.">
             <!-- the gap itself, and the fact that no wire crosses it -->
@@ -1503,8 +1503,9 @@
             <circle class="pip back" r="4"><animateMotion begin="indefinite" dur="3.4s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.08;0.55;1" calcMode="linear"><mpath href="#wire-back"/></animateMotion></circle>
           </svg>
           <figcaption id="airgap-cap">
-            A QR code or an SD card carries each hop. No cable, no radio, and
-            nothing that can spend ever crosses.
+            Everything moves between them by QR code or SD card, never by
+            cable or radio, and nothing that can spend your bitcoin ever leaves
+            the signer.
           </figcaption>
         </figure>
 
@@ -1512,7 +1513,7 @@
           <li>
             <h3>Pair a watch-only wallet</h3>
             <span class="step-where here"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 18.5h3"/></svg>On this device</span>
-            <p>KISS-signer shows a QR of your public keys, a descriptor or a zpub. Your coordinator can then see the balance and hand out addresses. It cannot spend.</p>
+            <p>KISS-signer shows a QR of your public keys (a descriptor or a zpub). Your coordinator scans it, then shows your balance and gives out addresses, but it cannot spend.</p>
           </li>
           <li>
             <h3>Build the transaction there</h3>
@@ -1522,19 +1523,19 @@
           <li>
             <h3>Verify and sign here</h3>
             <span class="step-where here"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10.5 18.5h3"/></svg>On this device</span>
-            <p>Hand the PSBT over by QR or microSD. KISS-signer recomputes every amount itself, shows you, and signs only on a deliberate hold.</p>
+            <p>Move the PSBT to the signer by QR or microSD. KISS-signer works out every amount itself, shows you, and signs only when you hold the sign button.</p>
           </li>
           <li>
             <h3>Broadcast from the coordinator</h3>
             <span class="step-where"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4.5" width="19" height="13" rx="2"/><path d="M8.5 21h7"/><path d="M12 17.5V21"/></svg>On your coordinator</span>
-            <p>Carry the signed transaction back the same way. The coordinator broadcasts it.</p>
+            <p>Move the signed transaction back the same way, and the coordinator sends it to the network.</p>
           </li>
         </ol>
         <p class="power-note">
-          Pairing offers <strong>Sparrow</strong> and <strong>BlueWallet</strong>.
-          Anything else works if it does both halves. It has to import a
-          watch-only descriptor, and pass PSBTs by QR or microSD. Anything
-          untried, <a href="https://t.me/KISS_signer">ask in Telegram</a>.
+          Pairing has screens for <strong>Sparrow</strong> and
+          <strong>BlueWallet</strong>. Other coordinators work too if they can
+          import a watch-only descriptor and move PSBTs by QR or microSD. Not
+          sure about yours? <a href="https://t.me/KISS_signer">Ask in Telegram</a>.
         </p>
       </section>
 <section class="doc-card reveal" id="features" aria-label="Features">
@@ -1544,12 +1545,12 @@
           <article>
             <div class="feat-head"><svg class="feat-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 8h11a4 4 0 0 1 3.9 3.1l.9 4a3 3 0 0 1-5.3 2.5L15.6 16H8.4l-1.4 1.6a3 3 0 0 1-5.3-2.5l.9-4A4 4 0 0 1 6.5 8Z"/><path d="M8.2 11.2v2.2"/><path d="M7.1 12.3h2.2"/><circle cx="16.2" cy="12.3" r=".6" fill="currentColor" stroke="none"/></svg><span>DECOY SIGNER</span></div>
             <h3>It boots into a game</h3>
-            <p>FRUIT ISLAND is a real, playable game. One secret gesture opens the signer; another opens a spare set of keys, so there is always something to show.</p>
+            <p>It starts up as FRUIT ISLAND, a real game you can play. One secret drawing opens your real keys and another opens decoy keys, so there is always something to show.</p>
           </article>
           <article>
             <div class="feat-head"><svg class="feat-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 14h3v3"/><path d="M21 17v4h-4"/><path d="M14 21h.01"/></svg><span>TOUCHSCREEN + QR</span></div>
             <h3>Transactions in and out by QR, or microSD</h3>
-            <p>A transaction does not fit in one QR. KISS-signer splits it into numbered frames and loops them for your coordinator&rsquo;s camera, the BC-UR scheme. Or carry the file on a card. No cable ever carries your data.</p>
+            <p>A transaction is too big for one QR code, so KISS-signer splits it into numbered codes and plays them in a loop for your coordinator&rsquo;s camera (this is called BC-UR). Or move the file on an SD card. No cable ever carries your data.</p>
         <figure class="urqr" aria-labelledby="urqr-cap">
           <div class="urqr-stage">
             <svg viewBox="0 0 17 17" aria-hidden="true">
@@ -1567,9 +1568,9 @@
             <p class="urqr-count"><span id="urqr-n">1</span> / 8</p>
           </div>
           <figcaption id="urqr-cap">
-            One transaction, eight frames, played on a loop. Your
-            coordinator&rsquo;s camera collects them in any order and
-            rebuilds the whole thing. A code that keeps changing is
+            One transaction, eight codes, played on a loop. Your
+            coordinator&rsquo;s camera picks them up in any order and puts
+            the transaction back together. A code that keeps changing is
             working, not broken.
           </figcaption>
         </figure>
@@ -1578,25 +1579,25 @@
           <article>
             <div class="feat-head"><svg class="feat-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5h13.5a3.5 3.5 0 0 1 0 7H7"/><path d="M7.5 5 4 8.5 7.5 12"/><path d="M9.5 12.5 6 16l3.5 3.5"/></svg><span>PRIVACY</span></div>
             <h3>Silent payments</h3>
-            <p>One <code>sp1</code> address you can hand out repeatedly, without the privacy cost of address reuse. An optional scan key lets your coordinator find those payments, never spend them.</p>
+            <p>One address, starting <code>sp1</code>, that you can give out again and again without the privacy cost of reusing an address. An optional scan key lets your coordinator find those payments, but never spend them.</p>
           </article>
           <article>
             <div class="feat-head"><svg class="feat-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8 4.5 6v6.2c0 4.4 3.1 7.9 7.5 9 4.4-1.1 7.5-4.6 7.5-9V6Z"/><path d="m8.8 11.8 2.3 2.3 4.1-4.4"/></svg><span>VERIFIED ON DEVICE</span></div>
             <h3>Nothing is signed unseen</h3>
-            <p>Every amount, the fee and the change are recomputed here, not taken on trust. Anything risky turns amber before you can sign.</p>
+            <p>The signer works out every amount, the fee and the change itself instead of trusting the coordinator. Anything risky turns amber before you can sign.</p>
           </article>
           <article>
             <div class="feat-head"><svg class="feat-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.2"/><path d="M2.8 12h18.4"/><path d="M12 2.8a15 15 0 0 1 0 18.4"/><path d="M12 2.8a15 15 0 0 0 0 18.4"/></svg><span>22 LANGUAGES</span></div>
             <h3>Including CJK and Cyrillic</h3>
-            <p>Each with its own font. Buttons resize rather than truncate, and the build fails if a key action gets too small to read.</p>
+            <p>Each with its own font, and buttons resize so no word gets cut off.</p>
           </article>
           <article>
             <div class="feat-head"><svg class="feat-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 20.5h17"/><path d="M6.5 20.5v-6"/><path d="M11 20.5V8"/><path d="M15.5 20.5v-9"/><path d="M20 20.5V4.5"/></svg><span>AUDIT IT YOURSELF</span></div>
             <h3>It checks its own randomness</h3>
-            <p>Keys are only as good as the entropy behind them, so the device audits its own: 5000 samples from the chip into a live histogram, scored for evenness. A lopsided chart means bad randomness.</p>
+            <p>Keys are only as good as the randomness behind them, so the signer tests its own: it draws 5000 random numbers from the chip, charts them live and scores how even they are. A lopsided chart means bad randomness.</p>
             <figure class="shot-wide">
               <img src="media/audit-randomness.png" alt="The RANDOMNESS AUDIT screen: a histogram of 5000 samples counted into 100 groups, a spread score of 105.920 inside a fair range of 61.137 to 148.230, marked EVEN and ON CHIP">
-              <figcaption>A fair chip fails this about one run in 500, so one lopsided chart means run it again, not throw the board away.</figcaption>
+              <figcaption>Even a good chip fails this about once in 500 runs, so if you see one lopsided chart, just run it again.</figcaption>
             </figure>
           </article>
         </div>
@@ -1613,26 +1614,28 @@
         </p>
         <p>
           The firmware runs on boards with a v1.x ESP32-P4 chip. Boards with
-          the newer v3.x chip are not supported yet; <code>esptool</code>
-          prints the revision when it connects.
+          the newer v3.x chip are not supported yet. To see which you have,
+          <code>esptool</code> prints the chip revision when it connects.
         </p>
         <h3>About the radio</h3>
         <p>
-          The ESP32-P4 has no WiFi and no Bluetooth in silicon. The board carries
-          a <em>second</em> chip that does, because the board is sold for other
-          products too. KISS-signer holds that chip in reset before anything else runs,
-          and ships no wireless code at all.
+          The main chip, the ESP32-P4, has no WiFi or Bluetooth at all. The
+          board does carry a <em>second</em> chip that has them, because the
+          board is sold for other products too. KISS-signer keeps that chip
+          switched off (held in reset) from the moment it powers on, and
+          contains no wireless code.
         </p>
         <p>
-          Do not take our word for it. The home screen and Settings show
-          <code>radio: held in reset</code>, read from the chip each time rather
-          than printed from memory. With a multimeter, measure the radio&rsquo;s
-          off switch on pin&nbsp;GPIO54 and watch it sit at zero volts.
+          You can check it yourself. The home screen and Settings show
+          <code>radio: held in reset</code>, read live from the chip every
+          time. With a multimeter, pin&nbsp;GPIO54, the radio&rsquo;s off
+          switch, reads zero volts.
         </p>
         <h3>Flip the camera (one-time, required for QR scanning)</h3>
         <p>
-          On the Guition 4.3in the camera ships facing the user. Reading a QR
-          from your coordinator needs it facing out. Simple but fiddly:
+          On the Guition 4.3in the camera comes facing you. To scan QR codes
+          from your coordinator it has to face out the back. Simple but
+          fiddly:
         </p>
         <ol>
           <li>Lift the screen off with a small suction cup tool.</li>
@@ -1655,12 +1658,12 @@
         <h2>Check the download before you trust it</h2>
         <p>Everything for a release sits on the GitHub Releases tab:</p>
         <ul>
-          <li><code>kiss-signer-&lt;version&gt;.bin</code> &mdash; the firmware, for the Guition 4.3in</li>
-          <li><code>kiss-signer-&lt;version&gt;-ws35.bin</code> &mdash; the firmware for the Waveshare 3.5in</li>
-          <li><code>kiss-signer-&lt;version&gt;-jc1060.bin</code> &mdash; the firmware for the Guition 7in</li>
-          <li><code>SHA256SUMS</code> &mdash; its hashes</li>
-          <li><code>SHA256SUMS.asc</code> &mdash; the signature over those hashes</li>
-          <li><code>kiss_signer_pgp.asc</code> &mdash; the key that signed them</li>
+          <li><code>kiss-signer-&lt;version&gt;.bin</code>: the firmware for the Guition 4.3in</li>
+          <li><code>kiss-signer-&lt;version&gt;-ws35.bin</code>: the firmware for the Waveshare 3.5in</li>
+          <li><code>kiss-signer-&lt;version&gt;-jc1060.bin</code>: the firmware for the Guition 7in</li>
+          <li><code>SHA256SUMS</code>: the hashes of those files</li>
+          <li><code>SHA256SUMS.asc</code>: the signature on those hashes</li>
+          <li><code>kiss_signer_pgp.asc</code>: the key that signed them</li>
         </ul>
         <p>
           Beside them, <code>kiss-signer-&lt;version&gt;-offline.zip</code>
@@ -1672,17 +1675,17 @@ gpg --verify SHA256SUMS.asc SHA256SUMS
 
 shasum -a 256 --ignore-missing -c SHA256SUMS     # macOS
 sha256sum --ignore-missing -c SHA256SUMS         # Linux</code></pre>
-        <p>One line matters. The fingerprint must read exactly:</p>
+        <p>Check one line: the key fingerprint gpg prints must read exactly:</p>
         <p class="fp">166A CBF3 7786 FCEA A694&nbsp;&nbsp;96DE 886F 1BFE B84E F1C0</p>
         <p>
-          One line looks alarming and is not.
-          <code>WARNING: This key is not certified</code> appears for every key
-          you have not personally signed. A name on a key is free text; the
-          fingerprint is the identity.
+          One warning looks alarming but is normal:
+          <code>WARNING: This key is not certified</code> shows for every key
+          you have not signed yourself. What proves the key is the
+          fingerprint, not the name on it.
         </p>
         <p>
-          A fingerprint is only as good as where you read it. Cross-check this
-          one somewhere other than this page.
+          Also check this fingerprint somewhere other than this page, in case
+          the page itself was tampered with.
         </p>
         <h3>Windows</h3>
         <p>
@@ -1693,17 +1696,19 @@ sha256sum --ignore-missing -c SHA256SUMS         # Linux</code></pre>
           signature with <a href="https://gpg4win.org">Gpg4win</a>.
         </p>
         <p>
-          The install page hashes the firmware in your browser before it offers
-          the button, inside the offline zip too. Neither verifies the GPG
-          signature. Do that yourself, once per release.
+          The install page, including the one in the offline zip, checks the
+          firmware&rsquo;s hash in your browser before it lets you flash. It
+          does not check the GPG signature, so do that yourself once per
+          release.
         </p>
       </section>
 <section class="doc-card reveal" id="sdupdate" aria-label="Update from an SD card">
         <p class="eyebrow">05 / no cable, no computer</p>
         <h2>Update from an SD card</h2>
         <p class="lede">
-          On beta8 or later this is the easiest route there is. The signer takes
-          its next firmware off a card: no cable, no driver, no computer.
+          On beta8 or later this is the easiest way to update: the signer
+          installs new firmware from an SD card, with no cable and no
+          computer.
         </p>
 
         <h3>What to put on the card</h3>
@@ -1713,18 +1718,17 @@ sha256sum --ignore-missing -c SHA256SUMS         # Linux</code></pre>
           top level of an SD card. That is the whole preparation.
         </p>
         <p>
-          Each board has its own: <code>-ws35-update.bin</code> is the Waveshare
-          3.5in&rsquo;s, <code>-jc1060-update.bin</code> the Guition 7in&rsquo;s,
-          and the one with no board in its name the Guition 4.3in&rsquo;s. From
-          beta11 on the device refuses another board&rsquo;s file. Beta10 does
-          not check, so take your board&rsquo;s; if the screen stays dark after
-          a wrong one, power it off and on and it goes back to the firmware it
-          had.
+          Each board has its own file: <code>-ws35-update.bin</code> for the
+          Waveshare 3.5in, <code>-jc1060-update.bin</code> for the Guition 7in,
+          and the one with no board name for the Guition 4.3in. From beta11 on,
+          the signer refuses another board&rsquo;s file. Beta10 does not check,
+          so take care; if the screen stays dark after a wrong one, turn it off
+          and on and it goes back to its old firmware.
         </p>
         <div class="note">
-          Take <code>-update.bin</code>, not the plain <code>.bin</code>. The
-          plain one starts with the bootloader; a running device looks past that
-          for the application and reports nothing to install.
+          Use the <code>-update.bin</code> file, not the plain
+          <code>.bin</code>. The plain one is for flashing over USB, and with it
+          the signer says there is nothing to install.
         </div>
 
         <h3>Install it from the device</h3>
@@ -1733,13 +1737,14 @@ sha256sum --ignore-missing -c SHA256SUMS         # Linux</code></pre>
           <strong>SETTINGS &rarr; FIRMWARE</strong> and hold to install.
         </p>
         <p>
-          It checks both signatures against keys built into the device before
-          writing anything, so a file that is not ours is refused. If the new
-          firmware fails to start, the device rolls back by itself.
+          Before writing anything, it checks the file&rsquo;s two signatures
+          against keys built into the signer, so a file we did not sign is
+          refused. If the new firmware fails to start, the signer goes back to
+          the old one by itself.
         </p>
         <p class="power-note">
-          This route keeps your keys and settings. The browser install erases the
-          whole chip &mdash; use that for a new device, this for everything else.
+          This way keeps your keys and settings. The browser install erases
+          everything, so use it only for a new device.
         </p>
       </section>
 <section class="doc-card reveal" id="esptool" aria-label="Flash from the command line">
@@ -1779,17 +1784,17 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           got skipped.
         </p>
         <p>
-          The file you just wrote covers the part of the chip that holds keys, so
-          every flash starts from clean ground.
+          Flashing this way erases any seed words stored on the signer, so it
+          always starts fresh.
         </p>
       </section>
 <section class="doc-card reveal" id="offline" aria-label="Flash with no internet">
         <p class="eyebrow">07 / nothing reaches the network</p>
         <h2>Flash on a machine with no internet</h2>
         <p class="lede">
-          The install page fetches the firmware as it flashes, so pulling the
-          plug halfway breaks it. This is the same install in one download you
-          carry to a machine that never goes online.
+          The normal install page downloads the firmware while it flashes, so
+          it needs the internet the whole time. This is the same install as
+          one download you can carry to a computer that never goes online.
         </p>
 
         <h3>Get the one file</h3>
@@ -1797,13 +1802,12 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           From the <a href="https://github.com/DIYbitcoin/kiss-signer/releases/latest">latest
           release</a>, take <strong>kiss-signer-&lt;version&gt;-offline.zip</strong>,
           under 10&nbsp;MB. It holds the firmware for every board the release
-          carries, the install page and this guide. Nothing in it reaches out.
+          carries, the install page and this guide. Nothing in it connects to the internet.
         </p>
         <p>
-          Check it before you trust it. The zip has its own signature, and the
-          command is the one from <a href="#verify">checking the download</a>.
-          The folder carries a <code>00-START-HERE.txt</code> with it written
-          out.
+          Check it first: the zip has its own signature, checked the same way
+          as in <a href="#verify">Check the download</a>. The folder also has
+          a <code>00-START-HERE.txt</code> with these steps.
         </p>
 
         <h3>Unzip it, then turn the network off</h3>
@@ -1814,8 +1818,8 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
 
         <h3>Start the page</h3>
         <p>
-          The install page has to be served, not opened as a file. A small
-          program in the folder serves it to your own machine only:
+          The install page does not work if you just double-click it. A small
+          program in the folder runs it for your own computer only:
           <code>serve.command</code> on macOS, <code>serve.bat</code> on Windows,
           <code>./serve.sh</code> on Linux. It prints an address beginning
           <code>http://localhost</code>. Open that in Chrome or Brave and
@@ -1828,10 +1832,9 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           the folder instead.
         </div>
         <p class="power-note">
-          None of this helps on Safari or Firefox: the browser itself cannot
-          reach USB. Use <a href="#esptool">the command line</a> &mdash; the
-          firmware is in the same folder, under
-          <code>site/installer/firmware</code>.
+          Safari and Firefox cannot reach USB at all, so on those use
+          <a href="#esptool">the command line</a> instead. The firmware is in
+          the same folder, under <code>site/installer/firmware</code>.
         </p>
       </section>
 <section class="doc-card reveal" id="encryption">
@@ -1845,24 +1848,23 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
 
         <h3>Lock one: flash encryption</h3>
         <p>
-          The chip scrambles everything it stores. It generates a key by
-          itself and writes it where <em>nothing</em> can read it back
-          &mdash; not your computer, not us, not you. Everything saved after
-          that is encrypted with it, so prying the memory open reads noise.
-          Seed words live in their own store, which that encryption does not
-          cover; it gets its own lock at the same time.
+          The chip scrambles everything it stores. It makes a key by itself
+          and keeps it where <em>nothing</em> can read it back: not your
+          computer, not us, not you. Everything saved after that is encrypted
+          with it, so prying the memory open reads noise. Seed words are kept
+          in a separate area this lock does not cover, so that area gets its
+          own lock at the same time.
         </p>
 
         <h3>Lock two: secure boot</h3>
         <p>
-          The device stops running strangers&rsquo; software. It will only
-          start firmware signed with keys <em>you</em> made and keep, so
-          nobody can quietly swap the signer for a lookalike that phones your
-          seed home.
+          The device will only start firmware signed with keys <em>you</em>
+          made and keep, so nobody can quietly swap in a fake signer that
+          leaks your seed words.
         </p>
         <p>
-          Both turn together. A device that took only one can never accept
-          the other, so it is both or neither.
+          Both locks turn on together, because a device with only one can
+          never get the other.
         </p>
 
         <div class="danger">
@@ -1892,10 +1894,10 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           </ul>
         </div>
         <p>
-          The home screen and Settings show an encryption line, read off the chip
-          every time rather than remembered. Amber <strong>OFF</strong> means you
-          are not protected yet. When it goes calm, both locks are on, and that
-          is the moment to create keys you care about.
+          The home screen and Settings show an encryption line, read live from
+          the chip. Amber <strong>OFF</strong> means you are not protected yet.
+          Once it stops showing amber, both locks are on, and that is the
+          moment to create keys you care about.
         </p>
       </section>
 <section class="doc-card reveal" id="firstboot">
@@ -2194,17 +2196,17 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         <p class="eyebrow">10 / do it once with play money</p>
         <h2>Your first TESTNET round trip</h2>
         <p class="lede">
-          Walk this once with valueless TESTNET coins before using keys you care
-          about. Five steps, receive then spend.
+          Do this once with free TESTNET coins, which are worth nothing, before
+          you use keys you care about. Five steps: receive, then spend.
         </p>
         <p class="try">
           <a href="sim/index.html">Try it in the simulator</a>
-          Open the signer, then walk the same five steps against Sparrow. Nothing there is on a chain.
+          Open the signer, then do the same five steps with Sparrow. Nothing there touches a real network.
         </p>
         <div class="first-run">
           <figure>
             <img src="media/game-menu.png" alt="Fruit Island game menu">
-            <figcaption><b>01</b>Return to KISS: write K&nbsp;I&nbsp;S&nbsp;S across the
+            <figcaption><b>01</b>Open the signer: draw K&nbsp;I&nbsp;S&nbsp;S on the
               menu, as in <a href="#firstboot">Create your keys</a>.</figcaption>
           </figure>
           <figure>
@@ -2226,11 +2228,11 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           </figure>
           <figure>
             <img src="media/sign-verify.png" alt="KISS-signer transaction verification screen">
-            <figcaption><b>05</b>Practice spending: build the return payment in
-              Sparrow, move its PSBT by QR or SD, compare RECIPIENT GETS,
-              NETWORK FEE, TOTAL LEAVING, outputs and change, then hold
-              to sign. Return the signed PSBT to Sparrow and
-              <strong>broadcast there</strong>.</figcaption>
+            <figcaption><b>05</b>Practice spending: in Sparrow, send the coins
+              back. Move the PSBT to the signer by QR or SD card, check that
+              RECIPIENT GETS, NETWORK FEE, TOTAL LEAVING and the change are what
+              you meant, then hold to sign. Move the signed PSBT back to
+              Sparrow and <strong>broadcast it there</strong>.</figcaption>
           </figure>
         </div>
         <div class="shots">
@@ -2244,9 +2246,10 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         <p class="eyebrow">11 / it checks, you confirm</p>
         <h2>What KISS-signer checks before you sign</h2>
         <p class="lede">
-          KISS-signer re-derives the whole transaction on its own screen and speaks up
-          before you sign. Always a <strong>CAUTION</strong> you acknowledge,
-          never a silent surprise.
+          KISS-signer works out the whole transaction itself and shows it
+          before you sign. Anything odd comes up as a
+          <strong>CAUTION</strong> you have to confirm, never a silent
+          surprise.
         </p>
         <figure class="pins" aria-labelledby="pins-cap">
           <div class="pins-stage">
@@ -2281,56 +2284,58 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
 
         <p class="try">
           <a href="sim/index.html">Try it in the simulator</a>
-          The signing screen is the one the pins point at, and the simulator signs for real.
+          It has the same signing screen as the picture above, and it really signs.
         </p>
         <h3>What turns amber</h3>
         <ul>
           <li><strong>High fee.</strong> The fee turns amber if it is a big
-            share of what you send (the rule Krux uses) or an outsized sat/vB rate.</li>
+            share of what you send (the same rule Krux uses), or if the fee
+            rate in sat/vB is unusually high.</li>
           <li><strong>Dust and privacy.</strong> Spending a tiny coin, or
             leaving tiny change, is flagged: both can be used to link and track
-            your addresses. Change below the network dust limit is flagged
-            louder.</li>
+            your addresses. Change so small the network may refuse it is
+            flagged louder.</li>
         </ul>
         <p>
-          Address reuse works differently. KISS-signer never sees the chain, so it
-          cannot know which of your addresses were paid. Rather than guess,
-          <strong>RECEIVE</strong> hands out a fresh address every time.
+          Address reuse is different. KISS-signer is never online, so it
+          cannot know which of your addresses already got paid. Instead,
+          <strong>RECEIVE</strong> gives you a fresh address every time.
         </p>
         <p>
-          Several cautions stack into one summary, and a <strong>?</strong> opens
-          a <em>WHY FLAGGED</em> card with the fix: freeze or label the coin in
-          your coordinator. Any caution gates the sign button behind
-          <strong>I UNDERSTAND</strong>.
+          Several cautions show together in one summary. Tap
+          <strong>?</strong> for a <em>WHY FLAGGED</em> card that says how to
+          fix it, usually by freezing or labeling the coin in your
+          coordinator. With any caution, you tap <strong>I UNDERSTAND</strong>
+          before you can sign.
         </p>
         <h3>Small things worth knowing</h3>
         <ul>
-          <li><strong>?</strong> beside an unfamiliar term &mdash; RBF,
-            fingerprint, coordinator, dust &mdash; opens a short card.</li>
-          <li><strong>EASY SCAN</strong>, on the signed-QR screen, slows the
-            loop and enlarges the dots for stubborn cameras.</li>
+          <li>A <strong>?</strong> beside an unfamiliar term, like RBF,
+            fingerprint, coordinator or dust, opens a short explanation.</li>
+          <li><strong>EASY SCAN</strong>, on the signed QR screen, slows the
+            codes down and makes them bigger for cameras that struggle.</li>
           <li>Tapping the KISS logo on the game menu locks straight back to
             the game.</li>
           <li>Four colour themes: MONO, GREEN, CYPHERPINK and ORANGE. Tap the
             theme's name on the home page to switch, or the swatch at the
             top of Settings.</li>
-          <li>Settings, bottom-left, shows what is on the device:
-            <code>KISS &lt;version&gt; (&lt;commit&gt;)</code>, and says so
-            while flash encryption is off.</li>
+          <li>The bottom left of Settings shows which firmware is installed,
+            as <code>KISS &lt;version&gt; (&lt;commit&gt;)</code>, and says
+            when flash encryption is off.</li>
         </ul>
       </section>
 <section class="doc-card reveal" id="storage">
         <p class="eyebrow">12 / three storage modes</p>
         <h2>Where your seed words are kept</h2>
         <p class="lede">
-          Setup asks once, and Settings can change it later. What differs is
-          what someone gets when they physically take the device, the card, or
-          both.
+          Setup asks once, and you can change it later in Settings. The
+          difference is what a thief gets if they take the device, the SD card,
+          or both.
         </p>
 
         <figure class="shot-wide">
           <img src="media/setup-storage.png" alt="The setup screen headed WHERE TO KEEP YOUR SEED WORDS, offering FLASH, SD CARD and AMNESIC, under the line choose what remains after you power off">
-          <figcaption>What each answer costs is the table below.</figcaption>
+          <figcaption>The table below shows what each choice costs.</figcaption>
         </figure>
 
         <figure class="matrix-wrap">
@@ -2354,7 +2359,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
                 <th scope="row">SD CARD<span>sealed, on the card</span></th>
                 <td class="ok">nothing<span>holds no copy</span></td>
                 <td class="ok">nothing<span>sealed to the device</span></td>
-                <td class="stop">seed words<span>the gap</span></td>
+                <td class="stop">seed words<span>card plus device</span></td>
               </tr>
               <tr>
                 <th scope="row">AMNESIC<span>in RAM only</span></th>
@@ -2365,55 +2370,57 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
             </tbody>
           </table>
           <figcaption>
-            Every cell assumes the right equipment. A flash-encrypted build
-            makes the FLASH row read nothing too.
+            This assumes a thief with the right tools. With flash encryption
+            on, the FLASH row reads nothing too.
           </figcaption>
         </figure>
 
         <div class="note">
-          No cell above holds your passphrase. It is never stored, in any mode,
-          and it is what guards the keys that hold your coins.
+          None of these include your passphrase. It is never stored in any
+          mode, and it is what guards your real funds.
         </div>
 
         <p>
           <strong>The default is FLASH, with a passphrase.</strong> On this
           beta FLASH is not encrypted, so whoever takes the device can read the
-          seed words. With a passphrase those seed words open only the decoy, and
-          your real keys stay behind the passphrase, which is never stored.
-          That holds only if your real funds sit behind a passphrase and the
-          decoy holds a little: with no passphrase, the seed words on the chip
-          are your keys.
+          seed words. But on their own those seed words only open the decoy;
+          your real keys also need the passphrase, which is never stored. That
+          only works if your real funds are behind a passphrase and the decoy
+          holds a little. With no passphrase, the seed words on the chip are
+          your keys.
         </p>
         <p>
-          The alternatives: <strong>SD CARD</strong> if you want the device
-          alone to hold nothing, at the cost of carrying the card;
-          <strong>AMNESIC</strong> if you want nothing to remain at all, at the
-          cost of loading your seed words every session, by typing them or
-          scanning an encrypted backup.
+          Choose <strong>SD CARD</strong> if you want the device alone to hold
+          nothing; you then need the card with you. Choose
+          <strong>AMNESIC</strong> if you want nothing stored at all; you then
+          load your seed words every time, by typing them or scanning an
+          encrypted backup.
         </p>
 
         <p class="try">
           <a href="sim/index.html">Try it in the simulator</a>
-          The mode chooser is under SETTINGS, and switching costs nothing there.
+          Change modes under SETTINGS; in the simulator it costs nothing to try.
         </p>
         <div class="note">
-          Changing mode erases the old location. KISS-signer writes the new copy,
-          verifies it, then removes the old one.
+          When you change mode, KISS-signer writes the new copy, checks it, and
+          only then erases the old one.
         </div>
       </section>
 <section class="doc-card reveal" id="simulator">
         <p class="eyebrow">13 / no hardware required</p>
         <h2>Try it without hardware</h2>
         <p>
-          <strong><a href="sim/index.html">Open the simulator</a></strong> — the signer's
-          own firmware compiled to WebAssembly. Real word list, real derivation, real
-          signature. Nothing is installed and nothing leaves the tab. One button
-          opens a signer that already has keys.
+          <strong><a href="sim/index.html">Open the simulator</a></strong>: the
+          signer&rsquo;s own firmware, running in your browser. It uses the real
+          word list and makes real keys and real signatures. Nothing is
+          installed and nothing leaves the tab. One button opens a signer that
+          already has keys.
         </p>
         <div class="note">
-          One thing is not real: there is no camera behind CAMERA AND TAPS, so
-          that entropy source is filled in for you. The dice and the taps are yours. A browser
-          tab is not a signer — make the keys that matter on the device, offline.
+          One thing is not real: there is no camera, so CAMERA AND TAPS fills
+          in the camera part for you. The dice and the taps are yours. A
+          browser tab is not a safe place for keys, so make the keys that
+          matter on the device.
         </div>
       </section>
       </div>
