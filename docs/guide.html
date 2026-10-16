@@ -2036,10 +2036,11 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           </svg>
           </div>
           <figcaption id="derive-cap">
-            All three come from the master key, and the master key comes from
-            both halves. Change the passphrase and you get a different master
-            key, so all three change together, and the fingerprint is how you
-            tell which set you are in.
+            Your seed words plus your passphrase make the master key, and the
+            fingerprint, the descriptor and every address come from that key.
+            Type a different passphrase and you get different keys with their
+            own fingerprint, so the fingerprint on the KISS home screen tells
+            you which keys you opened.
           </figcaption>
         </figure>
         <p class="try">
