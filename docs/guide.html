@@ -1621,9 +1621,12 @@
         <p>
           The main chip, the ESP32-P4, has no WiFi or Bluetooth at all. The
           board does carry a <em>second</em> chip that has them, because the
-          board is sold for other products too. KISS-signer keeps that chip
-          switched off (held in reset) from the moment it powers on, and
-          contains no wireless code.
+          board is sold for other products too. Switching that chip off (holding
+          it in reset) is the very first thing KISS-signer does, and it contains
+          no wireless code. The switch is in software, not a hardware cut: it
+          relies on KISS-signer&rsquo;s own firmware, and for a split second at
+          power on, before that firmware starts, the radio chip can start up
+          by itself.
         </p>
         <p>
           You can check it yourself. The home screen and Settings show
