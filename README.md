@@ -178,9 +178,11 @@ Do these steps in order.
    is optional and replaces them with your own rolls: not more random, but you
    can recompute the seed words on any computer.
 5. Write the seed words on paper, then pass the quiz.
-6. Set a **passphrase** and write it on a second paper, kept apart from the
-   seed words. It is never stored and it guards your real funds, so make it
-   long and not guessable.
+6. Set a **passphrase**: at least 12 characters, mixing capitals, numbers and
+   symbols like & % ! $ @. It guards your real funds and is never stored on
+   the signer. Write it on a second paper, kept apart from the seed words. You
+   can also unlock by scanning it from a QR, but anyone who sees that QR can
+   open your keys, so guard it like the paper.
 7. Set **YOUR SWIPE** when setup offers the decoy. KISS alone now opens decoy
    keys; KISS and your swipe ask for the passphrase. Put a little in the decoy.
 
@@ -192,8 +194,8 @@ two pieces of paper.
 - **Seed words:** on paper, always; that paper is the backup. The signer keeps
   a working copy in **FLASH** by default, as a file on an **SD CARD**, or
   nowhere (**AMNESIC**).
-- **Passphrase:** in your head and on a second paper. Never on the signer, a
-  card or a QR.
+- **Passphrase:** in your head and on a second paper, or a QR you guard the
+  same way. Never stored on the signer or a card.
 - **Encrypted backup, optional:** an extra copy of the seed words (not the
   passphrase), locked with a password you choose. A QR you keep or a `.kef`
   file on an SD card, from SETTINGS > BACKUP > SEED WORDS > ENCRYPTED. Opens on

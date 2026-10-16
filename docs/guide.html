@@ -2079,11 +2079,12 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           </li>
           <li>Write the seed words on paper, then pass the quiz.</li>
           <li>
-            Set a <strong>passphrase</strong> and write it on a second piece
-            of paper, kept somewhere other than the seed words. It is never
-            stored, and it is what guards your real funds: with the seed
-            words on the chip, it is the only thing between someone holding
-            the device and your coins, so make it long and not guessable.
+            Set a <strong>passphrase</strong>: at least 12 characters, mixing
+            capitals, numbers and symbols like &amp; % ! $ @. It guards your
+            real funds and is never stored on the signer. Write it on a
+            second piece of paper, kept away from the seed words. You can
+            also unlock by scanning it from a QR, but anyone who sees that QR
+            can open your keys, so guard it like the paper.
           </li>
           <li>
             Set <strong>YOUR SWIPE</strong> when setup offers the decoy. From
@@ -2132,8 +2133,9 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
             (<strong>AMNESIC</strong>).
           </li>
           <li>
-            <strong>Passphrase:</strong> in your head and on a second paper.
-            Never on the signer, a card or a QR, in any mode.
+            <strong>Passphrase:</strong> in your head and on a second paper,
+            or a QR you guard the same way. Never stored on the signer or a
+            card, in any mode.
           </li>
           <li>
             <strong>Encrypted backup</strong>, optional: an extra copy of the
