@@ -2422,7 +2422,9 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
               }
             });
           },
-          { threshold: 0.14 }
+          // a share of the topic's height never arrives for a topic several
+          // screens tall on a phone, so trigger on a fixed edge of the screen
+          { threshold: 0, rootMargin: "0px 0px -12% 0px" }
         );
         revealEls.forEach((el) => observer.observe(el));
       } else {
