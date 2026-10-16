@@ -1926,20 +1926,20 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           </div>
           <figcaption id="gesture-cap">
             Write <strong>K&nbsp;I&nbsp;S&nbsp;S</strong> across the menu with your finger.
-            <strong>Lift between letters</strong> &mdash; the device counts pen
-            lifts, not ink, and one continuous scribble never matches. Write it
-            <strong>wider than it is tall</strong>. The shape is forgiving; the
-            four separate letters are not.
+            <strong>Lift your finger between letters</strong>: the signer looks
+            for four separate letters, so one joined-up scribble never works.
+            Write it <strong>wider than it is tall</strong>. Neat handwriting
+            does not matter.
           </figcaption>
         </figure>
 
         <p>
-          Three rules next. The device will not stop to say them.
+          Three things to know before you start.
         </p>
 
         <ul>
-          <li><strong>Every passphrase opens keys.</strong> There is no "wrong
-          passphrase" error, and there never will be.</li>
+          <li><strong>Every passphrase opens keys.</strong> A typo shows no
+          error, it just opens different keys.</li>
           <li><strong>The fingerprint tells you which keys you opened.</strong>
           It is on the home screen.</li>
           <li><strong>This signer is never online.</strong> Your coordinator
@@ -2045,7 +2045,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
         </figure>
         <p class="try">
           <a href="sim/index.html">Try it in the simulator</a>
-          Walk the setup once here first. The word list and the derivation are the real ones.
+          Try the setup here first. It works exactly like the signer.
         </p>
         <h3>Set it up</h3>
         <p>Do these steps in order.</p>
