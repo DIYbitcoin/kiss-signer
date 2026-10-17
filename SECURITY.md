@@ -13,9 +13,22 @@ it, or the tag you built), the board, the steps, and what you expected instead.
 A simulator repro (`bash sim/build_sim.sh`) is ideal but never required.
 
 If you want the report encrypted, the address is a Proton Mail account: send
-from Proton and it is end to end encrypted, or fetch the public key for it from
-Proton's directory. The release signing key in `docs/installer/` is not an
-option here, it is a sign only key and cannot receive encrypted mail.
+from Proton and it is end to end encrypted, or encrypt to its public key from
+any other mail client. Download the key straight from Proton:
+
+```sh
+curl -o kiss_security.asc 'https://api.protonmail.ch/pks/lookup?op=get&search=diybitcoin@protonmail.com'
+gpg --import kiss_security.asc
+```
+
+The fingerprint must read:
+
+```
+DCC5 C019 B53C 7062 3328  253C 77D1 6A21 1D1E 7499
+```
+
+The release signing key in `docs/installer/` is not an option here, it is a
+sign only key and cannot receive encrypted mail.
 
 What to expect:
 
