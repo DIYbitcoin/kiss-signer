@@ -890,19 +890,31 @@ static void done_summary(int y)
         { LV_SYMBOL_DOWNLOAD, STR_S_SENDING_CAP, s_sum.send_sats, SX(20) },
         { LV_SYMBOL_CUT,      STR_S_FEE,         s_sum.fee_sats,  SX(400) },
     };
-    const lv_font_t *vf = wt_font34();
-#if KISS_NARROW
-    // On the 3.5in both figures take a rung down together when either outgrows
-    // its half, which "0.00001000 BTC" at 23 px does in the fee's 170.
-    for (int i = 0; i < 2; i++) {
-        char a[40], b[64];
-        wt_fmt_amount(cells[i].sats, a, sizeof a);
-        snprintf(b, sizeof b, "%s %s", a, wt_denom_unit());
-        lv_point_t vs;
-        lv_text_get_size(&vs, b, vf, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-        const int lane = (i ? SX(704) : cells[1].x) - cells[i].x - SX(20);
-        if (vs.x > lane) vf = wt_font28();
+    // Both figures step down the ladder together until each fits its half,
+    // on every board. It was one rung and on the 3.5in only, so elsewhere a
+    // 10 BTC fee ran off the card and lost its unit, and a large send ran
+    // into the fee beside it. Past the last rung a figure puts its unit on a
+    // second line rather than lose a digit.
+    const lv_font_t *const vlad[] = { wt_font34(), wt_font28(), wt_font23(),
+                                      wt_font14() };
+    const lv_font_t *vf = vlad[0];
+    bool v_unit_down[2] = { false, false };
+    for (int r = 0; r < 4; r++) {
+        bool over = false;
+        for (int i = 0; i < 2; i++) {
+            char a[40], b[64];
+            wt_fmt_amount(cells[i].sats, a, sizeof a);
+            snprintf(b, sizeof b, "%s %s", a, wt_denom_unit());
+            lv_point_t vs;
+            lv_text_get_size(&vs, b, vlad[r], 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+            const int lane = (i ? SX(704) : cells[1].x) - cells[i].x - SX(20);
+            v_unit_down[i] = vs.x > lane;
+            if (vs.x > lane) over = true;
+        }
+        vf = vlad[r];
+        if (!over) break;
     }
+#if KISS_NARROW
     // The CAPTIONS get the same treatment, because on this card they are the
     // wider half: IL DESTINATARIO RICEVE ran under the scissors and COMMISSIONE
     // DI RETE off the card's edge. Each lane ends at the next column's mark or
@@ -946,7 +958,8 @@ static void done_summary(int y)
         if (lines > 1) {
             cap_y = SY(6);
             // The amounts' line box has to end above the rule at SY(104).
-            if (val_y + lv_font_get_line_height(vf) > SY(104) - 2)
+            if (val_y + lv_font_get_line_height(vf) > SY(104) - 2 &&
+                vf == wt_font34())
                 vf = wt_font28();
         }
     }
@@ -988,7 +1001,8 @@ static void done_summary(int y)
         const int vy = SY(44);
 #endif
         wt_fmt_amount(cells[i].sats, a, sizeof a);
-        snprintf(b, sizeof b, "%s %s", a, wt_denom_unit());
+        snprintf(b, sizeof b, v_unit_down[i] ? "%s\n%s" : "%s %s", a,
+                 wt_denom_unit());
         lv_obj_t *v = wt_lbl(c, b, cells[i].x, vy, vf, INK_COL);
         wt_denom_bind(v);
     }

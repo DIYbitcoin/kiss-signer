@@ -10115,6 +10115,26 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
         const bool acc = in[i].signed_ok;
         lv_obj_t *row = bundle_row(box, 0, ry - in_lh / 2, lane, true);
         wt_fmt_amount(in[i].sats, amt, sizeof amt);
+        // The FIGURE never gives. Right aligned in a capped lane, a figure
+        // wider than the lane ran off the panel's left edge and lost its
+        // LEADING digits: a 21M BTC coin in sats read "00 000 000 000 000".
+        // It steps down to the smallest mono rung, and past that drops its
+        // group spaces, before a single digit can be cut.
+        const lv_font_t *af = in_f;
+        {
+            lv_point_t as;
+            lv_text_get_size(&as, amt, af, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+            if (as.x > lane && af != wt_font_mono14()) {
+                af = wt_font_mono14();
+                lv_text_get_size(&as, amt, af, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+            }
+            if (as.x > lane) {
+                size_t o = 0;
+                for (size_t j = 0; amt[j]; j++)
+                    if (amt[j] != ' ') amt[o++] = amt[j];
+                amt[o] = 0;
+            }
+        }
 #if KISS_NARROW
         // Still wider than its lane after the split gave all it could, and
         // right aligned, the row would run off the panel's left edge and lose
@@ -10123,7 +10143,7 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
         int words_w = -1;
         if (in[i].label) {
             lv_point_t as, ls;
-            lv_text_get_size(&as, amt, in_f, 0, 0, LV_COORD_MAX,
+            lv_text_get_size(&as, amt, af, 0, 0, LV_COORD_MAX,
                              LV_TEXT_FLAG_NONE);
             lv_text_get_size(&ls, in[i].label, wt_font14(), 0, 0, LV_COORD_MAX,
                              LV_TEXT_FLAG_NONE);
@@ -10143,7 +10163,19 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
         // the junction, and the word plus the figure plus the unit is past it.
         // The word wins -- the hero four lines up already carries the unit, and
         // what the row needed was to say WHAT it is, not what it is counted in.
-        if (in[i].label)                      // the group row: words, then the total
+        // ...and on the wide boards the WORD goes when it would push the
+        // figure off the edge; the 3.5in cuts it with dots just below.
+        bool words_fit = true;
+#if !KISS_NARROW
+        if (in[i].label) {
+            lv_point_t as, ls;
+            lv_text_get_size(&as, amt, af, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+            lv_text_get_size(&ls, in[i].label, wt_font14(), 0, 0, LV_COORD_MAX,
+                             LV_TEXT_FLAG_NONE);
+            words_fit = as.x + BROW_PAD + ls.x <= lane;
+        }
+#endif
+        if (in[i].label && words_fit)         // the group row: words, then the total
             b->note[k] = bundle_txt(row, in[i].label, wt_font14(),
                                     acc ? wt_accent() : WT_MUT, acc);
 #if KISS_NARROW
@@ -10161,7 +10193,7 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
         // WT_INK and the reveal crosses from there to the accent, so a total
         // that starts at WT_INK loses a step it never used and keeps the one
         // that says a signature exists.
-        b->amount[k] = bundle_txt(row, amt, in_f,
+        b->amount[k] = bundle_txt(row, amt, af,
                                   acc ? wt_accent()
                                       : (n_in == 1 ? WT_INK : WT_MUT), acc);
         wt_denom_bind(b->amount[k]);   // every figure is the switch, not one

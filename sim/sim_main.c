@@ -950,6 +950,32 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
                        WPSBT_C_GAP_CHANGE;
     snprintf(s->reason, sizeof s->reason, "unusually high fee, tiny coins");
   }
+  // SIM_BIG puts amounts at the edges of the accepted range on the plain
+  // payment fixture, so a walk can photograph whether every digit survives:
+  // "pico" a 10 BTC fee on a 101 BTC send, "10k" a single 10 000 BTC coin,
+  // "max" a single 21M BTC coin, "maxfee" a fee of 11M BTC. Off by default.
+  const char *big = getenv("SIM_BIG");
+  if (big && len >= 16 && memcmp(bytes, "fake-psbt-binary", 16) == 0) {
+    uint64_t in = 0, fee = 0, send = 0;
+    if (!strcmp(big, "pico"))   { in = 11100000000ull;      fee = 1000000000ull;      send = 10100000000ull; }
+    if (!strcmp(big, "10k"))    { in = 1000000000000ull;    fee = 1000000000ull;      send = 900000000000ull; }
+    if (!strcmp(big, "max"))    { in = 2100000000000000ull; fee = 1000000000ull;      send = 2000000000000000ull; }
+    if (!strcmp(big, "maxfee")) { in = 2100000000000000ull; fee = 1100000000000000ull; send = 999999999999000ull; }
+    if (in) {
+      s->in_sats = in; s->fee_sats = fee; s->send_sats = send;
+      s->change_sats = in - fee - send;
+      s->outs[0].sats = send; s->outs[1].sats = s->change_sats;
+      s->fee_rate_x10 = wpsbt_rate_x10(fee, s->est_vsize);
+      // ...and the caution the verifier would raise on these numbers, so the
+      // frames carry the caution bar the firmware would draw.
+      if (wpsbt_fee_share_high(s) || s->fee_rate_x10 > WPSBT_HIGH_RATE_X10) {
+        s->status = WPSBT_CAUTION;
+        s->caution_flags |= WPSBT_C_HIGHFEE;
+        snprintf(s->reason, sizeof s->reason,
+                 "unusually high fee - check it before signing");
+      }
+    }
+  }
   s_sim_n_in = s->n_in;
   s_sim_in_sats = s->in_sats;
   s_sim_locktime = s->locktime;
@@ -2938,6 +2964,12 @@ int main(void) {
 
   // seed the fake SD card for the step-5 Sign flow
   sim_fixture_reset();
+
+  // SIM_DENOM=btc walks every amount in BTC instead of sats, so a run can
+  // photograph each sign screen in the other unit.
+  const char *sd = getenv("SIM_DENOM");
+  if (sd && strcmp(sd, "btc") == 0) wt_denom_set(WT_DENOM_BTC);
+  if (sd && strcmp(sd, "sats") == 0) wt_denom_set(WT_DENOM_SATS);
 
   // app_main does this right after the display comes up, and the Settings
   // footer reports it ("noise source"). Without it the walk would render an
