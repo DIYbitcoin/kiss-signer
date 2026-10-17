@@ -2,6 +2,14 @@
 
 Beta firmware for ESP32-P4 boards, one image per board: the Guition JC4880P443C (Guition 4.3in), the Waveshare ESP32-P4-WIFI6-Touch-LCD-3.5 (Waveshare 3.5in) and the Guition JC1060P470C (Guition 7in). Take the files for your board: each image carries only its own board's display driver.
 
+**Chip compatibility: every firmware image in this release is for ESP32-P4
+v1.x chips only. None of these release images runs on v3.x chips.**
+
+For available v3.x development builds, see the
+[test installer](https://diybitcoin.github.io/kiss-signer/test/). Those builds
+are unsigned test firmware, not part of this release, and the page lists
+the supported chip revisions for each board.
+
 > **Beta warning:** do not trust this release with meaningful funds yet.
 
 ## Download

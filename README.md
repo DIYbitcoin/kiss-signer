@@ -68,9 +68,16 @@ a bitcoin signer hidden under a Tetris game.
 - Waveshare **ESP32-P4-WIFI6-Touch-LCD-3.5**, 3.5in, 480×320
 - Guition **JC1060P470C**, 7in, 1024×600
 
-Boards with the newer v3.x ESP32-P4 chip are not supported yet
-([roadmap](docs/ROADMAP.md)). `esptool` prints the chip revision when it
-connects.
+**Current release (0.1.0-beta11): all three boards require an ESP32-P4
+v1.x chip.** The release images do not run on v3.x chips.
+
+Development builds are separate from this release. The
+[test installer](https://diybitcoin.github.io/kiss-signer/test/) offers
+Waveshare 3.5in builds for v3.x, and Waveshare 4.3in and 5in builds for
+v1.x and v3.x. It detects the chip revision and selects a matching image.
+These unsigned test builds are not a release; build availability does not
+mean every board and chip combination has been tested on hardware. See the
+[hardware roadmap](docs/ROADMAP.md#hardware) for the distinction.
 
 ### Guition boards: flip the camera
 

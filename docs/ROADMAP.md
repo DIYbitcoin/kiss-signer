@@ -123,8 +123,15 @@ that opens a modest set of keys. See `main/kiss_duress.h`.
 | Guition JC4880P443C, 4.3in, 800x480 | done | |
 | Waveshare ESP32-P4-WIFI6-Touch-LCD-3.5, 3.5in, 480x320 | done | The battery mark on the home screen shows only with a cell fitted, and has not yet been seen with one |
 | Guition JC1060P470C, 7in, 1024x600 | done | |
-| Waveshare ESP32-P4-WiFi6-Touch-LCD-5, 5in, 720x1280 | planned | Next board |
-| ESP32-P4 chip revision v3.x | planned | Every release so far is built for v1.x chips, and a v1.x image does not start on a v3.x chip. Waveshare sells the 3.5in with either. Separate v3.x images, and an install page that reads the chip before erasing anything, are written but nobody has flashed a v3.x board with them yet |
+| Waveshare ESP32-P4-WiFi6-Touch-LCD-5, 5in, 720x1280 | test builds | On `develop`; separate v1.x and v3.x images on the test page, not in beta11 |
+| Waveshare ESP32-P4-WiFi6-Touch-LCD-4.3, 4.3in, 480x800 | test builds | On `develop`; separate v1.x and v3.x images on the test page, not in beta11 |
+| ESP32-P4 chip revision v3.x | development support | Beta11 is v1.x only. The test page offers v3.x images for Waveshare 3.5in, 4.3in and 5in; its installer detects the chip before choosing an image |
+
+The [test page](https://diybitcoin.github.io/kiss-signer/test/) lists the
+revisions covered by each available build. These builds are unsigned and
+separate from beta11. The 3.5in v3.x build passed compilation and installer
+image checks; it has not yet been tested on physical hardware. Availability
+of a build alone does not establish hardware validation for other combinations.
 
 ## Known gaps
 
@@ -140,8 +147,9 @@ that opens a modest set of keys. See `main/kiss_duress.h`.
 - **No secure boot**, so an attacker with prolonged physical access to an
   unencrypted device can flash modified firmware and the interface will look
   identical. See [`docs/security-plan.md`](security-plan.md).
-- **No support for v3.x ESP32-P4 chips yet.** The firmware will not start on
-  one; `esptool` prints the chip revision when it connects.
+- **Beta11 does not support v3.x ESP32-P4 chips.** Separate development
+  images are available for the Waveshare boards listed above; hardware
+  validation remains distinct from build and installer checks.
 - **Silent Payments is proven on test networks only.** The full loop ran on
   signet through kiss-bdk; Sparrow has also been tested on signet. Not tested
   on mainnet yet.
