@@ -120,7 +120,16 @@ typedef struct {
     // screen STATES the block and lets the owner, who does know roughly where
     // the chain is, decide whether it is near.
     bool     lock_binds;
-    uint32_t n_unknown;      // unknown/proprietary PSBT fields (global+in+out)
+    // BIP68 relative locks, counted over EVERY input, not the WPSBT_MAX_INS
+    // the DETAILS page lists. Each one is a minimum AGE for the coin that
+    // input spends, not a delay starting now: an offline signer cannot see
+    // the chain, so the coin may already be old enough. Any such input is a
+    // STOP: no coordinator a single-sig owner uses sets one, and a refusal
+    // cannot be hidden behind the locktime badge or squeezed off the screen.
+    uint32_t n_rel_lock;     // inputs whose sequence asks for an age
+    uint32_t rel_blocks_max; // largest age asked in blocks (0 = none)
+    uint32_t rel_secs_max;   // largest age asked in seconds (0 = none)
+    uint32_t n_unknown;     // unknown/proprietary PSBT fields (global+in+out)
     uint32_t n_sp;           // silent payment outputs among outs[]
     uint32_t n_sp_in;        // BIP376 inputs that spend a received silent payment
     uint32_t n_unproven_in;  // inputs whose amount came from a bare witness_utxo
@@ -199,6 +208,24 @@ static inline uint64_t wpsbt_rate_x10(uint64_t fee_sats, uint32_t vsize)
     return vsize ? fee_sats * 10 / vsize : 0;
 }
 
+// BIP68: what one input's sequence asks of the coin it spends. Live only on
+// a version 2 or later transaction with the disable bit (31) clear; bit 22
+// picks units of 512 seconds over blocks, and the age is the low 16 bits. An
+// age of zero asks for nothing. *age is blocks, or seconds for TIME.
+enum { WPSBT_REL_NONE = 0, WPSBT_REL_BLOCKS = 1, WPSBT_REL_TIME = 2 };
+static inline int wpsbt_rel_lock(uint32_t tx_version, uint32_t seq, uint32_t *age)
+{
+    *age = 0;
+    if (tx_version < 2 || (seq & (1u << 31)) || (seq & 0xFFFFu) == 0)
+        return WPSBT_REL_NONE;
+    if (seq & (1u << 22)) {
+        *age = (seq & 0xFFFFu) * 512u;
+        return WPSBT_REL_TIME;
+    }
+    *age = seq & 0xFFFFu;
+    return WPSBT_REL_BLOCKS;
+}
+
 // ---- DETAILS page data (read on demand from the held PSBT) ----
 #define WPSBT_MAX_INS 16
 
@@ -210,6 +237,8 @@ typedef struct {
     uint32_t change, index;  // our derivation tail m/../<change>/<index>
     bool     is_sp;          // BIP376: spends a received silent-payment (P2TR) coin
     bool     proven;         // sats came from a previous tx that hashes to the outpoint
+    uint8_t  rel_kind;       // WPSBT_REL_*: the BIP68 age this input asks for
+    uint32_t rel_age;        // blocks, or seconds for WPSBT_REL_TIME
 } wpsbt_in_t;
 
 typedef struct {

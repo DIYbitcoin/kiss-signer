@@ -558,6 +558,7 @@ static const char *tr_reason(const char *r)
 {
     static const struct { const char *en; int id; } MAP[] = {
         {"nonstandard output script", STR_P_NONSTD_OUT},
+        {"an input asks its coin for a minimum age", STR_P_RELLOCK},
         {"malformed: tx/psbt count mismatch", STR_P_MALFORMED},
         {"too many outputs", STR_P_TOO_MANY_OUTS},
         {"sighash is not ALL", STR_P_SIGHASH},
@@ -668,6 +669,34 @@ static const char *stop_body(const char *r)
 // the coordinator is the whole point of this screen
 #define group4   wt_group4
 #define fmt_sats wt_fmt_sats
+
+// One BIP68 age in words. Blocks stay blocks; time is rounded UP to minutes,
+// hours or days, so the screen never says a coin is old enough sooner than
+// the transaction needs it to be.
+static void rel_age_str(int kind, uint32_t age, char *out, size_t n)
+{
+    if (kind == WPSBT_REL_BLOCKS)
+        snprintf(out, n, tr(STR_S_RLOCK_BLOCKS_FMT), (unsigned)age);
+    else if (age <= 3600)
+        snprintf(out, n, tr(STR_S_RLOCK_MIN_FMT), (unsigned)((age + 59) / 60));
+    else if (age <= 2 * 86400)
+        snprintf(out, n, tr(STR_S_RLOCK_HOURS_FMT), (unsigned)((age + 3599) / 3600));
+    else
+        snprintf(out, n, tr(STR_S_RLOCK_DAYS_FMT), (unsigned)((age + 86399) / 86400));
+}
+
+// The largest age any input asks for, over every input. Inputs may ask in
+// blocks and in time at once, and the two cannot be compared, so both are
+// named then.
+static void rel_max_str(char *out, size_t n)
+{
+    char b[32] = "", s[32] = "";
+    if (s_sum.rel_blocks_max)
+        rel_age_str(WPSBT_REL_BLOCKS, s_sum.rel_blocks_max, b, sizeof b);
+    if (s_sum.rel_secs_max)
+        rel_age_str(WPSBT_REL_TIME, s_sum.rel_secs_max, s, sizeof s);
+    snprintf(out, n, "%s%s%s", b, *b && *s ? " / " : "", s);
+}
 
 // ---- signing ----
 // This screen's lane is 24..776, not the page's 48..752, because its panels are
@@ -3288,7 +3317,7 @@ static void cautions_screen(void)
 // says the same thing. The badge is the fact that must not be dropped.
 static bool hdr_words(void)
 {
-    return !s_sum.testnet && !s_sum.lock_binds;
+    return !s_sum.testnet && !s_sum.lock_binds && !s_sum.n_rel_lock;
 }
 
 // The corner chip's width before it is built, from the same strings and
@@ -3495,18 +3524,27 @@ static void verify_screen(lv_obj_t *parent)
         //
         // WT_MUT, deliberately not WT_WARN: nothing is wrong, something is
         // scheduled. Amber on this screen is a thing that needs acknowledging.
-        if (s_sum.lock_binds) {
-            char ll[40];
+        // The same badge says so when an input asks its coin for a minimum
+        // AGE (BIP68): that too is when, not whether, and the card it opens
+        // states both. An absolute lock takes the badge when there are both,
+        // and the card names the age beside it.
+        if (s_sum.lock_binds || s_sum.n_rel_lock) {
+            char ll[64], ra[48];
+            rel_max_str(ra, sizeof ra);
             snprintf(ll, sizeof ll, "%s  ", WT_ICON_LOCK);
-            snprintf(ll + strlen(ll), sizeof ll - strlen(ll),
-                     tr(STR_S_LOCK_AFTER_FMT), (unsigned)s_sum.locktime);
+            if (s_sum.lock_binds)
+                snprintf(ll + strlen(ll), sizeof ll - strlen(ll),
+                         tr(STR_S_LOCK_AFTER_FMT), (unsigned)s_sum.locktime);
+            else
+                snprintf(ll + strlen(ll), sizeof ll - strlen(ll),
+                         tr(STR_S_RLOCK_BADGE_FMT), ra);
             lv_obj_t *lb = wt_state_chip(s_scr, ll, WT_MUT);
             // The MARK in the theme's colour, the block number muted, the rim
             // and tint left where wt_state_chip put them. Its own split only
             // fires for WT_WARN, so this is the same recolor the caption above
             // uses, applied over the top.
             {
-                char lm[64];
+                char lm[96];
                 snprintf(lm, sizeof lm, "%s  #%02X%02X%02X %s#", WT_ICON_LOCK,
                          MUT_COL.red, MUT_COL.green, MUT_COL.blue,
                          ll + strlen(WT_ICON_LOCK) + 2);
@@ -3559,12 +3597,12 @@ static void verify_screen(lv_obj_t *parent)
             // lock is not ambiguous on a line that also carries the network
             // and the fingerprint.
             if (!q_fits && fr - lw - 12 - fx < 12) {
-                char ln[40], lnm[64];
-                snprintf(ln, sizeof ln, "%s  %u", WT_ICON_LOCK,
-                         (unsigned)s_sum.locktime);
-                snprintf(lnm, sizeof lnm, "%s  #%02X%02X%02X %u#", WT_ICON_LOCK,
+                char ln[16], lnm[96];
+                if (s_sum.lock_binds)
+                    snprintf(ln, sizeof ln, "%u", (unsigned)s_sum.locktime);
+                snprintf(lnm, sizeof lnm, "%s  #%02X%02X%02X %s#", WT_ICON_LOCK,
                          MUT_COL.red, MUT_COL.green, MUT_COL.blue,
-                         (unsigned)s_sum.locktime);
+                         s_sum.lock_binds ? ln : ra);
                 lv_label_set_text(lb, lnm);
                 lv_obj_update_layout(lb);
                 lw = lv_obj_get_width(lb);
@@ -4999,6 +5037,21 @@ static void det_term_cb(lv_event_t *e)
         body = wt_split_colon(s_sum.locktime ? tr(STR_S_D_LT_NONZERO)
                                              : tr(STR_S_D_LT_ZERO),
                               head, sizeof head);
+        // A relative lock (BIP68) on any input, counted over every input. With
+        // no locktime the line above says it "can confirm any time", which an
+        // input asking for a coin age makes untrue, so that line gives way.
+        if (s_sum.n_rel_lock) {
+            static char rbody[320];
+            char ra[48], rs[224];
+            rel_max_str(ra, sizeof ra);
+            snprintf(rs, sizeof rs, tr(STR_S_D_RLOCK_FMT),
+                     (unsigned)s_sum.n_rel_lock, ra);
+            if (s_sum.locktime)
+                snprintf(rbody, sizeof rbody, "%s\n%s", body, rs);
+            else
+                snprintf(rbody, sizeof rbody, "%s", rs);
+            body = rbody;
+        }
         icon = WT_ICON_LOCK;
         // ...and WHICH block, framed, plus the phrase the badge no longer has
         // room for. Without it the card was a title over one line of grey and
@@ -5198,6 +5251,14 @@ static void dtab_inputs(lv_obj_t *p)
         snprintf(buf, sizeof buf, "%.8s...%s : %u",
                  s_det.ins[i].txid, s_det.ins[i].txid + 56,
                  (unsigned)s_det.ins[i].vout);
+        // ...and the coin age this input asks for, when it asks for one, on
+        // the same line: this page has no objects to spare for a new one.
+        if (s_det.ins[i].rel_kind != WPSBT_REL_NONE) {
+            char ra[32], rl[48];
+            rel_age_str(s_det.ins[i].rel_kind, s_det.ins[i].rel_age, ra, sizeof ra);
+            snprintf(rl, sizeof rl, tr(STR_S_RLOCK_BADGE_FMT), ra);
+            snprintf(buf + strlen(buf), sizeof buf - strlen(buf), "   %s", rl);
+        }
         dtab_meta(row, GLOSS_ICONS[3], buf, MUT_COL);
 
         // BIP376 received-SP input: its key is spend+tweak, not a BIP84

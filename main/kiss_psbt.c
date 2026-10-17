@@ -843,6 +843,18 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
         // coordinators leave a stale locktime on a final transaction.
         if (tx->inputs[i].sequence != 0xFFFFFFFF)
             lock_enforced = true;
+        // Read before any refusal below can `continue` past it, so the count
+        // is every input's and not only the ones that verified.
+        {
+            uint32_t age;
+            const int k = wpsbt_rel_lock(tx->version, tx->inputs[i].sequence, &age);
+            if (k != WPSBT_REL_NONE) {
+                s->n_rel_lock++;
+                uint32_t *mx = k == WPSBT_REL_TIME ? &s->rel_secs_max
+                                                   : &s->rel_blocks_max;
+                if (age > *mx) *mx = age;
+            }
+        }
 
         if (in->sighash != 0 && in->sighash != WALLY_SIGHASH_ALL) {
             stop(s, "sighash is not ALL");
@@ -1185,6 +1197,8 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     // Stated, not flagged -- see wpsbt_summary_t.lock_binds for why a signer
     // that cannot see the chain tip must not turn this into a caution.
     s->lock_binds = (s->locktime != 0) && lock_enforced;
+    if (s->n_rel_lock)
+        stop(s, "an input asks its coin for a minimum age");
 
     s_status = s->status;
     return 0;
@@ -1229,6 +1243,8 @@ int kiss_psbt_details(wpsbt_details_t *d)
         wpsbt_in_t *di = &d->ins[d->n_in++];
         txid_hex(tx->inputs[i].txhash, di->txid);
         di->vout = tx->inputs[i].index;
+        di->rel_kind = (uint8_t)wpsbt_rel_lock(tx->version, tx->inputs[i].sequence,
+                                               &di->rel_age);
         bool is_sp = i < WPSBT_MAX_INS && s_sp_in.present[i];
         // Same precedence as load, for the same reason: the prev tx is the only
         // source that proves the number, and load already checked it hashes to

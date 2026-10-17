@@ -1669,6 +1669,91 @@ int main(int argc, char **argv) {
     chkb("final-seq is not replaceable", !sum.rbf);
     kiss_psbt_free();
 
+    // ---- BIP68: an input can ask its coin for a minimum age ----
+    // The decoder alone, on every shape the rule has.
+    {
+        uint32_t age = 99;
+        chki("bip68 disabled flag", wpsbt_rel_lock(2, (1u << 31) | 144, &age),
+             WPSBT_REL_NONE);
+        chki("bip68 version 1 ignores it", wpsbt_rel_lock(1, 144, &age),
+             WPSBT_REL_NONE);
+        chki("bip68 zero blocks asks nothing", wpsbt_rel_lock(2, 0, &age),
+             WPSBT_REL_NONE);
+        chki("bip68 zero time asks nothing", wpsbt_rel_lock(2, 1u << 22, &age),
+             WPSBT_REL_NONE);
+        chki("bip68 zero leaves age zero", (int)age, 0);
+        chki("bip68 rbf sequence is no lock",
+             wpsbt_rel_lock(2, 0xFFFFFFFD, &age), WPSBT_REL_NONE);
+        chki("bip68 final sequence is no lock",
+             wpsbt_rel_lock(2, 0xFFFFFFFF, &age), WPSBT_REL_NONE);
+        chki("bip68 blocks", wpsbt_rel_lock(2, 144, &age), WPSBT_REL_BLOCKS);
+        chki("bip68 blocks age", (int)age, 144);
+        chki("bip68 unused bits ignored", wpsbt_rel_lock(2, 0x003F0090, &age),
+             WPSBT_REL_BLOCKS);
+        chki("bip68 unused bits age", (int)age, 144);
+        chki("bip68 time", wpsbt_rel_lock(2, (1u << 22) | 1, &age), WPSBT_REL_TIME);
+        chki("bip68 time is 512 s units", (int)age, 512);
+        chki("bip68 longest time", wpsbt_rel_lock(2, (1u << 22) | 0xFFFF, &age),
+             WPSBT_REL_TIME);
+        chki("bip68 longest time age", (int)age, 33553920);
+    }
+    // Through the verifier, in PSBTv0 and PSBTv2, with the two inputs asking in
+    // different units. Re-sequenced after the build so each input differs.
+    for (int v2 = 0; v2 < 2; v2++) {
+        struct wally_psbt *p = NULL;
+        uint8_t vb[4096];
+        size_t vl = 0;
+        pl = mk_acct_psbt(0, 0, 0, 0xFFFFFFFD, pb, sizeof pb);
+        int ok = wally_psbt_from_bytes(pb, pl, 0, &p) == WALLY_OK;
+        if (ok) { p->tx->inputs[0].sequence = 144; p->tx->inputs[1].sequence = (1u << 22) | 10; }
+        ok = ok && (!v2 || wally_psbt_set_version(p, 0, WALLY_PSBT_VERSION_2) == WALLY_OK) &&
+             wally_psbt_to_bytes(p, 0, vb, sizeof vb, &vl) == WALLY_OK;
+        wally_psbt_free(p);
+        chkb(v2 ? "bip68 v2 mixed: built" : "bip68 v0 mixed: built", ok && vl);
+        chki("bip68 mixed: load rc", kiss_psbt_load(vb, vl, &sum), 0);
+        chki("bip68 mixed: both inputs counted", (int)sum.n_rel_lock, 2);
+        chki("bip68 mixed: block age", (int)sum.rel_blocks_max, 144);
+        chki("bip68 mixed: time age", (int)sum.rel_secs_max, 5120);
+        chkb("bip68 mixed: still replaceable", sum.rbf);
+        chkb("bip68 mixed: no absolute lock", !sum.lock_binds);
+        chki("bip68 mixed: refused", sum.status, WPSBT_STOP);
+        chkb("bip68 mixed: sign refused", kiss_psbt_sign(sb, sizeof sb, &sw) != 0);
+        kiss_psbt_free();
+    }
+    // A version 1 transaction carries the same numbers and asks nothing.
+    {
+        struct wally_psbt *p = NULL;
+        uint8_t vb[4096];
+        size_t vl = 0;
+        pl = mk_acct_psbt(0, 0, 0, 144, pb, sizeof pb);
+        int ok = wally_psbt_from_bytes(pb, pl, 0, &p) == WALLY_OK;
+        if (ok) p->tx->version = 1;
+        ok = ok && wally_psbt_to_bytes(p, 0, vb, sizeof vb, &vl) == WALLY_OK;
+        wally_psbt_free(p);
+        chkb("bip68 v1: built", ok && vl);
+        chki("bip68 v1: load rc", kiss_psbt_load(vb, vl, &sum), 0);
+        chki("bip68 v1: no relative lock", (int)sum.n_rel_lock, 0);
+        chkb("bip68 v1: not refused", sum.status != WPSBT_STOP);
+        kiss_psbt_free();
+    }
+    // Every input is counted, not only the WPSBT_MAX_INS the details list.
+    {
+        struct wally_psbt *p = NULL;
+        uint8_t vb[4096];
+        size_t vl = 0;
+        pl = mk_nin_psbt_ex(WPSBT_MAX_INS, 100000, 10000, NIN_PROVE, pb, sizeof pb);
+        int ok = wally_psbt_from_bytes(pb, pl, 0, &p) == WALLY_OK;
+        for (size_t i = 0; ok && i < p->tx->num_inputs; i++)
+            p->tx->inputs[i].sequence = (uint32_t)(i + 1);
+        ok = ok && wally_psbt_to_bytes(p, 0, vb, sizeof vb, &vl) == WALLY_OK;
+        wally_psbt_free(p);
+        chkb("bip68 all inputs: built", ok && vl);
+        chki("bip68 all inputs: load rc", kiss_psbt_load(vb, vl, &sum), 0);
+        chki("bip68 all inputs: counted", (int)sum.n_rel_lock, WPSBT_MAX_INS);
+        chki("bip68 all inputs: largest age", (int)sum.rel_blocks_max, WPSBT_MAX_INS);
+        kiss_psbt_free();
+    }
+
     {   // The largest proven-input fixture still fits the scan/input ceiling,
         // but adding one signature map entry per input legitimately takes the
         // result past it. Signing and QR output therefore need their own bound:

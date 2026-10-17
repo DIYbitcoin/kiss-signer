@@ -806,6 +806,7 @@ void kiss_payee_batch_begin(void) {}
 void kiss_payee_batch_end(void) {}
 
 static uint32_t s_sim_locktime;   // what the last load said, for the details stub
+static uint32_t s_sim_rel_blocks; // and the BIP68 age it asked for, if any
 int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
   memset(s, 0, sizeof *s);
   s->testnet = s_sim_testnet != 0;
@@ -979,6 +980,7 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
   s_sim_n_in = s->n_in;
   s_sim_in_sats = s->in_sats;
   s_sim_locktime = s->locktime;
+  s_sim_rel_blocks = s->rel_blocks_max;
   return 0;
 }
 int kiss_psbt_details(wpsbt_details_t *d) {
@@ -1023,6 +1025,9 @@ int kiss_psbt_details(wpsbt_details_t *d) {
     left -= take;
     d->ins[i].purpose = 84; d->ins[i].change = 0; d->ins[i].index = i;
     d->ins[i].proven = (i == 0);   // the fold hides unproven coins: scroll
+  }
+  if (s_sim_rel_blocks && d->n_in) {
+    d->ins[0].rel_kind = WPSBT_REL_BLOCKS; d->ins[0].rel_age = s_sim_rel_blocks;
   }
   return 0;
 }

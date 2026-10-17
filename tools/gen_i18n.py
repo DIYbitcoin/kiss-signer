@@ -153,6 +153,16 @@ def pick_order():
 # names other wallets print in English too. Anything added here needs a reason
 # on its line; "we did not get round to it" is not one.
 UNTRANSLATED_OK = {
+    # BIP68 relative lock: the badge, its units and the card line. Born
+    # under the English-only rule; English in the other locales until the
+    # translation sweep.
+    "S_RLOCK_BADGE_FMT",
+    "P_RELLOCK",
+    "S_RLOCK_BLOCKS_FMT",
+    "S_RLOCK_MIN_FMT",
+    "S_RLOCK_HOURS_FMT",
+    "S_RLOCK_DAYS_FMT",
+    "S_D_RLOCK_FMT",
     # New device radio explainer; English in other locales until the UI
     # translation sweep, matching the other new Settings help cards.
     "I_DEV_RADIO_HELP",
