@@ -24,6 +24,7 @@ clang -O1 -Wall -Wextra -Wno-unused-parameter -Wno-implicit-const-int-float-conv
 /tmp/mk_qr_parts "$OUT/03-legacy.psbt"        ur     > "$OUT/ur-legacy.parts"
 /tmp/mk_qr_parts "$OUT/04-stop-wrongnet.psbt" static > "$OUT/static-wrongnet.parts"
 /tmp/mk_qr_parts "$OUT/05-caution-highfee.psbt" static > "$OUT/static-caution.parts"
+/tmp/mk_qr_parts "$OUT/15-locktime-date.psbt" static > "$OUT/static-locktime-date.parts"
 
 # 3. render the page
 "$PY" sim/mk_test_qrs.py "$OUT"

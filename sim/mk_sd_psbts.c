@@ -60,7 +60,7 @@ static void build_spk(int script, const uint8_t pub[33], uint8_t *out, size_t *l
 // input is always 100000 sats, so send + change decides the fee, which is
 // how the caution fixture is built without a second code path.
 static size_t mk_typed_psbt(int script, uint32_t purpose, uint32_t coin,
-                            uint64_t send, uint64_t change,
+                            uint64_t send, uint64_t change, uint32_t locktime,
                             uint8_t *out, size_t cap) {
     struct ext_key kin, kchg;
     derive5(purpose, coin, 0, 0, &kin);
@@ -85,7 +85,7 @@ static size_t mk_typed_psbt(int script, uint32_t purpose, uint32_t coin,
     }
 
     struct wally_tx *tx = NULL;
-    wally_tx_init_alloc(2, 0, 1, 2, &tx);
+    wally_tx_init_alloc(2, locktime, 1, 2, &tx);
     wally_tx_add_raw_input(tx, txid, 32, 0, 0xFFFFFFFD, NULL, 0, NULL, 0);
     wally_tx_add_raw_output(tx, send, ext_spk, 22, 0);
     wally_tx_add_raw_output(tx, change, chg_spk, chg_len, 0);
@@ -330,10 +330,11 @@ static int emit_multiout(const char *dir, const char *name, int n_out,
     return 0;
 }
 
-static int emit(const char *dir, const char *name, int script, uint32_t purpose,
-                uint32_t coin, uint64_t send, uint64_t change) {
+static int emit_lt(const char *dir, const char *name, int script, uint32_t purpose,
+                   uint32_t coin, uint64_t send, uint64_t change, uint32_t locktime) {
     uint8_t buf[4096];
-    size_t n = mk_typed_psbt(script, purpose, coin, send, change, buf, sizeof buf);
+    size_t n = mk_typed_psbt(script, purpose, coin, send, change, locktime,
+                             buf, sizeof buf);
     if (n == 0) { fprintf(stderr, "FAIL build %s\n", name); return 1; }
     char path[1024];
     snprintf(path, sizeof path, "%s/%s", dir, name);
@@ -343,6 +344,11 @@ static int emit(const char *dir, const char *name, int script, uint32_t purpose,
     fclose(f);
     printf("wrote %-22s %4zu bytes  (coin %uh, purpose %uh)\n", name, n, coin, purpose);
     return 0;
+}
+
+static int emit(const char *dir, const char *name, int script, uint32_t purpose,
+                uint32_t coin, uint64_t send, uint64_t change) {
+    return emit_lt(dir, name, script, purpose, coin, send, change, 0);
 }
 
 int main(int argc, char **argv) {
@@ -429,6 +435,12 @@ int main(int argc, char **argv) {
                    NIN_OMIT,  "READY: one input, amount claimed");
     rc |= emit_nin(d, "14-proven-1in.psbt", 1, 100000, 60000, 39000, 1,
                    NIN_PROVE, "READY: same outpoint, proof attached");
+
+    // A lock set as a date: 1793534400 is 2026-11-01 12:00 UTC, and the RBF
+    // sequence leaves it enforced. The sign screen's badge should read the
+    // date and its card NOT BEFORE (UTC), where it once read BLOCK 1793534400.
+    rc |= emit_lt(d, "15-locktime-date.psbt", WSCRIPT_NATIVE, 84, 1, 60000, 39000,
+                  1793534400u);
 
     wally_cleanup(0);
     return rc;

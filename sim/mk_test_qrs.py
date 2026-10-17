@@ -26,6 +26,9 @@ BLOCKS = [
     ("static-caution", "5 · High-fee PSBT (10,000 sats fee on an 8,000 send)",
      "expect: CAUTION - high fee - I UNDERSTAND appears where HOLD TO SIGN "
      "normally is, and HOLD TO SIGN only arrives after you tap it"),
+    ("static-locktime-date", "6 · Date-locked PSBT (locktime 2026-11-01 12:00 UTC)",
+     "expect: READY - the sign screen badge shows a lock and 2026-11-01, and "
+     "tapping it opens a card reading NOT BEFORE (UTC) 2026-11-01 12:00"),
 ]
 FRAME_MS = 500          # sender cadence; scanner reads at ~30fps, plenty
 

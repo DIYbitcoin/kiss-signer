@@ -65,6 +65,9 @@ int main(int argc, char **argv){
         // one input, so a claimed amount is covered by its own sighash.
         {"13-omit-1in.psbt",         WSCRIPT_NATIVE, WPSBT_READY,   0},
         {"14-proven-1in.psbt",       WSCRIPT_NATIVE, WPSBT_READY,   0},
+        // A lock set as a date, enforced: the screen states it, it is never
+        // a caution. The date reading itself is checked below.
+        {"15-locktime-date.psbt",    WSCRIPT_NATIVE, WPSBT_READY,   0},
     };
     int fails=0, skips=0;
     // sizeof, not a literal 4. The bound was hardcoded, so adding a fixture to
@@ -87,6 +90,21 @@ int main(int argc, char **argv){
                sum.caution_flags, st(t[i].want), t[i].flags);
         if(!ok) fails++;
         kiss_psbt_free();
+    }
+
+    // 15 must reach the sign screen as a date lock that binds, or the device
+    // test of the date badge has nothing to look at.
+    {
+        unsigned char buf[8192];
+        size_t n=slurp(argv[1],"15-locktime-date.psbt",buf,sizeof buf);
+        wpsbt_summary_t sum; memset(&sum,0,sizeof sum);
+        kiss_set_script(WSCRIPT_NATIVE);
+        int ok=n && kiss_psbt_load(buf,n,&sum)==0 && sum.lock_binds &&
+               sum.locktime==1793534400u && wpsbt_lock_is_time(sum.locktime);
+        printf("%s 15-locktime-date.psbt     binds as a date lock (locktime %u)\n",
+               ok?"PASS":"FAIL", (unsigned)sum.locktime);
+        if(!ok) fails++;
+        if(n) kiss_psbt_free();
     }
 
     // THE pair. 13 and 14 spend the same coin in the same transaction and differ
