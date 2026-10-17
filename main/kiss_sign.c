@@ -708,6 +708,9 @@ static void lock_when_str(char *out, size_t n, bool clock)
     }
     unsigned y, mo, d, h, mi;
     wpsbt_utc(s_sum.locktime, &y, &mo, &d, &h, &mi);
+    // Already in range (the year ends at 2106); the modulos only let GCC's
+    // format-truncation check see that the text fits.
+    y %= 10000u; mo %= 100u; d %= 100u; h %= 100u; mi %= 100u;
     if (clock)
         snprintf(out, n, "%04u-%02u-%02u %02u:%02u", y, mo, d, h, mi);
     else
