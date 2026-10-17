@@ -56,11 +56,15 @@ soldering.
 - Waveshare **ESP32-P4-WIFI6-Touch-LCD-3.5**, 3.5in, 480×320
 - Guition **JC1060P470C**, 7in, 1024×600
 
-Boards with the newer v3.x ESP32-P4 chip are not supported yet
-([roadmap](docs/ROADMAP.md)).
-
 Inspired by [Bowser](https://github.com/arcbtc/bowser-bitcoin-hardware-wallet),
 a Bitcoin signer hidden under a Tetris game.
+
+**Release 0.1.0-beta11 supports ESP32-P4 v1.x chips only on all three
+release boards: Guition 4.3in, Waveshare 3.5in and Guition 7in. Its firmware
+does not run on v3.x chips.** Separate unsigned development builds are
+available through the [test installer](https://diybitcoin.github.io/kiss-signer/test/),
+which lists the chip revisions available for each board. These are not part
+of beta11; a listed build does not by itself establish hardware validation.
 
 ## Install
 
