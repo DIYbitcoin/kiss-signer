@@ -4843,13 +4843,22 @@ static void sign_term_more(int id)
     snprintf(rate, sizeof rate, "%llu.%u %s",
              (unsigned long long)(s_sum.fee_rate_x10 / 10),
              (unsigned)(s_sum.fee_rate_x10 % 10), tr(STR_T_FEE2_SPV));
+    // SATS, whatever the owner's unit. This row is the product of the two
+    // above it, size times sat/vB, and that product is sats; the figure was
+    // always formatted in sats too, and it used to carry the chosen unit's
+    // NAME, so with BTC chosen a 2 810 sat fee read "2 810 BTC".
+    // The unit rides on the CAPTION, not after the figure: a fee as large as
+    // the range allows filled the value lane, wrapped, and its unit landed
+    // under the footer. The figure alone fits one line on every board.
+    static char fcap[64];
     fmt_sats(s_sum.fee_sats, sats, sizeof sats);
-    snprintf(prod, sizeof prod, "%s %s", sats, wt_denom_unit());
+    snprintf(prod, sizeof prod, "%s", sats);
+    snprintf(fcap, sizeof fcap, "%s, sats", tr(STR_T_FEE2_C3));
 
     const wt_fact_t facts[3] = {
         { .cap = tr(STR_T_FEE2_C1), .val = vb,   .icon = LV_SYMBOL_FILE },
         { .cap = tr(STR_T_FEE2_C2), .val = rate, .icon = WT_ICON_QR },
-        { .cap = tr(STR_T_FEE2_C3), .val = prod, .icon = LV_SYMBOL_CUT },
+        { .cap = fcap, .val = prod, .icon = LV_SYMBOL_CUT },
     };
     wt_explain(s_scr, tr(STR_T_FEE2_HEAD), tr(STR_T_FEE2_B), facts, 3);
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_BACK_X,
