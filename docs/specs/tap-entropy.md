@@ -1,11 +1,12 @@
 # Tap entropy: the third source
 
-Status: design approved 2026-07-30, not implemented.
+Status: design approved 2026-07-30, implemented in `main/kiss_tapent.c`. The
+strength of a tap is not yet measured on hardware; see the budget below.
 
-New wallets currently hash two sources together: what the camera saw and what
-the chip's TRNG produced. This spec adds a third that neither Espressif nor
-this firmware can produce on its own — the timing of the user's own taps — and
-makes it mandatory on every new wallet.
+Before this spec, new wallets hashed two sources together: what the camera saw
+and what the chip's TRNG produced. This spec adds a third that neither
+Espressif nor this firmware can produce on its own — the timing of the user's
+own taps — and makes it mandatory on every new wallet.
 
 ## Why a third source at all
 
@@ -57,17 +58,21 @@ Taps are never buffered. There is no array of timestamps in RAM for a later
 attacker to find, and the fold is the same shape the camera path already uses
 at `camera_spike.c:334`.
 
-## Budget: 64 taps, 2 bits each, 128 bits claimed
+## Budget: 64 taps, a count and not a measured bit total
 
-Fixed and conservative. A tap whose arrival varies by even one millisecond
-carries roughly eighteen bits at cycle resolution, so 2 bits is an order of
-magnitude of headroom. The budget deliberately underclaims so that no user
-rhythm and no future touch controller can turn the claim into a lie. It is a
-floor chosen to survive being wrong, not an estimate.
+The design priced each tap at 2 bits, for 128 over 64 taps, on the argument
+that a tap whose arrival varies by even one millisecond carries roughly
+eighteen bits at cycle resolution. That argument holds only if the cycle count
+is read when the finger lands. It is read on the LVGL callback, and if the
+touch controller delivers events on a coarse tick, the low bits follow the
+tick and not the hand. Whether they do is the open hardware check in
+`docs/device-ux-test.md` step 14, and it has not been run.
 
-64 taps is roughly 15 seconds. That buys a source that clears 128 bits on its
-own, which is the point: if the camera and the TRNG both failed silently the way
-Coldcard's did, the seed is still out of reach.
+Until it passes, the taps are an additional source of unmeasured strength, and
+nothing here claims 128 bits for them. The seed does not lean on that number:
+the camera, the chip's TRNG and the board's own timing jitter are all in the
+same fold, and `test_taps_cannot_weaken` pins that taps of any quality cost
+the seed nothing. 64 taps, roughly 15 seconds, is the count the bar fills to.
 
 There is no adaptive meter and no Shannon estimate. The bar counts events that
 happened, not a quality score. A count is a fact the code can prove; a quality

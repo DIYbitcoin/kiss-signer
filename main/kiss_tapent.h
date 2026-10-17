@@ -17,10 +17,11 @@
 #include <stdint.h>
 #include <stddef.h>
 
-// 64 taps counted at a deliberately underclaimed 2 bits each = 128 bits. A tap
-// whose arrival varies by even one millisecond carries roughly eighteen bits at
-// cycle resolution, so this is a floor chosen to survive being wrong, not an
-// estimate.
+// The count the bar fills to, not a measured bit total. The design priced a
+// tap at 2 bits (128 over 64), which holds only if the cycle count is read
+// when the finger lands rather than on a coarse touch tick; that is the open
+// hardware check in docs/device-ux-test.md step 14. Until it passes the taps
+// are a source of unmeasured strength, and the seed does not lean on them.
 #define WTAP_TARGET       64
 
 // A tap closer than this to the last ACCEPTED one is a drag or bounce artifact
