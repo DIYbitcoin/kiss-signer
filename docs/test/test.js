@@ -117,8 +117,21 @@ async function install() {
   }
 }
 
+function chipLabels(board) {
+  return [...new Set(board.images.map((image) => {
+    const min = image.minChipRevision;
+    const max = image.maxChipRevision;
+    return min % 100 === 0 && max === min + 99
+      ? `v${min / 100}.x`
+      : min === max ? revLabel(min) : `${revLabel(min)}–${revLabel(max)}`;
+  }))].join(" and ");
+}
+
 function showNote() {
   const board = builds.boards[boardSel.value];
+  $("chipsupport").textContent = board ? `For ESP32-P4 ${chipLabels(board)} chips.` : "";
+  $("releasehint").hidden = !board || board.id !== "ws35" ||
+    board.images.some((image) => image.minChipRevision <= 100 && image.maxChipRevision >= 199);
   $("buildnote").textContent = board
     ? `Test build ${board.commit}, made ${board.built}. ${board.note || ""}`.trim()
     : "";
@@ -142,7 +155,7 @@ async function start() {
   builds.boards.forEach((b, i) => {
     const o = document.createElement("option");
     o.value = String(i);
-    o.textContent = b.name;
+    o.textContent = `${b.name} — ${chipLabels(b)} chips`;
     boardSel.appendChild(o);
   });
   boardSel.disabled = false;
