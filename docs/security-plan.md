@@ -104,9 +104,9 @@ proves nothing about them.
 
 What this changes per storage mode:
 
-- **FLASH** goes from storing the words in the clear to storing them encrypted.
-  This is the big one, and it is why FLASH on a beta device should be treated as
-  a hot wallet.
+- **FLASH** goes from storing the words sealed under a key that sits beside
+  them, which a flash dump opens, to storing both encrypted. This is the big
+  one, and it is why FLASH on a beta device should be treated as a hot wallet.
 - **SD CARD** already seals the words to a device key, so a lost card is
   inert either way. Encryption protects that device key at rest, which closes
   the case where someone holds the device *and* the card.
@@ -114,12 +114,11 @@ What this changes per storage mode:
 
 ### Secrecy is not integrity
 
-**Still to add, on top of the burn.** Flash encryption is XTS-AES. It hides the
-bytes and says nothing about whether they are the bytes we wrote. There is no
-tag, so an edited ciphertext block decrypts to garbage rather than to a detected
-error. Confidentiality against a flash dump is the whole of what it buys, and
-claiming more from it would be the same overstatement as the scrub sentence
-below.
+Flash encryption is XTS-AES. It hides the bytes and says nothing about whether
+they are the bytes we wrote. There is no tag, so an edited ciphertext block
+decrypts to garbage rather than to a detected error. Confidentiality against a
+flash dump is the whole of what it buys, and claiming more from it would be the
+same overstatement as the scrub sentence below.
 
 The SD path already goes further. `sd_seed_seal` in `main/kiss_seed_sd.c`
 writes AES-CBC under one subkey and an HMAC-SHA256 tag over the header and the
@@ -127,11 +126,18 @@ ciphertext under a second, encrypt then MAC, compared in constant time. A card
 whose file was altered fails to open and says which problem it hit, the
 `W_SD_CORRUPT_B` screen.
 
-The words in NVS should carry the same tag, from the same code. Without it an
-owner whose flash was tampered with sees a wallet that quietly does not derive,
-which looks identical to a bad write and to a hardware fault. With it the device
-can say the file was changed. That distinction is the whole reason the SD path
-has a tag, and there is no argument for the other storage mode having less.
+The words in NVS now carry the same tag, from the same code: FLASH mode writes
+a sealed blob in its own key domain (`keep_seal` in `main/kiss_seed.c`), and a
+blob that fails its tag is reported as damaged rather than read as an empty
+slot. Without it an owner whose flash was tampered with would see a wallet that
+quietly does not derive, which looks identical to a bad write and to a
+hardware fault.
+
+On the beta the seal's key sits in the same unencrypted NVS partition as the
+blob (F14 below). So the tag catches a bad write or a clumsy edit, but not an
+attacker who can dump and rewrite flash, who can read the key, open the blob
+and seal a new one. Sealing alone does not protect the words against a flash
+dump; the burn in this phase is what does.
 
 One consequence of the key choice is worth stating here rather than leaving it
 to be discovered. The device key is random, minted once and held in NVS. It is
