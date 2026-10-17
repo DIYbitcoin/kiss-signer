@@ -18,6 +18,21 @@
       "note": "Only for the 7in whose case label says V2. Issue 27."
     },
     {
+      "id": "ws35",
+      "name": "Waveshare 3.5in",
+      "commit": "622fb1d8",
+      "built": "2026-10-17",
+      "images": [
+        {
+          "path": "firmware/kiss-test-622fb1d8-ws35-v3.bin",
+          "minChipRevision": 300,
+          "maxChipRevision": 399,
+          "size": 5088496,
+          "sha256": "256c4d11b8db38c617be3f307421852aa6452135b5fefc2b96002ff62f2e565f"
+        }
+      ]
+    },
+    {
       "id": "ws43",
       "name": "Waveshare 4.3in",
       "commit": "c9ce193f",
