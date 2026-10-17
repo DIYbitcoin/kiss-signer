@@ -226,6 +226,35 @@ static inline int wpsbt_rel_lock(uint32_t tx_version, uint32_t seq, uint32_t *ag
     return WPSBT_REL_BLOCKS;
 }
 
+// An absolute locktime below 500,000,000 is a block height; from there up it
+// is a Unix time in seconds, which a node compares against the median time of
+// the last eleven blocks (BIP113). The screen said BLOCK 1730000000 for a lock
+// set as a date, which no owner can place.
+#define WPSBT_LOCK_TIME_MIN 500000000u
+static inline bool wpsbt_lock_is_time(uint32_t locktime)
+{
+    return locktime >= WPSBT_LOCK_TIME_MIN;
+}
+
+// Seconds since 1970 as a UTC calendar date and clock, without the C library's
+// time zone state. Days to civil date is Howard Hinnant's civil_from_days,
+// exact over the whole uint32 range (it ends 2106-02-07 06:28:15).
+static inline void wpsbt_utc(uint32_t secs, unsigned *y, unsigned *mo,
+                             unsigned *d, unsigned *h, unsigned *mi)
+{
+    const uint32_t z = secs / 86400u + 719468u;
+    const uint32_t era = z / 146097u, doe = z - era * 146097u;
+    const uint32_t yoe = (doe - doe / 1460u + doe / 36524u - doe / 146096u) / 365u;
+    const uint32_t doy = doe - (365u * yoe + yoe / 4u - yoe / 100u);
+    const uint32_t mp = (5u * doy + 2u) / 153u;
+    const uint32_t m = mp < 10u ? mp + 3u : mp - 9u;
+    *y = yoe + era * 400u + (m <= 2u);
+    *mo = m;
+    *d = doy - (153u * mp + 2u) / 5u + 1u;
+    *h = secs % 86400u / 3600u;
+    *mi = secs % 3600u / 60u;
+}
+
 // ---- DETAILS page data (read on demand from the held PSBT) ----
 #define WPSBT_MAX_INS 16
 

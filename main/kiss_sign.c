@@ -698,6 +698,22 @@ static void rel_max_str(char *out, size_t n)
     snprintf(out, n, "%s%s%s", b, *b && *s ? " / " : "", s);
 }
 
+// The absolute lock as a reader can place it: the block number, or for a lock
+// set as a time, the UTC date and, where there is room, the clock.
+static void lock_when_str(char *out, size_t n, bool clock)
+{
+    if (!wpsbt_lock_is_time(s_sum.locktime)) {
+        snprintf(out, n, "%u", (unsigned)s_sum.locktime);
+        return;
+    }
+    unsigned y, mo, d, h, mi;
+    wpsbt_utc(s_sum.locktime, &y, &mo, &d, &h, &mi);
+    if (clock)
+        snprintf(out, n, "%04u-%02u-%02u %02u:%02u", y, mo, d, h, mi);
+    else
+        snprintf(out, n, "%04u-%02u-%02u", y, mo, d);
+}
+
 // ---- signing ----
 // This screen's lane is 24..776, not the page's 48..752, because its panels are
 // drawn at sg_panel(24, y, 752). So its corner is 776 and its exits are pinned
@@ -3529,10 +3545,14 @@ static void verify_screen(lv_obj_t *parent)
         // states both. An absolute lock takes the badge when there are both,
         // and the card names the age beside it.
         if (s_sum.lock_binds || s_sum.n_rel_lock) {
-            char ll[64], ra[48];
+            char ll[64], ra[48], lw_when[24];
             rel_max_str(ra, sizeof ra);
+            lock_when_str(lw_when, sizeof lw_when, false);
             snprintf(ll, sizeof ll, "%s  ", WT_ICON_LOCK);
-            if (s_sum.lock_binds)
+            if (s_sum.lock_binds && wpsbt_lock_is_time(s_sum.locktime))
+                snprintf(ll + strlen(ll), sizeof ll - strlen(ll),
+                         tr(STR_S_LOCK_DATE_FMT), lw_when);
+            else if (s_sum.lock_binds)
                 snprintf(ll + strlen(ll), sizeof ll - strlen(ll),
                          tr(STR_S_LOCK_AFTER_FMT), (unsigned)s_sum.locktime);
             else
@@ -3597,12 +3617,10 @@ static void verify_screen(lv_obj_t *parent)
             // lock is not ambiguous on a line that also carries the network
             // and the fingerprint.
             if (!q_fits && fr - lw - 12 - fx < 12) {
-                char ln[16], lnm[96];
-                if (s_sum.lock_binds)
-                    snprintf(ln, sizeof ln, "%u", (unsigned)s_sum.locktime);
+                char lnm[96];
                 snprintf(lnm, sizeof lnm, "%s  #%02X%02X%02X %s#", WT_ICON_LOCK,
                          MUT_COL.red, MUT_COL.green, MUT_COL.blue,
-                         s_sum.lock_binds ? ln : ra);
+                         s_sum.lock_binds ? lw_when : ra);
                 lv_label_set_text(lb, lnm);
                 lv_obj_update_layout(lb);
                 lw = lv_obj_get_width(lb);
@@ -5034,8 +5052,13 @@ static void det_term_cb(lv_event_t *e)
         // kiss_psbt_details may refuse, which drew "locktime 0: can confirm any
         // time" under a badge naming the block it cannot confirm before. One
         // fact, one source.
-        body = wt_split_colon(s_sum.locktime ? tr(STR_S_D_LT_NONZERO)
-                                             : tr(STR_S_D_LT_ZERO),
+        // A locktime every input switches off is no lock, and the card says
+        // so rather than naming a block the payment does not wait for.
+        body = wt_split_colon(!s_sum.locktime ? tr(STR_S_D_LT_ZERO)
+                              : !s_sum.lock_binds ? tr(STR_S_D_LT_OFF)
+                              : wpsbt_lock_is_time(s_sum.locktime)
+                                  ? tr(STR_S_D_LT_TIME)
+                                  : tr(STR_S_D_LT_NONZERO),
                               head, sizeof head);
         // A relative lock (BIP68) on any input, counted over every input. With
         // no locktime the line above says it "can confirm any time", which an
@@ -5057,9 +5080,10 @@ static void det_term_cb(lv_event_t *e)
         // room for. Without it the card was a title over one line of grey and
         // 250px of nothing -- the VOID shape -- opened from a badge whose whole
         // content is a number the card then never mentioned.
-        if (s_sum.locktime) {
-            snprintf(vbuf, sizeof vbuf, "%u", (unsigned)s_sum.locktime);
-            cap = tr(STR_S_D_LT_CAP);
+        if (s_sum.lock_binds) {
+            lock_when_str(vbuf, sizeof vbuf, true);
+            cap = tr(wpsbt_lock_is_time(s_sum.locktime) ? STR_S_D_LT_TIME_CAP
+                                                        : STR_S_D_LT_CAP);
             val = vbuf;
         }
         break;

@@ -163,6 +163,13 @@ UNTRANSLATED_OK = {
     "S_RLOCK_HOURS_FMT",
     "S_RLOCK_DAYS_FMT",
     "S_D_RLOCK_FMT",
+    # An absolute lock set as a time, its card and caption, and the card for
+    # a lock no input enforces. Born under the English-only rule; English in
+    # the other locales until the translation sweep.
+    "S_LOCK_DATE_FMT",
+    "S_D_LT_TIME",
+    "S_D_LT_OFF",
+    "S_D_LT_TIME_CAP",
     # New device radio explainer; English in other locales until the UI
     # translation sweep, matching the other new Settings help cards.
     "I_DEV_RADIO_HELP",

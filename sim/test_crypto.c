@@ -1669,6 +1669,40 @@ int main(int argc, char **argv) {
     chkb("final-seq is not replaceable", !sum.rbf);
     kiss_psbt_free();
 
+    // ---- an absolute lock is a height below 500,000,000 and a time above ----
+    chkb("lock 499999999 is a height", !wpsbt_lock_is_time(499999999u));
+    chkb("lock 500000000 is a time", wpsbt_lock_is_time(500000000u));
+    chkb("lock max is a time", wpsbt_lock_is_time(0xFFFFFFFFu));
+    {
+        unsigned y, mo, d, h, mi;
+        wpsbt_utc(500000000u, &y, &mo, &d, &h, &mi);
+        chkb("utc threshold is 1985-11-05 00:53",
+             y == 1985 && mo == 11 && d == 5 && h == 0 && mi == 53);
+        wpsbt_utc(951782400u, &y, &mo, &d, &h, &mi);
+        chkb("utc leap day 2000-02-29", y == 2000 && mo == 2 && d == 29 && h == 0);
+        wpsbt_utc(951868799u, &y, &mo, &d, &h, &mi);
+        chkb("utc last second of 2000-02-29",
+             y == 2000 && mo == 2 && d == 29 && h == 23 && mi == 59);
+        wpsbt_utc(1767225599u, &y, &mo, &d, &h, &mi);
+        chkb("utc year end 2025-12-31 23:59",
+             y == 2025 && mo == 12 && d == 31 && h == 23 && mi == 59);
+        wpsbt_utc(0xFFFFFFFFu, &y, &mo, &d, &h, &mi);
+        chkb("utc max is 2106-02-07 06:28",
+             y == 2106 && mo == 2 && d == 7 && h == 6 && mi == 28);
+    }
+    // A lock set as a date binds exactly as a height does, and the same
+    // all-final sequences switch it off.
+    pl = mk_acct_psbt(0, 0, 1793534400u, 0xFFFFFFFD, pb, sizeof pb);
+    chki("time lock load rc", kiss_psbt_load(pb, pl, &sum), 0);
+    chkb("time lock binds", sum.lock_binds);
+    chkb("time lock reads as a time", wpsbt_lock_is_time(sum.locktime));
+    chki("time lock raises nothing", sum.caution_flags, 0);
+    kiss_psbt_free();
+    pl = mk_acct_psbt(0, 0, 1793534400u, 0xFFFFFFFF, pb, sizeof pb);
+    chki("final-seq time lock load rc", kiss_psbt_load(pb, pl, &sum), 0);
+    chkb("final-seq time lock does not bind", !sum.lock_binds);
+    kiss_psbt_free();
+
     // ---- BIP68: an input can ask its coin for a minimum age ----
     // The decoder alone, on every shape the rule has.
     {
