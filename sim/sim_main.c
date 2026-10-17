@@ -953,12 +953,12 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
   }
   // SIM_BIG puts amounts at the edges of the accepted range on the plain
   // payment fixture, so a walk can photograph whether every digit survives:
-  // "pico" a 10 BTC fee on a 101 BTC send, "10k" a single 10 000 BTC coin,
+  // "101" a 10 BTC fee on a 101 BTC send, "10k" a single 10 000 BTC coin,
   // "max" a single 21M BTC coin, "maxfee" a fee of 11M BTC. Off by default.
   const char *big = getenv("SIM_BIG");
   if (big && len >= 16 && memcmp(bytes, "fake-psbt-binary", 16) == 0) {
     uint64_t in = 0, fee = 0, send = 0;
-    if (!strcmp(big, "pico"))   { in = 11100000000ull;      fee = 1000000000ull;      send = 10100000000ull; }
+    if (!strcmp(big, "101"))    { in = 11100000000ull;      fee = 1000000000ull;      send = 10100000000ull; }
     if (!strcmp(big, "10k"))    { in = 1000000000000ull;    fee = 1000000000ull;      send = 900000000000ull; }
     if (!strcmp(big, "max"))    { in = 2100000000000000ull; fee = 1000000000ull;      send = 2000000000000000ull; }
     if (!strcmp(big, "maxfee")) { in = 2100000000000000ull; fee = 1100000000000000ull; send = 999999999999000ull; }
