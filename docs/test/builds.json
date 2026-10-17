@@ -38,6 +38,28 @@
           "sha256": "f603e52054e9f2ac40c4255a44b1870ee6efe525c044f3e44ce5326602e9ec72"
         }
       ]
+    },
+    {
+      "id": "ws5",
+      "name": "Waveshare 5in",
+      "commit": "ef3693ff",
+      "built": "2026-10-17",
+      "images": [
+        {
+          "path": "firmware/kiss-test-ef3693ff-ws5-v1.bin",
+          "minChipRevision": 100,
+          "maxChipRevision": 199,
+          "size": 6511232,
+          "sha256": "ac7e9b9c561652c2047b9c8e0298992fc8b34ef10abcd088875b6c497c0df895"
+        },
+        {
+          "path": "firmware/kiss-test-ef3693ff-ws5-v3.bin",
+          "minChipRevision": 300,
+          "maxChipRevision": 399,
+          "size": 6527088,
+          "sha256": "35c9babe9d7763165ca530749d719d9a18b85a2733c94b57275d241b3948f4f5"
+        }
+      ]
     }
   ]
 }
