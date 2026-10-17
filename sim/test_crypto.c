@@ -1464,6 +1464,47 @@ int main(int argc, char **argv) {
     chki("moderate-rate no cautions", sum.caution_flags, 0);
     kiss_psbt_free();
 
+    // The rate helper on its own: an ordinary fee, no size at all, and the
+    // reported case, 47 244 640 256 sats over 110 vB, which is 2^32 exactly
+    // and used to be stored as zero.
+    chki("rate x10 ordinary", (long long)wpsbt_rate_x10(1000, 141), 70);
+    chki("rate x10 with no size", (long long)wpsbt_rate_x10(1000, 0), 0);
+    chkb("rate x10 at 2^32 is not wrapped",
+         wpsbt_rate_x10(47244640256ull, 110) == (1ull << 32));
+    {
+        wpsbt_summary_t r = { .est_vsize = 110, .send_sats = 500000000000ull,
+                              .fee_sats = 47244640256ull };
+        r.fee_rate_x10 = wpsbt_rate_x10(r.fee_sats, r.est_vsize);
+        chkb("reported case: share alone is under a tenth",
+             !wpsbt_fee_share_high(&r));
+        chkb("reported case: rate is over the backstop",
+             r.fee_rate_x10 > WPSBT_HIGH_RATE_X10);
+    }
+
+    // The same backstop where the rate no longer fits its 32 bits. A fee whose
+    // rate x10 reaches 2^32 used to wrap to a small number, so a large send at
+    // a fee under a tenth of it passed both halves of the check. Sized off this
+    // shape's own vsize, so the old cast landed exactly on zero.
+    pl = mk_val_psbt(2000000, 1900000, 0, 0, pb, sizeof pb);
+    chki("wrap probe load rc", kiss_psbt_load(pb, pl, &sum), 0);
+    {
+        const uint64_t vs = sum.est_vsize;
+        kiss_psbt_free();
+        const uint64_t fee = ((1ull << 32) * vs + 9) / 10;   // rate x10 == 2^32
+        const uint64_t send = fee * 10 + 1;                  // share under a tenth
+        chkb("wrap point: the old cast gives zero",
+             (uint32_t)(fee * 10 / vs) == 0);
+        pl = mk_val_psbt(send + fee, send, 0, 0, pb, sizeof pb);
+        chki("wrap load rc", kiss_psbt_load(pb, pl, &sum), 0);
+        chkb("wrap fee is the one sized", sum.fee_sats == fee);
+        chkb("wrap share is small", !wpsbt_fee_share_high(&sum));
+        chkb("wrap rate is the full 64 bit value",
+             sum.fee_rate_x10 == (1ull << 32));
+        chki("wrap CAUTION", sum.status, WPSBT_CAUTION);
+        chkb("wrap flags high-fee", (sum.caution_flags & WPSBT_C_HIGHFEE) != 0);
+        kiss_psbt_free();
+    }
+
     // ---- change parked past every scanner's window ----
     // The attack needs only the account xpub: compute the address at a far-out
     // index, hand it back as change, and the signer confirms it is genuinely

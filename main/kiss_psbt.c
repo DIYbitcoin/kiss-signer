@@ -1163,8 +1163,7 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     // taproot key-path witness ~= 66 WU (1 item + 1 len + 64-byte schnorr sig)
     if (n49 + n84 + ntap)
         s->est_vsize += (uint32_t)((2 + 108 * (n49 + n84) + 66 * ntap + 3) / 4);
-    if (s->est_vsize)
-        s->fee_rate_x10 = (uint32_t)(s->fee_sats * 10 / s->est_vsize);
+    s->fee_rate_x10 = wpsbt_rate_x10(s->fee_sats, s->est_vsize);
 
     // Unknown/proprietary fields are a refusal, not a warning: v1 will not sign
     // past data it doesn't understand (spec safety model).

@@ -102,7 +102,7 @@ typedef struct {
     uint32_t n_in, n_out;
     uint64_t in_sats, send_sats, change_sats, fee_sats;
     uint32_t est_vsize;      // estimated final vsize (P2WPKH witness estimate)
-    uint32_t fee_rate_x10;   // sat/vB * 10 (one decimal, no floats on device)
+    uint64_t fee_rate_x10;   // sat/vB * 10 (one decimal, no floats on device)
     bool     rbf;
     uint32_t locktime;
     // The locktime BINDS: nonzero, and some input leaves its sequence short of
@@ -187,6 +187,16 @@ static inline bool wpsbt_fee_share_high(const wpsbt_summary_t *s)
 {
     uint64_t base = wpsbt_fee_base(s);
     return base > 0 && s->fee_sats * 10 >= base;
+}
+
+// The fee rate, sat/vB times ten, in 64 bits. It was 32, and a fee of 2^32 x
+// vsize / 10 sats (472 BTC at 110 vB) wrapped it to a small number that the
+// WPSBT_HIGH_RATE_X10 backstop then passed. 64 bits cannot wrap here: the fee
+// is at most in_sats, a few dozen amounts each capped at MAX_MONEY, so fee x 10
+// stays under 2^62. No size means no rate, which is zero.
+static inline uint64_t wpsbt_rate_x10(uint64_t fee_sats, uint32_t vsize)
+{
+    return vsize ? fee_sats * 10 / vsize : 0;
 }
 
 // ---- DETAILS page data (read on demand from the held PSBT) ----

@@ -3028,7 +3028,7 @@ static uint16_t caution_rows(uint16_t f, const char **parts, uint16_t *bits, int
                      (unsigned long long)(s_sum.fee_sats * 100 / wpsbt_fee_base(&s_sum)));
         else
             snprintf(fig, sizeof fig, tr(STR_S_FEERATE_FMT),
-                     (unsigned)(s_sum.fee_rate_x10 / 10),
+                     (unsigned long long)(s_sum.fee_rate_x10 / 10),
                      (unsigned)(s_sum.fee_rate_x10 % 10));
         // Two spaces, the join tr_sym uses: the claim is translated and the
         // figure is translated, and nothing in between needs to be.
@@ -4840,8 +4840,8 @@ static void sign_term_more(int id)
              tr(STR_T_FEE2_VB));
     // One decimal, no floats: fee_rate_x10 is sat/vB times ten because this
     // arithmetic also runs on a device with no FPU worth using.
-    snprintf(rate, sizeof rate, "%u.%u %s",
-             (unsigned)(s_sum.fee_rate_x10 / 10),
+    snprintf(rate, sizeof rate, "%llu.%u %s",
+             (unsigned long long)(s_sum.fee_rate_x10 / 10),
              (unsigned)(s_sum.fee_rate_x10 % 10), tr(STR_T_FEE2_SPV));
     fmt_sats(s_sum.fee_sats, sats, sizeof sats);
     snprintf(prod, sizeof prod, "%s %s", sats, wt_denom_unit());
@@ -5355,13 +5355,13 @@ static void dtab_tx(lv_obj_t *p)
     char fee_line[256];
     if (s_sum.send_sats)
         snprintf(fee_line, sizeof fee_line, tr(STR_S_FEERATE_PCT_FMT),
-                 (unsigned)(s_sum.fee_rate_x10 / 10),
+                 (unsigned long long)(s_sum.fee_rate_x10 / 10),
                  (unsigned)(s_sum.fee_rate_x10 % 10),
                  (unsigned long long)(pct10 / 10),
                  (unsigned long long)(pct10 % 10));
     else
         snprintf(fee_line, sizeof fee_line, tr(STR_S_FEERATE_FMT),
-                 (unsigned)(s_sum.fee_rate_x10 / 10),
+                 (unsigned long long)(s_sum.fee_rate_x10 / 10),
                  (unsigned)(s_sum.fee_rate_x10 % 10));
 
     const int flh = lv_font_get_line_height(wt_font23());
