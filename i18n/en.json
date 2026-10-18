@@ -367,7 +367,7 @@
   "L_SCAN_BTN": "SCAN",
   "L_SCAN_GO": "SCAN IT",
   "L_SCAN_REFUSED": "THIS KEYBOARD CANNOT TYPE THAT QR.",
-  "L_SCAN_WARN_B": "whoever can read that QR can open\nthese keys.\n\na photo of it is the same as the QR.\n\nthe scan is used exactly as printed.",
+  "L_SCAN_WARN_B": "This QR contains your passphrase without encryption.\nAnyone who scans it, or a photo of it,\ncan read your passphrase.\n\nAnyone with your seed words and this QR can access your wallet.\nKeep them separate.",
   "L_SCAN_WARN_S": "read this first",
   "L_SCAN_WARN_T": "PASSPHRASE FROM A QR",
   "L_STRONG": "STRONG",
