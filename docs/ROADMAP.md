@@ -12,6 +12,8 @@ vectors. Nobody outside the project has reviewed any of it. See
 
 ## Signing
 
+KISS is a single-sig signer. Multisig is out of scope and is not planned.
+
 | Feature | Status | Notes |
 |---|---|---|
 | Single sig Native SegWit (BIP84) | done | `m/84h/0h/0h`, testnet on `84h/1h` |
@@ -27,7 +29,6 @@ vectors. Nobody outside the project has reviewed any of it. See
 | Silent Payments send (BIP375) | done | Destination derived on the device, DLEQ proof generated and verified |
 | Silent Payments spend (BIP376) | done | Both Y parities; a tweak that does not reproduce the on-chain key is refused |
 | Silent Payments scan key export (BIP392) | done | `sp(spscan)` descriptor |
-| Multisig | planned | No timeline |
 | Taproot key path wallet | planned | P2TR appears today only on the Silent Payments path |
 | Message signing | planned | |
 
