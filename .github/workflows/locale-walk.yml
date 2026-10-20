@@ -60,6 +60,9 @@ concurrency:
   group: locale-nightly
   cancel-in-progress: false
 
+env:
+  NODE_OPTIONS: --use-openssl-ca
+
 jobs:
   walk:
     runs-on: ubuntu-latest
@@ -81,6 +84,9 @@ jobs:
       KISS_BOARD: ${{ matrix.board }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Prepare TLS trust for downloads
+        run: python3 .github/scripts/with_trusted_ca.py --github-env
 
       - name: generated tables match the JSONs
         run: |

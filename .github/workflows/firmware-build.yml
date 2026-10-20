@@ -40,6 +40,9 @@ on:
   workflow_call:
   workflow_dispatch:
 
+env:
+  NODE_OPTIONS: --use-openssl-ca
+
 jobs:
   dev-build:
     runs-on: ubuntu-latest
@@ -67,6 +70,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Prepare TLS trust for downloads
+        run: python3 .github/scripts/with_trusted_ca.py --github-env
+
       # GIT_CONFIG_* marks /project safe: the checkout is owned by the runner
       # user, the container builds as another, and idf.py reads git for the
       # version it bakes in.
@@ -87,7 +93,7 @@ jobs:
             -e GIT_CONFIG_VALUE_0=/project \
             -v "$PWD":/project -w /project \
             "$KISS_IDF_IMAGE" \
-            idf.py ${{ matrix.args }} -DKISS_COMMIT="$(git rev-parse --short HEAD)" build
+            python3 .github/scripts/with_trusted_ca.py idf.py ${{ matrix.args }} -DKISS_COMMIT="$(git rev-parse --short HEAD)" build
 
       - name: Image size and link hygiene
         run: |

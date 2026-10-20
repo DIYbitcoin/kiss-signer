@@ -39,6 +39,9 @@ concurrency:
   group: pages
   cancel-in-progress: false
 
+env:
+  NODE_OPTIONS: --use-openssl-ca
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -47,6 +50,9 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Prepare TLS trust for downloads
+        run: python3 .github/scripts/with_trusted_ca.py --github-env
 
       - uses: actions/configure-pages@v5
 

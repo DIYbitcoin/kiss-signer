@@ -79,7 +79,7 @@ if [ "$KISS_BOARD" != "guition" ]; then
     -e GIT_CONFIG_VALUE_0=/project \
     -v "$PWD":/project -w /project "$KISS_IDF_IMAGE" \
     sh -c "rm -f '$BUILD/profile/sdkconfig' && \
-           idf.py -B '$BUILD/profile' ${BOARD_ARGS[*]} reconfigure"
+           python3 .github/scripts/with_trusted_ca.py idf.py -B '$BUILD/profile' ${BOARD_ARGS[*]} reconfigure"
   SDKCONFIG_SRC="$BUILD/profile/sdkconfig"
   SDKCONFIG_REL="$BUILD/sdkconfig.release"
 fi
@@ -207,7 +207,7 @@ docker run --rm \
   -e GIT_CONFIG_KEY_0=safe.directory \
   -e GIT_CONFIG_VALUE_0=/project \
   -v "$PWD":/project -w /project "$KISS_IDF_IMAGE" \
-  idf.py -B "$BUILD" -DSDKCONFIG="/project/$SDKCONFIG_REL" ${BOARD_ARGS[@]+"${BOARD_ARGS[@]}"} \
+  python3 .github/scripts/with_trusted_ca.py idf.py -B "$BUILD" -DSDKCONFIG="/project/$SDKCONFIG_REL" ${BOARD_ARGS[@]+"${BOARD_ARGS[@]}"} \
   -DKISS_RELEASE=1 -DKISS_COMMIT="$GIT_REV" build
 
 # ---- sign the app, on the HOST ----
