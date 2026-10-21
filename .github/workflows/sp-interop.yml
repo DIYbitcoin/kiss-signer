@@ -1,0 +1,52 @@
+name: Silent Payment interoperability
+
+on:
+  workflow_call:
+    inputs:
+      bdk_ref:
+        description: Coordinator commit or ref to test
+        type: string
+        default: main
+  workflow_dispatch:
+    inputs:
+      bdk_ref:
+        description: Coordinator commit or ref to test
+        type: string
+        default: main
+
+permissions:
+  contents: read
+
+env:
+  NODE_OPTIONS: --use-openssl-ca
+  CARGO_TERM_COLOR: always
+
+jobs:
+  sp-interop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: signer
+          persist-credentials: false
+      - name: Prepare TLS trust for downloads
+        run: python3 signer/.github/scripts/with_trusted_ca.py --github-env
+      # main must contain the required test suite before this workflow lands.
+      # Record the resolved SHA; dispatch accepts a SHA to reproduce a run.
+      - uses: actions/checkout@v4
+        with:
+          repository: kkdao/kiss-bdk
+          ref: ${{ inputs.bdk_ref || 'main' }}
+          path: coordinator
+          persist-credentials: false
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libv4l-dev libclang-dev clang libssl-dev ca-certificates
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: coordinator -> target
+      - name: Send, spend, and recover Silent Payment change
+        run: bash signer/sim/run_sp_interop.sh coordinator

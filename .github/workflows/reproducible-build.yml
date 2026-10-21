@@ -71,7 +71,11 @@ env:
   KISS_UNSIGNED: "1"
 
 jobs:
+  sp-interop:
+    uses: ./.github/workflows/sp-interop.yml
+
   release-build:
+    needs: sp-interop
     runs-on: ubuntu-latest
     strategy:
       # One board failing says nothing about the other, and hiding the second
@@ -270,6 +274,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   encrypted-release-build:
+    needs: sp-interop
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

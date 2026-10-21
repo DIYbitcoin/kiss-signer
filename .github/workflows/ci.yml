@@ -38,6 +38,9 @@ jobs:
   attribution:
     uses: ./.github/workflows/attribution.yml
 
+  sp-interop:
+    uses: ./.github/workflows/sp-interop.yml
+
   desktop-tests:
     if: >-
       github.event_name != 'push' ||

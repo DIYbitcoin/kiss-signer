@@ -31,6 +31,28 @@ change production signing or PSBT serialization.
 
 For a separate runner, build with
 `bash sim/build_sp_interop.sh /absolute/path/to/signer` and set
-`KISS_INTEROP_SIGNER` to that binary when running the two `c_signer` tests.
+`KISS_INTEROP_SIGNER` to that binary when running the three `c_signer` tests.
 The bridge refuses to overwrite its output and only signs a READY request;
 exit 3 means an explicit STOP, while exit 2 is an operational/test failure.
+
+## Continuous integration
+
+The `sp-interop` job in CI runs this suite on every push and pull request.
+The reproducible release workflow also requires it before either release build,
+including when that workflow is dispatched directly. The main CI run therefore
+checks interoperability both independently and inside the release gate.
+
+The signer under review is tested against `kkdao/kiss-bdk` main. The reusable
+workflow and manual dispatch accept `bdk_ref` to reproduce a run against a
+specific commit. Both checkout revisions are printed. Publish the coordinator's
+runner and all three tests before enabling this workflow: an older companion
+checkout must fail, never silently skip the suite. Require the CI check in
+repository branch protection separately; this patch does not change server
+settings. The coordinator's own CI tests its changes against a pinned signer.
+
+The combined spend/send test covers both input-key parities, two inputs,
+separate payment and change codes, and paying our own code twice. It verifies
+both derived outputs and signatures, rejects redirected outputs and altered
+change amounts, finalizes the transaction, and scans it to recover the change.
+This remains an offline regression check; no firmware or wallet behavior is
+changed.
