@@ -2,6 +2,7 @@
 // the sealed seed uses atomic replace/delete so a pulled card cannot truncate
 // the only durable destination during a storage-mode migration.
 #include "platform_sd.h"
+#include "sha256/sha256.h"
 
 #include <dirent.h>
 #include <errno.h>
@@ -192,15 +193,45 @@ static int name_cmp(const void *a, const void *b)
     return strcasecmp(na, nb);          // stable, obvious A-Z order within each group
 }
 
-// Does `cand` name the "-signed.psbt" sibling of `src`? Compared against the
-// source's own length so "payment-011.psbt" is not claimed by
-// "payment-01-signed.psbt", and case insensitively because FAT preserves case
-// but does not respect it.
-static int is_sibling_of(const char *signed_name, size_t base, const char *src)
+// Preserve short names. Long names include a digest of the complete source,
+// so truncating their readable prefix cannot merge distinct transactions.
+int platform_sd_signed_name(const char *src, char *out, size_t cap)
 {
-    return strlen(src) == base + 5 &&
-           strncasecmp(src, signed_name, base) == 0 &&
-           strcasecmp(src + base, ".psbt") == 0;
+    if (!name_ok(src) || !out) return -3;
+    size_t n = strlen(src);
+    if (n <= 5 || strcasecmp(src + n - 5, ".psbt") != 0) return -3;
+    char result[SD_NAME_LEN];
+    if (name_is_signed(src)) {
+        memcpy(result, src, n + 1);
+    } else if (n - 5 <= SD_NAME_LEN - 1 - 12) {
+        snprintf(result, sizeof result, "%.*s-signed.psbt", (int)(n - 5), src);
+    } else {
+        // ASCII case folding matches FAT names and the signed-sibling scan.
+        uint8_t folded[SD_NAME_LEN], digest[32];
+        for (size_t i = 0; i < n; i++)
+            folded[i] = src[i] >= 'A' && src[i] <= 'Z' ? src[i] + ('a' - 'A') : (uint8_t)src[i];
+        CRYAL_SHA256_CTX ctx;
+        ur_bundled_sha256_init(&ctx);
+        ur_bundled_sha256_update(&ctx, folded, n);
+        ur_bundled_sha256_final(&ctx, digest);
+        char hex[17];
+        for (int i = 0; i < 8; i++) snprintf(hex + 2 * i, 3, "%02x", digest[i]);
+        size_t prefix = SD_NAME_LEN - 1 - 12 - 1 - 16;
+        // Do not cut through a UTF-8 character in the readable prefix.
+        while (prefix && ((uint8_t)src[prefix] & 0xc0) == 0x80) prefix--;
+        snprintf(result, sizeof result, "%.*s-%s-signed.psbt", (int)prefix, src, hex);
+    }
+    if (strlen(result) >= cap) return -3;
+    memcpy(out, result, strlen(result) + 1);  // src and out may alias
+    return 0;
+}
+
+static int is_sibling_of(const char *signed_name, const char *src)
+{
+    char expected[SD_NAME_LEN];
+    return !name_is_signed(src) &&
+           platform_sd_signed_name(src, expected, sizeof expected) == 0 &&
+           strcasecmp(expected, signed_name) == 0;
 }
 
 // One pass over the directory. See platform_sd.h for why it must be the
@@ -226,7 +257,7 @@ static int signed_pass(char names[][SD_NAME_LEN], uint8_t *mark, int n,
         if (!mark || base == 0)             // a bare "-signed.psbt" owns nothing
             continue;
         for (int i = 0; i < n; i++)
-            if (is_sibling_of(nm, base, names[i]))
+            if (is_sibling_of(nm, names[i]))
                 mark[i] = 1;
     }
     closedir(d);
@@ -649,6 +680,47 @@ int platform_sd_write_atomic(const char *name, const uint8_t *buf, size_t len)
             return PLATFORM_SD_ATOMIC_CLEANUP;
     }
     return 0;
+}
+
+// Only identical exports may replace an existing destination. The digest in
+// long names is a convenience, not the data-loss guard. Scan case-insensitively
+// even on the host so simulator behavior agrees with a FAT card.
+int platform_sd_write_signed(const char *src, const uint8_t *buf, size_t len,
+                             char *out, size_t cap)
+{
+    char name[SD_NAME_LEN];
+    if (!buf || !len || !out ||
+        platform_sd_signed_name(src, name, sizeof name) != 0 ||
+        strlen(name) >= cap) return -3;
+    DIR *d = opendir(SD_BASE);
+    if (!d) return -1;
+    struct dirent *e;
+    int rc = 0;
+    errno = 0;
+    while ((e = readdir(d)) != NULL) {
+        if (strcasecmp(e->d_name, name) != 0) continue;
+        char p[SD_PATH_MAX];
+        if (full_path(p, sizeof p, e->d_name) != 0 || !file_matches(p, buf, len)) {
+            rc = -2;
+            break;
+        }
+        memcpy(name, e->d_name, strlen(e->d_name) + 1);
+        errno = 0;
+    }
+    if (errno) rc = -2;
+    if (closedir(d) != 0) rc = -2;
+    if (rc < 0) return rc;
+    // Restore an interrupted replacement before checking the destination again.
+    if (recover_atomic(name) < 0) return -2;
+    char p[SD_PATH_MAX];
+    struct stat st;
+    if (full_path(p, sizeof p, name) != 0) return -3;
+    if (stat(p, &st) == 0) {
+        if (!S_ISREG(st.st_mode) || !file_matches(p, buf, len)) return -2;
+    } else if (errno != ENOENT) return -2;
+    rc = platform_sd_write_atomic(name, buf, len);
+    if (rc >= 0) memcpy(out, name, strlen(name) + 1);
+    return rc;
 }
 
 int platform_sd_delete(const char *name)

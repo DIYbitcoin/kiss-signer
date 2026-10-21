@@ -36,6 +36,14 @@ int  platform_sd_list_psbt(char names[][SD_NAME_LEN], int max, int *total);
 int  platform_sd_read(const char *name, uint8_t *buf, size_t max, size_t *len);
 int  platform_sd_write(const char *name, const uint8_t *buf, size_t len);
 
+// Shared export naming and writing. Long source names retain a readable prefix
+// plus a digest of the full name. Existing exports with different bytes are
+// refused; callers must retain the signature and offer retry/QR recovery.
+// out may alias src and receives the actual filename only on success.
+int platform_sd_signed_name(const char *src, char *out, size_t cap);
+int platform_sd_write_signed(const char *src, const uint8_t *buf, size_t len,
+                             char *out, size_t cap);
+
 // The device's own signed outputs (*-signed.psbt), in one directory pass.
 //
 // names/mark/n: mark[i] becomes 1 when names[i]'s "-signed.psbt" sibling is on

@@ -390,10 +390,98 @@ static void test_keep_tag(void) {
     dchk("keep: leave a clean device", kiss_seed_wipe() == WSEED_OK);
 }
 
+static void test_sd_export_names(void)
+{
+    clear_psbts();
+    char sources[3][SD_NAME_LEN] = {
+        "coordinator-payment-batch-xxxxxxxxxxxxxxxxxxxxxxxxx-a.psbt",
+        "coordinator-payment-batch-xxxxxxxxxxxxxxxxxxxxxxxxx-b.psbt",
+        "coordinator-payment-batch-xxxxxxxxxxxxxxxxxxxxxxxxx.psbt"
+    };
+    char outputs[3][SD_NAME_LEN] = {{0}};
+    const uint8_t a[] = {1, 2, 3}, b[] = {4, 5, 6};
+    uint8_t got[32], mark[3];
+    size_t len = 0;
+    for (int i = 0; i < 3; i++) {
+        dchk("exports: plant same-prefix sources",
+             platform_sd_write(sources[i], a, sizeof a) == 0);
+        dchk("exports: save distinct same-prefix transactions",
+             platform_sd_write_signed(sources[i], i == 1 ? b : a, sizeof a,
+                                       outputs[i], sizeof outputs[i]) >= 0);
+    }
+    dchk("exports: long and boundary-length names stay distinct",
+         strcmp(outputs[0], outputs[1]) && strcmp(outputs[0], outputs[2]) &&
+         strcmp(outputs[1], outputs[2]));
+    dchk("exports: first export survives later saves",
+         platform_sd_read(outputs[0], got, sizeof got, &len) == 0 &&
+         len == sizeof a && memcmp(got, a, len) == 0);
+    dchk("exports: second export has its own bytes",
+         platform_sd_read(outputs[1], got, sizeof got, &len) == 0 &&
+         len == sizeof b && memcmp(got, b, len) == 0);
+    dchk("exports: scan recognizes all three source names",
+         platform_sd_signed_scan(sources, mark, 3, 0) == 3 &&
+         mark[0] && mark[1] && mark[2]);
+    char retry[SD_NAME_LEN];
+    dchk("exports: identical retry keeps the same filename",
+         platform_sd_write_signed(sources[0], a, sizeof a, retry, sizeof retry) >= 0 &&
+         strcmp(retry, outputs[0]) == 0);
+    dchk("exports: already-signed import does not append another suffix",
+         platform_sd_write_signed(outputs[0], a, sizeof a, retry, sizeof retry) >= 0 &&
+         strcmp(retry, outputs[0]) == 0);
+    dchk("exports: different bytes cannot overwrite an export",
+         platform_sd_write_signed(sources[0], b, sizeof b, retry, sizeof retry) < 0);
+    dchk("exports: refused replacement preserves original bytes",
+         platform_sd_read(outputs[0], got, sizeof got, &len) == 0 &&
+         len == sizeof a && memcmp(got, a, len) == 0);
+    dchk("exports: original source is untouched",
+         platform_sd_read(sources[1], got, sizeof got, &len) == 0 &&
+         len == sizeof a && memcmp(got, a, len) == 0);
+    char upper[SD_NAME_LEN];
+    for (size_t i = 0; i <= strlen(sources[0]); i++)
+        upper[i] = sources[0][i] >= 'a' && sources[0][i] <= 'z' ?
+                   sources[0][i] - ('a' - 'A') : sources[0][i];
+    dchk("exports: case aliases cannot overwrite a different export",
+         platform_sd_write_signed(upper, b, sizeof b, retry, sizeof retry) < 0);
+    dchk("exports: identical case alias reuses actual filename",
+         platform_sd_write_signed(upper, a, sizeof a, retry, sizeof retry) >= 0 &&
+         strcmp(retry, outputs[0]) == 0);
+    dchk("exports: retries create no extra files",
+         platform_sd_signed_scan(NULL, NULL, 0, 0) == 3);
+
+    char longest[SD_NAME_LEN];
+    memset(longest, 'z', sizeof longest);
+    memcpy(longest + SD_NAME_LEN - 6, ".psbt", 6);
+    dchk("exports: maximum accepted source length exports within limit",
+         platform_sd_write_signed(longest, a, sizeof a, retry, sizeof retry) >= 0 &&
+         strlen(retry) < SD_NAME_LEN);
+    dchk("exports: output buffer may alias source",
+         platform_sd_signed_name(retry, retry, sizeof retry) == 0);
+    dchk("exports: small output buffers refuse without writing",
+         platform_sd_write_signed("small.psbt", a, sizeof a, retry, 4) < 0 &&
+         platform_sd_read("small-signed.psbt", got, sizeof got, &len) < 0);
+    dchk("exports: invalid input name refuses",
+         platform_sd_signed_name("../bad.psbt", retry, sizeof retry) < 0);
+
+    // An interrupted replacement can leave only a backup. Recover it before
+    // deciding that the destination is unused, or a collision loses that file.
+    char target[256], backup[256], side[SD_NAME_LEN + 8];
+    snprintf(side, sizeof side, "%s.bak", outputs[0]);
+    dchk("exports: stage interrupted replacement",
+         rename(sdp(target, sizeof target, outputs[0]),
+                sdp(backup, sizeof backup, side)) == 0);
+    dchk("exports: recovered backup cannot be overwritten by different bytes",
+         platform_sd_write_signed(sources[0], b, sizeof b, retry, sizeof retry) < 0);
+    dchk("exports: recovered export retains its bytes",
+         platform_sd_read(outputs[0], got, sizeof got, &len) == 0 &&
+         len == sizeof a && memcmp(got, a, len) == 0);
+    clear_psbts();
+}
+
 int test_sdseed_layer(void) {
     test_sd_list();
     test_sd_info();
     test_sd_signed_scan();
+    test_sd_export_names();
     uint8_t key[32], key2[32];
     uint8_t blob[SDSEED_MAX_BLOB], blob2[SDSEED_MAX_BLOB];
     size_t len = 0, len2 = 0;

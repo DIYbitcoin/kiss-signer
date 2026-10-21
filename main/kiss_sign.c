@@ -223,37 +223,6 @@ static bool is_signed_name(const char *nm)
     return n >= 12 && strcasecmp(nm + n - 12, "-signed.psbt") == 0;
 }
 
-// The name a signature for `src` gets written under, into s_done_name -- which
-// is also the buffer the "?" panel rebuilds the SIGNED screen from, so filling
-// it here is what stops that screen showing a blank filename.
-//
-// Two things this gets right that the open-coded version did not:
-//
-//  - It CLAMPS. The old code appended unconditionally, so a 57 character source
-//    produced a 64 character name, name_ok refused it, and platform_sd_write
-//    returned -3 -- discarding a signature that already existed in RAM, behind a
-//    generic write error. A truncated name is recoverable; a lost signature is
-//    a second hold-to-sign at best.
-//  - It does not re-append. Signing an already-signed file used to make
-//    "x-signed-signed.psbt", growing seven characters a round toward that same
-//    cliff. Re-signing is deterministic, so writing the same name back is not a
-//    loss: it is the same bytes.
-static const char *signed_name(const char *src)
-{
-    if (is_signed_name(src)) {
-        snprintf(s_done_name, sizeof s_done_name, "%s", src);
-        return s_done_name;
-    }
-    size_t bl = strlen(src);
-    if (bl > 5) bl -= 5;                                  // strip ".psbt"
-    // "-signed.psbt" is 12 bytes, and name_ok wants the whole thing under
-    // SD_NAME_LEN including its NUL.
-    size_t room = SD_NAME_LEN - 1 - 12;
-    if (bl > room) bl = room;
-    snprintf(s_done_name, sizeof s_done_name, "%.*s-signed.psbt", (int)bl, src);
-    return s_done_name;
-}
-
 // The QR-out screen's widgets and the timer that paints them.
 //
 // THIS BELONGS TO THE SCREEN SWITCH, NOT TO THE ABANDON, and for a long time
@@ -1454,12 +1423,13 @@ static void held_deliver(bool to_qr)
     // Keyed off s_src, never off s_cur being set: s_cur holds whatever file was
     // last picked, so a QR signed in the same session as an earlier card would
     // otherwise be written under the earlier transaction's name.
-    const char *outname = s_src == SRC_SD ? signed_name(s_cur) : held_name();
-    if (platform_sd_write_atomic(outname, s_out, s_signed_len) < 0) {
+    const char *source = s_src == SRC_SD ? s_cur : held_name();
+    if (platform_sd_write_signed(source, s_out, s_signed_len,
+                                 s_done_name, sizeof s_done_name) < 0) {
         held_screen(parent, tr(STR_S_FAIL_SD_WRITE), false);
         return;
     }
-    done_screen(outname);
+    done_screen(s_done_name);
     mo_start(lv_obj_get_parent(s_scr), s_signed_len, true);
 }
 
@@ -2283,19 +2253,17 @@ static void finish_sign_cb(lv_timer_t *t)
         mo_start(lv_obj_get_parent(s_scr), sw, s_src != SRC_QR);
         return;
     }
-    const char *outname = signed_name(s_cur);
-    // Atomic, like the seed and the proof. This overwrites when the file is
-    // already there, and a plain fopen("wb") truncates on open -- so a card
-    // pulled mid-write replaced a good signature with a short one. The atomic
-    // form keeps the old file until the new one is written and verified.
-    int rc = platform_sd_write_atomic(outname, s_out, sw);
+    // Keep any different existing export intact. On conflict, retain this
+    // signature in RAM and offer the same retry/QR recovery as a write failure.
+    int rc = platform_sd_write_signed(s_cur, s_out, sw,
+                                      s_done_name, sizeof s_done_name);
     if (rc < 0) {
         // NOT fail_screen: the signature exists. held_screen keeps it and
         // offers the card again or a QR instead.
         held_screen(lv_obj_get_parent(s_scr), tr(STR_S_FAIL_SD_WRITE), false);
         return;
     }
-    done_screen(outname);
+    done_screen(s_done_name);
     // AFTER the screen, never instead of it: the motion is drawn over a
     // finished page, so a skip is a delete and DONE was live the whole time.
     mo_start(lv_obj_get_parent(s_scr), sw, s_src != SRC_QR);
