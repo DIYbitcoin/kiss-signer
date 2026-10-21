@@ -56,7 +56,8 @@ static void spk_for(int purpose, const uint8_t pub[33], uint8_t *out, size_t *le
 
 // A previous transaction paying `amount` to `spk` at output 0, shaped like a
 // real one: a segwit input with a 107-byte witness, and `n_out` outputs in
-// all (2 for a wallet spend, 20 for an exchange payout).
+// all (2 for a wallet spend, 20 for an exchange payout). The one-output form
+// omits the witness to fit the 17-input boundary fixtures in the input buffer.
 static struct wally_tx *prev_tx(int seed, const uint8_t *spk, size_t spk_len,
                                 uint64_t amount, int n_out)
 {
@@ -69,9 +70,11 @@ static struct wally_tx *prev_tx(int seed, const uint8_t *spk, size_t spk_len,
     uint8_t sig[72], pub[33];
     memset(sig, 0x30, sizeof sig);
     memset(pub, 0x02, sizeof pub);
-    wally_tx_witness_stack_init_alloc(2, &ws);
-    wally_tx_witness_stack_add(ws, sig, sizeof sig);
-    wally_tx_witness_stack_add(ws, pub, sizeof pub);
+    if (n_out > 1) {
+        wally_tx_witness_stack_init_alloc(2, &ws);
+        wally_tx_witness_stack_add(ws, sig, sizeof sig);
+        wally_tx_witness_stack_add(ws, pub, sizeof pub);
+    }
     wally_tx_add_raw_input(t, txid, 32, 1, 0xFFFFFFFD, NULL, 0, ws, 0);
     wally_tx_witness_stack_free(ws);
     wally_tx_add_raw_output(t, amount, spk, spk_len, 0);
@@ -83,7 +86,7 @@ static struct wally_tx *prev_tx(int seed, const uint8_t *spk, size_t spk_len,
 typedef struct {
     const char *name;
     int n_in;
-    int purpose[4];      // per input: 44 / 49 / 84
+    int purpose[WPSBT_MAX_INS + 1]; // per input: 44 / 49 / 84
     int prev_outs;       // outputs in each previous transaction
     int version;         // PSBT version: 0 or 2
     int xpub;            // carry a global xpub, as Sparrow does
@@ -105,10 +108,10 @@ static size_t build(const shape_t *sh, uint8_t *out, size_t cap)
 
     struct wally_tx *tx = NULL;
     wally_tx_init_alloc(2, 0, (size_t)sh->n_in, 2, &tx);
-    struct wally_tx *prevs[4] = {0};
-    struct ext_key kin[4];
-    uint8_t in_spk[4][25];
-    size_t in_len[4];
+    struct wally_tx *prevs[WPSBT_MAX_INS + 1] = {0};
+    struct ext_key kin[WPSBT_MAX_INS + 1];
+    uint8_t in_spk[WPSBT_MAX_INS + 1][25];
+    size_t in_len[WPSBT_MAX_INS + 1];
     for (int i = 0; i < sh->n_in; i++) {
         const uint32_t pin[5] = {H + (uint32_t)sh->purpose[i], H, H, 0, (uint32_t)i};
         bip32_key_from_parent_path(&e_master, pin, 5, BIP32_FLAG_KEY_PRIVATE, &kin[i]);
@@ -320,10 +323,12 @@ static void one_shape(const shape_t *sh)
     static uint8_t tx_full[8192], tx_trim[8192], tx_merge[8192], tx_merge_full[8192];
     char nm[128];
     wpsbt_summary_t s;
+    wpsbt_details_t details;
     size_t ul = build(sh, unsigned_b, sizeof unsigned_b), fl = 0, tl = 0;
 
     snprintf(nm, sizeof nm, "export %s: loads and signs", sh->name);
     int ok = ul > 0 && kiss_psbt_load(unsigned_b, ul, &s) == 0 && s.status != WPSBT_STOP &&
+             kiss_psbt_details(&details) == 0 &&
              kiss_psbt_sign(full, sizeof full, &fl) == 0;
     chkb(nm, ok);
     kiss_psbt_free();
@@ -331,6 +336,23 @@ static void one_shape(const shape_t *sh)
         printf("  status %d reason %s\n", s.status, s.reason);
         return;
     }
+    // Compare the review's claim with the actual finalized transaction,
+    // independently of the signer's input-type classification.
+    size_t a = final_from_bytes(full, fl, tx_full, sizeof tx_full);
+    struct wally_tx *finalized = NULL;
+    uint8_t hash[32];
+    char final_id[65] = {0};
+    int have_id = a > 0 &&
+        wally_tx_from_bytes(tx_full, a, WALLY_TX_FLAG_USE_WITNESS, &finalized) == WALLY_OK &&
+        wally_tx_get_txid(finalized, hash, sizeof hash) == WALLY_OK;
+    if (have_id)
+        for (size_t i = 0; i < sizeof hash; i++)
+            snprintf(final_id + 2 * i, 3, "%02x", hash[31 - i]);
+    snprintf(nm, sizeof nm, "export %s: txid classification matches finalized transaction", sh->name);
+    chkb(nm, have_id && details.txid_final == (strcmp(details.txid, final_id) == 0));
+    if (have_id && details.txid_final && strcmp(details.txid, final_id) != 0)
+        printf("  reported final: %s\n  actual final:   %s\n", details.txid, final_id);
+    wally_tx_free(finalized);
     if (sh->version == 2) {
         // A v2 coordinator may finalize the returned copy without combining,
         // so it needs every field: sent whole.
@@ -342,7 +364,6 @@ static void one_shape(const shape_t *sh)
     snprintf(nm, sizeof nm, "export %s: trims", sh->name);
     chkb(nm, kiss_psbt_export_copy(full, fl, trim, sizeof trim, &tl) == 0 && tl > 0 && tl < fl);
 
-    size_t a = final_from_bytes(full, fl, tx_full, sizeof tx_full);
     size_t b = final_from_bytes(trim, tl, tx_trim, sizeof tx_trim);
     size_t c = final_merged(unsigned_b, ul, trim, tl, tx_merge, sizeof tx_merge);
     size_t d = final_merged(unsigned_b, ul, full, fl, tx_merge_full, sizeof tx_merge_full);
@@ -433,10 +454,16 @@ int test_psbt_export(void)
         {"native 4-in, payout prev txs", 4, {84, 84, 84, 84}, 20, 0, 1},
         {"nested 1-in",                  1, {49},             2,  0, 1},
         {"nested 2-in",                  2, {49, 49},         2,  0, 1},
+        {"mixed native+nested",          2, {84, 49},         2,  0, 0},
         {"legacy 1-in",                  1, {44},             2,  0, 1},
         {"mixed legacy+native",          2, {44, 84},         2,  0, 0},
         {"native 2-in, PSBTv2",          2, {84, 84},         2,  2, 1},
         {"nested 1-in, PSBTv2",          1, {49},             2,  2, 0},
+        {"mixed native+nested, PSBTv2",  2, {84, 49},         2,  2, 0},
+        {"nested beyond details limit", 17,
+         {84,84,84,84,84,84,84,84,84,84,84,84,84,84,84,84,49}, 1, 0, 0},
+        {"legacy beyond details limit", 17,
+         {84,84,84,84,84,84,84,84,84,84,84,84,84,84,84,84,44}, 1, 0, 0},
     };
     for (size_t i = 0; i < sizeof shapes / sizeof shapes[0]; i++)
         one_shape(&shapes[i]);

@@ -212,6 +212,10 @@ static int feed_pmofn(qrt_parser_t *p, const char *data, size_t len) {
 static int feed_ur(qrt_parser_t *p, const char *data, size_t len) {
     // Only crypto-psbt; reject other UR types before the CBOR layer sees them.
     if (len < sizeof UR_PSBT_PREFIX - 1) return -1;
+    // Camera payloads are length-delimited. An embedded NUL would make
+    // strndup allocate less than len + 1, then the wipe below would overrun
+    // that allocation. UR is text, so reject the whole malformed frame.
+    if (memchr(data, '\0', len)) return -1;
     char *low = strndup(data, len);
     if (!low) return -1;
     for (char *c = low; *c; c++)

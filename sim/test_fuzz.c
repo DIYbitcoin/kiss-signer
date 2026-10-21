@@ -548,6 +548,51 @@ int main(void)
         qrt_parser_free(p);
     }
 
+    // ---- 3e. length-delimited UR frames with embedded NULs ----
+    // strndup stops at the NUL, but the transport used to wipe the full
+    // camera-reported length afterwards: a heap overwrite, even for a frame
+    // rejected before decoding. Cover both accepted prefix cases, every NUL
+    // position after the prefix, and a complete frame followed by NUL + junk.
+    {
+        qrt_encoder_t *e = qrt_encoder_new(QRT_FMT_UR, valid, vlen);
+        char part[600];
+        int built = e && qrt_encoder_next(e, part, sizeof part) == 0;
+        chkb("NUL UR fixture builds", built);
+        if (built) {
+            size_t n = strlen(part);
+            char frame[608];
+            qrt_parser_t *p = qrt_parser_new();
+            chkb("NUL UR parser allocates", p != NULL);
+            for (int upper = 0; p && upper < 2; upper++) {
+                for (size_t at = 3; at <= n; at++) {
+                    memcpy(frame, part, n);
+                    if (upper) memcpy(frame, "UR:", 3);
+                    memset(frame + n, 'x', 8);
+                    frame[at] = '\0';
+                    chkb("embedded NUL UR frame rejected",
+                         qrt_parser_feed(p, frame, n + 8) == -1);
+                    chkb("embedded NUL UR leaves no transfer",
+                         !qrt_parser_complete(p) && qrt_parser_format(p) == QRT_FMT_NONE);
+                    size_t got_len = 0;
+                    uint8_t got[4096];
+                    chkb("valid transfer works after NUL UR rejection",
+                         qrt_parser_feed(p, (const char *)valid, vlen) == 0 &&
+                         qrt_parser_result(p, got, sizeof got, &got_len) == 0 &&
+                         got_len == vlen && memcmp(got, valid, vlen) == 0);
+                    qrt_parser_reset(p);
+                }
+            }
+            // No terminator inside the reported length is required. The
+            // following NUL belongs to the caller, outside the frame.
+            if (p) {
+                chkb("length-delimited valid UR frame still accepted",
+                     qrt_parser_feed(p, part, n) == 0);
+            }
+            qrt_parser_free(p);
+        }
+        qrt_encoder_free(e);
+    }
+
     // ---- 4. base64 PSBT text ----
     // The loader's "cHNidP" branch strips whitespace and base64-decodes before
     // the binary parser ever runs. Sections 1/2 never reach it: random binary

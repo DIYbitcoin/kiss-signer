@@ -272,7 +272,7 @@ typedef struct {
 
 typedef struct {
     char     txid[65];       // txid of the tx being signed, display hex
-    bool     txid_final;     // segwit-only spends: signing can't change the txid
+    bool     txid_final;     // native SegWit/taproot only: finalization preserves txid
     uint32_t version;
     uint32_t locktime;
     uint32_t n_in;           // entries filled in ins[] (capped at WPSBT_MAX_INS)

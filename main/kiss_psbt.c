@@ -1235,17 +1235,26 @@ int kiss_psbt_details(wpsbt_details_t *d)
         txid_hex(h, d->txid);
 
     d->n_total = (uint32_t)s_psbt->num_inputs;
-    bool any_legacy = false;
+    bool any_scriptsig = false;
     for (size_t i = 0; i < s_psbt->num_inputs && i < tx->num_inputs; i++) {
         const struct wally_psbt_input *in = &s_psbt->inputs[i];
+        bool is_sp = i < WPSBT_MAX_INS && s_sp_in.present[i];
+        uint32_t path[8];
+        size_t path_len = 8;
+        bool have_path = !is_sp &&
+            our_keypath(&in->keypaths, fp, path, &path_len, NULL) == 1 && path_len == 5;
+        uint32_t purpose = is_sp ? 352 : have_path ? our_purpose(path, path_len) : 0;
+        // This describes the whole transaction, including inputs beyond the
+        // DETAILS list's display limit.
+        if (purpose == 44 || purpose == 49)
+            any_scriptsig = true;
         if (d->n_in >= WPSBT_MAX_INS)
-            break;
+            continue;
         wpsbt_in_t *di = &d->ins[d->n_in++];
         txid_hex(tx->inputs[i].txhash, di->txid);
         di->vout = tx->inputs[i].index;
         di->rel_kind = (uint8_t)wpsbt_rel_lock(tx->version, tx->inputs[i].sequence,
                                                &di->rel_age);
-        bool is_sp = i < WPSBT_MAX_INS && s_sp_in.present[i];
         // Same precedence as load, for the same reason: the prev tx is the only
         // source that proves the number, and load already checked it hashes to
         // this outpoint -- for the inputs it checked. It reaches that check by
@@ -1260,25 +1269,17 @@ int kiss_psbt_details(wpsbt_details_t *d)
         } else if (in->witness_utxo) {
             di->sats = in->witness_utxo->satoshi;
         }
-        if (is_sp) {
-            di->is_sp = true;          // BIP376: spends a received silent payment
-            di->purpose = 352;         // taproot key-path; signing can't change the txid
-        } else {
-            uint32_t path[8];
-            size_t path_len = 8;
-            if (our_keypath(&in->keypaths, fp, path, &path_len, NULL) == 1 &&
-                path_len == 5) {
-                di->purpose = our_purpose(path, path_len);
-                di->change = path[3];
-                di->index = path[4];
-            }
+        di->is_sp = is_sp;
+        di->purpose = purpose;
+        if (have_path) {
+            di->change = path[3];
+            di->index = path[4];
         }
-        if (di->purpose == 44)
-            any_legacy = true;
     }
-    // legacy scriptSigs live inside the txid preimage, so signing changes the
-    // txid; segwit signatures live in the witness, which the txid ignores
-    d->txid_final = !any_legacy;
+    // Legacy signatures and nested-SegWit's redeem script are added to
+    // scriptSig during finalization, changing the unsigned transaction's ID.
+    // Native SegWit and taproot add only witness data, which txid excludes.
+    d->txid_final = !any_scriptsig;
     return 0;
 }
 
