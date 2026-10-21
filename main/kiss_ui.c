@@ -2433,7 +2433,19 @@ static void pp_scan_warn_cb(lv_event_t *e) {
                             tr(STR_L_SCAN_WARN_S));
   wt_chrome_head(scr);                  // the head every other page wears
   lv_obj_move_foreground(scr);
-  wt_body_para(scr, tr(STR_L_SCAN_WARN_B), SY(122));
+  // Keep the disclosure and the seed-word risk in separate labelled rows.
+  const char *body = tr(STR_L_SCAN_WARN_B);
+  const char *split = strstr(body, "\n\n");
+  char disclosure[512];
+  snprintf(disclosure, sizeof disclosure, "%.*s",
+           split ? (int)(split - body) : (int)strlen(body), body);
+  wt_fact_t facts[2] = {
+      { .cap = tr(STR_L_PASSPHRASE_CAP), .val = disclosure,
+        .icon = WT_ICON_SECRET },
+      { .cap = tr(STR_T_SEED_CAP), .val = split ? split + 2 : "",
+        .icon = WT_ICON_LOCK },
+  };
+  wt_facts(scr, SY(110), facts, split ? 2 : 1);
   wt_arrow_action(scr, tr(STR_L_SCAN_GO), false, true, WT_ACT_X, WT_ACTION_Y,
                   SX(300), false, pp_scan_go_cb, scr);
   wt_arrow_action(scr, tr(STR_C_BACK), true, false, WT_BACK_X, WT_ACTION_Y,
