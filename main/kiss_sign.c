@@ -5113,7 +5113,7 @@ static void det_term_cb(lv_event_t *e)
         // same way every long hex value on this device is shown.
         if (have && det.txid[0]) {
             snprintf(vbuf, sizeof vbuf, "%.8s\xE2\x80\xA6%.8s",
-                     det.txid, det.txid + 48);
+                     det.txid, det.txid + 56);
             val = vbuf;
         }
         break;

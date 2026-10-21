@@ -4316,6 +4316,8 @@ int main(void) {
   // NOT the heading: S_D_TXID is printed on the page underneath too, so that
   // needle passes whichever card is open. The body exists only on the card.
   must_show("details/txid", tr(STR_S_D_TXID_SAME));
+  must_show_exact("details/txid abbreviation keeps the final eight digits",
+                  "9f86d081\xE2\x80\xA6" "b0f00a08");
   tap_str(STR_C_OK, 3, 6);     // OK closes the card
   // And the stroke: past TRANSACTION opens the explainers, a right stroke on
   // them lands back on the tab it left -- the deck promise, kept here too.
