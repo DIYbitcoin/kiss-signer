@@ -11,6 +11,12 @@
 #include <string.h>
 
 #include "platform_sd.h"
+
+// Compile regression: FatFs and the filename digest must share a translation
+// unit on device. Its 16-bit WORD must not collide with SHA-256's 32-bit word.
+typedef uint16_t WORD;
+#include "sha256/sha256.h"
+_Static_assert(sizeof(WORD) == 2, "FatFs WORD stays 16-bit");
 #include "kiss_simpath.h"
 
 // The fake card, wherever this run put it. These were literal "/tmp/simsd/..."

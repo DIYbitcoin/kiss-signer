@@ -29,7 +29,7 @@
 #define SIG1(x) (ROTRIGHT(x, 17) ^ ROTRIGHT(x, 19) ^ ((x) >> 10))
 
 /**************************** VARIABLES *****************************/
-static const WORD k[64] = {
+static const UR_SHA256_WORD k[64] = {
     0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1,
     0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
     0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786,
@@ -44,12 +44,12 @@ static const WORD k[64] = {
 
 /*********************** FUNCTION DEFINITIONS ***********************/
 static void ur_bundled_sha256_transform(CRYAL_SHA256_CTX *ctx,
-                                        const BYTE data[]) {
-  WORD a, b, c, d, e, f, g, h, i, j, t1, t2, m[64];
+                                        const UR_SHA256_BYTE data[]) {
+  UR_SHA256_WORD a, b, c, d, e, f, g, h, i, j, t1, t2, m[64];
 
   for (i = 0, j = 0; i < 16; ++i, j += 4)
-    m[i] = ((WORD)data[j] << 24) | ((WORD)data[j + 1] << 16) |
-           ((WORD)data[j + 2] << 8) | (WORD)data[j + 3];
+    m[i] = ((UR_SHA256_WORD)data[j] << 24) | ((UR_SHA256_WORD)data[j + 1] << 16) |
+           ((UR_SHA256_WORD)data[j + 2] << 8) | (UR_SHA256_WORD)data[j + 3];
   for (; i < 64; ++i)
     m[i] = SIG1(m[i - 2]) + m[i - 7] + SIG0(m[i - 15]) + m[i - 16];
 
@@ -98,9 +98,9 @@ void ur_bundled_sha256_init(CRYAL_SHA256_CTX *ctx) {
   ctx->state[7] = 0x5be0cd19;
 }
 
-void ur_bundled_sha256_update(CRYAL_SHA256_CTX *ctx, const BYTE data[],
+void ur_bundled_sha256_update(CRYAL_SHA256_CTX *ctx, const UR_SHA256_BYTE data[],
                               size_t len) {
-  WORD i;
+  UR_SHA256_WORD i;
 
   for (i = 0; i < len; ++i) {
     ctx->data[ctx->datalen] = data[i];
@@ -113,8 +113,8 @@ void ur_bundled_sha256_update(CRYAL_SHA256_CTX *ctx, const BYTE data[],
   }
 }
 
-void ur_bundled_sha256_final(CRYAL_SHA256_CTX *ctx, BYTE hash[]) {
-  WORD i;
+void ur_bundled_sha256_final(CRYAL_SHA256_CTX *ctx, UR_SHA256_BYTE hash[]) {
+  UR_SHA256_WORD i;
 
   i = ctx->datalen;
 
