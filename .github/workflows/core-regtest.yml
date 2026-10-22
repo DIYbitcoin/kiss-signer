@@ -1,0 +1,34 @@
+name: Bitcoin Core regtest interoperability
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  native-segwit-roundtrip:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Download pinned Bitcoin Core
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=31.1
+          archive="bitcoin-${version}-x86_64-linux-gnu.tar.gz"
+          base="https://bitcoincore.org/bin/bitcoin-core-${version}"
+          mkdir -p "$RUNNER_TEMP/bitcoin-core"
+          curl --fail --location --retry 3 "$base/$archive" -o "$RUNNER_TEMP/$archive"
+          curl --fail --location --retry 3 "$base/SHA256SUMS" -o "$RUNNER_TEMP/SHA256SUMS"
+          (cd "$RUNNER_TEMP" && grep "  $archive$" SHA256SUMS > SHA256SUMS.selected && sha256sum --check SHA256SUMS.selected)
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/bitcoin-core" --strip-components=1
+
+      - name: KISS native SegWit PSBT round trip
+        env:
+          BITCOIND: ${{ runner.temp }}/bitcoin-core/bin/bitcoind
+        run: python3 sim/core_regtest.py

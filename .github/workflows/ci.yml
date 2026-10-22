@@ -41,6 +41,9 @@ jobs:
   sp-interop:
     uses: ./.github/workflows/sp-interop.yml
 
+  core-regtest:
+    uses: ./.github/workflows/core-regtest.yml
+
   desktop-tests:
     if: >-
       github.event_name != 'push' ||
