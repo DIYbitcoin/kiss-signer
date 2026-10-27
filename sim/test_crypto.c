@@ -414,13 +414,14 @@ static size_t mk_val_psbt(uint64_t in_val, uint64_t ext_val, uint64_t chg_val,
 //              PROVE with the proof removed, which is what makes the
 //              signature-unchanged regression mean anything
 //   NIN_LIE    real previous tx, witness_utxo overstating it by one sat
+//   NIN_LIE_LOW  the same, understating it by one sat
 //
 // NIN_REUSE is off that axis: proven amounts, like PROVE, but every input on
 // address 84h/0/0 instead of one address each. Distinct outpoints, one
 // scriptPubKey -- the shape of a wallet that has been handing out the same
 // address, where joining the coins reveals nothing the chain did not have.
 #define NIN_MAX 16
-enum { NIN_CLAIM = 0, NIN_PROVE, NIN_OMIT, NIN_LIE, NIN_REUSE };
+enum { NIN_CLAIM = 0, NIN_PROVE, NIN_OMIT, NIN_LIE, NIN_REUSE, NIN_LIE_LOW };
 static size_t mk_nin_psbt_ex(int n_in, uint64_t per, uint64_t fee, int mode,
                              uint8_t *out, size_t cap) {
     uint8_t ext_spk[22] = {0x00, 0x14};
@@ -467,11 +468,13 @@ static size_t mk_nin_psbt_ex(int n_in, uint64_t per, uint64_t fee, int mode,
         struct ext_key kin;
         derive5(84, 0, NIN_IDX(i), &kin);
         struct wally_tx_output *u = NULL;
-        wally_tx_output_init_alloc(mode == NIN_LIE ? per + 1 : per,
+        wally_tx_output_init_alloc(mode == NIN_LIE ? per + 1
+                                   : mode == NIN_LIE_LOW ? per - 1 : per,
                                    spks[i], spklen[i], &u);
         wally_psbt_set_input_witness_utxo(p, i, u);
         wally_tx_output_free(u);
-        if (mode == NIN_PROVE || mode == NIN_LIE || mode == NIN_REUSE)
+        if (mode == NIN_PROVE || mode == NIN_LIE || mode == NIN_LIE_LOW ||
+            mode == NIN_REUSE)
             wally_psbt_set_input_utxo(p, i, prev[i]);
         if (prev[i]) wally_tx_free(prev[i]);
 
@@ -1868,6 +1871,50 @@ int main(int argc, char **argv) {
     chkb("contradiction reason", strstr(sum.reason, "previous transaction") != NULL);
     chkb("contradiction refuses to sign", kiss_psbt_sign(sb, sizeof sb, &sw) != 0);
     kiss_psbt_free();
+
+    // The same contradiction with the witness_utxo one sat UNDER the previous
+    // transaction: the direction that makes the fee on screen read low.
+    pl = mk_nin_psbt_ex(1, 100000, 1000, NIN_LIE_LOW, pb, sizeof pb);
+    chki("understated load rc", kiss_psbt_load(pb, pl, &sum), 0);
+    chki("understated STOP", sum.status, WPSBT_STOP);
+    chkb("understated reason", strstr(sum.reason, "previous transaction") != NULL);
+    chkb("understated refuses to sign", kiss_psbt_sign(sb, sizeof sb, &sw) != 0);
+    kiss_psbt_free();
+
+    // An input that arrives already finalized, with both amount records taken
+    // off it, cannot be counted toward the fee and must be refused. A
+    // finalized input carries no derivation either: the serializer drops it,
+    // as BIP174 says a finalizer does, so this is the shape that arrives.
+    {
+        struct wally_psbt *p = NULL;
+        struct wally_tx_witness_stack *ws = NULL;
+        uint8_t vb[4096], junk[72];
+        size_t vl = 0;
+        memset(junk, 0x30, sizeof junk);
+        pl = mk_nin_psbt_ex(2, 100000, 2000, NIN_PROVE, pb, sizeof pb);
+        int ok = wally_psbt_from_bytes(pb, pl, 0, &p) == WALLY_OK &&
+                 wally_tx_witness_stack_init_alloc(2, &ws) == WALLY_OK &&
+                 wally_tx_witness_stack_add(ws, junk, sizeof junk) == WALLY_OK &&
+                 wally_tx_witness_stack_add(ws, junk, 33) == WALLY_OK &&
+                 wally_psbt_set_input_final_witness(p, 1, ws) == WALLY_OK &&
+                 wally_psbt_set_input_utxo(p, 1, NULL) == WALLY_OK &&
+                 wally_psbt_set_input_witness_utxo(p, 1, NULL) == WALLY_OK &&
+                 wally_psbt_to_bytes(p, 0, vb, sizeof vb, &vl) == WALLY_OK;
+        if (ws) wally_tx_witness_stack_free(ws);
+        wally_psbt_free(p);
+        p = NULL;
+        // Check the shape that reaches the device, not the one asked for.
+        ok = ok && wally_psbt_from_bytes(vb, vl, 0, &p) == WALLY_OK &&
+             !p->inputs[1].utxo && !p->inputs[1].witness_utxo &&
+             p->inputs[1].final_witness && !p->inputs[1].keypaths.num_items;
+        wally_psbt_free(p);
+        chkb("finalized no amount: built", ok && vl);
+        chki("finalized no amount: load rc", kiss_psbt_load(vb, vl, &sum), 0);
+        chki("finalized no amount: STOP", sum.status, WPSBT_STOP);
+        chkb("finalized no amount: sign refused",
+             kiss_psbt_sign(sb, sizeof sb, &sw) != 0);
+        kiss_psbt_free();
+    }
 
     // THE regression for the precedence flip: PROVE and OMIT are the same
     // transaction spending the same outpoint for the same amount, differing
