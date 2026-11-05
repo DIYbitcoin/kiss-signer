@@ -681,6 +681,7 @@ lv_obj_t *wt_bundle(lv_obj_t *scr, int x, int y, int w, int h,
 // on sight.
 int  wt_bundle_pages(lv_obj_t *bundle);
 int  wt_bundle_page(lv_obj_t *bundle);
+int  wt_bundle_row_page(lv_obj_t *bundle, int row);   // page a row is on
 void wt_bundle_page_set(lv_obj_t *bundle, int page);   // clamps, then relinks
 
 // Make every output row carrying an address the tap target for its own full

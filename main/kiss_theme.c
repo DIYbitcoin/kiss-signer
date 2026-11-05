@@ -9863,6 +9863,18 @@ int wt_bundle_page(lv_obj_t *bundle)
     return b ? b->page : 0;
 }
 
+// Which page output row `row` is drawn on, 0 when unknown. The review asks it
+// whether every recipient is already on the first page, so a second page that
+// holds only the fee and our own change does not keep the slide locked.
+int wt_bundle_row_page(lv_obj_t *bundle, int row)
+{
+    wt_bundle_t *b = bundle ? bundle_state(bundle) : NULL;
+    if (!b || row < 0) return 0;
+    for (int p = 0; p < b->npage; p++)
+        if (row <= b->ptop[p]) return p;
+    return b->npage ? b->npage - 1 : 0;
+}
+
 // Make every output row that carries an address the tap target for it. With
 // several recipients there was no way to reach a full address from the verify
 // screen at all -- the card that was the target only ever existed for one.

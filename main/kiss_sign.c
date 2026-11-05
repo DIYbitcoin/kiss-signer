@@ -4711,6 +4711,12 @@ static void verify_screen(lv_obj_t *parent)
         // destination on top and a second one under it, signed on a glance.
         if (wt_bundle_pages(bg) <= 1)
             s_recip_seen = true;            // nothing hidden: nothing to demand
+        // Recipients are the first rows; the fee and our own change follow.
+        // When the last recipient is already on page 1, what is below the
+        // fold is ours, and a shared send (three outputs and a caution bar)
+        // no longer makes the owner hunt for a page to unlock the slide.
+        else if (recipient_n > 0 && wt_bundle_row_page(bg, recipient_n - 1) == 0)
+            s_recip_seen = true;
 
         // Every output row is the tap target for its own full address. With
         // several recipients that was reachable from nowhere on this screen.
