@@ -224,12 +224,22 @@ bool kiss_sign_active(void) { return s_scr != NULL; }
 // One recipient and it is what that recipient gets. None or several and it is
 // the sum of what leaves, because there is then no single send amount to be
 // the headline. See the hero in verify_screen for why that is the split.
+//
+// In a shared send the other wallet's change is one of those recipients and
+// its coins pay most of the outputs, so send + fee was the whole transaction,
+// several times what this signer puts in. What leaves THESE keys is our own
+// inputs less our own change, both proven from this seed.
 static uint64_t hero_sats(void)
 {
     int recip = 0;
     for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS; i++)
         if (!s_sum.outs[i].is_change) recip++;
-    return recip == 1 ? s_sum.send_sats : s_sum.send_sats + s_sum.fee_sats;
+    if (recip == 1)
+        return s_sum.send_sats;
+    if (s_sum.n_foreign_in > 0)
+        return s_sum.own_in_sats > s_sum.change_sats
+                   ? s_sum.own_in_sats - s_sum.change_sats : 0;
+    return s_sum.send_sats + s_sum.fee_sats;
 }
 
 // Is this name one of our own signed outputs?
