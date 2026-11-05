@@ -21,6 +21,8 @@
 #include "sp_test_vectors.h"
 #include "sp_spend_vectors.h"
 #include "sign_vectors.h"   // SV_SCHNORR_SP_*: golden Schnorr sigs (BIP340 ref)
+#include "sp_shared_vectors.h"
+#include "kiss_seed.h"
 #include "kiss_sp.h"
 #include "kiss_psbt.h"
 #include "kiss_crypto.h"
@@ -1113,6 +1115,411 @@ static void sp_test_mixed_unproven(void) {
     kiss_set_network(0);
 }
 
+// ---- a silent payment two signers pay together (BIP375 per input shares) ----
+// Wallet A is the dev seed this suite already has open, wallet B the seed the
+// other signer's bridge defaults to. Every expected value in
+// sp_shared_vectors.h was computed by embit, and the output script there from
+// the SUM OF THE PRIVATE KEYS: the route a single signer takes, where the code
+// under test has to arrive at the same script from the sum of the shares.
+
+static int sps_in_field(const struct wally_psbt *p, size_t i, uint8_t type,
+                        const uint8_t scan[33], uint8_t *val, size_t want)
+{
+    uint8_t key[34];
+    size_t item = 0;
+    key[0] = type;
+    memcpy(key + 1, scan, 33);
+    if (i >= p->num_inputs ||
+        wally_map_find(&p->inputs[i].unknowns, key, sizeof key, &item) != WALLY_OK ||
+        !item || p->inputs[i].unknowns.items[item - 1].value_len != want)
+        return -1;
+    memcpy(val, p->inputs[i].unknowns.items[item - 1].value, want);
+    return 0;
+}
+
+static bool sps_has_global_share(const struct wally_psbt *p)
+{
+    for (size_t j = 0; j < p->unknowns.num_items; j++) {
+        const struct wally_map_item *it = &p->unknowns.items[j];
+        if (it->key_len == 34 && (it->key[0] == 0x07 || it->key[0] == 0x08))
+            return true;
+    }
+    return false;
+}
+
+static bool sps_has_sp_info(const struct wally_psbt *p, size_t j)
+{
+    static const uint8_t k09[1] = { 0x09 };
+    uint8_t val[128];
+    size_t vlen = 0;
+    return sp_output_unknown(p, j, k09, 1, val, sizeof val, &vlen) == 0 && vlen == 66;
+}
+
+// Switch the session to another seed (NULL = back to the stored dev seed).
+static int sps_open(const char *mnemonic)
+{
+    kiss_session_close();
+    if (mnemonic && kiss_seed_open_temp(mnemonic) != 0)
+        return -1;
+    return kiss_session_open("");
+}
+
+// One pass of one signer: load, then share or sign by what load decided.
+// Returns 0 with the PSBT that leaves in out; *sum is load's summary.
+static int sps_pass(const uint8_t *in, size_t n, wpsbt_summary_t *sum,
+                    uint8_t *out, size_t cap, size_t *w)
+{
+    *w = 0;
+    int rc = kiss_psbt_load(in, n, sum);
+    if (rc != 0)
+        return -1;
+    if (sum->status == WPSBT_STOP) {
+        printf("  stop: %s\n", sum->reason);
+        kiss_psbt_free();
+        return -2;
+    }
+    rc = sum->share_only ? kiss_psbt_share(out, cap, w)
+                         : kiss_psbt_sign(out, cap, w);
+    kiss_psbt_free();
+    return rc == 0 && *w ? 0 : -3;
+}
+
+static void sps_amounts(const char *tag, const wpsbt_summary_t *s,
+                        uint64_t own_in, uint64_t own_change)
+{
+    char name[96];
+    snprintf(name, sizeof name, "shared %s: fee is all inputs less all outputs", tag);
+    spchk(name, s->in_sats == SPS_IN_A + SPS_IN_B && s->fee_sats == SPS_FEE);
+    snprintf(name, sizeof name, "shared %s: own inputs and own change", tag);
+    spchk(name, s->own_in_sats == own_in && s->change_sats == own_change &&
+                s->n_foreign_in == 1);
+    snprintf(name, sizeof name, "shared %s: the other change is an ordinary output", tag);
+    spchk(name, s->send_sats == SPS_PAY + (SPS_IN_A + SPS_IN_B - SPS_FEE - SPS_PAY - own_change) &&
+                s->n_out == 3 && s->outs[0].is_sp && s->n_sp == 1);
+    snprintf(name, sizeof name, "shared %s: raised as a caution", tag);
+    spchk(name, s->status == WPSBT_CAUTION && (s->caution_flags & WPSBT_C_SHARED));
+}
+
+// The share only pass, for each wallet: its own share and proof exactly as
+// embit computes them, nothing signed, the script still absent.
+static void sps_test_share_only(void)
+{
+    static uint8_t out[8192];
+    size_t w = 0;
+    wpsbt_summary_t sum;
+
+    int rc = kiss_psbt_load((const uint8_t *)SPS_R0_B64, strlen(SPS_R0_B64), &sum);
+    if (rc == 0 && sum.status == WPSBT_STOP) printf("  stop: %s\n", sum.reason);
+    spchk("shared A first: loads as share only",
+          rc == 0 && sum.status != WPSBT_STOP && sum.share_only);
+    sps_amounts("share only", &sum, SPS_IN_A, SPS_CHANGE_A);
+    spchk("shared share only: sign refuses", kiss_psbt_sign(out, sizeof out, &w) != 0);
+    wpsbt_details_t det;
+    spchk("shared share only: details page reads the PSBT fields",
+          kiss_psbt_details(&det) == 0 && det.n_in == 2 && det.ins[1].foreign &&
+          !det.ins[0].foreign && det.txid[0] == 0);
+    rc = kiss_psbt_share(out, sizeof out, &w);
+    spchk("shared share only: share rc", rc == 0 && w > 0);
+    kiss_psbt_free();
+    uint8_t cp[8192];
+    size_t cw = 0;
+    spchk("shared share only: the QR sends it whole",
+          kiss_psbt_export_copy(out, w, cp, sizeof cp, &cw) != 0);
+
+    struct wally_psbt *p = NULL;
+    spchk("shared share only: what leaves parses",
+          wally_psbt_from_bytes(out, w, WALLY_PSBT_PARSE_FLAG_LOOSE, &p) == WALLY_OK && p);
+    if (p) {
+        uint8_t share[33], proof[64];
+        spchk("shared A share equals embit's",
+              sps_in_field(p, 0, 0x1d, SPS_SCAN, share, 33) == 0 &&
+              memcmp(share, SPS_A_SHARE, 33) == 0);
+        spchk("shared A proof equals embit's BIP374 proof",
+              sps_in_field(p, 0, 0x1e, SPS_SCAN, proof, 64) == 0 &&
+              memcmp(proof, SPS_A_PROOF_R0, 64) == 0);
+        spchk("shared A proof verifies against A_i",
+              sp_dleq_verify(SPS_A_PUB, SPS_SCAN, share, proof, NULL, NULL) == 0);
+        spchk("shared share only: B's input untouched",
+              sps_in_field(p, 1, 0x1d, SPS_SCAN, share, 33) != 0 &&
+              sps_in_field(p, 1, 0x1e, SPS_SCAN, proof, 64) != 0);
+        spchk("shared share only: no script on the silent payment output",
+              !p->outputs[0].script && p->outputs[0].script_len == 0);
+        spchk("shared share only: SP info and the other scripts kept",
+              sps_has_sp_info(p, 0) && p->outputs[1].script && p->outputs[2].script);
+        spchk("shared share only: nothing signed",
+              p->inputs[0].signatures.num_items == 0 &&
+              p->inputs[1].signatures.num_items == 0);
+        spchk("shared share only: no global share, flags 0",
+              !sps_has_global_share(p) && p->tx_modifiable_flags == 0);
+        wally_psbt_free(p);
+    }
+
+    spchk("shared: open wallet B", sps_open(SPS_MNEMONIC_B) == 0);
+    rc = sps_pass((const uint8_t *)SPS_R0_B64, strlen(SPS_R0_B64), &sum,
+                  out, sizeof out, &w);
+    spchk("shared B first: share only pass", rc == 0 && sum.share_only);
+    sps_amounts("B share only", &sum, SPS_IN_B, SPS_CHANGE_B);
+    p = NULL;
+    if (rc == 0 &&
+        wally_psbt_from_bytes(out, w, WALLY_PSBT_PARSE_FLAG_LOOSE, &p) == WALLY_OK && p) {
+        uint8_t share[33], proof[64];
+        spchk("shared B share and proof equal embit's",
+              sps_in_field(p, 1, 0x1d, SPS_SCAN, share, 33) == 0 &&
+              memcmp(share, SPS_B_SHARE, 33) == 0 &&
+              sps_in_field(p, 1, 0x1e, SPS_SCAN, proof, 64) == 0 &&
+              memcmp(proof, SPS_B_PROOF_R0, 64) == 0);
+        wally_psbt_free(p);
+    }
+    spchk("shared: back to wallet A", sps_open(NULL) == 0);
+}
+
+// The complete pass on embit's own request (B's share already there): the
+// script derived from the share sum, A's input signed, B's left alone.
+static void sps_test_complete_fixture(void)
+{
+    static uint8_t out[8192];
+    size_t w = 0;
+    wpsbt_summary_t sum;
+    int rc = kiss_psbt_load((const uint8_t *)SPS_RB_B64, strlen(SPS_RB_B64), &sum);
+    if (rc == 0 && sum.status == WPSBT_STOP) printf("  stop: %s\n", sum.reason);
+    spchk("shared complete: loads, not share only",
+          rc == 0 && sum.status != WPSBT_STOP && !sum.share_only);
+    sps_amounts("complete", &sum, SPS_IN_A, SPS_CHANGE_A);
+    wpsbt_details_t det;
+    spchk("shared complete: details has a txid and marks the foreign input",
+          kiss_psbt_details(&det) == 0 && det.txid[0] != 0 && det.ins[1].foreign);
+    spchk("shared complete: share refuses", kiss_psbt_share(out, sizeof out, &w) != 0);
+    rc = kiss_psbt_sign(out, sizeof out, &w);
+    spchk("shared complete: sign rc", rc == 0 && w > 0);
+    kiss_psbt_free();
+    uint8_t cp[8192];
+    size_t cw = 0;
+    spchk("shared complete: the QR copy is the whole PSBT",
+          kiss_psbt_export_copy(out, w, cp, sizeof cp, &cw) == 0 &&
+          cw == w && memcmp(cp, out, w) == 0);
+    struct wally_psbt *p = NULL;
+    spchk("shared complete: strict parses",
+          wally_psbt_from_bytes(out, w, 0, &p) == WALLY_OK && p);
+    if (!p) return;
+    uint8_t share[33], proof[64];
+    spchk("shared complete: script equals embit's from the private key sum",
+          p->outputs[0].script_len == 34 &&
+          memcmp(p->outputs[0].script, SPS_SCRIPT, 34) == 0);
+    spchk("shared complete: A share and proof equal embit's",
+          sps_in_field(p, 0, 0x1d, SPS_SCAN, share, 33) == 0 &&
+          memcmp(share, SPS_A_SHARE, 33) == 0 &&
+          sps_in_field(p, 0, 0x1e, SPS_SCAN, proof, 64) == 0 &&
+          memcmp(proof, SPS_A_PROOF_RB, 64) == 0);
+    spchk("shared complete: B's share kept as it came",
+          sps_in_field(p, 1, 0x1d, SPS_SCAN, share, 33) == 0 &&
+          memcmp(share, SPS_B_SHARE, 33) == 0);
+    spchk("shared complete: own input signed, the other not",
+          p->inputs[0].signatures.num_items == 1 &&
+          p->inputs[1].signatures.num_items == 0);
+    spchk("shared complete: no global share, SP info kept, flags 0",
+          !sps_has_global_share(p) && sps_has_sp_info(p, 0) &&
+          p->tx_modifiable_flags == 0);
+    wally_psbt_free(p);
+}
+
+// Both visit orders, end to end with two seeds and nothing from embit in
+// between: each signer's output is the next one's input.
+static void sps_test_chain(bool b_first)
+{
+    static uint8_t s1[8192], s2[8192], s3[8192];
+    size_t w1 = 0, w2 = 0, w3 = 0;
+    wpsbt_summary_t sum;
+    const char *tag = b_first ? "B, A, B" : "A, B, A";
+    char name[96];
+    const char *first = b_first ? SPS_MNEMONIC_B : NULL;
+    const char *second = b_first ? NULL : SPS_MNEMONIC_B;
+
+    int ok = sps_open(first) == 0 &&
+             sps_pass((const uint8_t *)SPS_R0_B64, strlen(SPS_R0_B64), &sum,
+                      s1, sizeof s1, &w1) == 0 && sum.share_only;
+    snprintf(name, sizeof name, "shared %s: first pass is share only", tag);
+    spchk(name, ok);
+    ok = ok && sps_open(second) == 0 &&
+         sps_pass(s1, w1, &sum, s2, sizeof s2, &w2) == 0 && !sum.share_only;
+    snprintf(name, sizeof name, "shared %s: second pass derives and signs", tag);
+    spchk(name, ok);
+    ok = ok && sps_open(first) == 0 &&
+         sps_pass(s2, w2, &sum, s3, sizeof s3, &w3) == 0 && !sum.share_only;
+    snprintf(name, sizeof name, "shared %s: third pass verifies and signs", tag);
+    spchk(name, ok);
+    sps_open(NULL);
+    struct wally_psbt *p = NULL;
+    if (!ok || wally_psbt_from_bytes(s3, w3, 0, &p) != WALLY_OK || !p) {
+        snprintf(name, sizeof name, "shared %s: final PSBT parses", tag);
+        spchk(name, 0);
+        return;
+    }
+    uint8_t share[33];
+    snprintf(name, sizeof name, "shared %s: script equals embit's", tag);
+    spchk(name, p->outputs[0].script_len == 34 &&
+                memcmp(p->outputs[0].script, SPS_SCRIPT, 34) == 0);
+    snprintf(name, sizeof name, "shared %s: both shares equal embit's", tag);
+    spchk(name, sps_in_field(p, 0, 0x1d, SPS_SCAN, share, 33) == 0 &&
+                memcmp(share, SPS_A_SHARE, 33) == 0 &&
+                sps_in_field(p, 1, 0x1d, SPS_SCAN, share, 33) == 0 &&
+                memcmp(share, SPS_B_SHARE, 33) == 0);
+    snprintf(name, sizeof name, "shared %s: both inputs signed once", tag);
+    spchk(name, p->inputs[0].signatures.num_items == 1 &&
+                p->inputs[1].signatures.num_items == 1);
+    snprintf(name, sizeof name, "shared %s: finalizes", tag);
+    spchk(name, wally_psbt_finalize(p, 0) == WALLY_OK &&
+                wally_psbt_is_finalized(p, &(size_t){0}) == WALLY_OK);
+    wally_psbt_free(p);
+}
+
+static void sps_refuse(const char *name, const char *b64, const char *why)
+{
+    wpsbt_summary_t sum;
+    uint8_t out[8192];
+    size_t w = 0;
+    int rc = kiss_psbt_load((const uint8_t *)b64, strlen(b64), &sum);
+    int ok = rc == 0 && sum.status == WPSBT_STOP && strstr(sum.reason, why) != NULL;
+    if (!ok) printf("  rc=%d status=%d reason=%s\n", rc, sum.status, sum.reason);
+    spchk(name, ok);
+    if (rc == 0) {
+        char n2[128];
+        snprintf(n2, sizeof n2, "%s: nothing leaves", name);
+        spchk(n2, kiss_psbt_sign(out, sizeof out, &w) != 0 &&
+                  kiss_psbt_share(out, sizeof out, &w) != 0);
+        kiss_psbt_free();
+    }
+}
+
+static void sps_test_refusals(void)
+{
+    sps_refuse("shared refuses a bad foreign proof", SPS_N_BADPROOF_B64, "does not verify");
+    sps_refuse("shared refuses a proof made with another key", SPS_N_WRONGKEY_B64, "does not verify");
+    sps_refuse("shared refuses a share without proof", SPS_N_NOPROOF_B64, "no proof");
+    sps_refuse("shared refuses a proof without share", SPS_N_NOSHARE_B64, "no proof");
+    sps_refuse("shared refuses a script before all shares", SPS_N_EARLYSCRIPT_B64, "before all shares");
+    sps_refuse("shared refuses a wrong script", SPS_N_WRONGSCRIPT_B64, "does not match");
+    sps_refuse("shared refuses a global share", SPS_N_GLOBAL_B64, "global share");
+    sps_refuse("shared refuses an ineligible foreign input", SPS_N_INELIGIBLE_B64, "P2WPKH or P2TR");
+    sps_refuse("shared refuses a foreign key that does not hash", SPS_N_NOKEY_B64, "key does not match");
+    sps_refuse("shared refuses an unproven foreign amount", SPS_N_UNPROVEN_B64, "not proven");
+    sps_refuse("shared refuses a foreign prev tx mismatch", SPS_N_PREVMISMATCH_B64, "previous transaction");
+    sps_refuse("shared refuses a foreign sighash", SPS_N_SIGHASH_B64, "sighash");
+    sps_refuse("shared refuses a foreign odd Y share", SPS_N_FTR_ODD_B64, "does not verify");
+    // no silent payment output: exactly the refusal it always was
+    sps_refuse("foreign input without SP output still refused", SPS_N_NOSP_B64,
+               "not this wallet");
+}
+
+// A complete pass that must reach embit's script, with what it checks.
+static void sps_complete(const char *tag, const char *b64, size_t out_idx,
+                         const uint8_t script[34], const uint8_t *a_share)
+{
+    static uint8_t out[8192];
+    size_t w = 0;
+    wpsbt_summary_t sum;
+    char name[128];
+    int rc = sps_pass((const uint8_t *)b64, strlen(b64), &sum, out, sizeof out, &w);
+    snprintf(name, sizeof name, "shared %s: complete and signed", tag);
+    spchk(name, rc == 0 && !sum.share_only);
+    struct wally_psbt *p = NULL;
+    if (rc != 0 || wally_psbt_from_bytes(out, w, 0, &p) != WALLY_OK || !p)
+        return;
+    snprintf(name, sizeof name, "shared %s: script equals embit's", tag);
+    spchk(name, p->outputs[out_idx].script_len == 34 &&
+                memcmp(p->outputs[out_idx].script, script, 34) == 0);
+    if (a_share) {
+        uint8_t share[33];
+        snprintf(name, sizeof name, "shared %s: own share equals embit's", tag);
+        spchk(name, sps_in_field(p, 0, 0x1d, SPS_SCAN, share, 33) == 0 &&
+                    memcmp(share, a_share, 33) == 0);
+    }
+    snprintf(name, sizeof name, "shared %s: only the own input signed", tag);
+    spchk(name, (p->inputs[0].signatures.num_items == 1 ||
+                 wally_map_get_integer(&p->inputs[0].psbt_fields, 0x13)) &&
+                p->inputs[1].signatures.num_items == 0 &&
+                !wally_map_get_integer(&p->inputs[1].psbt_fields, 0x13));
+    wally_psbt_free(p);
+}
+
+static void sps_test_variants(void)
+{
+    // a share planted on our own input is wiped and recomputed
+    sps_complete("planted share on own input", SPS_PLANTED_B64, 0, SPS_SCRIPT, SPS_A_SHARE);
+    sps_complete("foreign P2TR, odd Y", SPS_FTR_B64, 0, SPS_FTR_SCRIPT, SPS_A_SHARE);
+    sps_complete("own BIP376 input, foreign P2TR", SPS_OTR_B64, 0, SPS_OTR_SCRIPT,
+                 SPS_OTR_A_SHARE);
+    sps_complete("two scan keys", SPS_TWO_B64, 3, SPS_TWO_SCRIPT3, NULL);
+
+    wpsbt_summary_t sum;
+    int rc = kiss_psbt_load((const uint8_t *)SPS_TWO_HALF_B64,
+                            strlen(SPS_TWO_HALF_B64), &sum);
+    spchk("shared two scan keys, one share missing: share only",
+          rc == 0 && sum.status != WPSBT_STOP && sum.share_only);
+    if (rc == 0) kiss_psbt_free();
+}
+
+// The arithmetic on a third implementation's numbers: the BIP375 vector with
+// per input shares derives its script from those shares alone.
+static void sps_test_bip375(void)
+{
+#ifdef SPS_HAVE_BIP375
+    uint8_t csum[33], asum[33], ih[32];
+    bool cinf = true, ainf = true;
+    int ok = 1;
+    for (int i = 0; i < SPS375_NIN; i++) {
+        ok &= sp_dleq_verify(sps375_pubs + 33 * i, sps375_scan, sps375_shares + 33 * i,
+                             sps375_proofs + 64 * i, NULL, NULL) == 0;
+        ok &= sp_point_sum(csum, &cinf, sps375_shares + 33 * i) == 0;
+        ok &= sp_point_sum(asum, &ainf, sps375_pubs + 33 * i) == 0;
+    }
+    spchk("BIP375 per input proofs verify", ok);
+    sp_recip_t r;
+    memcpy(r.scan, sps375_scan, 33);
+    memcpy(r.spend, sps375_spend, 33);
+    ok = ok && !cinf && !ainf &&
+         sp_input_hash(sps375_outpoints, SPS375_NIN, asum, ih) == 0 &&
+         sp_derive_group(csum, ih, &r, 1) == 0 &&
+         memcmp(r.xonly_out, sps375_script + 2, 32) == 0;
+    spchk("BIP375 script from the sum of per input shares", ok);
+    spchk("BIP375 invalid per input proof refused",
+          sp_dleq_verify(sps375_bad_pub, sps375_scan, sps375_bad_share,
+                         sps375_bad_proof, NULL, NULL) != 0);
+#endif
+}
+
+// A point and its negation sum to infinity, and a third point brings it back.
+static void sps_test_point_sum(void)
+{
+    uint8_t neg[33], sum[33];
+    bool inf = true;
+    memcpy(neg, SPS_A_PUB, 33);
+    neg[0] ^= 1;                                   // same x, other Y = -A
+    int ok = sp_point_sum(sum, &inf, SPS_A_PUB) == 0 && !inf &&
+             sp_point_sum(sum, &inf, neg) == 0 && inf &&
+             sp_point_sum(sum, &inf, SPS_B_PUB) == 0 && !inf &&
+             memcmp(sum, SPS_B_PUB, 33) == 0;
+    spchk("point sum carries the point at infinity", ok);
+    static const uint8_t junk[33] = { 0x05 };
+    spchk("point sum refuses a non point", sp_point_sum(sum, &inf, junk) != 0);
+}
+
+static void sp_test_shared(void)
+{
+    kiss_set_network(1);
+    uint8_t fp[4];
+    sps_test_point_sum();
+    sps_test_bip375();
+    sps_test_share_only();
+    sps_test_complete_fixture();
+    sps_test_chain(true);
+    sps_test_chain(false);
+    sps_test_refusals();
+    sps_test_variants();
+    spchk("shared: dev wallet open again",
+          kiss_session_fingerprint(fp) == 0 && fp[0] == 0x73 && fp[1] == 0xc5);
+    kiss_set_network(0);
+}
+
 int test_sp(void) {
     sp_fails = 0;
     sp_probe_libwally();
@@ -1131,5 +1538,6 @@ int test_sp(void) {
     sp_test_spend_explicit_sighash();
     sp_test_spend_stapled_prevtx();
     sp_test_mixed_unproven();
+    sp_test_shared();
     return sp_fails;
 }
