@@ -2408,6 +2408,53 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           When you change mode, KISS-signer writes the new copy, checks it, and
           only then erases the old one.
         </div>
+
+        <h3>How KISS-signer keeps your seed, and why</h3>
+        <p>
+          KISS-signer can keep your 12 seed words on its SD card, sealed with
+          a key that never leaves the signer, or in its own memory. On this
+          beta the copy in its own memory is not encrypted, so someone who
+          reads the chip can get the 12 seed words. It never stores your
+          passphrase: you enter it every time.
+        </p>
+        <p>
+          Someone who picks up your signer and draws KISS gets the decoy, a
+          working signer that holds a little. Reaching your real funds needs
+          your own swipe and your passphrase.
+        </p>
+        <p>
+          Flash encryption and secure boot are planned for release builds;
+          this beta has neither. Flash encryption stops anyone reading the
+          chip&rsquo;s memory. Secure boot stops anyone loading their own
+          software to make the signer read it out for them. With both, getting
+          at the stored seed words takes a lab attack on the chip, not a
+          stolen signer and a card reader.
+        </p>
+        <p>
+          Your paper backup stays your only real backup. The SD card is not
+          one: it only works in the signer that wrote it.
+        </p>
+
+        <h3>Why not stateless?</h3>
+        <p>
+          Some signers offer a stateless mode: nothing is stored, and you scan
+          your seed in from a QR backup every time you use it. That means
+          taking your most valuable thing, your seed backup, out of its safe
+          place and showing it to a camera on every single use. Each time is a
+          chance to lose it, have it seen or have it photographed.
+        </p>
+        <p>
+          KISS-signer keeps your backup locked away. Day to day you need only
+          the signer and your passphrase, so it is faster and your backup is
+          out less often.
+        </p>
+        <p>
+          Stateless does have one real strength: there is nothing on the
+          device to steal. KISS-signer gets close to that with the decoy, your
+          own swipe, a passphrase that is never stored and, once they ship,
+          flash encryption with secure boot. If you want nothing stored at all,
+          choose <strong>AMNESIC</strong>.
+        </p>
       </section>
 <section class="doc-card reveal" id="simulator">
         <p class="eyebrow">13 / no hardware required</p>
