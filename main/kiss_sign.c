@@ -136,6 +136,22 @@ static lv_obj_t *s_inert[3];
 static char s_files[MAX_FILES][SD_NAME_LEN];
 static char s_cur[SD_NAME_LEN];
 static wpsbt_summary_t s_sum;
+
+// The words a share only pass of a shared silent payment send says instead of
+// the signing ones. That pass releases this signer's share and signs nothing
+// (kiss_psbt_share), so no screen of it may say SIGN, SIGNING or SIGNED. Every
+// other PSBT reads the strings it always read.
+static const char *sg_word(int id)
+{
+    if (s_sum.share_only) {
+        if (id == STR_S_SIGNED_T)     return tr(STR_S_SHARE_T);
+        if (id == STR_S_SIGNING)      return tr(STR_S_SHARING);
+        if (id == STR_S_HOLD_TO_SIGN) return tr(STR_S_HOLD_TO_SHARE);
+        if (id == STR_S_QR_SUB)       return tr(STR_S_QR_SUB_SHARE);
+        if (id == STR_S_SD_NEXT)      return tr(STR_S_SD_NEXT_SHARE);
+    }
+    return tr(id);
+}
 static bool s_ack;                      // every caution acknowledged? (gates hold-to-sign)
 static uint16_t s_ack_flags;            // WHICH ones, so each row answers for itself
 static uint32_t s_ack_t0;               // when, for SIGN_ARM_MS below
@@ -581,6 +597,19 @@ static const char *tr_reason(const char *r)
         {"silent payment self-check failed", STR_P_SP_DERIVE},
         {"too many inputs for silent payments", STR_P_SP_DERIVE},
         {"malformed SP output info", STR_P_SP_INFO},
+        // A silent payment paid together with another signer. Every share of
+        // theirs is checked against its proof and the key its input spends;
+        // the three ways that check fails say the same thing to the owner.
+        {"other signer's share does not verify", STR_P_SP_SHARE_BAD},
+        {"other signer's share has no proof", STR_P_SP_SHARE_BAD},
+        {"other signer's input key does not match", STR_P_SP_SHARE_BAD},
+        {"shared send needs P2WPKH or P2TR inputs", STR_P_SP_SHARED_INPUTS},
+        // The coordinator's half that this signer could not stand behind: a
+        // share for the whole transaction beside an input that is not ours,
+        // or an output script the shares do not derive.
+        {"shared send carries a global share", STR_P_SP_DERIVE},
+        {"output script set before all shares", STR_P_SP_DERIVE},
+        {"silent payment script does not match", STR_P_SP_DERIVE},
         {"malformed SP output label", STR_P_SP_INFO},
         {"SP label without output info", STR_P_SP_INFO},
         {"malformed transaction (v2 fields)", STR_P_MALFORMED_TX},
@@ -1262,7 +1291,7 @@ static void done_screen(const char *outname)
     // which spent the bottom of the page teaching a sequence the owner is
     // already halfway through. One sentence at the top, where a screen says
     // what to do next, and the foot gets back to the file and the code.
-    mk_screen(parent, tr(STR_S_SIGNED_T), tr(STR_S_SD_NEXT));
+    mk_screen(parent, sg_word(STR_S_SIGNED_T), sg_word(STR_S_SD_NEXT));
     signed_title_row();
 
     // ---- what was signed ------------------------------------------------
@@ -1624,7 +1653,9 @@ static void mark_used_receives(void)
     kiss_ui_last_fp(fp);
     kiss_usage_batch_begin();            // one NVS commit per spend, not per input
     for (uint32_t i = 0; i < det.n_in; i++)
-        if (det.ins[i].change == 0) {                // 0 = receive branch (1 = change)
+        // Another signer's input in a shared send has no path of ours, and
+        // its zeroed fields would mark our receive index 0 as used.
+        if (det.ins[i].change == 0 && !det.ins[i].foreign) {  // 0 = receive branch
             // key by THIS input's own type, not the current Settings type: we
             // sign native/nested/legacy regardless of the setting, and Receive
             // buckets the guard per type, so a mismatch would mark the wrong one
@@ -2278,8 +2309,12 @@ static void sign_succeeded(size_t sw)
     // just omit the aid.
     if (kiss_psbt_sig_fingerprint(s_out, sw, s_sig_fp) != 0)
         s_sig_fp[0] = 0;
-    mark_used_receives();
-    mark_paid_recipients();
+    // A share only pass spends nothing and pays nobody yet: the marks wait for
+    // the pass that signs.
+    if (!s_sum.share_only) {
+        mark_used_receives();
+        mark_paid_recipients();
+    }
     // Every input at once, which is what actually happened: one libwally call
     // signed all of them and there was never a per coin moment to show.
     if (s_graph) wt_bundle_signed_reveal(s_graph, REVEAL_TRAVEL_MS);
@@ -2291,8 +2326,8 @@ static void sign_succeeded(size_t sw)
         // has no plural machinery and the rest of it dodges the problem the
         // same way, by parenthesising the count or not printing one.
         static char done_buf[64];
-        if (s_sum.n_in == 1 || s_cap_short) {
-            snprintf(done_buf, sizeof done_buf, "%s", tr(STR_S_SIGNED_T));
+        if (s_sum.n_in == 1 || s_cap_short || s_sum.share_only) {
+            snprintf(done_buf, sizeof done_buf, "%s", sg_word(STR_S_SIGNED_T));
         } else {
             snprintf(done_buf, sizeof done_buf, tr(STR_S_ALL_SIGNED_FMT),
                      (unsigned)s_sum.n_in);
@@ -2301,7 +2336,7 @@ static void sign_succeeded(size_t sw)
         lv_obj_set_style_text_color(s_graph_cap, wt_accent(), 0);
         lv_obj_add_flag(s_graph_cap, WT_FLAG_ACCENT);
     }
-    sign_lbl_say(tr(STR_S_SIGNED_T));
+    sign_lbl_say(sg_word(STR_S_SIGNED_T));
     s_signed_len = sw;
     lv_timer_create(finish_sign_cb, REVEAL_MS, NULL);
 }
@@ -2342,7 +2377,10 @@ static void do_sign_cb(lv_timer_t *t)
         return;
     }
     size_t sw = 0;
-    if (kiss_psbt_sign(s_out, sizeof s_out, &sw) != 0) {
+    // A share only pass goes out through the same exit with this signer's
+    // shares in it and no signature: kiss_psbt_sign refuses that pass.
+    if ((s_sum.share_only ? kiss_psbt_share(s_out, sizeof s_out, &sw)
+                          : kiss_psbt_sign(s_out, sizeof s_out, &sw)) != 0) {
         // Nothing on the graph moved: no strand ever wore the accent, because
         // no signature was ever made.
         fail_screen(tr(STR_S_FAIL_SIGN));
@@ -2454,7 +2492,7 @@ static void slide_complete(void)
     // holding was the bar disappearing -- and the answer to that is now the
     // LOCK, which arrives on the thing the finger moved and stays there.
     if (s_sign_lbl) {
-        sign_lbl_say(tr(STR_S_SIGNING));
+        sign_lbl_say(sg_word(STR_S_SIGNING));
         // The arrow promised travel and the travel is spent: SIGNING is a
         // state, not a direction, so the word stands alone.
         lv_obj_t *par = lv_obj_get_parent(s_sign_lbl);
@@ -2474,7 +2512,7 @@ static void slide_complete(void)
     sign_lock_outputs();
     if (s_graph) wt_bundle_state(s_graph, WT_BUNDLE_SIGNING);
     if (s_graph_cap)
-        lv_label_set_text(s_graph_cap, tr(STR_S_SIGNING));
+        lv_label_set_text(s_graph_cap, sg_word(STR_S_SIGNING));
     // DETAILS and BACK go inert HERE and not on the press -- kiss_psbt_sign
     // blocks the LVGL loop, so a tap landing on either is a tap answered
     // after the signature exists, and a control that looks live while it
@@ -2657,6 +2695,7 @@ static void caution_help_cb(lv_event_t *e)
     int ni = 0;
     uint16_t f = s_sum.caution_flags;
     #define BODY_ADD(icon_, ...) do { \
+        if (ni >= SG_ROW_MAX) break;     /* the rows page shows no more */ \
         if (o + 1 < sizeof body) { \
             int w_ = snprintf(body + o, sizeof body - o, __VA_ARGS__); \
             if (w_ > 0) { o += (size_t)w_; if (o >= sizeof body) o = sizeof body - 1; } \
@@ -2673,6 +2712,9 @@ static void caution_help_cb(lv_event_t *e)
         BODY_ADD(LV_SYMBOL_CUT, "%s%s", o ? "\n" : "",
                  tr(wpsbt_fee_on_inputs(&s_sum) && wpsbt_fee_share_high(&s_sum)
                     ? STR_S_WHY_HIGHFEE_SELF : STR_S_WHY_HIGHFEE));
+    if (f & WPSBT_C_SHARED)
+        BODY_ADD(LV_SYMBOL_SHUFFLE, "%s%s", o ? "\n" : "",
+                 tr(s_sum.share_only ? STR_S_WHY_SHARE_ONLY : STR_S_WHY_SHARED));
     if (f & WPSBT_C_DUST_INPUT)
         BODY_ADD(WT_ICON_DUST, "%s%s", o ? "\n" : "", tr(STR_S_WHY_DUSTIN));
     if (f & WPSBT_C_MERGE_INS) {
@@ -3065,11 +3107,21 @@ static uint16_t caution_rows(uint16_t f, const char **parts, uint16_t *bits, int
         snprintf(hf, sizeof hf, "%s  %s", tr(STR_S_C_HIGHFEE), fig);
         bits[n] = WPSBT_C_HIGHFEE;       parts[n++] = hf;
     }
+    // A shared send says which pass this is, after the fee and before the
+    // rest: on a share only pass the row the owner accepts is the statement
+    // that nothing is signed in this step.
+    if (n < cap && (f & WPSBT_C_SHARED)) {
+        bits[n] = WPSBT_C_SHARED;
+        parts[n++] = tr(s_sum.share_only ? STR_S_C_SHARE_ONLY : STR_S_C_SHARED);
+    }
     if (n < cap && (f & WPSBT_C_DUST_INPUT))
         { bits[n] = WPSBT_C_DUST_INPUT;  parts[n++] = tr(STR_S_C_DUSTIN); }
     // input-side, so it sits with the dust row rather than with the change ones.
     // Five rows is the ceiling this can reach (fee + dust in + merge + gap + one
     // of the two change rows), which is exactly the cap the row stack draws for.
+    // A shared send's row makes a sixth possible; then the last row (the
+    // change one) is the one not drawn, here and in caution_help_cb alike, so
+    // the gate still asks for exactly the rows the owner can see.
     if (n < cap && (f & WPSBT_C_MERGE_INS))
         { bits[n] = WPSBT_C_MERGE_INS;   parts[n++] = tr(STR_S_C_MERGE); }
     // The gap row carries its NUMBER, which none of the others do. "change out
@@ -4463,8 +4515,8 @@ static void verify_screen(lv_obj_t *parent)
             char alt[64];
             const char *cands[3];
             snprintf(alt, sizeof alt, tr(STR_S_ALL_SIGNED_FMT), (unsigned)s_sum.n_in);
-            cands[0] = tr(STR_S_SIGNING);
-            cands[1] = tr(STR_S_SIGNED_T);
+            cands[0] = sg_word(STR_S_SIGNING);
+            cands[1] = sg_word(STR_S_SIGNED_T);
             cands[2] = alt;
             for (int c = 0; c < 3; c++) {
                 lv_point_t p;
@@ -4788,7 +4840,7 @@ static void verify_screen(lv_obj_t *parent)
     s_armed = armed;
 #endif
     wt_slide_t sg = {
-        .txt     = tr(STR_S_HOLD_TO_SIGN),
+        .txt     = sg_word(STR_S_HOLD_TO_SIGN),
         .held    = tr(STR_G_FW_KEEP_HOLDING),
         .x       = SG_HOLD_X,
         .y       = WT_ACTION_Y_SLIDE,
@@ -5259,7 +5311,11 @@ static void dtab_inputs(lv_obj_t *p)
         // BIP376 received-SP input: its key is spend+tweak, not a BIP84
         // child, so the silent-payment badge stands in for a misleading
         // BIP32 path.
-        if (s_det.ins[i].is_sp)
+        // Another signer's input in a shared send: no path of ours exists
+        // for it, and printing zeroed fields as one would invent a key.
+        if (s_det.ins[i].foreign)
+            snprintf(buf, sizeof buf, "%s", tr(STR_S_D_FOREIGN_IN));
+        else if (s_det.ins[i].is_sp)
             snprintf(buf, sizeof buf, "m/352'/%d'/0'   %s",
                      s_sum.testnet ? 1 : 0, tr(STR_S_SP_BADGE));
         else
@@ -5692,9 +5748,9 @@ static void qr_out_screen(size_t sw, bool rebuild)
 #if KISS_NARROW
     // No subtitle on the 3.5in: its line is the band's here (see the foot of
     // this function), because the code needs the rows it stood on.
-    mk_screen(parent, tr(STR_S_SIGNED_T), NULL);
+    mk_screen(parent, sg_word(STR_S_SIGNED_T), NULL);
 #else
-    mk_screen(parent, tr(STR_S_SIGNED_T), tr(STR_S_QR_SUB));
+    mk_screen(parent, sg_word(STR_S_SIGNED_T), sg_word(STR_S_QR_SUB));
 #endif
     // The tick, without the padlock pair the SD screen carries -- see
     // signed_title_row for why this page leaves it off.

@@ -153,6 +153,22 @@ def pick_order():
 # names other wallets print in English too. Anything added here needs a reason
 # on its line; "we did not get round to it" is not one.
 UNTRANSLATED_OK = {
+    # A silent payment paid together with another signer: its refusals,
+    # the caution rows and their explanations, and the share only pass's
+    # title, slide and next step lines. Born under the English-only rule;
+    # English in the other locales until the translation sweep.
+    "S_C_SHARED",
+    "S_C_SHARE_ONLY",
+    "S_WHY_SHARED",
+    "S_WHY_SHARE_ONLY",
+    "S_SHARE_T",
+    "S_SHARING",
+    "S_HOLD_TO_SHARE",
+    "S_QR_SUB_SHARE",
+    "S_SD_NEXT_SHARE",
+    "P_SP_SHARE_BAD",
+    "P_SP_SHARED_INPUTS",
+    "S_D_FOREIGN_IN",
     # BIP68 relative lock: the badge, its units and the card line. Born
     # under the English-only rule; English in the other locales until the
     # translation sweep.
