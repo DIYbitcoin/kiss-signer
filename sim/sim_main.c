@@ -1042,6 +1042,14 @@ int kiss_psbt_sign(uint8_t *out, size_t out_len, size_t *written) {
   memset(out, 0xAB, n); *written = n;
   return 0;
 }
+// The share only exit of a shared silent payment send. Same bytes as the sign
+// stub: the screens after it are the ones a signature takes, and the real
+// function is covered in kisstest.
+int kiss_psbt_share(uint8_t *out, size_t out_len, size_t *written) {
+  size_t n = out_len < 220 ? out_len : 220;
+  memset(out, 0xAB, n); *written = n;
+  return 0;
+}
 // The real fingerprint (sha256 over the signature bytes) needs wally; the sim
 // links none, same as the sign stub above. A tiny deterministic hash gives the
 // walk a stable, plausible code to render. kisstest covers the real function.
