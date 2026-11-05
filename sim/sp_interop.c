@@ -76,7 +76,19 @@ int main(int argc, char **argv) {
             if (kiss_psbt_share(signed_psbt, sizeof signed_psbt, &written) != 0 ||
                 written == 0) rc = 2;
         } else if (kiss_psbt_sign(signed_psbt, sizeof signed_psbt, &written) != 0 ||
-                   written == 0) rc = 2;
+                   written == 0) {
+            rc = 2;
+        } else {
+            // Answer with what the QR carries (qr_enc_start): the trimmed
+            // copy when there is one, the whole PSBT otherwise.
+            static uint8_t trimmed[sizeof signed_psbt];
+            size_t tl = 0;
+            if (kiss_psbt_export_copy(signed_psbt, written, trimmed,
+                                      sizeof trimmed, &tl) == 0 && tl) {
+                memcpy(signed_psbt, trimmed, tl);
+                written = tl;
+            }
+        }
     }
     if (!rc && argc == 4) {
         FILE *review = fopen(argv[3], "w");
