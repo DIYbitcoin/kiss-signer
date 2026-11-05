@@ -590,6 +590,36 @@ int sp_dleq_verify(const uint8_t a_pub33[33], const uint8_t b33[33],
     return memcmp(e, e_check, 32) == 0 ? 0 : -8;
 }
 
+// The carry is the whole reason this is not sp_add_points called in a loop: two
+// inputs whose keys are each other's negation sum to the point at infinity,
+// which has no 33 byte form, and a third input can bring the total back. The
+// scalar sum in sp_sum_privkeys carries a zero the same way, for the same rule.
+int sp_point_sum(uint8_t sum33[33], bool *sum_inf, const uint8_t p33[33])
+{
+    secp256k1_context *ctx = sp_ctx();
+    secp256k1_pubkey term;
+    if (!sum33 || !sum_inf || !p33 ||
+        !secp256k1_ec_pubkey_parse(ctx, &term, p33, 33))
+        return -1;
+    if (*sum_inf) {                       // 0 + P = P
+        memcpy(sum33, p33, 33);
+        *sum_inf = false;
+        return 0;
+    }
+    secp256k1_pubkey acc, total;
+    const secp256k1_pubkey *both[2] = { &acc, &term };
+    size_t sl = 33;
+    if (!secp256k1_ec_pubkey_parse(ctx, &acc, sum33, 33))
+        return -2;
+    // Both terms parsed, so the one way this fails is acc + term = infinity.
+    if (!secp256k1_ec_pubkey_combine(ctx, &total, both, 2)) {
+        *sum_inf = true;
+        return 0;
+    }
+    secp256k1_ec_pubkey_serialize(ctx, sum33, &sl, &total, SECP256K1_EC_COMPRESSED);
+    return 0;
+}
+
 // ---- BIP376: spend a received silent-payment output ------------------------
 
 int sp_spend_signing_key(const uint8_t spend_priv32[32], const uint8_t tweak32[32],

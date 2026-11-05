@@ -27,6 +27,13 @@ typedef enum {
 // the fee-lie note in kiss_psbt.c. The bit stays retired rather than reused:
 // the flag rode on the SD fixtures and the settings a device already has.
 #define WPSBT_C_GAP_CHANGE   (1u << 6)   // change parked past any scanner's reach
+// A silent payment paid together with another signer: some inputs are not this
+// wallet's, and each signer adds a share for its own (BIP375 per input shares).
+// A caution and not a status, because it is exactly what a caution is for: the
+// transaction is signable, and the owner has to accept one stated fact about it
+// before the slide arms. Raised on both passes of a shared send -- see
+// wpsbt_summary_t.share_only for which one this is.
+#define WPSBT_C_SHARED       (1u << 7)
 
 // Privacy threshold: coins/change under this are flagged (soft). Not a dust
 // limit — that is a per-type standardness floor (see kiss_psbt.c).
@@ -133,6 +140,27 @@ typedef struct {
     uint32_t n_sp;           // silent payment outputs among outs[]
     uint32_t n_sp_in;        // BIP376 inputs that spend a received silent payment
     uint32_t n_unproven_in;  // inputs whose amount came from a bare witness_utxo
+    // ---- a shared send: part of the inputs are another signer's ----
+    // How the amounts read then, which is as plainly as the signer can stand
+    // behind them:
+    //   - in_sats is EVERY input and fee_sats is all inputs less all outputs,
+    //     so the review still shows one transaction that adds up;
+    //   - own_in_sats is the part of in_sats this signer's own inputs carry,
+    //     and own_in_sats less change_sats is what leaves these keys. Both
+    //     terms are proven from this seed, never from the other side's word;
+    //   - an output is change only when it re-derives from THIS seed. The
+    //     other wallet's change is an ordinary output: it is shown with its
+    //     address and counted in send_sats, because nothing here can prove
+    //     whose it is.
+    // With no foreign input n_foreign_in is 0 and own_in_sats equals in_sats.
+    uint32_t n_foreign_in;   // inputs that are another signer's (never signed here)
+    uint64_t own_in_sats;    // what this signer's own inputs carry
+    // The pass of a shared send that only ADDS this signer's shares. Another
+    // signer's share is still missing, so the silent payment output has no
+    // script, no transaction exists yet and nothing can be signed:
+    // kiss_psbt_sign refuses and kiss_psbt_share hands back the PSBT with the
+    // shares in it. The payment comes back for a second pass to be signed.
+    bool     share_only;
     // Distinct scriptPubKeys among the inputs, which is the real size of a
     // consolidation. Two coins sitting on ONE address are already public proof
     // of a single owner, so joining them tells the chain nothing it did not
@@ -265,13 +293,16 @@ typedef struct {
     uint32_t purpose;        // 44/49/84 (verify already proved it's ours), 352 = SP spend
     uint32_t change, index;  // our derivation tail m/../<change>/<index>
     bool     is_sp;          // BIP376: spends a received silent-payment (P2TR) coin
+    bool     foreign;        // shared send: another signer's input, no path of ours
     bool     proven;         // sats came from a previous tx that hashes to the outpoint
     uint8_t  rel_kind;       // WPSBT_REL_*: the BIP68 age this input asks for
     uint32_t rel_age;        // blocks, or seconds for WPSBT_REL_TIME
 } wpsbt_in_t;
 
 typedef struct {
-    char     txid[65];       // txid of the tx being signed, display hex
+    char     txid[65];       // txid of the tx being signed, display hex. Empty on
+                             // a share only pass: the silent payment output has
+                             // no script yet, so the transaction has no id
     bool     txid_final;     // native SegWit/taproot only: finalization preserves txid
     uint32_t version;
     uint32_t locktime;
@@ -295,8 +326,19 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s);
 
 // Sign the loaded PSBT with the session key, serialize into out.
 // Refuses (nonzero) if nothing loaded, status is STOP, or session closed, and
-// if any input ends up without a signature of ours that verifies.
+// if any input ends up without a signature of ours that verifies. In a shared
+// send that means every input of OURS: another signer's inputs are never
+// signed here and must come out exactly as they went in. Always refuses a
+// share only pass (wpsbt_summary_t.share_only).
 int kiss_psbt_sign(uint8_t *out, size_t out_len, size_t *written);
+
+// The other exit, for a share only pass and nothing else: serialize the loaded
+// PSBT with this signer's per input shares and proofs in it, and no signature
+// of ours. The silent payment output goes out the way it came in, with
+// PSBT_OUT_SCRIPT absent. Releasing a share is asked of the owner the same way
+// a signature is, so call this where kiss_psbt_sign would have been called.
+// Nonzero when the loaded PSBT is not a share only pass.
+int kiss_psbt_share(uint8_t *out, size_t out_len, size_t *written);
 
 // The copy of a signed PSBT that goes out by QR. The full signed PSBT stays
 // the device's record (the card write, the fingerprint, the retry screen);
@@ -310,7 +352,10 @@ int kiss_psbt_sign(uint8_t *out, size_t out_len, size_t *written);
 // place its script lives). A PSBT carrying anything this file does not
 // recognise -- in practice the silent payment fields -- is copied whole, and
 // so is every PSBTv2, which a coordinator may finalize without combining.
-// 0 with the copy in out; nonzero means the caller sends the full PSBT.
+// 0 with the copy in out; nonzero means the caller sends the full PSBT, which
+// is also what a share only pass gets: its silent payment output has no script
+// yet, so there is nothing here to trim and it goes out as kiss_psbt_share
+// wrote it.
 int kiss_psbt_export_copy(const uint8_t *signed_psbt, size_t len,
                           uint8_t *out, size_t cap, size_t *written);
 

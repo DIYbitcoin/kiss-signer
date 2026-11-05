@@ -106,6 +106,16 @@ void sp_sort_group(sp_recip_t *recips, uint32_t *idxs, size_t n);
 int sp_derive_group(const uint8_t share33[33], const uint8_t input_hash32[32],
                     sp_recip_t *recips, size_t n);
 
+// One term of a sum of public points, for a silent payment that more than
+// one signer pays (BIP375 per input shares): the sum of every input's share
+// stands where a_sum*B_scan stood, and the sum of every input's public key
+// is A_sum. Start with *sum_inf true (nothing added yet) and call once per
+// point: sum33 becomes sum33 + p33. *sum_inf is true again whenever the running
+// total is the point at infinity, which BIP352 allows part way through a sum
+// and refuses only at its end, so the caller checks it after the last term.
+// Returns 0, or negative when p33 or sum33 is not a point on the curve.
+int sp_point_sum(uint8_t sum33[33], bool *sum_inf, const uint8_t p33[33]);
+
 // BIP374 DLEQ: proves share = a*B for A = a*G without revealing a. proof64 =
 // e||s. aux32 = fresh (or deterministic-per-psbt) randomness, REQUIRED.
 // m32 = optional 32-byte message (NULL for the BIP375 flow). g33 = optional
