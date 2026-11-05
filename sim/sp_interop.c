@@ -22,7 +22,8 @@ static int open_test_wallet(void) {
         return 2;
     kiss_set_network(1);
     kiss_set_script(WSCRIPT_NATIVE);
-    return kiss_session_open("") == 0 ? 0 : 2;
+    const char *pass = getenv("SP_BRIDGE_PASSPHRASE");
+    return kiss_session_open(pass ? pass : "") == 0 ? 0 : 2;
 }
 
 int main(int argc, char **argv) {
