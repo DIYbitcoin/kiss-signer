@@ -23,7 +23,7 @@ int wally_wif_from_bytes(const unsigned char *priv_key,
         return WALLY_EINVAL;
 
     buf[0] = (unsigned char) prefix & 0xff;
-    memcpy(&buf[1], priv_key, EC_PRIVATE_KEY_LEN);
+    wally_memcpy(&buf[1], priv_key, EC_PRIVATE_KEY_LEN);
 
     if (flags & WALLY_WIF_FLAG_UNCOMPRESSED)
         buf_len--;
@@ -45,7 +45,7 @@ static int is_uncompressed(const char *base58, unsigned char *bytes, size_t len,
         return ret;
 
     if (written > len)
-        return WALLY_EINVAL; /** Not enough space for decoded WIF string */
+        return WALLY_EINVAL; /* Not enough space for decoded WIF string */
 
     if (written == EC_PRIVATE_KEY_LEN + 1) {
         *uncompressed = 1;
@@ -78,11 +78,12 @@ int wally_wif_to_bytes(const char *wif,
         (buf[0] != prefix) ||
         (uncompressed && flags != WALLY_WIF_FLAG_UNCOMPRESSED) ||
         (!uncompressed && flags != WALLY_WIF_FLAG_COMPRESSED)) {
+        /* Incorrect format, prefix doesn't match or inconsistent flag */
         wally_clear(buf, sizeof(buf));
-        return WALLY_EINVAL; /** Incorrect format, prefix does not match or inconsistent flag */
+        return ret != WALLY_OK ? ret : WALLY_EINVAL;
     }
 
-    memcpy(bytes_out, &buf[1], EC_PRIVATE_KEY_LEN);
+    wally_memcpy(bytes_out, &buf[1], EC_PRIVATE_KEY_LEN);
 
     wally_clear(buf, sizeof(buf));
     return WALLY_OK;
@@ -93,6 +94,9 @@ int wally_wif_is_uncompressed(const char *wif,
 {
     int ret;
     unsigned char buf[2 + EC_PRIVATE_KEY_LEN + BASE58_CHECKSUM_LEN];
+
+    if (written)
+        *written = 0;
 
     if (!wif || !written)
         return WALLY_EINVAL;
@@ -116,21 +120,23 @@ int wally_wif_to_public_key(const char *wif,
     if (written)
         *written = 0;
 
-    if (!wif || (prefix & ~0xff) || !bytes_out)
+    if (!wif || (prefix & ~0xff) || !bytes_out || !written)
         return WALLY_EINVAL;
 
     ret = is_uncompressed(wif, buf, sizeof(buf), &uncompressed);
 
-    if (buf[0] != prefix || ret) {
+    if (ret != WALLY_OK || buf[0] != prefix) {
+        /* Prefix doesn't match, or invalid format */
         wally_clear(buf, sizeof(buf));
-        return WALLY_EINVAL; /** Prefix does not match or invalid format*/
+        return ret != WALLY_OK ? ret : WALLY_EINVAL;
     }
 
     *written = uncompressed ? EC_PUBLIC_KEY_UNCOMPRESSED_LEN : EC_PUBLIC_KEY_LEN;
 
     if (len < *written) {
+        /* Not enough output space, return required size */
         wally_clear(buf, sizeof(buf));
-        return WALLY_OK; /* Not enough output space, return required size */
+        return WALLY_OK;
     }
 
     if (uncompressed) {
@@ -152,7 +158,8 @@ int wally_wif_to_address(const char *wif,
                          char **output)
 {
     int ret;
-    unsigned char pubkey[EC_PUBLIC_KEY_UNCOMPRESSED_LEN], address[HASH160_LEN + 1];
+    unsigned char pubkey[EC_PUBLIC_KEY_UNCOMPRESSED_LEN];
+    unsigned char address[HASH160_LEN + 1];
     size_t written;
 
     if (output)
@@ -161,16 +168,13 @@ int wally_wif_to_address(const char *wif,
     if (!wif || (prefix & ~0xff) || (version & ~0xff) || !output)
         return WALLY_EINVAL;
 
-    if ((ret = wally_wif_to_public_key(wif, prefix, pubkey, sizeof(pubkey), &written)))
-        return ret;
-
-    address[0] = (unsigned char) version & 0xff;
-
-    if ((ret = wally_hash160(pubkey, written, &address[1], HASH160_LEN)))
-        return ret;
-
-    ret = wally_base58_from_bytes(address, sizeof(address), BASE58_FLAG_CHECKSUM, output);
-
-    wally_clear_2(pubkey, sizeof(pubkey), address, sizeof(address));
+    ret = wally_wif_to_public_key(wif, prefix, pubkey, sizeof(pubkey), &written);
+    if (ret == WALLY_OK) {
+        address[0] = (unsigned char) version & 0xff;
+        ret = wally_hash160(pubkey, written, &address[1], HASH160_LEN);
+        if (ret == WALLY_OK)
+            ret = wally_base58_from_bytes(address, sizeof(address),
+                                          BASE58_FLAG_CHECKSUM, output);
+    }
     return ret;
 }

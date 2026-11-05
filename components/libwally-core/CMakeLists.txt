@@ -1,6 +1,7 @@
 # libwally-core (ElementsProject) as an ESP-IDF component.
-# upstream/ is vendored at commit c5591834 (release_1.5.4) — the exact commit both
-# Blockstream Jade and Kern pin, so it's proven on ESP32 (Jade) and ESP32-P4 (Kern).
+# upstream/ is vendored at commit b14bee49 (release_1.6.0), which carries the
+# 1.6.0 bug and security fixes. The previous pin, c5591834 (release_1.5.4), was
+# the exact commit both Blockstream Jade and Kern pinned on ESP32 and ESP32-P4.
 # Component layout follows Jade/Kern; differences from theirs:
 #   - no mbedtls SHA (uses libwally's internal ccan SHA) so the identical sources also
 #     compile in the desktop test runner (sim/build_test.sh). mbedtls acceleration can

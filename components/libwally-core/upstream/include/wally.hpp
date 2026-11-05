@@ -534,6 +534,18 @@ inline int descriptor_canonicalize(const DESCRIPTOR& descriptor, uint32_t flags,
     return detail::check_ret(__FUNCTION__, ret);
 }
 
+template <class DESCRIPTOR>
+inline int descriptor_derive_bip32_key(const DESCRIPTOR& descriptor, size_t index, uint32_t variant, uint32_t multi_index, uint32_t child_num, uint32_t flags, struct ext_key* output) {
+    int ret = ::wally_descriptor_derive_bip32_key(detail::get_p(descriptor), index, variant, multi_index, child_num, flags, output);
+    return detail::check_ret(__FUNCTION__, ret);
+}
+
+template <class DESCRIPTOR>
+inline int descriptor_derive_bip32_key_alloc(const DESCRIPTOR& descriptor, size_t index, uint32_t variant, uint32_t multi_index, uint32_t child_num, uint32_t flags, struct ext_key** output) {
+    int ret = ::wally_descriptor_derive_bip32_key_alloc(detail::get_p(descriptor), index, variant, multi_index, child_num, flags, output);
+    return detail::check_ret(__FUNCTION__, ret);
+}
+
 inline int descriptor_free(struct wally_descriptor* descriptor) {
     int ret = ::wally_descriptor_free(descriptor);
     return detail::check_ret(__FUNCTION__, ret);
@@ -623,6 +635,60 @@ inline int descriptor_get_num_variants(const DESCRIPTOR& descriptor, uint32_t* v
     return detail::check_ret(__FUNCTION__, ret);
 }
 
+template <class DESCRIPTOR, class BYTES_OUT>
+inline int descriptor_get_taproot_control_block(const DESCRIPTOR& descriptor, uint32_t leaf_index, uint32_t multi_index, uint32_t child_num, uint32_t flags, BYTES_OUT& bytes_out, size_t* written) {
+    int ret = ::wally_descriptor_get_taproot_control_block(detail::get_p(descriptor), leaf_index, multi_index, child_num, flags, bytes_out.data(), bytes_out.size(), written);
+    return detail::check_ret(__FUNCTION__, ret);
+}
+
+template <class DESCRIPTOR>
+inline int descriptor_get_taproot_control_block_len(const DESCRIPTOR& descriptor, uint32_t leaf_index, uint32_t multi_index, uint32_t child_num, uint32_t flags, size_t* written) {
+    int ret = ::wally_descriptor_get_taproot_control_block_len(detail::get_p(descriptor), leaf_index, multi_index, child_num, flags, written);
+    return detail::check_ret(__FUNCTION__, ret);
+}
+
+template <class DESCRIPTOR, class BYTES_OUT>
+inline int descriptor_get_taproot_leaf_hash(const DESCRIPTOR& descriptor, uint32_t leaf_index, uint32_t multi_index, uint32_t child_num, uint32_t flags, BYTES_OUT& bytes_out) {
+    int ret = ::wally_descriptor_get_taproot_leaf_hash(detail::get_p(descriptor), leaf_index, multi_index, child_num, flags, bytes_out.data(), bytes_out.size());
+    return detail::check_ret(__FUNCTION__, ret);
+}
+
+template <class DESCRIPTOR>
+inline int descriptor_get_taproot_leaf_key_index(const DESCRIPTOR& descriptor, uint32_t leaf_index, uint32_t key_index, uint32_t* value_out) {
+    int ret = ::wally_descriptor_get_taproot_leaf_key_index(detail::get_p(descriptor), leaf_index, key_index, value_out);
+    return detail::check_ret(__FUNCTION__, ret);
+}
+
+template <class DESCRIPTOR>
+inline int descriptor_get_taproot_leaf_num_keys(const DESCRIPTOR& descriptor, uint32_t leaf_index, uint32_t* value_out) {
+    int ret = ::wally_descriptor_get_taproot_leaf_num_keys(detail::get_p(descriptor), leaf_index, value_out);
+    return detail::check_ret(__FUNCTION__, ret);
+}
+
+template <class DESCRIPTOR, class BYTES_OUT>
+inline int descriptor_get_taproot_leaf_script(const DESCRIPTOR& descriptor, uint32_t leaf_index, uint32_t multi_index, uint32_t child_num, uint32_t flags, BYTES_OUT& bytes_out, size_t* written) {
+    int ret = ::wally_descriptor_get_taproot_leaf_script(detail::get_p(descriptor), leaf_index, multi_index, child_num, flags, bytes_out.data(), bytes_out.size(), written);
+    return detail::check_ret(__FUNCTION__, ret);
+}
+
+template <class DESCRIPTOR>
+inline int descriptor_get_taproot_leaf_script_len(const DESCRIPTOR& descriptor, uint32_t leaf_index, uint32_t multi_index, uint32_t child_num, uint32_t flags, size_t* written) {
+    int ret = ::wally_descriptor_get_taproot_leaf_script_len(detail::get_p(descriptor), leaf_index, multi_index, child_num, flags, written);
+    return detail::check_ret(__FUNCTION__, ret);
+}
+
+template <class DESCRIPTOR, class BYTES_OUT>
+inline int descriptor_get_taproot_merkle_root(const DESCRIPTOR& descriptor, uint32_t multi_index, uint32_t child_num, uint32_t flags, BYTES_OUT& bytes_out) {
+    int ret = ::wally_descriptor_get_taproot_merkle_root(detail::get_p(descriptor), multi_index, child_num, flags, bytes_out.data(), bytes_out.size());
+    return detail::check_ret(__FUNCTION__, ret);
+}
+
+template <class DESCRIPTOR>
+inline int descriptor_get_taproot_num_leaves(const DESCRIPTOR& descriptor, uint32_t* value_out) {
+    int ret = ::wally_descriptor_get_taproot_num_leaves(detail::get_p(descriptor), value_out);
+    return detail::check_ret(__FUNCTION__, ret);
+}
+
 template <class DESCRIPTOR, class VARS_IN>
 inline int descriptor_parse(const DESCRIPTOR& descriptor, const VARS_IN& vars_in, uint32_t network, uint32_t flags, struct wally_descriptor** output) {
     int ret = ::wally_descriptor_parse(detail::get_p(descriptor), detail::get_p(vars_in), network, flags, output);
@@ -678,6 +744,12 @@ inline int ec_public_key_bip341_tweak(const PUB_KEY& pub_key, const MERKLE_ROOT&
 }
 
 template <class PUB_KEY, class BYTES_OUT>
+inline int ec_public_key_compress(const PUB_KEY& pub_key, BYTES_OUT& bytes_out) {
+    int ret = ::wally_ec_public_key_compress(pub_key.data(), pub_key.size(), bytes_out.data(), bytes_out.size());
+    return detail::check_ret(__FUNCTION__, ret);
+}
+
+template <class PUB_KEY, class BYTES_OUT>
 inline int ec_public_key_decompress(const PUB_KEY& pub_key, BYTES_OUT& bytes_out) {
     int ret = ::wally_ec_public_key_decompress(pub_key.data(), pub_key.size(), bytes_out.data(), bytes_out.size());
     return detail::check_ret(__FUNCTION__, ret);
@@ -693,6 +765,12 @@ template <class PUB_KEY, class BYTES_OUT>
 inline int ec_public_key_negate(const PUB_KEY& pub_key, BYTES_OUT& bytes_out) {
     int ret = ::wally_ec_public_key_negate(pub_key.data(), pub_key.size(), bytes_out.data(), bytes_out.size());
     return detail::check_ret(__FUNCTION__, ret);
+}
+
+template <class PUB_KEY>
+inline bool ec_public_key_strict_verify(const PUB_KEY& pub_key) {
+    int ret = ::wally_ec_public_key_strict_verify(pub_key.data(), pub_key.size());
+    return ret == WALLY_OK;
 }
 
 template <class PUB_KEY, class TWEAK, class BYTES_OUT>

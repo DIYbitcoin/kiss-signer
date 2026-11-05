@@ -56,7 +56,7 @@ static const struct wally_tx *psbt_tx(void)
     return s_psbt->tx;
 }
 
-// Consensus cap (21M BTC in sats). wally 1.5.4 already refuses bigger amounts
+// Consensus cap (21M BTC in sats). wally 1.6.0 already refuses bigger amounts
 // at parse (psbt_from_bytes rc=-2, verified) — this cap is defense-in-depth so
 // the sums below can never wrap uint64 even if a future wally lets one through
 // (16 ins + 16 outs * MAX_MONEY is still < 2^63).
@@ -684,7 +684,7 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
         len = wr;
     }
     // BIP375 PSBTv2s carry script-less SP outputs, which BIP370's mandatory
-    // PSBT_OUT_SCRIPT makes a strict-parse failure in wally 1.5.4 - retry
+    // PSBT_OUT_SCRIPT makes a strict-parse failure in wally 1.6.0 - retry
     // loose, then require exactly that shape below (anything else that needed
     // loose to parse is malformed and stops).
     bool loose = false;
@@ -1486,13 +1486,14 @@ int kiss_psbt_sign(uint8_t *out, size_t out_len, size_t *written)
     // above accepts nothing but sighash 0 or ALL, so both bits are always due
     // to be cleared here and zero is the whole answer.
     //
-    // Ours to do, not wally's: it clears these inside
-    // wally_psbt_add_input_signature, which is the hand-rolled API, and never
-    // on the wally_psbt_sign_bip32 path this signer takes. So a signed PSBTv2
-    // left here still saying TX_MODIFIABLE=0x03 -- telling the next coordinator
-    // it may still add inputs and outputs, over a signature that any such edit
-    // would silently invalidate. sp_fill already made this call for silent
-    // payments; every v2 gets it now.
+    // wally 1.6.0 clears these for every signature it stores, on the
+    // wally_psbt_sign_bip32 path and the card's wally_psbt_add_input_signature
+    // path alike. 1.5.4 missed the first, so a signed PSBTv2 left here still
+    // saying TX_MODIFIABLE=0x03 -- telling the next coordinator it may still
+    // add inputs and outputs, over a signature that any such edit would
+    // silently invalidate. The call stays so that answer never rests on the
+    // vendored version. sp_fill already made this call for silent payments;
+    // every v2 gets it now.
     if (s_psbt->version == 2 &&
         wally_psbt_set_tx_modifiable_flags(s_psbt, 0) != WALLY_OK)
         return -8;

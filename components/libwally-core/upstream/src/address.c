@@ -30,8 +30,8 @@ int wally_bip32_key_to_address(const struct ext_key *hdkey, uint32_t flags,
     if (flags & WALLY_ADDRESS_TYPE_P2PKH) {
         /* pub_key_hash = ripemd160(sha256(pubkey) */
         address[0] = (unsigned char) version & 0xff;
-        if (wally_hash160(hdkey->pub_key, sizeof(hdkey->pub_key), address + 1, HASH160_LEN) != WALLY_OK)
-            return WALLY_EINVAL;
+        if ((ret = wally_hash160(hdkey->pub_key, sizeof(hdkey->pub_key), address + 1, HASH160_LEN)) != WALLY_OK)
+            return ret;
     } else {
         /* redeem_script = SegWit version 0 + push(keyhash) = OP_0 + 0x20 + [key_hash]
            where key_hash = ripemd160(sha256(pubkey)) */
@@ -39,13 +39,13 @@ int wally_bip32_key_to_address(const struct ext_key *hdkey, uint32_t flags,
         redeem_script[0] = OP_0;
         redeem_script[1] = HASH160_LEN;
 
-        if (wally_hash160(hdkey->pub_key, sizeof(hdkey->pub_key), redeem_script + 2, HASH160_LEN) != WALLY_OK)
-            return WALLY_EINVAL;
+        if ((ret = wally_hash160(hdkey->pub_key, sizeof(hdkey->pub_key), redeem_script + 2, HASH160_LEN)) != WALLY_OK)
+            return ret;
 
         /* P2SH address = version (e.g. 0x05) + ripemd160(sha256(redeem_script)) */
         address[0] = (unsigned char) version & 0xff;
-        if (wally_hash160(redeem_script, sizeof(redeem_script), address + 1, HASH160_LEN) != WALLY_OK)
-            return WALLY_EINVAL;
+        if ((ret = wally_hash160(redeem_script, sizeof(redeem_script), address + 1, HASH160_LEN)) != WALLY_OK)
+            return ret;
     }
 
     ret = wally_base58_from_bytes(address, sizeof(address), BASE58_FLAG_CHECKSUM, output);
@@ -64,8 +64,14 @@ int wally_bip32_key_to_addr_segwit(const struct ext_key *hdkey, const char *addr
     witness_program_bytes[0] = OP_0;
     witness_program_bytes[1] = HASH160_LEN;
 
-    if (wally_hash160(hdkey->pub_key, sizeof(hdkey->pub_key), witness_program_bytes + 2, HASH160_LEN) != WALLY_OK)
+    if (output)
+        *output = NULL;
+
+    if (!hdkey || !output)
         return WALLY_EINVAL;
+
+    if ((ret = wally_hash160(hdkey->pub_key, sizeof(hdkey->pub_key), witness_program_bytes + 2, HASH160_LEN)) != WALLY_OK)
+        return ret;
 
     ret = wally_addr_segwit_from_bytes(witness_program_bytes, HASH160_LEN + 2, addr_family, flags, output);
 
@@ -126,12 +132,15 @@ int wally_address_to_scriptpubkey(const char *addr, uint32_t network, unsigned c
     uint32_t version, addr_network;
     unsigned char decoded[1 + HASH160_LEN + BASE58_CHECKSUM_LEN];
     size_t decoded_len;
+    int ret;
 
     if (written)
         *written = 0;
 
-    if (wally_base58_to_bytes(addr, BASE58_FLAG_CHECKSUM, decoded, sizeof(decoded), &decoded_len) != WALLY_OK)
-        return WALLY_EINVAL;
+    ret = wally_base58_to_bytes(addr, BASE58_FLAG_CHECKSUM,
+                                decoded, sizeof(decoded), &decoded_len);
+    if (ret != WALLY_OK)
+        return ret;
 
     if (decoded_len != HASH160_LEN + 1)
         return WALLY_EINVAL;
@@ -160,6 +169,10 @@ int wally_scriptpubkey_to_address(const unsigned char *scriptpubkey, size_t scri
     int ret;
     size_t type;
     unsigned char bytes[1 + HASH160_LEN];
+
+    if (output)
+        *output = NULL;
+
     if ((ret = wally_scriptpubkey_get_type(scriptpubkey, scriptpubkey_len, &type)) != WALLY_OK) {
         return ret;
     }

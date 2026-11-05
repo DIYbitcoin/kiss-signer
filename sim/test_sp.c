@@ -1,5 +1,5 @@
 // sim/test_sp.c — silent payments (BIP352/374/375) test suite.
-// Task 2 probe: pin down how the vendored libwally 1.5.4 handles a
+// Task 2 probe: pin down how the vendored libwally (1.6.0) handles a
 // coordinator-style BIP375 PSBTv2. Findings this suite enforces forever:
 //   * strict parse REJECTS it (BIP370 makes PSBT_OUT_SCRIPT mandatory; BIP375
 //     relaxes that, libwally predates the relaxation) -> the loader must retry

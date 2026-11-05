@@ -11,7 +11,7 @@
 void test_schnorrsig_sha256_tagged_aggregate(void) {
     static const unsigned char tag[] = {'H', 'a', 'l', 'f', 'A', 'g', 'g', '/', 'r', 'a', 'n', 'd', 'o', 'm', 'i', 'z', 'e', 'r'};
     secp256k1_sha256 sha_optimized;
-    const secp256k1_hash_ctx *hash_ctx = secp256k1_get_hash_context(CTX);
+    const secp256k1_hash_ctx *hash_ctx = &CTX->hash_ctx;
 
     secp256k1_schnorrsig_sha256_tagged_aggregation(&sha_optimized);
     test_sha256_tag_midstate(hash_ctx, &sha_optimized, tag, sizeof(tag));
@@ -28,7 +28,7 @@ void test_schnorrsig_aggregate_input_helper(secp256k1_xonly_pubkey *pubkeys, uns
 
         CHECK(secp256k1_keypair_create(CTX, &keypair, sk));
         CHECK(secp256k1_keypair_xonly_pub(CTX, &pubkeys[i], NULL, &keypair));
-        CHECK(secp256k1_schnorrsig_sign(CTX, &sigs64[i*64], &msgs32[i*32], &keypair, NULL));
+        CHECK(secp256k1_schnorrsig_sign32(CTX, &sigs64[i*64], &msgs32[i*32], &keypair, NULL));
     }
 }
 
@@ -55,7 +55,7 @@ void test_schnorrsig_aggregate_internal(void) {
     CHECK(secp256k1_schnorrsig_aggverify(CTX, pubkeys, msgs32, n_initial, aggsig, aggsig_len));
     /* Aggregate the remaining n_new many signatures to the already existing ones */
     aggsig_len = sizeof(aggsig);
-    secp256k1_schnorrsig_inc_aggregate(CTX, aggsig, &aggsig_len, pubkeys, msgs32, &sigs64[n_initial*64], n_initial, n_new);
+    CHECK(secp256k1_schnorrsig_inc_aggregate(CTX, aggsig, &aggsig_len, pubkeys, msgs32, &sigs64[n_initial*64], n_initial, n_new) == 1);
     /* Make sure that the aggregate signature verifies */
     CHECK(aggsig_len == 32*(n + 1));
     CHECK(secp256k1_schnorrsig_aggverify(CTX, pubkeys, msgs32, n, aggsig, aggsig_len));
@@ -319,6 +319,42 @@ static void test_schnorrsig_aggregate_overflow_internal(void) {
     }
 }
 
+DEFINE_SHA256_TRANSFORM_PROBE(sha256_schnorrsig_halfagg)
+static void test_schnorrsig_halfagg_ctx_sha256(void) {
+    /* Check ctx-provided SHA256 compression override takes effect */
+    secp256k1_context *ctx = secp256k1_context_clone(CTX);
+    unsigned char aggsig_default[96], aggsig_custom[96];
+    unsigned char sk[2][32] = {{1}, {2}};
+    unsigned char msgs[2*32];
+    secp256k1_keypair keypairs[2];
+    secp256k1_xonly_pubkey pks[2];
+    unsigned char sigs[2*64];
+    size_t aggsig_len;
+    size_t i;
+
+    memset(msgs, 1, sizeof(msgs));
+    for (i = 0; i < 2; i++) {
+        CHECK(secp256k1_keypair_create(CTX, &keypairs[i], sk[i]));
+        CHECK(secp256k1_keypair_xonly_pub(CTX, &pks[i], NULL, &keypairs[i]));
+        CHECK(secp256k1_schnorrsig_sign32(CTX, &sigs[i*64], &msgs[i*32], &keypairs[i], NULL));
+    }
+
+    /* Default behavior. No ctx-provided SHA256 compression */
+    aggsig_len = sizeof(aggsig_default);
+    CHECK(secp256k1_schnorrsig_aggregate(ctx, aggsig_default, &aggsig_len, pks, msgs, sigs, 2));
+    CHECK(!sha256_schnorrsig_halfagg_called);
+
+    /* Override SHA256 compression directly, bypassing the ctx setter sanity checks */
+    ctx->hash_ctx.fn_sha256_compression = sha256_schnorrsig_halfagg;
+    aggsig_len = sizeof(aggsig_custom);
+    CHECK(secp256k1_schnorrsig_aggregate(ctx, aggsig_custom, &aggsig_len, pks, msgs, sigs, 2));
+    CHECK(sha256_schnorrsig_halfagg_called);
+    /* Outputs must differ if custom compression was used */
+    CHECK(secp256k1_memcmp_var(aggsig_default, aggsig_custom, 96) != 0);
+
+    secp256k1_context_destroy(ctx);
+}
+
 /* --- Test registry --- */
 REPEAT_TEST(test_schnorrsig_aggregate)
 REPEAT_TEST(test_schnorrsig_aggregate_api)
@@ -332,6 +368,7 @@ static const struct tf_test_entry tests_schnorrsig_halfagg[] = {
     CASE1(test_schnorrsig_aggregate_api),
     CASE1(test_schnorrsig_aggregate_unforge),
     CASE1(test_schnorrsig_aggregate_overflow),
+    CASE1(test_schnorrsig_halfagg_ctx_sha256),
 };
 
 #undef N_MAX

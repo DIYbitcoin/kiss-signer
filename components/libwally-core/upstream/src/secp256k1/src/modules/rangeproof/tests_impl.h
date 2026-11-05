@@ -123,7 +123,7 @@ static void test_rangeproof_api_internal(void) {
 }
 
 static void test_borromean_internal(void) {
-    const secp256k1_hash_ctx *hash_ctx = secp256k1_get_hash_context(CTX);
+    const secp256k1_hash_ctx *hash_ctx = &CTX->hash_ctx;
     unsigned char e0[32];
     secp256k1_scalar s[64];
     secp256k1_gej pubs[64];
@@ -162,7 +162,7 @@ static void test_borromean_internal(void) {
                 s[i] = one;
             }
             if (j == secidx[i]) {
-                secp256k1_ecmult_gen(&CTX->ecmult_gen_ctx, &pubs[c + j], &sec[i]);
+                secp256k1_ecmult_gen_gej(&CTX->ecmult_gen_ctx, &pubs[c + j], &sec[i]);
             } else {
                 testutil_random_ge_test(&ge);
                 testutil_random_ge_jacobian_test(&pubs[c + j],&ge);
@@ -811,35 +811,6 @@ static void test_rangeproof_fixed_vectors(void) {
 }
 }
 
-static void print_vector_helper(unsigned char *buf, size_t buf_len) {
-    size_t j;
-    printf("    ");
-    for (j = 0; j < buf_len; j++) {
-        printf("0x%02x", buf[j]);
-        if (j == buf_len-1) {
-            printf(",\n");
-        } else if ((j+1) % 16 != 0) {
-            printf(", ");
-        } else {
-            printf(",\n");
-            printf("    ");
-        }
-    }
-    printf("};\n");
-}
-
-static void print_vector(int i, unsigned char *proof, size_t p_len, secp256k1_pedersen_commitment *commit) {
-    unsigned char commit_output[33];
-
-    printf("unsigned char vector_%d[] = {\n", i);
-    print_vector_helper(proof, p_len);
-
-    CHECK(secp256k1_pedersen_commitment_serialize(CTX, commit_output, commit));
-    printf("unsigned char commit_%d[] = {\n", i);
-    print_vector_helper(commit_output, sizeof(commit_output));
-}
-
-
 /* Use same nonce and blinding value for all "reproducible" test vectors */
 static unsigned char vector_blind[] = {
     0x48, 0x26, 0xad, 0x41, 0x37, 0x4c, 0x25, 0x62, 0x52, 0x14, 0x78, 0x82, 0x89, 0x9c, 0x86, 0x27,
@@ -1233,8 +1204,6 @@ static void test_rangeproof_fixed_vectors_reproducible(void) {
         CHECK(secp256k1_rangeproof_sign(CTX, proof, &p_len, min_value, &pc, vector_blind, vector_nonce, exp, min_bits, value, message, m_len, NULL, 0, secp256k1_generator_h));
         CHECK(p_len <= secp256k1_rangeproof_max_size(CTX, value, min_bits));
         CHECK(p_len == sizeof(proof));
-        /* Uncomment the next line to print the test vector */
-        /* print_vector(0, proof, p_len, &pc); */
         CHECK(p_len == sizeof(vector_0));
         CHECK(secp256k1_memcmp_var(proof, vector_0, p_len) == 0);
 
@@ -1287,8 +1256,6 @@ static void test_rangeproof_fixed_vectors_reproducible(void) {
         CHECK(secp256k1_rangeproof_sign(CTX, proof, &p_len, min_value, &pc, vector_blind, vector_nonce, exp, min_bits, value, message, m_len, NULL, 0, secp256k1_generator_h));
         CHECK(p_len <= secp256k1_rangeproof_max_size(CTX, value, min_bits));
         CHECK(p_len == sizeof(proof));
-        /* Uncomment the next line to print the test vector */
-        /* print_vector(1, proof, p_len, &pc); */
         CHECK(p_len == sizeof(vector_1));
         CHECK(secp256k1_memcmp_var(proof, vector_1, p_len) == 0);
 
@@ -1333,8 +1300,6 @@ static void test_rangeproof_fixed_vectors_reproducible(void) {
         CHECK(secp256k1_rangeproof_sign(CTX, proof, &p_len, min_value, &pc, vector_blind, vector_nonce, exp, min_bits, value, message, m_len, NULL, 0, secp256k1_generator_h));
         CHECK(p_len <= secp256k1_rangeproof_max_size(CTX, value, min_bits));
         CHECK(p_len == sizeof(proof));
-        /* Uncomment the next line to print the test vector */
-        /* print_vector(2, proof, p_len, &pc); */
         CHECK(p_len == sizeof(vector_2));
         CHECK(secp256k1_memcmp_var(proof, vector_2, p_len) == 0);
 
@@ -1354,6 +1319,32 @@ static void test_single_value_proof_all(void) {
     test_single_value_proof(UINT64_MAX);
 }
 
+DEFINE_SHA256_TRANSFORM_PROBE(sha256_rangeproof)
+static void test_rangeproof_ctx_sha256(void) {
+    /* Check ctx-provided SHA256 compression override takes effect */
+    secp256k1_context *ctx = secp256k1_context_clone(CTX);
+    unsigned char proof_default[5134], proof_custom[5134];
+    size_t len = sizeof(proof_default);
+    unsigned char blind[32] = {1};
+    secp256k1_pedersen_commitment commit;
+
+    CHECK(secp256k1_pedersen_commit(ctx, &commit, blind, 1, secp256k1_generator_h));
+
+    /* Default behavior. No ctx-provided SHA256 compression */
+    CHECK(secp256k1_rangeproof_sign(ctx, proof_default, &len, 0, &commit, blind, commit.data, 0, 0, 1, NULL, 0, NULL, 0, secp256k1_generator_h));
+    CHECK(!sha256_rangeproof_called);
+
+    /* Override SHA256 compression directly, bypassing the ctx setter sanity checks */
+    ctx->hash_ctx.fn_sha256_compression = sha256_rangeproof;
+    len = sizeof(proof_custom);
+    CHECK(secp256k1_rangeproof_sign(ctx, proof_custom, &len, 0, &commit, blind, commit.data, 0, 0, 1, NULL, 0, NULL, 0, secp256k1_generator_h));
+    CHECK(sha256_rangeproof_called);
+    /* Outputs must differ if custom compression was used */
+    CHECK(secp256k1_memcmp_var(proof_default, proof_custom, len) != 0);
+
+    secp256k1_context_destroy(ctx);
+}
+
 /* --- Test registry --- */
 REPEAT_TEST(test_rangeproof_api)
 REPEAT_TEST(test_borromean)
@@ -1367,6 +1358,7 @@ static const struct tf_test_entry tests_rangeproof[] = {
     CASE1(test_rangeproof),
     CASE1(test_rangeproof_null_blinder),
     CASE1(test_multiple_generators),
+    CASE1(test_rangeproof_ctx_sha256),
 };
 
 #endif

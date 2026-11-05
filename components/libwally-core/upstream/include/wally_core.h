@@ -30,14 +30,14 @@ extern "C" {
 
 /** Library version */
 #define WALLY_MAJOR_VER 1
-#define WALLY_MINOR_VER 5
-#define WALLY_PATCH_VER 4
-#define WALLY_BUILD_VER 0x10504
+#define WALLY_MINOR_VER 6
+#define WALLY_PATCH_VER 0
+#define WALLY_BUILD_VER 0x10600
 
 /**
  * Initialize wally.
  *
- * This function must be called once before threads are created by the application.
+ * This function must be called once before the application uses wally.
  *
  * :param flags: Flags controlling what to initialize. Currently must be zero.
  */

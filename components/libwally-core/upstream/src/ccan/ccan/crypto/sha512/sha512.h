@@ -2,6 +2,8 @@
 #define CCAN_CRYPTO_SHA512_H
 /* BSD-MIT - see LICENSE file for details */
 #include "config.h"
+#include <ccan/compiler/compiler.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -14,11 +16,16 @@
 
 #ifdef CCAN_CRYPTO_SHA512_USE_MBEDTLS
 #include <mbedtls/sha512.h>
+#include <mbedtls/version.h>
 #include <sdkconfig.h>
 #include <soc/soc_caps.h>
 #ifdef SOC_SHA_SUPPORT_PARALLEL_ENG
 #include <sha512_alt.h>
 #endif
+#endif
+
+#ifdef CCAN_CRYPTO_SHA512_USE_PSA
+#include <psa/crypto.h>
 #endif
 
 /**
@@ -43,8 +50,12 @@ struct sha512 {
  *
  * The bytes pointed to by @p is SHA512 hashed into @sha512.  This is
  * equivalent to sha512_init(), sha512_update() then sha512_done().
+ *
+ * Returns false if hashing failed, in which case the contents of @sha512
+ * are unspecified. Only backends that can fail at runtime (such as
+ * hardware accelerated ones) return false.
  */
-void sha512(struct sha512 *sha, const void *p, size_t size);
+bool sha512(struct sha512 *sha, const void *p, size_t size) WARN_UNUSED_RESULT;
 
 /**
  * struct sha512_ctx - structure to store running context for sha512
@@ -54,6 +65,9 @@ struct sha512_ctx {
 	SHA512_CTX c;
 #elif defined(CCAN_CRYPTO_SHA512_USE_MBEDTLS)
 	mbedtls_sha512_context c;
+	bool failed;
+#elif defined(CCAN_CRYPTO_SHA512_USE_PSA)
+	psa_hash_operation_t op;
 #else
 	uint64_t s[8];
 	union {
@@ -72,10 +86,11 @@ struct sha512_ctx {
  * alternately you can assign SHA512_INIT.
  *
  * If it was already initialized, this forgets anything which was
- * hashed before.
+ * hashed before. Backends that hold resources for a running hash (such
+ * as PSA Crypto) require it to be finished with sha512_done() first.
  *
  * Example:
- * static void hash_all(const char **arr, struct sha512 *hash)
+ * static bool hash_all(const char **arr, struct sha512 *hash)
  * {
  *	size_t i;
  *	struct sha512_ctx ctx;
@@ -83,7 +98,7 @@ struct sha512_ctx {
  *	sha512_init(&ctx);
  *	for (i = 0; arr[i]; i++)
  *		sha512_update(&ctx, arr[i], strlen(arr[i]));
- *	sha512_done(&ctx, hash);
+ *	return sha512_done(&ctx, hash);
  * }
  */
 void sha512_init(struct sha512_ctx *ctx);
@@ -95,17 +110,18 @@ void sha512_init(struct sha512_ctx *ctx);
  * of sha512_init()).
  *
  * Example:
- * static void hash_all(const char **arr, struct sha512 *hash)
+ * static bool hash_all(const char **arr, struct sha512 *hash)
  * {
  *	size_t i;
  *	struct sha512_ctx ctx = SHA512_INIT;
  *
  *	for (i = 0; arr[i]; i++)
  *		sha512_update(&ctx, arr[i], strlen(arr[i]));
- *	sha512_done(&ctx, hash);
+ *	return sha512_done(&ctx, hash);
  * }
  */
 #ifdef CCAN_CRYPTO_SHA512_USE_OPENSSL
+#define SHA512_INIT						\
 	{ { { 0x6a09e667f3bcc908ull, 0xbb67ae8584caa73bull,	\
 	      0x3c6ef372fe94f82bull, 0xa54ff53a5f1d36f1ull,	\
 	      0x510e527fade682d1ull, 0x9b05688c2b3e6c1full,	\
@@ -113,6 +129,10 @@ void sha512_init(struct sha512_ctx *ctx);
 	    0, 0,						\
 	    { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },	\
 	    0, 0x40 } }
+#elif defined(CCAN_CRYPTO_SHA512_USE_MBEDTLS)
+/* No static initializer: mbedtls contexts must be set up with sha512_init() */
+#elif defined(CCAN_CRYPTO_SHA512_USE_PSA)
+/* No static initializer: PSA contexts must be set up with sha512_init() */
 #else
 #define SHA512_INIT						\
 	{ { 0x6a09e667f3bcc908ull, 0xbb67ae8584caa73bull,	\
@@ -140,7 +160,12 @@ void sha512_update(struct sha512_ctx *ctx, const void *p, size_t size);
  *
  * Note that @ctx is *destroyed* by this, and must be reinitialized.
  * To avoid that, pass a copy instead.
+ *
+ * Returns false if hashing failed, in which case the contents of @res
+ * are unspecified. This includes failures in sha512_init() and
+ * sha512_update(), which cannot report errors themselves: backends that
+ * can fail must remember the failure until sha512_done() is called.
  */
-void sha512_done(struct sha512_ctx *sha512, struct sha512 *res);
+bool sha512_done(struct sha512_ctx *sha512, struct sha512 *res) WARN_UNUSED_RESULT;
 
 #endif /* CCAN_CRYPTO_SHA512_H */

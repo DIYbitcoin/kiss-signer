@@ -50,7 +50,7 @@ static int secp256k1_bppp_serialize_pt(unsigned char *output, secp256k1_ge *lpt)
     if (secp256k1_ge_is_infinity(lpt)) {
         return 0;
     }
-    secp256k1_eckey_pubkey_serialize33(lpt, output);
+    secp256k1_ge_serialize33(lpt, output);
     return 1;
 }
 

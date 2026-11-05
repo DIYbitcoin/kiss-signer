@@ -39,44 +39,15 @@ void sha256_update(struct sha256_ctx *ctx, const void *p, size_t size)
 	SHA256_Update(&ctx->c, p, size);
 }
 
-void sha256_done(struct sha256_ctx *ctx, struct sha256 *res)
+bool sha256_done(struct sha256_ctx *ctx, struct sha256 *res)
 {
-	SHA256_Final(res->u.u8, &ctx->c);
+	bool ret = SHA256_Final(res->u.u8, &ctx->c) == 1;
 	invalidate_sha256(ctx);
-}
-#elif defined(CCAN_CRYPTO_SHA256_USE_MBEDTLS)
-inline void sha256_init(struct sha256_ctx *ctx)
-{
-	mbedtls_sha256_init(&ctx->c);
-	mbedtls_sha256_starts(&ctx->c, 0);
-}
-
-inline void sha256_update(struct sha256_ctx *ctx, const void *p, size_t size)
-{
-	mbedtls_sha256_update(&ctx->c, p, size);
-}
-
-inline void sha256_done(struct sha256_ctx *ctx, struct sha256* res)
-{
-	mbedtls_sha256_finish(&ctx->c, res->u.u8);
-	mbedtls_sha256_free(&ctx->c);
-}
-void sha256_optimize(void)
-{
+	return ret;
 }
 #else
-static void invalidate_sha256(struct sha256_ctx *ctx)
-{
-	ctx->bytes = (size_t)-1;
-}
-
-static void check_sha256(struct sha256_ctx *ctx UNUSED)
-{
-#if 0
-	assert(ctx->bytes != (size_t)-1);
-#endif
-}
-
+/* The portable SHA-256 compression function. Used by the builtin backend,
+ * and by the mbedtls and PSA backends to compute midstates. */
 static uint32_t Ch(uint32_t x, uint32_t y, uint32_t z)
 {
 	return z ^ (x & (y ^ z));
@@ -198,6 +169,98 @@ static void TransformDefault(uint32_t *s, const uint32_t *chunk, size_t blocks)
 	}
 }
 
+#if defined(CCAN_CRYPTO_SHA256_USE_MBEDTLS) || defined(CCAN_CRYPTO_SHA256_USE_PSA)
+void sha256_sw_transform(uint32_t *s, const uint32_t *chunk, size_t blocks)
+{
+	TransformDefault(s, chunk, blocks);
+}
+
+#ifdef CCAN_CRYPTO_SHA256_USE_MBEDTLS
+#if MBEDTLS_VERSION_NUMBER < 0x03000000
+/* Mbed TLS 2.x only reports errors from the _ret variants */
+#define SHA256_STARTS mbedtls_sha256_starts_ret
+#define SHA256_UPDATE mbedtls_sha256_update_ret
+#define SHA256_FINISH mbedtls_sha256_finish_ret
+#else
+#define SHA256_STARTS mbedtls_sha256_starts
+#define SHA256_UPDATE mbedtls_sha256_update
+#define SHA256_FINISH mbedtls_sha256_finish
+#endif
+
+/* sha256_init() and sha256_update() cannot report errors, so a failure is
+ * remembered in the context and reported by sha256_done() */
+inline void sha256_init(struct sha256_ctx *ctx)
+{
+	mbedtls_sha256_init(&ctx->c);
+	ctx->failed = SHA256_STARTS(&ctx->c, 0) != 0;
+}
+
+inline void sha256_update(struct sha256_ctx *ctx, const void *p, size_t size)
+{
+	if (!ctx->failed)
+		ctx->failed = SHA256_UPDATE(&ctx->c, p, size) != 0;
+}
+
+inline bool sha256_done(struct sha256_ctx *ctx, struct sha256* res)
+{
+	bool ok = !ctx->failed && SHA256_FINISH(&ctx->c, res->u.u8) == 0;
+	mbedtls_sha256_free(&ctx->c);
+	if (!ok)
+		memset(res, 0, sizeof(*res));
+	return ok;
+}
+#else
+/* sha256_init() and sha256_update() cannot report errors, so on failure
+ * they abort the PSA operation, leaving it inactive: later calls then
+ * fail too, and sha256_done() reports the failure.
+ */
+void sha256_init(struct sha256_ctx *ctx)
+{
+	/* ctx must not be an active operation: PSA drivers may hold
+	 * state that only sha256_done() releases. Zero-filling is one of
+	 * the initializations the PSA API permits, and unlike
+	 * psa_hash_operation_init() it needs no on-stack temporary. */
+	memset(&ctx->op, 0, sizeof(ctx->op));
+	if (psa_hash_setup(&ctx->op, PSA_ALG_SHA_256) != PSA_SUCCESS)
+		psa_hash_abort(&ctx->op);
+}
+
+void sha256_update(struct sha256_ctx *ctx, const void *p, size_t size)
+{
+	if (psa_hash_update(&ctx->op, p, size) != PSA_SUCCESS)
+		psa_hash_abort(&ctx->op);
+}
+
+bool sha256_done(struct sha256_ctx *ctx, struct sha256 *res)
+{
+	size_t len = 0;
+
+	if (psa_hash_finish(&ctx->op, res->u.u8, sizeof(res->u.u8), &len) != PSA_SUCCESS ||
+	    len != sizeof(res->u.u8)) {
+		psa_hash_abort(&ctx->op);
+		memset(res, 0, sizeof(*res));
+		return false;
+	}
+	return true;
+}
+#endif /* CCAN_CRYPTO_SHA256_USE_MBEDTLS */
+
+void sha256_optimize(void)
+{
+}
+#else /* Builtin implementation */
+static void invalidate_sha256(struct sha256_ctx *ctx)
+{
+	ctx->bytes = (size_t)-1;
+}
+
+static void check_sha256(struct sha256_ctx *ctx UNUSED)
+{
+#if 0
+	assert(ctx->bytes != (size_t)-1);
+#endif
+}
+
 #if defined(HAVE_INLINE_ASM) && (defined(__x86_64__) || defined(__amd64__))
 #include <cpuid.h>
 
@@ -286,7 +349,7 @@ void sha256_update(struct sha256_ctx *ctx, const void *p, size_t size)
 	add(ctx, p, size);
 }
 
-void sha256_done(struct sha256_ctx *ctx, struct sha256 *res)
+bool sha256_done(struct sha256_ctx *ctx, struct sha256 *res)
 {
 	static const unsigned char pad[64] = {0x80};
 	uint64_t sizedesc;
@@ -300,18 +363,39 @@ void sha256_done(struct sha256_ctx *ctx, struct sha256 *res)
 	for (i = 0; i < sizeof(ctx->s) / sizeof(ctx->s[0]); i++)
 		res->u.u32[i] = cpu_to_be32(ctx->s[i]);
 	invalidate_sha256(ctx);
+	return true;
 }
+#endif /* CCAN_CRYPTO_SHA256_USE_MBEDTLS || CCAN_CRYPTO_SHA256_USE_PSA */
 #endif
 
-void sha256(struct sha256 *sha, const void *p, size_t size)
+#ifdef CCAN_CRYPTO_SHA256_USE_PSA
+bool sha256(struct sha256 *sha, const void *p, size_t size)
+{
+	size_t len = 0;
+
+	if (!size)
+		p = ""; /* psa_hash_compute() may reject a NULL input */
+	if (psa_hash_compute(PSA_ALG_SHA_256, p, size, sha->u.u8, sizeof(sha->u.u8),
+	                     &len) != PSA_SUCCESS ||
+	    len != sizeof(sha->u.u8)) {
+		memset(sha, 0, sizeof(*sha));
+		return false;
+	}
+	return true;
+}
+#else
+bool sha256(struct sha256 *sha, const void *p, size_t size)
 {
 	struct sha256_ctx ctx;
+	bool ret;
 
 	sha256_init(&ctx);
 	sha256_update(&ctx, p, size);
-	sha256_done(&ctx, sha);
+	ret = sha256_done(&ctx, sha);
 	CCAN_CLEAR_MEMORY(&ctx, sizeof(ctx));
+	return ret;
 }
+#endif /* CCAN_CRYPTO_SHA256_USE_PSA */
 	
 void sha256_u8(struct sha256_ctx *ctx, uint8_t v)
 {

@@ -2,6 +2,7 @@
 
 #include "script.h"
 #include "script_int.h"
+#include "tx_io.h"
 
 #include <include/wally_address.h>
 #include <include/wally_bip32.h>
@@ -22,7 +23,8 @@
         WALLY_MINISCRIPT_REQUIRE_CHECKSUM | \
         WALLY_MINISCRIPT_POLICY_TEMPLATE | \
         WALLY_MINISCRIPT_UNIQUE_KEYPATHS | \
-        WALLY_MINISCRIPT_AS_ELEMENTS)
+        WALLY_MINISCRIPT_AS_ELEMENTS | \
+        WALLY_MINISCRIPT_ALLOW_NON_SANE)
 #define MS_FLAGS_CANONICALIZE (WALLY_MINISCRIPT_REQUIRE_CHECKSUM | \
         WALLY_MINISCRIPT_POLICY_TEMPLATE)
 
@@ -61,6 +63,7 @@
 #define KIND_NUMBER     0x08
 #define KIND_ADDRESS    0x10
 #define KIND_KEY        0x20
+#define KIND_BRANCH     0x40 /* Taptree branch */
 
 #define KIND_BASE58    (0x0100 | KIND_ADDRESS)
 #define KIND_BECH32    (0x0200 | KIND_ADDRESS)
@@ -73,10 +76,12 @@
 
 #define DESCRIPTOR_MIN_SIZE     20
 #define MINISCRIPT_MULTI_MAX    20
+#define MULTI_A_NUM_KEYS_MAX    999 /* BIP-342: stack limited to 1000 elements, one used by the threshold */
 #define REDEEM_SCRIPT_MAX_SIZE  520
 #define WITNESS_SCRIPT_MAX_SIZE 10000
-#define DESCRIPTOR_SEQUENCE_LOCKTIME_TYPE_FLAG 0x00400000
-#define DESCRIPTOR_LOCKTIME_THRESHOLD          500000000
+#define DESCRIPTOR_SEQ_LOCKTIME_TYPE_FLAG 0x00400000
+#define DESCRIPTOR_SEQ_LOCKTIME_MASK_BITS 0x0000ffff
+#define DESCRIPTOR_LOCKTIME_THRESHOLD     500000000
 #define DESCRIPTOR_CHECKSUM_LENGTH 8
 
 /* output descriptor */
@@ -117,6 +122,8 @@
 #define KIND_MINISCRIPT_OR_C      (0x06000000 | KIND_MINISCRIPT)
 #define KIND_MINISCRIPT_OR_D      (0x07000000 | KIND_MINISCRIPT)
 #define KIND_MINISCRIPT_OR_I      (0x08000000 | KIND_MINISCRIPT)
+#define KIND_MINISCRIPT_MULTI_A   (0x09000000 | KIND_MINISCRIPT)
+#define KIND_MINISCRIPT_MULTI_A_S (0x0A000000 | KIND_MINISCRIPT)
 
 struct addr_ver_t {
     const unsigned char network;
@@ -227,7 +234,42 @@ static int ctx_add_key_node(ms_ctx *ctx, ms_node *node)
                    (unsigned char *)v, 1, true, false);
 }
 
-static int ensure_unique_policy_keys(const ms_ctx *ctx);
+/* Copy a descriptor's evaluation context, setting the given indices.
+ * On success the caller must ctx_clear(ctx) when done with the context.
+ */
+static int ctx_clone(const struct wally_descriptor *descriptor,
+                     uint32_t variant, uint32_t multi_index,
+                     uint32_t child_num, ms_ctx *ctx)
+{
+    memcpy(ctx, descriptor, sizeof(*ctx));
+    ctx->variant = variant;
+    ctx->child_num = child_num;
+    ctx->multi_index = multi_index;
+    ctx->path_buff = NULL;
+    if (ctx->max_path_elems &&
+        !(ctx->path_buff = wally_malloc(ctx->max_path_elems * sizeof(uint32_t))))
+        return WALLY_ENOMEM;
+    return WALLY_OK;
+}
+
+static inline void ctx_clear(ms_ctx *ctx)
+{
+    if (ctx->path_buff)
+        wally_free(ctx->path_buff);
+}
+
+/* Check the generation index arguments for a descriptor */
+static bool index_args_valid(const struct wally_descriptor *descriptor,
+                             uint32_t variant, uint32_t multi_index,
+                             uint32_t child_num)
+{
+    return descriptor && variant < descriptor->num_variants &&
+           child_num < BIP32_INITIAL_HARDENED_CHILD &&
+           (!child_num || (descriptor->features & WALLY_MS_IS_RANGED)) &&
+           multi_index < descriptor->num_multipaths;
+}
+
+static int ensure_unique_keys(const ms_ctx *ctx, bool is_policy);
 
 /* Built-in miniscript expressions */
 typedef int (*node_verify_fn_t)(ms_ctx *ctx, ms_node *node);
@@ -297,16 +339,31 @@ static const struct addr_ver_t *addr_ver_from_family(
     return addr_ver; /* Found */
 }
 
+/* Elements expressions cannot be used on a Bitcoin network. Elements also
+ * tweaks taproot keys with different tagged hashes, so a Bitcoin tr()
+ * expression cannot be used on an Elements network */
+static bool is_wrong_network(const ms_ctx *ctx,
+                             const struct addr_ver_t *addr_ver)
+{
+    const bool is_elements = ctx->features & WALLY_MS_IS_ELEMENTS;
+    if (!addr_ver)
+        return false;
+    if (!addr_ver->blech32[0])
+        return is_elements;
+    return (ctx->features & WALLY_MS_IS_TAPROOT) && !is_elements;
+}
+
 /* Function prototype */
 static const struct ms_builtin_t *builtin_get(const ms_node *node);
 static int generate_script(ms_ctx *ctx, ms_node *node,
                            unsigned char *script, size_t script_len, size_t *written);
+static int node_generation_size(const ms_node *node, size_t *total);
 static int is_valid_policy_map(const struct wally_map *map_in, bool *is_elements);
 
 static bool is_elements_policy_map(const struct wally_map *map_in)
 {
     /* Elements policy maps must have the blinding key @B first */
-    return map_in->num_items && map_in->items[0].key_len == 2 &&
+    return map_in && map_in->num_items && map_in->items[0].key_len == 2 &&
         map_in->items[0].key[0] == '@' && map_in->items[0].key[1] == 'B';
 }
 
@@ -409,6 +466,19 @@ static bool is_policy_start_char(char c) { return c == '@'; }
 static bool is_policy_id_char(char c) { return c >= '0' && c <= '9'; }
 static bool is_elements_policy_id_char(char c) { return c == 'B' || is_policy_id_char(c); }
 
+/* Add n to the canonicalized descriptor length in *len, leaving room for
+ * the checksum separator, checksum and NUL terminator.
+ * Returns false if the resulting length would overflow.
+ */
+static bool canonical_len_add(size_t *len, size_t n)
+{
+    const size_t max_len = SIZE_MAX - (1 + DESCRIPTOR_CHECKSUM_LENGTH + 1);
+    if (n > max_len - *len)
+        return false;
+    *len += n;
+    return true;
+}
+
 static int canonicalize_impl(const char *descriptor,
                              const struct wally_map *vars_in, uint32_t flags,
                              char **output, size_t *num_substitutions)
@@ -441,10 +511,11 @@ static int canonicalize_impl(const char *descriptor,
 
     /* First, find the length of the canonicalized descriptor */
     while (*p && *p != '#') {
-        while (*p && *p != '#' && !is_id_start(*p)) {
-            ++required_len;
+        start = p;
+        while (*p && *p != '#' && !is_id_start(*p))
             ++p;
-        }
+        if (!canonical_len_add(&required_len, p - start))
+            return WALLY_EINVAL; /* Too long */
         if (!is_id_start(*p))
             break;
         start = p++;
@@ -454,16 +525,20 @@ static int canonicalize_impl(const char *descriptor,
             const bool starts_with_digit = *start >= '0' && *start <= '9';
             const size_t lookup_len = p - start;
             if (!vars_in || lookup_len > VAR_MAX_NAME_LEN || starts_with_digit) {
-                required_len += lookup_len; /* Too long/wrong format for an identifier */
+                /* Too long/wrong format for an identifier */
+                if (!canonical_len_add(&required_len, lookup_len))
+                    return WALLY_EINVAL; /* Too long */
             } else {
                 /* Lookup the potential identifier */
                 const struct wally_map_item *item;
                 item = wally_map_get(vars_in, (unsigned char*)start, lookup_len);
                 if (!item) {
-                    required_len += lookup_len;
+                    if (!canonical_len_add(&required_len, lookup_len))
+                        return WALLY_EINVAL; /* Too long */
                     continue;
                 }
-                required_len += item->value_len;
+                if (!canonical_len_add(&required_len, item->value_len))
+                    return WALLY_EINVAL; /* Too long */
                 ++*num_substitutions;
                 if (flags & WALLY_MINISCRIPT_POLICY_TEMPLATE) {
                     int key_index = (int)(item - vars_in->items);
@@ -484,7 +559,8 @@ static int canonicalize_impl(const char *descriptor,
                      */
                     if (*p++ != '/')
                         return WALLY_EINVAL;
-                    ++required_len;
+                    if (!canonical_len_add(&required_len, 1))
+                        return WALLY_EINVAL; /* Too long */
                     if (*p == '<') {
                         found_policy_multi = true;
                         continue;
@@ -494,10 +570,12 @@ static int canonicalize_impl(const char *descriptor,
                     if (*p == '*') {
                         found_policy_multi = true;
                         ++p;
-                        required_len += strlen("<0;1>/*");
+                        if (!canonical_len_add(&required_len, strlen("<0;1>/*")))
+                            return WALLY_EINVAL; /* Too long */
                     } else {
                         found_policy_single = true;
-                        required_len += 1;
+                        if (!canonical_len_add(&required_len, 1))
+                            return WALLY_EINVAL; /* Too long */
                     }
                 }
             }
@@ -538,7 +616,7 @@ static int canonicalize_impl(const char *descriptor,
                 lookup_len = item ? item->value_len : lookup_len;
                 memcpy(out, item ? (char *)item->value : start, lookup_len);
                 if (item && flags & WALLY_MINISCRIPT_POLICY_TEMPLATE) {
-                    if (p[1] == '*' && p[2] == '*') {
+                    if (p[0] == '/' && p[1] == '*' && p[2] == '*') {
                         out += lookup_len;
                         lookup_len = strlen("/<0;1>/*");
                         memcpy(out, "/<0;1>/*", lookup_len);
@@ -549,6 +627,10 @@ static int canonicalize_impl(const char *descriptor,
             out += lookup_len;
         }
     }
+
+    if ((size_t)(out - *output) != required_len)
+        return WALLY_ERROR; /* Should not happen! */
+
     *out++ = '#';
     out[DESCRIPTOR_CHECKSUM_LENGTH] = '\0';
     if (generate_checksum(*output, required_len, out) != WALLY_OK ||
@@ -581,30 +663,42 @@ static bool node_has_uncompressed_key(const ms_ctx *ctx, const ms_node *node)
     return false;
 }
 
+static inline bool node_is_ct(const ms_node *node)
+{
+#ifdef BUILD_ELEMENTS
+    return !node->parent && node->kind == KIND_DESCRIPTOR_CT;
+#else
+    (void)node;
+    return false;
+#endif
+}
+
 static int node_is_top(const ms_node *node)
 {
     /* True if this is the top node in the descriptor
-     * (disregarding any ct() parent for Elements).
-     */
-#ifdef BUILD_ELEMENTS
-    return !node->parent || node->parent->kind == KIND_DESCRIPTOR_CT;
-#else
-    return !node->parent;
-#endif
+     * (ignoring ct() parent for Elements) */
+    return !node->parent || node_is_ct(node->parent);
 }
 
 static bool node_is_root(const ms_node *node)
 {
-    /* True if this is a (possibly temporary) top level node, or an argument of a builtin */
-    return !node->parent || node->parent->builtin;
+    /* True if this is a (possibly temporary) top level node, or an argument of a builtin,
+     * or a direct child of a taptree branch node (each taptree leaf is an independent
+     * miniscript expression that must be validated as its own root) */
+    return !node->parent || node->parent->builtin ||
+           node->parent->kind == KIND_BRANCH;
 }
 
-#ifdef BUILD_ELEMENTS
-static bool node_is_ct(const ms_node *node)
+static bool node_must_be_xonly(const ms_node *node, uint32_t flags)
 {
-    return !node->parent && node->kind == KIND_DESCRIPTOR_CT;
+    /* True if this node must be treated as an x-only key */
+    if (node->parent && (node->parent->kind == KIND_DESCRIPTOR_RAW_TR ||
+                         node->parent->kind == KIND_DESCRIPTOR_TR))
+        return true; /* Taproot internal key: x-only */
+    if (node->parent && node_is_ct(node->parent))
+        return false; /* ct() blinding key: Not x-only */
+    return (flags & WALLY_MINISCRIPT_TAPSCRIPT) != 0;
 }
-#endif
 
 static void node_free(ms_node *node)
 {
@@ -620,6 +714,73 @@ static void node_free(ms_node *node)
             clear_and_free((void*)node->data, node->data_len);
         clear_and_free(node, sizeof(*node));
     }
+}
+
+static int node_derive_key(ms_ctx* ctx, const ms_node* node,
+                           uint32_t flags, struct ext_key* output)
+{
+    const unsigned char* data = (const unsigned char*)node->data;
+
+    wally_clear(output, sizeof(*output));
+
+    if (node->kind == KIND_PUBLIC_KEY) {
+        int ret;
+        if (node->data_len == EC_XONLY_PUBLIC_KEY_LEN) {
+            memcpy(output->pub_key+1, data, node->data_len);
+            ret = WALLY_OK;
+        } else
+            ret = wally_ec_public_key_compress(data, node->data_len,
+                                               output->pub_key,
+                                               sizeof(output->pub_key));
+        if (ret == WALLY_OK)
+            ret = bip32_key_strip_private_key(output); /* Mark as pubkey only */
+        return ret;
+    } else if (node->kind == KIND_PRIVATE_KEY) {
+        int ret;
+        if (!(flags & BIP32_FLAG_KEY_PUBLIC)) {
+            memcpy(output->priv_key + 1, data, sizeof(output->priv_key) - 1);
+            return WALLY_OK;
+        }
+        ret = wally_ec_public_key_from_private_key(data, node->data_len,
+                                                   output->pub_key, sizeof(output->pub_key));
+        if (ret == WALLY_OK)
+            ret = bip32_key_strip_private_key(output); /* Mark as pubkey only */
+        return ret;
+    } else if (node->kind == KIND_RAW && node->parent &&
+               node->parent->kind == KIND_DESCRIPTOR_SLIP77) {
+        /* SLIP77 blinding key is returned as a private key */
+        memcpy(output->priv_key + 1, data, sizeof(output->priv_key) - 1);
+        return WALLY_OK;
+    } else if ((node->kind & KIND_BIP32) == KIND_BIP32) {
+        int ret = bip32_key_from_base58_n(node->data, node->data_len, output);
+        if (ret == WALLY_OK && node->child_path_len) {
+            size_t path_len;
+            const uint32_t path_flags = BIP32_FLAG_STR_WILDCARD |
+                                        BIP32_FLAG_STR_BARE |
+                                        BIP32_FLAG_STR_MULTIPATH;
+            const uint32_t derive_flags = flags & (BIP32_FLAG_SKIP_HASH |
+                                                   BIP32_FLAG_KEY_PUBLIC);
+            const bool is_ranged = node->flags & WALLY_MS_IS_RANGED;
+            const bool is_multi = node->flags & WALLY_MS_IS_MULTIPATH;
+            struct ext_key derived;
+
+            ret = bip32_path_from_str_n(node->child_path, node->child_path_len,
+                                        is_ranged ? ctx->child_num : 0,
+                                        is_multi ? ctx->multi_index : 0,
+                                        path_flags, ctx->path_buff, ctx->max_path_elems,
+                                        &path_len);
+            if (ret == WALLY_OK)
+                ret = bip32_key_from_parent_path(output, ctx->path_buff, path_len,
+                                                 derive_flags, &derived);
+            if (ret == WALLY_OK)
+                memcpy(output, &derived, sizeof(derived));
+            wally_clear(&derived, sizeof(derived));
+        } else if (ret == WALLY_OK && (flags & BIP32_FLAG_KEY_PUBLIC)) {
+            ret = bip32_key_strip_private_key(output);
+        }
+        return ret;
+    }
+    return WALLY_ERROR; /* Not a key node */
 }
 
 static bool has_two_different_lock_states(uint32_t primary, uint32_t secondary)
@@ -644,10 +805,20 @@ int wally_descriptor_free(ms_ctx *ctx)
     return WALLY_OK;
 }
 
+static bool child_is_valid_script(const ms_node *node)
+{
+    /* Miniscript children must be top-level, i.e. type B. Descriptor-only
+     * children (e.g. sortedmulti) have no miniscript type and are not checked.
+     */
+    return !(node->child->kind & KIND_MINISCRIPT) ||
+           (node->child->type_properties & TYPE_B);
+}
+
 static int verify_sh(ms_ctx *ctx, ms_node *node)
 {
     (void)ctx;
-    if (!node_is_top(node) || !node->child->builtin)
+    if (!node_is_top(node) || !node->child->builtin ||
+        !child_is_valid_script(node))
         return WALLY_EINVAL;
 
     node->type_properties = node->child->type_properties;
@@ -660,7 +831,8 @@ static int verify_wsh(ms_ctx *ctx, ms_node *node)
     if (node->parent && node->parent->kind != KIND_DESCRIPTOR_SH &&
         node->parent->kind != KIND_DESCRIPTOR_CT)
         return WALLY_EINVAL;
-    if (!node->child->builtin || node_has_uncompressed_key(ctx, node))
+    if (!node->child->builtin || !child_is_valid_script(node) ||
+        node_has_uncompressed_key(ctx, node))
         return WALLY_EINVAL;
 
     node->type_properties = node->child->type_properties;
@@ -722,29 +894,39 @@ static int verify_combo(ms_ctx *ctx, ms_node *node)
     return ret;
 }
 
-static int verify_multi(ms_ctx *ctx, ms_node *node)
+static int verify_multi_impl(ms_ctx *ctx, ms_node *node, uint32_t flags, int32_t max_keys)
 {
-    (void)ctx;
-    const int64_t count = node_get_child_count(node);
-    ms_node *top, *key;
+    const ms_node *top = node->child;
+    ms_node *key = top ? top->next : NULL;
+    int64_t key_count = 0;
 
-    if (count < 2 || count - 1 > MINISCRIPT_MULTI_MAX)
+    if (!top || !key || top->builtin ||
+        top->kind != KIND_NUMBER || top->number <= 0)
         return WALLY_EINVAL;
 
-    top = node->child;
-    if (!top->next || top->builtin || top->kind != KIND_NUMBER ||
-        top->number <= 0 || count < top->number)
-        return WALLY_EINVAL;
+    if ((ctx->features & WALLY_MS_IS_TAPSCRIPT) != (flags & WALLY_MS_IS_TAPSCRIPT))
+        return WALLY_EINVAL; /* _a/non-_a tapscript/non-tapscript mismatch */
 
-    key = top->next;
     while (key) {
-        if (key->builtin || !(key->kind & KIND_KEY))
+        if (key->builtin || !(key->kind & KIND_KEY) || ++key_count > max_keys)
             return WALLY_EINVAL;
         key = key->next;
     }
+    if (top->number > key_count)
+        return WALLY_EINVAL;
 
     node->type_properties = builtin_get(node)->type_properties;
     return WALLY_OK;
+}
+
+static int verify_multi(ms_ctx *ctx, ms_node *node)
+{
+    return verify_multi_impl(ctx, node, 0, MINISCRIPT_MULTI_MAX);
+}
+
+static int verify_multi_a(ms_ctx *ctx, ms_node *node)
+{
+    return verify_multi_impl(ctx, node, WALLY_MS_IS_TAPSCRIPT, MULTI_A_NUM_KEYS_MAX);
 }
 
 static int verify_addr(ms_ctx *ctx, ms_node *node)
@@ -778,8 +960,9 @@ static int verify_raw_tr(ms_ctx *ctx, ms_node *node)
 static int verify_tr(ms_ctx *ctx, ms_node *node)
 {
     const uint32_t child_count = node_get_child_count(node);
-    if (child_count != 1u)
-        return WALLY_EINVAL; /* FIXME: Support script paths */
+    /* only tr(key) and tr(key, tree) is valid */
+    if (child_count < 1u || child_count > 2u)
+        return WALLY_EINVAL;
     if (!node_is_top(node) || node->child->builtin || !(node->child->kind & KIND_KEY) ||
         node_has_uncompressed_key(ctx, node))
         return WALLY_EINVAL;
@@ -796,7 +979,10 @@ static int verify_delay(ms_ctx *ctx, ms_node *node)
 
     node->type_properties = builtin_get(node)->type_properties;
     if (builtin_get(node)->kind == KIND_MINISCRIPT_OLDER) {
-        if (node->child->number & DESCRIPTOR_SEQUENCE_LOCKTIME_TYPE_FLAG)
+        const uint64_t value = node->child->number & ~DESCRIPTOR_SEQ_LOCKTIME_TYPE_FLAG;
+        if (value > DESCRIPTOR_SEQ_LOCKTIME_MASK_BITS)
+            return WALLY_EINVAL; /* invalid blocks/timesteps */
+        if (node->child->number & DESCRIPTOR_SEQ_LOCKTIME_TYPE_FLAG)
             node->type_properties |= PROP_G;
         else
             node->type_properties |= PROP_H;
@@ -826,20 +1012,21 @@ static uint32_t verify_andor_property(uint32_t x_prop, uint32_t y_prop, uint32_t
     uint32_t prop = PROP_X;
     uint32_t need_x = TYPE_B | PROP_D | PROP_U;
     uint32_t need_yz = TYPE_B | TYPE_K | TYPE_V;
-    if (!(x_prop & TYPE_B) || !(x_prop & need_x))
+    if ((x_prop & need_x) != need_x)
         return 0;
     if (!(y_prop & z_prop & need_yz))
         return 0;
 
     prop |= y_prop & z_prop & need_yz;
     prop |= x_prop & y_prop & z_prop & PROP_Z;
-    prop |= (x_prop | (y_prop & z_prop)) & PROP_O;
+    if ((x_prop | (y_prop & z_prop)) & PROP_Z)
+        prop |= (x_prop | (y_prop & z_prop)) & PROP_O;
     prop |= y_prop & z_prop & PROP_U;
     prop |= z_prop & PROP_D;
     prop |= (x_prop | y_prop | z_prop) & (PROP_G | PROP_H | PROP_I | PROP_J);
     if (x_prop & PROP_S || y_prop & PROP_F) {
         prop |= z_prop & PROP_F;
-        prop |= x_prop & z_prop & PROP_E;
+        prop |= z_prop & PROP_E;
     }
     if (x_prop & PROP_E &&
         (x_prop | y_prop | z_prop) & PROP_S) {
@@ -919,7 +1106,7 @@ static int verify_and_b(ms_ctx *ctx, ms_node *node)
         !has_two_different_lock_states(x_prop, y_prop))
         node->type_properties |= PROP_K;
 
-    return WALLY_OK;
+    return (node->type_properties & TYPE_B) ? WALLY_OK : WALLY_EINVAL;
 }
 
 static int verify_and_n(ms_ctx *ctx, ms_node *node)
@@ -949,7 +1136,7 @@ static int verify_or_b(ms_ctx *ctx, ms_node *node)
         ((x_prop & y_prop) & PROP_E))
         node->type_properties |= x_prop & y_prop & PROP_M;
 
-    return WALLY_OK;
+    return (node->type_properties & TYPE_B) ? WALLY_OK : WALLY_EINVAL;
 }
 
 static int verify_or_c(ms_ctx *ctx, ms_node *node)
@@ -968,7 +1155,7 @@ static int verify_or_c(ms_ctx *ctx, ms_node *node)
     if (x_prop & PROP_E && ((x_prop | y_prop) & PROP_S))
         node->type_properties |= x_prop & y_prop & PROP_M;
 
-    return WALLY_OK;
+    return (node->type_properties & TYPE_V) ? WALLY_OK : WALLY_EINVAL;
 }
 
 static int verify_or_d(ms_ctx *ctx, ms_node *node)
@@ -977,8 +1164,8 @@ static int verify_or_d(ms_ctx *ctx, ms_node *node)
     const uint32_t y_prop = node->child->next->type_properties;
     (void)ctx;
     node->type_properties = PROP_X;
-    node->type_properties |= x_prop & y_prop & (PROP_Z | PROP_E | PROP_S);
-    node->type_properties |= y_prop & (PROP_U | PROP_F | PROP_D);
+    node->type_properties |= x_prop & y_prop & (PROP_Z | PROP_S);
+    node->type_properties |= y_prop & (PROP_U | PROP_F | PROP_D | PROP_E);
     node->type_properties |= (x_prop | y_prop) & (PROP_G | PROP_H | PROP_I | PROP_J);
     node->type_properties |= (x_prop & y_prop) & PROP_K;
     if (!(~x_prop & (TYPE_B | PROP_D | PROP_U)))
@@ -988,7 +1175,7 @@ static int verify_or_d(ms_ctx *ctx, ms_node *node)
     if (x_prop & PROP_E && ((x_prop | y_prop) & PROP_S))
         node->type_properties |= x_prop & y_prop & PROP_M;
 
-    return WALLY_OK;
+    return (node->type_properties & TYPE_B) ? WALLY_OK : WALLY_EINVAL;
 }
 
 static uint32_t verify_or_i_property(uint32_t x_prop, uint32_t y_prop)
@@ -1033,7 +1220,7 @@ static int verify_thresh(ms_ctx *ctx, ms_node *node)
     for (child = top->next; child; child = child->next) {
         const uint32_t expected_type = count ? TYPE_W : TYPE_B;
 
-        if (!child->builtin || (~child->type_properties & (expected_type | PROP_D)))
+        if (~child->type_properties & (expected_type | PROP_D | PROP_U))
             return WALLY_EINVAL;
 
         if (~child->type_properties & PROP_E)
@@ -1042,8 +1229,8 @@ static int verify_thresh(ms_ctx *ctx, ms_node *node)
             all_m = false;
         if (child->type_properties & PROP_S)
             ++num_s;
-        if (child->type_properties & PROP_Z)
-            args += (~child->type_properties & PROP_O) ? 2 : 1;
+        if (!(child->type_properties & PROP_Z))
+            args += (child->type_properties & PROP_O) ? 1 : 2;
 
 
         tmp_acc_tl = ((acc_tl | child->type_properties) & (PROP_G | PROP_H | PROP_I | PROP_J));
@@ -1090,6 +1277,9 @@ static int verify_ct(ms_ctx *ctx, ms_node *node)
         return WALLY_EINVAL; /* Blinding keys must be compressed non-x-only */
     }
     /* Ensure the second child is a valid top level node */
+    if ((node->child->next->kind & KIND_MINISCRIPT) &&
+        !(node->child->next->type_properties & TYPE_B))
+        return WALLY_EINVAL; /* Not a base expression, e.g. pk_k() or v:pk() */
     switch (node->child->next->kind) {
     case KIND_DESCRIPTOR_PK | KIND_MINISCRIPT_PK:
     case KIND_DESCRIPTOR_PKH | KIND_MINISCRIPT_PKH:
@@ -1120,7 +1310,7 @@ static int verify_slip77(ms_ctx *ctx, ms_node *node)
 }
 #endif /* ifdef BUILD_ELEMENTS */
 
-static int node_verify_wrappers(ms_node *node)
+static int node_verify_wrappers(ms_ctx *ctx, ms_node *node)
 {
     uint32_t *properties = &node->type_properties;
     size_t i;
@@ -1163,13 +1353,18 @@ static int node_verify_wrappers(ms_node *node)
         case 'd':
             PROP_REQUIRE(TYPE_V | PROP_Z);
             PROP_CHANGE_TYPE(TYPE_V | PROP_Z, TYPE_B);
-            PROP_CHANGE(PROP_M | PROP_S, PROP_N | PROP_D | PROP_X |
-                        PROP_G | PROP_H | PROP_I | PROP_J | PROP_K);
+            PROP_CHANGE(PROP_M | PROP_S | PROP_G | PROP_H | PROP_I | PROP_J |
+                        PROP_K, PROP_N | PROP_D | PROP_X);
             if (x_prop & PROP_Z)
                 *properties |= PROP_O;
             if (x_prop & PROP_F) {
                 *properties &= ~PROP_F;
                 *properties |= PROP_E;
+            }
+            if (ctx->features & WALLY_MS_IS_TAPSCRIPT) {
+                /* d: gains the u property under tapscript thanks to
+                 * tapscript requiring MINIMALIF enforcement */
+                *properties |= PROP_U;
             }
             break;
         case 'v':
@@ -1181,7 +1376,8 @@ static int node_verify_wrappers(ms_node *node)
         case 'j':
             PROP_REQUIRE(TYPE_B | PROP_N);
             PROP_CHANGE(PROP_O | PROP_U | PROP_M | PROP_S | PROP_N | PROP_D |
-                        PROP_X, PROP_N | PROP_D | PROP_X);
+                        PROP_X | PROP_G | PROP_H | PROP_I | PROP_J | PROP_K,
+                        PROP_N | PROP_D | PROP_X);
             if (x_prop & PROP_F) {
                 PROP_CHANGE(~PROP_F, PROP_E);
             }
@@ -1189,7 +1385,8 @@ static int node_verify_wrappers(ms_node *node)
         case 'n':
             PROP_REQUIRE(TYPE_B);
             PROP_CHANGE(PROP_Z | PROP_O | PROP_N | PROP_D | PROP_F | PROP_E |
-                        PROP_M | PROP_S | PROP_N | PROP_D | PROP_X, PROP_X);
+                        PROP_M | PROP_S | PROP_X | PROP_G | PROP_H | PROP_I |
+                        PROP_J | PROP_K, PROP_U | PROP_X);
             break;
         case 'l':
             *properties = verify_or_i_property(PROP_OP_0, x_prop);
@@ -1234,7 +1431,7 @@ static int node_verify_wrappers(ms_node *node)
 static int generate_number(int64_t number, ms_node *parent,
                            unsigned char *script, size_t script_len, size_t *written)
 {
-    if ((parent && !parent->builtin))
+    if (parent && !parent->builtin && parent->kind != KIND_BRANCH)
         return WALLY_EINVAL;
 
     if (number >= -1 && number <= 16) {
@@ -1301,7 +1498,8 @@ static int generate_pk_h(ms_ctx *ctx, ms_node *node,
     if (script_len >= WALLY_SCRIPTPUBKEY_P2PKH_LEN - 1) {
         ret = generate_pk_k(ctx, node, buff+3, sizeof(buff)-3, written);
         if (ret == WALLY_OK) {
-            if (node->child->flags & WALLY_MS_IS_X_ONLY)
+            if ((node->child->flags & WALLY_MS_IS_X_ONLY) &&
+                !(ctx->features & WALLY_MS_IS_TAPSCRIPT))
                 return WALLY_EINVAL;
             script[0] = OP_DUP;
             script[1] = OP_HASH160;
@@ -1329,7 +1527,7 @@ static int generate_sh_wsh(ms_ctx *ctx, ms_node *node,
 
     ret = generate_script(ctx, node->child, script, script_len, &output_len);
     if (ret == WALLY_OK) {
-        if (output_len > REDEEM_SCRIPT_MAX_SIZE)
+        if (output_len > (is_sh ? REDEEM_SCRIPT_MAX_SIZE : WITNESS_SCRIPT_MAX_SIZE))
             ret = WALLY_EINVAL;
         else {
            const size_t required = output_len > final_len ? output_len : final_len;
@@ -1339,8 +1537,12 @@ static int generate_sh_wsh(ms_ctx *ctx, ms_node *node,
                ret = (is_sh ? wally_scriptpubkey_p2sh_from_bytes :
                               wally_witness_program_from_bytes)(
                       script, output_len, flags, output, sizeof(output), written);
-               if (ret == WALLY_OK && *written <= script_len)
-                   memcpy(script, output, *written);
+               if (ret == WALLY_OK) {
+                   if (*written > sizeof(output))
+                       ret = WALLY_EINVAL; /* Shouldn't happen! */
+                   else if (*written <= script_len)
+                       memcpy(script, output, *written);
+               }
            }
         }
     }
@@ -1350,7 +1552,9 @@ static int generate_sh_wsh(ms_ctx *ctx, ms_node *node,
 static int generate_inplace_checksig(unsigned char *script, size_t script_len,
                                      size_t *written)
 {
-    if (!*written || (*written + 1 > WITNESS_SCRIPT_MAX_SIZE))
+    /* Witness script size limit enforced in generate_inplace_wrappers() for
+     * segwit v0 only; tapscript has no script size restriction. */
+    if (!*written)
         return WALLY_EINVAL;
 
     *written += 1;
@@ -1443,44 +1647,61 @@ static int compare_multisig_node(const void *lhs, const void *rhs)
     return memcmp(l->pubkey, ((const struct multisig_sort_data_t *)rhs)->pubkey, l->pubkey_len);
 }
 
+/* multisig:
+ * standard: M <K1> [<K2> ...] N OP_CHECKMULTISIG
+ * tapscript: <K1> OP_CHECKSIG [<K2> OP_CHECKSIGADD ...] <M> OP_NUMEQUAL
+ */
 static int generate_multi(ms_ctx *ctx, ms_node *node,
-                          unsigned char *script, size_t script_len, size_t *written)
+                          unsigned char *script, size_t script_len,
+                          size_t *written)
 {
-    size_t offset;
+    size_t offset = 0;
     uint32_t count, i;
     ms_node *child = node->child;
     struct multisig_sort_data_t *sorted;
-    int ret;
+    int (*pk_verify_fn)(const unsigned char *, size_t);
+    const bool is_tapscript = (ctx->features & WALLY_MS_IS_TAPSCRIPT) != 0;
+    int ret = WALLY_OK;
 
     if (!child || !node_is_root(node) || !node->builtin)
         return WALLY_EINVAL;
 
     count = node_get_child_count(node) - 1;
-    /* FIXME: We should allow 20 keys in witness scriptss */
-    if (count > CHECKMULTISIG_NUM_KEYS_MAX)
+    if (count > (is_tapscript ? MULTI_A_NUM_KEYS_MAX : MINISCRIPT_MULTI_MAX))
         return WALLY_EINVAL; /* Too many keys for multisig */
 
-    if ((ret = generate_script(ctx, child, script, script_len, &offset)) != WALLY_OK)
+    /* standard: generate threshold */
+    if (!is_tapscript &&
+        (ret = generate_script(ctx, child, script, script_len, &offset)) != WALLY_OK)
         return ret;
 
     if (!(sorted = wally_malloc(count * sizeof(struct multisig_sort_data_t))))
         return WALLY_ENOMEM;
 
-    child = child->next;
+    pk_verify_fn = is_tapscript ? wally_ec_xonly_public_key_verify : wally_ec_public_key_strict_verify;
+    child = child->next; /* Skip threshold */
     for (i = 0; ret == WALLY_OK && i < count; ++i) {
         struct multisig_sort_data_t *item = sorted + i;
         ret = generate_script(ctx, child,
                               item->pubkey, sizeof(item->pubkey), &item->pubkey_len);
-        if (ret == WALLY_OK && item->pubkey_len > sizeof(item->pubkey))
-            ret = WALLY_ERROR; /* FIXME: check for valid pubkey lengths */
+        if (ret == WALLY_OK)
+            ret = pk_verify_fn(item->pubkey, item->pubkey_len);
+        if (ret == WALLY_OK && i > 0) {
+            const struct multisig_sort_data_t *prev = sorted + i -1;
+            if (prev->pubkey_len != item->pubkey_len)
+                ret = WALLY_EINVAL; /* Cannot mix pubkey types */
+        }
         child = child->next;
     }
 
     if (ret == WALLY_OK) {
-        /* Note we don't bother sorting if we are already beyond the output
-         * size, since sorting won't change the final size computed */
-        if (node->kind == KIND_DESCRIPTOR_MULTI_S && offset <= script_len)
-            qsort(sorted, count, sizeof(sorted[0]), compare_multisig_node);
+        if (node->kind == KIND_DESCRIPTOR_MULTI_S ||
+            node->kind == KIND_MINISCRIPT_MULTI_A_S) {
+            /* Sort keys, skipping if we are already beyond the output
+             * size, since sorting won't change the final size computed */
+            if (offset <= script_len)
+                qsort(sorted, count, sizeof(sorted[0]), compare_multisig_node);
+        }
 
         for (i = 0; ret == WALLY_OK && i < count; ++i) {
             const size_t pubkey_len = sorted[i].pubkey_len;
@@ -1489,19 +1710,29 @@ static int generate_multi(ms_ctx *ctx, ms_node *node,
                 memcpy(script + offset + 1, sorted[i].pubkey, pubkey_len);
             }
             offset += pubkey_len + 1;
+            if (is_tapscript) {
+                /* OP_CHECKSIG/OP_CHECKSIGADD follows the pubkey */
+                if (offset + 1 <= script_len)
+                    script[offset] = i == 0 ? OP_CHECKSIG : OP_CHECKSIGADD;
+                ++offset;
+            }
         }
 
         if (ret == WALLY_OK) {
+            /* standard: num_keys OP_CHECKMULTISIG
+             * tapscript: threshold OP_NUMEQUAL
+             */
             size_t number_len;
             size_t remaining_len = offset > script_len ? 0 : script_len - offset;
-            ret = generate_number(count, node->parent, script + offset,
+            unsigned char *num_script = remaining_len ? script + offset : NULL;
+            if (is_tapscript)
+                count = node->child->number; /* Threshold */
+            ret = generate_number(count, node->parent, num_script,
                                   remaining_len, &number_len);
             if (ret == WALLY_OK) {
                 *written = offset + number_len + 1;
-                if (*written > REDEEM_SCRIPT_MAX_SIZE)
-                    return WALLY_EINVAL;
                 if (*written <= script_len)
-                    script[*written - 1] = OP_CHECKMULTISIG;
+                    script[*written - 1] = is_tapscript ? OP_NUMEQUAL : OP_CHECKMULTISIG;
             }
         }
     }
@@ -1541,37 +1772,284 @@ static int generate_raw_tr(ms_ctx *ctx, ms_node *node,
     return ret;
 }
 
+static bool ms_ctx_is_elements(const ms_ctx *ctx)
+{
+#ifdef BUILD_ELEMENTS
+    return (ctx->features & WALLY_MS_IS_ELEMENTS) != 0;
+#else
+    (void)ctx;
+    return false;
+#endif
+}
+
+/* Return the tr() node for a taproot descriptor */
+static inline ms_node *tr_get_tr(const struct wally_descriptor *descriptor)
+{
+    ms_node *node = descriptor->top_node;
+    if (node_is_ct(node))
+        node = node->child->next; /* tr() from ct(blinding_key,tr(...)) */
+    return node;
+}
+
+/* Whether a descriptor is a tr() with a taptree. Note that a tapscript
+ * miniscript expression is WALLY_MS_IS_TAPSCRIPT but has no taptree */
+static inline bool tr_has_tree(const struct wally_descriptor *descriptor)
+{
+    const uint32_t tree_features = WALLY_MS_IS_TAPROOT | WALLY_MS_IS_TAPSCRIPT;
+    return (descriptor->features & tree_features) == tree_features;
+}
+
+/* Return the taptree for a tr() descriptor, or NULL if non-tr() or no tree */
+static inline ms_node *tr_get_tree(const struct wally_descriptor *descriptor)
+{
+    if (tr_has_tree(descriptor))
+        return tr_get_tr(descriptor)->child->next;
+    return NULL;
+}
+
+/* Compute the BIP-341 tapleaf hash for a single miniscript leaf node. */
+static int leaf_tapleaf_hash(ms_ctx *ctx, ms_node *leaf,
+                             unsigned char *hash_out, size_t hash_out_len)
+{
+    unsigned char *buf;
+    size_t buf_len = 0, written = 0;
+    int ret;
+
+    ret = node_generation_size(leaf, &buf_len);
+    if (ret != WALLY_OK)
+        return ret;
+    if (!(buf = wally_malloc(buf_len)))
+        return WALLY_ENOMEM;
+
+    ret = generate_script(ctx, leaf, buf, buf_len, &written);
+    if (ret == WALLY_OK) {
+        if (written > buf_len)
+            ret = WALLY_ERROR; /* Should not happen! */
+        else {
+            const bool is_elements = ms_ctx_is_elements(ctx);
+            ret = bip341_tapleaf_hash(TAPSCRIPT_LEAF_VERSION(is_elements),
+                                      buf, written, is_elements,
+                                      hash_out, hash_out_len);
+        }
+    }
+    wally_free(buf);
+    return ret;
+}
+
+static uint32_t count_taptree_leaves(const ms_node *node)
+{
+    if (!node) return 0;
+    if (node->kind == KIND_BRANCH) {
+        if (!node->child || !node->child->next) return 0;
+        return count_taptree_leaves(node->child) +
+               count_taptree_leaves(node->child->next);
+    }
+    return 1;
+}
+
+/* Return the index-th leaf of a taptree (DFS left-first), NULL if not found.
+ * if depth_out is non-NULL, it is populated with the 0-based node depth.
+ */
+static ms_node *find_taptree_leaf(ms_node *taptree, uint32_t index,
+                                  uint32_t *depth_out)
+{
+    ms_node *p = taptree, *prev = NULL;
+
+    if (depth_out)
+        *depth_out = 0;
+
+    if (p->kind != KIND_BRANCH)
+        return index ? NULL : taptree; /* Single script tree */
+
+    while (p) {
+        if (prev == p->parent || (prev && prev->next == p)) {
+            /* Came from parent or lhs child while descending: process p */
+            if (p->kind != KIND_BRANCH && index-- == 0)
+                return p; /* Leaf node at index: return it */
+        }
+
+        if (p->kind == KIND_BRANCH && p->child &&
+            prev != p->child && prev != p->child->next) {
+            prev = p; /* Branch with unvisted children: descend */
+            p = p->child;
+            if (depth_out)
+                ++*depth_out;
+        } else if (p->next) {
+            prev = p; /* Move to rhs sibling */
+            p = p->next;
+        } else {
+            prev = p; /* Only child or rhs sibling: ascend */
+            p = p->parent;
+            if (depth_out)
+                --*depth_out;
+        }
+    }
+    return NULL; /* leaf not found at the given index */
+}
+
+/* Recursively build a merkle proof for a target leaf in the taptree.
+ *
+ * Set *path_len=0, *index=0, and *found=false before calling.
+ *
+ * As recursion unwinds while ascending from leaf to root, each branch
+ * on the path appends its sibling hash to path_out. The result is a
+ * sequence of BIP-341 merkle hashes in leaf-to-root order:
+ *   path_out[0] = the target leaf's immediate sibling
+ *   path_out[1] = the next sibling closer to the root
+ *   ...
+ *   path_out[*path_len_out - 1] = the sibling closest to the root
+ *
+ * The top-level merkle root hash is placed in hash_out; it is not written
+ * to path_out. path_out may be NULL to compute only the merkle root.
+ */
+static int compute_merkle_info(ms_ctx *ctx, ms_node *taptree,
+                               uint32_t target_index, uint32_t *index,
+                               unsigned char *path_out, uint32_t *path_len,
+                               unsigned char *hash_out, size_t hash_out_len,
+                               bool *found)
+{
+    int ret;
+    if (taptree->kind == KIND_BRANCH) {
+        unsigned char left_hash[SHA256_LEN], right_hash[SHA256_LEN];
+        bool left_found = false, right_found = false;
+
+        ret = compute_merkle_info(ctx, taptree->child, target_index, index,
+                                  path_out, path_len, left_hash, sizeof(left_hash), &left_found);
+        if (ret != WALLY_OK)
+            return ret;
+        ret = compute_merkle_info(ctx, taptree->child->next, target_index, index,
+                                  path_out, path_len, right_hash, sizeof(right_hash), &right_found);
+        if (ret != WALLY_OK)
+            return ret;
+
+        if (left_found) {
+            if (path_out)
+                memcpy(path_out + (*path_len) * SHA256_LEN, right_hash, SHA256_LEN);
+            (*path_len)++;
+            *found = true;
+        } else if (right_found) {
+            if (path_out)
+                memcpy(path_out + (*path_len) * SHA256_LEN, left_hash, SHA256_LEN);
+            (*path_len)++;
+            *found = true;
+        }
+        ret = bip341_tapbranch_hash(left_hash, sizeof(left_hash),
+                                    right_hash, sizeof(right_hash),
+                                    ms_ctx_is_elements(ctx), hash_out, hash_out_len);
+    } else {
+        ret = leaf_tapleaf_hash(ctx, taptree, hash_out, hash_out_len);
+        if (ret == WALLY_OK) {
+            if (*index == target_index)
+                *found = true;
+            (*index)++;
+        }
+    }
+    return ret;
+}
+
+static uint32_t count_keys_in_subtree(const ms_node *node)
+{
+    uint32_t count = 0;
+    const ms_node *child;
+    if (!node) return 0;
+    if (node->kind & KIND_KEY) return 1;
+    if (node->builtin) {
+        for (child = node->child; child; child = child->next)
+            count += count_keys_in_subtree(child);
+    }
+    return count;
+}
+
+/* Recursive helper for find_nth_key_in_subtree. Caller MUST initialise
+ * *current_index to 0 before the (top-level) call. */
+static ms_node *find_nth_key_in_subtree_impl(ms_node *node, uint32_t target_index, uint32_t *current_index)
+{
+    ms_node *child, *found;
+    if (!node) return NULL;
+    if (node->kind & KIND_KEY) {
+        if (*current_index == target_index) return node;
+        (*current_index)++;
+        return NULL;
+    }
+    if (node->builtin) {
+        for (child = node->child; child; child = child->next) {
+            found = find_nth_key_in_subtree_impl(child, target_index, current_index);
+            if (found) return found;
+        }
+    }
+    return NULL;
+}
+
+/* Return the n-th key (DFS left-first) inside a miniscript subtree, or NULL
+ * if target_index is out of range. */
+static ms_node *find_nth_key_in_subtree(ms_node *subtree_root, uint32_t target_index)
+{
+    uint32_t current_index = 0;
+    return find_nth_key_in_subtree_impl(subtree_root, target_index, &current_index);
+}
+
+/* Helper for generating a taproot script (i.e. the internal key), the
+ * merkle path, and merkle root for a tr() descriptor.
+ */
+static int tr_impl(ms_ctx *ctx, unsigned char *script, size_t script_len,
+                   uint32_t target_index,
+                   unsigned char *path_out, uint32_t *path_len,
+                   unsigned char *merkle_root, size_t merkle_root_len,
+                   unsigned char *tweaked, size_t tweaked_len,
+                   size_t *written)
+{
+    unsigned char *merkle_p = NULL;
+    ms_node* taptree = tr_get_tree(ctx);
+    int ret;
+
+    /* Generate an untweaked p2tr script OP_1 [x-only internal key] */
+    ret = generate_raw_tr(ctx, tr_get_tr(ctx), script, script_len, written);
+    if (ret != WALLY_OK || script_len < *written)
+        return ret;
+
+    if (taptree) {
+        /* taptree is present: use its merkle root for our tweak below,
+         * and store the merkle path if the caller asked us to. */
+        uint32_t index = 0;
+        bool found = false;
+        if (path_len)
+            *path_len = 0;
+        ret = compute_merkle_info(ctx, taptree, target_index,
+                                  &index, path_out, path_len,
+                                  merkle_root, merkle_root_len, &found);
+        if (target_index != 0xffffffff && ret == WALLY_OK && !found)
+            ret = WALLY_EINVAL; /* target_index given and not found */
+        if (ret != WALLY_OK)
+            return ret;
+        merkle_p = merkle_root; /* Use merkle_root for tweaking */
+    }
+
+    /* Tweak the p2tr script x-only pubkey into 'tweaked' */
+    const uint32_t flags = ms_ctx_is_elements(ctx) ?  EC_FLAG_ELEMENTS : 0;
+    return wally_ec_public_key_bip341_tweak(script + 2, EC_XONLY_PUBLIC_KEY_LEN,
+                                            merkle_p, merkle_p ? SHA256_LEN : 0,
+                                            flags, tweaked, tweaked_len);
+}
+
 static int generate_tr(ms_ctx *ctx, ms_node *node,
                        unsigned char *script, size_t script_len, size_t *written)
 {
+    unsigned char merkle_root[SHA256_LEN];
     unsigned char tweaked[EC_PUBLIC_KEY_LEN];
-    unsigned char pubkey[EC_PUBLIC_KEY_UNCOMPRESSED_LEN + 1];
-    size_t pubkey_len = 0;
-    uint32_t tweak_flags = 0;
+    uint32_t path_len = 0;
     int ret;
 
-    /* Generate a push of the x-only public key of our child */
-    const bool force_xonly = true;
-    ret = generate_pk_k_impl(ctx, node, pubkey, sizeof(pubkey), force_xonly, &pubkey_len);
-    if (ret != WALLY_OK || pubkey_len != EC_XONLY_PUBLIC_KEY_LEN + 1)
-        return WALLY_EINVAL; /* Should be PUSH_32 [x-only pubkey] */
+    (void)node;
+    /* Generate an untweaked p2tr script OP_1 [x-only internal key],
+     * and collect the merkle root if a taptree is present. */
+    ret = tr_impl(ctx, script, script_len, 0xffffffff,
+                  NULL, &path_len, merkle_root, sizeof(merkle_root),
+                  tweaked, sizeof(tweaked), written);
 
-    /* Tweak it into a compressed pubkey */
-#ifdef BUILD_ELEMENTS
-    if (ctx->features & WALLY_MS_IS_ELEMENTS)
-        tweak_flags = EC_FLAG_ELEMENTS;
-#endif
-    ret = wally_ec_public_key_bip341_tweak(pubkey + 1, pubkey_len - 1,
-                                           NULL, 0, /* FIXME: Support script path */
-                                           tweak_flags, tweaked, sizeof(tweaked));
-
-    if (ret == WALLY_OK && script_len >= WALLY_SCRIPTPUBKEY_P2TR_LEN) {
-        /* Generate the script using the x-only part of the tweaked key */
-        script[0] = OP_1;
-        script[1] = sizeof(tweaked) - 1;
-        memcpy(script + 2, tweaked + 1, sizeof(tweaked) - 1);
+    if (ret == WALLY_OK && script_len >= *written) {
+        /* Replace the p2tr x-only pubkey with the tweaked key */
+        memcpy(script + 2, tweaked + 1, EC_XONLY_PUBLIC_KEY_LEN);
     }
-    *written = WALLY_SCRIPTPUBKEY_P2TR_LEN;
     return ret;
 }
 
@@ -1622,12 +2100,14 @@ static int generate_hash_type(ms_ctx *ctx, ms_node *node,
         op_code = OP_HASH160;
         hash_size = HASH160_LEN;
     } else
-        return WALLY_ERROR; /* Shouldn't happen */
+        return WALLY_ERROR; /* Shouldn't happen! */
 
     if (script_len >= 7)
         remaining_len = script_len - 7;
     ret = generate_script(ctx, node->child, script + 6, remaining_len, written);
     if (ret == WALLY_OK) {
+        if (node->child->data_len != hash_size)
+            return WALLY_ERROR; /* Shouldn't happen! */
         if (*written + 7 <= script_len) {
             script[0] = OP_SIZE;
             script[1] = 0x01;
@@ -1671,7 +2151,7 @@ static int generate_concat(ms_ctx *ctx, ms_node *node, size_t target_num,
             memcpy(script + offset, insert[i], insert_len[i]);
         offset += insert_len[i];
         if (offset < script_len)
-            remaining_len = script_len - offset - 1;
+            remaining_len = script_len - offset;
         ret = generate_script(ctx, children[indices[i]],
                               script + offset, remaining_len, &output_len);
         if (ret != WALLY_OK)
@@ -1682,8 +2162,6 @@ static int generate_concat(ms_ctx *ctx, ms_node *node, size_t target_num,
     if (insert_len[3] && offset + insert_len[3] <= script_len)
         memcpy(script + offset, insert[3], insert_len[3]);
     *written = offset + insert_len[3];
-    if (*written > REDEEM_SCRIPT_MAX_SIZE)
-        return WALLY_EINVAL;
     return ret;
 }
 
@@ -1801,7 +2279,7 @@ static int generate_thresh(ms_ctx *ctx, ms_node *node,
         return WALLY_EINVAL;
 
     for (child = child->next; child && ret == WALLY_OK; child = child->next) {
-        remaining_len = offset >= script_len ? 0 : script_len - offset - 1;
+        remaining_len = offset >= script_len ? 0 : script_len - offset;
         ret = generate_script(ctx, child,
                               script + offset, remaining_len, &output_len);
         if (ret == WALLY_OK) {
@@ -1813,21 +2291,19 @@ static int generate_thresh(ms_ctx *ctx, ms_node *node,
         }
     }
     if (ret == WALLY_OK) {
-        remaining_len = offset >= script_len ? 0 : script_len - offset - 1;
+        remaining_len = offset >= script_len ? 0 : script_len - offset;
         ret = generate_script(ctx, node->child,
                               script + offset, remaining_len, &output_len);
     }
     if (ret == WALLY_OK) {
         *written = offset + output_len + 1;
-        if (*written > REDEEM_SCRIPT_MAX_SIZE)
-            return WALLY_EINVAL;
         if (*written <= script_len)
             script[*written - 1] = OP_EQUAL;
     }
     return ret;
 }
 
-static int generate_inplace_wrappers(ms_node *node,
+static int generate_inplace_wrappers(ms_ctx *ctx, ms_node *node,
                                      unsigned char *script, size_t script_len,
                                      size_t *written)
 {
@@ -1928,7 +2404,8 @@ static int generate_inplace_wrappers(ms_node *node,
         default:
             return WALLY_ERROR; /* Wrapper type not found, should not happen */
         }
-        if (*written + output_len > WITNESS_SCRIPT_MAX_SIZE)
+        if (!(ctx->features & WALLY_MS_IS_TAPSCRIPT) &&
+            *written + output_len > WITNESS_SCRIPT_MAX_SIZE)
             return WALLY_EINVAL;
         *written += output_len;
     }
@@ -2083,6 +2560,16 @@ static const struct ms_builtin_t g_builtins[] = {
         I_NAME("thresh"),
         KIND_MINISCRIPT_THRESH, TYPE_B | PROP_D | PROP_U,
         0xffffffff, verify_thresh, generate_thresh
+    }, {
+        I_NAME("multi_a"),
+        KIND_MINISCRIPT_MULTI_A,
+        TYPE_B | PROP_D | PROP_U | PROP_E | PROP_M | PROP_S | PROP_K,
+        0xffffffff, verify_multi_a, generate_multi
+    }, {
+        I_NAME("sortedmulti_a"),
+        KIND_MINISCRIPT_MULTI_A_S,
+        TYPE_B | PROP_D | PROP_U | PROP_E | PROP_M | PROP_S | PROP_K,
+        0xffffffff, verify_multi_a, generate_multi
     }
     /* Elements confidential descriptors */
 #ifdef BUILD_ELEMENTS
@@ -2101,24 +2588,25 @@ static const struct ms_builtin_t g_builtins[] = {
 };
 #undef I_NAME
 
-#ifdef BUILD_ELEMENTS
 static inline bool builtin_is_elements(const char *name, size_t name_len)
 {
+#ifdef BUILD_ELEMENTS
     /* Elements descriptor builtins are prefixed with "el" */
     return name_len > 2 && name[0] == 'e' && name[1] == 'l';
-}
+#else
+    (void)name;
+    (void)name_len;
+    return false;
 #endif /* ifdef BUILD_ELEMENTS */
+}
 
 static unsigned char builtin_lookup(const char *name, size_t name_len, uint32_t kind)
 {
     unsigned char i;
-#ifdef BUILD_ELEMENTS
     if (builtin_is_elements(name, name_len)) {
         name += 2; /* Look up without matching the prefix */
         name_len -= 2;
     }
-#endif /* ifdef BUILD_ELEMENTS */
-
     for (i = 0; i < NUM_ELEMS(g_builtins); ++i) {
         if ((g_builtins[i].kind & kind) &&
             g_builtins[i].name_len == name_len &&
@@ -2171,43 +2659,26 @@ static int generate_script(ms_ctx *ctx, ms_node *node,
                 }
             }
         }
+    } else if (node->kind == KIND_BRANCH) {
+        /* Taptree branch nodes cannot be directly generated as a script */
+        return WALLY_EINVAL;
     } else if ((node->kind & KIND_BIP32) == KIND_BIP32) {
         output_len = node->flags & WALLY_MS_IS_X_ONLY ? EC_XONLY_PUBLIC_KEY_LEN : EC_PUBLIC_KEY_LEN;
         if (output_len > script_len) {
             ret = WALLY_OK; /* Return required length without writing */
         } else {
             struct ext_key master;
-
-            ret = bip32_key_from_base58_n(node->data, node->data_len, &master);
-            if (ret == WALLY_OK && node->child_path_len) {
-                size_t path_len;
-                const uint32_t flags = BIP32_FLAG_STR_WILDCARD |
-                                       BIP32_FLAG_STR_BARE |
-                                       BIP32_FLAG_STR_MULTIPATH;
-                const uint32_t derive_flags = BIP32_FLAG_SKIP_HASH |
-                                              BIP32_FLAG_KEY_PUBLIC;
-                const bool is_ranged = node->flags & WALLY_MS_IS_RANGED;
-                const bool is_multi = node->flags & WALLY_MS_IS_MULTIPATH;
-                struct ext_key derived;
-
-                ret = bip32_path_from_str_n(node->child_path, node->child_path_len,
-                                            is_ranged ? ctx->child_num : 0,
-                                            is_multi ? ctx->multi_index : 0,
-                                            flags, ctx->path_buff, ctx->max_path_elems,
-                                            &path_len);
-                if (ret == WALLY_OK)
-                    ret = bip32_key_from_parent_path(&master, ctx->path_buff, path_len,
-                                                     derive_flags, &derived);
-                if (ret == WALLY_OK)
-                    memcpy(&master, &derived, sizeof(master));
-            }
+            ret = node_derive_key(ctx, node,
+                                  BIP32_FLAG_SKIP_HASH|BIP32_FLAG_KEY_PUBLIC,
+                                  &master);
             if (ret == WALLY_OK)
-                memcpy(script, master.pub_key + ((node->flags & WALLY_MS_IS_X_ONLY) ? 1 : 0), output_len);
+                memcpy(script, master.pub_key + EC_PUBLIC_KEY_LEN - output_len,
+                       output_len);
             wally_clear(&master, sizeof(master));
         }
     }
     if (ret == WALLY_OK) {
-        ret = generate_inplace_wrappers(node, script, script_len, &output_len);
+        ret = generate_inplace_wrappers(ctx, node, script, script_len, &output_len);
         if (ret == WALLY_OK)
             *written = output_len;
     }
@@ -2226,12 +2697,11 @@ static int analyze_address(ms_ctx *ctx, const char *str, size_t str_len,
 
     ret = wally_base58_n_to_bytes(str, str_len, BASE58_FLAG_CHECKSUM,
                                   decoded, sizeof(decoded), &decoded_len);
-    if (ret == WALLY_OK) {
-        /* P2PKH/P2SH base58 address */
+    if (ret == WALLY_ERROR)
+        return ret; /* Hashing the checksum failed */
+    if (ret == WALLY_OK && decoded_len == HASH160_LEN + 1) {
+        /* P2PKH or P2SH address */
         bool is_p2sh;
-
-        if (decoded_len != HASH160_LEN + 1)
-            return WALLY_EINVAL; /* Unexpected address length */
 
         if (!addr_ver_from_version(decoded[0], ctx->addr_ver, &is_p2sh))
             return WALLY_EINVAL; /* Network not found */
@@ -2286,40 +2756,45 @@ static int analyze_key_hex(ms_ctx *ctx, ms_node *node,
 {
     unsigned char key[EC_PUBLIC_KEY_UNCOMPRESSED_LEN], *key_p = key;
     size_t key_len;
-    bool allow_xonly, make_xonly = false, is_private = false;
+    bool make_xonly = false, is_private = false;
+    int ret = WALLY_OK;
 
+    /* Strings too long for 'key' return OK without being hex checked */
     *is_hex = wally_hex_n_to_bytes(node->data, node->data_len,
-                                   key, sizeof(key), &key_len) == WALLY_OK;
+                                   key, sizeof(key), &key_len) == WALLY_OK &&
+              key_len <= sizeof(key);
     if (!*is_hex)
-        return WALLY_OK; /* Not a hex string */
+        goto cleanup; /* Not a hex string, or too long to be a key */
 
+    ret = WALLY_EINVAL; /* Any failure during validation is an error */
     if (key_len == EC_PRIVATE_KEY_LEN && is_ct_key) {
         if (wally_ec_private_key_verify(key, key_len) != WALLY_OK)
-            return WALLY_OK; /* Not a valid private key */
+            goto cleanup; /* Not a valid private key */
         is_private = true;
     } else if (key_len == EC_XONLY_PUBLIC_KEY_LEN) {
         if (wally_ec_xonly_public_key_verify(key, key_len) != WALLY_OK)
-            return WALLY_OK; /* Not a valid x-only key */
+            goto cleanup; /* Not a valid x-only key */
     } else if (key_len == EC_PUBLIC_KEY_LEN ||
                key_len == EC_PUBLIC_KEY_UNCOMPRESSED_LEN) {
-        if (wally_ec_public_key_verify(key, key_len) != WALLY_OK)
-            return WALLY_OK; /* Not a valid compressed/uncompressed pubkey */
+        if (wally_ec_public_key_strict_verify(key, key_len) != WALLY_OK)
+            goto cleanup; /* Not a valid compressed/uncompressed pubkey */
     } else
-        return WALLY_OK; /* Not a pubkey */
+        goto cleanup; /* Not a pubkey */
+
+    make_xonly = node_must_be_xonly(node, flags);
 
     if (!is_private) {
         /* Ensure the pubkey is allowed in this context/convert as needed */
-        make_xonly = node->parent &&
-            (node->parent->kind == KIND_DESCRIPTOR_RAW_TR ||
-             node->parent->kind == KIND_DESCRIPTOR_TR);
-        allow_xonly = make_xonly || flags & WALLY_MINISCRIPT_TAPSCRIPT;
-        if (key_len == EC_PUBLIC_KEY_UNCOMPRESSED_LEN && allow_xonly)
-            return WALLY_OK; /* Uncompressed key not allowed here */
+        bool allow_xonly = make_xonly || flags & WALLY_MINISCRIPT_TAPSCRIPT;
+        if (key_len == EC_PUBLIC_KEY_UNCOMPRESSED_LEN && (is_ct_key || allow_xonly))
+            goto cleanup; /* Uncompressed key not allowed here */
         if (key_len == EC_XONLY_PUBLIC_KEY_LEN && !allow_xonly)
-            return WALLY_OK; /* X-only not allowed here */
-        if (key_len != EC_XONLY_PUBLIC_KEY_LEN) {
-            if (flags & WALLY_MINISCRIPT_TAPSCRIPT)
-                return WALLY_OK; /* Only X-only pubkeys allowed under tapscript */
+            goto cleanup; /* X-only not allowed here */
+        if (key_len == EC_PUBLIC_KEY_LEN) {
+            if (flags & WALLY_MINISCRIPT_TAPSCRIPT) {
+                /* In tapscript, compressed keys are accepted and stripped to x-only */
+                make_xonly = true;
+            }
             if (make_xonly) {
                 /* Convert to x-only */
                 --key_len;
@@ -2327,21 +2802,28 @@ static int analyze_key_hex(ms_ctx *ctx, ms_node *node,
             }
         }
     }
+    ret = WALLY_OK; /* Validation complete */
 
-    if (!clone_bytes((unsigned char **)&node->data, key_p, key_len))
-        return WALLY_ENOMEM;
+    if (!clone_bytes((unsigned char **)&node->data, key_p, key_len)) {
+        ret = WALLY_ENOMEM;
+        goto cleanup;
+    }
     node->data_len = key_len;
 
     if (is_ct_key)
         ctx->features |= WALLY_MS_IS_ELIP150;
     if (is_private) {
+        uint32_t features = WALLY_MS_IS_PRIVATE | WALLY_MS_IS_RAW |
+                            (make_xonly ? WALLY_MS_IS_X_ONLY : 0);
         node->kind = KIND_PRIVATE_KEY;
-        node->flags |= (WALLY_MS_IS_PRIVATE | WALLY_MS_IS_RAW);
-        return WALLY_OK;
+        node->flags |= features;
+        if (!is_ct_key)
+            ctx->features |= features;
+        goto cleanup;
     }
     node->kind = KIND_PUBLIC_KEY;
     if (is_ct_key)
-        return WALLY_OK;
+        goto cleanup;
     if (key_len == EC_PUBLIC_KEY_UNCOMPRESSED_LEN) {
         node->flags |= WALLY_MS_IS_UNCOMPRESSED;
         ctx->features |= WALLY_MS_IS_UNCOMPRESSED;
@@ -2352,7 +2834,10 @@ static int analyze_key_hex(ms_ctx *ctx, ms_node *node,
     }
     node->flags |= WALLY_MS_IS_RAW;
     ctx->features |= WALLY_MS_IS_RAW;
-    return ctx_add_key_node(ctx, node);
+    ret = ctx_add_key_node(ctx, node);
+cleanup:
+    wally_clear(key, sizeof(key));
+    return ret;
 }
 
 static int analyze_miniscript_key(ms_ctx *ctx, uint32_t flags,
@@ -2387,11 +2872,13 @@ static int analyze_miniscript_key(ms_ctx *ctx, uint32_t flags,
             (node->data[9] != ']' && node->data[9] != '/'))
             return WALLY_EINVAL; /* Invalid key origin fingerprint */
         size = end - node->data + 1;
-        /* Store offset and length of any origin info in the number field */
-        node->number = (uint64_t)(node->data - ctx->src) << 32u;
+        /* Store offset and length of any origin info in the number field.
+         * Skip when parsing a key for policy checks (so src is NULL) */
+        node->number = ctx->src ? (uint64_t)(node->data - ctx->src) << 32u : 0;
         node->number |= size;
-        ctx->features |= WALLY_MS_IS_PARENTED;
         node->flags |= WALLY_MS_IS_PARENTED;
+        if (!is_ct_key)
+            ctx->features |= WALLY_MS_IS_PARENTED;
         if (size > 10u) {
             if (size == 11u)
                 return WALLY_EINVAL; /* Single leading '/' */
@@ -2411,34 +2898,42 @@ static int analyze_miniscript_key(ms_ctx *ctx, uint32_t flags,
 
     /* Check for a hex public key (hex private keys allowed for ct() only) */
     ret = analyze_key_hex(ctx, node, flags, is_ct_key, &is_hex);
-    if (ret == WALLY_OK && is_hex)
-        return WALLY_OK;
+    if (ret != WALLY_OK || is_hex)
+        return ret;
 
     /* Check for a WIF private key (not allowed for ct() blinding keys) */
-    if (!is_ct_key)
+    if (!is_ct_key) {
         ret = wally_base58_n_to_bytes(node->data, node->data_len, BASE58_FLAG_CHECKSUM,
                                       privkey, sizeof(privkey), &privkey_len);
+        if (ret == WALLY_ERROR)
+            return ret; /* Hashing the checksum failed */
+    }
     if (ret == WALLY_OK && privkey_len && privkey_len <= EC_PRIVATE_KEY_LEN + 2) {
+        const bool make_xonly = node_must_be_xonly(node, flags);
         if (ctx->addr_ver && ctx->addr_ver->version_wif != privkey[0])
-            return WALLY_EINVAL;
-        if (privkey_len == EC_PRIVATE_KEY_LEN + 1) {
-            if (flags & WALLY_MINISCRIPT_TAPSCRIPT)
-                return WALLY_EINVAL; /* Tapscript only allows x-only keys */
+            ret = WALLY_EINVAL;
+        else if (privkey_len == EC_PRIVATE_KEY_LEN + 1) {
+            if (make_xonly || is_ct_key)
+                ret = WALLY_EINVAL; /* Tapscript/blinding must be compressed */
             node->flags |= WALLY_MS_IS_UNCOMPRESSED;
             ctx->features |= WALLY_MS_IS_UNCOMPRESSED;
         } else if (privkey_len != EC_PRIVATE_KEY_LEN + 2 ||
                    privkey[EC_PRIVATE_KEY_LEN + 1] != 1)
-            return WALLY_EINVAL; /* Unknown WIF format */
+            ret = WALLY_EINVAL; /* Unknown WIF format */
 
-        node->flags |= (flags & WALLY_MINISCRIPT_TAPSCRIPT) ? WALLY_MS_IS_X_ONLY : 0;
-        ret = wally_ec_private_key_verify(&privkey[1], EC_PRIVATE_KEY_LEN);
+        if (ret == WALLY_OK) {
+            ret = wally_ec_private_key_verify(&privkey[1], EC_PRIVATE_KEY_LEN);
+        }
         if (ret == WALLY_OK && !clone_bytes((unsigned char **)&node->data, &privkey[1], EC_PRIVATE_KEY_LEN))
-            ret = WALLY_EINVAL;
-        else {
+            ret = WALLY_ENOMEM;
+        else if (ret == WALLY_OK) {
+            uint32_t features = WALLY_MS_IS_PRIVATE | WALLY_MS_IS_RAW |
+                                (make_xonly ? WALLY_MS_IS_X_ONLY : 0);
             node->data_len = EC_PRIVATE_KEY_LEN;
             node->kind = KIND_PRIVATE_KEY;
-            ctx->features |= (WALLY_MS_IS_PRIVATE | WALLY_MS_IS_RAW);
-            node->flags |= (WALLY_MS_IS_PRIVATE | WALLY_MS_IS_RAW);
+            node->flags |= features;
+            if (!is_ct_key)
+                ctx->features |= features;
             ret = ctx_add_key_node(ctx, node);
         }
         wally_clear(privkey, sizeof(privkey));
@@ -2446,6 +2941,7 @@ static int analyze_miniscript_key(ms_ctx *ctx, uint32_t flags,
     }
 
     /* Check for a bip32 key */
+    bool is_hardened_path = false;
     if ((node->child_path = memchr(node->data, '/', node->data_len))) {
         node->child_path_len = node->data_len - (node->child_path - node->data);
         node->data_len = node->child_path - node->data; /* Trim to bip32 key */
@@ -2481,6 +2977,8 @@ static int analyze_miniscript_key(ms_ctx *ctx, uint32_t flags,
                 ctx->features |= WALLY_MS_IS_RANGED;
                 node->flags |= WALLY_MS_IS_RANGED;
             }
+            if (features & BIP32_PATH_IS_HARDENED)
+                is_hardened_path = true;
             if (num_elems > ctx->max_path_elems)
                 ctx->max_path_elems = num_elems;
         } else {
@@ -2499,8 +2997,11 @@ static int analyze_miniscript_key(ms_ctx *ctx, uint32_t flags,
             /* MS_IS_PRIVATE refers only to signing keys - not blinding keys */
             ctx->features |= WALLY_MS_IS_PRIVATE;
         }
-    } else
+    } else {
         node->kind = KIND_BIP32_PUBLIC_KEY;
+        if (is_hardened_path)
+            return WALLY_EINVAL; /* Path not derivable from a public parent */
+    }
 
     if (ctx->addr_ver) {
         const bool main_key = extkey.version == BIP32_VER_MAIN_PUBLIC ||
@@ -2515,7 +3016,7 @@ static int analyze_miniscript_key(ms_ctx *ctx, uint32_t flags,
         if (is_ct_key) {
             ctx->features |= WALLY_MS_IS_ELIP150;
         } else {
-            if (flags & WALLY_MINISCRIPT_TAPSCRIPT) {
+            if (node_must_be_xonly(node, flags)) {
                 node->flags |= WALLY_MS_IS_X_ONLY;
                 ctx->features |= WALLY_MS_IS_X_ONLY;
             }
@@ -2545,16 +3046,24 @@ static int analyze_miniscript_value(ms_ctx *ctx, const char *str, size_t str_len
             if (kind == KIND_DESCRIPTOR_SLIP77 && str_len != 64)
                 ret = WALLY_EINVAL; /* slip77 blinding keys must be 32 bytes */
             else if ((ret = wally_hex_n_verify(str, str_len)) == WALLY_OK) {
-                if (!(node->data = wally_malloc(str_len / 2)))
+                const size_t num_bytes = str_len / 2;
+                if ((kind == KIND_MINISCRIPT_SHA256 ||
+                     kind == KIND_MINISCRIPT_HASH256) && num_bytes != SHA256_LEN)
+                    ret = WALLY_EINVAL;
+                else if ((kind == KIND_MINISCRIPT_RIPEMD160 ||
+                          kind == KIND_MINISCRIPT_HASH160) && num_bytes != HASH160_LEN)
+                    ret = WALLY_EINVAL;
+                else if (!(node->data = wally_malloc(num_bytes)))
                     ret = WALLY_ENOMEM;
                 else {
                     size_t written;
                     wally_hex_n_to_bytes(str, str_len,
-                                         (unsigned char*)node->data, str_len / 2,
+                                         (unsigned char*)node->data, num_bytes,
                                          &written);
                     node->data_len = written;
                     node->kind = KIND_RAW;
                     if (kind == KIND_DESCRIPTOR_SLIP77) {
+                        node->flags = WALLY_MS_IS_RAW | WALLY_MS_IS_SLIP77;
                         ctx->features |= (WALLY_MS_IS_ELEMENTS | WALLY_MS_IS_SLIP77);
                     }
                 }
@@ -2567,8 +3076,11 @@ static int analyze_miniscript_value(ms_ctx *ctx, const char *str, size_t str_len
     node->data_len = str_len;
 
     if (strtoll_n(node->data, node->data_len, &node->number)) {
-        node->type_properties = TYPE_B | PROP_Z | PROP_U | PROP_M | PROP_X;
-        node->type_properties |= (node->number ? PROP_F : (PROP_D | PROP_E | PROP_S));
+        if (str_len == 1 && (node->number == 0 || node->number == 1)) {
+            /* The constants 0 and 1 are also miniscript expressions */
+            node->type_properties = TYPE_B | PROP_Z | PROP_U | PROP_M | PROP_X | PROP_K;
+            node->type_properties |= (node->number ? PROP_F : (PROP_D | PROP_E | PROP_S));
+        }
         node->kind = KIND_NUMBER;
         return WALLY_OK;
     }
@@ -2576,12 +3088,126 @@ static int analyze_miniscript_value(ms_ctx *ctx, const char *str, size_t str_len
     return analyze_miniscript_key(ctx, flags, node, parent, force_ct);
 }
 
+/* Forward declaration */
+static int analyze_miniscript(ms_ctx *ctx, const char *str, size_t str_len,
+                              uint32_t kind, uint32_t flags, ms_node *prev_node,
+                              ms_node *parent, ms_node **output);
+
+/*
+ * Recursively parse a taptree.
+ * Expressions in the tree are either a leaf script or a {LEFT,RIGHT} branch.
+ */
+static int parse_taptree(ms_ctx *ctx, const char *str, size_t str_len,
+                         uint32_t flags, uint32_t depth,
+                         ms_node *parent, ms_node *prev_sibling, ms_node **output)
+{
+    int ret;
+
+    /* A leaf at depth N has a merkle path of N hashes; BIP-341 allows up
+     * to WALLY_DESCRIPTOR_TAPTREE_MAX_DEPTH path elements, so a leaf at
+     * exactly that depth is valid (as per core, which allows 128 levels
+     * of tree nesting).
+     */
+    if (!str_len || depth > WALLY_DESCRIPTOR_TAPTREE_MAX_DEPTH)
+        return WALLY_EINVAL; /* No text remaining or exceeded BIP-341 tree depth */
+
+    if (str[0] == '{') {
+        /* Branch node: {LEFT, RIGHT} */
+        size_t j, brace_depth = 1, paren_depth = 0, comma_pos = 0;
+        ms_node *node, *left = NULL, *right = NULL;
+
+        /* Minimum 3 chars: `{`, >=1 byte of content, `}`. The actual minimum
+         * valid branch is much larger (each leaf must be a typed miniscript
+         * expression); this is just a buffer-size sanity check before we
+         * start scanning. */
+        if (str_len < 3 || str[str_len - 1] != '}')
+            return WALLY_EINVAL;
+
+        /* Find the comma separating left and right subtrees at brace_depth=1, paren_depth=0 */
+        for (j = 1; j < str_len - 1; ++j) {
+            if (str[j] == '{') ++brace_depth;
+            else if (str[j] == '}') {
+                if (!brace_depth)
+                    return WALLY_EINVAL;
+                --brace_depth;
+            } else if (str[j] == '(') ++paren_depth;
+            else if (str[j] == ')') {
+                if (!paren_depth)
+                    return WALLY_EINVAL; /* Unmatched ')' */
+                --paren_depth;
+            } else if (str[j] == ',' && brace_depth == 1 && paren_depth == 0) {
+                if (comma_pos != 0)
+                    return WALLY_EINVAL; /* Multiple commas at separator level */
+                comma_pos = j;
+            }
+        }
+        /* comma_pos == 0:           no separator found
+         * comma_pos == 1:           empty left subtree ({,b})
+         * comma_pos == str_len - 2: empty right subtree ({a,}) */
+        if (comma_pos == 0 || comma_pos == 1 || comma_pos == str_len - 2)
+            return WALLY_EINVAL;
+
+        /* Allocate branch node */
+        if (!(node = wally_calloc(sizeof(*node))))
+            return WALLY_ENOMEM;
+        node->kind = KIND_BRANCH;
+        node->parent = parent;
+
+        /* Parse left subtree: str[1..comma_pos-1] */
+        ret = parse_taptree(ctx, str + 1, comma_pos - 1,
+                            flags, depth + 1, node, NULL, &left);
+        if (ret != WALLY_OK) {
+            node_free(node); /* node_free() will also free left */
+            return ret;
+        }
+
+        /* Parse right subtree: str[comma_pos+1..str_len-2] */
+        ret = parse_taptree(ctx, str + comma_pos + 1, str_len - comma_pos - 2,
+                            flags, depth + 1, node, left, &right);
+        if (ret != WALLY_OK) {
+            node_free(node); /* node_free() will free all children*/
+            return ret;
+        }
+        (void)right; /* linked via left->next by the recursive call */
+
+        /* Link branch node to its parent and previous sibling */
+        *output = node;
+        /* First child (left arm of {L,R}): link as parent's first child */
+        if (parent && !parent->child)
+            parent->child = node;
+        /* Subsequent child (right arm of {L,R}, or the taptree of tr(KEY,T)):
+         * link via the previous sibling */
+        else if (prev_sibling)
+            prev_sibling->next = node;
+    } else {
+        /* Leaf node: bare miniscript expression in tapscript context */
+        ret = analyze_miniscript(ctx, str, str_len, KIND_MINISCRIPT,
+                                 flags | WALLY_MINISCRIPT_TAPSCRIPT,
+                                 prev_sibling, parent, output);
+        if (ret == WALLY_OK && *output) {
+            /* A top-level miniscript expression must be type B. In particular,
+             * K, V, and W expressions are only valid as subexpressions. */
+            if (((*output)->type_properties & TYPE_MASK) != TYPE_B) {
+                if (prev_sibling)
+                    prev_sibling->next = NULL; /* unlink from sibling chain */
+                else if (parent)
+                    parent->child = NULL; /* reset dangling pointer */
+                node_free(*output);
+                *output = NULL;
+                ret = WALLY_EINVAL;
+            }
+        }
+    }
+
+    return ret;
+}
+
 static int analyze_miniscript(ms_ctx *ctx, const char *str, size_t str_len,
                               uint32_t kind, uint32_t flags, ms_node *prev_node,
                               ms_node *parent, ms_node **output)
 {
     size_t i, offset = 0, child_offset = 0;
-    uint32_t indent = 0;
+    uint32_t indent = 0, brace_depth = 0;
     bool seen_indent = false, collect_child = false, copy_child = false;
     ms_node *node, *child = NULL, *prev_child = NULL;
     int ret = WALLY_OK;
@@ -2593,7 +3219,9 @@ static int analyze_miniscript(ms_ctx *ctx, const char *str, size_t str_len,
 
     for (i = 0; i < str_len; ++i) {
         if (!node->builtin && str[i] == ':') {
-            if (i - offset > sizeof(node->wrapper_str) - 1) {
+            if (node->wrapper_str[0] || i == offset ||
+                i - offset > sizeof(node->wrapper_str) - 1) {
+                /* Wrappers must be a single group, e.g. dv:X not d:v:X */
                 ret = WALLY_EINVAL;
                 break;
             }
@@ -2615,11 +3243,14 @@ static int analyze_miniscript(ms_ctx *ctx, const char *str, size_t str_len,
                     /* Not a pure descriptor */
                     ctx->features &= ~WALLY_MS_IS_DESCRIPTOR;
                 }
-#ifdef BUILD_ELEMENTS
-                if (builtin_is_elements(str + offset, i - offset)) {
+                if (builtin_is_elements(str + offset, i - offset) ||
+                    node->kind == KIND_DESCRIPTOR_CT) {
+                    /* ct() is Elements-only: treat its descriptor as Elements
+                     * without an el prefix, e.g. wpkh() as elwpkh() */
                     ctx->features |= WALLY_MS_IS_ELEMENTS;
                 }
-#endif /* ifdef BUILD_ELEMENTS */
+                if (node->kind == KIND_DESCRIPTOR_TR)
+                    ctx->features |= WALLY_MS_IS_TAPROOT;
                 offset = i + 1;
                 child_offset = offset;
             }
@@ -2635,19 +3266,28 @@ static int analyze_miniscript(ms_ctx *ctx, const char *str, size_t str_len,
                 }
             }
             seen_indent = true;
+        } else if (str[i] == '{') {
+            ++brace_depth;
+            seen_indent = true;
+        } else if (str[i] == '}') {
+            if (!brace_depth) {
+                ret = WALLY_EINVAL; /* Unmatched '}' */
+                break;
+            }
+            --brace_depth;
+            seen_indent = true;
         } else if (str[i] == ',') {
             if (!indent) {
                 ret = WALLY_EINVAL; /* Comma outside of ()'s */
                 break;
             }
-            if (collect_child && (indent == 1)) {
+            if (collect_child && (indent == 1) && brace_depth == 0) {
                 copy_child = true;
             }
             seen_indent = true;
         } else if (str[i] == '#') {
             if (i - offset != 0) {
-                if (!node->builtin && node->wrapper_str[0] &&
-                    i - offset == strlen(node->wrapper_str)) {
+                if (!node->builtin && node->wrapper_str[0]) {
                     /* wrapper:value followed by checksum */
                     str_len -= (DESCRIPTOR_CHECKSUM_LENGTH + 1);
                     break;
@@ -2661,11 +3301,25 @@ static int analyze_miniscript(ms_ctx *ctx, const char *str, size_t str_len,
         }
 
         if (copy_child) {
-            if (i - child_offset &&
-                (ret = analyze_miniscript(ctx, str + child_offset, i - child_offset,
-                                          kind, flags, prev_child,
-                                          node, &child)) != WALLY_OK)
+            if (!(i - child_offset) && (str[i] == ',' || prev_child)) {
+                ret = WALLY_EINVAL; /* Empty argument in a list */
                 break;
+            }
+            if (i - child_offset) {
+                if (node->kind == KIND_DESCRIPTOR_TR && prev_child) {
+                    /* Second argument of tr() is the taptree: parse_taptree
+                     * handles both {LEFT,RIGHT} branches and a single bare
+                     * miniscript leaf. */
+                    ctx->features |= WALLY_MS_IS_TAPSCRIPT;
+                    ret = parse_taptree(ctx, str + child_offset, i - child_offset,
+                                        flags, 0, node, prev_child, &child);
+                } else {
+                    ret = analyze_miniscript(ctx, str + child_offset, i - child_offset,
+                                             kind, flags, prev_child, node, &child);
+                }
+                if (ret != WALLY_OK)
+                    break;
+            }
 
             prev_child = child;
             child = NULL;
@@ -2676,6 +3330,13 @@ static int analyze_miniscript(ms_ctx *ctx, const char *str, size_t str_len,
             }
         }
     }
+
+    /* A nested expression must consume its entire input. The top
+     * level is delimited by its checksum instead. */
+    if (ret == WALLY_OK && parent && node->builtin && offset != str_len)
+        ret = WALLY_EINVAL;
+    if (ret == WALLY_OK && (indent || brace_depth))
+        ret = WALLY_EINVAL; /* Unclosed '(' or '{' */
 
     if (ret == WALLY_OK && !seen_indent) {
         /* A constant value. Parse it ignoring any already added wrappers */
@@ -2693,7 +3354,7 @@ static int analyze_miniscript(ms_ctx *ctx, const char *str, size_t str_len,
     }
 
     if (ret == WALLY_OK)
-        ret = node_verify_wrappers(node);
+        ret = node_verify_wrappers(ctx, node);
 
     if (ret != WALLY_OK)
         node_free(node);
@@ -2775,6 +3436,12 @@ static int node_generation_size(const ms_node *node, size_t *total)
         case KIND_DESCRIPTOR_TR:
             *total += WALLY_SCRIPTPUBKEY_P2TR_LEN;
             break;
+        case KIND_MINISCRIPT_MULTI_A:
+        case KIND_MINISCRIPT_MULTI_A_S:
+            /* Each key: 1 (push) + 32 (x-only key) + 1 (OP_CHECKSIG/OP_CHECKSIGADD) = 34.
+             * Plus threshold (up to 3 bytes) + OP_NUMEQUAL (1 byte) = 4. */
+            *total += (node_get_child_count(node) - 1) * 34 + 4;
+            break;
         case KIND_MINISCRIPT_PK_K:
             *total += 1;
             break;
@@ -2836,6 +3503,8 @@ static int node_generation_size(const ms_node *node, size_t *total)
             *total += EC_XONLY_PUBLIC_KEY_LEN;
         else
             *total += EC_PUBLIC_KEY_LEN;
+    } else if (node->kind == KIND_BRANCH) {
+        /* Taptree branch nodes don't contribute to scriptPubkey size */
     } else
         return WALLY_ERROR; /* Should not happen */
 
@@ -2899,10 +3568,14 @@ static uint32_t get_max_depth(const char *miniscript, size_t miniscript_len)
     uint32_t depth = 1, max_depth = 1;
 
     for (i = 0; i < miniscript_len; ++i) {
-        if (miniscript[i] == '(' && ++depth > max_depth)
-            max_depth = depth;
-        else if (miniscript[i] == ')' && depth-- == 1)
-            return 0xffffffff; /* Mismatched */
+        if (miniscript[i] == '(' || miniscript[i] == '{') {
+            if (++depth > max_depth)
+                max_depth = depth;
+        } else if (miniscript[i] == ')' || miniscript[i] == '}') {
+            if (depth == 1)
+                return 0xffffffff; /* Mismatched */
+            --depth;
+        }
     }
     return depth == 1 ? max_depth : 0xffffffff;
 }
@@ -2979,6 +3652,41 @@ fail_nomem:
     return ret;
 }
 
+static int ensure_sane(const ms_node *node)
+{
+    if (node->kind == KIND_DESCRIPTOR_SH || node->kind == KIND_DESCRIPTOR_WSH ||
+        node->kind == KIND_DESCRIPTOR_TR || node->kind == KIND_DESCRIPTOR_CT ||
+        node->kind == KIND_BRANCH) {
+        /* Check each script held by this expression */
+        ms_node *child;
+        for (child = node->child; child != NULL; child = child->next) {
+            if (child->builtin || child->kind == KIND_BRANCH ||
+                child->kind == KIND_NUMBER) {
+                if (ensure_sane(child) != WALLY_OK)
+                    return WALLY_EINVAL;
+            }
+        }
+    } else if (node->builtin || node->kind == KIND_NUMBER) {
+        /* Fragment (or numeric constant acting as a full script) */
+        const uint32_t SANE = PROP_S | PROP_M | PROP_K;
+        if ((node->kind & (KIND_MINISCRIPT | KIND_NUMBER)) &&
+            (node->type_properties & SANE) != SANE)
+            return WALLY_EINVAL; /* Signature-free, malleable or mixed timelocks */
+    }
+    return WALLY_OK;
+}
+
+static int ensure_base_root(const ms_node *node)
+{
+    /* Ensure a root miniscript expression is a base expression, i.e. that
+     * it leaves a single true value on success. Descriptor-only
+     * expressions such as wpkh() have no miniscript type to check. */
+    if (node->builtin && (builtin_get(node)->kind & KIND_MINISCRIPT) &&
+        !(node->type_properties & TYPE_B))
+        return WALLY_EINVAL; /* Not a base expression, e.g. pk_k() or v:pk() */
+    return WALLY_OK;
+}
+
 int wally_descriptor_parse(const char *miniscript,
                            const struct wally_map *vars_in,
                            uint32_t network, uint32_t flags,
@@ -2991,11 +3699,12 @@ int wally_descriptor_parse(const char *miniscript,
     ms_ctx *ctx;
     int ret;
 
-    *output = NULL;
+    if (output)
+        *output = NULL;
     flags &= ~WALLY_MINISCRIPT_DEPTH_MASK;
 
     if (!miniscript || flags & ~MS_FLAGS_ALL ||
-        (network != WALLY_NETWORK_NONE && !addr_ver))
+        (network != WALLY_NETWORK_NONE && !addr_ver) || !output)
         return WALLY_EINVAL;
 
 #ifndef BUILD_ELEMENTS
@@ -3003,6 +3712,10 @@ int wally_descriptor_parse(const char *miniscript,
         return WALLY_EINVAL;
     }
 #endif
+    if ((flags & WALLY_MINISCRIPT_POLICY_TEMPLATE) &&
+        (flags & WALLY_MINISCRIPT_ALLOW_NON_SANE))
+        return WALLY_EINVAL; /* Disallow insane policies */
+
     /* Allocate a context to hold the canonicalized/parsed expression */
     if (!(*output = wally_calloc(sizeof(ms_ctx))))
         return WALLY_ENOMEM;
@@ -3021,6 +3734,8 @@ int wally_descriptor_parse(const char *miniscript,
     if (ret == WALLY_OK) {
         ctx->src_len = strlen(ctx->src);
         ctx->features = WALLY_MS_IS_DESCRIPTOR; /* Un-set if miniscript found */
+        if ((flags & WALLY_MINISCRIPT_ONLY) && (flags & WALLY_MINISCRIPT_TAPSCRIPT))
+            ctx->features |= WALLY_MS_IS_TAPSCRIPT; /* Apply tapscript rules */
         if (flags & WALLY_MINISCRIPT_AS_ELEMENTS) {
             ctx->features |= WALLY_MS_IS_ELEMENTS; /* Treat as an elements descriptor */
         }
@@ -3030,6 +3745,8 @@ int wally_descriptor_parse(const char *miniscript,
         else
             ret = analyze_miniscript(ctx, ctx->src, ctx->src_len, kind,
                                      flags, NULL, NULL, &ctx->top_node);
+        if (ret == WALLY_OK && is_wrong_network(ctx, ctx->addr_ver))
+            ret = WALLY_EINVAL; /* Bitcoin/Elements expression/network mismatch */
         if (ret == WALLY_OK)
             ret = node_generation_size(ctx->top_node, &ctx->script_len);
         if (ret == WALLY_OK && (flags & WALLY_MINISCRIPT_POLICY_TEMPLATE)) {
@@ -3044,8 +3761,13 @@ int wally_descriptor_parse(const char *miniscript,
             else if ((ctx->features & (WALLY_MS_IS_SLIP77 | WALLY_MS_IS_ELIP150)) &&
                     !have_blinding_key)
                 ret = WALLY_EINVAL; /* this ct policy requires a blinding key var */
-            else if (flags & WALLY_MINISCRIPT_UNIQUE_KEYPATHS)
-                ret = ensure_unique_policy_keys(ctx);
+        }
+        if (ret == WALLY_OK && !(flags & WALLY_MINISCRIPT_ALLOW_NON_SANE)) {
+            ret = ensure_sane(ctx->top_node);
+            if (ret == WALLY_OK && !(flags & WALLY_MINISCRIPT_ONLY))
+                ret = ensure_base_root(ctx->top_node);
+            if (ret == WALLY_OK)
+                ret = ensure_unique_keys(ctx, flags & WALLY_MINISCRIPT_POLICY_TEMPLATE);
         }
     }
     if (ret != WALLY_OK) {
@@ -3067,22 +3789,14 @@ int wally_descriptor_to_script(const struct wally_descriptor *descriptor,
     if (written)
         *written = 0;
 
-    if (!descriptor || variant >= descriptor->num_variants ||
-        child_num >= BIP32_INITIAL_HARDENED_CHILD ||
-        (child_num && !(descriptor->features & WALLY_MS_IS_RANGED)) ||
-        multi_index >= descriptor->num_multipaths ||
+    if (!index_args_valid(descriptor, variant, multi_index, child_num) ||
         (flags & WALLY_MINISCRIPT_ONLY) || !bytes_out || !len || !written)
         return WALLY_EINVAL;
 
-    memcpy(&ctx, descriptor, sizeof(ctx));
-    ctx.variant = variant;
-    ctx.child_num = child_num;
-    ctx.multi_index = multi_index;
-    if (ctx.max_path_elems &&
-        !(ctx.path_buff = wally_malloc(ctx.max_path_elems * sizeof(uint32_t))))
-        return WALLY_ENOMEM;
-    ret = node_generate_script(&ctx, depth, index, bytes_out, len, written);
-    wally_free(ctx.path_buff);
+    ret = ctx_clone(descriptor, variant, multi_index, child_num, &ctx);
+    if (ret == WALLY_OK)
+        ret = node_generate_script(&ctx, depth, index, bytes_out, len, written);
+    ctx_clear(&ctx);
     return ret;
 }
 
@@ -3184,40 +3898,31 @@ int wally_descriptor_to_addresses(const struct wally_descriptor *descriptor,
                                   char **addresses, size_t num_addresses)
 {
     ms_ctx ctx;
-    unsigned char *p;
+    unsigned char *p = NULL;
     size_t i, written;
     int ret = WALLY_OK;
 
-    if (!descriptor || !descriptor->addr_ver || !descriptor->script_len ||
-        variant >= descriptor->num_variants ||
-         child_num >= BIP32_INITIAL_HARDENED_CHILD ||
+    if (!index_args_valid(descriptor, variant, multi_index, child_num) ||
+        !descriptor->addr_ver || !descriptor->script_len ||
         (uint64_t)child_num + num_addresses >= BIP32_INITIAL_HARDENED_CHILD ||
-        (child_num && !(descriptor->features & WALLY_MS_IS_RANGED)) ||
-        multi_index >= descriptor->num_multipaths ||
         flags || !addresses || !num_addresses)
         return WALLY_EINVAL;
-
-    wally_clear(addresses, num_addresses * sizeof(*addresses));
-    if (!(p = wally_malloc(descriptor->script_len)))
-        return WALLY_ENOMEM;
 
 #ifdef BUILD_ELEMENTS
     if (descriptor->features & WALLY_MS_IS_ELEMENTS &&
        !(descriptor->features & WALLY_MS_ANY_BLINDING_KEY)) {
-        // Elements requires a blinding key to generate addresses
+        /* Elements requires a blinding key to generate addresses */
         return WALLY_ERROR;
     }
 #endif
+    wally_clear(addresses, num_addresses * sizeof(*addresses));
 
-    memcpy(&ctx, descriptor, sizeof(ctx));
-    ctx.variant = variant;
-    if (ctx.max_path_elems &&
-        !(ctx.path_buff = wally_malloc(ctx.max_path_elems * sizeof(uint32_t))))
-        return WALLY_ENOMEM;
+    ret = ctx_clone(descriptor, variant, multi_index, child_num, &ctx);
+    if (ret == WALLY_OK && !(p = wally_malloc(descriptor->script_len)))
+        ret = WALLY_ENOMEM;
 
     for (i = 0; ret == WALLY_OK && i < num_addresses; ++i) {
         ctx.child_num = child_num + i;
-        ctx.multi_index = multi_index;
         ret = node_generate_script(&ctx, 0, 0, p, ctx.script_len, &written);
         if (ret == WALLY_OK) {
             if (written > ctx.script_len)
@@ -3236,7 +3941,7 @@ int wally_descriptor_to_addresses(const struct wally_descriptor *descriptor,
             addresses[i] = NULL;
         }
     }
-    wally_free(ctx.path_buff);
+    ctx_clear(&ctx);
     wally_free(p);
     return ret;
 }
@@ -3301,6 +4006,8 @@ int wally_descriptor_get_network(const struct wally_descriptor *descriptor,
 int wally_descriptor_set_network(struct wally_descriptor *descriptor,
                                  uint32_t network)
 {
+    const struct addr_ver_t *addr_ver = addr_ver_from_network(network);
+
      /* Allow setting a non-NONE network only if there isn't one already */
     if (!descriptor || network == WALLY_NETWORK_NONE)
         return WALLY_EINVAL;
@@ -3308,8 +4015,10 @@ int wally_descriptor_set_network(struct wally_descriptor *descriptor,
         return WALLY_OK; /* No-op */
     if (descriptor->addr_ver)
         return WALLY_EINVAL; /* Already have a network */
-    descriptor->addr_ver = addr_ver_from_network(network);
-    return descriptor->addr_ver ? WALLY_OK : WALLY_EINVAL;
+    if (!addr_ver || is_wrong_network(descriptor, addr_ver))
+        return WALLY_EINVAL; /* Unknown or mismatched network */
+    descriptor->addr_ver = addr_ver;
+    return WALLY_OK;
 }
 
 static int descriptor_uint32(const void *descriptor,
@@ -3387,7 +4096,21 @@ int wally_descriptor_get_num_keys(const struct wally_descriptor *descriptor,
 static const ms_node *descriptor_get_key(const struct wally_descriptor *descriptor,
                                          size_t index)
 {
-    if (!descriptor || index >= descriptor->keys.num_items)
+    if (!descriptor)
+        return NULL;
+
+    if (index == WALLY_MS_BLINDING_KEY_INDEX) {
+        const ms_node *node = NULL;
+        if (node_is_ct(descriptor->top_node)) {
+            node = descriptor->top_node->child;
+            if (node && node->kind == KIND_DESCRIPTOR_SLIP77)
+                node = node->child;
+            else if (node && node->kind == KIND_DESCRIPTOR_ELIP151)
+                node = NULL; /* FIXME: Support ELIP-151 derivation */
+        }
+        return node;
+    }
+    if (index >= descriptor->keys.num_items)
         return NULL;
     return (ms_node *)descriptor->keys.items[index].value;
 }
@@ -3395,17 +4118,7 @@ static const ms_node *descriptor_get_key(const struct wally_descriptor *descript
 int wally_descriptor_get_key(const struct wally_descriptor *descriptor,
                              size_t index, char **output)
 {
-    const ms_node *node = NULL;
-#ifdef BUILD_ELEMENTS
-    if (index == WALLY_MS_BLINDING_KEY_INDEX) {
-        if (descriptor && node_is_ct(descriptor->top_node)) {
-            node = descriptor->top_node->child;
-            if (node && node->kind == KIND_DESCRIPTOR_SLIP77)
-                node = node->child;
-        }
-    } else
-#endif
-        node = descriptor_get_key(descriptor, index);
+    const ms_node *node = descriptor_get_key(descriptor, index);
 
     if (output)
         *output = 0;
@@ -3443,17 +4156,7 @@ return_hex:
 int wally_descriptor_get_key_features(const struct wally_descriptor *descriptor,
                                       size_t index, uint32_t *value_out)
 {
-    const ms_node *node = NULL;
-#ifdef BUILD_ELEMENTS
-    if (index == WALLY_MS_BLINDING_KEY_INDEX) {
-        if (descriptor && node_is_ct(descriptor->top_node)) {
-            node = descriptor->top_node->child;
-            if (node && node->kind == KIND_DESCRIPTOR_SLIP77)
-                node = node->child;
-        }
-    } else
-#endif
-        node = descriptor_get_key(descriptor, index);
+    const ms_node *node = descriptor_get_key(descriptor, index);
 
     if (value_out)
         *value_out = 0;
@@ -3541,63 +4244,415 @@ int wally_descriptor_get_key_origin_path_str(
     return WALLY_OK;
 }
 
-static const char *get_multipath_child(const char* p, uint32_t *v)
+int wally_descriptor_derive_bip32_key(
+    const struct wally_descriptor *descriptor, size_t index, uint32_t variant,
+    uint32_t multi_index, uint32_t child_num, uint32_t flags, struct ext_key* output)
 {
-    *v = 0;
-    if (*p != '<' && *p != ';')
-        return NULL;
-    else {
-        ++p;
-        while (*p >= '0' && *p <= '9') {
-            *v *= 10;
-            *v += (*p++ - '0');
-        }
-        if (*p == '\'' || *p == 'h' || *p == 'H') {
-            *v |= BIP32_INITIAL_HARDENED_CHILD;
-            ++p;
-        }
+    ms_ctx ctx, *ctx_p = NULL;
+    const ms_node *node = descriptor_get_key(descriptor, index);
+    int ret;
+
+    if (output)
+        wally_clear(output, sizeof(*output));
+    if (!node || !index_args_valid(descriptor, variant, multi_index, child_num) ||
+        flags & ~(BIP32_FLAG_KEY_PUBLIC|BIP32_FLAG_SKIP_HASH) || !output)
+        return WALLY_EINVAL;
+    if ((node->kind & KIND_BIP32) == KIND_BIP32 && node->child_path_len) {
+        /* Non-static key: create context required for deriving */
+        ret = ctx_clone(descriptor, variant, multi_index, child_num, &ctx);
+        if (ret != WALLY_OK)
+            return ret;
+        ctx_p = &ctx;
     }
-    return p;
+    ret = node_derive_key(ctx_p, node, flags, output);
+    if (ctx_p)
+        ctx_clear(ctx_p);
+    if (ret != WALLY_OK)
+        wally_clear(output, sizeof(*output));
+    return ret;
 }
 
-static int are_keys_overlapped(const ms_ctx *ctx,
-                               const ms_node *lhs, const ms_node *rhs)
+int wally_descriptor_derive_bip32_key_alloc(
+    const struct wally_descriptor *descriptor, size_t index, uint32_t variant,
+    uint32_t multi_index, uint32_t child_num, uint32_t flags, struct ext_key** output)
 {
-    const char *p;
-    uint32_t l1, l2, r1, r2;
-
-    if (lhs->data_len != rhs->data_len ||
-        memcmp(lhs->data, rhs->data, lhs->data_len))
-        return WALLY_OK; /* Different root keys */
-    if (lhs->child_path_len == rhs->child_path_len &&
-        !memcmp(lhs->child_path, rhs->child_path, lhs->child_path_len))
-        return WALLY_EINVAL; /* Identical paths */
-    if (!(lhs->flags & WALLY_MS_IS_MULTIPATH))
-        return WALLY_OK; /* Non-identical ranged, non-multipath keys */
-    if (ctx->max_path_elems != 2 || !(rhs->flags & WALLY_MS_IS_MULTIPATH))
-        return WALLY_ERROR; /* Should never happen! */
-    /* Check the set of multi-path indices is disjoint */
-    if (!(p = get_multipath_child(strchr(lhs->child_path, '<'), &l1)) ||
-        !get_multipath_child(p, &l2) ||
-        !(p = get_multipath_child(strchr(rhs->child_path, '<'), &r1)) ||
-        !get_multipath_child(p, &r2))
-        return WALLY_ERROR; /* Should never happen! */
-    if (l1 == r1 || l1 == r2 || l2 == r1 || l2 == r2)
-        return WALLY_EINVAL; /* indices are not disjoint */
-    return WALLY_OK;
+    int ret;
+    OUTPUT_CHECK;
+    OUTPUT_ALLOC(struct ext_key);
+    ret = wally_descriptor_derive_bip32_key(descriptor, index, variant, multi_index,
+                                            child_num, flags, *output);
+    if (ret != WALLY_OK) {
+        clear_and_free(*output, sizeof(struct ext_key));
+        *output = NULL;
+    }
+    return ret;
 }
 
-static int ensure_unique_policy_keys(const ms_ctx *ctx)
+/* Return the pubkey derived by derive_all_pubkeys for a key and multi-path */
+static unsigned char *get_derived_pubkey(const ms_ctx *ctx,
+                                         const unsigned char *pubkeys,
+                                         uint32_t multi_index, uint32_t key_index)
 {
-    size_t i, j;
+    size_t key_num = multi_index * ctx->keys.num_items + key_index;
+    return (unsigned char *)pubkeys + key_num * EC_PUBLIC_KEY_LEN;
+}
 
-    for (i = 0; i < ctx->keys.num_items; ++i) {
+/* Derive [num_keys * num_multi] permutations for uniqueness checking */
+static int derive_all_pubkeys(const ms_ctx *ctx, unsigned char **pubkeys_out)
+{
+    ms_ctx key_ctx;
+    int ret = ctx_clone(ctx, 0, 0, 0, &key_ctx);
+
+    *pubkeys_out = NULL;
+    if (ret == WALLY_OK) {
+        const size_t num_permutations = ctx->keys.num_items * ctx->num_multipaths;
+        *pubkeys_out = wally_malloc(num_permutations * EC_PUBLIC_KEY_LEN);
+        if (!*pubkeys_out)
+            ret = WALLY_ENOMEM;
+    }
+
+    for (uint32_t i = 0; ret == WALLY_OK && i < ctx->keys.num_items; ++i) {
         const ms_node *node = descriptor_get_key(ctx, i);
-        for (j = i + 1; j < ctx->keys.num_items; ++j) {
-            int ret = are_keys_overlapped(ctx, node, descriptor_get_key(ctx, j));
-            if (ret != WALLY_OK)
-                return ret;
+        if (!node)
+            ret = WALLY_ERROR; /* Shouldn't happen! */
+
+        for (uint32_t m_i = 0; ret == WALLY_OK && m_i < ctx->num_multipaths; ++m_i) {
+            struct ext_key derived;
+
+            key_ctx.multi_index = m_i;
+            ret = node_derive_key(&key_ctx, node,
+                                  BIP32_FLAG_KEY_PUBLIC | BIP32_FLAG_SKIP_HASH,
+                                  &derived);
+            if (ret == WALLY_OK) {
+                memcpy(get_derived_pubkey(ctx, *pubkeys_out, m_i, i),
+                       derived.pub_key, EC_PUBLIC_KEY_LEN);
+            }
+        }
+    }
+
+    if (ret != WALLY_OK) {
+        wally_free(*pubkeys_out);
+        *pubkeys_out = NULL;
+    }
+    ctx_clear(&key_ctx);
+    return ret;
+}
+
+/* Ensure the given keys are distinct for each multi-path alternative.
+ * If across_multipaths is true, a key derived for one alternative must
+ * also differ from the other keys derived for every other alternative */
+static int ensure_unique_key_set(const ms_ctx *ctx, const unsigned char *pubkeys,
+                                 const uint32_t *indices, size_t num_indices,
+                                 bool across_multipaths)
+{
+    const uint32_t num_multipaths = ctx->num_multipaths;
+
+    for (size_t i = 0; i < num_indices; ++i) {
+        for (size_t j = i + 1; j < num_indices; ++j) {
+            for (uint32_t m_i = 0; m_i < num_multipaths; ++m_i) {
+                const unsigned char *lhs = get_derived_pubkey(ctx, pubkeys, m_i, indices[i]);
+                const uint32_t m_start = across_multipaths ? 0 : m_i;
+                const uint32_t m_end = across_multipaths ? num_multipaths : m_i + 1;
+
+                for (uint32_t m_j = m_start; m_j < m_end; ++m_j) {
+                    if (!memcmp(lhs, get_derived_pubkey(ctx, pubkeys, m_j, indices[j]),
+                                EC_PUBLIC_KEY_LEN))
+                        return WALLY_EINVAL; /* Duplicate key found */
+                }
+            }
         }
     }
     return WALLY_OK;
+}
+
+static int ensure_unique_keys(const ms_ctx *ctx, bool is_policy)
+{
+    unsigned char *pubkeys;
+    uint32_t *indices;
+    int ret;
+
+    if (ctx->keys.num_items < 2)
+        return WALLY_OK; /* No repeats possible */
+
+    if ((ret = derive_all_pubkeys(ctx, &pubkeys)) != WALLY_OK)
+        return ret;
+
+    if (!(indices = wally_malloc(ctx->keys.num_items * sizeof(uint32_t)))) {
+        ret = WALLY_ENOMEM;
+        goto done;
+    }
+
+    if (is_policy || !tr_has_tree(ctx)) {
+        /* Non-taproot descriptor or policy: Ensure all keys are disjoint.
+         * BIP-388 policies may only reuse a key with disjoint multi-path
+         * derivations, anywhere in the expression including any taptree */
+        for (uint32_t i = 0; i < ctx->keys.num_items; ++i)
+            indices[i] = i;
+        ret = ensure_unique_key_set(ctx, pubkeys, indices,
+                                    ctx->keys.num_items, is_policy);
+    } else {
+        /* Tapscript tree: Ensure each leaf script's keys are disjoint */
+        ms_node *taptree = tr_get_tree(ctx);
+        const uint32_t num_leaves = count_taptree_leaves(taptree);
+        if (!num_leaves) {
+            ret = WALLY_ERROR; /* Shouldn't happen! */
+            goto done;
+        }
+
+        for (uint32_t leaf_i = 0; leaf_i < num_leaves; ++leaf_i) {
+            uint32_t num_leaf_keys;
+            ret = wally_descriptor_get_taproot_leaf_num_keys(ctx, leaf_i,
+                                                             &num_leaf_keys);
+            if (ret != WALLY_OK)
+                goto done;
+            for (uint32_t leaf_key_i = 0; leaf_key_i < num_leaf_keys; ++leaf_key_i) {
+                ret = wally_descriptor_get_taproot_leaf_key_index(
+                        ctx, leaf_i, leaf_key_i, &indices[leaf_key_i]);
+                if (ret != WALLY_OK)
+                    goto done;
+            }
+            ret = ensure_unique_key_set(ctx, pubkeys, indices, num_leaf_keys, false);
+            if (ret != WALLY_OK)
+                goto done;
+        }
+    }
+done:
+    wally_free(pubkeys);
+    wally_free(indices);
+    return ret;
+}
+
+/* Fetch the leaf_index'th leaf (DFS order) of a tr() descriptor's taptree */
+static int tr_get_leaf(const struct wally_descriptor *descriptor,
+                       uint32_t leaf_index, ms_node **leaf)
+{
+    *leaf = NULL;
+    if (descriptor && tr_has_tree(descriptor)) {
+        ms_node *taptree = tr_get_tree(descriptor);
+        if (taptree)
+            *leaf = find_taptree_leaf(taptree, leaf_index, NULL);
+    }
+    return *leaf ? WALLY_OK : WALLY_EINVAL;
+}
+
+int wally_descriptor_get_taproot_num_leaves(
+    const struct wally_descriptor *descriptor,
+    uint32_t *value_out)
+{
+    ms_node *taptree;
+
+    if (value_out)
+        *value_out = 0;
+
+    if (!descriptor || !value_out)
+        return WALLY_EINVAL;
+
+    if (descriptor->features & WALLY_MS_IS_TAPROOT) {
+        /* Return the number of leaves, or zero for key-only tr() expressions */
+        if ((taptree = tr_get_tree(descriptor)) != NULL)
+            *value_out = count_taptree_leaves(taptree);
+    }
+    return WALLY_OK;
+}
+
+int wally_descriptor_get_taproot_leaf_script(
+    const struct wally_descriptor *descriptor,
+    uint32_t leaf_index, uint32_t multi_index,
+    uint32_t child_num, uint32_t flags,
+    unsigned char *bytes_out, size_t len, size_t *written)
+{
+    ms_ctx ctx;
+    ms_node *leaf;
+    int ret;
+
+    if (written)
+        *written = 0;
+    if (!index_args_valid(descriptor, 0, multi_index, child_num) ||
+        flags || BYTES_INVALID(bytes_out, len) || !written)
+        return WALLY_EINVAL;
+    if ((ret = tr_get_leaf(descriptor, leaf_index, &leaf)) != WALLY_OK ||
+        (ret = ctx_clone(descriptor, 0, multi_index, child_num, &ctx)) != WALLY_OK)
+        return ret;
+
+    /* leaf->parent->kind == KIND_BRANCH => node_is_root() is true */
+    ret = generate_script(&ctx, leaf, bytes_out, len, written);
+    ctx_clear(&ctx);
+    return ret;
+}
+
+int wally_descriptor_get_taproot_leaf_script_len(
+    const struct wally_descriptor *descriptor,
+    uint32_t leaf_index, uint32_t multi_index,
+    uint32_t child_num, uint32_t flags,
+    size_t *written)
+{
+    return wally_descriptor_get_taproot_leaf_script(descriptor, leaf_index,
+                                                    multi_index, child_num,
+                                                    flags, NULL, 0, written);
+}
+
+int wally_descriptor_get_taproot_leaf_hash(
+    const struct wally_descriptor *descriptor,
+    uint32_t leaf_index, uint32_t multi_index,
+    uint32_t child_num, uint32_t flags,
+    unsigned char *bytes_out, size_t len)
+{
+    ms_ctx ctx;
+    ms_node *leaf;
+    int ret;
+
+    if (!index_args_valid(descriptor, 0, multi_index, child_num) ||
+        flags || !bytes_out || len != SHA256_LEN)
+        return WALLY_EINVAL;
+    if ((ret = tr_get_leaf(descriptor, leaf_index, &leaf)) != WALLY_OK ||
+        (ret = ctx_clone(descriptor, 0, multi_index, child_num, &ctx)) != WALLY_OK)
+        return ret;
+
+    ret = leaf_tapleaf_hash(&ctx, leaf, bytes_out, len);
+    ctx_clear(&ctx);
+    return ret;
+}
+
+int wally_descriptor_get_taproot_control_block(
+    const struct wally_descriptor *descriptor,
+    uint32_t leaf_index, uint32_t multi_index,
+    uint32_t child_num, uint32_t flags,
+    unsigned char *bytes_out, size_t len, size_t *written)
+{
+    unsigned char p2tr[WALLY_SCRIPTPUBKEY_P2TR_LEN]; /* OP_1 [x-only internal key] */
+    unsigned char merkle_root[SHA256_LEN];
+    unsigned char tweaked[EC_PUBLIC_KEY_LEN];
+    ms_ctx ctx;
+    uint32_t path_len = 0;
+    int ret;
+
+    ret = wally_descriptor_get_taproot_control_block_len(descriptor,
+            leaf_index, multi_index, child_num, flags, written);
+    if (ret != WALLY_OK || BYTES_INVALID(bytes_out, len)) {
+        if (written)
+            *written = 0;
+        return WALLY_EINVAL;
+    }
+
+    if (!bytes_out || len < *written)
+        return WALLY_OK; /* Size query, or buffer too small to generate into */
+
+    if ((ret = ctx_clone(descriptor, 0, multi_index, child_num, &ctx)) != WALLY_OK) {
+        *written = 0;
+        return ret;
+    }
+
+    /* Generate an untweaked p2tr script OP_1 [x-only internal key],
+     * collecting the path and merkle root if a taptree is present. */
+    size_t unused;
+    ret = tr_impl(&ctx, p2tr, sizeof(p2tr), leaf_index,
+                  bytes_out + 1 + EC_XONLY_PUBLIC_KEY_LEN, &path_len,
+                  merkle_root, sizeof(merkle_root),
+                  tweaked, sizeof(tweaked), &unused);
+
+    if (ret == WALLY_OK) {
+        /* Leaf version is ORed with the output key parity, per BIP-341 */
+        bytes_out[0] = TAPSCRIPT_LEAF_VERSION(ms_ctx_is_elements(&ctx));
+        bytes_out[0] |= (tweaked[0] & 1);
+        /* Followed by the (untweaked) x-only internal key */
+        memcpy(bytes_out + 1, p2tr + 2, sizeof(p2tr) - 2);
+        /* Followed by the path already written by tr_impl() above */
+    }
+    ctx_clear(&ctx);
+    if (ret != WALLY_OK)
+        *written = 0;
+    return ret;
+}
+
+int wally_descriptor_get_taproot_control_block_len(
+    const struct wally_descriptor *descriptor,
+    uint32_t leaf_index, uint32_t multi_index,
+    uint32_t child_num, uint32_t flags,
+    size_t *written)
+{
+    uint32_t leaf_depth;
+
+    if (written)
+        *written = 0;
+    if (!index_args_valid(descriptor, 0, multi_index, child_num) ||
+        flags || !written || !tr_has_tree(descriptor))
+        return WALLY_EINVAL;
+
+    if (!find_taptree_leaf(tr_get_tree(descriptor), leaf_index, &leaf_depth))
+        return WALLY_EINVAL; /* leaf_index out of range */
+
+    /* Control block size is determined by the depth of the leaf */
+    *written = 1u + EC_XONLY_PUBLIC_KEY_LEN + (size_t)leaf_depth * SHA256_LEN;
+    return WALLY_OK;
+}
+
+static int leaf_num_keys_impl(const struct wally_descriptor *descriptor,
+                              uint32_t leaf_index, uint32_t key_index,
+                              uint32_t *value_out, bool get_num_keys)
+{
+    ms_node *leaf, *key_node;
+    int ret;
+
+    if (value_out)
+        *value_out = 0;
+    else
+        return WALLY_EINVAL;
+    if ((ret = tr_get_leaf(descriptor, leaf_index, &leaf)) != WALLY_OK)
+        return ret;
+
+    if (get_num_keys) {
+        *value_out = count_keys_in_subtree(leaf);
+        return WALLY_OK;
+    }
+    if ((key_node = find_nth_key_in_subtree(leaf, key_index)) != NULL) {
+        for (uint32_t i = 0; i < descriptor->keys.num_items; i++) {
+            if ((ms_node *)descriptor->keys.items[i].value == key_node) {
+                *value_out = i; /* Found: return descriptor-level key index */
+                return WALLY_OK;
+            }
+        }
+    }
+    return WALLY_EINVAL; /* key not found in map (should not happen) */
+}
+
+int wally_descriptor_get_taproot_leaf_num_keys(
+    const struct wally_descriptor *descriptor,
+    uint32_t leaf_index,
+    uint32_t *value_out)
+{
+    return leaf_num_keys_impl(descriptor, leaf_index, 0, value_out, true);
+}
+
+int wally_descriptor_get_taproot_leaf_key_index(
+    const struct wally_descriptor *descriptor,
+    uint32_t leaf_index,
+    uint32_t key_index,
+    uint32_t *value_out)
+{
+    return leaf_num_keys_impl(descriptor, leaf_index, key_index, value_out, false);
+}
+
+int wally_descriptor_get_taproot_merkle_root(
+    const struct wally_descriptor *descriptor,
+    uint32_t multi_index, uint32_t child_num, uint32_t flags,
+    unsigned char *bytes_out, size_t len)
+{
+    ms_ctx ctx;
+    int ret;
+
+    if (!index_args_valid(descriptor, 0, multi_index, child_num) ||
+        flags || !bytes_out || len != SHA256_LEN || !tr_has_tree(descriptor))
+        return WALLY_EINVAL;
+
+    ret = ctx_clone(descriptor, 0, multi_index, child_num, &ctx);
+    if (ret == WALLY_OK) {
+        ms_node *taptree = tr_get_tree(&ctx);
+        uint32_t index = 0, path_len = 0;
+        bool found = false;
+        ret = compute_merkle_info(&ctx, taptree, 0xffffffff,
+                                  &index, NULL, &path_len,
+                                  bytes_out, len, &found);
+    }
+    ctx_clear(&ctx);
+    return ret;
 }

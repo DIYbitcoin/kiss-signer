@@ -200,16 +200,16 @@ libwallycore_la_INCLUDES = \
 
 if SHARED_BUILD_ENABLED
 # Increment at every ABI change (whether breaking or non-breaking)
-LT_VER_CURRENT = 9
+LT_VER_CURRENT = 10
 # Increment at every release, but reset to 0 at every ABI change
-LT_VER_REVISION = 1
+LT_VER_REVISION = 0
 # Increment at every ABI change, but reset to 0 if breaking
-LT_VER_AGE = 3
+LT_VER_AGE = 0
 # The library filename will be "libwallycore.so.$((current-age)).$((age)).$((revision))",
 # and the soname will be "libwallycore.so.$((current-age))".
 # Do NOT try to make the library version-info follow the project release version number!
 # Only follow the rules above, explained more fully at:
-# https://www.gnu.org/software/libtool/manual/html_node/Updating-version-info.html
+# https://www.gnu.org/software/libtool/manual/html_node/Manual-version-info-update.html
 libwallycore_la_LDFLAGS = -version-info $(LT_VER_CURRENT):$(LT_VER_REVISION):$(LT_VER_AGE)
 if IS_MINGW
 libwallycore_la_LDFLAGS += -no-undefined
@@ -224,12 +224,13 @@ SUBDIRS = secp256k1
 endif
 
 TESTS =
+TESTS_CFLAGS = -I$(top_srcdir) -I$(top_srcdir)/include -I$(srcdir)/ccan -I$(top_srcdir)/src/secp256k1/include $(AM_CFLAGS)
 noinst_PROGRAMS =
 if RUN_TESTS
 TESTS += test_bech32
 noinst_PROGRAMS += test_bech32
 test_bech32_SOURCES = ctest/test_bech32.c
-test_bech32_CFLAGS = -I$(top_srcdir)/include $(AM_CFLAGS)
+test_bech32_CFLAGS = $(TESTS_CFLAGS)
 test_bech32_LDADD = $(lib_LTLIBRARIES) @CTEST_EXTRA_STATIC@
 if PYTHON_MANYLINUX
 test_bech32_LDADD += $(PYTHON_LIBS)
@@ -237,7 +238,7 @@ endif
 TESTS += test_psbt
 noinst_PROGRAMS += test_psbt
 test_psbt_SOURCES = ctest/test_psbt.c ccan/ccan/str/hex/hex.c
-test_psbt_CFLAGS = -I$(top_srcdir)/include $(AM_CFLAGS) -I$(srcdir)/ccan
+test_psbt_CFLAGS = $(TESTS_CFLAGS)
 test_psbt_LDADD = $(lib_LTLIBRARIES) @CTEST_EXTRA_STATIC@
 if PYTHON_MANYLINUX
 test_psbt_LDADD += $(PYTHON_LIBS)
@@ -245,7 +246,7 @@ endif
 TESTS += test_psbt_limits
 noinst_PROGRAMS += test_psbt_limits
 test_psbt_limits_SOURCES = ctest/test_psbt_limits.c ccan/ccan/str/hex/hex.c
-test_psbt_limits_CFLAGS = -I$(top_srcdir)/include $(AM_CFLAGS) -I$(srcdir)/ccan
+test_psbt_limits_CFLAGS = $(TESTS_CFLAGS)
 test_psbt_limits_LDADD = $(lib_LTLIBRARIES) @CTEST_EXTRA_STATIC@
 if PYTHON_MANYLINUX
 test_psbt_limits_LDADD += $(PYTHON_LIBS)
@@ -254,7 +255,7 @@ if USE_PTHREAD
 TESTS += test_clear
 noinst_PROGRAMS += test_clear
 test_clear_SOURCES = ctest/test_clear.c
-test_clear_CFLAGS = -I$(top_srcdir)/include $(PTHREAD_CFLAGS) $(AM_CFLAGS) $(NOOPT_CFLAGS) $(NOBUILTIN_CFLAGS)
+test_clear_CFLAGS = $(TESTS_CFLAGS) $(PTHREAD_CFLAGS) $(NOOPT_CFLAGS) $(NOBUILTIN_CFLAGS)
 test_clear_LIBS = $(PTHREAD_LIBS)
 test_clear_LDADD = $(lib_LTLIBRARIES) @CTEST_EXTRA_STATIC@
 if PYTHON_MANYLINUX
@@ -264,15 +265,23 @@ endif
 TESTS += test_coinselection
 noinst_PROGRAMS += test_coinselection
 test_coinselection_SOURCES = ctest/test_coinselection.c
-test_coinselection_CFLAGS = -I$(top_srcdir)/include $(AM_CFLAGS)
+test_coinselection_CFLAGS = $(TESTS_CFLAGS)
 test_coinselection_LDADD = $(lib_LTLIBRARIES) @CTEST_EXTRA_STATIC@
 if PYTHON_MANYLINUX
 test_coinselection_LDADD += $(PYTHON_LIBS)
 endif
+TESTS += test_script
+noinst_PROGRAMS += test_script
+test_script_SOURCES = ctest/test_script.c
+test_script_CFLAGS = $(TESTS_CFLAGS)
+test_script_LDADD = $(lib_LTLIBRARIES) @CTEST_EXTRA_STATIC@
+if PYTHON_MANYLINUX
+test_script_LDADD += $(PYTHON_LIBS)
+endif
 TESTS += test_tx
 noinst_PROGRAMS += test_tx
 test_tx_SOURCES = ctest/test_tx.c
-test_tx_CFLAGS = -I$(top_srcdir)/include $(AM_CFLAGS)
+test_tx_CFLAGS = $(TESTS_CFLAGS)
 test_tx_LDADD = $(lib_LTLIBRARIES) @CTEST_EXTRA_STATIC@
 if PYTHON_MANYLINUX
 test_tx_LDADD += $(PYTHON_LIBS)
@@ -280,7 +289,7 @@ endif
 TESTS += test_descriptor
 noinst_PROGRAMS += test_descriptor
 test_descriptor_SOURCES = ctest/test_descriptor.c
-test_descriptor_CFLAGS = -I$(top_srcdir)/include $(AM_CFLAGS)
+test_descriptor_CFLAGS = $(TESTS_CFLAGS)
 test_descriptor_LDADD = $(lib_LTLIBRARIES) @CTEST_EXTRA_STATIC@
 if PYTHON_MANYLINUX
 test_descriptor_LDADD += $(PYTHON_LIBS)
@@ -289,7 +298,7 @@ if BUILD_ELEMENTS
 TESTS += test_elements_tx
 noinst_PROGRAMS += test_elements_tx
 test_elements_tx_SOURCES = ctest/test_elements_tx.c
-test_elements_tx_CFLAGS = -I$(top_srcdir)/include $(AM_CFLAGS)
+test_elements_tx_CFLAGS = $(TESTS_CFLAGS)
 test_elements_tx_LDADD = $(lib_LTLIBRARIES) @CTEST_EXTRA_STATIC@
 if PYTHON_MANYLINUX
 test_elements_tx_LDADD += $(PYTHON_LIBS)

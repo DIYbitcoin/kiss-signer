@@ -87,7 +87,7 @@ int secp256k1_borromean_verify(const secp256k1_hash_ctx *hash_ctx, secp256k1_sca
             }
             /* OPT: loop can be hoisted and split to use batch inversion across all the rings; this would make it much faster. */
             secp256k1_ge_set_gej_var(&rge, &rgej);
-            secp256k1_eckey_pubkey_serialize33(&rge, tmp);
+            secp256k1_ge_serialize33(&rge, tmp);
             if (j != rsizes[i] - 1) {
                 secp256k1_borromean_hash(hash_ctx, tmp, m, mlen, tmp, 33, i, j + 1);
                 secp256k1_scalar_set_b32(&ens, tmp, &overflow);
@@ -129,12 +129,11 @@ int secp256k1_borromean_sign(const secp256k1_hash_ctx *hash_ctx, const secp256k1
     count = 0;
     for (i = 0; i < nrings; i++) {
         VERIFY_CHECK(INT_MAX - count > rsizes[i]);
-        secp256k1_ecmult_gen(ecmult_gen_ctx, &rgej, &k[i]);
-        secp256k1_ge_set_gej(&rge, &rgej);
-        if (secp256k1_gej_is_infinity(&rgej)) {
+        secp256k1_ecmult_gen_ge(ecmult_gen_ctx, &rge, &k[i]);
+        if (secp256k1_ge_is_infinity(&rge)) {
             return 0;
         }
-        secp256k1_eckey_pubkey_serialize33(&rge, tmp);
+        secp256k1_ge_serialize33(&rge, tmp);
         for (j = secidx[i] + 1; j < rsizes[i]; j++) {
             secp256k1_borromean_hash(hash_ctx, tmp, m, mlen, tmp, 33, i, j);
             secp256k1_scalar_set_b32(&ens, tmp, &overflow);
@@ -150,7 +149,7 @@ int secp256k1_borromean_sign(const secp256k1_hash_ctx *hash_ctx, const secp256k1
                 return 0;
             }
             secp256k1_ge_set_gej_var(&rge, &rgej);
-            secp256k1_eckey_pubkey_serialize33(&rge, tmp);
+            secp256k1_ge_serialize33(&rge, tmp);
         }
         secp256k1_sha256_write(hash_ctx, &sha256_e0, tmp, 33);
         count += rsizes[i];
@@ -172,7 +171,7 @@ int secp256k1_borromean_sign(const secp256k1_hash_ctx *hash_ctx, const secp256k1
                 return 0;
             }
             secp256k1_ge_set_gej_var(&rge, &rgej);
-            secp256k1_eckey_pubkey_serialize33(&rge, tmp);
+            secp256k1_ge_serialize33(&rge, tmp);
             secp256k1_borromean_hash(hash_ctx, tmp, m, mlen, tmp, 33, i, j + 1);
             secp256k1_scalar_set_b32(&ens, tmp, &overflow);
             if (overflow || secp256k1_scalar_is_zero(&ens)) {

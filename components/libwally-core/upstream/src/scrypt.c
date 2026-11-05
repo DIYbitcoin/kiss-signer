@@ -22,14 +22,14 @@ static void le32enc(void *p, uint32_t value)
     memcpy(p, &tmp, sizeof(tmp));
 }
 
-static void PBKDF2_SHA256(const unsigned char *pass, size_t pass_len,
-                          const unsigned char *salt, size_t salt_len,
-                          uint64_t cost,
-                          unsigned char *bytes_out, size_t len)
+static int PBKDF2_SHA256(const unsigned char *pass, size_t pass_len,
+                         const unsigned char *salt, size_t salt_len,
+                         uint64_t cost,
+                         unsigned char *bytes_out, size_t len)
 {
     const uint32_t flags = 0;
-    wally_pbkdf2_hmac_sha256(pass, pass_len, (unsigned char *)salt, salt_len,
-                             flags, (uint32_t)cost, bytes_out, len);
+    return wally_pbkdf2_hmac_sha256(pass, pass_len, (unsigned char *)salt, salt_len,
+                                    flags, (uint32_t)cost, bytes_out, len);
 }
 
 /* Include a suitable smix function/functions */
@@ -70,7 +70,8 @@ int wally_scrypt(const unsigned char *pass, size_t pass_len,
                  uint32_t cost, uint32_t block_size, uint32_t parallelism,
                  unsigned char *bytes_out, size_t len)
 {
-    if (!bytes_out || !len || len % PBKDF2_HMAC_SHA256_LEN)
+    if (!block_size || !parallelism ||
+        !bytes_out || !len || len % PBKDF2_HMAC_SHA256_LEN)
         return WALLY_EINVAL;
 
     return _crypto_scrypt(pass, pass_len, salt, salt_len,

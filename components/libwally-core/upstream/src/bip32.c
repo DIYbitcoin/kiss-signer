@@ -6,16 +6,22 @@
 #include "ccan/ccan/build_assert/build_assert.h"
 #include <include/wally_bip32.h>
 #include <include/wally_crypto.h>
+#include <include/wally_map.h>
 #include "bip32_int.h"
 
-#define BIP32_ALL_DEFINED_FLAGS (BIP32_FLAG_KEY_PRIVATE | \
+#define BIP32_BTC_DEFINED_FLAGS (BIP32_FLAG_KEY_PRIVATE | \
                                  BIP32_FLAG_KEY_PUBLIC | \
                                  BIP32_FLAG_SKIP_HASH | \
-                                 BIP32_FLAG_KEY_TWEAK_SUM | \
                                  BIP32_FLAG_STR_WILDCARD | \
                                  BIP32_FLAG_STR_BARE | \
                                  BIP32_FLAG_ALLOW_UPPER | \
                                  BIP32_FLAG_STR_MULTIPATH)
+
+#ifdef BUILD_ELEMENTS
+#define BIP32_ALL_DEFINED_FLAGS (BIP32_BTC_DEFINED_FLAGS | BIP32_FLAG_KEY_TWEAK_SUM)
+#else
+#define BIP32_ALL_DEFINED_FLAGS BIP32_BTC_DEFINED_FLAGS
+#endif
 
 static const unsigned char HMAC_KEY[] = {
     'B', 'i', 't', 'c', 'o', 'i', 'n', ' ', 's', 'e', 'e', 'd'
@@ -77,13 +83,121 @@ static bool version_is_mainnet(uint32_t ver)
     return ver == BIP32_VER_MAIN_PRIVATE || ver == BIP32_VER_MAIN_PUBLIC;
 }
 
-static bool is_hardened_indicator(char c, bool allow_upper, uint32_t *features)
+static bool is_hardened_indicator(char c, bool allow_upper)
 {
-    if (c == '\'' || c == 'h' || (allow_upper && c == 'H')) {
-        *features |= BIP32_PATH_IS_HARDENED;
-        return true;
+    return c == '\'' || c == 'h' || (allow_upper && c == 'H');
+}
+
+static size_t get_child_num(const char *str, size_t str_len, bool allow_upper, uint32_t *v)
+{
+    uint64_t value = 0;
+    size_t i = 0;
+    while (i < str_len && str[i] >= '0' && str[i] <= '9') {
+        value = value * 10 + (uint64_t)(str[i] - '0');
+        if (value >= BIP32_INITIAL_HARDENED_CHILD)
+            return 0; /* Derivation index too large */
+        ++i;
     }
-    return false;
+    if (i) {
+        if (i < str_len && is_hardened_indicator(str[i], allow_upper)) {
+            value |= BIP32_INITIAL_HARDENED_CHILD;
+            ++i;
+        }
+        *v = value & 0xffffffff;
+    }
+    return i;
+}
+
+static int check_reused_child_num(struct wally_map *child_map,
+                                  uint64_t *first64, size_t remaining_len,
+                                  uint32_t child_num)
+{
+    if (child_num < 64) {
+        /* Fast path for small numbers uses 'first64' as a bitset */
+        if ((*first64) & (uint64_t)1 << child_num)
+            return WALLY_EINVAL; /* Re-used */
+        (*first64) |= (uint64_t)1 << child_num;
+        return WALLY_OK; /* Unused, added to the bitset */
+    } else {
+        /* Look up large numbers in 'child_map' */
+        int ret;
+        size_t found_idx;
+        if (!child_map->items_allocation_len) {
+            /* Initialize on demand, try to minimize reallocs */
+            ret = wally_map_init((remaining_len >> 2) + 1, NULL, child_map);
+            if (ret != WALLY_OK)
+                return ret;
+        } else {
+            ret = wally_map_find_integer(child_map, child_num, &found_idx);
+            if (ret != WALLY_OK || found_idx != 0)
+                return WALLY_EINVAL; /* Re-used */
+        }
+        /* Unused, add it to 'child_map' */
+        return wally_map_add_integer(child_map, child_num, NULL, 0);
+    }
+}
+
+static int get_multi_index(const char *str, size_t str_len,
+                           uint32_t multi_index, bool allow_upper,
+                           uint32_t *features, uint32_t *v, size_t *expr_len_out)
+{
+    struct wally_map child_map;
+    uint64_t first64 = 0;
+    size_t i = 1; /* Start at 1 to skip '<' */
+    uint32_t cur_index = 0;
+    bool found_ours = false;
+    int ret = WALLY_OK;
+
+    *expr_len_out = 0;
+
+    if (!str_len || str[0] != '<')
+        return WALLY_OK; /* Not a multi-index expression */
+
+    child_map.items_allocation_len = 0; /* Initialized on-demand */
+
+    while (i < str_len) {
+        uint32_t value = 0;
+        size_t expr_len = get_child_num(str + i, str_len - i, allow_upper, &value);
+        if (!expr_len) {
+            if (str[i] != '>' || !found_ours || cur_index < 2) {
+                /* No number, improperly terminated, multi_index not found,
+                 * or only a single number alone */
+                break;
+            }
+            *features |= BIP32_PATH_IS_MULTIPATH;
+            *features |= (cur_index << BIP32_PATH_MULTI_SHIFT);
+            if (child_map.items_allocation_len)
+                wally_map_clear(&child_map);
+            *expr_len_out = i + 1; /* Consume trailing '>' */
+            return WALLY_OK;
+        }
+        i += expr_len;
+        ret = check_reused_child_num(&child_map, &first64, str_len - i, value);
+        if (ret != WALLY_OK)
+            break;
+        if (cur_index == multi_index) {
+            found_ours = true;
+            *v = value;
+        }
+        if (++cur_index > 255)
+            break; /* Unsupported number of multi_indices */
+        if (value & BIP32_INITIAL_HARDENED_CHILD)
+            *features |= BIP32_PATH_IS_HARDENED;
+        if (i < str_len) {
+           if (str[i] == ';') {
+               ++i;
+               if (i == str_len || (str[i] < '0' || str[i] > '9'))
+                   break; /* ';' not followed by number */
+           } else if (str[i] != '>')
+               break; /* Not terminated by '>' */
+        }
+    }
+    /* No valid multi-index expression found */
+    if (child_map.items_allocation_len)
+        wally_map_clear(&child_map);
+    *features = 0;
+    *v = 0;
+    return ret;
 }
 
 static int path_from_str_n(const char *str, size_t str_len,
@@ -93,18 +207,20 @@ static int path_from_str_n(const char *str, size_t str_len,
                            size_t *written)
 {
     const bool allow_upper = flags & BIP32_FLAG_ALLOW_UPPER;
-    size_t start, multi_start, num_multi = 0, i = 0;
-    uint64_t v;
+    size_t i = 0;
+    int ret = WALLY_OK;
 
-    *features = 0;
+    if (written)
+        *written = 0;
 
     if (!str || !str_len || child_num >= BIP32_INITIAL_HARDENED_CHILD ||
         (flags & ~BIP32_ALL_DEFINED_FLAGS) ||
         (!(flags & BIP32_FLAG_STR_WILDCARD) && child_num) ||
         (!(flags & BIP32_FLAG_STR_MULTIPATH) && multi_index) ||
-        !child_path || !child_path_len || !written)
+        !child_path || !child_path_len || !features || !written)
         goto fail;
 
+    *features = 0;
     *written = 0;
 
     if (flags & BIP32_FLAG_STR_BARE) {
@@ -112,110 +228,60 @@ static int path_from_str_n(const char *str, size_t str_len,
             goto fail; /* bare path must start with a number */
         *features |= BIP32_PATH_IS_BARE;
     } else {
-        start = i;
+        size_t start = i;
         if (i < str_len && (str[i] == 'm' || (allow_upper && str[i] == 'M')))
             ++i; /* Skip */
-        if (i < str_len && str[i] == '/')
+        if (i < str_len && str[i] == '/') {
             ++i; /* Skip */
+        } else if (i == start + 1)
+            goto fail; /* Leading m with no following slash */
         if (start == i)
             *features |= BIP32_PATH_IS_BARE;
     }
 
     while (i < str_len) {
-        size_t multi;
-        bool is_wildcard = false, is_multi = false;
-        start = i;
-        v = 0;
-        if (str[i] == '<' && (flags & BIP32_FLAG_STR_MULTIPATH)) {
-            /* Multi-path expression - skip to the required multi_index */
-            ++i;
-            if (i < str_len && (str[i] < '0' || str[i] > '9'))
-                goto fail; /* Missing initial child */
-            *features |= BIP32_PATH_IS_MULTIPATH;
-            is_multi = true;
-            for (multi = 0; i < str_len && multi < multi_index; ++multi) {
-                multi_start = i;
-                while (i < str_len && str[i] >= '0' && str[i] <= '9')
-                    ++i;
-                if (i == multi_start)
-                    goto fail; /* Missing multi-item number */
-                if (i < str_len && is_hardened_indicator(str[i], allow_upper, features))
-                    ++i;
-                if (i == str_len || str[i] != ';')
-                    goto fail; /* Malformed multi or incorrect index */
-                ++i;
-                ++num_multi;
-            }
-            if (multi < multi_index && i == start + 1)
-                goto fail; /* No number found */
-        }
-        while (i < str_len && str[i] >= '0' && str[i] <= '9') {
-            v = v * 10 + (str[i] - '0');
-            if (v >= BIP32_INITIAL_HARDENED_CHILD)
-                goto fail; /* Derivation index too large */
-            ++i;
-        }
-        if (i == start) {
-            /* No number found */
-            if (is_multi)
-                goto fail; /* Must have a number for multi */
-            if (str[i] == '/') {
-                if (i && (str[i - 1] < '0' || str[i - 1] > '9') &&
-                    !is_hardened_indicator(str[i - 1], allow_upper, features) &&
-                    str[i - 1] != '*' && str[i - 1] != '>') {
-                    /* Only valid after number/wildcard/hardened/multi-end */
-                    goto fail;
-                }
-                ++i;
-                if (i == str_len || str[i] == '/')
-                    goto fail; /* Trailing slash, invalid */
-                continue;
-            }
-            if (!(is_wildcard = str[i] == '*'))
-                goto fail; /* Unknown character */
+        size_t expr_len = 0;
+        uint32_t v = 0;
 
-            /* Wildcard */
+        if (str[i] == '<') {
+            /* Start of a multi-path expression */
+            if (!(flags & BIP32_FLAG_STR_MULTIPATH))
+                goto fail; /* Multi-path not allowed */
+            flags &= ~BIP32_FLAG_STR_MULTIPATH; /* Only allow one multi-path */
+            ret = get_multi_index(str + i, str_len - i, multi_index,
+                                  allow_upper, features, &v, &expr_len);
+            if (ret != WALLY_OK || !expr_len)
+                goto fail; /* Error during parse or invalid multi-path */
+
+        } else if (str[i] == '*') {
+            /* Wildcard ('*') */
             if (!(flags & BIP32_FLAG_STR_WILDCARD))
                 goto fail; /* Wildcard not allowed, or previously seen */
+            ++i;
             flags &= ~BIP32_FLAG_STR_WILDCARD; /* Only allow one wildcard */
             *features |= BIP32_PATH_IS_WILDCARD;
             *features |= (*written << BIP32_PATH_WILDCARD_SHIFT);
-            if (i && str[i - 1] != '/')
-                goto fail; /* Must follow a slash */
-            ++i;
             v = child_num; /* Use the given child number for the wildcard value */
-        }
-        if (i < str_len && is_hardened_indicator(str[i], allow_upper, features)) {
-            v |= BIP32_INITIAL_HARDENED_CHILD;
-            ++i;
-        }
-        if (is_multi) {
-            /* Multi-path expression - skip remaining multi-path items */
-            ++num_multi; /* For the item we just read */
-            while (i < str_len && str[i] != '>') {
-                if (str[i] == ';') {
-                    ++i;
-                    ++num_multi;
-                }
-                multi_start = i;
-                while (i < str_len && str[i] >= '0' && str[i] <= '9')
-                    ++i;
-                if (i == multi_start)
-                    goto fail; /* Missing multi-item number */
-                if (i < str_len && is_hardened_indicator(str[i], allow_upper, features))
-                    ++i;
+            if (i < str_len && is_hardened_indicator(str[i], allow_upper)) {
+                v |= BIP32_INITIAL_HARDENED_CHILD;
+                *features |= BIP32_PATH_IS_HARDENED;
+                ++i;
             }
-            if (i == str_len || str[i] != '>')
-                goto fail; /* Malformed multi or incorrect index */
+        } else {
+            /* Child number */
+            expr_len = get_child_num(str + i, str_len - i, allow_upper, &v);
+            if (!expr_len)
+                goto fail; /* Expected a number */
+            if (v & BIP32_INITIAL_HARDENED_CHILD)
+                *features |= BIP32_PATH_IS_HARDENED;
+        }
+        i += expr_len;
+        if (i < str_len) {
+            if (str[i] != '/' || i == str_len - 1)
+                goto fail; /* Expected a slash, but not as the final element */
             ++i;
-            if (num_multi < 2 || num_multi >= 255)
-                goto fail;
-            *features |= (num_multi << BIP32_PATH_MULTI_SHIFT);
-            flags &= ~BIP32_FLAG_STR_MULTIPATH; /* Only allow one multi-path */
         }
 
-        if (is_wildcard && i != str_len && str[i] != '/')
-            goto fail; /* Wildcard followed by something other than a slash */
         if (*written == child_path_len) {
             /* Continue counting the resulting length, but don't write any more */
             child_path = NULL;
@@ -233,10 +299,11 @@ static int path_from_str_n(const char *str, size_t str_len,
     }
 
 fail:
-    *features = 0;
+    if (features)
+        *features = 0;
     if (written)
         *written = 0;
-    return WALLY_EINVAL;
+    return ret != WALLY_OK ? ret : WALLY_EINVAL;
 }
 
 int bip32_path_from_str_n(const char *str, size_t str_len,
@@ -309,10 +376,10 @@ static int key_compute_pub_key(struct ext_key *key_out)
                                                 sizeof(key_out->pub_key));
 }
 
-static void key_compute_hash160(struct ext_key *key_out)
+WARN_UNUSED_RESULT static int key_compute_hash160(struct ext_key *key_out)
 {
-    wally_hash160(key_out->pub_key, sizeof(key_out->pub_key),
-                  key_out->hash160, sizeof(key_out->hash160));
+    return wally_hash160(key_out->pub_key, sizeof(key_out->pub_key),
+                         key_out->hash160, sizeof(key_out->hash160));
 }
 
 int bip32_key_free(const struct ext_key *hdkey)
@@ -340,6 +407,13 @@ static int wipe_key_fail(struct ext_key *key_out)
     return WALLY_EINVAL;
 }
 
+/* Wipe a key and return a hashing failure for the caller to propagate */
+static int wipe_key_error(struct ext_key *key_out)
+{
+    wally_clear(key_out, sizeof(*key_out));
+    return WALLY_ERROR;
+}
+
 int bip32_key_from_private_key(uint32_t version,
                                const unsigned char *priv_key, size_t priv_key_len,
                                struct ext_key *key_out)
@@ -364,7 +438,7 @@ int bip32_key_from_private_key(uint32_t version,
     key_out->version = version;
     /* Copy the private key and set its prefix */
     key_out->priv_key[0] = BIP32_FLAG_KEY_PRIVATE;
-    memcpy(key_out->priv_key + 1, priv_key, priv_key_len);
+    wally_memcpy(key_out->priv_key + 1, priv_key, priv_key_len);
     /* Compute the public key */
     if (key_compute_pub_key(key_out) != WALLY_OK)
         return wipe_key_fail(key_out);
@@ -395,16 +469,17 @@ int bip32_key_from_seed_custom(const unsigned char *bytes, size_t bytes_len,
     }
 
     /* Generate private key and chain code */
-    hmac_sha512_impl(&sha, hmac_key, hmac_key_len, bytes, bytes_len);
-
-    ret = bip32_key_from_private_key(version, sha.u.u8, EC_PRIVATE_KEY_LEN, key_out);
+    ret = hmac_sha512_impl(&sha, hmac_key, hmac_key_len, bytes, bytes_len);
+    if (ret == WALLY_OK)
+        ret = bip32_key_from_private_key(version, sha.u.u8, EC_PRIVATE_KEY_LEN, key_out);
     if (ret == WALLY_OK) {
         /* Copy the chain code and set other members */
-        memcpy(key_out->chain_code, sha.u.u8 + sizeof(sha) / 2, sizeof(sha) / 2);
+        wally_memcpy(key_out->chain_code, sha.u.u8 + sizeof(sha) / 2, sizeof(sha) / 2);
         key_out->depth = 0; /* Master key, depth 0 */
         key_out->child_num = 0;
-        if (!(flags & BIP32_FLAG_SKIP_HASH))
-            key_compute_hash160(key_out);
+        if (!(flags & BIP32_FLAG_SKIP_HASH) &&
+            (ret = key_compute_hash160(key_out)) != WALLY_OK)
+            wally_clear(key_out, sizeof(*key_out));
     }
     wally_clear(&sha, sizeof(sha));
     return ret;
@@ -436,7 +511,7 @@ int bip32_key_from_seed_custom_alloc(const unsigned char *bytes, size_t bytes_le
     ret = bip32_key_from_seed_custom(bytes, bytes_len, version,
                                      hmac_key, hmac_key_len, flags, *output);
     if (ret != WALLY_OK) {
-        wally_free((void *)*output);
+        bip32_key_free(*output);
         *output = NULL;
     }
     return ret;
@@ -453,7 +528,7 @@ int bip32_key_from_seed_alloc(const unsigned char *bytes, size_t bytes_len,
 static unsigned char *copy_out(unsigned char *dest,
                                const void *src, size_t len)
 {
-    memcpy(dest, src, len);
+    wally_memcpy(dest, src, len);
     return dest + len;
 }
 
@@ -536,7 +611,7 @@ int bip32_key_serialize(const struct ext_key *hdkey, uint32_t flags,
 static const unsigned char *copy_in(void *dest,
                                     const unsigned char *src, size_t len)
 {
-    memcpy(dest, src, len);
+    wally_memcpy(dest, src, len);
     return src + len;
 }
 
@@ -584,7 +659,8 @@ int bip32_key_unserialize(const unsigned char *bytes, size_t bytes_len,
         bip32_key_strip_private_key(key_out);
     }
 
-    key_compute_hash160(key_out);
+    if (key_compute_hash160(key_out) != WALLY_OK)
+        return wipe_key_error(key_out);
     return WALLY_OK;
 }
 
@@ -596,7 +672,7 @@ int bip32_key_unserialize_alloc(const unsigned char *bytes, size_t bytes_len,
     ALLOC_KEY();
     ret = bip32_key_unserialize(bytes, bytes_len, *output);
     if (ret != WALLY_OK) {
-        wally_free(*output);
+        bip32_key_free(*output);
         *output = NULL;
     }
     return ret;
@@ -645,18 +721,25 @@ int bip32_key_from_parent(const struct ext_key *hdkey, uint32_t child_num,
     const bool we_are_private = hdkey && key_is_private(hdkey);
     const bool derive_private = !(flags & BIP32_FLAG_KEY_PUBLIC);
     const bool hardened = child_is_hardened(child_num);
+    int ret = WALLY_EINVAL;
 
-    if (flags & ~BIP32_ALL_DEFINED_FLAGS)
+    if (hdkey == key_out)
+        return WALLY_EINVAL; /* Cannot derive a key in place */
+
+    if (key_out)
+        wally_clear(key_out, sizeof(*key_out)); /* Clear padding bytes */
+
+   if (flags & ~BIP32_ALL_DEFINED_FLAGS)
         return WALLY_EINVAL; /* These flags are not defined yet */
 
     if (!hdkey || !key_out)
         return WALLY_EINVAL;
 
     if (!we_are_private && (derive_private || hardened))
-        return wipe_key_fail(key_out); /* Unsupported derivation */
+        return WALLY_EINVAL; /* Unsupported derivation */
 
     if (hdkey->depth == 0xff)
-        return wipe_key_fail(key_out); /* Maximum depth reached */
+        return WALLY_EINVAL; /* Maximum depth reached */
 
     /*
      *  Private parent -> private child:
@@ -674,27 +757,30 @@ int bip32_key_from_parent(const struct ext_key *hdkey, uint32_t child_num,
     /* NB: We use the key_outs' priv_key+child_num to hold 'Data' here */
     if (hardened) {
         /* Hardened: Data = 0x00 || ser256(kpar) || ser32(i)) */
-        memcpy(key_out->priv_key, hdkey->priv_key, sizeof(hdkey->priv_key));
+        wally_memcpy(key_out->priv_key, hdkey->priv_key, sizeof(hdkey->priv_key));
     } else {
         /* Non Hardened Private: Data = serP(point(kpar)) || ser32(i)
          * Non Hardened Public : Data = serP(kpar) || ser32(i)
          *   point(kpar) when par is private is the public key.
          */
-        memcpy(key_out->priv_key, hdkey->pub_key, sizeof(hdkey->pub_key));
+        wally_memcpy(key_out->priv_key, hdkey->pub_key, sizeof(hdkey->pub_key));
     }
 
     /* This is the '|| ser32(i)' part of the above */
     key_out->child_num = cpu_to_be32(child_num);
 
     /* I = HMAC-SHA512(Key = cpar, Data) */
-    hmac_sha512_impl(&sha, hdkey->chain_code, sizeof(hdkey->chain_code),
-                     key_out->priv_key,
-                     sizeof(key_out->priv_key) + sizeof(key_out->child_num));
+    if (hmac_sha512_impl(&sha, hdkey->chain_code, sizeof(hdkey->chain_code),
+                         key_out->priv_key,
+                         sizeof(key_out->priv_key) + sizeof(key_out->child_num)) != WALLY_OK) {
+        ret = WALLY_ERROR;
+        goto fail;
+    }
 
     /* Split I into two 32-byte sequences, IL and IR
      * The returned chain code ci is IR (i.e. the 2nd half of our hmac sha512)
      */
-    memcpy(key_out->chain_code, sha.u.u8 + sizeof(sha) / 2,
+    wally_memcpy(key_out->chain_code, sha.u.u8 + sizeof(sha) / 2,
            sizeof(key_out->chain_code));
 
     if (we_are_private) {
@@ -702,7 +788,7 @@ int bip32_key_from_parent(const struct ext_key *hdkey, uint32_t child_num,
          * In case parse256(IL) ≥ n or ki = 0, the resulting key is invalid
          * (NOTE: seckey_tweak_add checks both conditions)
          */
-        memcpy(key_out->priv_key, hdkey->priv_key, sizeof(hdkey->priv_key));
+        wally_memcpy(key_out->priv_key, hdkey->priv_key, sizeof(hdkey->priv_key));
         if (!seckey_tweak_add(key_out->priv_key + 1, sha.u.u8) ||
             key_compute_pub_key(key_out) != WALLY_OK)
             goto fail;
@@ -753,13 +839,16 @@ int bip32_key_from_parent(const struct ext_key *hdkey, uint32_t child_num,
                       &key_out->hash160, sizeof(key_out->hash160));
     else {
         memcpy(key_out->parent160, hdkey->hash160, sizeof(hdkey->hash160));
-        key_compute_hash160(key_out);
+        if (key_compute_hash160(key_out) != WALLY_OK) {
+            ret = WALLY_ERROR;
+            goto fail;
+        }
     }
     wally_clear(&sha, sizeof(sha));
     return WALLY_OK;
 fail:
-    wally_clear(&sha, sizeof(sha));
-    return wipe_key_fail(key_out);
+    wally_clear_2(&sha, sizeof(sha), key_out, sizeof(*key_out));
+    return ret;
 }
 
 int bip32_key_from_parent_alloc(const struct ext_key *hdkey,
@@ -771,7 +860,7 @@ int bip32_key_from_parent_alloc(const struct ext_key *hdkey,
     ALLOC_KEY();
     ret = bip32_key_from_parent(hdkey, child_num, flags, *output);
     if (ret != WALLY_OK) {
-        wally_free(*output);
+        bip32_key_free(*output);
         *output = NULL;
     }
     return ret;
@@ -822,7 +911,7 @@ int bip32_key_from_parent_path(const struct ext_key *hdkey,
     }
 
     if (ret == WALLY_OK)
-        memcpy(key_out, hdkey, sizeof(*key_out));
+        wally_memcpy(key_out, hdkey, sizeof(*key_out));
 
     wally_clear(tmp, sizeof(tmp));
     return ret;
@@ -839,7 +928,7 @@ int bip32_key_from_parent_path_alloc(const struct ext_key *hdkey,
     ret = bip32_key_from_parent_path(hdkey, child_path, child_path_len,
                                      flags, *output);
     if (ret != WALLY_OK) {
-        wally_free(*output);
+        bip32_key_free(*output);
         *output = NULL;
     }
     return ret;
@@ -855,22 +944,12 @@ int bip32_key_with_tweak_from_parent_path(const struct ext_key *hdkey,
 #ifndef BUILD_ELEMENTS
     return WALLY_ERROR;
 #else
-    int ret;
-
-    if (!(flags & (BIP32_FLAG_KEY_TWEAK_SUM | BIP32_FLAG_KEY_PUBLIC)))
-        return WALLY_EINVAL;
-
-    ret = bip32_key_from_parent_path(hdkey, child_path,
-                                     child_path_len, flags, output);
-    if (ret == WALLY_OK) {
-        ret = wally_ec_public_key_tweak(hdkey->pub_key, sizeof(hdkey->pub_key),
-                                        output->pub_key_tweak_sum,
-                                        sizeof(output->pub_key_tweak_sum),
-                                        output->pub_key, sizeof(output->pub_key));
-        if (ret != WALLY_OK)
-            wipe_key_fail(output);
-    }
-    return ret;
+    /* KEY_TWEAK_SUM is required in flags in order to compute the key.
+     * The tweak sum accumulates onto hdkey's, whose pub_key already
+     * includes it: the derived pub_key is hdkey's plus the path tweaks */
+    return bip32_key_from_parent_path(hdkey, child_path, child_path_len,
+                                      flags | BIP32_FLAG_KEY_TWEAK_SUM,
+                                      output);
 #endif /* BUILD_ELEMENTS */
 }
 
@@ -888,7 +967,7 @@ int bip32_key_with_tweak_from_parent_path_alloc(const struct ext_key *hdkey,
     ret = bip32_key_with_tweak_from_parent_path(hdkey, child_path, child_path_len,
                                                 flags, *output);
     if (ret != WALLY_OK) {
-        wally_free(*output);
+        bip32_key_free(*output);
         *output = NULL;
     }
     return ret;
@@ -934,7 +1013,7 @@ int bip32_key_from_parent_path_str_n_alloc(const struct ext_key *hdkey,
     ALLOC_KEY();
     ret = bip32_key_from_parent_path_str_n(hdkey, str, str_len, child_num, flags, *output);
     if (ret != WALLY_OK) {
-        wally_free(*output);
+        bip32_key_free(*output);
         *output = NULL;
     }
     return ret;
@@ -965,7 +1044,7 @@ int bip32_key_init_alloc(uint32_t version, uint32_t depth, uint32_t child_num,
                          pub_key, pub_key_len, priv_key, priv_key_len,
                          hash160, hash160_len, parent160, parent160_len, *output);
     if (ret != WALLY_OK) {
-        wally_free((void *)*output);
+        bip32_key_free(*output);
         *output = NULL;
     }
     return ret;
@@ -979,8 +1058,8 @@ int bip32_key_init(uint32_t version, uint32_t depth, uint32_t child_num,
                    const unsigned char *parent160, size_t parent160_len,
                    struct ext_key *key_out)
 {
-    if (!key_out)
-        return WALLY_EINVAL;
+    if (key_out)
+        wally_clear(key_out, sizeof(*key_out));
 
     switch (version) {
     case BIP32_VER_MAIN_PRIVATE:
@@ -993,6 +1072,8 @@ int bip32_key_init(uint32_t version, uint32_t depth, uint32_t child_num,
         if (!pub_key || pub_key_len != key_size(pub_key))
             return WALLY_EINVAL;
         break;
+    default:
+        return WALLY_EINVAL;
     }
 
     if (!chain_code || chain_code_len != key_size(chain_code))
@@ -1002,17 +1083,16 @@ int bip32_key_init(uint32_t version, uint32_t depth, uint32_t child_num,
         (pub_key && pub_key_len != key_size(pub_key)) || (!pub_key && pub_key_len) ||
         (hash160 && hash160_len != key_size(hash160)) || (!hash160 && hash160_len) ||
         (parent160 && !is_valid_parent160_len(parent160_len)) ||
-        (!parent160 && parent160_len) || depth > 0xff)
+        (!parent160 && parent160_len) || depth > 0xff || !key_out)
         return WALLY_EINVAL;
 
-    wally_clear(key_out, sizeof(*key_out));
     key_out->version = version;
     key_out->depth = depth;
     key_out->child_num = child_num;
 
-    memcpy(key_out->chain_code, chain_code, key_size(chain_code));
+    wally_memcpy(key_out->chain_code, chain_code, key_size(chain_code));
     if (priv_key && version != BIP32_VER_MAIN_PUBLIC && version != BIP32_VER_TEST_PUBLIC)
-        memcpy(key_out->priv_key + 1, priv_key, key_size(priv_key) - 1);
+        wally_memcpy(key_out->priv_key + 1, priv_key, key_size(priv_key) - 1);
     else
         key_out->priv_key[0] = BIP32_FLAG_KEY_PUBLIC;
     if (pub_key)
@@ -1027,8 +1107,8 @@ int bip32_key_init(uint32_t version, uint32_t depth, uint32_t child_num,
     }
     if (hash160)
         memcpy(key_out->hash160, hash160, key_size(hash160));
-    else
-        key_compute_hash160(key_out);
+    else if (key_compute_hash160(key_out) != WALLY_OK)
+        return wipe_key_error(key_out);
     if (parent160)
         memcpy(key_out->parent160, parent160, parent160_len);
 
@@ -1085,7 +1165,7 @@ int bip32_key_from_base58_n_alloc(const char *base58, size_t base58_len,
     ALLOC_KEY();
     ret = bip32_key_from_base58_n(base58, base58_len, *output);
     if (ret != WALLY_OK) {
-        wally_free(*output);
+        bip32_key_free(*output);
         *output = NULL;
     }
     return ret;
@@ -1116,8 +1196,11 @@ int bip32_key_get_fingerprint(struct ext_key *hdkey,
         return WALLY_EINVAL;
 
     /* Derive hash160 if needed. */
-    if (mem_is_zero(hdkey->hash160, sizeof(hdkey->hash160))) {
-        key_compute_hash160(hdkey);
+    if (mem_is_zero(hdkey->hash160, sizeof(hdkey->hash160)) &&
+        key_compute_hash160(hdkey) != WALLY_OK) {
+        /* Leave hash160 zeroed so that it is computed again next time */
+        wally_clear(hdkey->hash160, sizeof(hdkey->hash160));
+        return WALLY_ERROR;
     }
 
     /* Fingerprint is first 32 bits of the key hash. */
@@ -1135,7 +1218,7 @@ static int getb_impl(const struct ext_key *hdkey,
 {
     if (!hdkey || !bytes_out || len != src_len)
         return WALLY_EINVAL;
-    memcpy(bytes_out, src, len);
+    wally_memcpy(bytes_out, src, len);
     return WALLY_OK;
 }
 

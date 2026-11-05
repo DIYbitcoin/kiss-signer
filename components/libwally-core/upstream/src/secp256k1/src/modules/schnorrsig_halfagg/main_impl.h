@@ -21,7 +21,7 @@ int secp256k1_schnorrsig_inc_aggregate(const secp256k1_context *ctx, unsigned ch
     size_t n;
     secp256k1_sha256 hash;
     secp256k1_scalar s;
-    const secp256k1_hash_ctx *hash_ctx = secp256k1_get_hash_context(ctx);
+    const secp256k1_hash_ctx *hash_ctx = &ctx->hash_ctx;
 
     VERIFY_CHECK(ctx != NULL);
     ARG_CHECK(aggsig != NULL);
@@ -106,7 +106,7 @@ int secp256k1_schnorrsig_aggregate(const secp256k1_context *ctx, unsigned char *
 }
 
 int secp256k1_schnorrsig_aggverify(const secp256k1_context *ctx, const secp256k1_xonly_pubkey *pubkeys, const unsigned char *msgs32, size_t n, const unsigned char *aggsig, size_t aggsig_len) {
-    const secp256k1_hash_ctx *hash_ctx = secp256k1_get_hash_context(ctx);
+    const secp256k1_hash_ctx *hash_ctx = &ctx->hash_ctx;
     size_t i;
     secp256k1_gej lhs, rhs;
     secp256k1_scalar s;
@@ -189,7 +189,7 @@ int secp256k1_schnorrsig_aggverify(const secp256k1_context *ctx, const secp256k1
     if (overflow) {
         return 0;
     }
-    secp256k1_ecmult_gen(&ctx->ecmult_gen_ctx, &lhs, &s);
+    secp256k1_ecmult_gen_gej(&ctx->ecmult_gen_ctx, &lhs, &s);
 
     /* Check that lhs == rhs */
     secp256k1_gej_neg(&lhs, &lhs);

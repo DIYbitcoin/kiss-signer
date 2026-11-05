@@ -12,15 +12,13 @@ static void rand_scalar(secp256k1_scalar *scalar) {
 
 static void rand_point(secp256k1_ge *point) {
     secp256k1_scalar x;
-    secp256k1_gej pointj;
     rand_scalar(&x);
 
-    secp256k1_ecmult_gen(&CTX->ecmult_gen_ctx, &pointj, &x);
-    secp256k1_ge_set_gej(point, &pointj);
+    secp256k1_ecmult_gen_ge(&CTX->ecmult_gen_ctx, point, &x);
 }
 
 static void dleq_nonce_bitflip(unsigned char **args, size_t n_flip, size_t n_bytes) {
-    const secp256k1_hash_ctx *hash_ctx = secp256k1_get_hash_context(CTX);
+    const secp256k1_hash_ctx *hash_ctx = &CTX->hash_ctx;
     secp256k1_scalar k1, k2;
 
     CHECK(secp256k1_dleq_nonce(hash_ctx, &k1, args[0], args[1], args[2], args[3], NULL, args[4]) == 1);
@@ -30,7 +28,7 @@ static void dleq_nonce_bitflip(unsigned char **args, size_t n_flip, size_t n_byt
 }
 
 static void dleq_tests_internal(void) {
-    const secp256k1_hash_ctx *hash_ctx = secp256k1_get_hash_context(CTX);
+    const secp256k1_hash_ctx *hash_ctx = &CTX->hash_ctx;
     secp256k1_scalar s, e, sk, k;
     secp256k1_ge gen2, p1, p2;
     secp256k1_ge p[2];
@@ -66,9 +64,9 @@ static void dleq_tests_internal(void) {
 
     /* Nonce tests */
     secp256k1_scalar_get_b32(sk32, &sk);
-    secp256k1_eckey_pubkey_serialize33(&gen2, gen2_33);
-    secp256k1_eckey_pubkey_serialize33(&p1, p1_33);
-    secp256k1_eckey_pubkey_serialize33(&p2, p2_33);
+    secp256k1_ge_serialize33(&gen2, gen2_33);
+    secp256k1_ge_serialize33(&p1, p1_33);
+    secp256k1_ge_serialize33(&p2, p2_33);
     CHECK(secp256k1_dleq_nonce(hash_ctx, &k, sk32, gen2_33, p1_33, p2_33, NULL, NULL) == 1);
 
     testrand_bytes_test(sk32, sizeof(sk32));
@@ -110,9 +108,9 @@ static void test_ecdsa_adaptor_spec_vectors_check_verify(const unsigned char *ad
     secp256k1_pubkey encryption_key;
     secp256k1_ge encryption_key_ge;
 
-    CHECK(secp256k1_eckey_pubkey_parse(&encryption_key_ge, encryption_key33, 33) == 1);
+    CHECK(secp256k1_ge_parse(&encryption_key_ge, encryption_key33, 33) == 1);
     secp256k1_pubkey_save(&encryption_key, &encryption_key_ge);
-    CHECK(secp256k1_eckey_pubkey_parse(&pubkey_ge, pubkey33, 33) == 1);
+    CHECK(secp256k1_ge_parse(&pubkey_ge, pubkey33, 33) == 1);
     secp256k1_pubkey_save(&pubkey, &pubkey_ge);
 
     CHECK(expected == secp256k1_ecdsa_adaptor_verify(CTX, adaptor_sig162, &pubkey, msg32, &encryption_key));
@@ -138,7 +136,7 @@ static void test_ecdsa_adaptor_spec_vectors_check_recover(const unsigned char *a
     secp256k1_pubkey encryption_key;
     secp256k1_ge encryption_key_ge;
 
-    CHECK(secp256k1_eckey_pubkey_parse(&encryption_key_ge, encryption_key33, 33) == 1);
+    CHECK(secp256k1_ge_parse(&encryption_key_ge, encryption_key33, 33) == 1);
     secp256k1_pubkey_save(&encryption_key, &encryption_key_ge);
 
     CHECK(secp256k1_ecdsa_signature_parse_compact(CTX, &sig, signature64) == 1);
@@ -717,7 +715,7 @@ static void nonce_function_ecdsa_adaptor_bitflip(unsigned char **args, size_t n_
 }
 
 static void run_nonce_function_ecdsa_adaptor_tests(void) {
-    const secp256k1_hash_ctx *hash_ctx = secp256k1_get_hash_context(CTX);
+    const secp256k1_hash_ctx *hash_ctx = &CTX->hash_ctx;
     static const unsigned char tag[] = {'E', 'C', 'D', 'S', 'A', 'a', 'd', 'a', 'p', 't', 'o', 'r', '/', 'n', 'o', 'n'};
     static const unsigned char aux_tag[] = {'E', 'C', 'D', 'S', 'A', 'a', 'd', 'a', 'p', 't', 'o', 'r', '/', 'a', 'u', 'x'};
     unsigned char algo[] = {'E', 'C', 'D', 'S', 'A', 'a', 'd', 'a', 'p', 't', 'o', 'r', '/', 'n', 'o', 'n'};
@@ -1088,11 +1086,11 @@ static void multi_hop_lock_tests_internal(void) {
     rand_scalar(&t2);
     secp256k1_scalar_add(&tp, &t1, &t2);
     /* Left lock */
-    secp256k1_pubkey_load(CTX, &l_ge, &pubkey_pop);
+    CHECK(secp256k1_pubkey_load(CTX, &l_ge, &pubkey_pop) == 1);
     CHECK(secp256k1_eckey_pubkey_tweak_add(&l_ge, &t1));
     secp256k1_pubkey_save(&l, &l_ge);
     /* Right lock */
-    secp256k1_pubkey_load(CTX, &r_ge, &pubkey_pop);
+    CHECK(secp256k1_pubkey_load(CTX, &r_ge, &pubkey_pop) == 1);
     CHECK(secp256k1_eckey_pubkey_tweak_add(&r_ge, &tp));
     secp256k1_pubkey_save(&r, &r_ge);
     CHECK(secp256k1_ecdsa_adaptor_encrypt(CTX, asig_ab, seckey_a, &l, tx_ab, NULL, NULL));
@@ -1184,6 +1182,30 @@ static void adaptor_test_issue335(void) {
     }
 }
 
+DEFINE_SHA256_TRANSFORM_PROBE(sha256_ecdsa_adaptor)
+static void test_ecdsa_adaptor_ctx_sha256(void) {
+    /* Check ctx-provided SHA256 compression override takes effect */
+    secp256k1_context *ctx = secp256k1_context_clone(CTX);
+    unsigned char out_default[162], out_custom[162];
+    unsigned char sk[32] = {1}, msg32[32] = {1};
+    unsigned char enckey_sk[32] = {2};
+    secp256k1_pubkey enckey;
+    CHECK(secp256k1_ec_pubkey_create(ctx, &enckey, enckey_sk));
+
+    /* Default behavior. No ctx-provided SHA256 compression */
+    CHECK(secp256k1_ecdsa_adaptor_encrypt(ctx, out_default, sk, &enckey, msg32, NULL, NULL));
+    CHECK(!sha256_ecdsa_adaptor_called);
+
+    /* Override SHA256 compression directly, bypassing the ctx setter sanity checks */
+    ctx->hash_ctx.fn_sha256_compression = sha256_ecdsa_adaptor;
+    CHECK(secp256k1_ecdsa_adaptor_encrypt(ctx, out_custom, sk, &enckey, msg32, NULL, NULL));
+    CHECK(sha256_ecdsa_adaptor_called);
+    /* Outputs must differ if custom compression was used */
+    CHECK(secp256k1_memcmp_var(out_default, out_custom, 162) != 0);
+
+    secp256k1_context_destroy(ctx);
+}
+
 /* --- Test registry --- */
 REPEAT_TEST(dleq_tests)
 REPEAT_TEST(adaptor_tests)
@@ -1197,6 +1219,7 @@ static const struct tf_test_entry tests_ecdsa_adaptor[] = {
     CASE1(adaptor_tests),
     CASE1(multi_hop_lock_tests),
     CASE1(adaptor_test_issue335),
+    CASE1(test_ecdsa_adaptor_ctx_sha256),
 };
 
 #endif /* SECP256K1_MODULE_ECDSA_ADAPTOR_TESTS_H */

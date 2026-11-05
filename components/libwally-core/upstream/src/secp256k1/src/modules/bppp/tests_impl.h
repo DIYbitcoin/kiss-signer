@@ -28,6 +28,8 @@ static void test_bppp_generators_api(void) {
     CHECK(gens != NULL);
     gens_orig = gens; /* Preserve for round-trip test */
 
+    CHECK(secp256k1_bppp_generators_create(CTX, SIZE_MAX / sizeof(secp256k1_ge) + 1) == NULL);
+
     /* Serialize */
     CHECK_ILLEGAL(CTX, secp256k1_bppp_generators_serialize(CTX, NULL, gens_ser, &len));
     CHECK_ILLEGAL(CTX, secp256k1_bppp_generators_serialize(CTX, gens, NULL, &len));
@@ -61,7 +63,7 @@ static void test_bppp_generators_api(void) {
     /* Check that round-trip succeeded */
     CHECK(gens->n == gens_orig->n);
     for (len = 0; len < gens->n; len++) {
-        secp256k1_ge_eq_var(&gens->gens[len], &gens_orig->gens[len]);
+        CHECK(secp256k1_ge_eq_var(&gens->gens[len], &gens_orig->gens[len]));
     }
 
     /* Destroy (we allow destroying a NULL context, it's just a noop. like free().) */
@@ -104,7 +106,7 @@ static void test_bppp_generators_fixed(void) {
 }
 
 static void test_bppp_tagged_hash(void) {
-    const secp256k1_hash_ctx *hash_ctx = secp256k1_get_hash_context(CTX);
+    const secp256k1_hash_ctx *hash_ctx = &CTX->hash_ctx;
     unsigned char tag_data[] = {'B', 'u', 'l', 'l', 'e', 't', 'p', 'r', 'o', 'o', 'f', 's', '_', 'p', 'p', '/', 'v', '0', '/', 'c', 'o', 'm', 'm', 'i', 't', 'm', 'e', 'n', 't'};
     secp256k1_sha256 sha;
     secp256k1_sha256 sha_cached;
@@ -201,8 +203,8 @@ static void test_serialize_two_points_roundtrip(secp256k1_ge *X, secp256k1_ge *R
     secp256k1_bppp_serialize_points(buf, X, R);
     CHECK(secp256k1_bppp_parse_one_of_points(&X_tmp, buf, 0));
     CHECK(secp256k1_bppp_parse_one_of_points(&R_tmp, buf, 1));
-    secp256k1_ge_eq_var(X, &X_tmp);
-    secp256k1_ge_eq_var(R, &R_tmp);
+    CHECK(secp256k1_ge_eq_var(X, &X_tmp));
+    CHECK(secp256k1_ge_eq_var(R, &R_tmp));
 }
 
 static void test_serialize_two_points(void) {
@@ -280,7 +282,7 @@ static void secp256k1_norm_arg_commit_initial_data(
     const secp256k1_ge* commit
 ) {
     /* Commit to the initial public values */
-    const secp256k1_hash_ctx *hash_ctx = secp256k1_get_hash_context(CTX);
+    const secp256k1_hash_ctx *hash_ctx = &CTX->hash_ctx;
     unsigned char ser_commit[33], ser_scalar[32], ser_le64[8];
     size_t i;
     secp256k1_ge comm = *commit;
@@ -528,7 +530,7 @@ secp256k1_bppp_generators* bppp_generators_parse_regular(const unsigned char* da
     }
 
     while (n--) {
-        if (!secp256k1_eckey_pubkey_parse(&ret->gens[n], &data[33 * n], 33)) {
+        if (!secp256k1_ge_parse(&ret->gens[n], &data[33 * n], 33)) {
             free(ret->gens);
             free(ret);
             return NULL;
@@ -662,6 +664,34 @@ static void norm_arg_test_all(void) {
     norm_arg_test(64, 64);
 }
 
+DEFINE_SHA256_TRANSFORM_PROBE(sha256_bppp)
+static void test_bppp_ctx_sha256(void) {
+    /* Check ctx-provided SHA256 compression override takes effect */
+    secp256k1_context *ctx = secp256k1_context_clone(CTX);
+    unsigned char out_default[66], out_custom[66];
+    secp256k1_bppp_generators *gens;
+    size_t len = sizeof(out_default);
+
+    /* Default behavior. No ctx-provided SHA256 compression */
+    gens = secp256k1_bppp_generators_create(ctx, 2);
+    CHECK(gens != NULL);
+    CHECK(secp256k1_bppp_generators_serialize(ctx, gens, out_default, &len));
+    secp256k1_bppp_generators_destroy(ctx, gens);
+    CHECK(!sha256_bppp_called);
+
+    /* Override SHA256 compression directly, bypassing the ctx setter sanity checks */
+    ctx->hash_ctx.fn_sha256_compression = sha256_bppp;
+    gens = secp256k1_bppp_generators_create(ctx, 2);
+    CHECK(gens != NULL);
+    CHECK(secp256k1_bppp_generators_serialize(ctx, gens, out_custom, &len));
+    secp256k1_bppp_generators_destroy(ctx, gens);
+    CHECK(sha256_bppp_called);
+    /* Outputs must differ if custom compression was used */
+    CHECK(secp256k1_memcmp_var(out_default, out_custom, 66) != 0);
+
+    secp256k1_context_destroy(ctx);
+}
+
 /* --- Test registry --- */
 static const struct tf_test_entry tests_bppp[] = {
     CASE1(test_log_exp),
@@ -674,6 +704,7 @@ static const struct tf_test_entry tests_bppp[] = {
     CASE1(norm_arg_test_all),
     CASE1(norm_arg_verify_vectors),
     CASE1(norm_arg_prove_vectors),
+    CASE1(test_bppp_ctx_sha256),
 };
 
 #endif

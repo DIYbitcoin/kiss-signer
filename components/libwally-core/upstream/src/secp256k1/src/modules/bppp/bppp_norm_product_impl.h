@@ -236,7 +236,7 @@ static int secp256k1_bppp_rangeproof_norm_product_prove(
     secp256k1_scalar* c_vec,
     size_t c_vec_len
 ) {
-    const secp256k1_hash_ctx *hash_ctx = secp256k1_get_hash_context(ctx);
+    const secp256k1_hash_ctx *hash_ctx = &ctx->hash_ctx;
     secp256k1_scalar mu_f, rho_f = *rho;
     size_t proof_idx = 0;
     ecmult_x_cb_data x_cb_data;
@@ -435,7 +435,7 @@ static int secp256k1_bppp_rangeproof_norm_product_verify(
     size_t c_vec_len,
     const secp256k1_ge* commit
 ) {
-    const secp256k1_hash_ctx *hash_ctx = secp256k1_get_hash_context(ctx);
+    const secp256k1_hash_ctx *hash_ctx = &ctx->hash_ctx;
     secp256k1_scalar rho_f, mu_f, v, n, l, rho_inv, h_c;
     secp256k1_scalar *gammas, *s_g, *s_h, *rho_inv_pows;
     secp256k1_gej res1, res2;

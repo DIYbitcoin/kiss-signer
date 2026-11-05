@@ -395,7 +395,7 @@ static void test_gen_verify(size_t n_inputs, size_t n_used) {
 
 /* check that a proof with empty n_used_inputs is invalid */
 static void test_no_used_inputs_verify(void) {
-    const secp256k1_hash_ctx *hash_ctx = secp256k1_get_hash_context(CTX);
+    const secp256k1_hash_ctx *hash_ctx = &CTX->hash_ctx;
     secp256k1_surjectionproof proof;
     secp256k1_fixed_asset_tag fixed_input_tag;
     secp256k1_fixed_asset_tag fixed_output_tag;
@@ -643,6 +643,182 @@ static void test_gen_verify_all(void) {
     test_gen_verify(SECP256K1_SURJECTIONPROOF_MAX_N_INPUTS, SECP256K1_SURJECTIONPROOF_MAX_USED_INPUTS);
 }
 
+static int surjection_genrand_streams_equal(const secp256k1_scalar *a, const secp256k1_scalar *b, size_t n) {
+    size_t i;
+    for (i = 0; i < n; i++) {
+        if (!secp256k1_scalar_eq(&a[i], &b[i])) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static int surjection_genrand_stream_all_differ(const secp256k1_scalar *a, const secp256k1_scalar *b, size_t n) {
+    size_t i;
+    for (i = 0; i < n; i++) {
+        if (secp256k1_scalar_eq(&a[i], &b[i])) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+/* Test that changing any proof-relevant argument to
+ * secp256k1_surjectionproof_generate changes every s-value produced by
+ * secp256k1_surjection_genrand. */
+static void test_surjection_genrand(void) {
+    const secp256k1_hash_ctx *hash_ctx = &CTX->hash_ctx;
+    const size_t ns = 4;
+    const size_t n_inputs = 5;
+    unsigned char msg_a[32];
+    unsigned char msg_b[32];
+    unsigned char ikey_a[32];
+    unsigned char ikey_b[32];
+    unsigned char okey_a[32];
+    unsigned char okey_b[32];
+    unsigned char used_a[SECP256K1_SURJECTIONPROOF_MAX_N_INPUTS / 8] = { 0 };
+    unsigned char used_b[SECP256K1_SURJECTIONPROOF_MAX_N_INPUTS / 8] = { 0 };
+    secp256k1_scalar s_base[4];
+    secp256k1_scalar s_cmp[4];
+
+    /* Baseline inputs, plus a one-bit variant of each. */
+    testrand256(msg_a);
+    memcpy(msg_b, msg_a, 32);
+    msg_b[0] ^= 0x01;
+    testrand256(ikey_a);
+    memcpy(ikey_b, ikey_a, 32);
+    ikey_b[0] ^= 0x01;
+    testrand256(okey_a);
+    memcpy(okey_b, okey_a, 32);
+    okey_b[0] ^= 0x01;
+
+    /* Two used-input bitmaps with the same popcount but a different set. */
+    used_a[0] = 0x0f;  /* inputs {0,1,2,3} */
+    used_b[0] = 0x17;  /* inputs {0,1,2,4} */
+
+    /* Baseline. */
+    CHECK(secp256k1_surjection_genrand(hash_ctx, s_base, ns, n_inputs, used_a, msg_a, 0, ikey_a, okey_a) == 1);
+
+    /* Determinism: identical arguments reproduce the identical stream. */
+    CHECK(secp256k1_surjection_genrand(hash_ctx, s_cmp, ns, n_inputs, used_a, msg_a, 0, ikey_a, okey_a) == 1);
+    CHECK(surjection_genrand_streams_equal(s_base, s_cmp, ns));
+
+    /* The message is bound. */
+    CHECK(secp256k1_surjection_genrand(hash_ctx, s_cmp, ns, n_inputs, used_a, msg_b, 0, ikey_a, okey_a) == 1);
+    CHECK(surjection_genrand_stream_all_differ(s_base, s_cmp, ns));
+
+    /* The used-input selection is bound. */
+    CHECK(secp256k1_surjection_genrand(hash_ctx, s_cmp, ns, n_inputs, used_b, msg_a, 0, ikey_a, okey_a) == 1);
+    CHECK(surjection_genrand_stream_all_differ(s_base, s_cmp, ns));
+
+    /* The total input count is bound even at the same bitmap byte length:
+     * n_inputs = 8 and n_inputs = 5 both use a one-byte bitmap. */
+    CHECK(secp256k1_surjection_genrand(hash_ctx, s_cmp, ns, 8, used_a, msg_a, 0, ikey_a, okey_a) == 1);
+    CHECK(surjection_genrand_stream_all_differ(s_base, s_cmp, ns));
+
+    /* The honest input index is bound. */
+    CHECK(secp256k1_surjection_genrand(hash_ctx, s_cmp, ns, n_inputs, used_a, msg_a, 1, ikey_a, okey_a) == 1);
+    CHECK(surjection_genrand_stream_all_differ(s_base, s_cmp, ns));
+
+    /* The input blinding key is bound. */
+    CHECK(secp256k1_surjection_genrand(hash_ctx, s_cmp, ns, n_inputs, used_a, msg_a, 0, ikey_b, okey_a) == 1);
+    CHECK(surjection_genrand_stream_all_differ(s_base, s_cmp, ns));
+
+    /* The output blinding key is bound. */
+    CHECK(secp256k1_surjection_genrand(hash_ctx, s_cmp, ns, n_inputs, used_a, msg_a, 0, ikey_a, okey_b) == 1);
+    CHECK(surjection_genrand_stream_all_differ(s_base, s_cmp, ns));
+}
+
+/* Changing an unused input tag changes the proof message. Check that every
+ * s-value changes and that both proofs verify. */
+static void test_surjectionproof_generate_changes_s_values(void) {
+    const size_t n_inputs = 3;
+    const size_t n_used = 2;
+    unsigned char seed[32];
+    unsigned char input_blinding_key[3][32] = {{ 0 }};
+    unsigned char output_blinding_key[32] = { 0 };
+    unsigned char reblind[32] = { 0 };
+    secp256k1_fixed_asset_tag fixed_input_tags[3];
+    secp256k1_generator ephemeral_input_tags[3];
+    secp256k1_generator ephemeral_output_tag;
+    secp256k1_surjectionproof proof_a;
+    secp256k1_surjectionproof proof_b;
+    size_t input_index;
+    size_t unused_index = n_inputs;
+    size_t i;
+
+    testrand256(seed);
+    for (i = 0; i < n_inputs; i++) {
+        testrand256(fixed_input_tags[i].data);
+        input_blinding_key[i][31] = (unsigned char)i + 1;
+        CHECK(secp256k1_generator_generate_blinded(CTX, &ephemeral_input_tags[i], fixed_input_tags[i].data, input_blinding_key[i]));
+    }
+    output_blinding_key[31] = 4;
+    reblind[31] = 5;
+    CHECK(secp256k1_generator_generate_blinded(CTX, &ephemeral_output_tag, fixed_input_tags[1].data, output_blinding_key));
+
+    CHECK(secp256k1_surjectionproof_initialize(CTX, &proof_a, &input_index, fixed_input_tags, n_inputs, n_used, &fixed_input_tags[1], 100, seed) > 0);
+    CHECK(input_index == 1);
+    CHECK(secp256k1_surjectionproof_n_used_inputs(CTX, &proof_a) == n_used);
+    proof_b = proof_a;
+
+    for (i = 0; i < n_inputs; i++) {
+        if (!(proof_a.used_inputs[i / 8] & (1 << (i % 8)))) {
+            unused_index = i;
+        }
+    }
+    CHECK(unused_index < n_inputs);
+
+    CHECK(secp256k1_surjectionproof_generate(CTX, &proof_a, ephemeral_input_tags, n_inputs, &ephemeral_output_tag, input_index, input_blinding_key[input_index], output_blinding_key) == 1);
+    CHECK(secp256k1_surjectionproof_verify(CTX, &proof_a, ephemeral_input_tags, n_inputs, &ephemeral_output_tag) == 1);
+
+    /* Regenerate the unused ephemeral input tag with reblind instead of
+     * input_blinding_key[unused_index]. The modified tag is the only proof input
+     * that differs between the two secp256k1_surjectionproof_generate calls. */
+    CHECK(secp256k1_generator_generate_blinded(CTX, &ephemeral_input_tags[unused_index], fixed_input_tags[unused_index].data, reblind));
+    CHECK(secp256k1_surjectionproof_generate(CTX, &proof_b, ephemeral_input_tags, n_inputs, &ephemeral_output_tag, input_index, input_blinding_key[input_index], output_blinding_key) == 1);
+    CHECK(secp256k1_surjectionproof_verify(CTX, &proof_b, ephemeral_input_tags, n_inputs, &ephemeral_output_tag) == 1);
+
+    for (i = 0; i < n_used; i++) {
+        CHECK(secp256k1_memcmp_var(&proof_a.data[32 + 32 * i], &proof_b.data[32 + 32 * i], 32) != 0);
+    }
+}
+
+DEFINE_SHA256_TRANSFORM_PROBE(sha256_surjection)
+static void test_surjectionproof_ctx_sha256(void) {
+    /* Check ctx-provided SHA256 compression override takes effect */
+    secp256k1_context *ctx = secp256k1_context_clone(CTX);
+    unsigned char serialized_default[SECP256K1_SURJECTIONPROOF_SERIALIZATION_BYTES(1, 1)];
+    unsigned char serialized_custom[SECP256K1_SURJECTIONPROOF_SERIALIZATION_BYTES(1, 1)];
+    unsigned char seed[32] = {1};
+    unsigned char input_blinding[32] = {1}, output_blinding[32] = {2};
+    secp256k1_fixed_asset_tag fixed_tag = {{1}};
+    secp256k1_generator input_tag, output_tag;
+    secp256k1_surjectionproof proof;
+    size_t input_index;
+    size_t serialized_len = sizeof(serialized_default);
+
+    CHECK(secp256k1_generator_generate_blinded(CTX, &input_tag, fixed_tag.data, input_blinding));
+    CHECK(secp256k1_generator_generate_blinded(CTX, &output_tag, fixed_tag.data, output_blinding));
+
+    /* Default behavior. No ctx-provided SHA256 compression */
+    CHECK(secp256k1_surjectionproof_initialize(ctx, &proof, &input_index, &fixed_tag, 1, 1, &fixed_tag, 100, seed) > 0);
+    CHECK(secp256k1_surjectionproof_generate(ctx, &proof, &input_tag, 1, &output_tag, 0, input_blinding, output_blinding));
+    CHECK(secp256k1_surjectionproof_serialize(ctx, serialized_default, &serialized_len, &proof));
+    CHECK(!sha256_surjection_called);
+
+    /* Override SHA256 compression directly, bypassing the ctx setter sanity checks */
+    ctx->hash_ctx.fn_sha256_compression = sha256_surjection;
+    CHECK(secp256k1_surjectionproof_initialize(ctx, &proof, &input_index, &fixed_tag, 1, 1, &fixed_tag, 100, seed) > 0);
+    CHECK(secp256k1_surjectionproof_generate(ctx, &proof, &input_tag, 1, &output_tag, 0, input_blinding, output_blinding));
+    CHECK(secp256k1_surjectionproof_serialize(ctx, serialized_custom, &serialized_len, &proof));
+    CHECK(sha256_surjection_called);
+    /* Outputs must differ if custom compression was used */
+    CHECK(secp256k1_memcmp_var(serialized_default, serialized_custom, serialized_len) != 0);
+
+    secp256k1_context_destroy(ctx);
+}
+
 /* --- Test registry --- */
 static const struct tf_test_entry tests_surjection[] = {
     CASE1(test_surjectionproof_api),
@@ -651,9 +827,12 @@ static const struct tf_test_entry tests_surjection[] = {
     CASE1(test_input_selection_all),
     CASE1(test_input_selection_distribution),
     CASE1(test_gen_verify_all),
+    CASE1(test_surjection_genrand),
+    CASE1(test_surjectionproof_generate_changes_s_values),
     CASE1(test_no_used_inputs_verify),
     CASE1(test_bad_serialize),
     CASE1(test_bad_parse),
+    CASE1(test_surjectionproof_ctx_sha256),
 };
 
 #endif

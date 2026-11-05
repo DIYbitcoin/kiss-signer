@@ -212,7 +212,7 @@ void secp256k1_surjectionproof_destroy(secp256k1_surjectionproof* proof) {
 }
 
 int secp256k1_surjectionproof_initialize(const secp256k1_context* ctx, secp256k1_surjectionproof* proof, size_t *input_index, const secp256k1_fixed_asset_tag* fixed_input_tags, const size_t n_input_tags, const size_t n_input_tags_to_use, const secp256k1_fixed_asset_tag* fixed_output_tag, const size_t n_max_iterations, const unsigned char *random_seed32) {
-    const secp256k1_hash_ctx *hash_ctx = secp256k1_get_hash_context(ctx);
+    const secp256k1_hash_ctx *hash_ctx = &ctx->hash_ctx;
     secp256k1_surjectionproof_csprng csprng;
     size_t n_iterations = 0;
 
@@ -271,7 +271,7 @@ int secp256k1_surjectionproof_initialize(const secp256k1_context* ctx, secp256k1
 }
 
 int secp256k1_surjectionproof_generate(const secp256k1_context* ctx, secp256k1_surjectionproof* proof, const secp256k1_generator* ephemeral_input_tags, size_t n_ephemeral_input_tags, const secp256k1_generator* ephemeral_output_tag, size_t input_index, const unsigned char *input_blinding_key, const unsigned char *output_blinding_key) {
-    const secp256k1_hash_ctx *hash_ctx = secp256k1_get_hash_context(ctx);
+    const secp256k1_hash_ctx *hash_ctx = &ctx->hash_ctx;
     secp256k1_scalar blinding_key;
     secp256k1_scalar tmps;
     secp256k1_scalar nonce;
@@ -304,10 +304,13 @@ int secp256k1_surjectionproof_generate(const secp256k1_context* ctx, secp256k1_s
     /* Compute secret key */
     secp256k1_scalar_set_b32(&tmps, input_blinding_key, &overflow);
     if (overflow) {
+        secp256k1_scalar_clear(&tmps);
         return 0;
     }
     secp256k1_scalar_set_b32(&blinding_key, output_blinding_key, &overflow);
     if (overflow) {
+        secp256k1_scalar_clear(&tmps);
+        secp256k1_scalar_clear(&blinding_key);
         return 0;
     }
     /* If any input tag is equal to an output tag, verification will fail, because our ring
@@ -316,20 +319,25 @@ int secp256k1_surjectionproof_generate(const secp256k1_context* ctx, secp256k1_s
      * this at the same time that we relax the max-256-inputs rule. */
     for (i = 0; i < n_ephemeral_input_tags; i++) {
         if (secp256k1_memcmp_var(ephemeral_input_tags[i].data, ephemeral_output_tag->data, sizeof(ephemeral_output_tag->data)) == 0) {
+            secp256k1_scalar_clear(&tmps);
+            secp256k1_scalar_clear(&blinding_key);
             return 0;
         }
     }
     secp256k1_scalar_negate(&tmps, &tmps);
     secp256k1_scalar_add(&blinding_key, &blinding_key, &tmps);
+    secp256k1_scalar_clear(&tmps);
 
     /* Compute public keys */
     n_total_pubkeys = secp256k1_surjectionproof_n_total_inputs(ctx, proof);
 
     if (n_used_pubkeys > n_total_pubkeys || n_total_pubkeys != n_ephemeral_input_tags) {
+        secp256k1_scalar_clear(&blinding_key);
         return 0;
     }
 
     if (secp256k1_surjection_compute_public_keys(ring_pubkeys, n_used_pubkeys, ephemeral_input_tags, n_total_pubkeys, proof->used_inputs, ephemeral_output_tag, input_index, &ring_input_index) == 0) {
+        secp256k1_scalar_clear(&blinding_key);
         return 0;
     }
 
@@ -337,7 +345,21 @@ int secp256k1_surjectionproof_generate(const secp256k1_context* ctx, secp256k1_s
     rsizes[0] = (int) n_used_pubkeys;
     indices[0] = (int) ring_input_index;
     secp256k1_surjection_genmessage(hash_ctx, msg32, ephemeral_input_tags, n_total_pubkeys, ephemeral_output_tag);
-    if (secp256k1_surjection_genrand(hash_ctx, borromean_s, n_used_pubkeys, &blinding_key) == 0) {
+    /* Derive every s-value, including the one used as the signing nonce, from
+     * every proof-relevant input to
+     * secp256k1_surjectionproof_generate. Except with negligible hash-collision
+     * probability, this prevents distinct proof inputs from reusing any
+     * s-value.
+     *
+     * The proof-relevant arguments to secp256k1_surjectionproof_generate
+     * correspond as follows: proof supplies n_total_pubkeys (proof->n_inputs),
+     * proof->used_inputs, and n_used_pubkeys, while proof->data is output and
+     * proof->initialized is VERIFY-only validation state; ephemeral_input_tags
+     * is committed by msg32; n_ephemeral_input_tags equals n_total_pubkeys as
+     * checked above; ephemeral_output_tag is committed by msg32; input_index
+     * and both blinding keys are passed directly. */
+    if (secp256k1_surjection_genrand(hash_ctx, borromean_s, n_used_pubkeys, n_total_pubkeys, proof->used_inputs, msg32, input_index, input_blinding_key, output_blinding_key) == 0) {
+        secp256k1_scalar_clear(&blinding_key);
         return 0;
     }
     /* Borromean sign will overwrite one of the s values we just generated, so use
@@ -346,11 +368,15 @@ int secp256k1_surjectionproof_generate(const secp256k1_context* ctx, secp256k1_s
     nonce = borromean_s[ring_input_index];
     secp256k1_scalar_clear(&borromean_s[ring_input_index]);
     if (secp256k1_borromean_sign(hash_ctx, &ctx->ecmult_gen_ctx, &proof->data[0], borromean_s, ring_pubkeys, &nonce, &blinding_key, rsizes, indices, 1, msg32, 32) == 0) {
+        secp256k1_scalar_clear(&blinding_key);
+        secp256k1_scalar_clear(&nonce);
         return 0;
     }
     for (i = 0; i < n_used_pubkeys; i++) {
         secp256k1_scalar_get_b32(&proof->data[32 + 32 * i], &borromean_s[i]);
     }
+    secp256k1_scalar_clear(&blinding_key);
+    secp256k1_scalar_clear(&nonce);
     return 1;
 }
 
@@ -358,7 +384,7 @@ int secp256k1_surjectionproof_generate(const secp256k1_context* ctx, secp256k1_s
 static
 #endif
 int secp256k1_surjectionproof_verify(const secp256k1_context* ctx, const secp256k1_surjectionproof* proof, const secp256k1_generator* ephemeral_input_tags, size_t n_ephemeral_input_tags, const secp256k1_generator* ephemeral_output_tag) {
-    const secp256k1_hash_ctx *hash_ctx = secp256k1_get_hash_context(ctx);
+    const secp256k1_hash_ctx *hash_ctx = &ctx->hash_ctx;
     size_t rsizes[1];    /* array needed for borromean sig API */
     size_t i;
     size_t n_total_pubkeys;

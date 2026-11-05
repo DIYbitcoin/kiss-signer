@@ -162,7 +162,7 @@ int tx_witness_stack_init_alloc(size_t allocation_len,
     if (allocation_len) {
         if (allocation_len > max_allocation_len)
             allocation_len = max_allocation_len;
-        (*output)->items = wally_calloc(allocation_len * sizeof(struct wally_tx_witness_item));
+        (*output)->items = array_calloc(allocation_len, sizeof(struct wally_tx_witness_item));
         if (!(*output)->items) {
             wally_free(*output);
             *output = NULL;
@@ -358,6 +358,7 @@ int wally_tx_input_clone(const struct wally_tx_input *src,
         !clone_bytes(&new_inflation_keys, src->inflation_keys, src->inflation_keys_len) ||
         !clone_bytes(&new_issuance_amount_rangeproof, src->issuance_amount_rangeproof, src->issuance_amount_rangeproof_len) ||
         !clone_bytes(&new_inflation_keys_rangeproof, src->inflation_keys_rangeproof, src->inflation_keys_rangeproof_len) ||
+        (src->pegin_witness && !new_pegin_witness) ||
 #endif
         (src->witness && !new_witness)) {
         clear_and_free(new_script, src->script_len);
@@ -512,39 +513,41 @@ int wally_tx_elements_input_issuance_set(
     const unsigned char *inflation_keys_rangeproof,
     size_t inflation_keys_rangeproof_len)
 {
+    if (!input)
+        return WALLY_EINVAL;
+    else {
 #ifdef BUILD_ELEMENTS
-    unsigned char *input_issuance_amount = input->issuance_amount;
-    size_t input_issuance_amount_len = input->issuance_amount_len;
-    unsigned char *input_inflation_keys = input->inflation_keys;
-    size_t input_inflation_keys_len = input->inflation_keys_len;
-    unsigned char *input_issuance_amount_rangeproof = input->issuance_amount_rangeproof;
-    size_t input_issuance_amount_rangeproof_len = input->issuance_amount_rangeproof_len;
-    unsigned char *input_inflation_keys_rangeproof = input->inflation_keys_rangeproof;
-    size_t input_inflation_keys_rangeproof_len = input->inflation_keys_rangeproof_len;
+        unsigned char *input_issuance_amount = input->issuance_amount;
+        size_t input_issuance_amount_len = input->issuance_amount_len;
+        unsigned char *input_inflation_keys = input->inflation_keys;
+        size_t input_inflation_keys_len = input->inflation_keys_len;
+        unsigned char *input_issuance_amount_rangeproof = input->issuance_amount_rangeproof;
+        size_t input_issuance_amount_rangeproof_len = input->issuance_amount_rangeproof_len;
+        unsigned char *input_inflation_keys_rangeproof = input->inflation_keys_rangeproof;
+        size_t input_inflation_keys_rangeproof_len = input->inflation_keys_rangeproof_len;
 #endif /* BUILD_ELEMENTS */
-    int ret = tx_elements_input_issuance_init(input,
-                                              nonce,
-                                              nonce_len,
-                                              entropy,
-                                              entropy_len,
-                                              issuance_amount,
-                                              issuance_amount_len,
-                                              inflation_keys,
-                                              inflation_keys_len,
-                                              issuance_amount_rangeproof,
-                                              issuance_amount_rangeproof_len,
-                                              inflation_keys_rangeproof,
-                                              inflation_keys_rangeproof_len,
-                                              true);
+        int ret = tx_elements_input_issuance_init(input,
+                                                  nonce, nonce_len,
+                                                  entropy, entropy_len,
+                                                  issuance_amount,
+                                                  issuance_amount_len,
+                                                  inflation_keys,
+                                                  inflation_keys_len,
+                                                  issuance_amount_rangeproof,
+                                                  issuance_amount_rangeproof_len,
+                                                  inflation_keys_rangeproof,
+                                                  inflation_keys_rangeproof_len,
+                                                  true);
 #ifdef BUILD_ELEMENTS
-    if (ret == WALLY_OK) {
-        clear_and_free(input_issuance_amount, input_issuance_amount_len);
-        clear_and_free(input_inflation_keys, input_inflation_keys_len);
-        clear_and_free(input_issuance_amount_rangeproof, input_issuance_amount_rangeproof_len);
-        clear_and_free(input_inflation_keys_rangeproof, input_inflation_keys_rangeproof_len);
+        if (ret == WALLY_OK) {
+            clear_and_free(input_issuance_amount, input_issuance_amount_len);
+            clear_and_free(input_inflation_keys, input_inflation_keys_len);
+            clear_and_free(input_issuance_amount_rangeproof, input_issuance_amount_rangeproof_len);
+            clear_and_free(input_inflation_keys_rangeproof, input_inflation_keys_rangeproof_len);
+        }
+#endif /* BUILD_ELEMENTS */
+        return ret;
     }
-#endif /* BUILD_ELEMENTS */
-    return ret;
 }
 
 int wally_tx_elements_input_issuance_free(
@@ -931,33 +934,39 @@ int wally_tx_elements_output_commitment_set(
     const unsigned char *rangeproof,
     size_t rangeproof_len)
 {
+    if (!output)
+        return WALLY_EINVAL;
+    else {
 #ifdef BUILD_ELEMENTS
-    unsigned char *output_asset = output->asset;
-    size_t output_asset_len = output->asset_len;
-    unsigned char *output_value = output->value;
-    size_t output_value_len = output->value_len;
-    unsigned char *output_nonce = output->nonce;
-    size_t output_nonce_len = output->nonce_len;
-    unsigned char *output_surjectionproof = output->surjectionproof;
-    size_t output_surjectionproof_len = output->surjectionproof_len;
-    unsigned char *output_rangeproof = output->rangeproof;
-    size_t output_rangeproof_len = output->rangeproof_len;
+       unsigned char *output_asset = output->asset;
+       size_t output_asset_len = output->asset_len;
+       unsigned char *output_value = output->value;
+       size_t output_value_len = output->value_len;
+       unsigned char *output_nonce = output->nonce;
+       size_t output_nonce_len = output->nonce_len;
+       unsigned char *output_surjectionproof = output->surjectionproof;
+       size_t output_surjectionproof_len = output->surjectionproof_len;
+       unsigned char *output_rangeproof = output->rangeproof;
+       size_t output_rangeproof_len = output->rangeproof_len;
 #endif /* BUILD_ELEMENTS */
-    int ret = tx_elements_output_commitment_init(output, asset, asset_len,
-                                                 value, value_len,
-                                                 nonce, nonce_len,
-                                                 surjectionproof, surjectionproof_len,
-                                                 rangeproof, rangeproof_len, true);
-    if (ret == WALLY_OK) {
+       int ret = tx_elements_output_commitment_init(output, asset, asset_len,
+                                                    value, value_len,
+                                                    nonce, nonce_len,
+                                                    surjectionproof,
+                                                    surjectionproof_len,
+                                                    rangeproof, rangeproof_len,
+                                                    true);
 #ifdef BUILD_ELEMENTS
-        clear_and_free(output_asset, output_asset_len);
-        clear_and_free(output_value, output_value_len);
-        clear_and_free(output_nonce, output_nonce_len);
-        clear_and_free(output_surjectionproof, output_surjectionproof_len);
-        clear_and_free(output_rangeproof, output_rangeproof_len);
+        if (ret == WALLY_OK) {
+            clear_and_free(output_asset, output_asset_len);
+            clear_and_free(output_value, output_value_len);
+            clear_and_free(output_nonce, output_nonce_len);
+            clear_and_free(output_surjectionproof, output_surjectionproof_len);
+            clear_and_free(output_rangeproof, output_rangeproof_len);
+        }
 #endif /* BUILD_ELEMENTS */
+        return ret;
     }
-    return ret;
 }
 
 int wally_tx_elements_output_commitment_free(
@@ -1140,12 +1149,12 @@ static int tx_init_alloc(uint32_t version, uint32_t locktime,
     if (inputs_allocation_len) {
         if (inputs_allocation_len > max_inputs_allocation_len)
             inputs_allocation_len = max_inputs_allocation_len;
-        new_inputs = wally_calloc(inputs_allocation_len * sizeof(struct wally_tx_input));
+        new_inputs = array_calloc(inputs_allocation_len, sizeof(struct wally_tx_input));
     }
     if (outputs_allocation_len) {
         if (outputs_allocation_len > max_outputs_allocation_len)
             outputs_allocation_len = max_outputs_allocation_len;
-        new_outputs = wally_calloc(outputs_allocation_len * sizeof(struct wally_tx_output));
+        new_outputs = array_calloc(outputs_allocation_len, sizeof(struct wally_tx_output));
     }
     if ((inputs_allocation_len && !new_inputs) ||
         (outputs_allocation_len && !new_outputs)) {
@@ -1205,18 +1214,25 @@ int wally_tx_free(struct wally_tx *tx)
 int wally_tx_add_input_at(struct wally_tx *tx, uint32_t index,
                           const struct wally_tx_input *input)
 {
+    struct wally_tx_input tmp;
     int ret;
 
     if (!is_valid_tx(tx) || index > tx->num_inputs || !is_valid_tx_input(input))
         return WALLY_EINVAL;
+
+    /* Clone first: input may point into tx->inputs, which is moved below */
+    if ((ret = wally_tx_input_clone(input, &tmp)) != WALLY_OK)
+        return ret;
 
     if (tx->num_inputs >= tx->inputs_allocation_len) {
         /* Expand the inputs array */
         struct wally_tx_input *p;
         p = array_realloc(tx->inputs, tx->inputs_allocation_len,
                           tx->num_inputs + 1, sizeof(*tx->inputs));
-        if (!p)
+        if (!p) {
+            tx_input_free(&tmp, false);
             return WALLY_ENOMEM;
+        }
 
         clear_and_free(tx->inputs, tx->num_inputs * sizeof(*tx->inputs));
         tx->inputs = p;
@@ -1225,12 +1241,8 @@ int wally_tx_add_input_at(struct wally_tx *tx, uint32_t index,
 
     memmove(tx->inputs + index + 1, tx->inputs + index,
             (tx->num_inputs - index) * sizeof(*input));
-
-    if ((ret = wally_tx_input_clone(input, tx->inputs + index)) != WALLY_OK) {
-        memmove(tx->inputs + index, tx->inputs + index + 1,
-                (tx->num_inputs - index) * sizeof(*input)); /* Undo */
-        return ret;
-    }
+    memcpy(tx->inputs + index, &tmp, sizeof(tmp));
+    wally_clear(&tmp, sizeof(tmp));
 
     tx->num_inputs += 1;
     return WALLY_OK;
@@ -1424,9 +1436,10 @@ int wally_tx_remove_input(struct wally_tx *tx, size_t index)
 int wally_tx_add_output_at(struct wally_tx *tx, uint32_t index,
                            const struct wally_tx_output *output)
 {
+    struct wally_tx_output tmp;
     uint64_t total;
     int ret;
-    const bool is_elements = output->features & WALLY_TX_IS_ELEMENTS;
+    const bool is_elements = output && (output->features & WALLY_TX_IS_ELEMENTS);
 
     if (!is_valid_tx(tx) || index > tx->num_outputs)
         return WALLY_EINVAL;
@@ -1439,13 +1452,19 @@ int wally_tx_add_output_at(struct wally_tx *tx, uint32_t index,
     } else if (!is_valid_elements_tx_output(output))
         return WALLY_EINVAL;
 
+    /* Clone first: output may point into tx->outputs, which is moved below */
+    if ((ret = wally_tx_output_clone(output, &tmp)) != WALLY_OK)
+        return ret;
+
     if (tx->num_outputs >= tx->outputs_allocation_len) {
         /* Expand the outputs array */
         struct wally_tx_output *p;
         p = array_realloc(tx->outputs, tx->outputs_allocation_len,
                           tx->num_outputs + 1, sizeof(*tx->outputs));
-        if (!p)
+        if (!p) {
+            tx_output_free(&tmp, false);
             return WALLY_ENOMEM;
+        }
 
         clear_and_free(tx->outputs, tx->num_outputs * sizeof(*tx->outputs));
         tx->outputs = p;
@@ -1454,12 +1473,8 @@ int wally_tx_add_output_at(struct wally_tx *tx, uint32_t index,
 
     memmove(tx->outputs + index + 1, tx->outputs + index,
             (tx->num_outputs - index) * sizeof(*output));
-
-    if ((ret = wally_tx_output_clone(output, tx->outputs + index)) != WALLY_OK) {
-        memmove(tx->outputs + index, tx->outputs + index + 1,
-                (tx->num_outputs - index) * sizeof(*output)); /* Undo */
-        return ret;
-    }
+    memcpy(tx->outputs + index, &tmp, sizeof(tmp));
+    wally_clear(&tmp, sizeof(tmp));
 
     tx->num_outputs += 1;
     return WALLY_OK;
@@ -1690,6 +1705,33 @@ static int get_txin_issuance_size(const struct wally_tx_input *input,
     return WALLY_OK;
 }
 
+static bool tx_check_args(const struct wally_tx *tx,
+                          uint32_t *flags, bool is_elements)
+{
+    if (!is_valid_tx(tx) || ((*flags) & ~WALLY_TX_ALL_FLAGS))
+        return false;
+
+    if (!((*flags) & WALLY_TX_FLAG_ALLOW_PARTIAL)) {
+        /* 0-input/output txs can be only be written with this flag */
+        if (!tx->num_inputs || !tx->num_outputs)
+            return false;
+    }
+
+    if (is_elements) {
+        /* No pre-BIP 144 serialization for elements */
+        (*flags) &= ~WALLY_TX_FLAG_PRE_BIP144;
+    } else if (!tx->num_inputs) {
+        /* 0-input txs can only be written in the pre-BIP144 format,
+         * since otherwise the resulting tx is ambiguous.
+         * Used in PSBTs while building the tx for example.
+         */
+        if (!((*flags) & WALLY_TX_FLAG_PRE_BIP144))
+            return false;
+        *flags &= ~WALLY_TX_FLAG_USE_WITNESS;
+    }
+    return true;
+}
+
 /* We compute the size of the witness separately so we can compute vsize
  * without iterating the transaction twice with different flags.
  */
@@ -1704,12 +1746,11 @@ static int tx_get_lengths(const struct wally_tx *tx,
     *witness_size = 0;
     *witness_count = 0;
 
-    if (!is_valid_tx(tx))
+    if (!is_valid_tx(tx) || (flags & ~WALLY_TX_ALL_FLAGS))
         return WALLY_EINVAL;
 
-    if ((flags & ~WALLY_TX_ALL_FLAGS) ||
-        ((flags & WALLY_TX_FLAG_USE_WITNESS) &&
-         wally_tx_get_witness_count(tx, witness_count) != WALLY_OK))
+    if ((flags & WALLY_TX_FLAG_USE_WITNESS) &&
+         wally_tx_get_witness_count(tx, witness_count) != WALLY_OK)
         return WALLY_EINVAL;
 
     if (!*witness_count)
@@ -1804,7 +1845,7 @@ static int tx_get_length(const struct wally_tx *tx,
 
     if (written)
         *written = 0;
-    if (!written)
+    if (!written || !tx_check_args(tx, &flags, is_elements))
         return WALLY_EINVAL;
     ret = tx_get_lengths(tx, flags, &base_size, &witness_size,
                          &witness_count, is_elements);
@@ -1821,6 +1862,10 @@ int wally_tx_get_length(const struct wally_tx *tx, uint32_t flags,
                         size_t *written)
 {
     size_t is_elements = 0;
+
+    if (written)
+        *written = 0;
+
 #ifdef BUILD_ELEMENTS
     if (wally_tx_is_elements(tx, &is_elements) != WALLY_OK)
         return WALLY_EINVAL;
@@ -1935,11 +1980,12 @@ int wally_get_hash_prevouts(const unsigned char *txhashes, size_t txhashes_len,
     size_t inputs_size, i;
 
     if (!txhashes || !txhashes_len || txhashes_len % WALLY_TXHASH_LEN ||
-        !utxo_indices || num_utxo_indices * WALLY_TXHASH_LEN != txhashes_len ||
+        !utxo_indices || txhashes_len / WALLY_TXHASH_LEN != num_utxo_indices ||
+        num_utxo_indices > SIZE_MAX / (WALLY_TXHASH_LEN + sizeof(uint32_t)) ||
         !bytes_out || len != SHA256_LEN)
         return WALLY_EINVAL;
 
-    inputs_size = txhashes_len + (num_utxo_indices * sizeof(uint32_t));
+    inputs_size = num_utxo_indices * (WALLY_TXHASH_LEN + sizeof(uint32_t));
     if (!(buff_p = wally_malloc(inputs_size)))
         return WALLY_ENOMEM;
 
@@ -1965,6 +2011,7 @@ int wally_tx_get_hash_prevouts(const struct wally_tx *tx,
     }
     if (!tx || index >= tx->num_inputs || !num_inputs ||
         num_inputs > tx->num_inputs || index + num_inputs > tx->num_inputs ||
+        num_inputs > SIZE_MAX / (SHA256_LEN + sizeof(uint32_t)) ||
         !bytes_out || len != SHA256_LEN)
         return WALLY_EINVAL;
 
@@ -1993,26 +2040,11 @@ static int tx_to_bytes(const struct wally_tx *tx,
     if (written)
         *written = 0;
 
-    if (!is_valid_tx(tx) ||
-        (flags & ~WALLY_TX_ALL_FLAGS) || !bytes_out || !written ||
-        tx_get_length(tx, flags, &n, is_elements) != WALLY_OK)
+    if (!tx_check_args(tx, &flags, is_elements) || !bytes_out || !written)
         return WALLY_EINVAL;
 
-    if (!(flags & WALLY_TX_FLAG_ALLOW_PARTIAL)) {
-        /* 0-input/output txs can be only be written with this flag */
-        if (!tx->num_inputs || !tx->num_outputs)
-            return WALLY_EINVAL;
-    }
-
-    if (!tx->num_inputs) {
-        /* 0-input txs can only be written in the pre-BIP144 format,
-         * since otherwise the resulting tx is ambiguous.
-         * Used in PSBTs while building the tx for example.
-         */
-        if (!(flags & WALLY_TX_FLAG_PRE_BIP144))
-            return WALLY_EINVAL;
-        flags &= ~WALLY_TX_FLAG_USE_WITNESS;
-    }
+    if (tx_get_length(tx, flags, &n, is_elements) != WALLY_OK)
+        return WALLY_EINVAL;
 
     if (n > len) {
         *written = n;
@@ -2137,6 +2169,9 @@ int wally_tx_to_bytes(const struct wally_tx *tx, uint32_t flags,
                       size_t *written)
 {
     size_t is_elements = 0;
+
+    if (written)
+        *written = 0;
 
 #ifdef BUILD_ELEMENTS
     if (wally_tx_is_elements(tx, &is_elements) != WALLY_OK)
@@ -2599,7 +2634,7 @@ int wally_tx_from_hex(const char *hex, uint32_t flags,
     }
     ret = wally_hex_to_bytes(hex, buff_p, bin_len, &written);
     if (ret == WALLY_OK)
-        ret = tx_from_bytes(buff_p, bin_len, flags, output);
+        ret = tx_from_bytes(buff_p, written, flags, output);
 
     if (buff_p != buff)
         clear_and_free(buff_p, bin_len);
@@ -2904,9 +2939,9 @@ static int tx_getb_impl(const void *input,
 {
     if (written)
         *written = 0;
-    if (!input || !bytes_out || len < src_len || !written)
+    if (!input || BYTES_INVALID(bytes_out, len) || !written)
         return WALLY_EINVAL;
-    if (src_len)
+    if (bytes_out && src_len && len >= src_len)
         memcpy(bytes_out, src, src_len);
     *written = src_len;
     return WALLY_OK;
@@ -2916,9 +2951,15 @@ static int tx_getb_impl(const void *input,
     int wally_ ## typ ## _get_ ## name(const struct wally_ ## typ *input, \
                                        unsigned char *bytes_out, size_t len) { \
         size_t written; \
+        int ret; \
         if (!input || len != n) \
             return WALLY_EINVAL; \
-        return tx_getb_impl(input, input->name, siz, bytes_out, len, &written); \
+        ret = tx_getb_impl(input, input->name, siz, bytes_out, len, &written); \
+        if (ret == WALLY_OK && written > len) { \
+            wally_clear(bytes_out, len); \
+            return WALLY_EINVAL; \
+        } \
+        return ret; \
     }
 
 #define GET_TX_B(typ, name, siz) \
@@ -2982,10 +3023,10 @@ int wally_tx_input_get_witness(const struct wally_tx_input *input, size_t index,
                                unsigned char *bytes_out, size_t len, size_t *written)
 {
     const struct wally_tx_witness_item *item;
-    if (!(item = get_witness_preamble(input, index, written)) || !bytes_out ||
-        len < item->witness_len)
+    if (!(item = get_witness_preamble(input, index, written)) ||
+        BYTES_INVALID(bytes_out, len))
         return WALLY_EINVAL;
-    if (item->witness_len)
+    if (bytes_out && item->witness_len && len >= item->witness_len)
         memcpy(bytes_out, item->witness, item->witness_len);
     *written = item->witness_len;
     return WALLY_OK;
@@ -3184,6 +3225,7 @@ static struct wally_tx_output *tx_get_output(const struct wally_tx *tx, size_t i
 #else
 #define TX_GET_B_ELEMENTS(typ, name) \
     int wally_tx_get_ ## typ ## _ ## name(const struct wally_tx *tx, size_t index, unsigned char *bytes_out, size_t len, size_t *written) { \
+        if (written) *written = 0; \
         return WALLY_ERROR; \
     }
 #endif /* BUILD_ELEMENTS */
@@ -3210,6 +3252,7 @@ static struct wally_tx_output *tx_get_output(const struct wally_tx *tx, size_t i
 #else
 #define TX_GET_I_ELEMENTS(typ, name) \
     int wally_tx_get_ ## typ ## _ ## name(const struct wally_tx *tx, size_t index, size_t *written) { \
+        if (written) *written = 0; \
         return WALLY_ERROR; \
     }
 #endif /* BUILD_ELEMENTS */

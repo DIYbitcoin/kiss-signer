@@ -39,27 +39,79 @@ void sha512_update(struct sha512_ctx *ctx, const void *p, size_t size)
 	SHA512_Update(&ctx->c, p, size);
 }
 
-void sha512_done(struct sha512_ctx *ctx, struct sha512 *res)
+bool sha512_done(struct sha512_ctx *ctx, struct sha512 *res)
 {
-	SHA512_Final(res->u.u8, &ctx->c);
+	bool ret = SHA512_Final(res->u.u8, &ctx->c) == 1;
 	invalidate_sha512(ctx);
+	return ret;
 }
 #elif defined(CCAN_CRYPTO_SHA512_USE_MBEDTLS)
+#if MBEDTLS_VERSION_NUMBER < 0x03000000
+/* Mbed TLS 2.x only reports errors from the _ret variants */
+#define SHA512_STARTS mbedtls_sha512_starts_ret
+#define SHA512_UPDATE mbedtls_sha512_update_ret
+#define SHA512_FINISH mbedtls_sha512_finish_ret
+#else
+#define SHA512_STARTS mbedtls_sha512_starts
+#define SHA512_UPDATE mbedtls_sha512_update
+#define SHA512_FINISH mbedtls_sha512_finish
+#endif
+
+/* sha512_init() and sha512_update() cannot report errors, so a failure is
+ * remembered in the context and reported by sha512_done() */
 inline void sha512_init(struct sha512_ctx *ctx)
 {
 	mbedtls_sha512_init(&ctx->c);
-	mbedtls_sha512_starts(&ctx->c, 0);
+	ctx->failed = SHA512_STARTS(&ctx->c, 0) != 0;
 }
 
 inline void sha512_update(struct sha512_ctx *ctx, const void *p, size_t size)
 {
-	mbedtls_sha512_update(&ctx->c, p, size);
+	if (!ctx->failed)
+		ctx->failed = SHA512_UPDATE(&ctx->c, p, size) != 0;
 }
 
-inline void sha512_done(struct sha512_ctx *ctx, struct sha512* res)
+inline bool sha512_done(struct sha512_ctx *ctx, struct sha512* res)
 {
-	mbedtls_sha512_finish(&ctx->c, res->u.u8);
+	bool ok = !ctx->failed && SHA512_FINISH(&ctx->c, res->u.u8) == 0;
 	mbedtls_sha512_free(&ctx->c);
+	if (!ok)
+		memset(res, 0, sizeof(*res));
+	return ok;
+}
+#elif defined(CCAN_CRYPTO_SHA512_USE_PSA)
+/* sha512_init() and sha512_update() cannot report errors, so on failure
+ * they abort the PSA operation, leaving it inactive: later calls then
+ * fail too, and sha512_done() reports the failure.
+ */
+void sha512_init(struct sha512_ctx *ctx)
+{
+	/* ctx must not be an active operation: PSA drivers may hold
+	 * state that only sha512_done() releases. Zero-filling is one of
+	 * the initializations the PSA API permits, and unlike
+	 * psa_hash_operation_init() it needs no on-stack temporary. */
+	memset(&ctx->op, 0, sizeof(ctx->op));
+	if (psa_hash_setup(&ctx->op, PSA_ALG_SHA_512) != PSA_SUCCESS)
+		psa_hash_abort(&ctx->op);
+}
+
+void sha512_update(struct sha512_ctx *ctx, const void *p, size_t size)
+{
+	if (psa_hash_update(&ctx->op, p, size) != PSA_SUCCESS)
+		psa_hash_abort(&ctx->op);
+}
+
+bool sha512_done(struct sha512_ctx *ctx, struct sha512 *res)
+{
+	size_t len = 0;
+
+	if (psa_hash_finish(&ctx->op, res->u.u8, sizeof(res->u.u8), &len) != PSA_SUCCESS ||
+	    len != sizeof(res->u.u8)) {
+		psa_hash_abort(&ctx->op);
+		memset(res, 0, sizeof(*res));
+		return false;
+	}
+	return true;
 }
 #else
 static void invalidate_sha512(struct sha512_ctx *ctx)
@@ -256,7 +308,7 @@ void sha512_update(struct sha512_ctx *ctx, const void *p, size_t size)
 	add(ctx, p, size);
 }
 
-void sha512_done(struct sha512_ctx *ctx, struct sha512 *res)
+bool sha512_done(struct sha512_ctx *ctx, struct sha512 *res)
 {
 	static const unsigned char pad[128] = { 0x80 };
 	uint64_t sizedesc[2] = { 0, 0 };
@@ -271,15 +323,35 @@ void sha512_done(struct sha512_ctx *ctx, struct sha512 *res)
 	for (i = 0; i < sizeof(ctx->s) / sizeof(ctx->s[0]); i++)
 		res->u.u64[i] = cpu_to_be64(ctx->s[i]);
 	invalidate_sha512(ctx);
+	return true;
 }
 #endif /* CCAN_CRYPTO_SHA512_USE_OPENSSL */
 
-void sha512(struct sha512 *sha, const void *p, size_t size)
+#ifdef CCAN_CRYPTO_SHA512_USE_PSA
+bool sha512(struct sha512 *sha, const void *p, size_t size)
+{
+	size_t len = 0;
+	if (!size)
+		p = ""; /* psa_hash_compute() may reject a NULL input */
+
+	if (psa_hash_compute(PSA_ALG_SHA_512, p, size, sha->u.u8, sizeof(sha->u.u8),
+	                     &len) != PSA_SUCCESS ||
+	    len != sizeof(sha->u.u8)) {
+		memset(sha, 0, sizeof(*sha));
+		return false;
+	}
+	return true;
+}
+#else
+bool sha512(struct sha512 *sha, const void *p, size_t size)
 {
 	struct sha512_ctx ctx;
+	bool ret;
 
 	sha512_init(&ctx);
 	sha512_update(&ctx, p, size);
-	sha512_done(&ctx, sha);
+	ret = sha512_done(&ctx, sha);
 	CCAN_CLEAR_MEMORY(&ctx, sizeof(ctx));
+	return ret;
 }
+#endif /* CCAN_CRYPTO_SHA512_USE_PSA */

@@ -1,5 +1,5 @@
 AC_PREREQ([2.60])
-AC_INIT([libwallycore],[1.5.4])
+AC_INIT([libwallycore],[1.6.0])
 AC_CONFIG_AUX_DIR([tools/build-aux])
 AC_CONFIG_MACRO_DIR([tools/build-aux/m4])
 AC_CONFIG_SRCDIR([src/mnemonic.h])
@@ -35,6 +35,12 @@ AM_INIT_AUTOMAKE([1.11.2 foreign subdir-objects])
 
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 
+# Note whether the user set CFLAGS, before AC_PROG_CC gives it a default
+if test "${CFLAGS+set}" = "set"; then
+    cflags_overridden=yes
+else
+    cflags_overridden=no
+fi
 AC_PROG_CC
 AM_PROG_AR
 #saved_cflags="$CFLAGS"
@@ -83,8 +89,11 @@ AC_ARG_ENABLE(minimal,
     AS_HELP_STRING([--enable-minimal],[enable minimal size/memory footprint build (default: no)]),
     [minimal=$enableval], [minimal=no])
 AC_ARG_ENABLE(mbed-tls,
-    AS_HELP_STRING([--enable-mbed-tls],[enable minimal size/memory footprint build (default: no)]),
+    AS_HELP_STRING([--enable-mbed-tls],[use mbed-tls hashing functions where available (default: no)]),
     [mbedtls=$enableval], [mbedtls=no])
+AC_ARG_ENABLE(psa-crypto,
+    AS_HELP_STRING([--enable-psa-crypto],[use PSA Crypto (TF-PSA-Crypto/Mbed TLS) hashing functions (default: no)]),
+    [psa_crypto=$enableval], [psa_crypto=no])
 AC_ARG_ENABLE(secp256k1-tests,
     AS_HELP_STRING([--enable-secp256k1-tests],[enable secp256k1 tests (default: no)]),
     [secp256k1_tests=$enableval], [secp256k1_tests=no])
@@ -120,6 +129,11 @@ AX_CHECK_COMPILE_FLAG([-O0], [NOOPT_CFLAGS="-O0"])
 
 if test "x$debug" = "xyes"; then
     # Make debugging easier, leave assertions in
+    if test "x$cflags_overridden" = "xno"; then
+        # CFLAGS follows AM_CFLAGS when compiling, so drop the -O2 from
+        # autoconf's default CFLAGS, which would otherwise override -O0
+        CFLAGS="-g"
+    fi
     AM_CFLAGS="$AM_CFLAGS $NOOPT_CFLAGS"
     AX_CHECK_COMPILE_FLAG([-ggdb], [AM_CFLAGS="$AM_CFLAGS -ggdb"])
     AX_CHECK_LINK_FLAG([-O0], [LDFLAGS="$LDFLAGS -O0"])
@@ -141,6 +155,9 @@ else
     AX_CHECK_LINK_FLAG([-O2], [LDFLAGS="-O2 $LDFLAGS"])
     AX_CHECK_LINK_FLAG([-Wl,-z,relro], [LDFLAGS="$LDFLAGS -Wl,-z,relro"])
 fi
+# Resolve symbols at load time: resolving lazily bound symbols on their
+# first call saves the vector registers, which may hold secrets, to the stack
+AX_CHECK_LINK_FLAG([-Wl,-z,now], [LDFLAGS="$LDFLAGS -Wl,-z,now"])
 
 if test "x$elements" = "xyes"; then
     AX_CHECK_COMPILE_FLAG([-DBUILD_ELEMENTS=1], [AM_CFLAGS="$AM_CFLAGS -DBUILD_ELEMENTS=1"])
@@ -163,7 +180,7 @@ if test "x$minimal" = "xyes"; then
 fi
 
 if test "x$builtin_memset" = "xno"; then
-    AX_CHECK_COMPILE_FLAG([-fno-builtin-memset], [AM_CFLAGS="$AM_CFLAGS -fno-builtin"])
+    AX_CHECK_COMPILE_FLAG([-fno-builtin-memset], [AM_CFLAGS="$AM_CFLAGS -fno-builtin-memset"])
 fi
 
 if test "x$fuzzing" = "xyes"; then
@@ -236,6 +253,8 @@ AM_CONDITIONAL([EXPORT_ALL], [test "x$export_all" = "xyes"])
 
 if test "x$export_all" != "xyes"; then
     AX_CHECK_COMPILE_FLAG([-fvisibility=hidden], [AM_CFLAGS="$AM_CFLAGS -fvisibility=hidden"])
+else
+    AX_CHECK_COMPILE_FLAG([-DWALLY_EXPORT_ALL=1], [AM_CFLAGS="$AM_CFLAGS -DWALLY_EXPORT_ALL=1"])
 fi
 
 # Assume we have no unaligned access if cross-compiling
@@ -266,8 +285,16 @@ if test "x$asm" = "xyes"; then
 fi
 
 AC_CHECK_HEADERS([byteswap.h sys/mman.h])
+if test "x$mbedtls" = "xyes" -a "x$psa_crypto" = "xyes"; then
+    AC_MSG_ERROR([--enable-mbed-tls and --enable-psa-crypto are mutually exclusive])
+fi
 if test "x$mbedtls" = "xyes"; then
     AC_CHECK_HEADERS([mbedtls/sha256.h mbedtls/sha512.h])
+fi
+if test "x$psa_crypto" = "xyes"; then
+    AC_CHECK_HEADERS([psa/crypto.h], [], [AC_MSG_ERROR([psa/crypto.h not found])])
+    AC_SEARCH_LIBS([psa_crypto_init], [tfpsacrypto mbedcrypto], [],
+                   [AC_MSG_ERROR([no library providing psa_crypto_init() found])])
 fi
 
 AC_ARG_ENABLE(clear-tests,

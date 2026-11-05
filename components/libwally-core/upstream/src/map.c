@@ -2,6 +2,7 @@
 
 #include <include/wally_bip32.h>
 #include <include/wally_crypto.h>
+#include <include/wally_descriptor.h>
 #include <include/wally_map.h>
 #include "psbt_io.h"
 
@@ -14,7 +15,7 @@ int wally_map_init(size_t allocation_len, wally_map_verify_fn_t verify_fn, struc
 
     wally_clear(output, sizeof(*output));
     if (allocation_len) {
-        output->items = wally_calloc(allocation_len * sizeof(*output->items));
+        output->items = array_calloc(allocation_len, sizeof(*output->items));
         if (!output->items)
             return WALLY_ENOMEM;
     }
@@ -50,7 +51,10 @@ int wally_map_clear(struct wally_map *map_in)
         clear_and_free(map_in->items[i].value, map_in->items[i].value_len);
     }
     clear_and_free(map_in->items, map_in->num_items * sizeof(*map_in->items));
+    /* Clear the map, leaving its verification function intact */
+    const wally_map_verify_fn_t verify_fn = map_in->verify_fn;
     wally_clear(map_in, sizeof(*map_in));
+    map_in->verify_fn = verify_fn;
     return WALLY_OK;
 }
 
@@ -95,6 +99,8 @@ static int map_find(const struct wally_map *map_in, size_t index,
 int wally_map_find_from(const struct wally_map *map_in, size_t index,
                         const unsigned char *key, size_t key_len, size_t *written)
 {
+    if (written)
+        *written = 0;
     return key ? map_find(map_in, index, key, key_len, written) : WALLY_EINVAL;
 }
 
@@ -233,9 +239,11 @@ int map_add(struct wally_map *map_in,
     size_t is_found;
     int ret;
 
-    if (!map_in || (key && !key_len) || BYTES_INVALID(val, val_len) ||
-        (map_in->verify_fn && map_in->verify_fn(key, key_len, val, val_len) != WALLY_OK))
+    if (!map_in || (key && !key_len) || BYTES_INVALID(val, val_len))
         return WALLY_EINVAL;
+    if (map_in->verify_fn &&
+        (ret = map_in->verify_fn(key, key_len, val, val_len)) != WALLY_OK)
+        return ret;
 
     if ((ret = map_find(map_in, 0, key, key_len, &is_found)) != WALLY_OK)
         return ret;
@@ -326,7 +334,10 @@ static int map_replace(struct wally_map *map_in,
     if (ret == WALLY_OK) {
         if (index) {
             struct wally_map_item *to_replace = map_in->items + index - 1;
-            ret = replace_bytes(value, value_len, &to_replace->value, &to_replace->value_len);
+            if (map_in->verify_fn)
+                ret = map_in->verify_fn(key, key_len, value, value_len);
+            if (ret == WALLY_OK)
+                ret = replace_bytes(value, value_len, &to_replace->value, &to_replace->value_len);
         } else
             ret = map_add(map_in, key, key_len, value, value_len, false, true);
     }
@@ -586,7 +597,7 @@ static int keypath_key_verify(const unsigned char *key, size_t key_len, struct e
     } else if (key_len == EC_PUBLIC_KEY_LEN ||
                key_len == EC_PUBLIC_KEY_UNCOMPRESSED_LEN) {
         /* Compressed or uncompressed pubkey */
-        ret = wally_ec_public_key_verify(key, key_len);
+        ret = wally_ec_public_key_strict_verify(key, key_len);
     } else if (key_len == BIP32_SERIALIZED_LEN) {
         /* BIP32 extended pubkey */
         ret = bip32_key_unserialize(key, key_len, key_out);
@@ -626,12 +637,12 @@ int wally_keypath_bip32_verify(const unsigned char *key, size_t key_len,
                                const unsigned char *val, size_t val_len)
 {
     struct ext_key extkey;
+    int ret = keypath_key_verify(key, key_len, &extkey);
 
-    if (keypath_key_verify(key, key_len, &extkey) != WALLY_OK ||
-        !extkey.version ||
-        keypath_path_verify(val, val_len, &extkey) != WALLY_OK)
-        return WALLY_EINVAL;
-    return WALLY_OK;
+    if (ret == WALLY_OK &&
+        (!extkey.version || keypath_path_verify(val, val_len, &extkey) != WALLY_OK))
+        ret = WALLY_EINVAL;
+    return ret;
 }
 
 int wally_keypath_public_key_verify(const unsigned char *key, size_t key_len,
@@ -669,7 +680,8 @@ int wally_merkle_path_xonly_public_key_verify(const unsigned char *key, size_t k
         keypath_key_verify(key, key_len, &extkey) != WALLY_OK ||
         extkey.version || BYTES_INVALID(val, val_len))
         return WALLY_EINVAL;
-    if (val_len && (val_len % SHA256_LEN || val_len % SHA256_LEN > 128u))
+    if (val_len && (val_len % SHA256_LEN ||
+        val_len / SHA256_LEN > WALLY_DESCRIPTOR_TAPTREE_MAX_DEPTH))
         return WALLY_EINVAL;
     return WALLY_OK;
 }
@@ -834,12 +846,14 @@ static int hash_verify(const unsigned char *key, size_t key_len,
                        psbt_hash_fn_t hash_fn, size_t hash_len)
 {
     unsigned char buff[SHA256_LEN];
+    int ret;
 
-    if (key_len == hash_len &&
-        hash_fn(val, val_len, buff, hash_len) == WALLY_OK &&
-        !memcmp(key, buff, hash_len))
-        return WALLY_OK; /* Provided key is the correct hash of the preimage */
-    return WALLY_EINVAL; /* Invalid key */
+    if (key_len != hash_len)
+        return WALLY_EINVAL; /* Invalid key */
+    if ((ret = hash_fn(val, val_len, buff, hash_len)) == WALLY_OK &&
+        memcmp(key, buff, hash_len))
+        ret = WALLY_EINVAL; /* Provided key is not the hash of the preimage */
+    return ret;
 }
 
 int wally_map_hash_preimage_verify(const unsigned char *key, size_t key_len,
@@ -909,11 +923,12 @@ static int preimage_add(struct wally_map *map_in,
                         size_t type, psbt_hash_fn_t hash_fn, size_t len)
 {
     unsigned char tmp[SHA256_LEN];
+    int ret;
 
     if (!map_in || !val || !val_len)
         return WALLY_EINVAL;
-    if (hash_fn(val, val_len, tmp, len) != WALLY_OK)
-        return WALLY_EINVAL;
+    if ((ret = hash_fn(val, val_len, tmp, len)) != WALLY_OK)
+        return ret;
     return map_add_preimage_and_hash(map_in, tmp, len, val, val_len, type, true);
 }
 

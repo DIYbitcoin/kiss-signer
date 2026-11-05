@@ -92,6 +92,8 @@ static int base58_decode(const char *base58, size_t base58_len,
 
     /* Take 6 bits to store each 58 bit number, rounded up to the next byte,
      * then round that up to a uint32_t word boundary. */
+    if (base58_len > (SIZE_MAX - 7) / 6)
+        return WALLY_EINVAL; /* Too long: bn_words would overflow */
     bn_words = ((base58_len * 6 + 7) / 8 + 3) / 4;
 
     /* Allocate our bignum buffer if it won't fit on the stack */
@@ -151,15 +153,15 @@ cleanup:
     return ret;
 }
 
-uint32_t base58_get_checksum(const unsigned char *bytes, size_t bytes_len)
+int base58_get_checksum(const unsigned char *bytes, size_t bytes_len,
+                        uint32_t *checksum)
 {
     struct sha256 sha;
-    uint32_t checksum;
+    int ret = wally_sha256d(bytes, bytes_len, (unsigned char *)&sha, sizeof(sha));
 
-    wally_sha256d(bytes, bytes_len, (unsigned char *)&sha, sizeof(sha));
-    checksum = sha.u.u32[0];
+    *checksum = ret == WALLY_OK ? sha.u.u32[0] : 0;
     wally_clear(&sha, sizeof(sha));
-    return checksum;
+    return ret;
 }
 
 
@@ -169,7 +171,7 @@ int wally_base58_from_bytes(const unsigned char *bytes, size_t bytes_len,
     uint32_t checksum, *cs_p = NULL;
     unsigned char bn_buf[BIGNUM_BYTES];
     unsigned char *bn = bn_buf, *top_byte, *bn_p;
-    size_t bn_bytes = 0, zeros, i, orig_len = bytes_len;
+    size_t bn_bytes = 0, digits_len, zeros, i, orig_len = bytes_len;
     int ret = WALLY_EINVAL;
 
     if (output)
@@ -179,7 +181,8 @@ int wally_base58_from_bytes(const unsigned char *bytes, size_t bytes_len,
         goto cleanup; /* Invalid argument */
 
     if (flags & BASE58_FLAG_CHECKSUM) {
-        checksum = base58_get_checksum(bytes, bytes_len);
+        if ((ret = base58_get_checksum(bytes, bytes_len, &checksum)) != WALLY_OK)
+            goto cleanup;
         cs_p = &checksum;
         bytes_len += 4;
     }
@@ -201,6 +204,10 @@ int wally_base58_from_bytes(const unsigned char *bytes, size_t bytes_len,
         return WALLY_OK; /* All 0's */
     }
 
+    if (bytes_len - zeros > SIZE_MAX / 138) {
+        ret = WALLY_EINVAL;
+        goto cleanup; /* Too long: bn_bytes would overflow */
+    }
     bn_bytes = (bytes_len - zeros) * 138 / 100 + 1; /* log(256)/log(58) rounded up */
 
     /* Allocate our bignum buffer if it won't fit on the stack */
@@ -228,17 +235,17 @@ int wally_base58_from_bytes(const unsigned char *bytes, size_t bytes_len,
         ++top_byte; /* Skip leading zero bytes in our bignum */
 
     /* Copy the result */
-    bn_bytes = bn + bn_bytes - top_byte;
+    digits_len = bn + bn_bytes - top_byte;
 
-    if (!(*output = wally_malloc(zeros + bn_bytes + 1))) {
+    if (!(*output = wally_malloc(zeros + digits_len + 1))) {
         ret = WALLY_ENOMEM;
         goto cleanup;
     }
 
     memset(*output, '1', zeros);
-    for (i = 0; i < bn_bytes; ++i)
+    for (i = 0; i < digits_len; ++i)
         (*output)[zeros + i] = byte_to_base58[top_byte[i]];
-    (*output)[zeros + bn_bytes] = '\0';
+    (*output)[zeros + digits_len] = '\0';
 
     ret = WALLY_OK;
 
@@ -255,12 +262,18 @@ cleanup:
 
 int wally_base58_n_get_length(const char *str_in, size_t str_len, size_t *written)
 {
+    if (written)
+        *written = 0;
+
+    if (!written)
+        return WALLY_EINVAL;
+
     return base58_decode(str_in, str_len, NULL, written);
 }
 
 int wally_base58_get_length(const char *str_in, size_t *written)
 {
-    return base58_decode(str_in, str_in ? strlen(str_in) : 0, NULL, written);
+    return wally_base58_n_get_length(str_in, str_in ? strlen(str_in) : 0, written);
 }
 
 int wally_base58_n_to_bytes(const char *str_in, size_t str_len, uint32_t flags,
@@ -283,20 +296,30 @@ int wally_base58_n_to_bytes(const char *str_in, size_t str_len, uint32_t flags,
 
     *written = len;
     ret = base58_decode(str_in, str_len, bytes_out, written);
-    if (!ret && *written > len)
+    if (ret != WALLY_OK) {
+        *written = 0;
+        return ret;
+    }
+    if (*written > len)
         return WALLY_OK; /* not enough space, return required amount */
 
-    if (!ret && (flags & BASE58_FLAG_CHECKSUM)) {
+    if (flags & BASE58_FLAG_CHECKSUM) {
         if (*written <= BASE58_CHECKSUM_LEN) {
             wally_clear(bytes_out, len);
+            *written = 0;
             return WALLY_EINVAL; /* Input not long enough to contain a checksum */
         }
 
         offset = *written - BASE58_CHECKSUM_LEN;
-        checksum = base58_get_checksum(bytes_out, offset);
+        if ((ret = base58_get_checksum(bytes_out, offset, &checksum)) != WALLY_OK) {
+            wally_clear(bytes_out, len);
+            *written = 0;
+            return ret;
+        }
 
         if (memcmp(bytes_out + offset, &checksum, sizeof(checksum))) {
             wally_clear(bytes_out, len);
+            *written = 0;
             return WALLY_EINVAL; /* Checksum mismatch */
         }
 

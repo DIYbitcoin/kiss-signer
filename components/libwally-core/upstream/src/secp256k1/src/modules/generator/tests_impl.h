@@ -91,7 +91,7 @@ static void test_shallue_van_de_woestijne(void) {
     secp256k1_ge_storage ges;
     int i, s;
     for (i = 0; i <= 16; i++) {
-        secp256k1_fe_set_int(&fe, i);
+        secp256k1_fe_set_int_unchecked(&fe, i);
 
         for (s = 0; s < 2; s++) {
             if (s) {

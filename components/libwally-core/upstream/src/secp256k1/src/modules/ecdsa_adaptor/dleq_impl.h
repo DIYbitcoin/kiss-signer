@@ -24,10 +24,12 @@ static void secp256k1_nonce_function_dleq_sha256_tagged(secp256k1_sha256 *sha) {
 /* algo argument for nonce_function_ecdsa_adaptor to derive the nonce using a tagged hash function. */
 static const unsigned char dleq_algo[] = {'D','L','E','Q'};
 
+static int nonce_function_ecdsa_adaptor_impl(const secp256k1_hash_ctx *hash_ctx, unsigned char *nonce32, const unsigned char *msg32, const unsigned char *key32, const unsigned char *pk33, const unsigned char *algo, size_t algolen, void *data);
+
 static void secp256k1_dleq_hash_point(const secp256k1_hash_ctx *hash_ctx, secp256k1_sha256 *sha, secp256k1_ge *p) {
     unsigned char buf[33];
 
-    secp256k1_eckey_pubkey_serialize33(p, buf);
+    secp256k1_ge_serialize33(p, buf);
     secp256k1_sha256_write(hash_ctx, sha, buf, 33);
 }
 
@@ -36,20 +38,21 @@ static int secp256k1_dleq_nonce(const secp256k1_hash_ctx *hash_ctx, secp256k1_sc
     unsigned char buf[32];
     unsigned char nonce[32];
 
-    if (noncefp == NULL) {
-        noncefp = secp256k1_nonce_function_ecdsa_adaptor;
-    }
-
     secp256k1_sha256_initialize(&sha);
     secp256k1_sha256_write(hash_ctx, &sha, p1_33, 33);
     secp256k1_sha256_write(hash_ctx, &sha, p2_33, 33);
     secp256k1_sha256_finalize(hash_ctx, &sha, buf);
     secp256k1_sha256_clear(&sha);
 
-    if (!noncefp(nonce, buf, sk32, gen2_33, dleq_algo, sizeof(dleq_algo), ndata)) {
+    if (noncefp == NULL || noncefp == secp256k1_nonce_function_ecdsa_adaptor) {
+        if (!nonce_function_ecdsa_adaptor_impl(hash_ctx, nonce, buf, sk32, gen2_33, dleq_algo, sizeof(dleq_algo), ndata)) {
+            return 0;
+        }
+    } else if (!noncefp(nonce, buf, sk32, gen2_33, dleq_algo, sizeof(dleq_algo), ndata)) {
         return 0;
     }
     secp256k1_scalar_set_b32(k, nonce, NULL);
+    secp256k1_memclear_explicit(nonce, sizeof(nonce));
     if (secp256k1_scalar_is_zero(k)) {
         return 0;
     }
@@ -79,9 +82,12 @@ static void secp256k1_dleq_challenge(const secp256k1_hash_ctx *hash_ctx, secp256
 static void secp256k1_dleq_pair(const secp256k1_ecmult_gen_context *ecmult_gen_ctx, secp256k1_ge *p, const secp256k1_scalar *sk, const secp256k1_ge *gen2) {
     secp256k1_gej pj[2];
 
-    secp256k1_ecmult_gen(ecmult_gen_ctx, &pj[0], sk);
+    secp256k1_ecmult_gen_gej(ecmult_gen_ctx, &pj[0], sk);
     secp256k1_ecmult_const(&pj[1], gen2, sk);
     secp256k1_ge_set_all_gej(p, pj, 2);
+
+    secp256k1_gej_clear(&pj[0]);
+    secp256k1_gej_clear(&pj[1]);
 }
 
 /* Generates a proof that the discrete logarithm of P1 to the secp256k1 base G is the
@@ -89,7 +95,7 @@ static void secp256k1_dleq_pair(const secp256k1_ecmult_gen_context *ecmult_gen_c
 static int secp256k1_dleq_prove(const secp256k1_context* ctx, secp256k1_scalar *s, secp256k1_scalar *e, const secp256k1_scalar *sk, secp256k1_ge *p1, secp256k1_ge *gen2, secp256k1_ge *p2, secp256k1_nonce_function_hardened_ecdsa_adaptor noncefp, void *ndata) {
     /* Note: r[2] and k are local to the DLEQ proof, and they differ from the
      * values with the same identifiers in main_impl.h. */
-    const secp256k1_hash_ctx *hash_ctx = secp256k1_get_hash_context(ctx);
+    const secp256k1_hash_ctx *hash_ctx = &ctx->hash_ctx;
     secp256k1_ge r[2];
     secp256k1_scalar k = { 0 };
     unsigned char sk32[32];
@@ -98,9 +104,9 @@ static int secp256k1_dleq_prove(const secp256k1_context* ctx, secp256k1_scalar *
     unsigned char p2_33[33];
     int ret;
 
-    secp256k1_eckey_pubkey_serialize33(gen2, gen2_33);
-    secp256k1_eckey_pubkey_serialize33(p1, p1_33);
-    secp256k1_eckey_pubkey_serialize33(p2, p2_33);
+    secp256k1_ge_serialize33(gen2, gen2_33);
+    secp256k1_ge_serialize33(p1, p1_33);
+    secp256k1_ge_serialize33(p2, p2_33);
 
     secp256k1_scalar_get_b32(sk32, sk);
 

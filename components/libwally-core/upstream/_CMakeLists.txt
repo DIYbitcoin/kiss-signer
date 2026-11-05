@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.18)
 
 project(
   libwallycore
-  VERSION 1.5.4
+  VERSION 1.6.0
   DESCRIPTION "A collection of useful primitives for cryptocurrency wallets"
   LANGUAGES C
 )
@@ -11,9 +11,11 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 option(BUILD_SHARED_LIBS "Build as shared library" OFF)
 option(WALLYCORE_ENABLE_TESTS "Build tests" OFF)
 option(WALLYCORE_INSTALL "Enable install" OFF)
-option(WALLYCORE_COVERAGE "Enable coverage" OFF)
+option(WALLYCORE_ENABLE_COVERAGE "Enable coverage" OFF)
 option(WALLYCORE_BUILD_ELEMENTS "Build elements" ON)
 option(WALLYCORE_ENABLE_FUZZING "Enable fuzzing support" OFF)
+option(WALLYCORE_ENABLE_MBED_TLS "Use mbed-tls hashing functions where available" OFF)
+option(WALLYCORE_ENABLE_PSA_CRYPTO "Use PSA Crypto (TF-PSA-Crypto/Mbed TLS) hashing functions" OFF)
 option(WALLYCORE_ENABLE_ADDRESS_SANITIZER "Enable address sanitizer" OFF)
 option(WALLYCORE_ENABLE_UB_SANITIZER "Enable undefined behavior sanitizer" OFF)
 

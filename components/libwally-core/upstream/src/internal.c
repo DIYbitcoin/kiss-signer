@@ -161,22 +161,25 @@ int wally_bip340_tagged_hash(const unsigned char *bytes, size_t bytes_len,
 {
     struct sha256 sha;
     struct sha256_ctx ctx;
+    int ret = WALLY_ERROR;
 
     if (!bytes || !bytes_len || !tag || !bytes_out || len != SHA256_LEN)
         return WALLY_EINVAL;
 
     /* SHA256(SHA256(tag) || SHA256(tag) || msg) */
     /* TODO: Add optimised impls for Taproot fixed tags */
-    sha256(&sha, tag, strlen(tag));
-    sha256_init(&ctx);
-    sha256_update(&ctx, &sha, sizeof(sha));
-    sha256_update(&ctx, &sha, sizeof(sha));
-    sha256_update(&ctx, bytes, bytes_len);
-    sha256_done(&ctx, &sha);
-
-    memcpy(bytes_out, &sha, sizeof(sha));
+    if (sha256(&sha, tag, strlen(tag))) {
+        sha256_init(&ctx);
+        sha256_update(&ctx, &sha, sizeof(sha));
+        sha256_update(&ctx, &sha, sizeof(sha));
+        sha256_update(&ctx, bytes, bytes_len);
+        if (sha256_done(&ctx, &sha)) {
+            memcpy(bytes_out, &sha, sizeof(sha));
+            ret = WALLY_OK;
+        }
+    }
     wally_clear_2(&sha, sizeof(sha), &ctx, sizeof(ctx));
-    return WALLY_OK;
+    return ret;
 }
 
 int wally_sha256(const unsigned char *bytes, size_t bytes_len,
@@ -184,58 +187,81 @@ int wally_sha256(const unsigned char *bytes, size_t bytes_len,
 {
     struct sha256 sha;
     const bool aligned = alignment_ok(bytes_out, sizeof(sha.u.u32[0]));
+    bool ok;
 
     if ((!bytes && bytes_len != 0) || !bytes_out || len != SHA256_LEN)
         return WALLY_EINVAL;
 
-    sha256(aligned ? (void *)bytes_out : (void *)&sha, bytes, bytes_len);
+    ok = sha256(aligned ? (void *)bytes_out : (void *)&sha, bytes, bytes_len);
     if (!aligned) {
         memcpy(bytes_out, &sha, sizeof(sha));
         wally_clear(&sha, sizeof(sha));
     }
+    if (!ok) {
+        wally_clear(bytes_out, len);
+        return WALLY_ERROR;
+    }
     return WALLY_OK;
 }
 
+#if defined(CCAN_CRYPTO_SHA256_USE_MBEDTLS) || defined(CCAN_CRYPTO_SHA256_USE_PSA)
+/* The running state of an mbedtls context is not always readable: hardware
+ * implementations may hold it elsewhere or only update it later, and may hold
+ * resources until the context is finished or freed. PSA contexts are opaque.
+ * Compute the midstate with the software transform instead. Only whole
+ * 64-byte blocks contribute, as with the builtin implementation.
+ */
+static void sha256_midstate_sw(const unsigned char *bytes, size_t bytes_len,
+                               struct sha256 *res)
+{
+    uint32_t s[8] = { 0x6a09e667ul, 0xbb67ae85ul, 0x3c6ef372ul, 0xa54ff53aul,
+                      0x510e527ful, 0x9b05688cul, 0x1f83d9abul, 0x5be0cd19ul };
+    const size_t num_blocks = bytes_len / 64;
+    size_t i;
+
+    if (num_blocks && alignment_ok(bytes, sizeof(uint32_t)))
+        sha256_sw_transform(s, (const uint32_t *)(const void *)bytes, num_blocks);
+    else if (num_blocks) {
+        union { uint32_t u32[16]; unsigned char u8[64]; } buf;
+        for (i = 0; i < num_blocks; ++i) {
+            memcpy(buf.u8, bytes + i * 64, sizeof(buf));
+            sha256_sw_transform(s, buf.u32, 1);
+        }
+        wally_clear(&buf, sizeof(buf));
+    }
+    for (i = 0; i < NUM_ELEMS(s); ++i)
+        res->u.u32[i] = cpu_to_be32(s[i]);
+    wally_clear(s, sizeof(s));
+}
+#else
 static void sha256_midstate(struct sha256_ctx *ctx, struct sha256 *res)
 {
-#ifdef CCAN_CRYPTO_SHA256_USE_MBEDTLS
-#ifndef CONFIG_MBEDTLS_HARDWARE_SHA
-#define SHA_CTX_STATE c.MBEDTLS_PRIVATE(state)
-#else
-#define SHA_CTX_STATE c.state
-#endif
-#else
-#define SHA_CTX_STATE s
-#endif
-
-#if defined(CCAN_CRYPTO_SHA256_USE_MBEDTLS) && \
-    defined(MBEDTLS_SHA256_ALT) && !defined(SOC_SHA_SUPPORT_PARALLEL_ENG)
-    /* HW: Already big endian */
-    memcpy(res->u.u32, ctx->SHA_CTX_STATE, sizeof(ctx->SHA_CTX_STATE));
-#else
-    for (size_t i = 0; i < NUM_ELEMS(ctx->SHA_CTX_STATE); i++)
-        res->u.u32[i] = cpu_to_be32(ctx->SHA_CTX_STATE[i]);
-#endif
-
-#ifndef CCAN_CRYPTO_SHA256_USE_MBEDTLS
+    for (size_t i = 0; i < NUM_ELEMS(ctx->s); i++)
+        res->u.u32[i] = cpu_to_be32(ctx->s[i]);
     ctx->bytes = (size_t)-1;
-#endif
 }
+#endif /* CCAN_CRYPTO_SHA256_USE_MBEDTLS || CCAN_CRYPTO_SHA256_USE_PSA */
 
 int wally_sha256_midstate(const unsigned char *bytes, size_t bytes_len,
                           unsigned char *bytes_out, size_t len)
 {
     struct sha256 sha;
-    struct sha256_ctx ctx;
     const bool aligned = alignment_ok(bytes_out, sizeof(sha.u.u32[0]));
 
     if ((!bytes && bytes_len != 0) || !bytes_out || len != SHA256_LEN)
         return WALLY_EINVAL;
 
-    sha256_init(&ctx);
-    sha256_update(&ctx, bytes, bytes_len);
-    sha256_midstate(&ctx, aligned ? (void *)bytes_out : (void *)&sha);
-    wally_clear(&ctx, sizeof(ctx));
+#if defined(CCAN_CRYPTO_SHA256_USE_MBEDTLS) || defined(CCAN_CRYPTO_SHA256_USE_PSA)
+    sha256_midstate_sw(bytes, bytes_len, aligned ? (void *)bytes_out : (void *)&sha);
+#else
+    {
+        struct sha256_ctx ctx;
+        sha256_init(&ctx);
+        sha256_update(&ctx, bytes, bytes_len);
+        sha256_midstate(&ctx, aligned ? (void *)bytes_out : (void *)&sha);
+        wally_clear(&ctx, sizeof(ctx));
+    }
+#endif
 
     if (!aligned) {
         memcpy(bytes_out, &sha, sizeof(sha));
@@ -249,17 +275,22 @@ int wally_sha256d(const unsigned char *bytes, size_t bytes_len,
 {
     struct sha256 sha_1, sha_2;
     const bool aligned = alignment_ok(bytes_out, sizeof(sha_1.u.u32[0]));
+    bool ok;
 
     if ((!bytes && bytes_len != 0) || !bytes_out || len != SHA256_LEN)
         return WALLY_EINVAL;
 
-    sha256(&sha_1, bytes, bytes_len);
-    sha256(aligned ? (void *)bytes_out : (void *)&sha_2, &sha_1, sizeof(sha_1));
+    ok = sha256(&sha_1, bytes, bytes_len) &&
+         sha256(aligned ? (void *)bytes_out : (void *)&sha_2, &sha_1, sizeof(sha_1));
     if (!aligned) {
         memcpy(bytes_out, &sha_2, sizeof(sha_2));
         wally_clear(&sha_2, sizeof(sha_2));
     }
     wally_clear(&sha_1, sizeof(sha_1));
+    if (!ok) {
+        wally_clear(bytes_out, len);
+        return WALLY_ERROR;
+    }
     return WALLY_OK;
 }
 
@@ -268,14 +299,19 @@ int wally_sha512(const unsigned char *bytes, size_t bytes_len,
 {
     struct sha512 sha;
     const bool aligned = alignment_ok(bytes_out, sizeof(sha.u.u64[0]));
+    bool ok;
 
     if ((!bytes && bytes_len != 0) || !bytes_out || len != SHA512_LEN)
         return WALLY_EINVAL;
 
-    sha512(aligned ? (void *)bytes_out : (void *)&sha, bytes, bytes_len);
+    ok = sha512(aligned ? (void *)bytes_out : (void *)&sha, bytes, bytes_len);
     if (!aligned) {
         memcpy(bytes_out, &sha, sizeof(sha));
         wally_clear(&sha, sizeof(sha));
+    }
+    if (!ok) {
+        wally_clear(bytes_out, len);
+        return WALLY_ERROR;
     }
     return WALLY_OK;
 }
@@ -305,14 +341,15 @@ int wally_hash160(const unsigned char *bytes, size_t bytes_len,
     unsigned char buff[SHA256_LEN];
     struct ripemd160 ripemd;
     const bool aligned = alignment_ok(bytes_out, sizeof(ripemd.u.u32[0]));
+    int ret;
 
     if (!bytes_out || len != HASH160_LEN)
         return WALLY_EINVAL;
 
     BUILD_ASSERT(sizeof(ripemd) == HASH160_LEN);
 
-    if (wally_sha256(bytes, bytes_len, buff, sizeof(buff)) != WALLY_OK)
-        return WALLY_EINVAL;
+    if ((ret = wally_sha256(bytes, bytes_len, buff, sizeof(buff))) != WALLY_OK)
+        return ret;
 
     ripemd160(aligned ? (void *)bytes_out : (void *)&ripemd, &buff, sizeof(buff));
     if (!aligned) {
@@ -428,12 +465,34 @@ void wally_free(void *ptr)
     _ops.free_fn(ptr);
 }
 
+#if (defined(__x86_64__) || defined(__i386__)) && !defined(_WIN32)
+/* On x86, optimized memcpy in libc can use SSE/AVX registers,
+ * leaving copied data in registers of up to 512 bits in size.
+ * In shared library builds if a call though the PLT is made before
+ * something else overwites these registers, they are spilled to the
+ * stack and not later cleared.
+ * Use an unoptimized, byte-by-byte impl to prevent this (we only
+ * need this for secret/potentially secret data which is usually small).
+ */
+void wally_memcpy(void *dest, const void *src, size_t n)
+{
+    for (size_t i = 0; i < n; ++i) {
+        ((unsigned char*)dest)[i] = ((const unsigned char*)src)[i];
+    }
+}
+#else
+void wally_memcpy(void *dest, const void *src, size_t n)
+{
+    memcpy(dest, src, n);
+}
+#endif
+
 char *wally_strdup_n(const char *str, size_t str_len)
 {
     char *new_str = (char *)wally_malloc(str_len + 1);
     if (new_str) {
         if (str_len) {
-            memcpy(new_str, str, str_len);
+            wally_memcpy(new_str, str, str_len);
         }
         new_str[str_len] = '\0';
     }
@@ -543,11 +602,22 @@ void clear_and_free_bytes(unsigned char **p, size_t *len)
 
 bool mem_is_zero(const void *mem, size_t len)
 {
+    const volatile unsigned char *p = mem;
+    unsigned char bits = 0;
     size_t i;
     for (i = 0; i < len; ++i)
-        if (((const unsigned char *)mem)[i])
-            return false;
-    return true;
+        bits |= p[i];
+    return bits == 0;
+}
+
+bool mem_is_equal(const void *a, const void *b, size_t len)
+{
+    const volatile unsigned char *pa = a, *pb = b;
+    unsigned char diff = 0;
+    size_t i;
+    for (i = 0; i < len; ++i)
+        diff |= pa[i] ^ pb[i];
+    return diff == 0;
 }
 
 static bool wally_init_done = false;
@@ -558,6 +628,11 @@ int wally_init(uint32_t flags)
         return WALLY_EINVAL;
 
     if (!wally_init_done) {
+#if defined(CCAN_CRYPTO_SHA256_USE_PSA) || defined(CCAN_CRYPTO_SHA512_USE_PSA)
+        /* Idempotent; ESP-IDF calls this at boot but other platforms may not */
+        if (psa_crypto_init() != PSA_SUCCESS)
+            return WALLY_ERROR;
+#endif
         sha256_optimize();
         wally_init_done = true;
     }
@@ -591,7 +666,7 @@ bool clone_data(void **dst, const void *src, size_t len)
     }
     *dst = wally_malloc(len);
     if (*dst)
-        memcpy(*dst, src, len);
+        wally_memcpy(*dst, src, len);
     return *dst != NULL;
 }
 
@@ -618,15 +693,22 @@ int replace_bytes(const unsigned char *bytes, size_t bytes_len,
     return WALLY_OK;
 }
 
-
+void *array_calloc(size_t n, size_t size)
+{
+    if (size && n > SIZE_MAX / size)
+        return NULL; /* Overflow */
+    return wally_calloc(n * size);
+}
 
 void *array_realloc(const void *src, size_t old_n, size_t new_n, size_t size)
 {
-    unsigned char *p = wally_malloc(new_n * size);
-    if (!p)
+    unsigned char *p;
+    if (new_n <= old_n || new_n > SIZE_MAX / size)
+        return NULL; /* Not growing, or overflow */
+    if (!(p = wally_malloc(new_n * size)))
         return NULL;
     if (src)
-        memcpy(p, src, old_n * size);
+        wally_memcpy(p, src, old_n * size);
     wally_clear(p + old_n * size, (new_n - old_n) * size);
     return p;
 }

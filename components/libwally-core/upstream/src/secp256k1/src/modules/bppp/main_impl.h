@@ -18,7 +18,7 @@
 secp256k1_bppp_generators *secp256k1_bppp_generators_create(const secp256k1_context *ctx, size_t n) {
     secp256k1_bppp_generators *ret;
     secp256k1_rfc6979_hmac_sha256 rng;
-    const secp256k1_hash_ctx *hash_ctx = secp256k1_get_hash_context(ctx);
+    const secp256k1_hash_ctx *hash_ctx = &ctx->hash_ctx;
     unsigned char seed[64];
     size_t i;
 
@@ -26,6 +26,11 @@ secp256k1_bppp_generators *secp256k1_bppp_generators_create(const secp256k1_cont
 
     ret = checked_malloc(&ctx->error_callback, sizeof(*ret));
     if (ret == NULL) {
+        return NULL;
+    }
+    /* Ensure that multiplication will not wrap around */
+    if (n > SIZE_MAX / sizeof(*ret->gens)) {
+        free(ret);
         return NULL;
     }
     ret->gens = checked_malloc(&ctx->error_callback, n * sizeof(*ret->gens));

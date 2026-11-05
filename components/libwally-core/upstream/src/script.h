@@ -2,6 +2,8 @@
 #define LIBWALLY_CORE_SCRIPT_INTERNAL_H 1
 
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 
 /* Get the size of a push from the script push opcode(s) */
 int script_get_push_size_from_bytes(
@@ -18,7 +20,14 @@ int script_get_push_opcode_size_from_bytes(
 /* Get OP_N */
 bool script_is_op_n(unsigned char op, bool allow_zero, size_t *n);
 
+bool scriptpubkey_is_p2wpkh(const unsigned char *bytes, size_t bytes_len);
+bool scriptpubkey_is_p2wsh(const unsigned char *bytes, size_t bytes_len);
 bool scriptpubkey_is_p2tr(const unsigned char *bytes, size_t bytes_len);
+
+/* Return true if bytes is exactly a witness program that can be encoded as
+ * a segwit address, optionally returning its witness version */
+bool scriptpubkey_is_witness_program(const unsigned char *bytes, size_t bytes_len,
+                                     size_t *version);
 
 /* Convert 0-16 to OP_<N> */
 size_t value_to_op_n(uint64_t v);

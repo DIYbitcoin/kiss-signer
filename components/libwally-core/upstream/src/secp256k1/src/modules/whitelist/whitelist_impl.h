@@ -21,7 +21,7 @@ static int secp256k1_whitelist_hash_pubkey(const secp256k1_hash_ctx *hash_ctx, s
     if (secp256k1_ge_is_infinity(&ge)) {
         return 0;
     }
-    secp256k1_eckey_pubkey_serialize33(&ge, c);
+    secp256k1_ge_serialize33(&ge, c);
     secp256k1_sha256_write(hash_ctx, &sha, c, size);
     secp256k1_sha256_finalize(hash_ctx, &sha, h);
     secp256k1_sha256_clear(&sha);
@@ -51,25 +51,23 @@ static int secp256k1_whitelist_tweak_pubkey(const secp256k1_hash_ctx *hash_ctx, 
 
 static int secp256k1_whitelist_compute_tweaked_privkey(const secp256k1_context* ctx, secp256k1_scalar* skey, const unsigned char *online_key, const unsigned char *summed_key) {
     secp256k1_scalar tweak;
-    const secp256k1_hash_ctx *hash_ctx = secp256k1_get_hash_context(ctx);
+    const secp256k1_hash_ctx *hash_ctx = &ctx->hash_ctx;
     int ret = 1;
-    int overflow = 0;
 
-    secp256k1_scalar_set_b32(skey, summed_key, &overflow);
-    if (overflow || secp256k1_scalar_is_zero(skey)) {
+    if (!secp256k1_scalar_set_b32_seckey(skey, summed_key)) {
         ret = 0;
     }
     if (ret) {
         secp256k1_gej pkeyj;
-        secp256k1_ecmult_gen(&ctx->ecmult_gen_ctx, &pkeyj, skey);
+        secp256k1_ecmult_gen_gej(&ctx->ecmult_gen_ctx, &pkeyj, skey);
         ret = secp256k1_whitelist_hash_pubkey(hash_ctx, &tweak, &pkeyj);
+        secp256k1_gej_clear(&pkeyj);
     }
     if (ret) {
         secp256k1_scalar sonline;
         secp256k1_scalar_mul(skey, skey, &tweak);
 
-        secp256k1_scalar_set_b32(&sonline, online_key, &overflow);
-        if (overflow || secp256k1_scalar_is_zero(&sonline)) {
+        if (!secp256k1_scalar_set_b32_seckey(&sonline, online_key)) {
             ret = 0;
         }
         secp256k1_scalar_add(skey, skey, &sonline);
@@ -87,7 +85,7 @@ static int secp256k1_whitelist_compute_tweaked_privkey(const secp256k1_context* 
  * for the ring signature; also produce a commitment to every one that will
  * be our "message". */
 static int secp256k1_whitelist_compute_keys_and_message(const secp256k1_context* ctx, unsigned char *msg32, secp256k1_gej *keys, const secp256k1_pubkey *online_pubkeys, const secp256k1_pubkey *offline_pubkeys, const int n_keys, const secp256k1_pubkey *sub_pubkey) {
-    const secp256k1_hash_ctx *hash_ctx = secp256k1_get_hash_context(ctx);
+    const secp256k1_hash_ctx *hash_ctx = &ctx->hash_ctx;
     unsigned char c[33];
     size_t size = 33;
     secp256k1_sha256 sha;
@@ -98,7 +96,7 @@ static int secp256k1_whitelist_compute_keys_and_message(const secp256k1_context*
     secp256k1_pubkey_load(ctx, &subkey_ge, sub_pubkey);
 
     /* commit to sub-key */
-    secp256k1_eckey_pubkey_serialize33(&subkey_ge, c);
+    secp256k1_ge_serialize33(&subkey_ge, c);
     secp256k1_sha256_write(hash_ctx, &sha, c, size);
     for (i = 0; i < n_keys; i++) {
         secp256k1_ge offline_ge;
@@ -107,15 +105,18 @@ static int secp256k1_whitelist_compute_keys_and_message(const secp256k1_context*
 
         /* commit to fixed keys */
         secp256k1_pubkey_load(ctx, &offline_ge, &offline_pubkeys[i]);
-        secp256k1_eckey_pubkey_serialize33(&offline_ge, c);
+        secp256k1_ge_serialize33(&offline_ge, c);
         secp256k1_sha256_write(hash_ctx, &sha, c, size);
         secp256k1_pubkey_load(ctx, &online_ge, &online_pubkeys[i]);
-        secp256k1_eckey_pubkey_serialize33(&online_ge, c);
+        secp256k1_ge_serialize33(&online_ge, c);
         secp256k1_sha256_write(hash_ctx, &sha, c, size);
 
         /* compute tweaked keys */
         secp256k1_gej_set_ge(&tweaked_gej, &offline_ge);
         secp256k1_gej_add_ge_var(&tweaked_gej, &tweaked_gej, &subkey_ge, NULL);
+        /* Fails only for the degenerate destination W = -P_i, where the ring
+         * key intentionally collapses to Q_i. See the rationale on
+         * secp256k1_whitelist_verify in include/secp256k1_whitelist.h. */
         secp256k1_whitelist_tweak_pubkey(hash_ctx, &tweaked_gej);
         secp256k1_gej_add_ge_var(&keys[i], &tweaked_gej, &online_ge, NULL);
     }

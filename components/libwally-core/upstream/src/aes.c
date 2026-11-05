@@ -92,9 +92,8 @@ int wally_aes(const unsigned char *key, size_t key_len,
     AES256_ctx ctx;
     size_t written;
 
-    if (!are_valid_args(key, key_len, bytes, bytes_len, flags, &written) ||
-        len % AES_BLOCK_LEN || !bytes_len || bytes_len % AES_BLOCK_LEN ||
-        !bytes_out || !len)
+    if (wally_aes_len(key, key_len, bytes, bytes_len, flags, &written) != WALLY_OK ||
+        !bytes_out || !len || len < bytes_len)
         return WALLY_EINVAL;
 
     if (flags & AES_FLAG_ENCRYPT)
@@ -121,8 +120,8 @@ static bool are_valid_aes_cbc_args(const unsigned char *key, size_t key_len,
         if (len % AES_BLOCK_LEN)
             return false; /* Output must be a block length multiple if given */
     } else {
-        if (bytes_len % AES_BLOCK_LEN)
-            return false; /* Input must be a block length multiple if given */
+        if (!bytes_len || bytes_len % AES_BLOCK_LEN)
+            return false; /* Input must be a non-empty block length multiple */
     }
     return true;
 }
@@ -297,7 +296,7 @@ int wally_aes_cbc_with_ecdh_key(
 
     if (is_encrypt) {
         /* Copy the IV to the start of the encrypted output */
-        memcpy(bytes_out, iv, iv_len);
+        wally_memcpy(bytes_out, iv, iv_len);
     } else {
         /* The IV is the first AES_BLOCK_LEN bytes of the payload */
         iv = bytes;
@@ -317,7 +316,7 @@ int wally_aes_cbc_with_ecdh_key(
                                 bytes, bytes_len - sizeof(hmac),
                                 hmac, sizeof(hmac));
         if (ret == WALLY_OK &&
-            memcmp(hmac, bytes + bytes_len - sizeof(hmac), sizeof(hmac)))
+            !mem_is_equal(hmac, bytes + bytes_len - sizeof(hmac), sizeof(hmac)))
             ret = WALLY_EINVAL; /* Invalid HMAC */
     }
 

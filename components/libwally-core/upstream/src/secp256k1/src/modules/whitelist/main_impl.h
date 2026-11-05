@@ -13,7 +13,7 @@
 #define MAX_KEYS SECP256K1_WHITELIST_MAX_N_KEYS  /* shorter alias */
 
 int secp256k1_whitelist_sign(const secp256k1_context* ctx, secp256k1_whitelist_signature *sig, const secp256k1_pubkey *online_pubkeys, const secp256k1_pubkey *offline_pubkeys, const size_t n_keys, const secp256k1_pubkey *sub_pubkey, const unsigned char *online_seckey, const unsigned char *summed_seckey, const size_t index) {
-    const secp256k1_hash_ctx *hash_ctx = secp256k1_get_hash_context(ctx);
+    const secp256k1_hash_ctx *hash_ctx = &ctx->hash_ctx;
     secp256k1_gej pubs[MAX_KEYS];
     secp256k1_scalar s[MAX_KEYS];
     secp256k1_scalar sec, non;
@@ -50,7 +50,7 @@ int secp256k1_whitelist_sign(const secp256k1_context* ctx, secp256k1_whitelist_s
             size_t i;
             unsigned char nonce32[32];
             int done;
-            ret = secp256k1_nonce_function_default(nonce32, msg32, seckey32, NULL, NULL, count);
+            ret = nonce_function_rfc6979_impl(hash_ctx, nonce32, msg32, seckey32, NULL, NULL, count);
             if (!ret) {
                 break;
             }
@@ -64,7 +64,7 @@ int secp256k1_whitelist_sign(const secp256k1_context* ctx, secp256k1_whitelist_s
             for (i = 0; i < n_keys; i++) {
                 msg32[0] ^= i + 1;
                 msg32[1] ^= (i + 1) / 0x100;
-                ret = secp256k1_nonce_function_default(&sig->data[32 * (i + 1)], msg32, seckey32, NULL, NULL, count);
+                ret = nonce_function_rfc6979_impl(hash_ctx, &sig->data[32 * (i + 1)], msg32, seckey32, NULL, NULL, count);
                 if (!ret) {
                     break;
                 }
@@ -97,7 +97,7 @@ int secp256k1_whitelist_sign(const secp256k1_context* ctx, secp256k1_whitelist_s
 }
 
 int secp256k1_whitelist_verify(const secp256k1_context* ctx, const secp256k1_whitelist_signature *sig, const secp256k1_pubkey *online_pubkeys, const secp256k1_pubkey *offline_pubkeys, const size_t n_keys, const secp256k1_pubkey *sub_pubkey) {
-    const secp256k1_hash_ctx *hash_ctx = secp256k1_get_hash_context(ctx);
+    const secp256k1_hash_ctx *hash_ctx = &ctx->hash_ctx;
     secp256k1_scalar s[MAX_KEYS];
     secp256k1_gej pubs[MAX_KEYS];
     unsigned char msg32[32];
@@ -133,19 +133,28 @@ size_t secp256k1_whitelist_signature_n_keys(const secp256k1_whitelist_signature 
 }
 
 int secp256k1_whitelist_signature_parse(const secp256k1_context* ctx, secp256k1_whitelist_signature *sig, const unsigned char *input, size_t input_len) {
+    size_t n_keys;
     VERIFY_CHECK(ctx != NULL);
     ARG_CHECK(sig != NULL);
     ARG_CHECK(input != NULL);
+
+    /* The header guarantees sig is initialized on every path and that a failed
+     * parse fails validation for any key set. MAX_KEYS + 1 is that canonical
+     * invalid state: _verify rejects it on sig->n_keys > MAX_KEYS regardless of
+     * the count the caller supplies. */
+    memset(sig, 0, sizeof(*sig));
+    sig->n_keys = MAX_KEYS + 1;
 
     if (input_len == 0) {
         return 0;
     }
 
-    sig->n_keys = input[0];
-    if (sig->n_keys > MAX_KEYS || input_len != 1 + 32 * (sig->n_keys + 1)) {
+    n_keys = input[0];
+    if (n_keys > MAX_KEYS || input_len != 1 + 32 * (n_keys + 1)) {
         return 0;
     }
-    memcpy(&sig->data[0], &input[1], 32 * (sig->n_keys + 1));
+    sig->n_keys = n_keys;
+    memcpy(&sig->data[0], &input[1], 32 * (n_keys + 1));
 
     return 1;
 }
@@ -156,6 +165,10 @@ int secp256k1_whitelist_signature_serialize(const secp256k1_context* ctx, unsign
     ARG_CHECK(output_len != NULL);
     ARG_CHECK(sig != NULL);
 
+    /* Do not trust n_keys to have come from _parse. */
+    if (sig->n_keys > MAX_KEYS) {
+        return 0;
+    }
     if (*output_len < 1 + 32 * (sig->n_keys + 1)) {
         return 0;
     }

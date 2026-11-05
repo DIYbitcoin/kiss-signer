@@ -7,6 +7,7 @@
 extern "C" {
 #endif
 
+struct ext_key;
 struct wally_map;
 /** An opaque type holding a parsed minscript/descriptor expression */
 struct wally_descriptor;
@@ -16,30 +17,35 @@ struct wally_descriptor;
 #define WALLY_MINISCRIPT_ONLY             0x02 /** Only allow miniscript (not descriptor) expressions */
 #define WALLY_MINISCRIPT_REQUIRE_CHECKSUM 0x04 /** Require a checksum to be present */
 #define WALLY_MINISCRIPT_POLICY_TEMPLATE  0x08 /** Only allow policy templates with @n BIP32 keys */
-#define WALLY_MINISCRIPT_UNIQUE_KEYPATHS  0x10 /** For policy templates, ensure BIP32 derivation paths differ for identical keys */
+#define WALLY_MINISCRIPT_UNIQUE_KEYPATHS  0x10 /** Deprecated, no longer used */
 #define WALLY_MINISCRIPT_AS_ELEMENTS      0x20 /** Treat non-elements expressions as elements, e.g. tr() as eltr() */
+#define WALLY_MINISCRIPT_ALLOW_NON_SANE   0x40 /** Allow scripts that fail miniscript sanity checks */
 #define WALLY_MINISCRIPT_DEPTH_MASK       0xffff0000 /** Mask for limiting maximum depth */
 #define WALLY_MINISCRIPT_DEPTH_SHIFT      16 /** Shift to convert maximum depth to flags */
 
 /*** miniscript-features Miniscript/Descriptor feature flags */
-#define WALLY_MS_IS_RANGED        0x001 /** Allows key ranges via ``*`` */
-#define WALLY_MS_IS_MULTIPATH     0x002 /** Allows multiple paths via ``<a;b;c>`` */
-#define WALLY_MS_IS_PRIVATE       0x004 /** Contains at least one private key */
-#define WALLY_MS_IS_UNCOMPRESSED  0x008 /** Contains at least one uncompressed key */
-#define WALLY_MS_IS_RAW           0x010 /** Contains at least one raw key */
-#define WALLY_MS_IS_DESCRIPTOR    0x020 /** Contains only descriptor expressions (no miniscript) */
-#define WALLY_MS_IS_X_ONLY        0x040 /** Contains at least one x-only key */
-#define WALLY_MS_IS_PARENTED      0x080 /** Contains at least one key key with a parent key origin */
-#define WALLY_MS_IS_ELEMENTS      0x100 /** Contains Elements expressions or was parsed as Elements */
-#define WALLY_MS_IS_SLIP77        0x200 /** A confidential ct() descriptor with SLIP-77 blinding */
-#define WALLY_MS_IS_ELIP150       0x400 /** A confidential ct() descriptor with ELIP-150 blinding */
-#define WALLY_MS_IS_ELIP151       0x800 /** A confidential ct() descriptor with ELIP-151 blinding */
-#define WALLY_MS_ANY_BLINDING_KEY 0xE00 /** SLIP-77, ELIP-150 or ELIP-151 blinding key present */
+#define WALLY_MS_IS_RANGED        0x0001 /** Allows key ranges via ``*`` */
+#define WALLY_MS_IS_MULTIPATH     0x0002 /** Allows multiple paths via ``<a;b;c>`` */
+#define WALLY_MS_IS_PRIVATE       0x0004 /** Contains at least one private key */
+#define WALLY_MS_IS_UNCOMPRESSED  0x0008 /** Contains at least one uncompressed key */
+#define WALLY_MS_IS_RAW           0x0010 /** Contains at least one raw key */
+#define WALLY_MS_IS_DESCRIPTOR    0x0020 /** Contains only descriptor expressions (no miniscript) */
+#define WALLY_MS_IS_X_ONLY        0x0040 /** Contains at least one x-only key */
+#define WALLY_MS_IS_PARENTED      0x0080 /** Contains at least one key with a parent key origin */
+#define WALLY_MS_IS_ELEMENTS      0x0100 /** Contains Elements expressions or was parsed as Elements */
+#define WALLY_MS_IS_SLIP77        0x0200 /** A confidential ct() descriptor with SLIP-77 blinding */
+#define WALLY_MS_IS_ELIP150       0x0400 /** A confidential ct() descriptor with ELIP-150 blinding */
+#define WALLY_MS_IS_ELIP151       0x0800 /** A confidential ct() descriptor with ELIP-151 blinding */
+#define WALLY_MS_IS_TAPROOT       0x1000 /** Contains a tr() taproot expression */
+#define WALLY_MS_IS_TAPSCRIPT     0x2000 /** Contains a tr(key,{...}) tapscript tree, or is a tapscript miniscript expression */
+#define WALLY_MS_ANY_BLINDING_KEY 0x0E00 /** SLIP-77, ELIP-150 or ELIP-151 blinding key present */
 
 /*** ms-canonicalization-flags Miniscript/Descriptor canonicalization flags */
 #define WALLY_MS_CANONICAL_NO_CHECKSUM 0x01 /** Do not include a checksum */
 
 #define WALLY_MS_BLINDING_KEY_INDEX 0xffffffff /* Key index for confidential blinding key */
+
+#define WALLY_DESCRIPTOR_TAPTREE_MAX_DEPTH 128 /* BIP-341: maximum taptree depth */
 
 /**
  * Parse an output descriptor or miniscript expression.
@@ -48,7 +54,9 @@ struct wally_descriptor;
  * :param vars_in: Map of variable names to values, or NULL.
  * :param network: Network the descriptor belongs to. Pass `WALLY_NETWORK_NONE`
  *|    for miniscript-only expressions or to infer the network. Must
- *|    be one of the :ref:`address-networks`.
+ *|    be one of the :ref:`address-networks`. Taproot expressions for
+ *|    Elements networks must use ``eltr()`` or `WALLY_MINISCRIPT_AS_ELEMENTS`.
+ *|    Elements expressions cannot be used with Bitcoin networks.
  * :param flags: :ref:`miniscript-flags`. The maximum depth of the descriptor
  *|    can be limited by passing the depth in the upper 16 bits of the flags.
  * :param output: Destination for the resulting parsed descriptor.
@@ -127,6 +135,8 @@ WALLY_CORE_API int wally_descriptor_get_network(
  * :param network: Network the descriptor should belong to. One of the :ref:`address-networks`.
  *
  * .. note:: The network can only be set if it is currently `WALLY_NETWORK_NONE`.
+ *|    A non-Elements taproot descriptor cannot be set to an Elements network,
+ *|    and an Elements descriptor cannot be set to a Bitcoin network.
  */
 WALLY_CORE_API int wally_descriptor_set_network(
     struct wally_descriptor *descriptor,
@@ -306,6 +316,49 @@ WALLY_CORE_API int wally_descriptor_get_key_origin_path_str(
     size_t index,
     char **output);
 
+
+/**
+ * Derive a BIP32 extended key from a parsed output descriptor or miniscript expression.
+ *
+ * :param descriptor: Parsed output descriptor or miniscript expression.
+ * :param index: The zero-based index of the key to get, or `WALLY_MS_BLINDING_KEY_INDEX`
+ *|    to fetch the descriptors blinding key representaton (if any).
+ * :param variant: The variant of descriptor to derive from. See `wally_descriptor_get_num_variants`.
+ * :param multi_index: The multi-path item to derive from. See `wally_descriptor_get_num_paths`.
+ * :param child_num: The BIP32 child number to derive, or 0 for static descriptors.
+ * :param flags: Use `BIP32_FLAG_KEY_PUBLIC` to return public keys from private keys,
+ *|    and `BIP32_FLAG_SKIP_HASH` to avoid populating the derived key fingerprint.
+ * :param output: Destination for the resulting derived key.
+ *
+ * .. note:: The returned key may be bare (have only the public or private key populated).
+ *|    x-only bare keys have a prefix byte of 0x00. The caller can use `wally_descriptor_get_key_features` to
+ *|    determine the type of a given key before extracting data from it.
+ *
+ * .. note:: SLIP77 blinding keys are returned in the private key of the extended key.
+ */
+WALLY_CORE_API int wally_descriptor_derive_bip32_key(
+    const struct wally_descriptor *descriptor,
+    size_t index,
+    uint32_t variant,
+    uint32_t multi_index,
+    uint32_t child_num,
+    uint32_t flags,
+    struct ext_key *output);
+
+/**
+ * Derive a BIP32 extended key from a parsed output descriptor or miniscript expression.
+ *
+ * See `wally_descriptor_derive_bip32_key`.
+ */
+WALLY_CORE_API int wally_descriptor_derive_bip32_key_alloc(
+    const struct wally_descriptor *descriptor,
+    size_t index,
+    uint32_t variant,
+    uint32_t multi_index,
+    uint32_t child_num,
+    uint32_t flags,
+    struct ext_key **output);
+
 /**
  * Get the maximum length of a script corresponding to an output descriptor.
  *
@@ -368,6 +421,9 @@ WALLY_CORE_API int wally_descriptor_to_script(
 /**
  * Create an address corresponding to an output descriptor.
  *
+ * Returns WALLY_EINVAL if the descriptor script has no address
+ * representation, e.g. p2pk or bare multisig.
+ *
  * :param descriptor: Parsed output descriptor.
  * :param variant: The variant of descriptor to generate. See `wally_descriptor_get_num_variants`.
  * :param multi_index: The multi-path item to generate. See `wally_descriptor_get_num_paths`.
@@ -387,6 +443,9 @@ WALLY_CORE_API int wally_descriptor_to_address(
 /**
  * Create addresses that correspond to the derived range of an output descriptor.
  *
+ * Returns WALLY_EINVAL if the descriptor script has no address
+ * representation, e.g. p2pk or bare multisig.
+ *
  * :param descriptor: Parsed output descriptor.
  * :param variant: The variant of descriptor to generate. See `wally_descriptor_get_num_variants`.
  * :param multi_index: The multi-path item to generate. See `wally_descriptor_get_num_paths`.
@@ -405,6 +464,170 @@ WALLY_CORE_API int wally_descriptor_to_addresses(
     uint32_t flags,
     char **output,
     size_t num_outputs);
+
+/**
+ * Get the number of taptree leaves in a taproot output descriptor.
+ *
+ * Returns WALLY_EINVAL if the descriptor is not taproot.
+ *
+ * :param descriptor: Parsed tr() output descriptor.
+ * :param value_out: Destination for the number of taptree leaves.
+ */
+WALLY_CORE_API int wally_descriptor_get_taproot_num_leaves(
+    const struct wally_descriptor *descriptor,
+    uint32_t *value_out);
+
+/**
+ * Get the script for a specific taptree leaf in a taproot output descriptor.
+ *
+ * Returns WALLY_EINVAL if the descriptor is not taproot or `leaf_index`
+ * is out of bounds.
+ *
+ * :param descriptor: Parsed tr() output descriptor.
+ * :param leaf_index: Zero-based leaf index (depth-first, left-to-right order).
+ * :param multi_index: See `wally_descriptor_get_num_paths`.
+ * :param child_num: BIP32 child number, or 0 for static descriptors.
+ * :param flags: For future use. Must be 0.
+ * :param bytes_out: Destination for the compiled tapscript.
+ * :param len: Length of ``bytes_out`` in bytes.
+ * :param written: Destination for the number of bytes written to ``bytes_out``.
+ */
+WALLY_CORE_API int wally_descriptor_get_taproot_leaf_script(
+    const struct wally_descriptor *descriptor,
+    uint32_t leaf_index,
+    uint32_t multi_index,
+    uint32_t child_num,
+    uint32_t flags,
+    unsigned char *bytes_out,
+    size_t len,
+    size_t *written);
+
+/**
+ * Get the script length for a specific taptree leaf in a taproot output descriptor.
+ *
+ * See `wally_descriptor_get_taproot_leaf_script`.
+ */
+WALLY_CORE_API int wally_descriptor_get_taproot_leaf_script_len(
+    const struct wally_descriptor *descriptor,
+    uint32_t leaf_index,
+    uint32_t multi_index,
+    uint32_t child_num,
+    uint32_t flags,
+    size_t *written);
+
+/**
+ * Get the tapleaf hash for a specific taptree leaf in a taproot output descriptor.
+ *
+ * Returns WALLY_EINVAL if the descriptor is not taproot or `leaf_index`
+ * is out of bounds.
+ *
+ * :param descriptor: Parsed tr() output descriptor.
+ * :param leaf_index: Zero-based leaf index (depth-first, left-to-right order).
+ * :param multi_index: See `wally_descriptor_get_num_paths`.
+ * :param child_num: BIP32 child number, or 0 for static descriptors.
+ * :param flags: For future use. Must be 0.
+ * :param bytes_out: Destination for the 32-byte tapleaf hash.
+ * FIXED_SIZED_OUTPUT(len, bytes_out, SHA256_LEN)
+ */
+WALLY_CORE_API int wally_descriptor_get_taproot_leaf_hash(
+    const struct wally_descriptor *descriptor,
+    uint32_t leaf_index,
+    uint32_t multi_index,
+    uint32_t child_num,
+    uint32_t flags,
+    unsigned char *bytes_out,
+    size_t len);
+
+/**
+ * Get the BIP-341 control block for spending via a specific taptree leaf.
+ *
+ * Returns WALLY_EINVAL if the descriptor is not taproot or `leaf_index`
+ * is out of bounds.
+ *
+ * :param descriptor: Parsed tr() output descriptor.
+ * :param leaf_index: Zero-based leaf index (depth-first, left-to-right order).
+ * :param multi_index: See `wally_descriptor_get_num_paths`.
+ * :param child_num: BIP32 child number, or 0 for static descriptors.
+ * :param flags: For future use. Must be 0.
+ * :param bytes_out: Destination for the control block bytes.
+ * :param len: Length of ``bytes_out`` in bytes.
+ * :param written: Destination for the number of bytes written to ``bytes_out``.
+ */
+WALLY_CORE_API int wally_descriptor_get_taproot_control_block(
+    const struct wally_descriptor *descriptor,
+    uint32_t leaf_index,
+    uint32_t multi_index,
+    uint32_t child_num,
+    uint32_t flags,
+    unsigned char *bytes_out,
+    size_t len,
+    size_t *written);
+
+/**
+ * Get the BIP-341 control block for spending via a specific taptree leaf.
+ *
+ * See `wally_descriptor_get_taproot_control_block`.
+ */
+WALLY_CORE_API int wally_descriptor_get_taproot_control_block_len(
+    const struct wally_descriptor *descriptor,
+    uint32_t leaf_index,
+    uint32_t multi_index,
+    uint32_t child_num,
+    uint32_t flags,
+    size_t *written);
+
+/**
+ * Get the number of keys in a specific taptree leaf's miniscript.
+ *
+ * Returns WALLY_EINVAL if the descriptor is not taproot or `leaf_index`
+ * is out of bounds.
+ *
+ * :param descriptor: Parsed tr() output descriptor.
+ * :param leaf_index: Zero-based leaf index (depth-first, left-to-right order).
+ * :param value_out: Destination for the key count.
+ */
+WALLY_CORE_API int wally_descriptor_get_taproot_leaf_num_keys(
+    const struct wally_descriptor *descriptor,
+    uint32_t leaf_index,
+    uint32_t *value_out);
+
+/**
+ * Get the descriptor-level key index for a key within a specific taptree leaf.
+ *
+ * Returns WALLY_EINVAL if the descriptor is not taproot or `leaf_index`
+ * is out of bounds.
+ *
+ * :param descriptor: Parsed tr() output descriptor.
+ * :param leaf_index: Zero-based leaf index (depth-first, left-to-right order).
+ * :param key_index: Zero-based index of the key within the leaf's miniscript.
+ * :param value_out: Destination for the descriptor-level key index
+ *|    (suitable for use with `wally_descriptor_get_key`).
+ */
+WALLY_CORE_API int wally_descriptor_get_taproot_leaf_key_index(
+    const struct wally_descriptor *descriptor,
+    uint32_t leaf_index,
+    uint32_t key_index,
+    uint32_t *value_out);
+
+/**
+ * Get the merkle root of the taptree in a tr() descriptor.
+ *
+ * Returns WALLY_EINVAL if the descriptor does not contain a taptree.
+ *
+ * :param descriptor: Parsed tr() output descriptor.
+ * :param multi_index: See `wally_descriptor_get_num_paths`.
+ * :param child_num: BIP32 child number, or 0 for static descriptors.
+ * :param flags: For future use. Must be 0.
+ * :param bytes_out: Destination for the 32-byte merkle root.
+ * FIXED_SIZED_OUTPUT(len, bytes_out, SHA256_LEN)
+ */
+WALLY_CORE_API int wally_descriptor_get_taproot_merkle_root(
+    const struct wally_descriptor *descriptor,
+    uint32_t multi_index,
+    uint32_t child_num,
+    uint32_t flags,
+    unsigned char *bytes_out,
+    size_t len);
 
 #ifdef __cplusplus
 }

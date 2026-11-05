@@ -1,4 +1,5 @@
 #include "internal.h"
+#include <include/wally_script.h>
 #include <include/wally_transaction.h>
 #include "pullpush.h"
 #include "script.h"
@@ -10,9 +11,11 @@
 
 #define SIGTYPE_ALL (WALLY_SIGTYPE_PRE_SW | WALLY_SIGTYPE_SW_V0 | WALLY_SIGTYPE_SW_V1)
 
-#if defined(CCAN_CRYPTO_SHA256_USE_OPENSSL) || defined(CCAN_CRYPTO_SHA256_USE_MBEDTLS)
+#if defined(CCAN_CRYPTO_SHA256_USE_OPENSSL) || defined(CCAN_CRYPTO_SHA256_USE_MBEDTLS) || \
+    defined(CCAN_CRYPTO_SHA256_USE_PSA)
 /* For external sha256 implementations, we cannot cache the sha256 context as
- * they require extra setup before use that only sha256_init() provides.
+ * they require extra setup before use that only sha256_init() provides, and
+ * their state may be opaque or heap-backed and so cannot be copied by value.
  */
 #define TXIO_CTX_CACHEABLE 0
 #else
@@ -44,13 +47,25 @@
 #define TXIO_SHA_SEQUENCES_D          (TXIO_SHA_SEQUENCES | TXIO_SHA256_D)
 #define TXIO_SHA_ISSUANCES_D          (TXIO_SHA_ISSUANCES | TXIO_SHA256_D)
 #define TXIO_SHA_OUTPUTS_D            (TXIO_SHA_OUTPUTS | TXIO_SHA256_D)
-#define TXIO_SHA_OUTPUT_WITNESSES_D   (TXIO_SHA_OUTPUTS | TXIO_SHA256_D)
+#define TXIO_SHA_OUTPUT_WITNESSES_D   (TXIO_SHA_OUTPUT_WITNESSES | TXIO_SHA256_D)
 /* ... end of segwit cached data */
+
+/* Data cached by binary value */
+#define TXIO_CACHED_ANNEX             1
+#define TXIO_CACHED_TAPLEAF           2
+/* Type byte + version byte + hash */
+#define TXIO_CACHED_BYTES_LEN         (2 + SHA256_LEN)
 
 static const unsigned char zero_hash[SHA256_LEN];
 static const unsigned char EMPTY_PRE_SW_OUTPUT[9] = {
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00
 };
+#ifdef BUILD_ELEMENTS
+/* Null asset, value and nonce, empty script */
+static const unsigned char EMPTY_PRE_SW_OUTPUT_ELEMENTS[4] = {
+    0x00, 0x00, 0x00, 0x00
+};
+#endif
 
 /* SHA256(TapSighash) */
 static const unsigned char TAPSIGHASH_SHA256[SHA256_LEN] = {
@@ -61,6 +76,11 @@ static const unsigned char TAPSIGHASH_SHA256[SHA256_LEN] = {
 static const unsigned char TAPLEAF_SHA256[SHA256_LEN] = {
     0xae, 0xea, 0x8f, 0xdc, 0x42, 0x08, 0x98, 0x31, 0x05, 0x73, 0x4b, 0x58, 0x08, 0x1d, 0x1e, 0x26,
     0x38, 0xd3, 0x5f, 0x1c, 0xb5, 0x40, 0x08, 0xd4, 0xd3, 0x57, 0xca, 0x03, 0xbe, 0x78, 0xe9, 0xee
+};
+/* SHA256(TapBranch) */
+static const unsigned char TAPBRANCH_SHA256[SHA256_LEN] = {
+    0x19, 0x41, 0xa1, 0xf2, 0xe5, 0x6e, 0xb9, 0x5f, 0xa2, 0xa9, 0xf1, 0x94, 0xbe, 0x5c, 0x01, 0xf7,
+    0x21, 0x6f, 0x33, 0xed, 0x82, 0xb0, 0x91, 0x46, 0x34, 0x90, 0xd0, 0x5b, 0xf5, 0x16, 0xa0, 0x15
 };
 
 #ifdef BUILD_ELEMENTS
@@ -74,11 +94,18 @@ static const unsigned char TAPLEAF_SHA256_ELEMENTS[SHA256_LEN] = {
     0x69, 0xff, 0xb5, 0x5a, 0xb8, 0xc8, 0x1c, 0x21, 0xf5, 0x8b, 0x2a, 0xdc, 0xb0, 0x83, 0x5a, 0x08,
     0x60, 0x8a, 0xf5, 0x9d, 0x04, 0x2f, 0x03, 0x37, 0x64, 0x33, 0x9c, 0xd8, 0xe6, 0xba, 0x33, 0xe7
 };
+/* SHA256(TapBranch/elements) */
+static const unsigned char TAPBRANCH_SHA256_ELEMENTS[SHA256_LEN] = {
+    0xa0, 0x37, 0x22, 0xab, 0xcb, 0x0d, 0x54, 0xaa, 0x9e, 0x6b, 0x38, 0x93, 0xe9, 0xf8, 0x13, 0x7d,
+    0x90, 0x60, 0x21, 0x9c, 0x42, 0xcc, 0x13, 0x9c, 0x32, 0xc2, 0xeb, 0x67, 0x08, 0x0d, 0x73, 0xc6
+};
 #define TAPSIGHASH_SHA256(is_elements) (is_elements ? TAPSIGHASH_SHA256_ELEMENTS : TAPSIGHASH_SHA256)
 #define TAPLEAF_SHA256(is_elements) (is_elements ? TAPLEAF_SHA256_ELEMENTS : TAPLEAF_SHA256)
+#define TAPBRANCH_SHA256(is_elements) (is_elements ? TAPBRANCH_SHA256_ELEMENTS : TAPBRANCH_SHA256)
 #else
 #define TAPSIGHASH_SHA256(is_elements) TAPSIGHASH_SHA256
 #define TAPLEAF_SHA256(is_elements) TAPLEAF_SHA256
+#define TAPBRANCH_SHA256(is_elements) TAPBRANCH_SHA256
 #endif /* BUILD_ELEMENTS */
 
 static bool script_len_ok(size_t len) { return len != 0; }
@@ -92,9 +119,11 @@ static bool value_len_ok(size_t len)
 
 static uint64_t satoshi_from_item(const struct wally_map_item *item)
 {
-    uint64_t v;
-    /* Map values must be in cpu byte order, but may not be aligned */
-    memcpy(&v, item->value, item->value_len);
+    uint64_t v = WALLY_SATOSHI_MAX + 1;
+    if (item && satoshi_len_ok(item->value_len)) {
+        /* memcpy as values must be in cpu byte order but may not be aligned */
+        memcpy(&v, item->value, item->value_len);
+    }
     return v;
 }
 
@@ -179,7 +208,8 @@ static void hash_map_varbuff(struct sha256_ctx *ctx,
                              const struct wally_map *m, size_t index)
 {
     const struct wally_map_item *item = wally_map_get_integer(m, index);
-    hash_varbuff(ctx, item->value, item->value_len);
+    if (item)
+        hash_varbuff(ctx, item->value, item->value_len);
 }
 
 static bool txio_hash_cached_item(cursor_io *io, uint32_t key)
@@ -195,27 +225,65 @@ static bool txio_hash_cached_item(cursor_io *io, uint32_t key)
 static void txio_hash_sha256_ctx(cursor_io *io, struct sha256_ctx *ctx, int key)
 {
     struct sha256 hash;
-    sha256_done(ctx, &hash);
-    if (key & TXIO_SHA256_D) {
+    bool ok = sha256_done(ctx, &hash);
+    if (ok && (key & TXIO_SHA256_D)) {
         struct sha256 hash2;
-        sha256(&hash2, hash.u.u8, sizeof(hash));
+        ok = sha256(&hash2, hash.u.u8, sizeof(hash));
         memcpy(hash.u.u8, hash2.u.u8, sizeof(hash));
+    }
+    if (!ok) {
+        io->hash_failed = true; /* Don't cache the failed hash */
+        return;
     }
     hash_bytes(&io->ctx, hash.u.u8, sizeof(hash));
     if (io->cache && (key & ~TXIO_SHA256_D) != TXIO_UNCACHED)
         wally_map_add_integer(io->cache, key, hash.u.u8, sizeof(hash));
 }
 
+static bool txio_hash_cached_bytes(cursor_io *io,
+                                   unsigned char type, unsigned char leaf_version,
+                                   const unsigned char *key, size_t key_len)
+{
+    const struct wally_map_item *item;
+    item = io->cache ? wally_map_get(io->cache, key, key_len) : NULL;
+    if (!item || item->value_len != TXIO_CACHED_BYTES_LEN ||
+        item->value[0] != type || item->value[1] != leaf_version)
+        return false; /* Not cached, or cached as a different type */
+    hash_bytes(&io->ctx, item->value + 2, SHA256_LEN);
+    return true;
+}
+
+static void txio_hash_and_cache_bytes(cursor_io *io,
+                                      unsigned char type, unsigned char leaf_version,
+                                      const unsigned char *key, size_t key_len,
+                                      const unsigned char *hash)
+{
+    hash_bytes(&io->ctx, hash, SHA256_LEN);
+    if (io->cache) {
+        unsigned char value[TXIO_CACHED_BYTES_LEN];
+        value[0] = type;
+        value[1] = leaf_version;
+        memcpy(value + 2, hash, SHA256_LEN);
+        /* If the key is already cached as a different type, this leaves
+         * the original cached value in place; caching will be slightly
+         * less efficient, but this isn't expected to happen in practice.
+         */
+        wally_map_add(io->cache, key, key_len, value, sizeof(value));
+    }
+}
+
 static int txio_done(cursor_io *io, uint32_t flags)
 {
     struct sha256 hash;
-    sha256_done(&io->ctx, &hash);
-    if (flags & TXIO_SHA256_D) {
+    bool ok = sha256_done(&io->ctx, &hash);
+    if (ok && (flags & TXIO_SHA256_D)) {
         struct sha256 hash2;
-        sha256(&hash2, hash.u.u8, sizeof(hash));
-        push_bytes(&io->cursor, &io->max, hash2.u.u8, sizeof(hash2));
-    } else
-        push_bytes(&io->cursor, &io->max, hash.u.u8, sizeof(hash));
+        ok = sha256(&hash2, hash.u.u8, sizeof(hash));
+        memcpy(hash.u.u8, hash2.u.u8, sizeof(hash));
+    }
+    if (!ok || io->hash_failed)
+        return WALLY_ERROR;
+    push_bytes(&io->cursor, &io->max, hash.u.u8, sizeof(hash));
     if (io->max)
         return WALLY_ERROR; /* Wrote the wrong number of bytes: should not happen! */
     return WALLY_OK;
@@ -246,7 +314,8 @@ static void hash_map_commmitment(struct sha256_ctx *ctx,
                                  const struct wally_map *m, size_t index)
 {
     const struct wally_map_item *item = wally_map_get_integer(m, index);
-    hash_commmitment(ctx, item->value, item->value_len);
+    if (item)
+        hash_commmitment(ctx, item->value, item->value_len);
 }
 
 static void hash_asset_issuance(struct sha256_ctx *ctx,
@@ -543,43 +612,92 @@ static void txio_hash_sha_single_output(cursor_io *io,
 static void txio_hash_annex(cursor_io *io,
                             const unsigned char *annex, size_t annex_len)
 {
-    const struct wally_map_item *item;
-    item = io->cache ? wally_map_get(io->cache, annex, annex_len) : NULL;
-    if (item)
-        hash_bytes(&io->ctx, item->value, item->value_len);
-    else {
+    if (!txio_hash_cached_bytes(io, TXIO_CACHED_ANNEX, 0, annex, annex_len)) {
         struct sha256_ctx ctx;
         sha256_init(&ctx);
         hash_varbuff(&ctx, annex, annex_len);
         struct sha256 hash;
-        sha256_done(&ctx, &hash);
-        hash_bytes(&io->ctx, hash.u.u8, sizeof(hash));
-        if (io->cache)
-            wally_map_add(io->cache, annex, annex_len, hash.u.u8, sizeof(hash));
+        if (!sha256_done(&ctx, &hash)) {
+            io->hash_failed = true; /* Don't cache the failed hash */
+            return;
+        }
+        txio_hash_and_cache_bytes(io, TXIO_CACHED_ANNEX, 0,
+                                  annex, annex_len, hash.u.u8);
     }
 }
 
-static void txio_hash_tapleaf_hash(cursor_io *io,
+int bip341_tapbranch_hash(const unsigned char *lhs, size_t lhs_len,
+                          const unsigned char *rhs, size_t rhs_len,
+                          bool is_elements, unsigned char *bytes_out, size_t len)
+{
+    struct sha256_ctx ctx;
+    struct sha256 hash;
+
+    if (!lhs || lhs_len != SHA256_LEN || !rhs || rhs_len != SHA256_LEN ||
+        !bytes_out || len != SHA256_LEN)
+        return WALLY_EINVAL;
+
+#ifndef BUILD_ELEMENTS
+    if (is_elements)
+        return WALLY_EINVAL;
+#endif
+
+    tagged_hash_init(&ctx, TAPBRANCH_SHA256(is_elements), SHA256_LEN);
+    /* BIP-341: child hashes are sorted lexicographically before hashing so
+     * the merkle path doesn't need to encode left/right direction.
+     *   If k_j < e_j: k_{j+1} = hash_TapBranch(k_j || e_j)
+     *   If k_j >= e_j: k_{j+1} = hash_TapBranch(e_j || k_j) */
+    if (memcmp(lhs, rhs, lhs_len) > 0) {
+        const unsigned char *tmp = lhs;
+        lhs = rhs;
+        rhs = tmp;
+    }
+    hash_bytes(&ctx, lhs, lhs_len);
+    hash_bytes(&ctx, rhs, rhs_len);
+    if (!sha256_done(&ctx, &hash))
+        return WALLY_ERROR;
+    memcpy(bytes_out, hash.u.u8, sizeof(hash));
+    return WALLY_OK;
+}
+
+int bip341_tapleaf_hash(unsigned char leaf_version,
+                        const unsigned char *script, size_t script_len,
+                        bool is_elements, unsigned char *bytes_out, size_t len)
+{
+    struct sha256_ctx ctx;
+    struct sha256 hash;
+
+    if (!bytes_out || len != SHA256_LEN)
+        return WALLY_EINVAL;
+
+#ifndef BUILD_ELEMENTS
+    if (is_elements)
+        return WALLY_EINVAL;
+#endif
+
+    tagged_hash_init(&ctx, TAPLEAF_SHA256(is_elements), SHA256_LEN);
+    hash_u8(&ctx, leaf_version);
+    hash_varbuff(&ctx, script, script_len);
+    if (!sha256_done(&ctx, &hash))
+        return WALLY_ERROR;
+    memcpy(bytes_out, hash.u.u8, sizeof(hash));
+    return WALLY_OK;
+}
+
+static void txio_hash_tapleaf_hash(cursor_io *io, unsigned char leaf_version,
                                    const unsigned char *tapleaf_script, size_t tapleaf_script_len,
                                    bool is_elements)
 {
-    const struct wally_map_item *item;
-#ifndef BUILD_ELEMENTS
-    (void)is_elements;
-#endif
-    item = io->cache ? wally_map_get(io->cache, tapleaf_script, tapleaf_script_len) : NULL;
-    if (item) {
-        hash_bytes(&io->ctx, item->value, item->value_len);
-    } else {
-        struct sha256_ctx ctx;
-        struct sha256 hash;
-        tagged_hash_init(&ctx, TAPLEAF_SHA256(is_elements), SHA256_LEN);
-        hash_u8(&ctx, 0xc0); /* leaf_version */
-        hash_varbuff(&ctx, tapleaf_script, tapleaf_script_len);
-        sha256_done(&ctx, &hash);
-        hash_bytes(&io->ctx, hash.u.u8, sizeof(hash));
-        if (io->cache)
-            wally_map_add(io->cache, tapleaf_script, tapleaf_script_len, hash.u.u8, sizeof(hash));
+    if (!txio_hash_cached_bytes(io, TXIO_CACHED_TAPLEAF, leaf_version,
+                                tapleaf_script, tapleaf_script_len)) {
+        unsigned char hash[SHA256_LEN];
+        if (bip341_tapleaf_hash(leaf_version, tapleaf_script, tapleaf_script_len,
+                                is_elements, hash, sizeof(hash)) != WALLY_OK) {
+            io->hash_failed = true; /* Don't cache the failed hash */
+            return;
+        }
+        txio_hash_and_cache_bytes(io, TXIO_CACHED_TAPLEAF, leaf_version,
+                                  tapleaf_script, tapleaf_script_len, hash);
     }
 }
 
@@ -616,6 +734,7 @@ static int legacy_signature_hash(
     io.cache = cache;
     io.cursor = bytes_out;
     io.max = len;
+    io.hash_failed = false;
     sha256_init(&io.ctx);
     /* Tx data */
     hash_le32(&io.ctx, tx->version);
@@ -651,10 +770,16 @@ static int legacy_signature_hash(
 
         for (size_t i = 0; i < num_outputs; ++i) {
             const struct wally_tx_output *txout = tx->outputs + i;
-            if (sh_single && i != index)
-                hash_bytes(&io.ctx,
-                           EMPTY_PRE_SW_OUTPUT, sizeof(EMPTY_PRE_SW_OUTPUT));
-            else {
+            if (sh_single && i != index) {
+#ifdef BUILD_ELEMENTS
+                if (is_elements)
+                    hash_bytes(&io.ctx, EMPTY_PRE_SW_OUTPUT_ELEMENTS,
+                               sizeof(EMPTY_PRE_SW_OUTPUT_ELEMENTS));
+                else
+#endif
+                    hash_bytes(&io.ctx,
+                               EMPTY_PRE_SW_OUTPUT, sizeof(EMPTY_PRE_SW_OUTPUT));
+            } else {
 #ifdef BUILD_ELEMENTS
                 if (is_elements) {
                     hash_output_elements(&io.ctx, txout);
@@ -682,8 +807,6 @@ static int bip143_signature_hash(
     bool is_elements,
     unsigned char *bytes_out, size_t len)
 {
-    const struct wally_tx_input *txin = tx ? tx->inputs + index : NULL;
-    const struct wally_tx_output *txout = tx ? tx->outputs + index : NULL;
     const bool sh_anyonecanpay = sighash & WALLY_SIGHASH_ANYONECANPAY;
 #ifdef BUILD_ELEMENTS
     const bool sh_rangeproof = sighash & WALLY_SIGHASH_RANGEPROOF;
@@ -693,8 +816,8 @@ static int bip143_signature_hash(
     cursor_io io;
 
     /* Note that scriptcode can be empty, so we don't check it here */
-    if (!tx || !values || BYTES_INVALID(scriptcode, scriptcode_len) ||
-        sighash & 0xffffff00)
+    if (!tx || index >= tx->num_inputs || !values ||
+        BYTES_INVALID(scriptcode, scriptcode_len) || sighash & 0xffffff00)
         return WALLY_EINVAL;
 
     {
@@ -708,6 +831,7 @@ static int bip143_signature_hash(
     io.cache = cache;
     io.cursor = bytes_out;
     io.max = len;
+    io.hash_failed = false;
     sha256_init(&io.ctx);
     /* Tx data */
     hash_le32(&io.ctx, tx->version);
@@ -728,7 +852,7 @@ static int bip143_signature_hash(
     }
 #endif
     /* Input data */
-    hash_outpoint(&io.ctx, txin);
+    hash_outpoint(&io.ctx, tx->inputs + index);
 #ifdef BUILD_ELEMENTS
     if (is_elements)
         txio_hash_input_elements(&io, tx, index, NULL, NULL, values,
@@ -742,6 +866,7 @@ static int bip143_signature_hash(
     if (sh_none || (sh_single && index >= tx->num_outputs))
         hash_bytes(&io.ctx, zero_hash, sizeof(zero_hash));
     else if (sh_single) {
+        const struct wally_tx_output *txout = tx->outputs + index;
 #ifdef BUILD_ELEMENTS
         if (is_elements)
             txio_hash_sha_single_output_elements(&io, txout, TXIO_UNCACHED_D);
@@ -761,9 +886,10 @@ static int bip143_signature_hash(
     if (sh_rangeproof) {
         if (sh_none || (sh_single && index >= tx->num_outputs))
             hash_bytes(&io.ctx, zero_hash, sizeof(zero_hash));
-        else if (sh_single)
+        else if (sh_single) {
+            const struct wally_tx_output *txout = tx->outputs + index;
             txio_hash_sha_single_output_witness(&io, txout, TXIO_UNCACHED_D);
-        else
+        } else
             txio_hash_sha_output_witnesses(&io, tx, TXIO_SHA_OUTPUT_WITNESSES_D);
     }
 #endif
@@ -780,7 +906,7 @@ static void txio_bip341_init(cursor_io *io,
     if (TXIO_CTX_CACHEABLE && io->cache) {
         const struct wally_map_item *item = NULL;
         item = wally_map_get_integer(io->cache, TXIO_SHA_TAPSIGHASH_CTX);
-        if (item) {
+        if (item && item->value_len == sizeof(io->ctx)) {
             /* Note we cached the initial sha256_ctx itself here and so memcpy it */
             memcpy(&io->ctx, item->value, item->value_len);
             return;
@@ -824,8 +950,6 @@ static int bip341_signature_hash(
     bool is_elements,
     unsigned char *bytes_out, size_t len)
 {
-    const struct wally_tx_input *txin = tx ? tx->inputs + index : NULL;
-    const struct wally_tx_output *txout = tx ? tx->outputs + index : NULL;
     const uint32_t output_type = tr_get_output_sighash_type(sighash);
     const bool sh_anyonecanpay = sighash & WALLY_SIGHASH_ANYONECANPAY;
     const bool sh_anyprevout = bip341_is_input_hash_type(sighash, WALLY_SIGHASH_ANYPREVOUT);
@@ -873,6 +997,7 @@ static int bip341_signature_hash(
     io.cache = cache;
     io.cursor = bytes_out;
     io.max = len;
+    io.hash_failed = false;
     txio_bip341_init(&io, genesis_blockhash, genesis_blockhash_len);
     if (!is_elements)
         hash_u8(&io.ctx, 0); /* sighash epoch */
@@ -917,6 +1042,7 @@ static int bip341_signature_hash(
         hash_le32(&io.ctx, tx->inputs[index].sequence); /* nSequence */
     } else if (sh_anyonecanpay || sh_anyprevout) {
         if (sh_anyonecanpay) {
+            const struct wally_tx_input *txin = tx->inputs + index;
 #ifdef BUILD_ELEMENTS
             if (is_elements)
                 txio_hash_outpoint_flag(&io, txin);
@@ -938,6 +1064,7 @@ static int bip341_signature_hash(
     }
     /* Output data */
     if (output_type == WALLY_SIGHASH_SINGLE) {
+        const struct wally_tx_output *txout = tx->outputs + index;
 #ifdef BUILD_ELEMENTS
         if (is_elements) {
             txio_hash_sha_single_output_elements(&io, txout, TXIO_UNCACHED);
@@ -949,7 +1076,8 @@ static int bip341_signature_hash(
     /* Tapscript Extensions */
     if (tapleaf_script) {
         if (!sh_anyprevout_anyscript)
-            txio_hash_tapleaf_hash(&io, tapleaf_script, tapleaf_script_len, is_elements);
+            txio_hash_tapleaf_hash(&io, TAPSCRIPT_LEAF_VERSION(is_elements),
+                                   tapleaf_script, tapleaf_script_len, is_elements);
         hash_u8(&io.ctx, key_version & 0xff);
         hash_le32(&io.ctx, codesep_position);
     }
@@ -982,6 +1110,9 @@ int wally_tx_get_input_signature_hash(
         !flags || (flags & ~SIGTYPE_ALL) || !bytes_out || len != SHA256_LEN)
         return WALLY_EINVAL;
 
+    if (cache && (cache == scripts || cache == assets || cache == values))
+        return WALLY_EINVAL; /* Caller error */
+
 #ifdef BUILD_ELEMENTS
     if (wally_tx_is_elements(tx, &is_elements) != WALLY_OK)
         return WALLY_EINVAL;
@@ -1012,7 +1143,8 @@ int wally_tx_get_input_signature_hash(
         case WALLY_SIGHASH_ALL | WALLY_SIGHASH_ANYPREVOUT | WALLY_SIGHASH_ANYONECANPAY:
         case WALLY_SIGHASH_NONE | WALLY_SIGHASH_ANYPREVOUT | WALLY_SIGHASH_ANYONECANPAY:
         case WALLY_SIGHASH_SINGLE | WALLY_SIGHASH_ANYPREVOUT | WALLY_SIGHASH_ANYONECANPAY:
-            if (sighash_type == WALLY_SIGTYPE_SW_V0) {
+            if (sighash_type == WALLY_SIGTYPE_PRE_SW ||
+                sighash_type == WALLY_SIGTYPE_SW_V0) {
                 if (!is_elements)
                     return WALLY_EINVAL; /* ANYPREVOUT == FORKID for BTC */
                 break; /* ANYPREVOUT == RANGEPROOF for Elements */
