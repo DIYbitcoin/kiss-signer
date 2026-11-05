@@ -1914,7 +1914,10 @@ static void home_fp_publish(void) {
 }
 
 static void kiss_start(void) {           // unlocked via login -> reveal the home
-  if (s_home_on) return;
+  // A login that lands while the home is still up (restoring words with a
+  // passphrase is one) has just opened different keys, so the chip must be
+  // repainted before the early return or it keeps naming the old ones.
+  if (s_home_on) { home_fp_publish(); return; }
   // The LVGL pointer indev is created lazily, and until this release the ONLY
   // things that created it were the login screen and the setup wizard -- every
   // way into the signer went through one of them. The decoy does not: it opens
