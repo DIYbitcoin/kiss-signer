@@ -22,7 +22,7 @@ The shelf:
 
 | | |
 | --- | --- |
-| [flash-encryption-rollout.md](flash-encryption-rollout.md) | how the one way eFuse burn gets earned, rehearsal first |
+| [flash-encryption-secure-boot-rollout.md](flash-encryption-secure-boot-rollout.md) | how the one way eFuse burn gets earned, rehearsal first |
 | [kef-backup.md](kef-backup.md) | the password locked export, and how it differs from the sealed blob |
 | [sd-seed-storage.md](sd-seed-storage.md) | keys held on the card instead of in NVS |
 | [setup-module-split.md](setup-module-split.md) | splitting kiss_setup.c: deferred, and what would make it worth doing |

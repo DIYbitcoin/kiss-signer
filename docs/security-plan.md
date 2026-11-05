@@ -79,7 +79,7 @@ asking. Nothing on a device can.
 **Status: in progress. Build profile complete, hardware acceptance not
 started.** The staged plan, and why secure boot burns in the same first boot
 rather than a later one, is in
-[`specs/flash-encryption-rollout.md`](specs/flash-encryption-rollout.md).
+[`specs/flash-encryption-secure-boot-rollout.md`](specs/flash-encryption-secure-boot-rollout.md).
 
 `tools/build_encrypted_release.sh` produces flash encryption in RELEASE mode
 plus NVS encryption. Plain flash encryption does not cover `nvs` data

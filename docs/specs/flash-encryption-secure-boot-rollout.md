@@ -1,4 +1,4 @@
-# Flash encryption rollout: how the one way burn gets earned
+# Flash encryption and secure boot rollout: how the one way burn gets earned
 
 Status: build profiles complete INCLUDING the secure boot pass, hardware
 acceptance not started. Written 2026-08-06; secure boot v2 folded into the

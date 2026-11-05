@@ -126,7 +126,7 @@ echo "recipe: $RECIPE ($LANE) -> $BUILD_DIR"
 #
 # So it moves when a firmware version has a hole worth closing permanently,
 # and on no other day. Raising it is a commit of its own, with a message
-# saying which release it retires. See docs/specs/flash-encryption-rollout.md.
+# saying which release it retires. See docs/specs/flash-encryption-secure-boot-rollout.md.
 SECURE_VERSION="$(cat SECURE_VERSION 2>/dev/null | tr -d '[:space:]')"
 case "$SECURE_VERSION" in
   ''|*[!0-9]*)
@@ -215,7 +215,7 @@ force = {
     # ROM download mode after the burn: switched to the SECURE subset, not
     # disabled outright - secure mode still lets a stranger erase a board and
     # prove it erased, and closes flash reads and writes. Settled as a Stage 2
-    # decision in docs/specs/flash-encryption-rollout.md.
+    # decision in docs/specs/flash-encryption-secure-boot-rollout.md.
     "CONFIG_SECURE_ENABLE_SECURE_ROM_DL_MODE":      None if rehearsal else "y",
     "CONFIG_SECURE_DISABLE_ROM_DL_MODE":            None,
     # anti rollback, armed at secure version 0. The eFuse counter only burns
@@ -421,7 +421,7 @@ fi
 # secp256r1 OTA key, and it is not the project's either: whoever runs this
 # recipe mints their own root, and the board trusts nothing else, forever.
 # That is the DIY answer to "who is the signer for", settled in Stage 2 of
-# docs/specs/flash-encryption-rollout.md, and it is why no RSA public key is
+# docs/specs/flash-encryption-secure-boot-rollout.md, and it is why no RSA public key is
 # published anywhere. A burned board's SD update is its builder's own output
 # of this recipe, judged against the digests its first boot burned.
 #
