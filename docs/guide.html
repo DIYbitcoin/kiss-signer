@@ -2431,6 +2431,41 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           stored seed words takes a lab and special equipment working on the
           chip itself, not a stolen signer and a card reader.
         </p>
+
+        <h3>What this protects you from</h3>
+        <p>
+          <strong>Your SD card alone is lost or copied:</strong> they get
+          nothing. The key that opens it stays in the signer, never on the
+          card.
+        </p>
+        <p>
+          <strong>Your signer alone is taken:</strong> with SD CARD storage it
+          holds only that key, which opens nothing without the card. With
+          FLASH on this beta, someone with the right tools can read the 12
+          seed words off the chip, and those open only the decoy if your real
+          funds are behind a passphrase. Once the two locks ship, they cannot
+          read the chip at all.
+        </p>
+        <p>
+          <strong>Your signer and your SD card are taken together:</strong>
+          this is the gap on this beta. The key that opens the card sits in
+          the signer&rsquo;s memory unlocked, so someone with the right tools
+          and both pieces can read the key off the chip and open the card.
+          Keeping the key off the card only fully pays off once flash
+          encryption and secure boot are on. Until then, store the card away
+          from the signer, and let your passphrase guard your real funds.
+        </p>
+        <p>
+          <strong>Someone makes you unlock it:</strong> draw KISS and they get
+          the decoy, with no passphrase prompt to give away that there is
+          more.
+        </p>
+        <p>
+          <strong>Someone gets everything, even your 12 seed words:</strong>
+          your real funds still need your passphrase, which was never on the
+          signer or the card. Keep it apart from the 12 seed words.
+        </p>
+
         <p>
           Your paper backup stays your only real backup. The SD card is not
           one: it only works in the signer that wrote it.
