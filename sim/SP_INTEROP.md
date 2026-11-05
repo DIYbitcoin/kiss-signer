@@ -35,6 +35,27 @@ For a separate runner, build with
 The bridge refuses to overwrite its output and only signs a READY request;
 exit 3 means an explicit STOP, while exit 2 is an operational/test failure.
 
+## Shared sends (two signers, BIP375 per input shares)
+
+The bridge also plays one of the two signers of a shared silent payment
+send. Set `SP_BRIDGE_MNEMONIC` to the BIP-39 words of the wallet it should
+be (the default is the `abandon ... about` seed); the account is
+m/84'/1'/0' on testnet, and `--descriptor` prints that wallet's descriptor.
+
+```sh
+bash sim/build_sp_interop.sh "$PWD/tmp-shared/bridge"
+KISS_SIM_TMP="$PWD/tmp-shared" SP_BRIDGE_MNEMONIC="legal winner thank year wave sausage worth useful legal winner thank yellow" \
+    tmp-shared/bridge request.psbt response.psbt [review.json]
+```
+
+On success the last line on stdout is `SHARE` (a share only pass: this
+signer's per input shares and proofs added, the silent payment output still
+has no script, nothing signed) or `SIGNED`. Exit 0 on success, 3 when the
+signer refused (the reason on stderr), 2 for anything else. A shared send
+always carries its own caution, which the bridge accepts; any other caution
+still exits 2, as it always did. The review file gains `share_only`,
+`foreign_inputs` and `own_input_sats`.
+
 ## Continuous integration
 
 The `sp-interop` job in CI runs this suite on every push and pull request.
