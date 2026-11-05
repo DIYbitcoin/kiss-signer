@@ -236,6 +236,26 @@ the encrypted lane as a build anyone can make and verify, run it on hardware we
 control, and say exactly what is and is not protected on the build people
 actually download.
 
+When the encrypted build ships, the user guide changes in the same release.
+`docs/guide.html`, under "What this protects you from" in the storage card,
+gets rewritten for the shipped build in plain words, case by case: a lost SD
+card, a stolen signer, the signer and the SD card taken together, being made
+to unlock it, and everything taken. Each case says what flash encryption and
+secure boot now stop, and what they still do not. The case that changes most
+is the signer and the SD card taken together: on the beta the card key sits
+unlocked in the signer's memory, so keeping the key off the card protects
+nothing against someone holding both. The storage table and the "two more
+locks are planned" line change with it.
+
+The guide also explains the choice itself, both ways, because an owner picks
+it once and cannot take it back. Choosing the locks: the chip is locked for
+good, the cable and the web installer never work on that board again,
+updates come only from a card, signed by whoever burned the board, nothing
+published for the beta installs on it, and a lost signing key leaves the board
+frozen on its last firmware. Choosing not to: the board stays as open as the
+beta, reflashable from the cable, and every case above stays as it reads on
+the beta, the signer and the SD card taken together most of all.
+
 ## What this does not solve
 
 Secure boot and flash encryption protect a device that is already in the
