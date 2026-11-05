@@ -806,6 +806,8 @@ void kiss_payee_batch_begin(void) {}
 void kiss_payee_batch_end(void) {}
 
 static uint32_t s_sim_locktime;   // what the last load said, for the details stub
+static bool s_sim_foreign1;       // a shared send: input 1 is the other signer's
+static bool s_sim_share_only;     // ...and this pass only adds our share
 static uint32_t s_sim_rel_blocks; // and the BIP68 age it asked for, if any
 int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
   memset(s, 0, sizeof *s);
@@ -860,6 +862,29 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
     s->caution_flags = WPSBT_C_HIGHFEE;
     snprintf(s->reason, sizeof s->reason,
              "unusually high fee - check it before signing");
+  } else if (len >= 6 && memmem(bytes, len, "SHARE", 5)) {
+    // A silent payment paid together with another signer (BIP375 per input
+    // shares): input 0 ours, input 1 the other signer's, the silent payment
+    // output carrying the whole amount, our change and theirs. "SHAREONLY"
+    // is the pass that only adds our share, anything else the one that signs.
+    const bool only = memmem(bytes, len, "SHAREONLY", 9) != NULL;
+    s->n_in = 2; s->n_out = 3; s->n_sp = 1;
+    s->n_foreign_in = 1; s->own_in_sats = 60000;
+    s->in_sats = 110000; s->send_sats = 54800; s->change_sats = 54800;
+    s->fee_sats = 400; s->est_vsize = 200; s->fee_rate_x10 = 20;
+    s->outs[0].is_sp = true; s->outs[0].sats = 10000;
+    snprintf(s->outs[0].addr, sizeof s->outs[0].addr,
+             "tsp1qqfaysl7pn7mknpmmsapdd6sczx8ncnnjk84gcm0xq2n66jjpm0sxsqmpuxc7nhj7gt9jqplhef2tncx40mgnjw8664kn7x09w5f63l8q8ymd0lna");
+    s->outs[1].sats = 54800; s->outs[1].is_change = true; s->outs[1].branch = 1;
+    snprintf(s->outs[2].addr, sizeof s->outs[2].addr,
+             "tb1qnyvhh6xcutx6rcsl3a4zjzwhepcq28d4j3fhrv");
+    s->outs[2].sats = 44800;
+    s->share_only = only;
+    s->status = WPSBT_CAUTION;
+    s->caution_flags = WPSBT_C_SHARED;
+    snprintf(s->reason, sizeof s->reason, "%s",
+             only ? "share only: nothing is signed in this step"
+                  : "shared send: some inputs are another signer's");
   } else if (len >= 4 && memmem(bytes, len, "SPAY", 4)) {
     // BIP375 silent payment send: out0 is the tsp1 destination the signer
     // derived + verified on-device (renders badge + note + ~117-char address)
@@ -979,6 +1004,8 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
   }
   s_sim_n_in = s->n_in;
   s_sim_in_sats = s->in_sats;
+  s_sim_foreign1 = s->n_foreign_in != 0;
+  s_sim_share_only = s->share_only;
   s_sim_locktime = s->locktime;
   s_sim_rel_blocks = s->rel_blocks_max;
   return 0;
@@ -1026,6 +1053,9 @@ int kiss_psbt_details(wpsbt_details_t *d) {
     d->ins[i].purpose = 84; d->ins[i].change = 0; d->ins[i].index = i;
     d->ins[i].proven = (i == 0);   // the fold hides unproven coins: scroll
   }
+  if (s_sim_foreign1 && d->n_in > 1) {
+    d->ins[1].foreign = true; d->ins[1].purpose = 0; d->ins[1].index = 0;
+  }
   if (s_sim_rel_blocks && d->n_in) {
     d->ins[0].rel_kind = WPSBT_REL_BLOCKS; d->ins[0].rel_age = s_sim_rel_blocks;
   }
@@ -1055,6 +1085,8 @@ int kiss_psbt_share(uint8_t *out, size_t out_len, size_t *written) {
 // walk a stable, plausible code to render. kisstest covers the real function.
 int kiss_psbt_sig_fingerprint(const uint8_t *b, size_t len, char out[9]) {
   if (!b || !out) return -1;
+  // A share only pass carries no signature, and the real function finds none.
+  if (s_sim_share_only) return -1;
   unsigned long h = 2166136261UL;
   for (size_t i = 0; i < len; i++) { h ^= b[i]; h *= 16777619UL; }
   static const char HEX[] = "0123456789abcdef";
@@ -2955,6 +2987,108 @@ static int cold_corner(int mode)
   return g_walk_fails ? 1 : 0;
 }
 
+// SIM_SHARED: the review, slide, card exit and QR exit of a share only pass,
+// then the review of the pass that signs. Opened straight onto the signer
+// (sim_open_signer) with the card holding nothing but the two fixtures.
+extern void sim_open_signer(const char *mnemonic, const char *passphrase);
+static void shared_put(const char *name, const char *body)
+{
+  FILE *f = sd_fopen(name, "wb");
+  if (f) { fputs(body, f); fclose(f); }
+}
+// Three outputs page, and the slide stays inert until the last one has been
+// on the glass: turn the page the way the MANY stop does.
+static void shared_read_to_end(void)
+{
+  for (int f = 0; f < 8 && !kiss_sign_test_armed(); f++) {
+    for (int i = 0; i <= 8; i++) { touch(600 - i * 14, 250); pump(3); }
+    release(); pump(40);
+  }
+  if (!kiss_sign_test_armed()) {
+    printf("FAIL: shared: the slide never armed\n");
+    g_walk_fails++;
+  }
+}
+static int shared_walk(void)
+{
+  build_game();
+  pump(130);
+  sim_open_signer("abandon abandon abandon abandon abandon abandon abandon "
+                  "abandon abandon abandon abandon about", NULL);
+  pump(60);
+  sd_clear_psbts();
+  shared_put("a-SHAREONLY.psbt", "SHAREONLY");
+  shared_put("b-SHAREDSEND.psbt", "SHAREDSEND");
+
+  // ---- share only, from the card ----
+  touch(130, 240); pump(3); release(); pump(6);     // Sign tile -> the page
+  tap_str(STR_S_FROM_SD, 3, 30);                    // SD CARD tab -> the list
+  touch(328, 150); pump(3); release(); pump(8);     // row 0 -> share only review
+  save("/tmp/sim_shared_only_verify.ppm");
+  must_show("shared/share only row", tr(STR_S_C_SHARE_ONLY));
+  must_show("shared/share only slide", tr(STR_S_HOLD_TO_SHARE));
+  touch(753, 123); pump(3); release(); pump(30);    // "?" -> WHY FLAGGED
+  save("/tmp/sim_shared_only_why.ppm");
+  tap_str(STR_C_OK, 3, 6);
+  tap_str_nth(STR_C_I_UNDERSTAND, 0, 3, 6);         // accept the row
+  save("/tmp/sim_shared_only_ack.ppm");
+  shared_read_to_end();                             // the third output pages
+  save("/tmp/sim_shared_only_end.ppm");
+  slide_grip(STR_S_HOLD_TO_SHARE); slide_go(141);
+  save("/tmp/sim_shared_only_hold.ppm");
+  slide_go(320); release(); pump(64);
+  save("/tmp/sim_shared_only_reveal.ppm");
+  pump(152);
+  touch(400, 240); pump(3); release(); pump(20);    // end the arrival motion
+  save("/tmp/sim_shared_only_done.ppm");
+  must_show("shared/done title", tr(STR_S_SHARE_T));
+  must_show("shared/done next step", tr(STR_S_SD_NEXT_SHARE));
+  tap_str(STR_C_DONE, 3, 6);                        // DONE -> home
+
+  // ---- share only, by QR ----
+  touch(130, 240); pump(3); release(); pump(6);     // Sign tile -> the page
+  tap_str(STR_S_SCAN_QR, 3, 30);
+  tap_str(STR_S_OPEN_CAM, 3, 6);
+  {
+    uint8_t fake[300];
+    memset(fake, 0x5A, sizeof fake);
+    memcpy(fake, "psbt\xff", 5);
+    memcpy(fake + 40, "SHAREONLY", 9);
+    qrt_encoder_t *enc = qrt_encoder_new(QRT_FMT_UR, fake, sizeof fake);
+    char part[600];
+    for (int i = 0; i < 32 && kiss_scan_active(); i++) {
+      if (enc && qrt_encoder_next(enc, part, sizeof part) == 0)
+        kiss_scan_inject(part, strlen(part));
+      pump(2);
+    }
+    qrt_encoder_free(enc);
+  }
+  pump(8);
+  tap_str_nth(STR_C_I_UNDERSTAND, 0, 3, 6);
+  shared_read_to_end();
+  slide_grip(STR_S_HOLD_TO_SHARE); slide_go(320);
+  pump(45); release(); pump(120);
+  pump(100);
+  touch(400, 240); pump(3); release(); pump(20);    // end the arrival motion
+  save("/tmp/sim_shared_only_qr.ppm");
+  must_show("shared/qr title", tr(STR_S_SHARE_T));
+  must_show("shared/qr next step", tr(STR_S_QR_SUB_SHARE));
+  tap_str(STR_C_DONE, 3, 6);
+
+  // ---- the pass that signs, from the card ----
+  touch(130, 240); pump(3); release(); pump(6);
+  tap_str(STR_S_FROM_SD, 3, 30);
+  touch(328, 216); pump(3); release(); pump(8);     // row 1 -> complete review
+  save("/tmp/sim_shared_send_verify.ppm");
+  must_show("shared/complete row", tr(STR_S_C_SHARED));
+  must_show("shared/complete slide", tr(STR_S_HOLD_TO_SIGN));
+  touch(753, 123); pump(3); release(); pump(30);
+  save("/tmp/sim_shared_send_why.ppm");
+  tap_str(STR_C_OK, 3, 6);
+  printf("sim done\n");
+  return g_walk_fails ? 1 : 0;
+}
+
 int main(void) {
   // Before anything touches the fake card. Two walks on one scratch invent
   // failures rather than colliding loudly; see kiss_simpath.h.
@@ -3051,6 +3185,10 @@ int main(void) {
     }
     return cold_corner((int)mode);
   }
+
+  // The two passes of a shared silent payment send, in a process of their
+  // own so the canonical walk and every gate reading it are untouched.
+  if (getenv("SIM_SHARED")) return shared_walk();
 
   build_game();
   pump(20);                                      // ~320ms: logo letters mid-drop
