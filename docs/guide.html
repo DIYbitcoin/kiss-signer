@@ -2411,11 +2411,11 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
 
         <h3>How KISS-signer keeps your seed, and why</h3>
         <p>
-          KISS-signer can keep your 12 seed words on its SD card, sealed with
+          KISS-signer can keep your 12 seed words on its SD card, locked with
           a key that never leaves the signer, or in its own memory. On this
-          beta the copy in its own memory is not encrypted, so someone who
-          reads the chip can get the 12 seed words. It never stores your
-          passphrase: you enter it every time.
+          beta the copy in its own memory is not locked, so someone with the
+          right tools can read the 12 seed words off the chip. It never stores
+          your passphrase: you enter it every time.
         </p>
         <p>
           Someone who picks up your signer and draws KISS gets the decoy, a
@@ -2423,21 +2423,22 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           your own swipe and your passphrase.
         </p>
         <p>
-          Flash encryption and secure boot are planned for release builds;
-          this beta has neither. Flash encryption stops anyone reading the
-          chip&rsquo;s memory. Secure boot stops anyone loading their own
-          software to make the signer read it out for them. With both, getting
-          at the stored seed words takes a lab attack on the chip, not a
-          stolen signer and a card reader.
+          Two more locks are planned for release builds; this beta has
+          neither. The first locks the chip&rsquo;s memory so nobody can read
+          it (flash encryption). The second lets the signer run only our
+          signed software, so nobody can load their own to make it read the
+          seed words out for them (secure boot). With both, getting at the
+          stored seed words takes a lab and special equipment working on the
+          chip itself, not a stolen signer and a card reader.
         </p>
         <p>
           Your paper backup stays your only real backup. The SD card is not
           one: it only works in the signer that wrote it.
         </p>
 
-        <h3>Why not stateless?</h3>
+        <h3>Why not keep nothing on the signer?</h3>
         <p>
-          Some signers offer a stateless mode: nothing is stored, and you scan
+          Some signers can keep nothing at all (a stateless mode): you scan
           your seed in from a QR backup every time you use it. That means
           taking your most valuable thing, your seed backup, out of its safe
           place and showing it to a camera on every single use. Each time is a
@@ -2449,7 +2450,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           out less often.
         </p>
         <p>
-          Stateless does have one real strength: there is nothing on the
+          Keeping nothing does have one real strength: there is nothing on the
           device to steal. KISS-signer gets close to that with the decoy, your
           own swipe, a passphrase that is never stored and, once they ship,
           flash encryption with secure boot. If you want nothing stored at all,
