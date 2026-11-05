@@ -20,6 +20,7 @@
 #include "kiss_setup.h"   // optional full post-creation recovery rehearsal
 #include "pass_edit.h"      // insert/delete at the caret, tested in sim/test_passedit.c
 #include "kiss_info.h"    // kiss_info_fp_card_open: the "?" on the reveal screen
+#include "kiss_kef.h"     // an encrypted passphrase QR opens here
 #include "kiss_theme.h"
 #include "kiss_wipe.h"  // secret wipes survive dead-store elimination
 
@@ -111,6 +112,22 @@ static char s_kef_first[PASS_MAX + 1];
 static int (*s_kef_check_cb)(const char *pass, size_t len);
 static void (*s_kef_done_cb)(void);
 static void (*s_kef_cancel_cb)(void);
+// A passphrase QR that arrived encrypted: Krux seals one with its datum
+// tool and opens it in its own passphrase scan. While s_pp_kef is set the
+// passphrase keyboard is collecting that QR's password instead, the envelope
+// waits in s_pp_env, and whatever was typed before the scan waits in
+// s_pp_hold so CANCEL gives it back. All three are wiped with the rest.
+static bool s_pp_kef;
+static uint8_t s_pp_env[KEF_MAX_ENV];
+static size_t s_pp_env_len;
+static uint8_t s_pp_unarm[KEF_MAX_ENV];    // file scope: off the LVGL stack
+static char s_pp_hold[PASS_MAX + 1];
+static int s_pp_hold_len;
+static const char *s_pp_cap_txt;
+static lv_color_t s_pp_cap_col;
+static bool s_pp_cap_alert;
+static void pp_kef_ok(void);
+static void pp_kef_cancel(void);
 static uint8_t s_last_fp[4];               // fingerprint of the wallet just unlocked
 static uint8_t s_shown_fp[4];              // candidate shown, unpublished until OPEN
 static bool s_shown_fp_valid;
@@ -141,7 +158,7 @@ static int pass_bits(void) {
 
 static void meter_refresh(void) {
   if (!s_meter) return;
-  if ((!s_setup_mode && !s_kef_create) || s_plen == 0) {
+  if ((!s_setup_mode && !s_kef_create) || s_plen == 0 || s_pp_kef) {
     lv_label_set_text(s_meter, "");
     if (s_pp_hint) lv_label_set_text(s_pp_hint, "");
     return;
@@ -506,6 +523,7 @@ static void entry_refresh_text(void) {
     // from keys with none keeps the plain prompt; there is nothing to confuse.
     const bool kef_vs_pp = !s_kef_create || !kiss_session_decoy();
     lv_label_set_text(s_entry, tr(s_card_pin ? STR_L_CARD_PIN_PROMPT
+                                  : s_pp_kef ? STR_L_KEF_OPEN_PROMPT
                                   : !s_kef_mode || s_kef_pass ? STR_L_TYPE_PROMPT
                                   : kef_vs_pp ? STR_L_KEF_OPEN_PROMPT
                                               : STR_L_KEF_TYPE_PROMPT));
@@ -675,6 +693,7 @@ static void scan_cap_restore(void) {
 // after a weak-ack warning, any edit returns the caption to the stage prompt
 static void setup_cap_reset(void) {
   scan_cap_restore();
+  if (s_pp_kef) return;     // typing a QR's password, not the passphrase
   if ((!s_setup_mode && !s_kef_create) || !s_weak_ack || !s_cap) return;
   s_weak_ack = false;
   if (s_kef_mode) {
@@ -700,6 +719,12 @@ static bool s_backup_verify_pass;          // keyboard is checking that passphra
 static void wipe_login_secrets(void) {
   kiss_wipe(s_pass, sizeof s_pass);
   kiss_wipe(s_first, sizeof s_first);
+  kiss_wipe(s_pp_env, sizeof s_pp_env);
+  kiss_wipe(s_pp_unarm, sizeof s_pp_unarm);
+  kiss_wipe(s_pp_hold, sizeof s_pp_hold);
+  s_pp_env_len = 0;
+  s_pp_hold_len = 0;
+  s_pp_kef = false;
   s_plen = 0;
   s_caret = 0;
 }
@@ -2186,7 +2211,8 @@ static void kb_cb(lv_event_t *e) {
   else if (strcmp(txt, KEY_SYM) == 0)  kb_plane(kb, MAP_SYM);
   else if (strcmp(txt, KEY_SYM2) == 0) kb_plane(kb, MAP_SYM2);
   else if (strcmp(txt, tr(STR_C_CANCEL)) == 0) {
-    if (s_kef_mode) {
+    if (s_pp_kef) pp_kef_cancel();         // back to the passphrase, not out
+    else if (s_kef_mode) {
       // Nothing staged, nothing derived: fold the keyboard and hand the
       // screen back to whichever flow borrowed it.
       void (*cb)(void) = s_kef_cancel_cb;
@@ -2215,7 +2241,8 @@ static void kb_cb(lv_event_t *e) {
     }
   }
   else if (strcmp(txt, tr(STR_C_OK)) == 0) {
-    if (s_kef_mode) {
+    if (s_pp_kef) pp_kef_ok();
+    else if (s_kef_mode) {
       if (s_plen == 0) return;               // an empty password locks nothing
       if (s_kef_create && !s_kef_first_done && pass_bits() < 40) {
         show_weak_confirm();                 // offline guessing is the threat
@@ -2397,21 +2424,121 @@ static void kb_long_cb(lv_event_t *e) {
 // The scan screen closes itself before calling back, so the keyboard underneath
 // is already visible again: fill it in place rather than rebuilding it (which
 // kiss_login_open would refuse to do anyway while a login is open).
-static void pp_scan_text_cb(const char *txt, size_t len) {
-  if (!s_login) return;
-  bool typeable = len > 0 && len <= PASS_MAX;
-  for (size_t i = 0; typeable && i < len; i++)
-    if (txt[i] < 0x20 || txt[i] > 0x7E)
-      typeable = false;
-  if (!typeable) {
-    scan_cap_refuse();                      // and leave what was typed
-    return;
-  }
-  scan_cap_restore();
+static bool pp_typeable(const char *txt, size_t len) {
+  if (len == 0 || len > PASS_MAX) return false;
+  for (size_t i = 0; i < len; i++)
+    if (txt[i] < 0x20 || txt[i] > 0x7E) return false;
+  return true;
+}
+
+static void pp_fill(const char *txt, size_t len) {
   memcpy(s_pass, txt, len);
   s_pass[len] = 0;
   s_plen = (int)len;
   s_caret = s_plen;             // a scan fills the field; typing continues at the end
+}
+
+// Leave the password step. The caption goes back to what the passphrase
+// screen said before the scan; the envelope and the held text are wiped.
+static void pp_kef_leave(void) {
+  s_pp_kef = false;
+  kiss_wipe(s_pp_env, sizeof s_pp_env);
+  s_pp_env_len = 0;
+  kiss_wipe(s_pp_hold, sizeof s_pp_hold);
+  s_pp_hold_len = 0;
+  if (s_pp_cap_txt) cap_set(s_pp_cap_txt, s_pp_cap_col, s_pp_cap_alert);
+}
+
+static void pp_clear_entry(void) {
+  kiss_wipe(s_pass, sizeof s_pass);
+  s_plen = 0;
+  s_caret = 0;
+  s_show = false;
+  if (s_showbtn_lbl) lv_label_set_text(s_showbtn_lbl, LV_SYMBOL_EYE_OPEN);
+}
+
+// 1 = the scan was an encrypted QR and has been handled (password step or
+// refusal); 0 = not an envelope, the plain text path should have it. Same
+// gate the restore scan uses (kef_route in kiss_setup.c): an envelope this
+// device cannot open is refused before a password is asked for.
+static int pp_kef_route(const char *txt, size_t len) {
+  const uint8_t *raw = (const uint8_t *)txt;
+  size_t un_len = 0;
+  if (kef_unarmor(raw, len, s_pp_unarm, sizeof s_pp_unarm, &un_len) == 0) {
+    raw = s_pp_unarm;
+    len = un_len;
+  }
+  int routed = 0;
+  if (kef_sniff(raw, len)) {
+    routed = 1;
+    kef_env_t e;
+    if (len <= sizeof s_pp_env && kef_parse(raw, len, &e) == 0
+        && kef_can_open(e.version) && e.iter_eff <= KEF_MAX_EFF_ITER) {
+      scan_cap_restore();
+      if (!s_pp_kef) {          // a second scan keeps the first one's hold
+        memcpy(s_pp_hold, s_pass, (size_t)s_plen);
+        s_pp_hold[s_plen] = 0;
+        s_pp_hold_len = s_plen;
+        s_pp_cap_txt = s_cap_txt;
+        s_pp_cap_col = s_cap_col;
+        s_pp_cap_alert = s_cap_alert;
+      }
+      memcpy(s_pp_env, raw, len);
+      s_pp_env_len = len;
+      s_pp_kef = true;
+      pp_clear_entry();
+      cap_set(tr(STR_L_KEF_PASS_OPEN), MUT_COL, false);
+      entry_refresh();
+    } else {
+      scan_cap_refuse();        // and leave what was typed
+    }
+  }
+  kiss_wipe(s_pp_unarm, sizeof s_pp_unarm);
+  return routed;
+}
+
+static void pp_kef_ok(void) {
+  if (s_plen == 0) return;      // an empty password opens nothing
+  cap_set(tr(STR_L_KEF_UNLOCKING), MUT_COL, true);   // 100k PBKDF2: say so
+  lv_refr_now(NULL);
+  uint8_t plain[KEF_MAX_ENV];
+  size_t n = 0;
+  int rc = kiss_kef_open(s_pass, (size_t)s_plen, s_pp_env, s_pp_env_len,
+                         plain, sizeof plain, &n);
+  pp_clear_entry();
+  if (rc != 0) {
+    // Wrong password and damaged envelope read the same (kiss_kef.h).
+    cap_set(tr(STR_L_KEF_BAD), lv_color_hex(0xFF4D5E), true);
+    entry_refresh();
+    return;
+  }
+  const bool ok = pp_typeable((const char *)plain, n);
+  if (ok) pp_fill((const char *)plain, n);
+  else pp_fill(s_pp_hold, (size_t)s_pp_hold_len);   // as a refused scan:
+                                                    // leave what was typed
+  kiss_wipe(plain, sizeof plain);
+  pp_kef_leave();
+  if (!ok) scan_cap_refuse();
+  entry_refresh();
+}
+
+static void pp_kef_cancel(void) {
+  pp_clear_entry();
+  pp_fill(s_pp_hold, (size_t)s_pp_hold_len);
+  pp_kef_leave();
+  entry_refresh();
+}
+
+static void pp_scan_text_cb(const char *txt, size_t len) {
+  if (!s_login) return;
+  if (pp_kef_route(txt, len)) return;
+  if (!pp_typeable(txt, len)) {
+    scan_cap_refuse();                      // and leave what was typed
+    return;
+  }
+  if (s_pp_kef) pp_kef_cancel();            // a plain QR replaces the step
+  scan_cap_restore();
+  pp_fill(txt, len);
   entry_refresh();
 }
 

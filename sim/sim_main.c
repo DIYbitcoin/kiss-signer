@@ -7759,6 +7759,48 @@ int main(void) {
   save("/tmp/sim_pp_scan_refused.ppm");
   must_show("passphrase scan/non-ASCII refused", tr(STR_L_SCAN_REFUSED));
 
+  // An encrypted passphrase QR (Krux's datum tool makes one): the same
+  // keyboard asks for that QR's password, a wrong one is the vague failure,
+  // CANCEL gives back what was typed before the scan, and the right one
+  // fills the field with what was inside. The sim opener answers "kef" with
+  // the first 12 sim words, so the count line proves the fill.
+  {
+    char cnt[64];
+    touch(664, 278); pump(3); release(); pump(3);   // k: typed before the scan
+    snprintf(cnt, sizeof cnt, tr(STR_L_COUNT_FMT), 1);
+    uint8_t fx[64];
+    size_t h = kef_emit_header(fx, sizeof fx, (const uint8_t *)"pp", 2,
+                               KEF_VERSION_AES_GCM, KEF_ITER_STORED);
+    for (int i = 0; i < 32; i++) fx[h + i] = (uint8_t)(0x3c ^ i);
+    touch(596, 38); pump(3); release(); pump(6);    // SCAN
+    tap_str(STR_L_SCAN_GO, 3, 6);
+    kiss_scan_inject((const char *)fx, h + 32); pump(6);
+    save("/tmp/sim_pp_kef_ask.ppm");
+    must_show("passphrase kef/asks the QR password", tr(STR_L_KEF_OPEN_PROMPT));
+    must_not_show("passphrase kef/not refused", tr(STR_L_SCAN_REFUSED));
+    touch(664, 278); pump(3); release(); pump(3);   // k
+    touch(201, 202); pump(3); release(); pump(3);   // e ("ke": wrong)
+    touch(725, 430); pump(3); release(); pump(40);  // OK -> vague failure
+    must_show("passphrase kef/wrong password", tr(STR_L_KEF_BAD));
+    touch(200, 430); pump(3); release(); pump(6);   // CANCEL -> the passphrase
+    must_not_show("passphrase kef/cancel leaves the step",
+                  tr(STR_L_KEF_OPEN_PROMPT));
+    must_show("passphrase kef/cancel keeps what was typed", cnt);
+    touch(596, 38); pump(3); release(); pump(6);    // SCAN again
+    tap_str(STR_L_SCAN_GO, 3, 6);
+    kiss_scan_inject((const char *)fx, h + 32); pump(6);
+    touch(664, 278); pump(3); release(); pump(3);   // k
+    touch(201, 202); pump(3); release(); pump(3);   // e
+    touch(312, 278); pump(3); release(); pump(3);   // f
+    touch(725, 430); pump(3); release(); pump(40);  // OK -> opened
+    save("/tmp/sim_pp_kef_open.ppm");
+    int n = 0;
+    for (int w = 0; w < 12; w++) n += (w ? 1 : 0) + (int)strlen(SIM_WORDS[w]);
+    snprintf(cnt, sizeof cnt, tr(STR_L_COUNT_SP_FMT), n, 11);
+    must_show("passphrase kef/opened into the field", cnt);
+    must_not_show("passphrase kef/step is over", tr(STR_L_KEF_OPEN_PROMPT));
+  }
+
   // a passphrase can come from a QR too, behind one warning screen
   touch(596, 38); pump(3); release(); pump(6);      // SCAN
   save("/tmp/sim_amnesic_ppwarn.ppm");              // PASSPHRASE FROM A QR
