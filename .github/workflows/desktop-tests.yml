@@ -31,6 +31,9 @@ on:
 env:
   NODE_OPTIONS: --use-openssl-ca
 
+permissions:
+  contents: read
+
 jobs:
   desktop:
     runs-on: ubuntu-latest

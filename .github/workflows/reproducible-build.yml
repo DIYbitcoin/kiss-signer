@@ -70,6 +70,9 @@ env:
   # Read by tools/build_release.sh and tools/build_encrypted_release.sh.
   KISS_UNSIGNED: "1"
 
+permissions:
+  contents: read
+
 jobs:
   sp-interop:
     uses: ./.github/workflows/sp-interop.yml

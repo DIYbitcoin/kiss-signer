@@ -35,6 +35,9 @@ concurrency:
 env:
   NODE_OPTIONS: --use-openssl-ca
 
+permissions:
+  contents: read
+
 jobs:
   overlap:
     runs-on: ubuntu-latest
