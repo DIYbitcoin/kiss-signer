@@ -1236,6 +1236,8 @@ static void shot_raw(const char *name) {
 #endif
 }
 
+static int g_walk_fails;
+
 static void save(const char *path) {
   char lp[384];
   lv_refr_now(NULL);   // saved frames always reflect every pending invalidation
@@ -1257,6 +1259,7 @@ static void save(const char *path) {
   // pass through -- 333 of the /tmp literals in this file are save() calls, so
   // rewriting here is the whole of it. The locale prefix goes on in the same
   // breath it always did.
+  int qr_stop = strncmp(path, "/tmp/sim_qr_out", 15) == 0;
   if (strncmp(path, "/tmp/", 5) == 0) {
     if (g_lang_code && strncmp(path, "/tmp/sim_", 9) == 0)
       snprintf(lp, sizeof lp, "%s/sim_%s_%s", kiss_sim_root(), g_lang_code,
@@ -1265,7 +1268,27 @@ static void save(const char *path) {
       snprintf(lp, sizeof lp, "%s/%s", kiss_sim_root(), path + 5);
     path = lp;
   }
+  // An export QR stop's text goes beside its frame, and any older copy goes
+  // first, so a text file can never outlive the frame it describes.
+  // tools/check_sim_qr.py reads the frame with zxing-cpp and holds it against
+  // that text.
+  char qp[400];
+  size_t pl = strlen(path);
+  int qr_side = qr_stop && pl > 4 && strcmp(path + pl - 4, ".ppm") == 0;
+  if (qr_side) {
+    snprintf(qp, sizeof qp, "%.*s.qr.txt", (int)(pl - 4), path);
+    remove(qp);
+  }
   if (write_ppm(path)) printf("wrote %s\n", path);
+  if (qr_side) {
+    static char txt[4096];
+    int n = wt_sim_qr_texts(txt, sizeof txt);
+    FILE *f = n > 0 ? fopen(qp, "w") : NULL;
+    if (!f || fputs(txt, f) < 0 || fclose(f) != 0) {
+      printf("FAIL: no QR text written beside %s\n", path);
+      g_walk_fails++;
+    }
+  }
 }
 
 // One numbered frame of an animation, straight out of the same framebuffer,
@@ -1510,8 +1533,6 @@ static void dump_labels(lv_obj_t *o, int depth, int *budget) {
   for (uint32_t i = 0; i < lv_obj_get_child_count(o); i++)
     dump_labels(lv_obj_get_child(o, i), depth + 1, budget);
 }
-
-static int g_walk_fails;
 
 // The firmware screen's done_cb rebuilds Settings. The auto-lock teardown must
 // NOT fire it: Settings rebuilt under a locked device is the whole of the

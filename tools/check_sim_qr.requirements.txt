@@ -1,0 +1,7 @@
+# The decoder tools/check_sim_qr.py reads the walk's export QR frames with.
+# One wheel, no dependencies; install with --require-hashes so a republished
+# file cannot change what the gate runs. Linux x86_64 is the CI runner, macOS
+# arm64 a local run; add a hash here for any other platform.
+zxing-cpp==3.1.1 \
+    --hash=sha256:9cf67341949946307d086b302cefd453fb47bc6d6ddc7d088839e9481982757b \
+    --hash=sha256:037cbcaeb0cb12497fc15ced23f6b778fce8a6a1d1bbffddbffd004c6225744d

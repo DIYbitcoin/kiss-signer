@@ -296,6 +296,21 @@ jobs:
           python3 tools/check_sim_taps.py --selftest
           python3 tools/check_sim_taps.py
 
+      # Every other QR check reads codes with k_quirc, the reader the signer
+      # ships, or passes the text across without drawing it, so a fault our
+      # encoder and our reader share would pass them all and still leave a
+      # phone unable to scan the signed transaction. This reads the walk's
+      # export QR frames with zxing-cpp and fails unless each decodes to the
+      # exact UR part its card was given (tools/check_sim_qr.py).
+      - name: export QR frames read by zxing-cpp
+        if: always()
+        run: |
+          python3 -m venv /tmp/zxing
+          /tmp/zxing/bin/pip install -q --only-binary=:all: --require-hashes \
+            -r tools/check_sim_qr.requirements.txt
+          /tmp/zxing/bin/python tools/check_sim_qr.py --selftest
+          /tmp/zxing/bin/python tools/check_sim_qr.py
+
       # The PUBLISHED simulator is the first link a visitor clicks, and the
       # README says its screenshots come from the real firmware sources. That
       # claim can only be kept by a machine, and it was not: the committed
@@ -718,6 +733,18 @@ jobs:
       - name: simulator taps still hit something (${{ matrix.board }})
         if: always()
         run: python3 tools/check_sim_taps.py
+
+      # The same zxing-cpp read as the wide lane. The 3.5in cuts its UR parts
+      # smaller to keep whole pixel modules on a smaller card (kiss_sign.c,
+      # QR_OUT_UR_FRAG), which is its own drawing to check.
+      - name: export QR frames read by zxing-cpp (${{ matrix.board }})
+        if: always()
+        run: |
+          python3 -m venv /tmp/zxing
+          /tmp/zxing/bin/pip install -q --only-binary=:all: --require-hashes \
+            -r tools/check_sim_qr.requirements.txt
+          /tmp/zxing/bin/python tools/check_sim_qr.py --selftest
+          /tmp/zxing/bin/python tools/check_sim_qr.py
 
       - name: every screen has a walk stop (${{ matrix.board }}, strict)
         if: always()

@@ -2452,10 +2452,52 @@ static void qr_zoom_open(wt_qr_state_t *s)
 #endif
 }
 
+#ifdef SIMULATOR
+// ---- what each QR card holds, simulator only ----
+//
+// The walk's export frames were only ever read back by our own decoder, so a
+// fault shared by our encoder and our reader would pass. The walk writes the
+// text beside the frame and a decoder that is not ours reads the picture. The
+// card's cached payload is the text: wt_qr_update stores it before drawing,
+// and the zoom draws the same bytes.
+static wt_qr_state_t *s_sim_qrs[8];
+
+static void sim_qr_track(wt_qr_state_t *s, bool on)
+{
+    for (size_t i = 0; i < sizeof s_sim_qrs / sizeof s_sim_qrs[0]; i++) {
+        if (on && !s_sim_qrs[i]) { s_sim_qrs[i] = s; return; }
+        if (!on && s_sim_qrs[i] == s) { s_sim_qrs[i] = NULL; return; }
+    }
+}
+
+int wt_sim_qr_texts(char *out, size_t cap)
+{
+    int n = 0;
+    size_t at = 0;
+    if (cap) out[0] = '\0';
+    for (size_t i = 0; i < sizeof s_sim_qrs / sizeof s_sim_qrs[0]; i++) {
+        wt_qr_state_t *s = s_sim_qrs[i];
+        if (!s || !s->data || !s->data_len) continue;
+        if (lv_obj_get_screen(s->card) != lv_screen_active()) continue;
+        if (!lv_obj_is_visible(s->card)) continue;
+        if (at + s->data_len + 2 > cap) return -1;
+        memcpy(out + at, s->data, s->data_len);
+        at += s->data_len;
+        out[at++] = '\n';
+        out[at] = '\0';
+        n++;
+    }
+    return n;
+}
+#endif
+
 static void qr_state_delete_cb(lv_event_t *e)
 {
     wt_qr_state_t *s = lv_event_get_user_data(e);
     if (!s) return;
+#ifdef SIMULATOR
+    sim_qr_track(s, false);
+#endif
     qr_payload_free(s);
     lv_free(s);
 }
@@ -2507,6 +2549,9 @@ static lv_obj_t *qr_card_make(lv_obj_t *scr, lv_obj_t **qr,
     wt_tap_feedback(card);
     lv_obj_add_event_cb(card, qr_zoom_open_cb, LV_EVENT_CLICKED, s);
     lv_obj_add_event_cb(card, qr_state_delete_cb, LV_EVENT_DELETE, s);
+#ifdef SIMULATOR
+    sim_qr_track(s, true);
+#endif
     // Outside the white card, so the cue never damages the QR quiet zone.
 #if KISS_NARROW
     // ...and only where the gutter can hold it. A card at the 3.5in's margin

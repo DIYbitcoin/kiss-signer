@@ -390,6 +390,10 @@ void wt_sim_capture(void);
 int  wt_sim_uncaptured(int *out, int max);
 int  wt_sim_built(int *out, int max);
 const char *wt_sim_title_key(int id);
+// The text each visible QR card on the active screen was last given, one per
+// line, so tools/check_sim_qr.py can hold a decoder that is not ours against
+// what was meant to be drawn. Returns how many, or -1 when cap is too small.
+int  wt_sim_qr_texts(char *out, size_t cap);
 #endif
 // One visual language for anonymous "?" affordances: a 30px circle with a
 // 54px effective hit target. `color` carries warning semantics when needed;
