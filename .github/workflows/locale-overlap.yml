@@ -40,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Prepare TLS trust for downloads
         run: python3 .github/scripts/with_trusted_ca.py --github-env
@@ -71,7 +71,7 @@ jobs:
     env:
       KISS_BOARD: ws35
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Prepare TLS trust for downloads
         run: python3 .github/scripts/with_trusted_ca.py --github-env
