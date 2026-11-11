@@ -371,9 +371,17 @@ int test_fw(void)
         snprintf(mine.project, sizeof mine.project, "%s", me);
         ok("install lets this board's image through to the write",
            kiss_fw_install(&mine, NULL, NULL) == WFW_OK);
+        // That install made the receiving slot the one the next boot runs, so
+        // a second file before the restart must not be written at all. The
+        // seam still answers WFW_OK here: the refusal is the check itself.
+        ok("a good install leaves a restart pending",
+           kiss_fw_restart_pending());
+        ok("install refuses a second write before the restart",
+           kiss_fw_install(&mine, NULL, NULL) == WFW_ERR_RESTART);
     }
     kiss_fw_test_set_available(WFW_ERR_UNSIGNED);   // leave the seams as found
     kiss_fw_test_set_install(WFW_ERR_UNSIGNED, 0);
+    ok("a restart clears the pending mark", !kiss_fw_restart_pending());
 
     // Too big outranks the version: it is a fact about this device.
     wipe_card();

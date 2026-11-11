@@ -169,6 +169,14 @@ static bool this_board(const char *proj)
     return proj && strcmp(proj, kiss_fw_running_project()) == 0;
 }
 
+// Set once an install has pointed the next boot at the receiving slot, and
+// never cleared on the device: only a restart undoes it, and a restart starts
+// this at false again. RAM is the right place for it. The state it guards
+// against, the boot choice naming a slot that is still being written, can
+// only be made by an install in this same power cycle.
+static bool s_restart_pending;
+bool kiss_fw_restart_pending(void) { return s_restart_pending; }
+
 #ifndef ESP_PLATFORM
 // Sim seams. See kiss_fw.h. They default to the honest desktop answer, so a
 // test that forgets to set them gets "cannot be checked" rather than a pretend
@@ -181,6 +189,7 @@ void kiss_fw_test_set_install(int rc, int steps)
 {
     s_test_install = rc;
     s_test_steps = steps;
+    s_restart_pending = false;
 }
 #endif
 
@@ -413,6 +422,13 @@ int kiss_fw_install(const wfw_image_t *img, wfw_progress_fn cb, void *ud)
     // wfw_image_t that did not come from it. Above the sim seam, so the host
     // tests reach it; the card itself is asked again below.
     if (!this_board(img->project)) return WFW_ERR_WRONG_BOARD;
+    // An earlier install in this power cycle already made the receiving slot
+    // the one the next boot runs. The write below erases and fills that same
+    // slot BEFORE either signature is checked, and no refusal moves the boot
+    // choice back, so a refused image written now would be the firmware the
+    // next power on starts, on a screen saying nothing was made bootable.
+    // Above the sim seam, so the host tests reach it.
+    if (s_restart_pending) return WFW_ERR_RESTART;
 
 #ifndef ESP_PLATFORM
     // No flash to write and no key to check with, so the outcome is whatever
@@ -420,6 +436,7 @@ int kiss_fw_install(const wfw_image_t *img, wfw_progress_fn cb, void *ud)
     // redraws from them, and that redraw is what the screen walk measures.
     for (int i = 1; cb && i <= s_test_steps; i++)
         cb((int)((long)i * 100 / s_test_steps), ud);
+    if (s_test_install == WFW_OK) s_restart_pending = true;
     return s_test_install;
 #else
     const esp_partition_t *dst = esp_ota_get_next_update_partition(NULL);
@@ -571,6 +588,10 @@ int kiss_fw_install(const wfw_image_t *img, wfw_progress_fn cb, void *ud)
     if (err == ESP_ERR_OTA_VALIDATE_FAILED) return WFW_ERR_REJECTED;
     if (err != ESP_OK) return WFW_ERR_WRITE;
 
+    // Marked before the call, not after it: a call that fails part way may
+    // still have moved the boot choice, and the slot must not be written again
+    // either way.
+    s_restart_pending = true;
     if (esp_ota_set_boot_partition(dst) != ESP_OK) return WFW_ERR_WRITE;
     return WFW_OK;
 #endif

@@ -59,6 +59,11 @@ enum {
     // descriptor's project_name, which project() sets per board, so it is
     // compared at the scan and again on the handle install is about to write.
     WFW_ERR_WRONG_BOARD = -12,
+    // A good image is already installed and waiting for its restart. That
+    // install pointed the next boot at the receiving slot, so a second write
+    // would land in the slot the next power on runs, before either signature
+    // has been asked about it. Refused until the device has restarted.
+    WFW_ERR_RESTART = -13,
 };
 
 typedef struct {
@@ -119,8 +124,15 @@ int kiss_fw_desc_parse(const uint8_t *hdr, size_t len,
 // the callback runs on the caller's task, so the UI drives its own redraw.
 // Returns WFW_OK, and the caller reboots. Nothing is made bootable unless the
 // signature verified, so a failure here always leaves the running slot intact.
+// One install per power cycle: after a WFW_OK every further call answers
+// WFW_ERR_RESTART and writes nothing, because the slot it would write is now
+// the one the next boot runs.
 typedef void (*wfw_progress_fn)(int pct, void *ud);
 int kiss_fw_install(const wfw_image_t *img, wfw_progress_fn cb, void *ud);
+
+// True from a successful install until the restart. The Firmware screen asks
+// this before it offers anything, and shows the restart screen instead.
+bool kiss_fw_restart_pending(void);
 
 // Should this boot confirm the slot? The three things a new image can break
 // that a reboot into the previous one would undo: it cannot sign, the panel it
@@ -148,5 +160,7 @@ void kiss_fw_mark_valid(void);
 //
 // set_available forces what kiss_fw_available() answers; set_install forces
 // what kiss_fw_install() returns, after reporting `steps` progress ticks.
+// set_install also clears the restart mark a WFW_OK leaves, as a restart
+// would, so each test starts from a freshly booted device.
 void kiss_fw_test_set_available(int rc);
 void kiss_fw_test_set_install(int rc, int steps);

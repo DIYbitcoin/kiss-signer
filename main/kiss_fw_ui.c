@@ -473,7 +473,9 @@ static void fw_rescan_cb(lv_event_t *e)
 
 static void result_screen(int rc)
 {
-    const bool ok = rc == WFW_OK;
+    // WFW_ERR_RESTART is the install saying a good image is already waiting,
+    // which is this same screen's good news, not a failure.
+    const bool ok = rc == WFW_OK || rc == WFW_ERR_RESTART;
     const char *body;
 
     if (ok) {
@@ -931,6 +933,14 @@ static void nothing_to_install(int rc)
 
 static void fw_screen(void)
 {
+    // BACK on the success screen leaves the old firmware running with the new
+    // one waiting. Coming back here then must not offer a second install: the
+    // install would refuse it, and the one thing left to do is restart. Before
+    // the scan, so s_img still names the version that was installed.
+    if (kiss_fw_restart_pending()) {
+        result_screen(WFW_OK);
+        return;
+    }
     int rc = kiss_fw_scan(&s_img);
     // A build that cannot check a signature has nothing to say about whatever
     // is on the card, so that answer outranks the scan's.
