@@ -603,7 +603,7 @@
   "S_SIGNING": "FIRMA IN CORSO...",
   "S_SIGNING_AS": "FIRMI COME",
   "S_SIG_FP_CAP": "CODICE FIRMA",
-  "S_SIG_FP_HELP_B": "questo codice viene dalla firma stessa.\n\nfirma di nuovo su un firmatario di cui ti fidi.\n\nlo stesso codice vuol dire che nessuno ha cambiato nulla.",
+  "S_SIG_FP_HELP_B": "questo codice aiuta il confronto.\n\ncodici uguali non provano la sicurezza.\n\nverifica le firme esportate in modo indipendente.",
   "S_SIG_FP_HELP_T": "CONTROLLO FIRMA",
   "S_COORD_SAVE": "in your coordinator: save the transaction as a PSBT file onto the card",
   "S_SP_BADGE": "pagamento silenzioso",

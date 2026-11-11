@@ -603,7 +603,7 @@
   "S_SIGNING": "PODPISUJĘ...",
   "S_SIGNING_AS": "PODPISUJESZ JAKO",
   "S_SIG_FP_CAP": "KOD PODPISU",
-  "S_SIG_FP_HELP_B": "ten kod pochodzi z samego podpisu.\n\npodpisz jeszcze raz na podpisującym, któremu ufasz.\n\nten sam kod znaczy, że nikt nic nie zmienił.",
+  "S_SIG_FP_HELP_B": "ten kod pomaga w porównaniu.\n\nzgodne kody nie dowodzą bezpieczeństwa.\n\nsprawdź wyeksportowane podpisy niezależnie.",
   "S_SIG_FP_HELP_T": "SPRAWDZENIE PODPISU",
   "S_COORD_SAVE": "in your coordinator: save the transaction as a PSBT file onto the card",
   "S_SP_BADGE": "cicha płatność",

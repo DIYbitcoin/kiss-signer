@@ -171,6 +171,9 @@ jobs:
       # fallback an encrypted board falls into, which ranges get read at all --
       # is exercised here too. Only the USB layer and whether real NVS matches
       # the format still need hardware.
+      - name: Independent signature export comparison
+        run: python3 tools/test_compare_psbt_signatures.py
+
       - name: NVS forensic scanner (offline fixture)
         run: |
           python3 tools/test_nvs_seed_scan.py | tee /tmp/kissnvs.log

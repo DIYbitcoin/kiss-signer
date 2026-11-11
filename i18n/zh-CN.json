@@ -603,7 +603,7 @@
   "S_SIGNING": "签名中...",
   "S_SIGNING_AS": "签名身份",
   "S_SIG_FP_CAP": "签名代码",
-  "S_SIG_FP_HELP_B": "这个码来自签名本身。\n\n换一台你信得过的签名器再签一次。\n\n码一样，就说明谁都没改过。",
+  "S_SIG_FP_HELP_B": "这个码不能证明安全。\n\n码相同也不证明安全。\n\n请在可信设备上验证输出的签名。",
   "S_SIG_FP_HELP_T": "核对签名",
   "S_COORD_SAVE": "in your coordinator: save the transaction as a PSBT file onto the card",
   "S_SP_BADGE": "静默",

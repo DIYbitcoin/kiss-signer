@@ -226,6 +226,9 @@ run "SD PSBT fixtures reach their verdicts" \
      && bash sim/mk_sd_psbts.sh \"\$KISS_SIM_TMP/sdfix\" \
      && bash sim/check_sd_psbts.sh \"\$KISS_SIM_TMP/sdfix\""
 
+run "independent signature export comparison" \
+    "python3 tools/test_compare_psbt_signatures.py"
+
 run "NVS forensic scanner" \
     "python3 tools/test_nvs_seed_scan.py | tee \"\$KISS_SIM_TMP/nvs.log\" \
      && grep -q 'PASS: recovery survives damaged NVS metadata' \"\$KISS_SIM_TMP/nvs.log\" \

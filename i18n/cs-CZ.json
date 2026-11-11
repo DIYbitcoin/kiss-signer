@@ -603,7 +603,7 @@
   "S_SIGNING": "PODEPISOVÁNÍ...",
   "S_SIGNING_AS": "PODEPISUJE JAKO",
   "S_SIG_FP_CAP": "KÓD PODPISU",
-  "S_SIG_FP_HELP_B": "tenhle kód vzniká ze samotného podpisu.\n\npodepište znovu na podepisovači, kterému věříte.\n\nstejný kód znamená, že nikdo nic nezměnil.",
+  "S_SIG_FP_HELP_B": "tento kód pomáhá s porovnáním.\n\nshodné kódy nedokazují bezpečnost.\n\nnezávisle ověřte exportované podpisy.",
   "S_SIG_FP_HELP_T": "KONTROLA PODPISU",
   "S_COORD_SAVE": "in your coordinator: save the transaction as a PSBT file onto the card",
   "S_SP_BADGE": "tichá platba",

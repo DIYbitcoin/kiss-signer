@@ -603,7 +603,7 @@
   "S_SIGNING": "SIGNATURE...",
   "S_SIGNING_AS": "SIGNE AVEC",
   "S_SIG_FP_CAP": "CODE DE SIGNATURE",
-  "S_SIG_FP_HELP_B": "ce code vient de la signature elle même.\n\nsignez encore sur un signeur de confiance.\n\nle même code veut dire que personne n a rien changé.",
+  "S_SIG_FP_HELP_B": "ce code aide à comparer.\n\ndes codes identiques ne prouvent pas la sécurité.\n\nvérifiez les signatures exportées indépendamment.",
   "S_SIG_FP_HELP_T": "CONTRÔLE DE SIGNATURE",
   "S_COORD_SAVE": "in your coordinator: save the transaction as a PSBT file onto the card",
   "S_SP_BADGE": "paiement furtif",

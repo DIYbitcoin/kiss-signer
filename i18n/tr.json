@@ -603,7 +603,7 @@
   "S_SIGNING": "İMZALANIYOR...",
   "S_SIGNING_AS": "İMZALAYAN",
   "S_SIG_FP_CAP": "İMZA KODU",
-  "S_SIG_FP_HELP_B": "bu kod imzanın kendisinden gelir.\n\ngüvendiğiniz bir imzalayıcıda yeniden imzalayın.\n\naynı kod, kimsenin bir şey değiştirmediği anlamına gelir.",
+  "S_SIG_FP_HELP_B": "bu kod karşılaştırmaya yardımcıdır.\n\naynı kodlar güvenliği kanıtlamaz.\n\ndışa aktarılan imzaları bağımsız olarak doğrulayın.",
   "S_SIG_FP_HELP_T": "İMZA KONTROLÜ",
   "S_COORD_SAVE": "in your coordinator: save the transaction as a PSBT file onto the card",
   "S_SP_BADGE": "sessiz ödeme",

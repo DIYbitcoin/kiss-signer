@@ -1,23 +1,25 @@
 # On-device signature fingerprint
 
-Status: design approved 2026-07-30, not implemented.
+Status: implemented. Security limitation clarified 2026-11-11.
 
 KISS signs deterministically, so the same PSBT signed with the same seed on two
 independently trusted units produces byte-identical signatures. That is the
 Dark Skippy check documented in `security-plan.md` ("Signing is verifiable"):
-if the two disagree, one of them chose its nonce. Today performing it means
-exporting both signed PSBTs and diffing the bytes. This makes it a glance.
+compare the actual exported signature bytes on a trusted computer. A mismatch
+requires investigation; it may also reflect different signing rules or a fault.
 
 After signing, both signed screens show a short fingerprint of the signature
-bytes. Two units that agree show the same code; a user compares a number
-instead of a file.
+bytes. Honest units that agree show the same code. This is a convenience only:
+a malicious unit can display an honest code and export different signature bytes.
 
 ## What it is not
 
-Not a security primitive and not a wallet identity. It is a comparison aid: a
-compressed stand-in for "diff the signatures." The signed screen itself carries
+Not a security primitive and not a wallet identity. It is a 32-bit comparison
+aid, not a replacement for comparing actual exports. The signed screen carries
 no threat-model prose -- it shows a labelled number. The meaning is one tap
-away, behind a `?` help chip, and in full in `security-plan.md`.
+away, behind a `?` help chip, and in full in `security-plan.md`. The help screen
+does not show a green safety tick for matching codes. For export comparison,
+see `tools/compare_psbt_signatures.py` and `specs/verifiable-determinism.md`.
 
 It is also not the wallet fingerprint. The wallet fingerprint (e.g. 73C5DA0A)
 identifies the wallet and appears across the UI; this identifies one signing
@@ -102,9 +104,9 @@ shipping them needs no translations):
 
     STR_S_SIG_FP_CAP    = "SIGNATURE"
     STR_S_SIG_FP_HELP_T = "SIGNATURE CHECK"
-    STR_S_SIG_FP_HELP_B = a few plain lines for the ? panel: the same code on
-                          another signer you trust means neither device changed
-                          the signature; a different code means one did. No
+    STR_S_SIG_FP_HELP_B = a few plain lines for the ? panel: this is a comparison
+                          aid, matching codes do not prove safety, and exported
+                          signatures need independent checking. No
                           "Dark Skippy", no "nonce" -- the words a first-time
                           reader can act on.
 

@@ -603,7 +603,7 @@
   "S_SIGNING": "ONDERTEKENEN...",
   "S_SIGNING_AS": "TEKENT ALS",
   "S_SIG_FP_CAP": "HANDTEKENINGCODE",
-  "S_SIG_FP_HELP_B": "deze code komt uit de handtekening zelf.\n\nteken opnieuw op een ondertekenaar die je vertrouwt.\n\ndezelfde code betekent dat niemand iets veranderde.",
+  "S_SIG_FP_HELP_B": "deze code helpt bij vergelijken.\n\ngelijke codes bewijzen geen veiligheid.\n\ncontroleer de geëxporteerde handtekeningen onafhankelijk.",
   "S_SIG_FP_HELP_T": "HANDTEKENING CHECK",
   "S_COORD_SAVE": "in your coordinator: save the transaction as a PSBT file onto the card",
   "S_SP_BADGE": "stille betaling",

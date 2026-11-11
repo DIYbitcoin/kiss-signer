@@ -349,11 +349,13 @@ Dark Skippy is a signing-time attack: malicious firmware chooses the nonce of a
 signature so that it leaks bits of the master seed, and an attacker reads them
 back off the blockchain across two signatures. A perfectly generated seed is
 exfiltrated anyway, because the leak is in the nonce, not the seed. The three
-entropy sources above do nothing against it; this does.
+entropy sources above do not address it. Independent verification of actual
+signing output is needed to detect malicious nonce selection.
 
-KISS signs deterministically, and that is the defense. A nonce that is a fixed
-function of the key and the message is not free, so firmware cannot vary it to
-smuggle out the seed without also failing to reproduce the one honest signature.
+KISS's software signing paths use fixed nonce rules. This makes their output
+independently reproducible, but malicious firmware can replace those rules and
+bypass the self-tests. Determinism in published source is not proof that an
+installed device followed it on a real transaction.
 
 **The frozen rules.** Stated so an independent implementation reproduces every
 KISS signature from the seed:
@@ -383,14 +385,18 @@ arithmetic, and a unit that cannot reproduce them signs nothing at all.
 second signer you trust independently: a second KISS you compiled yourself from
 audited source, Bitcoin Core for the ECDSA inputs, or any stock BIP340 signer
 for the taproot ones -- the rules above are the standard ones, so the second
-signer needs no KISS-aware code. Both signed screens show a `SIGNATURE` code, so
-the comparison is a glance rather than a file diff. Deterministic signing means
-the two must be identical; a single differing byte means one signer chose its
-nonce, which is the Dark Skippy tell.
+signer must use exactly the same deterministic rules. Compare the actual
+exported signatures on a trusted computer before broadcast, using
+`tools/compare_psbt_signatures.py` with the original unsigned PSBT and both
+unfinalized exports. A mismatch requires investigation and is not itself proof
+of malice. The device's displayed `SIGNATURE` code is not sufficient: malicious
+firmware can display the expected code while exporting different bytes.
 
-**What this does not do is stop malice.** Firmware willing to grind a nonce is
-willing to delete the boot selftest and print whatever code it likes, and there
-is no secure boot on this hardware. Determinism makes the leak CHECKABLE, and
+**What self-tests do not do is stop malice.** Firmware willing to choose a
+leaking nonce can delete the boot selftest and print whatever code it likes.
+Secure boot on a provisioned device restricts firmware authorization, not the
+behavior of authorized firmware or code compromised at runtime. The normal
+beta lane does not enable it. Determinism makes nonce deviations checkable, and
 the check is the comparison above -- whose entire strength is the independence
 of the second signer. Two units running the same untrusted build prove nothing:
 they leak identically and still match.

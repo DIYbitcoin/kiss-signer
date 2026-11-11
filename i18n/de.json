@@ -603,7 +603,7 @@
   "S_SIGNING": "SIGNIERE...",
   "S_SIGNING_AS": "SIGNIERT ALS",
   "S_SIG_FP_CAP": "SIGNATURCODE",
-  "S_SIG_FP_HELP_B": "dieser Code kommt aus der Signatur selbst.\n\nsignieren Sie erneut auf einem Signierer, dem Sie trauen.\n\nderselbe Code heißt: keiner hat etwas geändert.",
+  "S_SIG_FP_HELP_B": "dieser Code hilft beim Vergleich.\n\ngleiche Codes beweisen keine Sicherheit.\n\nexportierte Signaturen unabhängig prüfen.",
   "S_SIG_FP_HELP_T": "SIGNATUR PRÜFEN",
   "S_COORD_SAVE": "in your coordinator: save the transaction as a PSBT file onto the card",
   "S_SP_BADGE": "Silent Payment",

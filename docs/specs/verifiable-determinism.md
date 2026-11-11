@@ -142,9 +142,10 @@ The workflow, documented for the user:
    source, or any tool that implements the frozen rules. Since the Schnorr aux
    was standardized, "any tool" includes a stock BIP340 signer for the taproot
    inputs and Bitcoin Core for the ECDSA ones -- no KISS-aware code needed.
-3. Compare the signature bytes. Deterministic signing means they must be
-   identical. A single differing byte means one signer chose its nonce, which
-   is the Dark Skippy tell.
+3. On a trusted computer, compare the actual exported signature bytes before
+   broadcast. They must match when both signers use the same keys, message and
+   frozen signing rules. A mismatch means stop and investigate; different
+   signing conventions or a fault can also cause it, so it is not proof of malice.
 
 This needs no coordinator and no protocol change, and it covers ECDSA and
 taproot alike, because it checks bytes rather than running a curve-specific
@@ -154,14 +155,42 @@ both leak identically and still match. The spec says this plainly so no one
 mistakes a two-unit match for a proof when both units run the same untrusted
 build.
 
-What KISS ships for part 2 is the workflow above, the frozen rules that make an
-independent signer possible, and one aid: both signed screens show a `SIGNATURE`
-code -- eight hex characters of a hash over the signature bytes alone
-(`kiss_psbt_sig_fingerprint`, kiss_psbt.c) -- so two signers are compared by eye
-instead of by exporting and diffing two files. It hashes signatures and not the
-PSBT framing, so a different tool that signed the same way still agrees. See
-`specs/signature-fingerprint.md`. The file comparison works too, on the signed
-PSBTs KISS already writes.
+The `SIGNATURE` display is only a comparison aid. Malicious firmware can show
+the expected code and export a different signature. Its eight hex characters
+also truncate the hash to 32 bits. Matching device displays do not establish
+that the exported signatures match, and must not authorize broadcast.
+
+For unfinalized PSBT exports, run the offline checker on a trusted computer:
+
+```sh
+python3 tools/compare_psbt_signatures.py original.psbt reference.psbt candidate.psbt
+```
+
+Keep `original.psbt` from the coordinator before either signer touches it.
+Sign that same unsigned file independently on each device; do not feed one
+device's signed output to the other. `reference.psbt` must come from an
+independently trusted offline signer with the same keys and signing rules.
+`candidate.psbt` is the actual KISS export being checked. Never enter a seed
+or private key into the comparison computer. The tool reads files only and
+does not connect to a network, sign, modify exports, or broadcast.
+
+The checker accepts binary/base64 PSBTv0 and PSBTv2, compares full ECDSA or
+taproot key-path signature bytes per input and signing key, and requires every
+input to carry a signature. It also requires non-signature fields to match the
+original, allowing only v2 input/output modification flags to be cleared.
+Map order may differ. Metadata stripped or added by a signer is refused;
+finalized exports, taproot script-path signatures, unresolved silent-payment
+outputs and partially signed shared transactions are unsupported. Retain
+unfinalized exports from both signers. Do not remove a field just to make a
+refusal disappear; investigate the difference.
+
+Exit 0 means the accepted fields and signatures match; exit 1 means refused.
+This is a byte comparator, not a cryptographic signature validator or a
+broadcast gate in Sparrow/BlueWallet. Its value depends on a valid, independently
+trusted reference. Comparing the same file twice or two compromised signers
+provides no independent assurance. Repeating a test transaction does not check
+future transactions: compare each real export before broadcast. It does not
+prove the absence of other covert channels or provide interactive anti-exfil.
 
 ## The frozen rules
 

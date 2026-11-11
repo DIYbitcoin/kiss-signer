@@ -602,7 +602,7 @@
   "S_MO_WRITTEN_SD": "PADA KAD",
   "S_MO_WRITTEN_QR": "QR SEDIA",
   "S_MO_SENT": "tandatangannya, dalam 8 aksara",
-  "S_SIG_FP_HELP_B": "kod ini datang dari tandatangan itu sendiri.\n\ntandatangan semula pada signer lain yang dipercayai.\n\nkod sama bermakna tiada yang diubah.",
+  "S_SIG_FP_HELP_B": "kod ini membantu perbandingan.\n\nkod sama tidak membuktikan keselamatan.\n\nsemak tandatangan yang dieksport secara bebas.",
   "S_SIG_FP_HELP_T": "SEMAKAN TANDATANGAN",
   "S_COORD_SAVE": "dalam koordinator anda: simpan transaksi sebagai fail PSBT ke dalam kad",
   "S_SP_BADGE": "silent payment",

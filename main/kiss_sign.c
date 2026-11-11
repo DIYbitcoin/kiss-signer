@@ -813,23 +813,15 @@ static void sig_fp_help_cb(lv_event_t *e)
         lv_obj_set_x(own, (SCREEN_W - lv_obj_get_width(own)) / 2);
     }
 
-    // The answer, drawn before it is said: the same transaction signed on two
-    // signers either shows one code twice, or it does not. Two rows, two
-    // verdicts, no vocabulary -- a reader who cannot parse the claims below
-    // yet still leaves knowing what to compare and what a mismatch looks like.
+    // Matching display codes are only a comparison aid: compromised firmware
+    // can show an honest code while exporting different signature bytes.
     // The codes are invented, and deliberately not this device's own format
     // example from the signed screen: these chips are two DIFFERENT devices.
     lv_obj_t *r1 = wt_diagram_row(s_scr);
     sig_code_chip(r1, "3F00 C01D");
     wt_diagram_op(r1, "=");
     sig_code_chip(r1, "3F00 C01D");
-    // A VERDICT, not an operator, so it keeps its status colour and drops the
-    // accent flag the kit now puts on every op -- otherwise the next theme
-    // change repaints this tick, and on GREEN the accent is WT_OK to the byte.
-    lv_obj_t *ok = wt_diagram_op(r1, LV_SYMBOL_OK);
-    lv_obj_remove_flag(ok, WT_FLAG_ACCENT);
-    lv_obj_set_style_text_color(ok, OK_COL, 0);
-    lv_obj_set_style_text_font(ok, wt_font23(), 0);   // the verdict is the payload
+    // No green tick: a match on the suspect device is not a safety verdict.
     lv_obj_align(r1, LV_ALIGN_TOP_MID, 0, SY(116));
 
     lv_obj_t *r2 = wt_diagram_row(s_scr);

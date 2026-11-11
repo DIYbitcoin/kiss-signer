@@ -603,7 +603,7 @@
   "S_SIGNING": "署名中...",
   "S_SIGNING_AS": "署名者",
   "S_SIG_FP_CAP": "署名コード",
-  "S_SIG_FP_HELP_B": "このコードは署名そのものから出ます。\n\n信頼できる別の署名機でもう一度署名してください。\n\n同じコードなら、どちらも何も変えていません。",
+  "S_SIG_FP_HELP_B": "このコードだけでは安全を確認できません。\n\n同じコードでも安全とは限りません。\n\n出力した署名を別の信頼できる機器で確認してください。",
   "S_SIG_FP_HELP_T": "署名の確認",
   "S_COORD_SAVE": "in your coordinator: save the transaction as a PSBT file onto the card",
   "S_SP_BADGE": "サイレント",
