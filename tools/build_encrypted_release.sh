@@ -62,7 +62,8 @@
 #   * after the first boot, serial reflash is IMPOSSIBLE, so the web installer
 #     and the cable never work on that board again. JTAG is permanently
 #     disabled by the secure boot burn, and ROM download mode drops to its
-#     secure subset: enough to erase a board, never to read or reprogram it.
+#     secure subset: it can still overwrite or erase a board, but never read
+#     it, and nothing written that way boots.
 #   * firmware is NOT frozen: this table carries two app slots and an otadata,
 #     and the board takes signed SD updates - now judged against the eFuse
 #     digest, not merely the running app's own block. Anti rollback is armed at
@@ -213,9 +214,11 @@ force = {
     "CONFIG_SECURE_BOOT_FLASH_BOOTLOADER_DEFAULT":  None if rehearsal else "y",
     "CONFIG_SECURE_BOOT_ECDSA_KEY_LEN_256_BITS":    "y",
     # ROM download mode after the burn: switched to the SECURE subset, not
-    # disabled outright - secure mode still lets a stranger erase a board and
-    # prove it erased, and closes flash reads and writes. Settled as a Stage 2
-    # decision in docs/specs/flash-encryption-secure-boot-rollout.md.
+    # disabled outright. Secure mode closes flash reads and memory access, but
+    # still takes flash writes and erases: anyone on the cable can overwrite or
+    # wipe the board, and secure boot plus the unreadable flash key stop what
+    # they write from booting. Settled as a Stage 2 decision in
+    # docs/specs/flash-encryption-secure-boot-rollout.md.
     "CONFIG_SECURE_ENABLE_SECURE_ROM_DL_MODE":      None if rehearsal else "y",
     "CONFIG_SECURE_DISABLE_ROM_DL_MODE":            None,
     # anti rollback, armed at secure version 0. The eFuse counter only burns

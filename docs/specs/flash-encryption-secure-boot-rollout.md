@@ -197,10 +197,14 @@ assertions now say each of these out loud.
   release board reboots silently on a panic; the rehearsal keeps the print.
   Aggressive key revoke is pinned off and app rollback on, so neither is left
   to a default either.
-- **ROM download mode: the secure subset, confirmed.** Enough for a stranger
-  to erase a board and prove it erased, never to read or reprogram it. Was an
-  inherited default; the build script now forces it so no IDF default can
-  unmake it.
+- **ROM download mode: the secure subset, confirmed.** It closes flash reads
+  and memory access, so nobody on the cable can read the board. It does not
+  close writes or erases: anyone holding the board can overwrite or wipe it,
+  and what stops them is that secure boot refuses an image the builder did
+  not sign and the flash key is unreadable, so nothing they write will boot.
+  That is a board someone can destroy, never one they can read or make run
+  their own firmware. Was an inherited default; the build script now forces
+  it so no IDF default can unmake it.
 - **Anti rollback: armed at secure version 0.** The check has to live in the
   burned bootloader from birth or it never exists; at version 0 it burns
   nothing and refuses nothing, until a release deliberately bumps the
