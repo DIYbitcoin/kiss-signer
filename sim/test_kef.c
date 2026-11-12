@@ -561,6 +561,24 @@ static void test_armor(void)
          kef_unarmor((const uint8_t *)junk, strlen(junk), out, sizeof out,
                      &n) == -1);
 
+    // A standard seed QR is digits only, and digits are valid base43. With a
+    // first word numbered 500 to 599 or 700 to 799 the decoded bytes used to
+    // pass the sniff, and the seed QR was taken for a backup that would not
+    // open. Both ranges, a 24 word code, and one that never matched.
+    static const char *const SEEDQR[] = {
+        "055000010001000100010001000100010001000100010001",
+        "075000010001000100010001000100010001000100010001",
+        "015000010001000100010001000100010001000100010001",
+        "105000010001000100010001000100010001000100010001"
+        "000100010001000100010001000100010001000100010001",
+    };
+    for (size_t i = 0; i < sizeof SEEDQR / sizeof SEEDQR[0]; i++) {
+        n = 0;
+        dchk("armor: a digits only seed QR is not armored KEF",
+             kef_unarmor((const uint8_t *)SEEDQR[i], strlen(SEEDQR[i]), out,
+                         sizeof out, &n) == -1 && n == 0);
+    }
+
     // One character outside both alphabets kills the whole string.
     char bad[80];
     snprintf(bad, sizeof bad, "%s", B43);

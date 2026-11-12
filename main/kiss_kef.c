@@ -250,6 +250,18 @@ int kef_unarmor(const uint8_t *in, size_t in_len,
         in_len--;
     if (in_len == 0) return -1;
 
+    // Digits alone are never armor. The ten digits sit in both alphabets, so a
+    // standard seed QR (48 or 96 digits, four per word) decodes cleanly as
+    // base43, and when its first word number is 500 to 599 or 700 to 799 the
+    // bytes that fall out start with a version this table knows and pass the
+    // sniff. That seed QR was then answered as an encrypted backup that would
+    // not open, about one 12 word seed in ten. A real envelope in either
+    // armor is random text: the chance of one with no letter in it is nil.
+    size_t digits = 0;
+    while (digits < in_len && in[digits] >= '0' && in[digits] <= '9')
+        digits++;
+    if (digits == in_len) return -1;
+
     size_t n = 0;
     if (b64_decode(in, in_len, out, out_cap, &n) == 0 && kef_sniff(out, n)) {
         *out_len = n;
