@@ -175,6 +175,28 @@ assertions now say each of these out loud.
   burn now writes the order down once, as fingerprints of the public halves,
   and both lanes refuse to sign as key *N* with a key that record does not
   call key *N*.
+- **eFuse read protection locks at the burn: settled 2026-11-12.** With
+  secure boot on, IDF's first boot burns `WR_DIS_RD_DIS`, so no eFuse can be
+  read protected afterwards (`secure_boot_secure_features.c` and
+  `flash_encryption_secure_features.c` for the esp32p4, IDF v6.1). Any key
+  that must stay secret in eFuse, an HMAC device key for the SD `dkey` or
+  for NVS included, is therefore burned in the same first boot or never. The
+  recipe burns none: the NVS keys live in the flash encrypted `nvs_key`
+  partition. The key block budget says the same: two blocks for the XTS-AES-256
+  key and three for the secure boot digests leave one of the six, and only
+  the first boot can spend it on a secret.
+
+  The other way round, `SECURE_BOOT_V2_ALLOW_EFUSE_RD_DIS`, keeps the door
+  open and lets anyone holding the board read protect the digest blocks, which
+  IDF's own help calls a denial of service and a fault injection opening. It is
+  also the one loosening option not behind `SECURE_BOOT_INSECURE`, so the
+  recipe now forces it off and asserts it, alongside the panic GDB stub, the
+  runtime GDB stub, core dumps and the ordinary panic print (registers and
+  1 KB of stack on RISC-V), any of which would hand RAM of a burned board,
+  the words included while a wallet is open, to whoever is on the cable. A
+  release board reboots silently on a panic; the rehearsal keeps the print.
+  Aggressive key revoke is pinned off and app rollback on, so neither is left
+  to a default either.
 - **ROM download mode: the secure subset, confirmed.** Enough for a stranger
   to erase a board and prove it erased, never to read or reprogram it. Was an
   inherited default; the build script now forces it so no IDF default can

@@ -293,6 +293,38 @@ force = {
     "CONFIG_SECURE_BOOT_V2_FORCE_ENABLE_ECDSA":     None,
     "CONFIG_SECURE_BOOT_INSECURE":                  None,
     "CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES":     None,
+    # Off, so the first boot burns WR_DIS_RD_DIS (IDF bootloader Kconfig,
+    # esp32p4 secure_boot_secure_features.c). Unlike the other loosening
+    # options this one is not behind SECURE_BOOT_INSECURE, so nothing else
+    # here would catch it. Left on, anyone holding the board could
+    # read-protect the key blocks that hold the digests, which IDF's own help
+    # calls a denial of service and a fault injection opening. The price is
+    # stated in the rollout spec: no read-protected key, an HMAC device key
+    # included, can be added to a board after its burn.
+    "CONFIG_SECURE_BOOT_V2_ALLOW_EFUSE_RD_DIS":     None,
+    # A panic on a burned board must not hand its RAM, which holds the words
+    # while a wallet is open, to whoever is on the cable. A GDB stub on panic
+    # or at runtime reads memory over the console, a core dump to UART prints
+    # it, and so does the ordinary panic print: on RISC-V it dumps the
+    # registers and 1 KB of stack. So the release board reboots silently.
+    # The rehearsal keeps the print, because it holds a throwaway seed and a
+    # crash there is something to read, not to hide.
+    "CONFIG_ESP_SYSTEM_PANIC_SILENT_REBOOT":        None if rehearsal else "y",
+    "CONFIG_ESP_SYSTEM_PANIC_PRINT_REBOOT":         "y" if rehearsal else None,
+    "CONFIG_ESP_SYSTEM_PANIC_PRINT_HALT":           None,
+    "CONFIG_ESP_SYSTEM_PANIC_GDBSTUB":              None,
+    "CONFIG_ESP_SYSTEM_GDBSTUB_RUNTIME":            None,
+    "CONFIG_ESP_COREDUMP_ENABLE_TO_UART":           None,
+    "CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH":          None,
+    "CONFIG_ESP_COREDUMP_ENABLE_TO_NONE":           "y",
+    # Two choices the burned bootloader carries for life, pinned rather than
+    # inherited. Aggressive revoke would revoke a key slot on the first
+    # signature check that fails, so one bad image could spend the rotation
+    # budget; the rollout spec keeps it off. App rollback is what lets a
+    # trial slot that never confirms itself fall back to the last good one
+    # (kiss_fw_mark_valid confirms it); anti rollback depends on it.
+    "CONFIG_SECURE_BOOT_ENABLE_AGGRESSIVE_KEY_REVOKE": None,
+    "CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE":        "y",
 
     # The bootloader's own logs, quieted here for ROOM rather than for quiet.
     # It is flashed at 0x2000 with the partition table at 0x8000, so its
@@ -1001,6 +1033,25 @@ checks += [
     # carries three blocks; this proves nothing is left writable beside them.
     (not on("CONFIG_SECURE_BOOT_ALLOW_UNUSED_DIGEST_SLOTS"),
      "no digest slot left open (three burned, none writable)"),
+    # The lock only burns with secure boot, so only the release build can
+    # promise it; the rehearsal can only say the option is off.
+    (not on("CONFIG_SECURE_BOOT_V2_ALLOW_EFUSE_RD_DIS"),
+     "eFuse read protection option off (nothing to lock without secure boot)"
+     if rehearsal else
+     "eFuse read protection locked after the burn (WR_DIS_RD_DIS)"),
+    (not on("CONFIG_ESP_SYSTEM_PANIC_GDBSTUB") and
+     not on("CONFIG_ESP_SYSTEM_GDBSTUB_RUNTIME") and
+     on("CONFIG_ESP_COREDUMP_ENABLE_TO_NONE"),
+     "no GDB stub and no core dump"),
+    (rehearsal or (on("CONFIG_ESP_SYSTEM_PANIC_SILENT_REBOOT") and
+                   not on("CONFIG_ESP_SYSTEM_PANIC_PRINT_REBOOT") and
+                   not on("CONFIG_ESP_SYSTEM_PANIC_PRINT_HALT")),
+     "panic print kept (rehearsal, throwaway seed)" if rehearsal else
+     "a panic reboots silently: no registers or stack on the cable"),
+    (not on("CONFIG_SECURE_BOOT_ENABLE_AGGRESSIVE_KEY_REVOKE"),
+     "aggressive key revoke off"),
+    (on("CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE"),
+     "app rollback on (an unconfirmed update falls back)"),
     # Armed. At version 0 it burns nothing and refuses nothing; the old
     # comment here said arming it early would freeze the fleet on an
     # unfinished security model, and the model this pass ships is the

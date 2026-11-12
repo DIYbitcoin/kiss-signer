@@ -162,6 +162,12 @@ eFuse backed device key, which removes the key from the set that has to survive
 an erase; until then the honest statement is this paragraph rather than a
 migration that can lose a wallet.
 
+That key has to be decided before a board is burned, not after. The secure
+boot burn locks eFuse read protection for good (it burns `WR_DIS_RD_DIS`), and
+an eFuse device key is only worth having if it is read protected, so a board
+burned with today's recipe can never gain one. On such a board the residue is
+ciphertext anyway; what it keeps is the power cut trade above.
+
 All three modes are offered on every build. SD was previously gated behind
 encryption, which was backwards: it withheld the safer persistent mode while
 shipping FLASH in the clear on the same firmware.
