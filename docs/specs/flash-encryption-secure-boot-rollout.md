@@ -240,6 +240,9 @@ installs from a card while the beta's signed image and an unsigned one are
 refused, a power cut mid-update rolls back, and a deliberate attempt to
 reflash it over the cable fails the way the header promises.
 
+The step by step version of this stage, with the commands and what each one
+must print, is [`encrypted-board-acceptance.md`](encrypted-board-acceptance.md).
+
 That installed release must be one the UPDATE lane built: signed with key 0
 alone, with no bootloader beside it. It is the artifact every release after
 the burn will be, and the burn lane's output is not a substitute for it in
