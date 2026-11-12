@@ -378,9 +378,10 @@ out:
     return ret;
 }
 // ---- BIP374 DLEQ ----------------------------------------------------------
-// Port of the BIP374 reference (via the embit fork's dleq.py, mirrored
-// operation-for-operation). Scalar arithmetic mod n rides on libsecp's seckey
-// tweak calls plus one conditional subtract for hash outputs >= n.
+// Port of the BIP374 reference (0.3.0 and later: the challenge e is a scalar,
+// reduced mod n before it is written, and a proof with e >= n is refused).
+// Scalar arithmetic mod n rides on libsecp's seckey tweak calls plus one
+// conditional subtract for hash outputs >= n.
 
 static const uint8_t SP_N[32] = {
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
@@ -454,7 +455,19 @@ static const uint8_t SP_G33[33] = {
     0xce, 0x28, 0xd9, 0x59, 0xf2, 0x81, 0x5b, 0x16, 0xf8, 0x17, 0x98
 };
 
-// e' = tagged("BIP0374/challenge", A||B||C||G||R1||R2||m') as a 32B scalar
+#ifdef KISS_SP_TEST_HOOKS
+#ifdef ESP_PLATFORM
+#error "KISS_SP_TEST_HOOKS lets a caller choose the DLEQ challenge; never in firmware"
+#endif
+// Test builds only: when set, the challenge hash is replaced by these 32
+// bytes. A real hash lands at or above n about once in 2^128 tries, so this is
+// the only way a test reaches the reduction both prove and verify depend on.
+const uint8_t *sp_test_challenge_hash;
+#endif
+
+// e = int(tagged("BIP0374/challenge", A||B||C||G||R1||R2||m')) mod n. Both
+// prove and verify go through here, so the reduced value is the one written
+// into a proof and the one a proof is compared against.
 static void sp_dleq_challenge(const uint8_t A[33], const uint8_t B[33],
                               const uint8_t C[33], const uint8_t G[33],
                               const uint8_t R1[33], const uint8_t R2[33],
@@ -470,6 +483,10 @@ static void sp_dleq_challenge(const uint8_t A[33], const uint8_t B[33],
     memcpy(msg + n, R2, 33); n += 33;
     if (m32) { memcpy(msg + n, m32, 32); n += 32; }
     sp_tagged_hash("BIP0374/challenge", msg, n, out32);
+#ifdef KISS_SP_TEST_HOOKS
+    if (sp_test_challenge_hash) memcpy(out32, sp_test_challenge_hash, 32);
+#endif
+    sp_mod_n(out32);
 }
 
 int sp_dleq_prove(const uint8_t a32[32], const uint8_t b33[33],
@@ -482,7 +499,7 @@ int sp_dleq_prove(const uint8_t a32[32], const uint8_t b33[33],
     uint8_t aux_h[32] = { 0 }, t[32] = { 0 };
     uint8_t nmsg[32 + 33 + 33 + 32] = { 0 }, k[32] = { 0 };
     uint8_t R1[33] = { 0 }, R2[33] = { 0 };
-    uint8_t e[32] = { 0 }, s[32] = { 0 }, ea[32] = { 0 };
+    uint8_t e[32] = { 0 }, s[32] = { 0 };
     int ret = -1;
     if (!secp256k1_ec_seckey_verify(ctx, a32)) goto out;
 
@@ -506,13 +523,11 @@ int sp_dleq_prove(const uint8_t a32[32], const uint8_t b33[33],
     if (sp_mul_base(g33, k, R1) != 0) { ret = -5; goto out; } // R1 = k*G
     if (sp_mul_base(b33, k, R2) != 0) { ret = -6; goto out; } // R2 = k*B
 
-    // e = H_challenge(A||B||C||G||R1||R2||m'); s = k + e*a mod n
+    // e = H_challenge(A||B||C||G||R1||R2||m') mod n; s = k + e*a mod n
     sp_dleq_challenge(A, b33, C, G, R1, R2, m32, e);
-    memcpy(ea, e, 32);
-    sp_mod_n(ea);
-    if (!sp_is_zero32(ea)) {
+    if (!sp_is_zero32(e)) {
         memcpy(s, a32, 32);
-        if (!secp256k1_ec_seckey_tweak_mul(ctx, s, ea)) {
+        if (!secp256k1_ec_seckey_tweak_mul(ctx, s, e)) {
             ret = -7;
             goto out;
         }
@@ -543,7 +558,6 @@ out:
     kiss_wipe(R2, sizeof R2);
     kiss_wipe(e, sizeof e);
     kiss_wipe(s, sizeof s);
-    kiss_wipe(ea, sizeof ea);
     if (ret != 0) kiss_wipe(proof64, 64);
     return ret;
 }
@@ -559,18 +573,23 @@ int sp_dleq_verify(const uint8_t a_pub33[33], const uint8_t b33[33],
     secp256k1_pubkey tmp;
     if (!secp256k1_ec_pubkey_parse(ctx, &tmp, a_pub33, 33) ||
         !secp256k1_ec_pubkey_parse(ctx, &tmp, b33, 33) ||
-        !secp256k1_ec_pubkey_parse(ctx, &tmp, share33, 33))
+        !secp256k1_ec_pubkey_parse(ctx, &tmp, share33, 33) ||
+        (g33 && !secp256k1_ec_pubkey_parse(ctx, &tmp, g33, 33)))
         return -1;
 
     uint8_t e[32], s[32];
     memcpy(e, proof64, 32);
     memcpy(s, proof64 + 32, 32);
-    if (memcmp(s, SP_N, 32) >= 0) return -2;  // s must be < n
+    // Both halves must already be scalars. An e of n or more is refused
+    // rather than reduced: it is the unreduced encoding of a smaller e, which
+    // BIP374 0.3.0 and later never writes and every conforming verifier
+    // refuses, so accepting it here would make this signer the odd one out.
+    if (memcmp(e, SP_N, 32) >= 0) return -2;
+    if (memcmp(s, SP_N, 32) >= 0) return -2;
 
-    // neg_e = (-e) mod n
+    // neg_e = (-e) mod n; e = 0 stays 0 (the point at infinity below)
     uint8_t neg_e[32];
     memcpy(neg_e, e, 32);
-    sp_mod_n(neg_e);
     if (!sp_is_zero32(neg_e) && !secp256k1_ec_seckey_negate(ctx, neg_e))
         return -3;
 

@@ -586,6 +586,84 @@ static void sp_test_label(void) {
           memcmp(out, SPV_LABEL5_SPEND, 33) == 0);
 }
 
+// BIP374 0.3.0: e is int(hash) mod n, written reduced, and a proof with e >= n
+// is refused. A real challenge hash reaches n about once in 2^128, so the hook
+// stands in for it; prove and verify both read it, as they both read the hash.
+static const uint8_t SPT_N[32] = {
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe,
+    0xba, 0xae, 0xdc, 0xe6, 0xaf, 0x48, 0xa0, 0x3b,
+    0xbf, 0xd2, 0x5e, 0x8c, 0xd0, 0x36, 0x41, 0x41
+};
+
+// out = x + small for a 32 byte big endian x (no carry out of the top byte)
+static void spt_add_small(uint8_t out[32], const uint8_t x[32], unsigned small)
+{
+    unsigned carry = small;
+    for (int i = 31; i >= 0; i--) {
+        unsigned v = x[i] + carry;
+        out[i] = (uint8_t)v;
+        carry = v >> 8;
+    }
+}
+
+static void sp_test_dleq_challenge_bounds(const uint8_t a_sum[32],
+                                          const uint8_t a_pub[33],
+                                          const uint8_t share[33])
+{
+    const uint8_t *B = spv352_0_recipkeys;
+    uint8_t aux[32] = { 0x42 };
+    uint8_t proof[64], hash[32], want[32];
+    struct { const char *name; unsigned over; int top; } cases[] = {
+        { "hash = n", 0, 0 },          // reduces to e = 0, s = k
+        { "hash = n + 5", 5, 0 },
+        { "hash = 2^256 - 1", 0, 1 },  // the largest hash there is
+    };
+    for (size_t c = 0; c < sizeof cases / sizeof cases[0]; c++) {
+        char name[96];
+        if (cases[c].top) {
+            memset(hash, 0xff, 32);
+            // 2^256 - 1 - n, the value it must reduce to
+            int borrow = 0;
+            for (int i = 31; i >= 0; i--) {
+                int d = 0xff - (int)SPT_N[i] - borrow;
+                borrow = d < 0;
+                want[i] = (uint8_t)(d + (borrow ? 256 : 0));
+            }
+        } else {
+            spt_add_small(hash, SPT_N, cases[c].over);
+            memset(want, 0, 32);
+            want[31] = (uint8_t)cases[c].over;
+        }
+        sp_test_challenge_hash = hash;
+        int rc = sp_dleq_prove(a_sum, B, aux, NULL, NULL, proof);
+        snprintf(name, sizeof name, "dleq %s: proof written with e reduced mod n",
+                 cases[c].name);
+        spchk(name, rc == 0 && memcmp(proof, want, 32) == 0);
+        snprintf(name, sizeof name, "dleq %s: reduced proof verifies", cases[c].name);
+        spchk(name, sp_dleq_verify(a_pub, B, share, proof, NULL, NULL) == 0);
+        // The same proof with e left unreduced is what a pre-0.3.0 prover wrote.
+        memcpy(proof, hash, 32);
+        snprintf(name, sizeof name, "dleq %s: unreduced e refused", cases[c].name);
+        spchk(name, sp_dleq_verify(a_pub, B, share, proof, NULL, NULL) != 0);
+        sp_test_challenge_hash = NULL;
+    }
+
+    // Without the hook: a genuine proof with e or s pushed to n or above.
+    spchk("dleq genuine proof still verifies with the hook off",
+          sp_dleq_prove(a_sum, B, aux, NULL, NULL, proof) == 0 &&
+          sp_dleq_verify(a_pub, B, share, proof, NULL, NULL) == 0);
+    uint8_t bad[64];
+    memcpy(bad, proof, 64);
+    memset(bad, 0xff, 32);
+    spchk("dleq e = 2^256 - 1 refused",
+          sp_dleq_verify(a_pub, B, share, bad, NULL, NULL) != 0);
+    memcpy(bad, proof, 64);
+    spt_add_small(bad + 32, SPT_N, 1);
+    spchk("dleq s = n + 1 refused",
+          sp_dleq_verify(a_pub, B, share, bad, NULL, NULL) != 0);
+}
+
 static void sp_test_dleq(void) {
     char name[64];
     uint8_t proof[64];
@@ -629,6 +707,8 @@ static void sp_test_dleq(void) {
     proof[10] ^= 1;
     spchk("dleq tampered proof rejected",
           sp_dleq_verify(a_pub, spv352_0_recipkeys, share, proof, NULL, NULL) != 0);
+
+    sp_test_dleq_challenge_bounds(a_sum, a_pub, share);
 }
 
 

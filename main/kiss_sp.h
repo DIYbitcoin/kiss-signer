@@ -125,6 +125,13 @@ int sp_dleq_prove(const uint8_t a32[32], const uint8_t b33[33],
                   const uint8_t aux32[32], const uint8_t *m32,
                   const uint8_t *g33, uint8_t proof64[64]);
 // Returns 0 = valid; anything else = invalid (never trusts its inputs).
+// A proof whose e or s is n or more is invalid, never reduced (BIP374 0.3.0).
 int sp_dleq_verify(const uint8_t a_pub33[33], const uint8_t b33[33],
                    const uint8_t share33[33], const uint8_t proof64[64],
                    const uint8_t *m32, const uint8_t *g33);
+
+#ifdef KISS_SP_TEST_HOOKS
+// Test builds only (sim/build_test.sh): non-NULL replaces the BIP374 challenge
+// hash with these 32 bytes, so a test can reach a hash at or above n.
+extern const uint8_t *sp_test_challenge_hash;
+#endif
