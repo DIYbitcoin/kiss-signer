@@ -305,9 +305,10 @@ directly, because without secure boot the bootloader runs whatever is in the
 slot, and the verification key comes from the running app's own signature
 block, which is circular once that app is replaced.
 
-Flash encryption pins AES-128 today and asserts it, because the key size is
-burned into eFuse on first boot and a device flashed at 128 cannot be moved by
-a later build. AES-256 belongs to the same later pass, on new units.
+The encrypted release recipe closes the cable side of this: secure boot v2
+and XTS-AES-256 flash encryption burn in the same first boot (phases 1 and 2
+above). No board has been burned with it yet, so on every device in use today
+this finding stands as written.
 
 ## External review
 
