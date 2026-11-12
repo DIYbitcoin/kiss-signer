@@ -598,7 +598,7 @@ static void sp_test_dleq(void) {
                  memcmp(proof, spvdg_##i##_proof, 64) == 0; \
         if (!ok) all = 0; \
     } while (0)
-    DG(0); DG(1); DG(2); DG(3); DG(4); DG(5); DG(6); DG(7);
+    DG(0); DG(1); DG(2); DG(3); DG(4); DG(5); DG(6); DG(7); DG(8); DG(9);
 #undef DG
     spchk("dleq generation matches all BIP374 vectors", all);
 
@@ -613,7 +613,7 @@ static void sp_test_dleq(void) {
             puts(name); } \
     } while (0)
     DV(0); DV(1); DV(2); DV(3); DV(4); DV(5); DV(6); DV(7);
-    DV(8); DV(9); DV(10); DV(11); DV(12); DV(13); DV(14);
+    DV(8); DV(9); DV(10); DV(11); DV(12); DV(13); DV(14); DV(15); DV(16);
 #undef DV
     spchk("dleq verification matches all BIP374 vectors", all);
 
