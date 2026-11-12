@@ -184,7 +184,11 @@ files, and a flash dump check. See
 Worth being precise here, because the usual answer is misleading.
 
 **On an encrypted final device the serial path closes; the SD path stays.**
-Flash encryption in RELEASE mode disables serial reflashing outright. What it
+Flash encryption in RELEASE mode ends ordinary reflashing over the cable: a
+new image written that way is plaintext, and the board cannot run it. The
+cable can still overwrite or erase flash, and a copy of this board's own
+earlier flash, taken while it was encrypted, would boot again if written back,
+as long as its signature and security version are still accepted. What it
 does not close is the SD updater, which deliberately offers OLDER signed
 images behind a warning (`WFW_ERR_OLDER` in `main/kiss_fw.h` -- a silent
 refusal that falls back to an old image would be worse than an offer the owner

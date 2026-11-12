@@ -14,8 +14,8 @@ walked back.
 
 ## The constraint everything else follows from
 
-After the first boot, serial reflash is IMPOSSIBLE. The cable and the web
-installer never work on that board again.
+After the first boot, installing firmware over the cable is IMPOSSIBLE. The
+cable and the web installer never work on that board again.
 
 **This section used to say more than that, and the extra part is no longer
 true.** It read: the table carries `nvs`, `phy_init`, `factory` and `nvs_key`,
@@ -199,11 +199,13 @@ assertions now say each of these out loud.
   to a default either.
 - **ROM download mode: the secure subset, confirmed.** It closes flash reads
   and memory access, so nobody on the cable can read the board. It does not
-  close writes or erases: anyone holding the board can overwrite or wipe it,
-  and what stops them is that secure boot refuses an image the builder did
-  not sign and the flash key is unreadable, so nothing they write will boot.
-  That is a board someone can destroy, never one they can read or make run
-  their own firmware. Was an inherited default; the build script now forces
+  close writes or erases: anyone holding the board can overwrite or wipe it.
+  What they write boots only if it is valid ciphertext for this board's own
+  flash key, which nobody can read, and carries a signature and security
+  version the board still accepts. In practice that means a copy of this
+  board's own earlier flash, written back; a new image of anyone's cannot be
+  made to run. That is a board someone can destroy or roll back to firmware
+  it already ran, never one they can read or make run their own. Was an inherited default; the build script now forces
   it so no IDF default can unmake it.
 - **Anti rollback: armed at secure version 0.** The check has to live in the
   burned bootloader from birth or it never exists; at version 0 it burns

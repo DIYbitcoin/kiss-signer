@@ -59,11 +59,11 @@
 #
 # What "release mode" means, so nobody is surprised later:
 #   * the encryption key is generated ON the device and is unreadable forever
-#   * after the first boot, serial reflash is IMPOSSIBLE, so the web installer
-#     and the cable never work on that board again. JTAG is permanently
+#   * after the first boot, installing over serial is IMPOSSIBLE, so the web
+#     installer and the cable never work on that board again. JTAG is permanently
 #     disabled by the secure boot burn, and ROM download mode drops to its
 #     secure subset: it can still overwrite or erase a board, but never read
-#     it, and nothing written that way boots.
+#     it, and only this board's own earlier ciphertext, written back, boots.
 #   * firmware is NOT frozen: this table carries two app slots and an otadata,
 #     and the board takes signed SD updates - now judged against the eFuse
 #     digest, not merely the running app's own block. Anti rollback is armed at
@@ -216,8 +216,9 @@ force = {
     # ROM download mode after the burn: switched to the SECURE subset, not
     # disabled outright. Secure mode closes flash reads and memory access, but
     # still takes flash writes and erases: anyone on the cable can overwrite or
-    # wipe the board, and secure boot plus the unreadable flash key stop what
-    # they write from booting. Settled as a Stage 2 decision in
+    # wipe the board. Secure boot and the unreadable flash key stop a new image
+    # from booting; a copy of this board's own earlier flash, written back,
+    # still would while its signature and version are accepted. Settled as a Stage 2 decision in
     # docs/specs/flash-encryption-secure-boot-rollout.md.
     "CONFIG_SECURE_ENABLE_SECURE_ROM_DL_MODE":      None if rehearsal else "y",
     "CONFIG_SECURE_DISABLE_ROM_DL_MODE":            None,

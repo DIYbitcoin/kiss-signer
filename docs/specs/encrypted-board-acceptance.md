@@ -12,7 +12,8 @@ which says why each step exists. It needs two boards of the same model:
   stays reflashable over the cable, though its flash encryption key is
   burned for good;
 - the **burn board**, fresh, which takes RELEASE mode flash encryption and
-  secure boot v2 and can never be reflashed over the cable again.
+  secure boot v2 and can never take a new image over the cable again (the
+  cable can still overwrite or erase it).
 
 Use a throwaway test seed on both, never one that holds or will hold funds.
 Every command runs from the repo root. `PORT` is the board's serial port.
