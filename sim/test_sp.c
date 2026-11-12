@@ -1497,8 +1497,49 @@ static void sps_refuse(const char *name, const char *b64, const char *why)
     }
 }
 
+// The complete shared send with the foreign signer's proof challenge set to
+// e32, through the same load and sign calls a scanned PSBT goes through.
+// BIP374 0.3.0: an e of n or more is refused, never reduced. The bytes are
+// patched in place: libwally will not reserialize a PSBT whose silent payment
+// output has no script yet, which is exactly the state this one is in.
+static void sps_refuse_foreign_e(const char *name, const uint8_t e32[32])
+{
+    uint8_t raw[4096], key[36];
+    size_t len = 0, at = 0;
+    char *b64 = NULL;
+    key[0] = 34;                       // compact size of the key
+    key[1] = 0x1e;                     // PSBT_IN_SP_DLEQ
+    memcpy(key + 2, SPS_SCAN, 33);
+    key[35] = 64;                      // compact size of the value
+    int ok = wally_base64_to_bytes(SPS_RB_B64, 0, raw, sizeof raw, &len) == WALLY_OK;
+    int found = 0;
+    for (size_t i = 0; ok && i + sizeof key + 64 <= len; i++)
+        if (memcmp(raw + i, key, sizeof key) == 0) { at = i + sizeof key; found++; }
+    ok = ok && found == 1;
+    if (ok) {
+        memcpy(raw + at, e32, 32);
+        ok = wally_base64_from_bytes(raw, len, 0, &b64) == WALLY_OK;
+    }
+    if (!ok) {
+        spchk(name, 0);
+        return;
+    }
+    sps_refuse(name, b64, "does not verify");
+    wally_free_string(b64);
+}
+
 static void sps_test_refusals(void)
 {
+    static const uint8_t N[32] = {
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe,
+        0xba, 0xae, 0xdc, 0xe6, 0xaf, 0x48, 0xa0, 0x3b,
+        0xbf, 0xd2, 0x5e, 0x8c, 0xd0, 0x36, 0x41, 0x41
+    };
+    uint8_t top[32];
+    memset(top, 0xff, sizeof top);
+    sps_refuse_foreign_e("shared refuses a foreign proof with e = n", N);
+    sps_refuse_foreign_e("shared refuses a foreign proof with e = 2^256 - 1", top);
     sps_refuse("shared refuses a bad foreign proof", SPS_N_BADPROOF_B64, "does not verify");
     sps_refuse("shared refuses a proof made with another key", SPS_N_WRONGKEY_B64, "does not verify");
     sps_refuse("shared refuses a share without proof", SPS_N_NOPROOF_B64, "no proof");
