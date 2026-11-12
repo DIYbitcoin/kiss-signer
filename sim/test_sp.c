@@ -17,6 +17,7 @@
 #include <wally_psbt_members.h>
 #include <wally_map.h>
 #include <wally_script.h>
+#include <secp256k1.h>
 
 #include "sp_test_vectors.h"
 #include "sp_spend_vectors.h"
@@ -646,6 +647,32 @@ static void sp_test_dleq_challenge_bounds(const uint8_t a_sum[32],
         memcpy(proof, hash, 32);
         snprintf(name, sizeof name, "dleq %s: unreduced e refused", cases[c].name);
         spchk(name, sp_dleq_verify(a_pub, B, share, proof, NULL, NULL) != 0);
+        sp_test_challenge_hash = NULL;
+    }
+
+    // s = k + e*a = 0, which BIP374 allows. The nonce k does not depend on
+    // the challenge, so one proof under a pinned e = 1 gives k = s - a, and a
+    // second under e = -k / a (here a = 1, so e = -k) lands s exactly on 0.
+    {
+        uint8_t one[32] = { 0 }, a1[32] = { 0 }, A1[33], C1[33], k[32], neg_a[32];
+        one[31] = 1;
+        a1[31] = 1;
+        memcpy(A1, spvdg_8_G, 33);                  // A = 1*G = G (vector 8's G)
+        int ok = sp_ecdh_share(a1, B, C1) == 0;     // C = 1*B = B
+        sp_test_challenge_hash = one;
+        ok = ok && sp_dleq_prove(a1, B, aux, NULL, NULL, proof) == 0;
+        memcpy(k, proof + 32, 32);                  // s = k + 1
+        memcpy(neg_a, a1, 32);
+        ok = ok && secp256k1_ec_seckey_negate(secp256k1_context_static, neg_a) &&
+             secp256k1_ec_seckey_tweak_add(secp256k1_context_static, k, neg_a) &&
+             secp256k1_ec_seckey_negate(secp256k1_context_static, k);  // now -k
+        sp_test_challenge_hash = k;
+        int rc = ok ? sp_dleq_prove(a1, B, aux, NULL, NULL, proof) : -99;
+        static const uint8_t zero[32] = { 0 };
+        spchk("dleq s = 0 is generated, not refused",
+              rc == 0 && memcmp(proof + 32, zero, 32) == 0);
+        spchk("dleq s = 0 proof verifies",
+              rc == 0 && sp_dleq_verify(A1, B, C1, proof, NULL, NULL) == 0);
         sp_test_challenge_hash = NULL;
     }
 

@@ -531,10 +531,12 @@ int sp_dleq_prove(const uint8_t a32[32], const uint8_t b33[33],
             ret = -7;
             goto out;
         }
-        if (!secp256k1_ec_seckey_tweak_add(ctx, s, k)) {
-            ret = -7;
-            goto out;
-        }
+        // The one way this add fails is k + e*a = n: k is already a valid
+        // key, so the tweak is in range. The sum is then 0, which libsecp
+        // will not hold as a key but BIP374 allows as a response, so it is
+        // written as 0 and the self-verify below judges it.
+        if (!secp256k1_ec_seckey_tweak_add(ctx, s, k))
+            memset(s, 0, 32);
     } else {
         memcpy(s, k, 32);
     }
