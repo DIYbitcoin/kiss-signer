@@ -90,13 +90,15 @@ The key size is XTS-AES-256. An earlier version of this page said AES-128 and
 deferred the choice to the secure boot pass; that pass is this one, and no
 board was ever burned at 128.
 
-The same first boot enables secure boot v2. It has to: secure boot needs a
-signed bootloader flashed over the cable, and after the encryption burn the
-cable is gone, so a board encrypted alone could never take it later. Phase 2
-below says what that means for who signs.
+The same first boot enables secure boot v2. This recipe provisions the signed
+bootloader before ordinary plaintext serial flashing is disabled; the SD
+updater replaces apps, not the bootloader. There is no supported later
+bootloader-provisioning step in this workflow. Phase 2 below says what that
+means for who signs.
 
-The first boot burns eFuses. It cannot be undone, and the device can never be
-reflashed over serial afterwards. A separate rehearsal profile
+The first boot burns eFuses. It cannot be undone. Ordinary plaintext serial
+flashing is disabled afterwards, but secure download mode still permits
+flash writes and erases; see the rollback limits below. A separate rehearsal profile
 (`KISS_ENC_REHEARSAL=1`) leaves reflashing available and carries no secure
 boot, but still burns a flash encryption key permanently. Before either recipe
 touches a board, `tools/check_efuse_fresh.py` reads its fuses: erasing flash
@@ -183,19 +185,22 @@ files, and a flash dump check. See
 
 Worth being precise here, because the usual answer is misleading.
 
-**On an encrypted final device the serial path closes; the SD path stays.**
+**On an encrypted final device, signed SD updates remain the supported update path.**
 Flash encryption in RELEASE mode ends ordinary reflashing over the cable: a
 new image written that way is plaintext, and the board cannot run it. The
 cable can still overwrite or erase flash, and a copy of this board's own
-earlier flash, taken while it was encrypted, would boot again if written back,
-as long as its signature and security version are still accepted. What it
+earlier flash, taken while it was encrypted, can boot again if restored at the
+same offsets, as long as its signature and security version are still accepted.
+Obtaining that ciphertext requires a separate readout, such as a physical flash
+backup; secure download mode does not provide it. What it
 does not close is the SD updater, which deliberately offers OLDER signed
 images behind a warning (`WFW_ERR_OLDER` in `main/kiss_fw.h` -- a silent
 refusal that falls back to an old image would be worse than an offer the owner
-can read). So a downgrade on an encrypted device is possible, is gated by the
-owner's judgement rather than by hardware, and the SD updater is in fact the
-ONLY remaining firmware path on that device -- which makes the visibility work
-below more important there, not less.
+can read). An SD downgrade within the accepted security version is therefore
+gated by the owner's judgement. Raising the eFuse security version rejects
+older security versions through either path; it does not prevent replay of
+ciphertext whose signature and security version remain accepted. The visibility
+work below covers the supported SD update flow.
 
 **On a normal beta device, no counter would help yet.** ESP-IDF's anti rollback
 feature stores a security version in eFuse and has the bootloader refuse older

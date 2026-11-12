@@ -59,11 +59,11 @@
 #
 # What "release mode" means, so nobody is surprised later:
 #   * the encryption key is generated ON the device and is unreadable forever
-#   * after the first boot, installing over serial is IMPOSSIBLE, so the web
-#     installer and the cable never work on that board again. JTAG is permanently
-#     disabled by the secure boot burn, and ROM download mode drops to its
-#     secure subset: it can still overwrite or erase a board, but never read
-#     it, and only this board's own earlier ciphertext, written back, boots.
+#   * after the first boot, ordinary plaintext serial/web flashing is disabled.
+#     JTAG is permanently disabled, and ROM secure download mode permits flash
+#     writes and erases but no flash reads or memory access. Restored ciphertext
+#     can boot at the same offsets if it is valid for this device and its
+#     signature and security version remain accepted.
 #   * firmware is NOT frozen: this table carries two app slots and an otadata,
 #     and the board takes signed SD updates - now judged against the eFuse
 #     digest, not merely the running app's own block. Anti rollback is armed at
@@ -216,9 +216,9 @@ force = {
     # ROM download mode after the burn: switched to the SECURE subset, not
     # disabled outright. Secure mode closes flash reads and memory access, but
     # still takes flash writes and erases: anyone on the cable can overwrite or
-    # wipe the board. Secure boot and the unreadable flash key stop a new image
-    # from booting; a copy of this board's own earlier flash, written back,
-    # still would while its signature and version are accepted. Settled as a Stage 2 decision in
+    # wipe the board. Booting requires valid device-specific ciphertext plus
+    # an accepted signature and security version. Previously valid ciphertext
+    # restored at the same offsets can still pass those checks. See Stage 2 in
     # docs/specs/flash-encryption-secure-boot-rollout.md.
     "CONFIG_SECURE_ENABLE_SECURE_ROM_DL_MODE":      None if rehearsal else "y",
     "CONFIG_SECURE_DISABLE_ROM_DL_MODE":            None,
@@ -1313,8 +1313,9 @@ encrypted release build OK: $BUILD_DIR/
 #  * First boot burns the flash-encryption eFuse key AND the secure boot key
 #    digest: PERMANENT. From then on the ROM runs only our signed bootloader,
 #    the bootloader runs only our signed apps, and JTAG is gone.
-#  * After first boot this board can NEVER be serial-reflashed again. The web
-#    installer and the cable will never work on it again. That is the point.
+#  * After first boot ordinary plaintext serial/web flashing is unavailable.
+#    Cable writes and erases remain possible. Restored device-specific
+#    ciphertext can boot if its signature and security version are accepted.
 #  * If all three secure boot keys are ever lost, every board burned with them
 #    is frozen on its last firmware forever. Custody first, burn second.
 #  * Firmware is still UPDATABLE, over SD, for images signed with key 0 of

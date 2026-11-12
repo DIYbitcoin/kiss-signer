@@ -14,8 +14,11 @@ walked back.
 
 ## The constraint everything else follows from
 
-After the first boot, installing firmware over the cable is IMPOSSIBLE. The
-cable and the web installer never work on that board again.
+After the first boot, ordinary plaintext flashing through the cable or web
+installer is unavailable. Secure download mode still permits flash writes and
+erases. Booting requires valid ciphertext for this device at the correct
+offsets, plus a signature and security version the device accepts. Signed SD
+updates remain the supported way to install new firmware.
 
 **This section used to say more than that, and the extra part is no longer
 true.** It read: the table carries `nvs`, `phy_init`, `factory` and `nvs_key`,
@@ -30,14 +33,13 @@ this spec said frozen.
 So the constraint is narrower than it was written, and only one of the three
 consequences survives unchanged:
 
-1. **Secure boot cannot be added later.** Unchanged, and it is the real
-   constraint. Secure boot requires flashing a signed *bootloader*, and the
-   board no longer takes a bootloader. Both burns happen in one pass or the
-   second one never happens -- which is why the release recipe now carries
-   secure boot v2 itself, rather than deferring it to a pass that could never
-   reach a burned board.
+1. **Secure boot is provisioned in the same first boot.** This workflow has
+   no supported later bootloader-provisioning step: ordinary plaintext serial
+   flashing is disabled, and the SD updater replaces apps, not bootloaders.
+   The release recipe therefore provisions the signed bootloader and enables
+   secure boot v2 together with flash encryption.
 2. **A shipped encrypted device can be updated, over SD, with a signed image.**
-   It cannot be reflashed over the cable. `CONFIG_BOOTLOADER_APP_ANTI_ROLLBACK`
+   Ordinary plaintext cable flashing is unavailable. `CONFIG_BOOTLOADER_APP_ANTI_ROLLBACK`
    is armed at secure version 0: nothing is refused today, and the first
    release that bumps the version can permanently shut the door on the builds
    before it. The lane is gated on the signing key being one we can keep.
@@ -103,7 +105,7 @@ assertions now say each of these out loud.
   `SECURE_BOOT_V2_ECDSA_INSECURE` to y for this target, "not functional for
   certain input vectors", and offers the scheme only behind
   `SECURE_BOOT_INSECURE` + `SECURE_BOOT_V2_FORCE_ENABLE_ECDSA` -- a known
-  vulnerability, switched on by hand, on a board that can never be reflashed.
+  vulnerability, switched on by hand, on a board with permanent security fuses.
   Not on a signing device.
 
   So hardware secure boot here is **RSA-3072**, and the recipe follows the
@@ -203,10 +205,12 @@ assertions now say each of these out loud.
   What they write boots only if it is valid ciphertext for this board's own
   flash key, which nobody can read, and carries a signature and security
   version the board still accepts. In practice that means a copy of this
-  board's own earlier flash, written back; a new image of anyone's cannot be
-  made to run. That is a board someone can destroy or roll back to firmware
-  it already ran, never one they can read or make run their own. Was an inherited default; the build script now forces
-  it so no IDF default can unmake it.
+  board's own earlier ciphertext, restored at the same offsets. Obtaining that
+  ciphertext requires a separate readout, such as a physical flash backup;
+  secure download mode does not supply it. These checks prevent arbitrary
+  unsigned replacements, but do not prevent destruction or replay of an image
+  whose signature and security version remain accepted. This mode was an
+  inherited default; the build script now forces it explicitly.
 - **Anti rollback: armed at secure version 0.** The check has to live in the
   burned bootloader from birth or it never exists; at version 0 it burns
   nothing and refuses nothing, until a release deliberately bumps the
@@ -235,16 +239,17 @@ One board, one pass, flash encryption release mode and secure boot v2 in the
 same image. The partition table already left bootloader headroom for exactly
 this, which is why the table sits at `0x10000` rather than `0x8000`.
 
-Treat this board as the acceptance article, not a development board. It will
-never take another build. Before it: `tools/check_efuse_fresh.py --fresh` must
+Treat this board as the acceptance article, not a development board. Further
+builds use the signed SD update path. Before it: `tools/check_efuse_fresh.py --fresh` must
 PASS on this board and FAIL on the rehearsal board, because erasing flash
 proves nothing about fuses and the recipe used to say it did. Test on it:
 first boot burns and comes up, Settings shows encryption calm (the rehearsal
 board shows it amber: encrypted, not locked), the wallet survives a power
 cycle, a sealed card opens, a wipe works, the builder's own next release
 installs from a card while the beta's signed image and an unsigned one are
-refused, a power cut mid-update rolls back, and a deliberate attempt to
-reflash it over the cable fails the way the header promises.
+refused, a power cut mid-update rolls back, and an unsigned modified app
+written over the cable does not boot. A refused write alone does not test
+the bootloader's image checks.
 
 The step by step version of this stage, with the commands and what each one
 must print, is [`encrypted-board-acceptance.md`](encrypted-board-acceptance.md).
@@ -280,10 +285,12 @@ locks are planned" line change with it.
 
 The guide also explains the choice itself, both ways, because an owner picks
 it once and cannot take it back. Choosing the locks: the chip is locked for
-good, the cable and the web installer never work on that board again,
-updates come only from a card, signed by whoever burned the board, nothing
+good, ordinary plaintext cable and web flashing is unavailable, supported
+updates come from a card signed by whoever burned the board, nothing
 published for the beta installs on it, and a lost signing key leaves the board
-frozen on its last firmware. Choosing not to: the board stays as open as the
+frozen on its last firmware. Cable writes and erases remain possible, including
+replay of acceptable device-specific ciphertext as described above. Choosing
+not to: the board stays as open as the
 beta, reflashable from the cable, and every case above stays as it reads on
 the beta, the signer and the SD card taken together most of all.
 

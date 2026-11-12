@@ -12,8 +12,10 @@ which says why each step exists. It needs two boards of the same model:
   stays reflashable over the cable, though its flash encryption key is
   burned for good;
 - the **burn board**, fresh, which takes RELEASE mode flash encryption and
-  secure boot v2 and can never take a new image over the cable again (the
-  cable can still overwrite or erase it).
+  secure boot v2. Ordinary plaintext cable flashing is unavailable, but writes
+  and erases remain possible. Previously valid device-specific ciphertext can
+  still boot when restored at the same offsets if its signature and security
+  version remain accepted.
 
 Use a throwaway test seed on both, never one that holds or will hold funds.
 Every command runs from the repo root. `PORT` is the board's serial port.
@@ -119,8 +121,9 @@ written. This shows esptool knows the board is in secure download mode, which
 B4 already showed; esptool refuses before it asks the chip, so it is not a
 test of the ROM's own refusal.
 
-B6. Repeat A5 and A7 on this board. A6 cannot run here because B5 closed
-reads, which is the point; the rehearsal board's A6 is the residue result.
+B6. Repeat A5 and A7 on this board. A6 cannot run through secure download
+mode because flash reads are unavailable; B5 only checks esptool's refusal.
+The rehearsal board's A6 is the residue result.
 
 B7. Updates on the burn board. Build the next release with the update lane,
 key 0 alone:
