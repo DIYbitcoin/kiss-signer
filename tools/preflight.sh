@@ -218,6 +218,7 @@ run --note-if "commits have changed a screen since" \
 
 # --- the things that compile ---------------------------------------------
 run "unit tests" "bash sim/build_test.sh && \"\$KISS_SIM_TMP/kisstest\""
+run "signed QR raster and assembly" "bash sim/test_qr_render.sh"
 
 # NOT in the by-hand gate block until now, and the reason this file exists: it
 # compiles main/kiss_psbt.c with its own include list, which is what drifted.
@@ -312,6 +313,7 @@ for B in $PF_BOARDS; do
     WS="KISS_BOARD=$B KISS_SIM_TMP=\"$BT\""
     run "$B: unit tests" \
         "$WS bash sim/build_test.sh && $WS \"$BT/kisstest\""
+    run "$B: signed QR raster and assembly" "$WS bash sim/test_qr_render.sh"
     # Advisory, like the walk below and for the same reason: the count is
     # printed and marked NOTE until it reads zero.
     run --note-if "English slot\(s\) fell" "$B: text fit (en, advisory)" \

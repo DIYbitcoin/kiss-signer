@@ -308,6 +308,10 @@ jobs:
       # phone unable to scan the signed transaction. This reads the walk's
       # export QR frames with zxing-cpp and fails unless each decodes to the
       # exact UR part its card was given (tools/check_sim_qr.py).
+      - name: signed QR raster and complete UR assembly
+        if: always()
+        run: bash sim/test_qr_render.sh
+
       - name: export QR frames read by zxing-cpp
         if: always()
         run: |
@@ -743,6 +747,10 @@ jobs:
       # The same zxing-cpp read as the wide lane. The 3.5in cuts its UR parts
       # smaller to keep whole pixel modules on a smaller card (kiss_sign.c,
       # QR_OUT_UR_FRAG), which is its own drawing to check.
+      - name: signed QR raster and complete UR assembly (${{ matrix.board }})
+        if: always()
+        run: bash sim/test_qr_render.sh
+
       - name: export QR frames read by zxing-cpp (${{ matrix.board }})
         if: always()
         run: |

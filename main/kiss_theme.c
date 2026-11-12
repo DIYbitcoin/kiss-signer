@@ -9,6 +9,8 @@
 
 #include "i18n.h"
 #include "kiss_fonts.h"
+#include "src/libs/qrcode/qrcodegen.h"
+#include "src/misc/cache/lv_cache.h"
 
 #if KISS_LV_EXTRA_POOL
 // The board's second LVGL pool (kiss_board.h says which board and why). Added
@@ -2361,6 +2363,7 @@ typedef struct {
     uint8_t *data;
     uint32_t data_len;
     uint32_t data_cap;
+    int ur_version;               // 0: ordinary binary QR; otherwise fixed UR profile
 } wt_qr_state_t;
 
 // QR payloads are usually public, but the same component also renders the
@@ -2382,17 +2385,110 @@ static void qr_payload_free(wt_qr_state_t *s)
     s->data_cap = 0;
 }
 
+// Only the signed transaction's uppercase UR text takes this path. The
+// generic API still accepts arbitrary bytes, including embedded zeroes.
+// Fixing the version keeps the signed page's module size and white border
+// stable while alphanumeric mode carries more transaction bytes per frame.
+static bool qr_ur_valid(const void *data, uint32_t data_len, int version)
+{
+    static const char prefix[] = "UR:CRYPTO-PSBT/";
+    static const char alphabet[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:";
+    if (!data || data_len < sizeof prefix || data_len >= 600 ||
+        (version != 6 && version != 8 && version != 9 && version != 13))
+        return false;
+    const uint8_t *bytes = data;
+    if (memcmp(bytes, prefix, sizeof prefix - 1) != 0) return false;
+    for (uint32_t i = 0; i < data_len; ++i)
+        if (!bytes[i] || !strchr(alphabet, bytes[i])) return false;
+    return true;
+}
+
+static lv_result_t qr_ur_render(lv_obj_t *qr, const void *data,
+                                 uint32_t data_len, int version)
+{
+    if (!qr || !qr_ur_valid(data, data_len, version)) return LV_RESULT_INVALID;
+    lv_draw_buf_t *buf = lv_canvas_get_draw_buf(qr);
+    if (!buf || !buf->data || buf->header.cf != LV_COLOR_FORMAT_I1 ||
+        !buf->header.w || buf->header.w != buf->header.h)
+        return LV_RESULT_INVALID;
+    const uint32_t width = buf->header.w;
+    const uint32_t stride = buf->header.stride;
+    const size_t palette_bytes = LV_COLOR_INDEXED_PALETTE_SIZE(LV_COLOR_FORMAT_I1) *
+                                 sizeof(lv_color32_t);
+    if (stride < (width + 7u) / 8u || buf->data_size < palette_bytes ||
+        stride > (buf->data_size - palette_bytes) / buf->header.h)
+        return LV_RESULT_INVALID;
+    const int modules = version * 4 + 17;
+    const int scale = (int)width / modules;
+    if (!scale) return LV_RESULT_INVALID;
+
+    // Cache buffers hold a length, not a C string. Copy the validated span so
+    // encodeText cannot read past it; never cast arbitrary input to a string.
+    char text[600];
+    memcpy(text, data, data_len);
+    text[data_len] = '\0';
+    const size_t matrix_bytes = qrcodegen_BUFFER_LEN_FOR_VERSION(version);
+    uint8_t *work = lv_malloc(matrix_bytes * 2u);
+    if (!work) {
+        qr_payload_zero(text, data_len + 1u);
+        return LV_RESULT_INVALID;
+    }
+    uint8_t *matrix = work + matrix_bytes;
+    bool encoded = qrcodegen_encodeText(text, work, matrix, qrcodegen_Ecc_MEDIUM,
+                                        version, version, qrcodegen_Mask_AUTO, false);
+    qr_payload_zero(text, data_len + 1u);
+    if (!encoded) {
+        qr_payload_zero(work, matrix_bytes * 2u);
+        lv_free(work);
+        return LV_RESULT_INVALID;
+    }
+
+    // Everything that can fail is finished. The I1 layout, integer scale and
+    // centering match lv_qrcode_update; the existing widget owns this buffer.
+    lv_image_cache_drop(buf);
+    lv_draw_buf_clear(buf, NULL);
+    lv_canvas_set_palette(qr, 0, lv_color_to_32(WT_CARD, LV_OPA_COVER));
+    lv_canvas_set_palette(qr, 1, lv_color_to_32(lv_color_hex(0x0B0E14), LV_OPA_COVER));
+    const int margin = ((int)width - modules * scale) / 2;
+    uint8_t *pixels = lv_draw_buf_goto_xy(buf, 0, 0);
+    for (int my = 0; my < modules; ++my) {
+        uint8_t *row = pixels + (size_t)(margin + my * scale) * stride;
+        for (int mx = 0; mx < modules; ++mx) {
+            if (!qrcodegen_getModule(matrix, mx, my)) continue;
+            int x = margin + mx * scale;
+            for (int dx = 0; dx < scale; ++dx, ++x)
+                row[x >> 3] |= (uint8_t)(0x80u >> (x & 7));
+        }
+        for (int dy = 1; dy < scale; ++dy)
+            memcpy(row + (size_t)dy * stride, row, stride);
+    }
+    lv_draw_buf_flush_cache(buf, NULL);
+    lv_obj_invalidate(qr);
+    qr_payload_zero(work, matrix_bytes * 2u);
+    lv_free(work);
+    return LV_RESULT_OK;
+}
+
+static lv_result_t qr_render(lv_obj_t *qr, const void *data,
+                              uint32_t data_len, int ur_version)
+{
+    return ur_version ? qr_ur_render(qr, data, data_len, ur_version) :
+                        lv_qrcode_update(qr, data, data_len);
+}
+
 static void qr_zoom_close_cb(lv_event_t *e)
 {
     wt_qr_state_t *s = lv_event_get_user_data(e);
     if (!s || !s->zoom) return;
+    // Animated output updates only the enlarged QR while it is visible. Put
+    // the latest cached frame back on the underlying card before returning.
+    if (s->qr && s->data && s->data_len) {
+        lv_result_t result = qr_render(s->qr, s->data, s->data_len, s->ur_version);
+        if (s->ur_version && result != LV_RESULT_OK) return;
+    }
     lv_obj_t *zoom = s->zoom;
     s->zoom = NULL;
     s->zoom_qr = NULL;
-    // Animated output updates only the enlarged QR while it is visible. Put
-    // the latest cached frame back on the underlying card before returning.
-    if (s->qr && s->data && s->data_len)
-        lv_qrcode_update(s->qr, s->data, s->data_len);
     lv_obj_delete_async(zoom);
 }
 
@@ -2434,8 +2530,14 @@ static void qr_zoom_open(wt_qr_state_t *s)
 #endif
     lv_obj_add_flag(zoom_card, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(zoom_card, qr_zoom_close_cb, LV_EVENT_CLICKED, s);
-    if (s->zoom_qr)
-        lv_qrcode_update(s->zoom_qr, s->data, s->data_len);
+    lv_result_t rendered = s->zoom_qr ?
+        qr_render(s->zoom_qr, s->data, s->data_len, s->ur_version) : LV_RESULT_INVALID;
+    if (s->ur_version && rendered != LV_RESULT_OK) {
+        s->zoom = NULL;
+        s->zoom_qr = NULL;
+        lv_obj_delete(ovl);
+        return;
+    }
 #if KISS_NARROW
     // The overlay's only drawn way out, so it is a thumb's size here: the
     // scaled ring was 18 px in the corner, over the bezel's edge. The glass
@@ -2612,7 +2714,12 @@ lv_result_t wt_qr_update(lv_obj_t *qr, const void *data, uint32_t data_len)
         // Do not use realloc here: if it moves the block, the allocator frees
         // the old secret-bearing buffer before we have a chance to wipe it.
         uint8_t *next = lv_malloc(cap);
-        if (!next) return lv_qrcode_update(qr, data, data_len);
+        if (!next) {
+            // A transition out of fixed UR mode must not display new bytes
+            // while zoom still holds the old payload and rendering profile.
+            if (s->ur_version) return LV_RESULT_INVALID;
+            return lv_qrcode_update(qr, data, data_len);
+        }
         qr_payload_free(s);
         s->data = next;
         s->data_cap = cap;
@@ -2622,10 +2729,66 @@ lv_result_t wt_qr_update(lv_obj_t *qr, const void *data, uint32_t data_len)
     if (old_len > data_len)
         qr_payload_zero(s->data + data_len, old_len - data_len);
     s->data_len = data_len;
+    s->ur_version = 0;
 
     // The underlying card is completely covered while zoomed. Updating just
     // the visible QR avoids encoding every animated fragment twice.
     return lv_qrcode_update(s->zoom_qr ? s->zoom_qr : qr, data, data_len);
+}
+
+int wt_qr_binary_version(uint32_t data_len)
+{
+    if (data_len > qrcodegen_BUFFER_LEN_MAX) return -1;
+    return qrcodegen_getMinFitVersion(qrcodegen_Ecc_MEDIUM, data_len);
+}
+
+lv_result_t wt_qr_update_ur(lv_obj_t *qr, const void *data,
+                            uint32_t data_len, int qr_version, bool single_part)
+{
+    if (!qr || !qr_ur_valid(data, data_len, qr_version)) return LV_RESULT_INVALID;
+    // A small transaction previously used a smaller, single binary QR. Keep
+    // that geometry when it fits this profile; a newly single larger fragment
+    // still needs alphanumeric mode to stay inside the same module budget.
+    if (single_part) {
+        int byte_version = wt_qr_binary_version(data_len);
+        if (byte_version > 0 && byte_version <= qr_version)
+            return wt_qr_update(qr, data, data_len);
+    }
+    wt_qr_state_t *s = lv_obj_get_user_data(qr);
+    if (!s) return qr_ur_render(qr, data, data_len, qr_version);
+
+    // Reserve the cache before rendering, but commit neither until the full
+    // matrix exists. Failure leaves both the displayed frame and zoom state
+    // on their previous valid payload, never on a stale-cache/new-image pair.
+    uint8_t *next = NULL;
+    uint32_t cap = s->data_cap;
+    if (data_len > cap) {
+        cap = (data_len + 127u) & ~127u;
+        next = lv_malloc(cap);
+        if (!next) return LV_RESULT_INVALID;
+    }
+    lv_result_t result = qr_ur_render(s->zoom_qr ? s->zoom_qr : qr,
+                                      data, data_len, qr_version);
+    if (result != LV_RESULT_OK) {
+        if (next) {
+            qr_payload_zero(next, cap);
+            lv_free(next);
+        }
+        return result;
+    }
+    if (next) {
+        memcpy(next, data, data_len);
+        qr_payload_free(s);
+        s->data = next;
+        s->data_cap = cap;
+    } else {
+        memmove(s->data, data, data_len);
+        if (s->data_len > data_len)
+            qr_payload_zero(s->data + data_len, s->data_len - data_len);
+    }
+    s->data_len = data_len;
+    s->ur_version = qr_version;
+    return LV_RESULT_OK;
 }
 
 // The bitmap, not just the cache. lv_qrcode draws into an I1 lv_draw_buf and
@@ -2639,6 +2802,7 @@ void wt_qr_scrub(lv_obj_t *qr)
     wt_qr_state_t *s = lv_obj_get_user_data(qr);
     if (s) {
         qr_payload_free(s);
+        s->ur_version = 0;
         if (s->zoom_qr) {
             lv_draw_buf_t *zb = lv_canvas_get_draw_buf(s->zoom_qr);
             if (zb) lv_draw_buf_clear(zb, NULL);

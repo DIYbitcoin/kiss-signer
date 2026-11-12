@@ -533,6 +533,18 @@ void wt_qr_refusal(lv_obj_t *qr, bool locked);
 // Update a QR created by wt_qr_card. This caches the exact payload for zoom and
 // keeps animated QRs moving while enlarged. Use instead of lv_qrcode_update().
 lv_result_t wt_qr_update(lv_obj_t *qr, const void *data, uint32_t data_len);
+// The ordinary byte-mode renderer's minimum version at M error correction;
+// negative if the payload cannot fit. Used to preserve an existing profile.
+int wt_qr_binary_version(uint32_t data_len);
+// Signed-transaction UR only: uppercase UR:CRYPTO-PSBT/ text with a nonempty
+// suffix, at most 599 bytes,
+// fixed QR version 6/8/9/13, alphanumeric mode and M error correction. The
+// fixed profile survives zoom. For single_part, retain the ordinary binary
+// renderer when its minimal version is no larger than this profile. Fixed
+// mode rejects invalid input/allocation/encoding failure without changing the
+// old bitmap/cache. Use wt_qr_update for binary data and other QR formats.
+lv_result_t wt_qr_update_ur(lv_obj_t *qr, const void *data,
+                            uint32_t data_len, int qr_version, bool single_part);
 // Take a secret OUT of a QR before its screen goes. wt_qr_update already keeps
 // the cached payload in a wiped-on-free block, but the drawn code is the same
 // secret in another form: the module bitmap lives in an lv_draw_buf that LVGL

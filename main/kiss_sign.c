@@ -192,6 +192,7 @@ static lv_timer_t *s_qr_tmr;
 static lv_obj_t *s_qr_img, *s_part_lbl;
 static int s_part_i;
 static bool s_qr_ez;                   // easy-scan mode: sparser QRs, slower loop
+static bool s_qr_ur_text;              // larger UR fragments in the fixed profile grid
 static size_t s_out_len;               // signed PSBT length (easy-scan re-encodes)
 // The EASY SCAN row: the box a finger presses, the word inside it, and the
 // knob that says which way the switch is thrown.
@@ -5589,13 +5590,44 @@ static void details_open_cb(lv_event_t *e)
 // ---- QR out: the signed PSBT as an animated QR (UR, or pMofN if it came
 // that way). Static-in still leaves as animated UR — a signed PSBT rarely
 // fits one readable QR at 288px, and every coordinator that speaks QR reads UR.
+// Uppercase UR text fits more data in QR alphanumeric mode. Keep the familiar
+// multipart grids instead of choosing the smallest possible matrix: changing
+// the grid also changes integer module scale, centering and white margin.
+// The 206px narrow canvas keeps 4px normal / 5px easy modules (versions 8/6).
+// Wide cards keep versions 13/9. Only replies already filling these grids use
+// larger fragments; small replies retain their existing binary geometry.
+// Fragment sizes leave room for late sequence numbers at the signed-PSBT
+// ceiling; pMofN stays on the binary renderer.
+#if KISS_NARROW
+#define QR_OUT_UR_FRAG       60
+#define QR_OUT_UR_FRAG_EZ    30
+#define QR_OUT_UR_LEGACY     42
+#define QR_OUT_UR_LEGACY_EZ  20
+#define QR_OUT_UR_VERSION     8
+#define QR_OUT_UR_VERSION_EZ  6
+#else
+#define QR_OUT_UR_FRAG      180
+#define QR_OUT_UR_FRAG_EZ    90
+#define QR_OUT_UR_LEGACY    120
+#define QR_OUT_UR_LEGACY_EZ  60
+#define QR_OUT_UR_VERSION    13
+#define QR_OUT_UR_VERSION_EZ  9
+#endif
+
 static void qr_tick(lv_timer_t *t)
 {
     (void)t;
     char part[600];
     if (!s_qenc || qrt_encoder_next(s_qenc, part, sizeof part) != 0) return;
-    if (s_qr_img) wt_qr_update(s_qr_img, part, (uint32_t)strlen(part));
     int n = qrt_encoder_parts(s_qenc);
+    if (s_qr_img) {
+        lv_result_t rc = !s_qr_ur_text
+            ? wt_qr_update(s_qr_img, part, (uint32_t)strlen(part))
+            : wt_qr_update_ur(s_qr_img, part, (uint32_t)strlen(part),
+                             s_qr_ez ? QR_OUT_UR_VERSION_EZ : QR_OUT_UR_VERSION,
+                             n == 1);
+        if (rc != LV_RESULT_OK) return;  // keep the counter on the visible frame
+    }
     if (s_part_lbl && n > 1) {
         s_part_i = s_part_i % n + 1;
         char b[64];
@@ -5604,39 +5636,11 @@ static void qr_tick(lv_timer_t *t)
     }
 }
 
-// (re)create the out-encoder for the current mode. Easy-scan halves the data
-// per frame (sparser QR = bigger modules at the same 288px) and the loop slows
-// below — for phone cameras that never lock onto the default loop.
-//
-// THE 3.5in CUTS UR FRAMES SMALLER. Its card holds a 206 px code, and a
-// module is drawn at a whole number of pixels, so a frame's QR version IS its
-// dot size: 49 dots (version 8, 152 bytes) is the most that still draws at
-// 4 px, and 41 (version 6, 106 bytes) the most at 5. A UR part spends up to
-// 65 characters on its prefix, sequence numbers, lengths and checksums, two
-// per byte of the fragment on top, once the loop has run past part 10000 on
-// a transaction at the signed ceiling. 42 bytes is the largest fragment whose
-// every part stays inside version 8, and 20 the largest inside version 6, so
-// EASY SCAN still halves the data and draws its dots a pixel bigger. The price
-// is frames: a phone waits for more of them instead of resolving 2 px dots.
-// pMofN keeps its wide sizes: 100 characters is version 7 and 50 is version
-// 4, which draw at 4 and 6 px here already.
-#if KISS_NARROW
-#define QR_OUT_UR_FRAG     42
-#define QR_OUT_UR_FRAG_EZ  20
-#else
-#define QR_OUT_UR_FRAG_EZ  60
-#endif
+// Easy scan halves the data per frame, uses the larger-module grid and slows
+// the loop to 600ms. The transport defaults remain available to other callers.
 static int qr_enc_start(void)
 {
     int fmt = (s_qr_fmt == QRT_FMT_PMOFN) ? QRT_FMT_PMOFN : QRT_FMT_UR;
-    // 0 is qr_transport's own size: 100 characters for pMofN, and 120 bytes
-    // for UR on the wide board. Only the 3.5in overrides the default UR one,
-    // and a wide build writing "0 : 0" is a condition with identical branches,
-    // which the device compiler refuses.
-    int frag = s_qr_ez ? (fmt == QRT_FMT_PMOFN ? 50 : QR_OUT_UR_FRAG_EZ) : 0;
-#if KISS_NARROW
-    if (!s_qr_ez && fmt != QRT_FMT_PMOFN) frag = QR_OUT_UR_FRAG;
-#endif
     // The code carries the trimmed copy (kiss_psbt_export_copy); s_out keeps
     // the whole signed PSBT for the card, the fingerprint and a retry. The
     // encoder copies what it is given, so the trimmed bytes only live here.
@@ -5649,7 +5653,31 @@ static int qr_enc_start(void)
         src = trim;
         n = tl;
     }
-    qrt_encoder_t *ne = qrt_encoder_new_frag(fmt, src, n, frag);
+    qrt_encoder_t *ne = NULL;
+    bool use_text = false;
+    if (fmt == QRT_FMT_UR) {
+        // cUR balances fragments, so a short multipart reply may have used a
+        // smaller grid than the profile ceiling. Probe its actual old frame
+        // instead of forcing every reply into that ceiling. Recreate after
+        // probing so part one is still the first frame presented to a camera.
+        const int legacy = s_qr_ez ? QR_OUT_UR_LEGACY_EZ : QR_OUT_UR_LEGACY;
+        const int version = s_qr_ez ? QR_OUT_UR_VERSION_EZ : QR_OUT_UR_VERSION;
+        qrt_encoder_t *probe = qrt_encoder_new_frag(fmt, src, n, legacy);
+        if (probe) {
+            char first[600];
+            bool ready = qrt_encoder_next(probe, first, sizeof first) == 0;
+            if (ready)
+                use_text = wt_qr_binary_version((uint32_t)strlen(first)) == version;
+            qrt_encoder_free(probe);
+            if (ready) {
+                const int frag = use_text ? (s_qr_ez ? QR_OUT_UR_FRAG_EZ : QR_OUT_UR_FRAG)
+                                          : legacy;
+                ne = qrt_encoder_new_frag(fmt, src, n, frag);
+            }
+        }
+    } else {
+        ne = qrt_encoder_new_frag(fmt, src, n, s_qr_ez ? 50 : 0);
+    }
     if (trim) {
         kiss_wipe(trim, s_out_len);
         free(trim);
@@ -5657,6 +5685,7 @@ static int qr_enc_start(void)
     if (!ne) return -1;
     if (s_qenc) qrt_encoder_free(s_qenc);
     s_qenc = ne;
+    s_qr_ur_text = use_text;
     return 0;
 }
 
