@@ -26,6 +26,7 @@
 #include "kiss_usage.h"   // has a coordinator ever spoken: the home's next step
 #include "kiss_recv.h"
 #include "kiss_sign.h"
+#include "kiss_ecash_ui.h"
 #include "kiss_scan.h"
 #include "kiss_settings.h"
 #include "kiss_fw_ui.h"
@@ -2614,6 +2615,7 @@ static const struct {
   // Home sub-screens. They own the touch and the lock takes them away.
   { kiss_scan_active,      kiss_scan_close,     true,  false, 0, false, false, NULL },
   { kiss_sign_active,      kiss_sign_close,     true,  false, 0, false, false, NULL },
+  { kiss_ecash_ui_active,  kiss_ecash_ui_close, true,  false, 0, false, false, NULL },
   { kiss_recv_active,      kiss_recv_close,     true,  false, 0, false, false, NULL },
   { kiss_info_active,      kiss_info_close,     true,  false, 0, false, false, NULL },
   { kiss_fw_ui_active,     kiss_fw_ui_close,    true,  false, 0, false, false, NULL },

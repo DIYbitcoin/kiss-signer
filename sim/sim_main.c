@@ -782,6 +782,41 @@ int kiss_session_descriptor(char *out, unsigned long len) {
   return 0;
 }
 
+// The ecash spend signer (main/kiss_ecash.c needs libwally): the export is
+// the dev seed's real one, which kisstest pins, and a review answers from the
+// request's own shape. A request with "REFUSE" in it is refused the way a
+// request locked to somebody else's key is, so the walk can stand on both.
+#include "kiss_ecash.h"
+int kiss_session_ecash_export(char *out, unsigned long len) {
+  if (s_sim_session_locked || s_sim_card) return -1;
+  snprintf(out, len, "[73c5da0a/129373h/10h/0h/0h]xpub6FM96Ez4YLB6nhCrMpWfXCRsV4M"
+                     "nJ2YtihMsm9yn8hkLWDUWbYQyTBa8iHrEcTGF98DpWtZ5141R5S4tbpTvrGd"
+                     "Ata3X9qEbBkmhz4vy4Ge");
+  return 0;
+}
+static bool s_sim_ecash_kept;
+int kiss_ecash_review(const char *req, size_t len, kiss_ecash_summary_t *sum) {
+  memset(sum, 0, sizeof *sum);
+  s_sim_ecash_kept = false;
+  if (s_sim_session_locked || s_sim_card) return KISS_ECASH_E_LOCKED;
+  if (memmem(req, len, "REFUSE", 6)) return KISS_ECASH_E_NOT_OURS;
+  snprintf(sum->mint, sizeof sum->mint, "https://testnut.cashu.space");
+  snprintf(sum->unit, sizeof sum->unit, "sat");
+  sum->counter = 0; sum->n_in = 1; sum->n_out = 6; sum->n_change = 3;
+  sum->leaving = 21; sum->change = 42;
+  s_sim_ecash_kept = true;
+  return KISS_ECASH_OK;
+}
+int kiss_ecash_sign_reviewed(char *reply, size_t cap) {
+  if (!s_sim_ecash_kept) return KISS_ECASH_E_NOTHING;
+  s_sim_ecash_kept = false;
+  snprintf(reply, cap, "{\"v\":1,\"hash\":\"eaf2d5b39982e74a52e7316dfc5d08e56313744abeb64dae5c31af8cea735717\","
+                       "\"sig\":\"5c0ee909c2e12df8e75955fa48c89fe63f0eca101c0005fce76ea15eb967d99a"
+                       "a46dc70bde3d4967aefb8f36e133994eaf3f7c5d6a9232721ed8f8d288830f64\"}");
+  return KISS_ECASH_OK;
+}
+void kiss_ecash_review_clear(void) { s_sim_ecash_kept = false; }
+
 // step-5 seams: no libwally in the sim, so fake the PSBT layer with the same
 // numbers the desktop test fixture uses. A file whose content contains "STOP"
 // renders the blocked verify screen (so the sim can show both states).
@@ -5605,6 +5640,54 @@ int main(void) {
     }
     tap_str(STR_C_BACK, 3, 6);                      // -> the sign page
     tap_str(STR_C_BACK, 3, 6);                      // -> home
+  }
+
+  // ---- ecash: the vault page's QRs, through SIGN's scanner ----
+  // The page sends JSON as pMofN frames, so the scanner hands it to the ecash
+  // screens instead of the PSBT parser: the key it asks for, a spend reviewed
+  // and slid to sign, the answer QR, and a refusal. The review numbers are the
+  // stub's (21 leaving, 42 back); kisstest proves the real ones.
+  {
+    static const char *const ec_req[3] = {
+      "{\"v\":1,\"want\":\"key\"}",
+      "{\"v\":1,\"mint\":\"https://testnut.cashu.space\"}",
+      "{\"v\":1,\"REFUSE\":1}",
+    };
+    for (int k = 0; k < 3; k++) {
+      touch(130, 240); pump(3); release(); pump(6);   // Sign tile -> the page
+      tap_str(STR_S_SCAN_QR, 3, 30);
+      tap_str(STR_S_OPEN_CAM, 3, 6);
+      char b64[128], frame[160];
+      qrt_b64_encode((const uint8_t *)ec_req[k], strlen(ec_req[k]), b64, sizeof b64);
+      snprintf(frame, sizeof frame, "p1of1 %s", b64);
+      kiss_scan_inject(frame, strlen(frame));
+      pump(30);
+      if (k == 0) {
+        save("/tmp/sim_ecash_key.ppm");
+        must_show("ecash/key title", tr(STR_EC_KEY_T));
+        must_show("ecash/key note", tr(STR_EC_KEY_NOTE));
+        tap_str(STR_C_DONE, 3, 6);                    // DONE -> the SIGN page
+      } else if (k == 1) {
+        save("/tmp/sim_ecash_spend.ppm");
+        must_show("ecash/spend title", tr(STR_EC_SPEND_T));
+        must_show("ecash/spend sending", "21 sat");
+        must_show("ecash/spend back", "42 sat");
+        slide_grip(STR_S_HOLD_TO_SIGN); slide_go(320);
+        pump(45); release(); pump(60);
+        save("/tmp/sim_ecash_signed.ppm");
+        must_show("ecash/signed title", tr(STR_S_SIGNED_T));
+        must_show("ecash/signed note", tr(STR_EC_ANSWER_NOTE));
+        tap_str(STR_C_DONE, 3, 6);
+      } else {
+        save("/tmp/sim_ecash_refused.ppm");
+        must_show("ecash/refused title", tr(STR_EC_SPEND_T));
+        must_show("ecash/refused state", tr(STR_EC_NO_T));
+        must_show("ecash/refused reason", tr(STR_EC_NO_OURS));
+        tap_str(STR_C_BACK, 3, 6);                    // BACK -> the SIGN page
+      }
+      must_show("ecash/back on the SIGN page", tr(STR_S_SCAN_QR));
+      tap_str(STR_C_BACK, 3, 6);                      // BACK -> home
+    }
   }
 
   // Receive lands past the highest address used or shown. Every detail keeps

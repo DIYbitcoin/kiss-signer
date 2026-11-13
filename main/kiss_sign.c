@@ -17,6 +17,7 @@
 #include <ctype.h>
 
 #include "kiss_crypto.h"
+#include "kiss_ecash_ui.h"
 #include "kiss_psbt.h"
 #include "kiss_cardtask.h"   // a Satochip card signs on its own task
 #include "kiss_scan.h"
@@ -6558,8 +6559,21 @@ static void log_summary(const char *src)
 }
 
 // ---- QR source: kiss_scan drives the camera; we get the assembled PSBT ----
+static void ecash_done_cb(void)
+{
+    kiss_sign_open(s_parent);                           // back to the chooser
+}
+
 static void scan_done_cb(const uint8_t *psbt, size_t len, int fmt)
 {
+    // An ecash vault page's QR is JSON, where a PSBT is binary: it goes to the
+    // ecash screens, which review it against their own spec and refuse what
+    // they cannot read. Nothing of it reaches the PSBT parser.
+    if (kiss_ecash_ui_wants(psbt, len)) {
+        SIGN_LOG("QR assembled: %u bytes of ecash, fmt %d", (unsigned)len, fmt);
+        kiss_ecash_ui_open(s_parent, psbt, len, ecash_done_cb);
+        return;
+    }
     s_src = SRC_QR;
     s_qr_fmt = fmt;
     snprintf(s_cur, sizeof s_cur, "%s", tr(STR_S_SCANNED_TX));
