@@ -58,8 +58,10 @@ soldering.
 | **[ESP32-P4-WIFI6-Touch-LCD-3.5](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-3.5.htm)** | Waveshare | 3.5in, 480×320 | [Waveshare](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-3.5.htm) or a [Waveshare distributor](https://www.waveshare.com/distributors) in your country |
 | **JC1060P470C** | Guition | 7in, 1024×600 | [AliExpress search](https://www.aliexpress.com/w/wholesale-JC1060P470C.html) |
 
-All three are also sold on Amazon in many countries; search for the model
-number. Check the chip revision note below before you buy.
+Buy from the maker first, then from one of the maker's listed resellers
+in your country. Only if neither ships to you, check AliExpress and
+Amazon; search for the model number. Check the chip revision note below
+before you buy.
 
 Inspired by [Bowser](https://github.com/arcbtc/bowser-bitcoin-hardware-wallet),
 a Bitcoin signer hidden under a Tetris game.
