@@ -70,8 +70,10 @@ a bitcoin signer hidden under a Tetris game.
 | [ESP32-P4-WIFI6-Touch-LCD-3.5](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-3.5.htm) | Waveshare | 3.5in, 480×320 | [Waveshare](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-3.5.htm) or a [Waveshare distributor](https://www.waveshare.com/distributors) in your country |
 | JC1060P470C | Guition | 7in, 1024×600 | [AliExpress search](https://www.aliexpress.com/w/wholesale-JC1060P470C.html) |
 
-All three are also sold on Amazon in many countries; search for the model
-number. Check the chip revision note below before you buy.
+Buy from the maker first, then from one of the maker's listed resellers
+in your country. Only if neither ships to you, check AliExpress and
+Amazon; search for the model number. Check the chip revision note below
+before you buy.
 
 **Current release (0.1.0-beta11): all three boards require an ESP32-P4
 v1.x chip.** The release images do not run on v3.x chips.
@@ -92,7 +94,8 @@ Boards with test builds only, support coming soon:
 | [ESP32-P4-WIFI6-Touch-LCD-5](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-5.htm) | Waveshare | 5in, 720×1280 | [Waveshare](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-5.htm) or a [Waveshare distributor](https://www.waveshare.com/distributors) in your country |
 
 Waveshare sells the camera as an option on these boards; pick the one
-with the camera.
+with the camera. The same buying order applies: Waveshare, then a
+Waveshare reseller in your country, then AliExpress or Amazon.
 
 ### Guition boards: flip the camera
 
