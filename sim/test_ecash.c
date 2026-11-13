@@ -253,38 +253,384 @@ static void test_nut11_sigall_vectors(void)
     ecchk("empty quote id refused", kiss_ecash_sigall_hash(&in, 1, &out, 1, "", h) != 0);
 }
 
-// The signer's own signature, from the NUT-13 vector seed's key 0, verifies
-// under that key's published public key. A public account cannot sign.
-static void test_sign(void)
+// ---- spend requests, end to end through review and sign ----
+// Every case goes through kiss_ecash_review and kiss_ecash_sign_reviewed, the
+// only public way to a signature, on the dev seed's session. An attack case
+// passes only when no signature comes out.
+
+static struct ext_key s_acct;    // the dev seed's ecash account (private)
+
+static void pubhex(uint32_t counter, char out[67])
 {
-    uint8_t seed[BIP39_SEED_LEN_512], h[32], sig[64], xo[32];
-    size_t written = 0;
-    struct ext_key master, acct, watch;
-    char *xpub = NULL;
-    int ok = bip39_mnemonic_to_seed(NUT13_MNEMONIC, NULL, seed, sizeof seed,
-                                    &written) == WALLY_OK &&
-             bip32_key_from_seed(seed, sizeof seed, BIP32_VER_MAIN_PRIVATE, 0,
-                                 &master) == WALLY_OK &&
-             kiss_ecash_account(&master, &acct) == 0 &&
-             bip32_key_to_base58(&acct, BIP32_FLAG_KEY_PUBLIC, &xpub) == WALLY_OK &&
-             bip32_key_from_base58(xpub, &watch) == WALLY_OK;
-    if (xpub)
-        wally_free_string(xpub);
-    ecchk("sign setup", ok);
-    if (!ok)
+    uint8_t p[33];
+    kiss_ecash_pubkey(&s_acct, counter, p);
+    to_hex(p, 33, out);
+}
+
+// A lock as cashu-ts writes it: no spaces, nonce, data, tags.
+static void lock_secret(char *out, size_t cap, const char *nonce,
+                        const char *data, const char *tags)
+{
+    snprintf(out, cap, "[\"P2PK\",{\"nonce\":\"%s\",\"data\":\"%s\",\"tags\":%s}]",
+             nonce, data, tags);
+}
+
+// The same string as a JSON string body: " and \ escaped, nothing else.
+static void json_esc(const char *in, char *out, size_t cap)
+{
+    size_t o = 0;
+    for (; *in && o + 3 < cap; in++) {
+        if (*in == '"' || *in == '\\') out[o++] = '\\';
+        out[o++] = *in;
+    }
+    out[o] = 0;
+}
+
+static const char C_HEX[] =
+    "02c97ee3d1db41cf0a3ddb601724be8711a032950811bf326f8219c50c4808d3cd";
+static const char LEAVE_B[] =
+    "038ec853d65ae1b79b5cdbc2774150b2cb288d6d26e12958a16fb33c32d9a86c39";
+static const char NONCE_A[] =
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+static const char NONCE_B[] =
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+static const char NONCE_C[] =
+    "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
+static const char R_HEX[] =
+    "99fce58439fc37412ab3468b73db0569322588f62fb3a49182d67e23d877824a";
+static const char SIGALL[] = "[[\"sigflag\",\"SIG_ALL\"]]";
+
+// The B_ of a change output locked to counter with nonce, blinded by r_hex.
+static void change_b(uint32_t counter, const char *nonce, const char *r_hex,
+                     char out[67])
+{
+    char ph[67], sec[256];
+    uint8_t r[32], b[33];
+    pubhex(counter, ph);
+    lock_secret(sec, sizeof sec, nonce, ph, SIGALL);
+    from_hex(r_hex, r, 32);
+    if (kiss_ecash_blind((const uint8_t *)sec, strlen(sec), r, b) == 0)
+        to_hex(b, 33, out);
+    else
+        out[0] = 0;
+}
+
+typedef struct {
+    uint32_t counter;            // the envelope's counter
+    const char *in_secret[3];    // raw secrets, NULL terminated
+    const char *outs;            // the outputs array body, raw
+    const char *extra;           // more envelope members, or NULL
+} reqspec_t;
+
+static void build(char *out, size_t cap, const reqspec_t *q)
+{
+    char ins[3000] = "";
+    for (int i = 0; i < 3 && q->in_secret[i]; i++) {
+        char esc[1200], one[1400];
+        json_esc(q->in_secret[i], esc, sizeof esc);
+        snprintf(one, sizeof one, "%s{\"secret\":\"%s\",\"C\":\"%s\"}",
+                 i ? "," : "", esc, C_HEX);
+        strncat(ins, one, sizeof ins - strlen(ins) - 1);
+    }
+    snprintf(out, cap,
+             "{\"v\":1,\"mint\":\"https://testnut.cashu.space\",\"unit\":\"sat\","
+             "\"counter\":%u,\"inputs\":[%s],\"outputs\":[%s]%s%s}",
+             (unsigned)q->counter, ins, q->outs, q->extra ? "," : "",
+             q->extra ? q->extra : "");
+}
+
+// Review then sign. Returns the first refusal, or OK with *got_sig set when
+// a reply came out.
+static int run(const char *req, kiss_ecash_summary_t *sum, char *reply,
+               size_t cap)
+{
+    int rc = kiss_ecash_review(req, strlen(req), sum);
+    int src = kiss_ecash_sign_reviewed(reply, cap);
+    if (rc != KISS_ECASH_OK)
+        return src == KISS_ECASH_OK ? -1 : rc;   // -1: a refused review signed
+    return src;
+}
+
+static void refused(const char *name, const char *req, int want)
+{
+    kiss_ecash_summary_t sum;
+    char reply[256] = "x";
+    int rc = run(req, &sum, reply, sizeof reply);
+    char nm[128];
+    snprintf(nm, sizeof nm, "attack: %s (rc %d)", name, rc);
+    ecchk(nm, rc == want && reply[0] == 0);
+}
+
+static void test_requests(void)
+{
+    kiss_set_network(KISS_NET_MAIN);
+    if (kiss_session_open(NULL) != 0 ||
+        kiss_ecash_account(kiss_session_master(), &s_acct) != 0) {
+        ecchk("request session", 0);
         return;
-    memset(h, 0x5a, sizeof h);
-    ecchk("sign rc", kiss_ecash_sign(&acct, 0, h, sig) == 0);
-    ecchk("signature verifies under NUT-13 key 0",
-          from_hex(NUT13_P2PK[0] + 2, xo, 32) && sp_schnorr_verify(xo, h, sig) == 0);
-    ecchk("signature fails under NUT-13 key 1",
-          from_hex(NUT13_P2PK[1] + 2, xo, 32) && sp_schnorr_verify(xo, h, sig) != 0);
-    ecchk("public account cannot sign", kiss_ecash_sign(&watch, 0, h, sig) != 0);
-    ecchk("hardened counter cannot sign",
-          kiss_ecash_sign(&acct, BIP32_INITIAL_HARDENED_CHILD, h, sig) != 0);
-    wally_bzero(seed, sizeof seed);
-    wally_bzero(&master, sizeof master);
-    wally_bzero(&acct, sizeof acct);
+    }
+    char k7[67], k9[67], sa[400], sb[400], b8[67], req[KISS_ECASH_REQ_MAX + 64];
+    pubhex(7, k7);
+    pubhex(9, k9);
+    lock_secret(sa, sizeof sa, NONCE_A, k7, SIGALL);
+    lock_secret(sb, sizeof sb, NONCE_B, k7, SIGALL);
+    change_b(8, NONCE_C, R_HEX, b8);
+
+    char outs[600];
+    snprintf(outs, sizeof outs,
+             "{\"amount\":16,\"B_\":\"%s\"},{\"amount\":4,\"B_\":\"%s\","
+             "\"change\":{\"counter\":8,\"nonce\":\"%s\",\"r\":\"%s\"}}",
+             LEAVE_B, b8, NONCE_C, R_HEX);
+    reqspec_t good = {7, {sa, sb, NULL}, outs, NULL};
+
+    // ---- the honest request signs, and the signature is the right one ----
+    build(req, sizeof req, &good);
+    kiss_ecash_summary_t sum;
+    char reply[256];
+    int rc = run(req, &sum, reply, sizeof reply);
+    ecchk("honest request signs", rc == KISS_ECASH_OK);
+    ecchk("summary: 16 leaving, 4 back, 2 in, 2 out",
+          sum.leaving == 16 && sum.change == 4 && sum.n_in == 2 &&
+              sum.n_out == 2 && sum.n_change == 1 && sum.counter == 7 &&
+              !strcmp(sum.mint, "https://testnut.cashu.space") &&
+              !strcmp(sum.unit, "sat"));
+    {
+        kiss_ecash_in_t ins[2] = {{sa, C_HEX}, {sb, C_HEX}};
+        kiss_ecash_out_t o[2] = {{16, LEAVE_B}, {4, b8}};
+        uint8_t h[32], sig[64], xo[32];
+        char hh[65], want[256];
+        kiss_ecash_sigall_hash(ins, 2, o, 2, NULL, h);
+        to_hex(h, 32, hh);
+        const char *sp = strstr(reply, "\"sig\":\"");
+        ecchk("reply carries the SIG_ALL hash", strstr(reply, hh) != NULL);
+        ecchk("reply signature verifies under key 7",
+              sp && strlen(sp + 7) >= 130 &&
+                  (memcpy(want, sp + 7, 128), want[128] = 0, 1) &&
+                  from_hex(want, sig, 64) && from_hex(k7 + 2, xo, 32) &&
+                  sp_schnorr_verify(xo, h, sig) == 0);
+    }
+    ecchk("nothing kept after signing",
+          kiss_ecash_sign_reviewed(reply, sizeof reply) == KISS_ECASH_E_NOTHING &&
+              reply[0] == 0);
+    ecchk("sign without a review refused",
+          kiss_ecash_sign_reviewed(reply, sizeof reply) == KISS_ECASH_E_NOTHING);
+
+    // ---- inputs ----
+    {
+        reqspec_t q = good;
+        q.counter = 9;
+        build(req, sizeof req, &q);
+        refused("counter is not the inputs' key", req, KISS_ECASH_E_NOT_OURS);
+    }
+    {
+        char s9[400];
+        lock_secret(s9, sizeof s9, NONCE_B, k9, SIGALL);
+        reqspec_t q = {7, {sa, s9, NULL}, outs, NULL};
+        build(req, sizeof req, &q);
+        refused("an input locked to another key", req, KISS_ECASH_E_NOT_OURS);
+    }
+    {
+        static const char *const bad_tags[] = {
+            "[[\"sigflag\",\"SIG_INPUTS\"]]",
+            "[]",
+            "[[\"sigflag\",\"SIG_ALL\"],[\"locktime\",\"1\"]]",
+            "[[\"locktime\",\"1\"],[\"sigflag\",\"SIG_ALL\"]]",
+            "[[\"sigflag\",\"SIG_ALL\"],[\"refund\",\"02c97ee3d1db41cf0a3ddb601724be8711a032950811bf326f8219c50c4808d3cd\"]]",
+            "[[\"pubkeys\",\"02c97ee3d1db41cf0a3ddb601724be8711a032950811bf326f8219c50c4808d3cd\"],[\"sigflag\",\"SIG_ALL\"]]",
+        };
+        for (size_t i = 0; i < sizeof bad_tags / sizeof bad_tags[0]; i++) {
+            char s[600], nm[64];
+            lock_secret(s, sizeof s, NONCE_B, k7, bad_tags[i]);
+            reqspec_t q = {7, {sa, s, NULL}, outs, NULL};
+            build(req, sizeof req, &q);
+            snprintf(nm, sizeof nm, "input lock with other conditions %zu", i);
+            refused(nm, req, KISS_ECASH_E_LOCK);
+        }
+        // no tags at all is SIG_INPUTS
+        char s[400];
+        snprintf(s, sizeof s, "[\"P2PK\",{\"nonce\":\"%s\",\"data\":\"%s\"}]",
+                 NONCE_B, k7);
+        reqspec_t q = {7, {sa, s, NULL}, outs, NULL};
+        build(req, sizeof req, &q);
+        refused("input lock with no tags (SIG_INPUTS)", req, KISS_ECASH_E_LOCK);
+        snprintf(s, sizeof s, "[\"HTLC\",{\"nonce\":\"%s\",\"data\":\"%s\",\"tags\":%s}]",
+                 NONCE_B, k7, SIGALL);
+        build(req, sizeof req, &q);
+        refused("an HTLC input", req, KISS_ECASH_E_LOCK);
+    }
+    {
+        // The mint reads the LAST of two "data" keys in most parsers; a
+        // reader taking the first would see our key on somebody else's lock.
+        char s[600];
+        snprintf(s, sizeof s,
+                 "[\"P2PK\",{\"nonce\":\"%s\",\"data\":\"%s\",\"data\":\"%s\",\"tags\":%s}]",
+                 NONCE_B, k7, k9, SIGALL);
+        reqspec_t q = {7, {sa, s, NULL}, outs, NULL};
+        build(req, sizeof req, &q);
+        refused("a lock with two data keys", req, KISS_ECASH_E_FORMAT);
+        // In the nonce, which has no length or charset check of its own, so
+        // only the escape ban can refuse it.
+        snprintf(s, sizeof s,
+                 "[\"P2PK\",{\"nonce\":\"\\u0030%s\",\"data\":\"%s\",\"tags\":%s}]",
+                 NONCE_B + 1, k7, SIGALL);
+        build(req, sizeof req, &q);
+        refused("a lock with a unicode escape", req, KISS_ECASH_E_FORMAT);
+        snprintf(s, sizeof s,
+                 "[\"P2PK\",{\"nonce\":\"%s\",\"data\":\"%s\",\"tags\":%s,\"x\":1}]",
+                 NONCE_B, k7, SIGALL);
+        build(req, sizeof req, &q);
+        refused("a lock with an unknown key", req, KISS_ECASH_E_FORMAT);
+    }
+    {
+        reqspec_t q = {7, {sa, sa, NULL}, outs, NULL};
+        build(req, sizeof req, &q);
+        refused("the same input twice", req, KISS_ECASH_E_DUP);
+    }
+
+    // ---- change ----
+    {
+        char o[600], b_other[67];
+        change_b(8, NONCE_C,
+                 "f78476ea7cc9ade20f9e05e58a804cf19533f03ea805ece5fee88c8e2874ba50",
+                 b_other);
+        snprintf(o, sizeof o,
+                 "{\"amount\":16,\"B_\":\"%s\",\"change\":{\"counter\":8,\"nonce\":\"%s\",\"r\":\"%s\"}}",
+                 LEAVE_B, NONCE_C, R_HEX);
+        reqspec_t q = {7, {sa, sb, NULL}, o, NULL};
+        build(req, sizeof req, &q);
+        refused("somebody else's output labelled change", req, KISS_ECASH_E_CHANGE);
+        snprintf(o, sizeof o,
+                 "{\"amount\":4,\"B_\":\"%s\",\"change\":{\"counter\":8,\"nonce\":\"%s\",\"r\":\"%s\"}}",
+                 b_other, NONCE_C, R_HEX);
+        build(req, sizeof req, &q);
+        refused("change B_ from another blinding factor", req, KISS_ECASH_E_CHANGE);
+        char b9[67];
+        change_b(9, NONCE_C, R_HEX, b9);
+        snprintf(o, sizeof o,
+                 "{\"amount\":4,\"B_\":\"%s\",\"change\":{\"counter\":8,\"nonce\":\"%s\",\"r\":\"%s\"}}",
+                 b9, NONCE_C, R_HEX);
+        build(req, sizeof req, &q);
+        refused("change locked to a different counter than claimed", req,
+                KISS_ECASH_E_CHANGE);
+        // With r = 0, B_ would be Y itself: give exactly that, so only the
+        // scalar check can refuse it.
+        {
+            char ph8[67], sec8[256];
+            uint8_t y[33];
+            pubhex(8, ph8);
+            lock_secret(sec8, sizeof sec8, NONCE_C, ph8, SIGALL);
+            kiss_ecash_hash_to_curve((const uint8_t *)sec8, strlen(sec8), y);
+            char yh[67];
+            to_hex(y, 33, yh);
+            snprintf(o, sizeof o,
+                     "{\"amount\":4,\"B_\":\"%s\",\"change\":{\"counter\":8,\"nonce\":\"%s\",\"r\":\"%064d\"}}",
+                     yh, NONCE_C, 0);
+        }
+        build(req, sizeof req, &q);
+        refused("change with a zero blinding factor", req, KISS_ECASH_E_CHANGE);
+        snprintf(o, sizeof o,
+                 "{\"amount\":4,\"B_\":\"%s\",\"change\":{\"counter\":2147483648,\"nonce\":\"%s\",\"r\":\"%s\"}}",
+                 b8, NONCE_C, R_HEX);
+        build(req, sizeof req, &q);
+        refused("change at a hardened counter", req, KISS_ECASH_E_FORMAT);
+
+        // change whose secret is an input's own: already spent by this swap
+        char b7a[67];
+        change_b(7, NONCE_A, R_HEX, b7a);
+        snprintf(o, sizeof o,
+                 "{\"amount\":4,\"B_\":\"%s\",\"change\":{\"counter\":7,\"nonce\":\"%s\",\"r\":\"%s\"}}",
+                 b7a, NONCE_A, R_HEX);
+        build(req, sizeof req, &q);
+        refused("change reusing an input's secret", req, KISS_ECASH_E_DUP);
+        char b8r[67];
+        change_b(8, NONCE_C,
+                 "f78476ea7cc9ade20f9e05e58a804cf19533f03ea805ece5fee88c8e2874ba50",
+                 b8r);
+        snprintf(o, sizeof o,
+                 "{\"amount\":4,\"B_\":\"%s\",\"change\":{\"counter\":8,\"nonce\":\"%s\",\"r\":\"%s\"}},"
+                 "{\"amount\":4,\"B_\":\"%s\",\"change\":{\"counter\":8,\"nonce\":\"%s\",\"r\":\"f78476ea7cc9ade20f9e05e58a804cf19533f03ea805ece5fee88c8e2874ba50\"}}",
+                 b8, NONCE_C, R_HEX, b8r, NONCE_C);
+        build(req, sizeof req, &q);
+        refused("two change outputs with one secret", req, KISS_ECASH_E_DUP);
+
+        // An honest change output with its label left off is counted as
+        // leaving: the screen shows more going, never less.
+        snprintf(o, sizeof o, "{\"amount\":16,\"B_\":\"%s\"},{\"amount\":4,\"B_\":\"%s\"}",
+                 LEAVE_B, b8);
+        build(req, sizeof req, &q);
+        kiss_ecash_summary_t s2;
+        char r2[256];
+        ecchk("unlabelled change counts as leaving",
+              run(req, &s2, r2, sizeof r2) == KISS_ECASH_OK &&
+                  s2.leaving == 20 && s2.change == 0);
+    }
+
+    // ---- the envelope ----
+    {
+        reqspec_t q = good;
+        q.extra = "\"fee\":1";
+        build(req, sizeof req, &q);
+        refused("an unknown request key", req, KISS_ECASH_E_FORMAT);
+        q.extra = "\"counter\":9";
+        build(req, sizeof req, &q);
+        refused("a repeated request key", req, KISS_ECASH_E_FORMAT);
+        char o[300];
+        snprintf(o, sizeof o, "{\"amount\":16.5,\"B_\":\"%s\"}", LEAVE_B);
+        q = good;
+        q.outs = o;
+        build(req, sizeof req, &q);
+        refused("a fractional amount", req, KISS_ECASH_E_FORMAT);
+        snprintf(o, sizeof o, "{\"amount\":0,\"B_\":\"%s\"}", LEAVE_B);
+        build(req, sizeof req, &q);
+        refused("a zero amount", req, KISS_ECASH_E_FORMAT);
+        snprintf(o, sizeof o, "{\"amount\":9007199254740993,\"B_\":\"%s\"}", LEAVE_B);
+        build(req, sizeof req, &q);
+        refused("an amount past 2^53", req, KISS_ECASH_E_FORMAT);
+        snprintf(o, sizeof o, "{\"amount\":16,\"B_\":\"%s\"},{\"amount\":16,\"B_\":\"%s\"}",
+                 LEAVE_B, LEAVE_B);
+        build(req, sizeof req, &q);
+        refused("the same output twice", req, KISS_ECASH_E_DUP);
+        snprintf(o, sizeof o, "{\"amount\":16,\"B_\":\"%s\"}",
+                 "038EC853D65AE1B79B5CDBC2774150B2CB288D6D26E12958A16FB33C32D9A86C39");
+        build(req, sizeof req, &q);
+        refused("an uppercase B_", req, KISS_ECASH_E_FORMAT);
+
+        build(req, sizeof req, &good);
+        char *v = strstr(req, "\"v\":1");
+        v[4] = '2';
+        refused("version 2", req, KISS_ECASH_E_VERSION);
+        build(req, sizeof req, &good);
+        strcat(req, "x");
+        refused("trailing bytes", req, KISS_ECASH_E_FORMAT);
+        char big[KISS_ECASH_REQ_MAX + 2];
+        memset(big, ' ', sizeof big - 1);
+        big[sizeof big - 1] = 0;
+        build(req, sizeof req, &good);
+        memcpy(big, req, strlen(req));
+        refused("a request over 4096 bytes", big, KISS_ECASH_E_FORMAT);
+    }
+
+    // ---- the session ----
+    {
+        build(req, sizeof req, &good);
+        kiss_ecash_summary_t s2;
+        char r2[256] = "x";
+        ecchk("review on the dev seed", kiss_ecash_review(req, strlen(req), &s2) == KISS_ECASH_OK);
+        kiss_session_close();
+        ecchk("attack: sign after lock refused",
+              kiss_ecash_sign_reviewed(r2, sizeof r2) == KISS_ECASH_E_LOCKED && r2[0] == 0);
+        ecchk("review while locked refused",
+              kiss_ecash_review(req, strlen(req), &s2) == KISS_ECASH_E_LOCKED);
+        kiss_session_open(NULL);
+        ecchk("review again", kiss_ecash_review(req, strlen(req), &s2) == KISS_ECASH_OK);
+        kiss_session_close();
+        kiss_session_open("another passphrase");
+        r2[0] = 'x';
+        ecchk("attack: keys changed between review and sign",
+              kiss_ecash_sign_reviewed(r2, sizeof r2) == KISS_ECASH_E_SESSION && r2[0] == 0);
+        kiss_session_close();
+    }
+    wally_bzero(&s_acct, sizeof s_acct);
 }
 
 int test_ecash(void);
@@ -294,7 +640,7 @@ int test_ecash(void)
     test_nut13_vectors();
     test_nut00_vectors();
     test_nut11_sigall_vectors();
-    test_sign();
+    test_requests();
     test_session_export();
     printf("ecash: %d failure(s)\n", ec_fails);
     return ec_fails;

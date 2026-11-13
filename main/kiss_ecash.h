@@ -69,12 +69,54 @@ int kiss_ecash_sigall_hash(const kiss_ecash_in_t *in, size_t n_in,
                            const kiss_ecash_out_t *out, size_t n_out,
                            const char *quote_id, uint8_t hash32[32]);
 
-// BIP340 Schnorr signature over hash32 with the key at {counter} under a
-// PRIVATE account key: the 64 bytes NUT-11 puts in the witness.
-int kiss_ecash_sign(const struct ext_key *account, uint32_t counter,
-                    const uint8_t hash32[32], uint8_t sig64[64]);
-
 // Watch only export of the OPEN session:
 // "[<fp>/129373h/10h/0h/0h]xpub..." with the master fingerprint as origin.
 // Refused while locked and for a card session, whose keys never come here.
 int kiss_session_ecash_export(char *out, size_t out_len);
+
+// ---- spend request: review, then sign (docs/specs/ecash-spend-request.md) ----
+//
+// The ONLY way to get an ecash signature out of this module. Review parses
+// and checks a request against the open session's keys and keeps it; sign
+// signs that kept request and nothing else. There is no call that signs a
+// hash handed to it.
+
+#define KISS_ECASH_REQ_MAX   4096   // the QR transport's limit
+#define KISS_ECASH_MAX_IN    32
+#define KISS_ECASH_MAX_OUT   48
+
+enum {
+    KISS_ECASH_OK = 0,
+    KISS_ECASH_E_LOCKED,     // no session, or its keys are on a card
+    KISS_ECASH_E_FORMAT,     // not a request this spec allows
+    KISS_ECASH_E_VERSION,    // a version this signer does not know
+    KISS_ECASH_E_NOT_OURS,   // an input is not locked to this signer's key
+    KISS_ECASH_E_LOCK,       // an input's lock has conditions besides SIG_ALL
+    KISS_ECASH_E_DUP,        // the same secret twice
+    KISS_ECASH_E_CHANGE,     // an output claimed as change does not come back
+    KISS_ECASH_E_NOTHING,    // sign with no reviewed request
+    KISS_ECASH_E_SESSION,    // the keys changed between review and sign
+    KISS_ECASH_E_INTERNAL,
+};
+
+typedef struct {
+    char mint[129];          // as the phone states it: shown, never trusted
+    char unit[17];           // the same
+    uint32_t counter;        // the key every input is locked to
+    int n_in, n_out, n_change;
+    uint64_t leaving;        // outputs not proven to come back
+    uint64_t change;         // outputs proven to come back to this signer
+} kiss_ecash_summary_t;
+
+// Parse and check req (not NUL terminated, len bytes). On KISS_ECASH_OK the
+// request is kept for kiss_ecash_sign_reviewed and *sum describes it; on any
+// refusal nothing is kept.
+int kiss_ecash_review(const char *req, size_t len, kiss_ecash_summary_t *sum);
+
+// Sign the kept request with the open session's key at its counter and write
+// the reply {"v":1,"hash":"...","sig":"..."}. The request is dropped
+// afterwards, signed or refused.
+int kiss_ecash_sign_reviewed(char *reply, size_t cap);
+
+// Drop the kept request (BACK, the idle lock).
+void kiss_ecash_review_clear(void);
