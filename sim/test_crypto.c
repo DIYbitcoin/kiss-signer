@@ -35,6 +35,7 @@ int test_seed_layer(void);
 int test_backup_layer(void);
 // sim/test_sp.c — step 8 silent payments (BIP352/374/375)
 int test_sp(void);
+int test_ecash(void);
 // sim/test_sdseed.c — the sealed blob SD-card storage writes
 int test_sdseed_layer(void);
 // sim/test_kef.c — the password-locked KEF backup envelope
@@ -1117,6 +1118,7 @@ int main(int argc, char **argv) {
     fails += test_cards_q();
     fails += test_fw();
     fails += test_pq();
+    fails += test_ecash();
 
     test_boot_sign_selftest();
     test_bip461();
