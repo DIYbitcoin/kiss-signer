@@ -375,10 +375,11 @@ static bool unhex(const char *h, uint8_t *out, size_t n)
 // The input lock: ["P2PK",{"nonce":"..","data":"..","tags":[["sigflag","SIG_ALL"]]}]
 // in any key order, each key once, nothing else. No escapes inside: none of
 // these values needs one.
-static int parse_lock(const char *sec, size_t len, const char *our_hex)
+static int parse_lock_in(const char *sec, size_t len, const char *our_hex,
+                         char val[132])
 {
     jr_t j = {sec, len, 0};
-    char kind[8], key[8], val[132], data[67] = {0};
+    char kind[8], key[8], data[67] = {0};
     bool seen_n = false, seen_d = false, seen_t = false;
     if (!jr_eat(&j, '[') || !jr_str(&j, kind, sizeof kind, NULL, false) ||
         !jr_eat(&j, ','))
@@ -392,7 +393,7 @@ static int parse_lock(const char *sec, size_t len, const char *our_hex)
             return KISS_ECASH_E_FORMAT;
         if (!strcmp(key, "nonce") && !seen_n) {
             size_t vl;
-            if (!jr_str(&j, val, sizeof val, &vl, false) || vl == 0)
+            if (!jr_str(&j, val, 132, &vl, false) || vl == 0)
                 return KISS_ECASH_E_FORMAT;
             seen_n = true;
         } else if (!strcmp(key, "data") && !seen_d) {
@@ -425,6 +426,15 @@ static int parse_lock(const char *sec, size_t len, const char *our_hex)
     if (strcmp(data, our_hex) != 0)
         return KISS_ECASH_E_NOT_OURS;
     return KISS_ECASH_OK;
+}
+
+// The nonce is only read to check it is there; its copy goes on every exit.
+static int parse_lock(const char *sec, size_t len, const char *our_hex)
+{
+    char val[132];
+    int rc = parse_lock_in(sec, len, our_hex, val);
+    kiss_wipe(val, sizeof val);
+    return rc;
 }
 
 typedef struct {
