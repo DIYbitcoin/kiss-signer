@@ -31,6 +31,49 @@ int kiss_ecash_account(const struct ext_key *master, struct ext_key *out);
 int kiss_ecash_pubkey(const struct ext_key *account, uint32_t counter,
                       uint8_t pub33[33]);
 
+// ---- NUT-00 and NUT-11 primitives ----
+
+// Longest proof secret accepted, in bytes. A P2PK secret with a nonce, a key
+// and a few tags is under 300; this leaves room for multisig tags and no more.
+#define KISS_ECASH_SECRET_MAX 1024
+// Longest SIG_ALL message built, in bytes, before it is hashed.
+#define KISS_ECASH_MSG_MAX 16384
+
+// NUT-00 hash_to_curve: Y = 02 || SHA256(SHA256(domain || x) || counter),
+// counter a little endian uint32 from 0 until Y is a valid point.
+int kiss_ecash_hash_to_curve(const uint8_t *x, size_t x_len, uint8_t y33[33]);
+
+// NUT-00 blinded message B_ = hash_to_curve(x) + r*G. This is how the signer
+// recomputes a change output's B_ from the secret and blinding factor the
+// phone supplies, so it can tell its own change from anyone else's output.
+int kiss_ecash_blind(const uint8_t *x, size_t x_len, const uint8_t r32[32],
+                     uint8_t b33[33]);
+
+// One input and one output of a swap or melt, as the mint will receive them.
+// The hex strings are compared and hashed as given, so they must be the exact
+// lowercase strings the phone submits; anything else is refused.
+typedef struct {
+    const char *secret;   // the proof's secret string, verbatim
+    const char *c_hex;    // the proof's C, 66 lowercase hex characters
+} kiss_ecash_in_t;
+
+typedef struct {
+    uint64_t amount;
+    const char *b_hex;    // the blinded message B_, 66 lowercase hex characters
+} kiss_ecash_out_t;
+
+// SHA256 of the NUT-11 SIG_ALL message:
+// secret_0 || C_0 || ... || amount_0 || B_0 || ... [|| quote_id]
+// quote_id is NULL for a swap and the melt quote's id for a melt.
+int kiss_ecash_sigall_hash(const kiss_ecash_in_t *in, size_t n_in,
+                           const kiss_ecash_out_t *out, size_t n_out,
+                           const char *quote_id, uint8_t hash32[32]);
+
+// BIP340 Schnorr signature over hash32 with the key at {counter} under a
+// PRIVATE account key: the 64 bytes NUT-11 puts in the witness.
+int kiss_ecash_sign(const struct ext_key *account, uint32_t counter,
+                    const uint8_t hash32[32], uint8_t sig64[64]);
+
 // Watch only export of the OPEN session:
 // "[<fp>/129373h/10h/0h/0h]xpub..." with the master fingerprint as origin.
 // Refused while locked and for a card session, whose keys never come here.
