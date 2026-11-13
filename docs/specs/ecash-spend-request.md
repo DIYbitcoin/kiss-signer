@@ -1,7 +1,7 @@
 # Ecash spend request
 
-Status: review and sign implemented in kiss_ecash.c, 2026-11-13; no screen
-and no coordinator yet.
+Status: review and sign in kiss_ecash.c, the screens in kiss_ecash_ui.c,
+the coordinator in docs/ecash; not yet tested on a device, 2026-11-13.
 
 A way for an offline signer to hold Cashu ecash it never sees. A phone or
 browser page (the coordinator) holds ecash locked to this signer's keys
@@ -67,7 +67,9 @@ repaired, so the signer and the mint can never read one string two ways.
 ```
 
 - `v`: 1.
-- `mint`, `unit`: shown, never trusted. Neither is in the signed message.
+- `mint`: shown, never trusted. It is not in the signed message.
+- `unit`: exactly `"sat"`. It is not in the signed message either, so it
+  cannot be checked, only fixed: any other value is refused.
 - `counter`: the NUT-13 counter of the key every input is locked to.
 - `inputs`: 1 to 64, in swap order. `secret` verbatim; `C` lowercase hex.
 - `outputs`: 1 to 64, in swap order. `amount` 1 to 2^53, `B_` lowercase hex.
@@ -105,14 +107,34 @@ forging, omitting or pre filling it does:
 | change `counter` | a key that is ours but hardened or out of range | refused |
 | change `nonce` | reused from an input or another change output | refused: the mint would accept the output but its secret is already spent, so the change could never be redeemed |
 | change `r` | zero, or not a scalar | refused: zero would show the mint the unblinded point |
-| `mint`, `unit` | lies | shown as the phone's words; the unit cannot change what the inputs are worth, since the mint keeps a swap in one unit |
+| `mint` | lies | shown as the phone's words, and the screen says so |
+| `unit` | `msat` or any smaller unit, to shrink the amounts on screen | refused: only `sat` is accepted, since the same signature moves the same proofs whatever the label says |
+| the session | review, lock, unlock the same seed, sign | refused: a review belongs to the session it was shown in, and any lock or unlock ends it |
 | the reply | replayed on another swap | the signature covers every input and output; any other swap fails at the mint |
 
-What it cannot prevent: the outputs without `change` go to whoever built their
-blinded messages, which is the coordinator. The signer shows how much that is
-and nothing more, as a PSBT signer cannot know who an address belongs to. The
-mint holds the bitcoin behind all of it, so none of this protects against the
-mint.
+What it cannot prevent:
+
+- The outputs without `change` go to whoever built their blinded messages,
+  which is the coordinator. The signer shows how much that is and nothing
+  more, as a PSBT signer cannot know who an address belongs to.
+- The signer stops theft, not destruction. The coordinator holds every proof
+  and every change blinding factor, so it can always throw ecash away. One
+  way it can do that through a signed swap: give a change output a nonce
+  whose secret was already spent. The signer proves the change is locked to
+  it, not that the secret is fresh; that would need the mint's spent list.
+  Throwing ecash away gains the coordinator nothing it could not get by
+  deleting it.
+- The proofs a keyset of another unit (usd, eur) issued could be labelled
+  `sat`, since the signer never sees a keyset. The vault page only ever holds
+  `sat`; another coordinator must not send other units under version 1.
+- Fees: "leaving" counts the outputs that do not come back, not the mint's
+  input fee, because input amounts are not in the request. The fee is what
+  the inputs are worth minus all the outputs, and the mint keeps it.
+- Totals far beyond any real keyset (17 digits in the case found) may be
+  cut short on the smallest screens in some languages. A swap like that
+  cannot be paid for by inputs that exist, so the mint refuses it.
+- The mint holds the bitcoin behind all of it, so none of this protects
+  against the mint.
 
 ## Every public way to get a signature
 
