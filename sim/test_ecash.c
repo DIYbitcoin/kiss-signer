@@ -602,6 +602,18 @@ static void test_requests(void)
         build(req, sizeof req, &good);
         strcat(req, "x");
         refused("trailing bytes", req, KISS_ECASH_E_FORMAT);
+        // The unit is not signed, so a smaller one would shrink every amount
+        // on the screen while the same signature moves the same sats.
+        static const char *units[] = {"msat", "usd", "SAT", "sats", ""};
+        for (size_t u = 0; u < sizeof units / sizeof units[0]; u++) {
+            char rq[KISS_ECASH_REQ_MAX + 64], nm[48];
+            build(req, sizeof req, &good);
+            char *at = strstr(req, "\"unit\":\"sat\"");
+            snprintf(rq, sizeof rq, "%.*s\"unit\":\"%s\"%s", (int)(at - req), req,
+                     units[u], at + strlen("\"unit\":\"sat\""));
+            snprintf(nm, sizeof nm, "unit \"%s\"", units[u]);
+            refused(nm, rq, KISS_ECASH_E_FORMAT);
+        }
         char big[KISS_ECASH_REQ_MAX + 2];
         memset(big, ' ', sizeof big - 1);
         big[sizeof big - 1] = 0;

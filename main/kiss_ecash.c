@@ -653,6 +653,11 @@ static int review(const char *req, size_t len, kiss_ecash_summary_t *sum,
     if (!jr_eat(&j, '}') || !jr_end(&j) || !seen_v || !seen_m || !seen_u ||
         !seen_c || !seen_i || !seen_o)
         return KISS_ECASH_E_FORMAT;
+    // The unit is not in the signed message, so it cannot be checked, only
+    // fixed: were "msat" allowed, the same signature would move the same sats
+    // while the screen showed a thousand times less.
+    if (strcmp(sum->unit, "sat") != 0)
+        return KISS_ECASH_E_FORMAT;
 
     // Every input locked to the one key at counter, with only SIG_ALL.
     char our_hex[67];
