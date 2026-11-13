@@ -28,6 +28,7 @@ static void (*s_done)(void);
 static kiss_ecash_summary_t s_sum;
 static char s_reply[256];
 static bool s_signing;
+static lv_timer_t *s_sign_timer;   // the 30 ms between the slide and the signature
 
 bool kiss_ecash_ui_wants(const uint8_t *bytes, size_t len)
 {
@@ -53,6 +54,9 @@ static void forget(void)
     kiss_ecash_review_clear();
     kiss_wipe(s_reply, sizeof s_reply);
     memset(&s_sum, 0, sizeof s_sum);
+    // A close inside those 30 ms (the idle lock) must not leave a timer that
+    // later draws a refusal over whatever screen comes next.
+    if (s_sign_timer) { lv_timer_delete(s_sign_timer); s_sign_timer = NULL; }
     s_signing = false;
 }
 
@@ -184,6 +188,7 @@ static void answer_screen(void)
 static void sign_now(lv_timer_t *t)
 {
     lv_timer_delete(t);
+    s_sign_timer = NULL;
     int rc = kiss_ecash_sign_reviewed(s_reply, sizeof s_reply);
     s_signing = false;
     if (rc != KISS_ECASH_OK) {
@@ -199,7 +204,7 @@ static void slide_done(void *ud)
     if (s_signing) return;
     s_signing = true;
     if (s_slide_lbl) lv_label_set_text(s_slide_lbl, tr(STR_S_SIGNING));
-    lv_timer_create(sign_now, 30, NULL);    // let the word paint first
+    s_sign_timer = lv_timer_create(sign_now, 30, NULL);   // let the word paint first
 }
 
 #if KISS_NARROW
