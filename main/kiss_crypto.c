@@ -302,6 +302,7 @@ int kiss_fingerprint(const char *passphrase, uint8_t out_fingerprint[4])
 // ---- step 4: wallet session (master key in RAM between unlock and lock) ----
 static struct ext_key s_master;
 static bool s_session;
+static uint32_t s_session_gen;   // see kiss_session_generation
 static struct ext_key s_prepared_master;
 static bool s_prepared_session;
 static bool s_prepared_decoy;
@@ -371,6 +372,7 @@ int kiss_session_activate_prepared(void)
         kiss_cardwallet_close();       // a seed session replaces a card one
     s_session_card = false;
     s_session = true;
+    s_session_gen++;
     s_session_decoy = s_prepared_decoy;
     kiss_session_discard_prepared();
     return 0;
@@ -405,6 +407,7 @@ void kiss_session_close(void)
     if (s_session_card)
         kiss_cardwallet_close();
     s_session = false;
+    s_session_gen++;
     s_session_decoy = false;
     s_session_card = false;
     kiss_seed_forget();
@@ -418,6 +421,7 @@ int kiss_session_open_card(void)
     wally_bzero(&s_master, sizeof s_master);
     account_forget();
     s_session = true;
+    s_session_gen++;
     s_session_decoy = false;           // a card holds one wallet; no decoy
     s_session_card = true;
     return 0;
@@ -471,6 +475,8 @@ int kiss_session_prepared_fingerprint(uint8_t out[4])
     memcpy(out, fp, 4);
     return 0;
 }
+
+uint32_t kiss_session_generation(void) { return s_session_gen; }
 
 const struct ext_key *kiss_session_master(void)
 {

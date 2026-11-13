@@ -629,6 +629,16 @@ static void test_requests(void)
         ecchk("attack: keys changed between review and sign",
               kiss_ecash_sign_reviewed(r2, sizeof r2) == KISS_ECASH_E_SESSION && r2[0] == 0);
         kiss_session_close();
+        // The same keys, but a session that ended: a review belongs to the
+        // session it was shown in, not to whoever opens the seed next.
+        kiss_session_open(NULL);
+        ecchk("review before a lock", kiss_ecash_review(req, strlen(req), &s2) == KISS_ECASH_OK);
+        kiss_session_close();
+        kiss_session_open(NULL);
+        r2[0] = 'x';
+        ecchk("attack: sign after lock and reopen of the same seed refused",
+              kiss_ecash_sign_reviewed(r2, sizeof r2) == KISS_ECASH_E_SESSION && r2[0] == 0);
+        kiss_session_close();
     }
     wally_bzero(&s_acct, sizeof s_acct);
 }

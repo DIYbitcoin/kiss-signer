@@ -438,6 +438,7 @@ typedef struct {
     bool kept;
     uint32_t counter;
     uint8_t our_pub[33];        // the key every input is locked to, at review
+    uint32_t gen;               // the session it was reviewed in
     int n_in, n_out;
     req_in_t in[KISS_ECASH_MAX_IN];
     req_out_t out[KISS_ECASH_MAX_OUT];
@@ -739,6 +740,7 @@ int kiss_ecash_review(const char *req, size_t len, kiss_ecash_summary_t *sum)
         return rc;
     }
     r->kept = true;
+    r->gen = kiss_session_generation();
     s_req = r;
     return KISS_ECASH_OK;
 }
@@ -765,7 +767,10 @@ int kiss_ecash_sign_reviewed(char *reply, size_t cap)
         rc = KISS_ECASH_E_INTERNAL;
     // The session can have been locked and reopened under another passphrase
     // since the review: the request was checked against those keys, not these.
-    else if (memcmp(pub, r->our_pub, 33) != 0)
+    // And a session that ended and opened again on the same seed is still a
+    // different session: whoever reviewed may not be whoever unlocked.
+    else if (memcmp(pub, r->our_pub, 33) != 0 ||
+             r->gen != kiss_session_generation())
         rc = KISS_ECASH_E_SESSION;
     if (rc == KISS_ECASH_OK) {
         kiss_ecash_in_t ins[KISS_ECASH_MAX_IN];

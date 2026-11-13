@@ -244,3 +244,7 @@ int kiss_session_bw_export(char *out, size_t out_len);
 // or NULL when locked. Never expose beyond the crypto layer.
 struct ext_key;
 const struct ext_key *kiss_session_master(void);
+// A number that changes whenever a session starts or ends. Something approved
+// in one session (an ecash review) records it and refuses to act once it has
+// moved, even if the same seed was opened again in between.
+uint32_t kiss_session_generation(void);
