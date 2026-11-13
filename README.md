@@ -84,6 +84,16 @@ These unsigned test builds are not a release; build availability does not
 mean every board and chip combination has been tested on hardware. See the
 [hardware roadmap](docs/ROADMAP.md#hardware) for the distinction.
 
+Boards with test builds only, support coming soon:
+
+| Board | Maker | Screen | Where to buy |
+|---|---|---|---|
+| [ESP32-P4-WIFI6-Touch-LCD-4.3](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-4.3.htm) | Waveshare | 4.3in, 480×800 | [Waveshare](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-4.3.htm) or a [Waveshare distributor](https://www.waveshare.com/distributors) in your country |
+| [ESP32-P4-WIFI6-Touch-LCD-5](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-5.htm) | Waveshare | 5in, 720×1280 | [Waveshare](https://www.waveshare.com/esp32-p4-wifi6-touch-lcd-5.htm) or a [Waveshare distributor](https://www.waveshare.com/distributors) in your country |
+
+Waveshare sells the camera as an option on these boards; pick the one
+with the camera.
+
 ### Guition boards: flip the camera
 
 Both Guition boards ship with the camera facing you. To scan a QR code from
