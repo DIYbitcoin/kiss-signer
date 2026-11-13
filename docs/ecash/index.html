@@ -107,7 +107,9 @@
 
       <section class="card warn" id="pair-card">
         <h2>1. Pair your signer</h2>
-        <p>On the signer, show the ecash key. Scan it here, or paste it.</p>
+        <p>On the signer, tap SIGN and scan this code. The signer shows its
+          ecash key as a QR: scan that here with Scan, or paste it.</p>
+        <canvas class="qr" id="key-qr"></canvas>
         <textarea id="xpub-in" placeholder="[fingerprint/129373h/10h/0h/0h]xpub..."></textarea>
         <div class="row"><button id="pair-btn">Pair</button><button class="ghost" id="pair-scan">Scan</button></div>
         <p id="pair-msg" class="mut"></p>

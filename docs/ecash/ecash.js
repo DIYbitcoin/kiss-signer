@@ -209,15 +209,24 @@ function drawQR(canvas, text) {
   for (let y = 0; y < n; y++) for (let x = 0; x < n; x++)
     if (q.isDark(y, x)) g.fillRect((x + pad) * px, (y + pad) * px, px, px);
 }
-// "pMofN <base64>" frames: the animated format the signer already reads.
-function showFrames(text) {
-  stopFrames();
+// "pMofN <base64>" frames: the animated format the signer already reads. A
+// short request is still sent as "p1of1": the signer reads bare base64 only
+// when it is a PSBT, so anything else must come framed.
+function frames(text) {
   const b64 = btoa(String.fromCharCode(...enc(text)));
   const parts = [];
   for (let i = 0; i < b64.length; i += FRAME_CHARS) parts.push(b64.slice(i, i + FRAME_CHARS));
+  return parts.map((p, k) => `p${k + 1}of${parts.length} ${p}`);
+}
+// What the signer answers with its ecash key; it must match the signer's
+// KEY_REQUEST byte for byte.
+const KEY_REQUEST = '{"v":1,"want":"key"}';
+function showFrames(text) {
+  stopFrames();
+  const parts = frames(text);
   let k = 0;
   const step = () => {
-    drawQR($('req-qr'), parts.length === 1 ? parts[0] : `p${k + 1}of${parts.length} ${parts[k]}`);
+    drawQR($('req-qr'), parts[k]);
     $('req-frame').textContent = parts.length === 1 ? '' : `frame ${k + 1} of ${parts.length}`;
     k = (k + 1) % parts.length;
   };
@@ -316,4 +325,5 @@ $('reply-btn').onclick = guard('send-msg', () => submitReply($('reply-in').value
 $('reply-scan').onclick = guard('send-msg', () => scan(guard('send-msg', submitReply)));
 $('req-cancel').onclick = () => { pending = null; stopFrames(); $('req-box').classList.add('hidden'); msg('send-msg', ''); };
 $('cam-stop').onclick = stopCam;
+drawQR($('key-qr'), frames(KEY_REQUEST)[0]);
 render();
