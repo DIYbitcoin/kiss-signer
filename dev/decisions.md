@@ -26,13 +26,13 @@ It was twelve strings of "spare" against four of "decoy", and "spare" reads as a
 
 One taproot input is in fact enough: BIP341 hashes every input amount into THAT input's sighash, so any lie about any amount invalidates its signature, and the two session attack cannot assemble a tx where every signature verifies. So a spend of one received silent payment beside one P2WPKH coin that carries its full previous transaction is provably honest and is refused anyway. Left strict on purpose. The cost of the strict form is that a rare transaction comes back to the coordinator to be rebuilt with the prev txs attached, which is what BIP174 asks for and what Core, Sparrow and Electrum already send. The cost of the loose form, if the reasoning above is wrong in one case nobody has thought of, is a fee the owner cannot see going to a miner. Those are not the same size, and this is the one gate in the file whose whole subject is a number that cannot be checked afterwards.
 
-[`main/kiss_psbt.c:1054`](../main/kiss_psbt.c#L1054)
+[`main/kiss_psbt.c:1771`](../main/kiss_psbt.c#L1771)
 
 ### this concatenated into a 4096 byte automatic and hashed once, with an overflow flag returning -1 if the signatures did not fit
 
 The buffer was a fifth of the main task's 20KB stack, claimed in the frame that runs immediately after signing, where libwally is already deep -- and it was sized for a PSBT this device cannot be handed: the sign screen reads into QRT_MAX_PSBT (4096) TOTAL, framing included, so the signature bytes alone can never come near 4096 and the overflow branch was unreachable. Streaming spends 112 bytes, has nothing to overflow, and drops the branch. Byte-identical output, held by the golden vector in test_crypto.c.
 
-[`main/kiss_psbt.c:1569`](../main/kiss_psbt.c#L1569)
+[`main/kiss_psbt.c:2498`](../main/kiss_psbt.c#L2498)
 
 ## `main/kiss_recv.c`
 
@@ -132,61 +132,61 @@ This is the one place the "no screen without an exit" rule is deliberately not a
 
 beta7 moved it into the panel and left "SIGNATURE" as a caption with nothing under it -- on the screens whose whole job is to hand back the one thing a second signer can be checked against. The panel was the right home for the TEACHING and was never the right home for the fact. The ring and the glyph take the accent with the code: they are one thing, and a grey chip beside an accent value read as two.
 
-[`main/kiss_sign.c:868`](../main/kiss_sign.c#L868)
+[`main/kiss_sign.c:870`](../main/kiss_sign.c#L870)
 
 ### the montserrat48 tick at y=236 and the padlock beside it are GONE, and the tick joins the title
 
 SIGNED was claimed three times on this screen -- the page title, that 48px checkmark, and a note under it -- while the two facts an owner actually leaves with, which file and what to do next, had no room. One claim, once, on the row that already carries the word. ...and then OUTPUTS FIXED went too, which is what took the last parameter off this function. It was a font14 pair riding the title of the one screen whose whole job is to say what to do next, and it answered a question about sighash flags the owner was asked and had already approved two screens back. Both exit screens carry the same head now.
 
-[`main/kiss_sign.c:1146`](../main/kiss_sign.c#L1146)
+[`main/kiss_sign.c:1148`](../main/kiss_sign.c#L1148)
 
 ### the block is FOUR rows, not fourteen
 
 Nobody reads base64, so it is the TEXTURE the code comes out of and never something to read, and fourteen rows of it was a wall the eye had to get past before the one checkable thing on the page arrived. Four says the same in 600ms, and the room that buys goes to a line saying what the device did with the bytes and one sentence saying what the code is. The beat moves with it: the code is fully locked at 1.7s, the handover starts at 2.2 and the overlay is gone by 3.2, against 1.9 / 3.1 / 4.0 before. And no lv_anim, and no opacity on the container. Fading a parent puts LVGL on the layer path, and this parent covers the whole 800x480: 768KB of composite against a 126KB heap. A label carries its own opa without a layer, and the timer is already running.
 
-[`main/kiss_sign.c:1746`](../main/kiss_sign.c#L1746)
+[`main/kiss_sign.c:1751`](../main/kiss_sign.c#L1751)
 
 ### any press anywhere ends the motion at once, and nothing ever waits on it
 
 The exit screen is already built and DONE is already live underneath -- the motion is drawn OVER a finished screen rather than in front of one being prepared, so a skip is a delete and not a fast forward. Same rule the drift-home timer was deleted for: a filename an owner is reading back must never be mid scramble, and a screen that will not let go reads as a crash.
 
-[`main/kiss_sign.c:1858`](../main/kiss_sign.c#L1858)
+[`main/kiss_sign.c:1863`](../main/kiss_sign.c#L1863)
 
 ### the motion draws the REAL s_out base64 and the REAL s_sig_fp, never invented bytes
 
 A motion that scrambles plausible looking characters and resolves to something else is a lie told by the one screen whose whole job is to hand back something checkable, and an owner who photographed the frame and compared it would find it. The first row genuinely reads cHNidP8B.
 
-[`main/kiss_sign.c:1874`](../main/kiss_sign.c#L1874)
+[`main/kiss_sign.c:1879`](../main/kiss_sign.c#L1879)
 
 ### the status line says what the device DID with the bytes, in the words of the step strip -- the card, or the square
 
 That is the one thing an owner standing here wants confirmed, and it is checkable against the screen underneath rather than a claim only this overlay makes. BIP174 is what the old caption spent its line on; the term has a home in the [ ? ] panel, where somebody has asked for it. The tick is built now and hidden, so the flip at 850ms is two style writes rather than an object arriving on a settled screen -- and it is built off wt_font14, the Latin face that actually carries the symbol range, while the words take the mono rung beside it.
 
-[`main/kiss_sign.c:2233`](../main/kiss_sign.c#L2233)
+[`main/kiss_sign.c:2238`](../main/kiss_sign.c#L2238)
 
 ### ONE sentence, in sans, under the code, and no per character roll on it
 
 The old caption rolled two mono lines a character at a time and that is a second thing moving while the code is still locking -- the eye was given two subjects and only one of them is checkable. This line is still, and it arrives after the code has settled. ONLY where there is a code for it to be about: the fingerprint can fail, do_sign_cb treats that as survivable, and both exit screens simply omit the aid rather than explaining a missing one.
 
-[`main/kiss_sign.c:2248`](../main/kiss_sign.c#L2248)
+[`main/kiss_sign.c:2253`](../main/kiss_sign.c#L2253)
 
 ### the two change rows are exclusive and the dust one wins, even though kiss_psbt.c raises them PER OUTPUT and can therefore set both -- one change output under the dust floor and a second between the floor and 5000
 
 Both bits set draws the dust row only, and caution_all_bits reads back through here, so the gate asks for the rows the owner can see and stays consistent. Splitting them was considered and dropped. It takes the stack to six on a page built for five (SG_ROW_MAX, and the ceiling argument above), and it buys a second row saying "tiny change" beside a row already saying "dust change" -- the same sentence about the same fault, for a two change output transaction almost no coordinator builds. What is lost is real and it is one line of a soft privacy caution, not a claim about where the money goes.
 
-[`main/kiss_sign.c:3125`](../main/kiss_sign.c#L3125)
+[`main/kiss_sign.c:3149`](../main/kiss_sign.c#L3149)
 
 ### the NETWORK badge yields its lane to the LOCKTIME badge, not the other way round
 
 Both are placed out of the same right to left fr chain and both used to end in a bare lv_obj_delete when the line ran out -- and on a long title the one that lost was always the locktime, because it is placed last. That is backwards, and each block's own comment says so. The network drops "because the network is on the DETAILS deck as well, so dropping it here costs the reader a tap, not the fact". The locktime badge EXISTS because its deck row is "where a fact goes to be unread" -- it was added to get that fact off the third tab and onto the glass. So dropping the locktime costs the fact, and dropping the network costs a tap. Measured, not theoretical: on the Dutch and Russian sign screens the title, the network chip and the fingerprint left the locktime badge under its 12px clearance even in the degraded form below, so it took the else branch and an owner signing a time locked payment was never told. The German case in the comment further down is the same bug caught one locale earlier and fixed only as far as German needed. The trade only arises on TESTNET, because that is the only time a network chip is drawn at all, and it fails in the safe direction. A missing network chip is what MAINNET looks like, so an owner who loses it reads the screen as more serious than it is and is more careful, not less. A missing locktime is the opposite: the payment reads as spendable now, and it is not.
 
-[`main/kiss_sign.c:3470`](../main/kiss_sign.c#L3470)
+[`main/kiss_sign.c:3494`](../main/kiss_sign.c#L3494)
 
 ### the sign review band does NOT name the transaction's file; that line was cut rather than fixed
 
 NO FILENAME HERE, and no "camera" either. Both were cut rather than fixed. The reader tapped that name on the file list one screen back, or watched the camera assemble the transaction, so the line restated what they had just done -- which is the copy rule's own example of a string to cut. And a filename is the COORDINATOR'S bookkeeping, not a fact about the payment: what says this is the right transaction is the amount and the destination, and both are on this screen at full size. A name in the corner never checked anything. What it cost to keep was the whole band. The line ran under the title beside the signed badge, the network chip and the fingerprint, and it was the only unlabelled string among them. It also carried two defects for as long as it existed: set in the smallest face on the device, and, once that was corrected, handing a translated phrase to a filename tail-fold so a scanned transaction read "scan...ansaction" on the screen where a payment is approved. fx survives because the badge and the chip above measure their lane against it: they may not run back under the title.
 
-[`main/kiss_sign.c:3671`](../main/kiss_sign.c#L3671)
+[`main/kiss_sign.c:3695`](../main/kiss_sign.c#L3695)
 
 ## `main/kiss_theme.c`
 
@@ -194,49 +194,49 @@ NO FILENAME HERE, and no "camera" either. Both were cut rather than fixed. The r
 
 The rule wt_ink_for serves says it in its own words -- the caution GLYPH and the breathing dot keep the amber, and anything READ takes the accent -- but the function was only ever handed a colour, so it lifted both. A row whose VALUE is LV_SYMBOL_WARNING had its caution sign painted the theme's colour: SEED WORDS reported the paper unchecked in green on the green theme, which is the one row on the page where amber is the whole message. A caution's WORDS still take the accent. Only the mark keeps the amber.
 
-[`main/kiss_theme.c:889`](../main/kiss_theme.c#L889)
+[`main/kiss_theme.c:891`](../main/kiss_theme.c#L891)
 
 ### the mark is font23, not the font14 every other mark on this device wears
 
 It shipped at 14 and came off the bench as too small to see and too small to aim at -- the same report the content tab LABELS got when they were 18, and this tab sits in the same 30px strip beside them. So the mark takes the tab rung, chrome23, and the brackets stay mono18 punctuation a rung below it exactly as they do on a content tab. Measured: the glyph goes 11x17 -> 17x25 in a strip 30 tall.
 
-[`main/kiss_theme.c:4920`](../main/kiss_theme.c#L4920)
+[`main/kiss_theme.c:5129`](../main/kiss_theme.c#L5129)
 
 ### the tab breathes whenever it has something UNREAD, not only until the first open ever
 
 It pulsed once, on the first [ ? ] an owner ever met, and was still forever after -- so [ ? 3 ] drew the count and then sat there, which is a badge you have to be looking at to notice. The attention dot on a content tab has answered the same question since it was filed from the bench as "not pulsing", and it answers a GLANCE. This is the same statement, so it is the same motion: 100..255 over 1200ms ease in out, the values wt_dot_breathe uses, rather than the 71..230 this one had of its own. The size and translate halves of a dot's breathe do not come with it -- growing a tab in a 30px strip moves the brackets, and the pixels are spent. It stops on its own. The count comes from kiss_terms_unread at build, the explainer swaps the screen, and coming back rebuilds the tab with whatever is left; at zero there is no animation to delete.
 
-[`main/kiss_theme.c:4999`](../main/kiss_theme.c#L4999)
+[`main/kiss_theme.c:5208`](../main/kiss_theme.c#L5208)
 
 ### a caution value is lifted into the accent only where the row has a LAMP to carry the amber
 
 The lift was unconditional, on the argument written here for its whole life -- "its lamp is the amber, and the lamp is what the eye lands on first anyway". That argument is the lamp's, not the value's, so a row with no lamp was borrowing a reason it did not have: SETTINGS > SIGNER lost its pulsing dot (a pulse means a tab needs attention, and being on signet does not), and the word SIGNET went on reading in the theme's own colour with nothing amber left anywhere on the row. Reported from the bench in those terms. So the condition is the lamp. No lamp, no lift, and the caution stays the caution's colour.
 
-[`main/kiss_theme.c:5834`](../main/kiss_theme.c#L5834)
+[`main/kiss_theme.c:6043`](../main/kiss_theme.c#L6043)
 
 ### a lone span is a break opportunity, so when the word before a stop ends near the edge the "
 
 " wraps by ITSELF and the next line opens with a full stop. It looks like a typo in the string and it is not -- SIGN's refusal screen shows it on "information" / ". pair it again". Folding the stop back into the body run fixes it and was rejected: the accent stop is the design, it is what makes a wrapped body scan as sentences rather than as a block, and LVGL gives no way to hold a span to the one before it. The copy moves instead, which is what happened here -- the word at the edge changes and the stop follows it up.
 
-[`main/kiss_theme.c:8285`](../main/kiss_theme.c#L8285)
+[`main/kiss_theme.c:8494`](../main/kiss_theme.c#L8494)
 
 ### the icon grid's ladder floors at 21 and no longer has a font14 rung
 
 THE FLOOR IS 21, NOT 14, which is the same floor wt_body_para has and for the same reason: font14 is for MARKS -- chip labels, unit suffixes, chevrons -- and every string in this grid is a SENTENCE an owner reads before signing. WHY FLAGGED is the case that proves it: five caution rows explaining why a payment was flagged, all of them at the size this device keeps for punctuation. mono21 only where the copy CAN be mono, which is what the body ladder asks too. Where it cannot, the rung stays 23 and the overflow is reported rather than shrunk away -- copy too long for its box is copy to cut, and a silent drop is what hid this for the grid's whole life.
 
-[`main/kiss_theme.c:8705`](../main/kiss_theme.c#L8705)
+[`main/kiss_theme.c:8914`](../main/kiss_theme.c#L8914)
 
 ### an output not on this page draws NO STRAND
 
 It used to draw a dimmed one, on the reasoning that the shape of the transaction should not leave while its detail is read -- and what that produced was a line running to blank glass, because the row it aims at is hidden. There is nothing at the end of it and nothing that says why, so it reads as a destination the screen will not name: the one thing this graph exists to never do. It was reported from the bench as a strand "going to nowhere", twice, once about its colour and once about the strand itself. What is lost is the fan on a paged spend, and the counter on the caption line carries that instead -- 1/2 is on the glass beside WHERE IT GOES, and the read-to-the-end gate holds the slide until every page has been turned, so no signature can happen from one page's worth of strands.
 
-[`main/kiss_theme.c:9816`](../main/kiss_theme.c#L9816)
+[`main/kiss_theme.c:10025`](../main/kiss_theme.c#L10025)
 
 ## `main/kiss_theme.h`
 
 ### the destructive group is a TAB with its own tint and cross-fade, not a row buried on another page
 
-[`main/kiss_theme.h:1007`](../main/kiss_theme.h#L1007)
+[`main/kiss_theme.h:1024`](../main/kiss_theme.h#L1024)
 
 ## `main/main.c`
 
@@ -244,13 +244,13 @@ It used to draw a dimmed one, on the reasoning that the shape of the transaction
 
 It said "check your paper against these keys" until the paper was checked, then "pair a coordinator, then verify an address" until one had spoken, and it came off the bench as a first-time-user walkthrough on the screen the owner looks at every day. The order it was teaching is in docs/walkthrough.md, which is where the owner asked for it to live -- the same argument that took the passphrase line off this screen, a few paragraphs down in kiss_home_build(). The tiles are the home. A signer that keeps suggesting the next thing is a signer that never finishes setting itself up. tile title string ids, in tile order (sign, receive, keys, settings). STR_H_TILE_WALLET is a legacy KEY NAME whose value has been "Keys" for a while; renaming the key would touch all 21 locale files for nothing.
 
-[`main/main.c:200`](../main/main.c#L200)
+[`main/main.c:201`](../main/main.c#L201)
 
 ### a draw that can no longer become the word is cleared HERE, on the lift, not left to the 3s idle
 
 The word is the FIRST stored.strokes strokes of the buffer, so once that many have been drawn without matching, no later stroke can change the answer -- and every attempt after it appended to the corpse instead of starting fresh. The device then answered to nothing at all until the owner put their hand down for a full three seconds, which is not what a person does between two tries. Reported from the bench as a signer that would not open to its own word. The log showed the strokes counting 1..17 across five attempts, 2.5s apart, and never resetting. The heuristic that catches an abandoned KISS is switched OFF whenever a word is stored -- it is built on the letters being drawn left to right, which a custom word is not -- so the idle was the only clear there was.
 
-[`main/main.c:2269`](../main/main.c#L2269)
+[`main/main.c:2273`](../main/main.c#L2273)
 
 ## `sim/sim_main.c`
 
@@ -258,4 +258,4 @@ The word is the FIRST stored.strokes strokes of the buffer, so once that many ha
 
 pump(30), not 20. The outgoing pane leaves on a per row stagger -- (n-1) * MO_OUT_STEP + MO_OUT_MS, which is 330ms for a six row detail pane against 320ms of pump -- so the old count photographed the previous screen still fading through this one. Invisible until overlapcheck learned to read spangroups: the ghost is a folded address, and a spangroup was not text to any check on the list.
 
-[`sim/sim_main.c:5449`](../sim/sim_main.c#L5449)
+[`sim/sim_main.c:5701`](../sim/sim_main.c#L5701)
