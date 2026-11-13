@@ -121,18 +121,21 @@ What it cannot prevent:
   and every change blinding factor, so it can always throw ecash away. One
   way it can do that through a signed swap: give a change output a nonce
   whose secret was already spent. The signer proves the change is locked to
-  it, not that the secret is fresh; that would need the mint's spent list.
-  Throwing ecash away gains the coordinator nothing it could not get by
-  deleting it.
+  it, not that the secret is fresh. Unlike deleting the page's storage, such
+  a swap also spends the inputs, so a separate backup of them is lost too.
+  It gains the coordinator nothing it can redeem. Version 1 does not prevent
+  it; a later version could, by having the signer pick change nonces itself
+  and return them in the reply.
 - The proofs a keyset of another unit (usd, eur) issued could be labelled
   `sat`, since the signer never sees a keyset. The vault page only ever holds
   `sat`; another coordinator must not send other units under version 1.
 - Fees: "leaving" counts the outputs that do not come back, not the mint's
   input fee, because input amounts are not in the request. The fee is what
   the inputs are worth minus all the outputs, and the mint keeps it.
-- Totals far beyond any real keyset (17 digits in the case found) may be
-  cut short on the smallest screens in some languages. A swap like that
-  cannot be paid for by inputs that exist, so the mint refuses it.
+- Totals of 16 digits or more (over 10,000,000 bitcoin in sats) can be cut
+  short on the smallest screens in some languages, with an ellipsis. The
+  signer does not check totals against any limit; this is an accepted
+  display limit, since no mint holds anything near that amount.
 - The mint holds the bitcoin behind all of it, so none of this protects
   against the mint.
 
