@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="../assets/kiss-mark.svg" type="image/svg+xml">
+    <meta name="theme-color" content="#070a10">
+    <meta name="description" content="Hold Cashu ecash your KISS Signer has to approve before it can be spent.">
+    <title>KISS Ecash Vault</title>
+    <style>
+      @font-face { font-family: "Ioskeley Mono"; src: url("../fonts/IoskeleyMono-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+      @font-face { font-family: "Ioskeley Mono"; src: url("../fonts/IoskeleyMono-Bold.woff2") format("woff2"); font-weight: 700; font-display: swap; }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: #070a10; color: #e8eef7;
+        font: 16px/1.55 "Ioskeley Mono", ui-monospace, SFMono-Regular, Consolas, monospace; }
+      .topbar { display: flex; align-items: center; gap: 9px; padding: 13px 16px;
+        border-bottom: 1px solid #1e2531; font-size: .76rem; font-weight: 700; letter-spacing: .18em; }
+      .topbar .dot { width: 9px; height: 9px; border-radius: 50%; background: #f2b84b; }
+      main { max-width: 760px; margin: 0 auto; padding: 24px 16px 60px; }
+      h1 { font-size: 1.8rem; margin: 0 0 4px; letter-spacing: -.02em; }
+      h2 { font-size: .95rem; margin: 0 0 10px; letter-spacing: .06em; color: #7a869c; text-transform: uppercase; }
+      p { margin: 8px 0; }
+      .mut { color: #7a869c; }
+      .bad { color: #ff4d5e; }
+      .ok { color: #5fd38d; }
+      .card { border: 1px solid #1e2531; border-radius: 12px; background: #0b0e14; padding: 18px 16px; margin-top: 16px; }
+      .warn { border-color: #f2b84b; }
+      .big { font-size: 2.2rem; font-weight: 700; letter-spacing: -.02em; }
+      .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+      input, textarea { background: #070a10; color: #e8eef7; border: 1px solid #2a3346; border-radius: 8px;
+        padding: 9px 10px; font: inherit; font-size: .9rem; }
+      input[type=number] { width: 8.5em; }
+      textarea { width: 100%; min-height: 4.5em; resize: vertical; word-break: break-all; }
+      button { background: #e8eef7; color: #070a10; border: 0; border-radius: 8px; padding: 9px 14px;
+        font: inherit; font-weight: 700; font-size: .9rem; cursor: pointer; }
+      button.ghost { background: transparent; color: #e8eef7; border: 1px solid #2a3346; }
+      button:disabled { opacity: .4; cursor: default; }
+      canvas.qr { display: block; margin: 12px auto 0; width: 100%; max-width: 330px; height: auto;
+        aspect-ratio: 1; image-rendering: pixelated; border-radius: 8px; background: #fff; }
+      video { display: block; width: 100%; max-width: 420px; margin: 10px auto 0; border-radius: 8px; }
+      .ctr { text-align: center; font-size: .8rem; }
+      .kv { display: grid; grid-template-columns: max-content 1fr; gap: 2px 14px; font-size: .9rem; }
+      .kv span:nth-child(odd) { color: #7a869c; }
+      .mono { word-break: break-all; font-size: .8rem; }
+      .hidden { display: none; }
+      a { color: #e8eef7; border-bottom: 1px solid #2a3346; text-decoration: none; }
+    </style>
+    <script type="importmap">
+{
+ "imports": {
+  "@cashu/cashu-ts": "./vendor/cashu-cashu-ts/lib/cashu-ts.es.js",
+  "@noble/hashes": "./vendor/noble-hashes/index.js",
+  "@noble/hashes/_md.js": "./vendor/noble-hashes/_md.js",
+  "@noble/hashes/argon2.js": "./vendor/noble-hashes/argon2.js",
+  "@noble/hashes/blake1.js": "./vendor/noble-hashes/blake1.js",
+  "@noble/hashes/blake2.js": "./vendor/noble-hashes/blake2.js",
+  "@noble/hashes/blake3.js": "./vendor/noble-hashes/blake3.js",
+  "@noble/hashes/eskdf.js": "./vendor/noble-hashes/eskdf.js",
+  "@noble/hashes/hkdf.js": "./vendor/noble-hashes/hkdf.js",
+  "@noble/hashes/hmac.js": "./vendor/noble-hashes/hmac.js",
+  "@noble/hashes/legacy.js": "./vendor/noble-hashes/legacy.js",
+  "@noble/hashes/pbkdf2.js": "./vendor/noble-hashes/pbkdf2.js",
+  "@noble/hashes/scrypt.js": "./vendor/noble-hashes/scrypt.js",
+  "@noble/hashes/sha2.js": "./vendor/noble-hashes/sha2.js",
+  "@noble/hashes/sha3-addons.js": "./vendor/noble-hashes/sha3-addons.js",
+  "@noble/hashes/sha3.js": "./vendor/noble-hashes/sha3.js",
+  "@noble/hashes/webcrypto.js": "./vendor/noble-hashes/webcrypto.js",
+  "@noble/hashes/utils.js": "./vendor/noble-hashes/utils.js",
+  "@noble/curves": "./vendor/noble-curves/index.js",
+  "@noble/curves/abstract/bls.js": "./vendor/noble-curves/abstract/bls.js",
+  "@noble/curves/abstract/curve.js": "./vendor/noble-curves/abstract/curve.js",
+  "@noble/curves/abstract/der.js": "./vendor/noble-curves/abstract/der.js",
+  "@noble/curves/abstract/edwards.js": "./vendor/noble-curves/abstract/edwards.js",
+  "@noble/curves/abstract/fft.js": "./vendor/noble-curves/abstract/fft.js",
+  "@noble/curves/abstract/frost.js": "./vendor/noble-curves/abstract/frost.js",
+  "@noble/curves/abstract/hash-to-curve.js": "./vendor/noble-curves/abstract/hash-to-curve.js",
+  "@noble/curves/abstract/modular.js": "./vendor/noble-curves/abstract/modular.js",
+  "@noble/curves/abstract/montgomery.js": "./vendor/noble-curves/abstract/montgomery.js",
+  "@noble/curves/abstract/oprf.js": "./vendor/noble-curves/abstract/oprf.js",
+  "@noble/curves/abstract/poseidon.js": "./vendor/noble-curves/abstract/poseidon.js",
+  "@noble/curves/abstract/tower.js": "./vendor/noble-curves/abstract/tower.js",
+  "@noble/curves/abstract/weierstrass.js": "./vendor/noble-curves/abstract/weierstrass.js",
+  "@noble/curves/bls12-381.js": "./vendor/noble-curves/bls12-381.js",
+  "@noble/curves/bn254.js": "./vendor/noble-curves/bn254.js",
+  "@noble/curves/ed448.js": "./vendor/noble-curves/ed448.js",
+  "@noble/curves/ed25519.js": "./vendor/noble-curves/ed25519.js",
+  "@noble/curves/misc.js": "./vendor/noble-curves/misc.js",
+  "@noble/curves/nist.js": "./vendor/noble-curves/nist.js",
+  "@noble/curves/secp256k1.js": "./vendor/noble-curves/secp256k1.js",
+  "@noble/curves/utils.js": "./vendor/noble-curves/utils.js",
+  "@noble/curves/webcrypto.js": "./vendor/noble-curves/webcrypto.js",
+  "@scure/base": "./vendor/scure-base/index.js",
+  "@scure/bip32": "./vendor/scure-bip32/index.js"
+ }
+}
+    </script>
+    <script src="vendor/qrcode-generator-1.4.4.js"></script>
+    <script src="vendor/jsqr-1.4.0.js"></script>
+  </head>
+  <body>
+    <header class="topbar"><span class="dot"></span>KISS-SIGNER ECASH VAULT</header>
+    <main>
+      <h1>Ecash vault</h1>
+      <p class="mut">This page holds Cashu ecash locked to your KISS Signer. It
+        cannot spend any of it: every spend is a QR your signer checks, shows
+        you and signs. Test mint and fake sats only for now.</p>
+
+      <section class="card warn" id="pair-card">
+        <h2>1. Pair your signer</h2>
+        <p>On the signer, show the ecash key. Scan it here, or paste it.</p>
+        <textarea id="xpub-in" placeholder="[fingerprint/129373h/10h/0h/0h]xpub..."></textarea>
+        <div class="row"><button id="pair-btn">Pair</button><button class="ghost" id="pair-scan">Scan</button></div>
+        <p id="pair-msg" class="mut"></p>
+      </section>
+
+      <section class="card hidden" id="vault-card">
+        <h2>Vault</h2>
+        <div class="big"><span id="bal">0</span> <span class="mut" style="font-size:1rem">sat</span></div>
+        <div class="kv" style="margin-top:8px">
+          <span>Mint</span><span id="mint-url"></span>
+          <span>Signer</span><span id="fp"></span>
+          <span>Locked to</span><span id="groups"></span>
+        </div>
+        <div class="row"><button class="ghost" id="unpair">Forget this signer</button></div>
+      </section>
+
+      <section class="card hidden" id="recv-card">
+        <h2>2. Receive</h2>
+        <p class="mut">Test sats from the test mint, locked to a fresh key of your signer.</p>
+        <div class="row"><input type="number" id="mint-amt" value="64" min="1"><button id="mint-btn">Get test sats</button></div>
+        <p class="mut" style="margin-top:14px">Or paste a cashu token someone sent you. It is swapped into ecash only your signer can spend.</p>
+        <textarea id="token-in" placeholder="cashuB..."></textarea>
+        <div class="row"><button id="token-btn">Receive token</button></div>
+        <p id="recv-msg" class="mut"></p>
+      </section>
+
+      <section class="card hidden" id="send-card">
+        <h2>3. Send</h2>
+        <div class="row"><input type="number" id="send-amt" value="21" min="1"><button id="send-btn">Make spend request</button></div>
+        <p id="send-msg" class="mut"></p>
+        <div id="req-box" class="hidden">
+          <p>Scan this with your signer. It is moving, keep it in view.</p>
+          <canvas class="qr" id="req-qr"></canvas>
+          <p class="ctr mut" id="req-frame"></p>
+          <details><summary class="mut">Request as text</summary><textarea id="req-text" readonly></textarea></details>
+          <p>Then show the signer's answer to this camera, or paste it.</p>
+          <textarea id="reply-in" placeholder='{"v":1,"hash":"...","sig":"..."}'></textarea>
+          <div class="row"><button id="reply-btn">Submit</button><button class="ghost" id="reply-scan">Scan answer</button><button class="ghost" id="req-cancel">Cancel</button></div>
+        </div>
+        <div id="token-box" class="hidden">
+          <p class="ok">Sent. Give this token to whoever you are paying.</p>
+          <canvas class="qr" id="token-qr"></canvas>
+          <textarea id="token-out" readonly></textarea>
+        </div>
+      </section>
+
+      <section class="card hidden" id="cam-card">
+        <h2>Camera</h2>
+        <video id="cam" playsinline muted></video>
+        <div class="row"><button class="ghost" id="cam-stop">Stop camera</button></div>
+      </section>
+
+      <p class="mut" style="margin-top:22px">What this page can and cannot do: it
+        holds ecash that needs your signer's signature, so a copy of this page's
+        storage cannot be spent. When you send, the sats you are paying pass
+        through this page on their way out, and the signer shows you how many.
+        The mint holds the bitcoin behind all of it. Format:
+        <a href="../specs/ecash-spend-request.md">ecash spend request</a>.</p>
+    </main>
+    <script type="module" src="ecash.js"></script>
+  </body>
+</html>
