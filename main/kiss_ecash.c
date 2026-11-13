@@ -98,8 +98,10 @@ int kiss_ecash_hash_to_curve(const uint8_t *x, size_t x_len, uint8_t y33[33])
     memcpy(buf, HTC_DOMAIN, sizeof HTC_DOMAIN - 1);
     memcpy(buf + sizeof HTC_DOMAIN - 1, x, x_len);
     uint8_t m[32 + 4];
-    if (wally_sha256(buf, sizeof HTC_DOMAIN - 1 + x_len, m, 32) != WALLY_OK)
+    if (wally_sha256(buf, sizeof HTC_DOMAIN - 1 + x_len, m, 32) != WALLY_OK) {
+        kiss_wipe(buf, sizeof buf);
         return 2;
+    }
     // The spec's counter is a uint32; a valid point turns up within a few
     // tries, so the loop is bounded far below that.
     for (uint32_t c = 0; c < 65536; c++) {
@@ -114,9 +116,13 @@ int kiss_ecash_hash_to_curve(const uint8_t *x, size_t x_len, uint8_t y33[33])
         secp256k1_pubkey pk;
         if (secp256k1_ec_pubkey_parse(ctx, &pk, cand, 33)) {
             memcpy(y33, cand, 33);
+            kiss_wipe(buf, sizeof buf);
+            kiss_wipe(m, sizeof m);
             return 0;
         }
     }
+    kiss_wipe(buf, sizeof buf);
+    kiss_wipe(m, sizeof m);
     return 3;
 }
 
@@ -535,7 +541,9 @@ static int parse_change(jr_t *j, req_out_t *o, uint8_t r32[32])
             seen_n = true;
         } else if (!strcmp(key, "r") && !seen_r) {
             char rh[65];
-            if (!jr_str(j, rh, sizeof rh, NULL, false) || !unhex(rh, r32, 32))
+            bool ok = jr_str(j, rh, sizeof rh, NULL, false) && unhex(rh, r32, 32);
+            kiss_wipe(rh, sizeof rh);
+            if (!ok)
                 return KISS_ECASH_E_FORMAT;
             seen_r = true;
         } else {
@@ -683,11 +691,17 @@ static int review(const char *req, size_t len, kiss_ecash_summary_t *sum,
         if (!o->change)
             continue;
         char sec[256];
-        if (change_secret(acct, o->counter, o->nonce, sec, sizeof sec))
+        if (change_secret(acct, o->counter, o->nonce, sec, sizeof sec)) {
+            kiss_wipe(sec, sizeof sec);
             return KISS_ECASH_E_INTERNAL;
+        }
+        bool dup = false;
         for (int k = 0; k < r->n_in; k++)
             if (!strcmp(sec, r->pool + r->in[k].off))
-                return KISS_ECASH_E_DUP;
+                dup = true;
+        kiss_wipe(sec, sizeof sec);
+        if (dup)
+            return KISS_ECASH_E_DUP;
         for (int k = 0; k < i; k++)
             if (r->out[k].change && r->out[k].counter == o->counter &&
                 !strcmp(r->out[k].nonce, o->nonce))
@@ -796,10 +810,14 @@ int kiss_ecash_sign_reviewed(char *reply, size_t cap)
         int n = snprintf(reply, cap, "{\"v\":1,\"hash\":\"%s\",\"sig\":\"%s\"}",
                          hh, sh);
         if (n < 0 || (size_t)n >= cap) {
-            reply[0] = 0;
+            kiss_wipe(reply, cap);
             rc = KISS_ECASH_E_INTERNAL;
         }
+        kiss_wipe(hh, sizeof hh);
+        kiss_wipe(sh, sizeof sh);
     }
+    kiss_wipe(h, sizeof h);
+    kiss_wipe(pub, sizeof pub);
     kiss_wipe(sig, sizeof sig);
     wally_bzero(&acct, sizeof acct);
     kiss_ecash_review_clear();
