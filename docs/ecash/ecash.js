@@ -244,6 +244,9 @@ let camStream = null, camWant = null;
 async function scan(want) {
   camWant = want;
   $('cam-card').classList.remove('hidden');
+  // The camera card is at the bottom of the page: bring it into view, or the
+  // preview runs where nobody can see it and aiming is guesswork.
+  $('cam-card').scrollIntoView({ behavior: 'smooth', block: 'center' });
   if (!camStream) {
     camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
     const v = $('cam');
@@ -327,7 +330,7 @@ $('token-btn').onclick = guard('recv-msg', receiveToken);
 $('send-btn').onclick = guard('send-msg', makeRequest);
 $('reply-btn').onclick = guard('send-msg', () => submitReply($('reply-in').value));
 $('reply-scan').onclick = guard('send-msg', () => scan(guard('send-msg', submitReply)));
-$('req-cancel').onclick = () => { pending = null; stopFrames(); $('req-box').classList.add('hidden'); msg('send-msg', ''); };
+$('req-cancel').onclick = () => { pending = null; stopFrames(); stopCam(); $('req-box').classList.add('hidden'); msg('send-msg', ''); };
 $('cam-stop').onclick = stopCam;
 drawQR($('key-qr'), frames(KEY_REQUEST)[0]);
 render();
