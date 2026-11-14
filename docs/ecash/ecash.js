@@ -7,6 +7,10 @@
 import { blindMessage, unblindSignature, pointFromHex, createP2PKsecret,
   getEncodedToken, getDecodedToken, hashToCurve, hasValidDleq,
   PaymentRequest } from './vendor/cashu-cashu-ts/lib/cashu-ts.es.js';
+import { SimplePool } from './vendor/nostr-tools/pool.js';
+import { unwrapEvent } from './vendor/nostr-tools/nip59.js';
+import { generateSecretKey, getPublicKey } from './vendor/nostr-tools/pure.js';
+import { nprofileEncode } from './vendor/nostr-tools/nip19.js';
 import { HDKey } from '@scure/bip32';
 import { sha256 } from '@noble/hashes/sha2.js';
 
@@ -109,9 +113,24 @@ async function mintTest() {
 // Every tip shares that key, which is what lets one spend take them all
 // (NUT-11 wants every SIG_ALL input on the same key); the cost is that the
 // mint can link the tips to each other.
+//
+// Delivery is Nostr (NIP-17), the one route wallets such as cashu.me pay a
+// request by: the tip comes to a Nostr key this page makes and keeps. That
+// key only reads deliveries. The tips themselves are locked to the signer,
+// so a copy of it, or of this page's storage, can see tips arrive and still
+// spend none of them.
+const RELAYS = ['wss://relay.primal.net', 'wss://relay.damus.io', 'wss://relay.snort.social'];
+function jarKeys() {
+  if (!st.jar) st.jar = { counter: nextCounter() };
+  if (!st.jar.nsk) { st.jar.nsk = hex(generateSecretKey()); st.jar.seen = []; }
+  save();
+  const sk = Uint8Array.from(st.jar.nsk.match(/../g), (b) => parseInt(b, 16));
+  return { sk, pk: getPublicKey(sk) };
+}
 function jarRequest() {
-  if (!st.jar) { st.jar = { counter: nextCounter() }; save(); }
-  const pr = new PaymentRequest(undefined, `kiss${st.fp}`, undefined, 'sat', [MINT],
+  const { pk } = jarKeys();
+  const nostr = { type: 'nostr', target: nprofileEncode({ pubkey: pk, relays: RELAYS }), tags: [['n', '17']] };
+  const pr = new PaymentRequest([nostr], `kiss${st.fp}`, undefined, 'sat', [MINT],
     'tips to a KISS Signer vault', false,
     { kind: 'P2PK', data: pubAt(st.jar.counter), tags: SIGALL });
   return pr.toEncodedRequest();
@@ -125,6 +144,39 @@ function showJar() {
   $('jar-box').classList.remove('hidden');
   t.style.height = 'auto';
   t.style.height = t.scrollHeight + 2 + 'px';
+  listenJar();
+}
+
+// Gift wraps addressed to the jar key, all of them: NIP-17 backdates a wrap
+// by up to two days, so a time window would drop tips that arrived while the
+// page was closed. A wrap already handled is skipped by its id, and a tip
+// already kept by its secrets.
+let jarPool = null, jarQueue = Promise.resolve();
+function listenJar() {
+  if (jarPool || !st || !st.jar || !st.jar.nsk) return;
+  const { sk, pk } = jarKeys();
+  jarPool = new SimplePool();
+  jarPool.subscribe(RELAYS, { kinds: [1059], '#p': [pk] }, {
+    onevent: (ev) => { jarQueue = jarQueue.then(() => onWrap(ev, sk)); },
+  });
+  msg('jar-msg', 'Listening for tips over Nostr while this page is open.');
+}
+async function onWrap(ev, sk) {
+  if (!st || !st.jar || (st.jar.seen || []).includes(ev.id)) return;
+  let payload;
+  try { payload = JSON.parse(unwrapEvent(ev, sk).content); } catch { return; }   // not for us, or not a tip
+  st.jar.seen = [...(st.jar.seen || []), ev.id].slice(-500);
+  save();
+  try {
+    await ks();
+    if (!payload || !Array.isArray(payload.proofs)) return;
+    if (String(payload.mint || '').replace(/\/$/, '') !== MINT) throw new Error(`a tip arrived from another mint (${payload.mint}) and was left`);
+    const proofs = payload.proofs.map((p) => ({ amount: Number(String(p.amount)), id: p.id, secret: p.secret, C: p.C, dleq: p.dleq }));
+    if (proofs.every((p) => st.proofs.some((q) => q.secret === p.secret))) return;   // a relay repeating itself
+    msg('jar-msg', `Tip over Nostr: ${await takeProofs(proofs)}`, 'ok');
+  } catch (e) {
+    msg('jar-msg', `A tip arrived over Nostr but was not kept: ${e.message || e}`, 'bad');
+  }
 }
 
 // A lock the signer will sign for: exactly ["P2PK",{nonce,data,tags}] with
@@ -158,10 +210,30 @@ async function keepLockedTip(proofs) {
   if (states.length !== Ys.length || states.some((x) => x.state !== 'UNSPENT'))
     throw new Error('the mint says part of that tip is already spent');
   st.proofs.push(...proofs.map((p) => ({ amount: p.amount, id: p.id, secret: p.secret, C: p.C, counter: st.jar.counter })));
-  $('token-in').value = '';
   save();
   const total = proofs.reduce((s, p) => s + p.amount, 0);
-  msg('recv-msg', `${total} sat tip arrived locked to your signer; kept as it is, no fee.`, 'ok');
+  return `${total} sat arrived locked to your signer; kept as it is, no fee.`;
+}
+
+// Proofs from a pasted token or a Nostr tip. Locked ones must be locked to
+// the jar and are kept; unlocked ones are bearer cash, so they are swapped
+// at once into ecash locked to the signer.
+async function takeProofs(proofs) {
+  const locked = proofs.filter((p) => p.secret.startsWith('['));
+  if (locked.length) {
+    if (locked.length !== proofs.length || !locked.every((p) => jarLocked(p.secret)))
+      throw new Error('that ecash is locked to something other than your tip jar, so this page cannot take it');
+    return keepLockedTip(proofs);
+  }
+  const plain = proofs.map(({ dleq, ...p }) => p);
+  const total = plain.reduce((s, p) => s + p.amount, 0);
+  const keep = total - fee(plain.length);
+  if (keep <= 0) throw new Error('that ecash is smaller than the mint fee');
+  const { counter, outs } = lockedOutputs(keep);
+  const r = await api('/v1/swap', { inputs: plain, outputs: outs.map(wire) });
+  st.proofs.push(...outs.map((o, i) => ({ ...unblind(o, r.signatures[i]), counter })));
+  save();
+  return `${keep} sat arrived unlocked and is now locked to signer key ${counter} (mint fee ${total - keep}).`;
 }
 
 async function receiveToken() {
@@ -169,25 +241,10 @@ async function receiveToken() {
   const tok = getDecodedToken($('token-in').value.trim(), keyset.ids);
   if (tok.mint.replace(/\/$/, '') !== MINT) throw new Error(`that token is from ${tok.mint}; this page uses ${MINT}`);
   // cashu-ts decodes amounts as objects; the mint wants plain integers
-  tok.proofs = tok.proofs.map((p) => ({ amount: Number(String(p.amount)), id: p.id, secret: p.secret, C: p.C, dleq: p.dleq }));
-  const locked = tok.proofs.filter((p) => p.secret.startsWith('['));
-  if (locked.length) {
-    if (locked.length !== tok.proofs.length || !locked.every((p) => jarLocked(p.secret)))
-      throw new Error('that token is locked to something other than your tip jar, so this page cannot take it');
-    return keepLockedTip(tok.proofs);
-  }
-  // Unlocked: whoever holds the string can spend it, so swap it now into
-  // ecash locked to the signer.
-  tok.proofs = tok.proofs.map(({ dleq, ...p }) => p);
-  const total = tok.proofs.reduce((s, p) => s + p.amount, 0);
-  const keep = total - fee(tok.proofs.length);
-  if (keep <= 0) throw new Error('that token is smaller than the mint fee');
-  const { counter, outs } = lockedOutputs(keep);
-  const r = await api('/v1/swap', { inputs: tok.proofs, outputs: outs.map(wire) });
-  st.proofs.push(...outs.map((o, i) => ({ ...unblind(o, r.signatures[i]), counter })));
+  const proofs = tok.proofs.map((p) => ({ amount: Number(String(p.amount)), id: p.id, secret: p.secret, C: p.C, dleq: p.dleq }));
+  const said = await takeProofs(proofs);
   $('token-in').value = '';
-  save();
-  msg('recv-msg', `${keep} sat arrived unlocked and is now locked to signer key ${counter} (mint fee ${total - keep}).`, 'ok');
+  msg('recv-msg', said, 'ok');
 }
 
 // ---- send ----
@@ -436,3 +493,4 @@ for (const id of ['pair-card', 'send-card', 'req-box', 'token-box', 'cam-card', 
   stageWatch.observe($(id), { attributes: true, attributeFilter: ['class'] });
 render();
 syncStage();
+listenJar();

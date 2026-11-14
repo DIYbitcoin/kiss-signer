@@ -110,6 +110,8 @@
   "@noble/curves/secp256k1.js": "./vendor/noble-curves/secp256k1.js",
   "@noble/curves/utils.js": "./vendor/noble-curves/utils.js",
   "@noble/curves/webcrypto.js": "./vendor/noble-curves/webcrypto.js",
+  "@noble/ciphers/chacha.js": "./vendor/noble-ciphers/chacha.js",
+  "@noble/ciphers/utils.js": "./vendor/noble-ciphers/utils.js",
   "@scure/base": "./vendor/scure-base/index.js",
   "@scure/bip32": "./vendor/scure-bip32/index.js"
  }
@@ -211,10 +213,11 @@
       <section class="card hidden" id="jar-card">
         <h2>4. Tip jar</h2>
         <p class="mut">A payment request to print or post. Anyone pays it from a
-          Cashu wallet, and their wallet locks the tip to your signer, so a
-          hacked phone or server holding the tips cannot spend them. Paste each
-          tip into Receive: a locked one is kept as it is, an unlocked one is
-          swapped into your vault.</p>
+          Cashu wallet such as cashu.me, and their wallet locks the tip to your
+          signer, so a hacked phone or server holding the tips cannot spend
+          them. Tips come to this page over Nostr while it is open, including
+          ones sent while it was closed. A tip someone sends as a token can be
+          pasted into Receive instead.</p>
         <div class="row"><button id="jar-btn">Show tip jar</button></div>
         <div id="jar-box" class="hidden">
           <canvas class="qr" id="jar-qr-inline"></canvas>

@@ -70,8 +70,11 @@ Nothing was signed.
 ## 4. Tip jar
 
 The page can show a payment request (Cashu NUT-18) to print or post. Anyone
-pays it from a Cashu app, and the request asks their app to lock the tip to
-your signer. Paste each tip into **Receive**:
+pays it from a Cashu app such as cashu.me, and the request asks their app to
+lock the tip to your signer. The app delivers the tip to the page over Nostr
+(NIP-17), and the page picks it up while it is open, including tips sent
+while it was closed. A tip someone sends as a token can be pasted into
+**Receive** instead. Either way:
 
 - A tip that arrived **locked** is kept as it is, with no fee. The page first
   checks the mint's proof that it issued the tip and that none of it is spent.
