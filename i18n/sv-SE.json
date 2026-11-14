@@ -933,7 +933,7 @@
   "EC_MINT_SUB": "enligt sidan",
   "EC_ANSWER_NOTE": "visa det här för din ecash-valvsida.",
   "EC_NO_T": "INTE SIGNERAD",
-  "EC_NO_FORMAT": "det här är ingen ecash-betalning som den här signern kan läsa.",
+  "EC_NO_FORMAT": "det här är ingen ecash-transaktion som den här signern kan läsa.",
   "EC_NO_OURS": "den här ecashen kan inte den här signern spendera.",
   "EC_NO_LOCK": "den här ecashen har spendervillkor som den här signern inte signerar. den signerar bara SIG_ALL utan andra.",
   "EC_NO_DUP": "begäran använder ett mynt eller en utgång två gånger.",

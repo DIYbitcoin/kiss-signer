@@ -933,7 +933,7 @@
   "EC_MINT_SUB": "ifølge siden",
   "EC_ANSWER_NOTE": "vis dette til din ecash-boks-side.",
   "EC_NO_T": "IKKE SIGNERET",
-  "EC_NO_FORMAT": "dette er ikke en ecash-betaling, denne signer kan læse.",
+  "EC_NO_FORMAT": "dette er ikke en ecash-transaktion, denne signer kan læse.",
   "EC_NO_OURS": "denne ecash kan denne signer ikke bruge.",
   "EC_NO_LOCK": "denne ecash har brugsbetingelser, som denne signer ikke signerer. den signerer kun SIG_ALL uden andre.",
   "EC_NO_DUP": "anmodningen bruger en mønt eller et output to gange.",
