@@ -23,6 +23,7 @@ const SIGALL = [['sigflag', 'SIG_ALL']];
 const $ = (id) => document.getElementById(id);
 const enc = (s) => new TextEncoder().encode(s);
 const hex = (b) => Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+const sats = (n) => `${n} ${n === 1 ? 'sat' : 'sats'}`;
 const rand32 = () => hex(crypto.getRandomValues(new Uint8Array(32)));
 
 // ---- state ----
@@ -104,7 +105,7 @@ async function mintTest() {
   const m = await api('/v1/mint/bolt11', { quote: q.quote, outputs: outs.map(wire) });
   st.proofs.push(...outs.map((o, i) => ({ ...unblind(o, m.signatures[i]), counter })));
   save();
-  msg('recv-msg', `${amount} sat locked to signer key ${counter}.`, 'ok');
+  msg('recv-msg', `${sats(amount)} locked to signer key ${counter}.`, 'ok');
 }
 
 // ---- tip jar ----
@@ -212,7 +213,7 @@ async function keepLockedTip(proofs) {
   st.proofs.push(...proofs.map((p) => ({ amount: p.amount, id: p.id, secret: p.secret, C: p.C, counter: st.jar.counter })));
   save();
   const total = proofs.reduce((s, p) => s + p.amount, 0);
-  return `${total} sat arrived locked to your signer; kept as it is, no fee.`;
+  return `${sats(total)} arrived locked to your signer; kept as it is, no fee.`;
 }
 
 // Proofs from a pasted token or a Nostr tip. Locked ones must be locked to
@@ -233,7 +234,7 @@ async function takeProofs(proofs) {
   const r = await api('/v1/swap', { inputs: plain, outputs: outs.map(wire) });
   st.proofs.push(...outs.map((o, i) => ({ ...unblind(o, r.signatures[i]), counter })));
   save();
-  return `${keep} sat arrived unlocked and is now locked to signer key ${counter} (mint fee ${total - keep}).`;
+  return `${sats(keep)} arrived unlocked and is now locked to signer key ${counter} (mint fee ${sats(total - keep)}).`;
 }
 
 async function receiveToken() {
@@ -292,7 +293,7 @@ async function makeRequest() {
   showFrames(req);
   $('req-box').classList.remove('hidden');
   $('token-box').classList.add('hidden');
-  msg('send-msg', `${amount} sat to send, ${change} sat back to the vault, mint fee ${fee(pick.proofs.length)}. Your signer will show the same.`);
+  msg('send-msg', `${sats(amount)} to send, ${sats(change)} back to the vault, mint fee ${sats(fee(pick.proofs.length))}. Your signer will show the same.`);
 }
 
 async function submitReply(text) {
@@ -435,7 +436,9 @@ function render() {
   for (const id of ['vault-card', 'recv-card', 'send-card', 'jar-card']) $(id).classList.toggle('hidden', !paired);
   $('pair-card').classList.toggle('hidden', paired);
   if (!paired) return;
-  $('bal').textContent = st.proofs.reduce((s, p) => s + p.amount, 0);
+  const bal = st.proofs.reduce((s, p) => s + p.amount, 0);
+  $('bal').textContent = bal;
+  $('bal-unit').textContent = bal === 1 ? 'sat' : 'sats';
   $('mint-url').textContent = MINT;
   $('fp').textContent = st.fp;
   const g = [...groupBy().entries()].map(([c, ps]) => `key ${c}: ${ps.reduce((s, p) => s + p.amount, 0)}`);
