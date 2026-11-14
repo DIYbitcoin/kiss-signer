@@ -504,6 +504,7 @@ DOCS = [
     "docs/verify-release.html",
     "docs/walkthrough.md",
     "docs/blind-draw.md",
+    "docs/ecash-cold-storage.md",
 ]
 
 # CHANGELOG.md is deliberately NOT here, and this is the reason rather than an
