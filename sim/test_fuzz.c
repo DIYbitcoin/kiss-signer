@@ -172,7 +172,7 @@ static void fz_spk(int script, const uint8_t pub[33], uint8_t *out, size_t *len)
 // 1-3 of our inputs at random address indices, one external output, sometimes
 // a change output, random amounts, locktime and sequences. Every input carries
 // its FULL previous transaction: that is what keeps a multi-input psbt off the
-// unproven-amount STOP (kiss_psbt.c:989), so there is something left to sign.
+// unverified-amount caution, so the fuzz stays on READY spends.
 // Returns 0 when the shape did not build, which is not a failure -- the amount
 // draw can land somewhere with no room for a fee.
 static size_t mk_rand_psbt(int script, uint8_t *out, size_t outsz) {

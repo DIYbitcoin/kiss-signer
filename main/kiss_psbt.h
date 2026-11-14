@@ -22,9 +22,8 @@ typedef enum {
 #define WPSBT_C_SMALL_CHANGE (1u << 2)   // change below the privacy threshold
 #define WPSBT_C_DUST_CHANGE  (1u << 3)   // change below the standardness dust limit
 #define WPSBT_C_MERGE_INS    (1u << 4)   // many coins spent at once (linked forever)
-// Bit 5 was WPSBT_C_UNPROVEN_IN, an input amount we were TOLD but could not
-// PROVE. It is a STOP now ("input amounts not proven"), not a caution — see
-// the fee-lie note in kiss_psbt.c. The bit stays retired rather than reused:
+// Bit 5 was WPSBT_C_UNPROVEN_IN, an earlier caution for the same fault that
+// WPSBT_C_UNVERIFIED_AMT now names. The bit stays retired rather than reused:
 // the flag rode on the SD fixtures and the settings a device already has.
 #define WPSBT_C_GAP_CHANGE   (1u << 6)   // change parked past any scanner's reach
 // A silent payment paid together with another signer: some inputs are not this
@@ -34,6 +33,13 @@ typedef enum {
 // before the slide arms. Raised on both passes of a shared send -- see
 // wpsbt_summary_t.share_only for which one this is.
 #define WPSBT_C_SHARED       (1u << 7)
+// Two or more inputs, not all taproot, and some input amount only CLAIMED by a
+// bare witness_utxo with no previous transaction behind it. The fee on the
+// screen is then a number the coordinator could have lied about across two
+// signing sessions (see kiss_psbt.c), so the owner must accept that before the
+// slide arms, and the fee row says unverified. Sparrow over QR and BlueWallet
+// both send multi-input PSBTs of this shape.
+#define WPSBT_C_UNVERIFIED_AMT (1u << 8)
 
 // Privacy threshold: coins/change under this are flagged (soft). Not a dust
 // limit — that is a per-type standardness floor (see kiss_psbt.c).

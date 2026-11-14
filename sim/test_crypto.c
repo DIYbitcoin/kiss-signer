@@ -1818,9 +1818,10 @@ int main(int argc, char **argv) {
     // coordinator can run two sessions, name a different (individually true)
     // amount in each, and combine one valid signature per input. The tx that
     // broadcasts pays a fee neither screen showed. Nothing in a single PSBT can
-    // rule that out and nothing the owner can read on the screen decides it, so
-    // with two or more inputs whose amounts are only CLAIMED this REFUSES. It
-    // was a caution until the blind-signing sweep; see kiss_psbt.c.
+    // rule that out, so with two or more inputs whose amounts are only CLAIMED
+    // this is a caution the owner must accept, and the fee row says unverified.
+    // It was a refusal, which turned away ordinary multi-input sends from
+    // BlueWallet and from Sparrow over QR; see kiss_psbt.c.
 
     // one input: the lie lands in that input's own sighash and breaks it, so a
     // bare witness_utxo is enough and there is nothing to warn about
@@ -1831,22 +1832,77 @@ int main(int argc, char **argv) {
     chki("1-in unproven count", (int)sum.n_unproven_in, 1);
     kiss_psbt_free();
 
-    // two inputs, amounts claimed and not proven: krux warns here, this refuses
+    // BlueWallet's shape: P2WPKH inputs carrying a witness_utxo and no previous
+    // transaction. Signable after the owner accepts the one row that says so.
     pl = mk_nin_psbt_ex(2, 100000, 2000, NIN_CLAIM, pb, sizeof pb);
     chki("2-in unproven load rc", kiss_psbt_load(pb, pl, &sum), 0);
-    chki("2-in unproven STOP", sum.status, WPSBT_STOP);
+    chki("2-in unproven CAUTION", sum.status, WPSBT_CAUTION);
+    chki("2-in unproven flag alone", sum.caution_flags, WPSBT_C_UNVERIFIED_AMT);
     chki("2-in unproven count", (int)sum.n_unproven_in, 2);
-    chkb("2-in unproven reason", strstr(sum.reason, "not proven") != NULL);
-    chkb("2-in unproven refuses to sign", kiss_psbt_sign(sb, sizeof sb, &sw) != 0);
-    // and no details page: a refused transaction gets none, which is why the
-    // per-input proven marks are checked below on a tx that still loads.
-    { wpsbt_details_t dt; chkb("2-in unproven no details",
-                               kiss_psbt_details(&dt) != 0); }
+    chkb("2-in unproven reason", strstr(sum.reason, "not verified") != NULL);
+    chkb("2-in unproven fee still summed", sum.fee_sats == 2000);
+    { wpsbt_details_t dt; chki("2-in unproven has details",
+                               kiss_psbt_details(&dt), 0); }
+    chki("2-in unproven signs", kiss_psbt_sign(sb, sizeof sb, &sw), 0);
+    chkb("2-in unproven signed bytes", sw > 0);
     kiss_psbt_free();
 
+    // Sparrow over QR: three such inputs, carried as an animated UR the way
+    // Sparrow shows it, reassembled by the same parser the camera feeds.
+    {
+        uint8_t got[QRT_MAX_PSBT];
+        size_t gl = 0;
+        int ok = 0;
+        pl = mk_nin_psbt_ex(3, 100000, 3000, NIN_CLAIM, pb, sizeof pb);
+        qrt_encoder_t *e = qrt_encoder_new_frag(QRT_FMT_UR, pb, pl, 100);
+        qrt_parser_t *qp = qrt_parser_new();
+        if (e && qp) {
+            static char part[4096];
+            chkb("3-in UR is animated", qrt_encoder_parts(e) > 1);
+            for (int k = 0; k < 200 && !qrt_parser_complete(qp); k++)
+                if (qrt_encoder_next(e, part, sizeof part) != 0 ||
+                    qrt_parser_feed(qp, part, strlen(part)) < 0) break;
+            ok = qrt_parser_complete(qp) &&
+                 qrt_parser_result(qp, got, sizeof got, &gl) == 0;
+        }
+        if (e) qrt_encoder_free(e);
+        if (qp) qrt_parser_free(qp);
+        chkb("3-in UR reassembles", ok && gl == pl && memcmp(got, pb, pl) == 0);
+        chki("3-in UR load rc", kiss_psbt_load(got, gl, &sum), 0);
+        chki("3-in UR CAUTION", sum.status, WPSBT_CAUTION);
+        chki("3-in UR flag alone", sum.caution_flags, WPSBT_C_UNVERIFIED_AMT);
+        chki("3-in UR count", (int)sum.n_unproven_in, 3);
+        chki("3-in UR signs", kiss_psbt_sign(sb, sizeof sb, &sw), 0);
+        kiss_psbt_free();
+    }
+
+    // Two inputs naming one coin, with two different claimed amounts: the
+    // coordinator contradicting itself, and a tx no node accepts. Refused.
+    {
+        struct wally_psbt *p = NULL;
+        uint8_t vb[4096];
+        size_t vl = 0;
+        pl = mk_nin_psbt_ex(2, 100000, 2000, NIN_CLAIM, pb, sizeof pb);
+        int ok = wally_psbt_from_bytes(pb, pl, 0, &p) == WALLY_OK &&
+                 p->tx && p->tx->num_inputs == 2;
+        if (ok) {
+            memcpy(p->tx->inputs[1].txhash, p->tx->inputs[0].txhash, 32);
+            p->tx->inputs[1].index = p->tx->inputs[0].index;
+            p->inputs[1].witness_utxo->satoshi = 150000;
+            ok = wally_psbt_to_bytes(p, 0, vb, sizeof vb, &vl) == WALLY_OK;
+        }
+        wally_psbt_free(p);
+        chkb("same coin twice: built", ok && vl);
+        chki("same coin twice: load rc", kiss_psbt_load(vb, vl, &sum), 0);
+        chki("same coin twice: STOP", sum.status, WPSBT_STOP);
+        chkb("same coin twice: reason", strstr(sum.reason, "same coin") != NULL);
+        chkb("same coin twice: sign refused",
+             kiss_psbt_sign(sb, sizeof sb, &sw) != 0);
+        kiss_psbt_free();
+    }
+
     // the same two coins with their previous transactions attached: nothing left
-    // to lie about, so it signs. This is the escape hatch, and it is what keeps
-    // the refusal from being a wall -- every coordinator can attach these.
+    // to lie about, so there is nothing to accept either.
     pl = mk_nin_psbt_ex(2, 100000, 2000, NIN_PROVE, pb, sizeof pb);
     chkb("2-in proven builds", pl > 0);
     chki("2-in proven load rc", kiss_psbt_load(pb, pl, &sum), 0);
@@ -1925,9 +1981,8 @@ int main(int argc, char **argv) {
     // byte of the signature, or this change quietly broke every signer that
     // ever co-signed with this one.
     //
-    // ONE input, because two unproven ones no longer sign. That is not a
-    // weaker test: the property is per input, and one input is the case where
-    // both halves are signable and directly comparable.
+    // ONE input, so both halves are READY and signable without a caution in
+    // between: the property is per input, and this is the plainest case of it.
     {
         uint8_t sa[4096], sbb[4096];
         size_t wa = 0, wb = 0;
@@ -1952,8 +2007,6 @@ int main(int argc, char **argv) {
     }
 
     // DETAILS says WHICH coin: the per-input mark the verify row cannot carry.
-    // One input, since two claimed amounts is the refusal above and a refused
-    // transaction has no details page to mark.
     pl = mk_nin_psbt_ex(1, 100000, 2000, NIN_CLAIM, pb, sizeof pb);
     chki("details unproven load rc", kiss_psbt_load(pb, pl, &sum), 0);
     {
@@ -2360,14 +2413,14 @@ int main(int argc, char **argv) {
         size_t plm = mk_mixed_psbt(pb2, sizeof pb2);
         chkb("mixed psbt builds", plm > 0);
         chki("mixed psbt load rc", kiss_psbt_load(pb2, plm, &sm), 0);
-        // STOP, not READY: the legacy input carries its previous transaction
-        // and is proven, the native one carries only a witness_utxo and is not,
-        // and two inputs is where the two-session amount lie becomes possible.
-        // ONE unproven input out of two is enough -- the lie only needs one.
-        // The summary below is still filled: nothing returns early on a STOP,
-        // and the verify screen has to be able to say what it refused.
-        chki("mixed psbt STOP", sm.status, WPSBT_STOP);
-        chkb("mixed psbt reason", strstr(sm.reason, "not proven") != NULL);
+        // READY: the legacy input carries its previous transaction and is
+        // proven, the native one carries only a witness_utxo. ONE claimed
+        // amount beside proven ones cannot be lied about: its only valid
+        // signature comes from a session where it was true, and that session
+        // showed the real fee. So no unverified-amounts row here.
+        chki("mixed psbt READY", sm.status, WPSBT_READY);
+        chkb("mixed psbt no unverified row",
+             (sm.caution_flags & WPSBT_C_UNVERIFIED_AMT) == 0);
         chki("mixed psbt one unproven", (int)sm.n_unproven_in, 1);
         chki("mixed psbt purpose 0 (mixed)", sm.purpose, 0);
         chki("mixed psbt n_in", sm.n_in, 2);

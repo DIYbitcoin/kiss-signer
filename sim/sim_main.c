@@ -949,16 +949,22 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
     // uncrowded: the badge has to be visible somewhere the walk photographs.
     s->locktime = 5127853; s->lock_binds = true;
   } else if (len >= 5 && memmem(bytes, len, "UNPRV", 5)) {
-    // A two-input spend whose amounts were declared and not proved. This is a
-    // REFUSAL, not a caution: the fee on the screen would be a number the
-    // device cannot stand behind, so there is nothing here for an owner to
-    // weigh. It is the one STOP an honest coordinator can trip, which is why
-    // its panel is worth a walk stop of its own -- the sentence on it has to
-    // name the fix.
-    s->n_in = 2;
+    // A two-input spend whose amounts were declared and not proved: the shape
+    // BlueWallet and Sparrow over QR send. A CAUTION with one row to accept,
+    // and the fee strand reads FEE (UNVERIFIED) for as long as it is set.
+    s->n_in = 2; s->n_in_addr = 2; s->n_out = 2;
     s->n_unproven_in = 2;
-    s->status = WPSBT_STOP;
-    snprintf(s->reason, sizeof s->reason, "input amounts not proven");
+    s->in_sats = 200000; s->send_sats = 150000; s->change_sats = 48000;
+    s->fee_sats = 2000; s->fee_rate_x10 = 95; s->est_vsize = 209;
+    s->outs[0].sats = 150000; s->outs[0].is_change = false;
+    snprintf(s->outs[0].addr, sizeof s->outs[0].addr,
+             "bc1qm52k4nv8ffkz7mvd3sjn54khce6mua7l7p9c8x");
+    s->outs[1].sats = 48000; s->outs[1].is_change = true; s->outs[1].branch = 1;
+    snprintf(s->outs[1].addr, sizeof s->outs[1].addr,
+             "bc1q9h6yzs2lhk0lkhm3exu4f0w3dkdtdfvq6qzr8w");
+    s->status = WPSBT_CAUTION;
+    s->caution_flags = WPSBT_C_UNVERIFIED_AMT;
+    snprintf(s->reason, sizeof s->reason, "input amounts not verified");
   } else if (len >= 5 && memmem(bytes, len, "MERGE", 5)) {
     // A consolidation: twenty coins swept to one address, nothing back. Above
     // WPSBT_MERGE_INS so the coins-linked caution always fires, and above
@@ -4996,22 +5002,26 @@ int main(void) {
                                                       // moved to DETAILS, so the
                                                       // column fits and needs no scroll
   tap_str(STR_C_BACK, 3, 6);     // BACK (leftmost) -> the file list
-  // The unproven-amount REFUSAL: a two-input spend from a coordinator that
-  // ships bare witness_utxos and nothing else. It is the only STOP an honest
-  // coordinator can trip, so unlike every other refusal on this device the
-  // panel has to leave the owner somewhere to go -- which is a property of a
-  // sentence, and only a rendered frame can say whether it fits the panel.
-  touch(328, 216); pump(3); release(); pump(8);     // zzz-UNPRV (row 1) -> STOP
+  // The unverified-amount WARNING: a two-input spend from a coordinator that
+  // ships bare witness_utxos and nothing else. The row has to be on the verify
+  // screen, and the fee has to say unverified, both as the owner reads them.
+  touch(328, 216); pump(3); release(); pump(8);     // zzz-UNPRV (row 1) -> CAUTION
   save("/tmp/sim_sign_unproven.ppm");
-  // The refusal text itself, not a fragment of it: this panel is the whole
-  // screen, so if the mapping in tr_reason ever falls back to the raw English
-  // reason the owner loses the remedy and nothing else on screen would say so.
-  // The VERDICT, which is one plain label. The remedy under it goes through
-  // wt_why_body, which lays a body out as ruled blocks and does not leave the
-  // whole string in any single label -- so the sentence is a thing for the
-  // frame to check, and this needle checks the mapping instead: raw English
-  // here would read "input amounts not proven", not this.
-  must_show("verify (unproven STOP)", tr(STR_S_C_UNPROVEN));
+  must_show("verify (unverified row)", tr(STR_S_C_UNPROVEN));
+  must_show("verify (fee unverified)", tr(STR_S_FEE_UNVERIFIED));
+  // Its I UNDERSTAND opens the fee sentence instead of accepting, and a tap
+  // anywhere but the card's own I UNDERSTAND closes it with the row still
+  // open: the slide cannot arm without that sentence having been on glass.
+  tap_str_nth(STR_C_I_UNDERSTAND, 0, 3, 40);        // row -> the sentence
+  save("/tmp/sim_sign_unproven_card.ppm");
+  must_show("unverified ack shows the fee sentence", tr(STR_S_WHY_UNVERIFIED));
+  touch(110, 200); pump(3); release(); pump(8);     // a tap on the card body
+  must_not_show("card closed by a stray tap", tr(STR_S_WHY_UNVERIFIED));
+  tap_str_nth(STR_C_I_UNDERSTAND, 0, 3, 8);         // still open: ask again
+  must_show("the sentence again", tr(STR_S_WHY_UNVERIFIED));
+  tap_str_nth(STR_C_I_UNDERSTAND, 1, 3, 8);         // the card's own action
+  save("/tmp/sim_sign_unproven_ack.ppm");
+  must_not_show("accepted only from the card", tr(STR_C_I_UNDERSTAND));
   tap_str(STR_C_BACK, 3, 6);     // BACK (leftmost) -> the file list
 
   // Five recipients: more than the panel shows at once, and the only shape on

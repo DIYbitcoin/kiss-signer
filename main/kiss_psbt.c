@@ -1505,9 +1505,22 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
         return 0;
     }
 
+    // One coin named by two inputs is a transaction no node accepts, and with
+    // amounts that are only claimed it is also two different answers to what
+    // that coin holds. Refused before anything is summed from it.
+    for (size_t i = 1; i < rv_n_in(tx); i++)
+        for (size_t k = 0; k < i; k++)
+            if (rv_vout(tx, i) == rv_vout(tx, k) &&
+                memcmp(rv_txhash(tx, i), rv_txhash(tx, k), 32) == 0) {
+                stop(s, "input spends the same coin twice");
+                i = rv_n_in(tx);
+                break;
+            }
+
     // ---- inputs: verifiable amount + our re-derived script, or no signature ----
     uint32_t n44 = 0, n49 = 0, n84 = 0, ntap = 0;   // inputs per type: fee estimate + UI label
     uint32_t nunproven = 0;   // amount taken from a witness_utxo with no prev tx behind it
+    uint32_t nunproven_foreign = 0;   // of those, inputs another signer signs
     // Distinct input scriptPubKeys, hashed rather than kept: the answer needed
     // is only "seen before", and 40 scripts at up to 34 bytes each is a lot of
     // stack for a question a 64-bit key settles.
@@ -1548,7 +1561,7 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
         // fee: its amount is a term in the subtraction the screen shows, so it
         // is read by exactly the rule our own inputs follow (input_prevout),
         // and an amount with no previous transaction behind it counts as
-        // unproven and is refused below with the rest.
+        // unproven and is flagged below with the rest.
         //
         // It is not one of our addresses, so it is left out of the merge and
         // dust counts: those are about coins of this wallet being linked.
@@ -1568,7 +1581,7 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
                 stop(s, "input amount over 21M BTC (corrupt)");
                 continue;
             }
-            if (!fproven) nunproven++;
+            if (!fproven) { nunproven++; nunproven_foreign++; }
             s->in_sats += fval;
             s->n_foreign_in++;
             // sp_shared admitted P2WPKH and P2TR and nothing else
@@ -1741,7 +1754,7 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     // already linked, so "merging" adds no information. A silent-payment SEND
     // that also spends ordinary P2WPKH inputs is not exempt: those inputs are
     // neither provably priced nor scan-linked, so both apply to them exactly as
-    // they do in any other transaction -- and the first one now refuses.
+    // they do in any other transaction.
     // The fee on the screen is a subtraction, and every input amount is a term in
     // it. BIP143 commits only to the amount of the input being signed, so with
     // two or more inputs a coordinator can run two signing sessions, declare a
@@ -1752,40 +1765,36 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     // Nothing in the PSBT can rule that out: each session, on its own, is honest.
     // BIP341 hashes EVERY input amount into the sighash, so an all-taproot spend
     // is immune, and with one input the lie lands in that input's own sighash and
-    // invalidates it. Everything else is a fee the owner cannot see and cannot
-    // check afterwards, so this BLOCKS rather than warns.
+    // invalidates it.
     //
-    // It was a CAUTION until now, and a caution is the wrong instrument here.
-    // Every other caution states a cost the owner can weigh on the screen in
-    // front of them -- this fee is high, these coins get linked. This one says
-    // the biggest number on the screen may be wrong by an unbounded amount and
-    // there is no way to find out, which is the definition of signing blind. A
-    // reader who accepts it has not made a decision, only a guess.
+    // This was a STOP, and that refused ordinary multi-input sends from Sparrow
+    // over QR and from BlueWallet, which leave the previous transactions off
+    // segwit inputs to keep the PSBT small. It is a CAUTION now: signable, but
+    // the row has to be accepted before the slide arms, and the fee row on the
+    // review is marked unverified for as long as this flag is set. What is still
+    // refused is everything above that is not merely missing: a previous
+    // transaction that does not hash to the outpoint, a witness_utxo that
+    // disagrees with it, a legacy input with no previous transaction, an input
+    // with no amount at all, an amount over 21M BTC, and outputs that exceed
+    // the inputs.
     //
-    // The remedy is entirely the coordinator's and costs it nothing: attach the
-    // full previous transaction for each input (BIP174's own recommendation, and
-    // what Core, Sparrow and Electrum already send). Then every amount hashes to
-    // an outpoint and there is nothing left to lie about. A coordinator that
-    // strips them is asking to be trusted about the fee; this device does not
-    // have to agree.
-    // DECIDED: the bar is ntap < n_in and NOT ntap == 0, which refuses more
-    // than the argument above strictly requires. One taproot input is in fact
-    // enough: BIP341 hashes every input amount into THAT input's sighash, so
-    // any lie about any amount invalidates its signature, and the two session
-    // attack cannot assemble a tx where every signature verifies. So a spend
-    // of one received silent payment beside one P2WPKH coin that carries its
-    // full previous transaction is provably honest and is refused anyway.
-    //
-    // Left strict on purpose. The cost of the strict form is that a rare
-    // transaction comes back to the coordinator to be rebuilt with the prev
-    // txs attached, which is what BIP174 asks for and what Core, Sparrow and
-    // Electrum already send. The cost of the loose form, if the reasoning
-    // above is wrong in one case nobody has thought of, is a fee the owner
-    // cannot see going to a miner. Those are not the same size, and this is
-    // the one gate in the file whose whole subject is a number that cannot be
-    // checked afterwards.
-    if (s->n_in >= 2 && ntap < s->n_in && nunproven > 0)
-        stop(s, "input amounts not proven");
+    // The bar is where the lie is possible, and nowhere else, because a
+    // warning that fires on spends it cannot be about teaches the owner to
+    // tap through the one that is:
+    //  - an input THIS signer signs as taproot (a received silent payment)
+    //    commits every input amount in its own signature, so nothing can be
+    //    lied about and nothing is raised;
+    //  - one claimed amount among our own inputs, the rest proven, is safe the
+    //    way one input is: the only valid signature for that input comes from
+    //    a session where its amount was true, and the proven ones are always
+    //    true, so that session showed the real fee;
+    //  - two or more claimed amounts among our own inputs is the two session
+    //    lie above;
+    //  - one claimed amount on ANOTHER signer's input is enough: none of our
+    //    signatures commits to it, so no session of ours has to be truthful.
+    const uint32_t nunproven_own = nunproven - nunproven_foreign;
+    if (s->n_sp_in == 0 && (nunproven_foreign > 0 || nunproven_own >= 2))
+        caution(s, WPSBT_C_UNVERIFIED_AMT, "input amounts not verified");
 
     // Merging coins is the one privacy loss a signer can see coming and the one
     // it can never take back: the moment this broadcasts, every input is public

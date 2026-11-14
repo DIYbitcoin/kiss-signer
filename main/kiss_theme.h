@@ -1833,6 +1833,10 @@ typedef struct {
     const char *const *icons;   // WT_GRID_ICONS only, in body-line order
     size_t icons_count;         // number of readable entries in icons
     int (*aside)(lv_obj_t *par, int x, int y, int w);
+    // When set, the card's own action runs this and then closes, and a tap
+    // anywhere else still only closes. For the one card whose action is an
+    // acceptance: the caller learns it was the button, not a stray tap.
+    void (*on_ok)(void);
 } wt_explain_t;
 lv_obj_t *wt_explain_open(lv_obj_t *parent, const wt_explain_t *e);
 

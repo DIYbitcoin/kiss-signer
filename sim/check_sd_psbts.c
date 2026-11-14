@@ -39,7 +39,7 @@ int main(int argc, char **argv){
         {"03-legacy.psbt",            WSCRIPT_LEGACY, WPSBT_READY,   0},
         {"04-stop-wrongnet.psbt",     WSCRIPT_NATIVE, WPSBT_STOP,    0},
         {"05-caution-highfee.psbt",   WSCRIPT_NATIVE, WPSBT_CAUTION, WPSBT_C_HIGHFEE},
-        {"06-unproven-2in.psbt",      WSCRIPT_NATIVE, WPSBT_STOP,    0},
+        {"06-unproven-2in.psbt",      WSCRIPT_NATIVE, WPSBT_CAUTION, WPSBT_C_UNVERIFIED_AMT},
         {"07-proven-2in.psbt",        WSCRIPT_NATIVE, WPSBT_READY,   0},
         {"08-stop-contradiction.psbt",WSCRIPT_NATIVE, WPSBT_STOP,    0},
         {"09-caution-four.psbt",      WSCRIPT_NATIVE, WPSBT_CAUTION,
@@ -54,7 +54,7 @@ int main(int argc, char **argv){
         // BIP-375 silent-payment send fixtures (tools/sp_fixtures/mk_sp_sd_fixtures.py).
         // 10 testnet inputs at m/84'/1'/0'/0/i, one scriptless SP output (scan||spend)
         // + change. READY with no flags is the POINT: for an SP send neither the
-        // unproven refusal nor the merge caution can apply (the format never
+        // unverified-amounts caution nor the merge caution can apply (the format never
         // carries the previous transactions, and these coins were already linked
         // by the scan), so the owner reviews the recipient and the fee and signs.
         {"11-sp-10in.psbt",          WSCRIPT_NATIVE, WPSBT_READY,   0, 1},

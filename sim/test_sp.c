@@ -1094,14 +1094,12 @@ static size_t sp_map_end(const uint8_t *b, size_t n, size_t i, uint8_t want,
     return 0;
 }
 
-// The unproven-inputs refusal must fire on a MIXED send: a BIP376 input
-// (received silent-payment coin, amount covered by the BIP341 sighash) spent
-// alongside our own P2WPKH input that carries only a witness_utxo (amount
-// covered by BIP143 alone). A coordinator can run two signing sessions with
-// different amounts on that P2WPKH input, combine the signatures, and
-// broadcast a fee neither screen showed. The whole-transaction suppression
-// (`!sp_send`) used to silence exactly this shape; the check now keys off
-// the inputs themselves, and STOPs rather than warns (see kiss_psbt.c).
+// A MIXED send: a BIP376 input (received silent-payment coin, signed under
+// BIP341) spent alongside our own P2WPKH input that carries only a
+// witness_utxo. The BIP341 signature this signer makes commits to EVERY input
+// amount, the P2WPKH one included, so any lie about that amount invalidates
+// it: the only valid taproot signature comes from a session that showed the
+// real fee. Nothing to warn about, and it signs (see kiss_psbt.c).
 //
 // The fixture is the pinned BIP376 spend (SPV_SPEND_EVEN_B64) with a second
 // input map spliced in: embit-style PSBT maps have no field-count varint
@@ -1202,22 +1200,20 @@ static void sp_test_mixed_unproven(void) {
     kiss_set_network(1);
     int rc = kiss_psbt_load(mixed, n, &sum);
     if (rc != 0) printf("  mixed load rc=%d\n", rc);
-    else if (sum.status != WPSBT_STOP)
+    else if (sum.status == WPSBT_STOP)
         printf("  mixed status=%d reason=%s\n", sum.status, sum.reason);
     spchk("mixed counts 1 BIP376 + 1 P2WPKH input",
           sum.n_in == 2 && sum.n_sp_in == 1);
-    // Still summed, and still worth asserting: the STOP screen shows what it
-    // refused, and the parse must reach the end to know the fee at all.
+    // The fee the screen shows, from both amounts.
     spchk("mixed fee math", sum.in_sats == 300000 && sum.fee_sats == 5000 &&
           sum.send_sats + sum.change_sats == 295000);
-    spchk("unproven-inputs refusal fires", sum.status == WPSBT_STOP &&
-          strstr(sum.reason, "not proven") != NULL);
+    spchk("mixed raises no unverified-amounts row", sum.status != WPSBT_STOP &&
+          (sum.caution_flags & WPSBT_C_UNVERIFIED_AMT) == 0);
     // BOTH inputs count as unproven -- a BIP376 input carries a witness_utxo
-    // and nothing else, by construction. What makes this transaction refuse is
-    // not the count but the mix: BIP341 covers the SP input's amount, and the
-    // P2WPKH input beside it is signed under BIP143, which does not.
+    // and nothing else, by construction. The count is not the bar; whether a
+    // signature of ours commits to every amount is.
     spchk("mixed counts both inputs unproven", sum.n_unproven_in == 2);
-    spchk("mixed refuses to sign", kiss_psbt_sign(out1, sizeof out1, &w1) != 0);
+    spchk("mixed signs", kiss_psbt_sign(out1, sizeof out1, &w1) == 0 && w1 > 0);
     kiss_psbt_free();
     kiss_set_network(0);
 }
@@ -1549,7 +1545,20 @@ static void sps_test_refusals(void)
     sps_refuse("shared refuses a global share", SPS_N_GLOBAL_B64, "global share");
     sps_refuse("shared refuses an ineligible foreign input", SPS_N_INELIGIBLE_B64, "P2WPKH or P2TR");
     sps_refuse("shared refuses a foreign key that does not hash", SPS_N_NOKEY_B64, "key does not match");
-    sps_refuse("shared refuses an unproven foreign amount", SPS_N_UNPROVEN_B64, "not proven");
+    // An unproven amount on the OTHER signer's input: none of our signatures
+    // commits to it, so one is enough for the fee to be wrong. A warning the
+    // owner must accept, not a refusal.
+    {
+        wpsbt_summary_t sum;
+        int rc = kiss_psbt_load((const uint8_t *)SPS_N_UNPROVEN_B64,
+                                strlen(SPS_N_UNPROVEN_B64), &sum);
+        if (rc != 0 || sum.status != WPSBT_CAUTION)
+            printf("  rc=%d status=%d reason=%s\n", rc, sum.status, sum.reason);
+        spchk("shared warns on an unproven foreign amount",
+              rc == 0 && sum.status == WPSBT_CAUTION &&
+              (sum.caution_flags & WPSBT_C_UNVERIFIED_AMT) != 0);
+        if (rc == 0) kiss_psbt_free();
+    }
     sps_refuse("shared refuses a foreign prev tx mismatch", SPS_N_PREVMISMATCH_B64, "previous transaction");
     sps_refuse("shared refuses a foreign sighash", SPS_N_SIGHASH_B64, "sighash");
     sps_refuse("shared refuses a foreign odd Y share", SPS_N_FTR_ODD_B64, "does not verify");

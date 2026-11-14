@@ -377,15 +377,12 @@ int main(int argc, char **argv) {
 
     // ---- the amount-proof pair. 6 and 7 are the same transaction spending the
     // same two coins for the same amounts, and differ only in whether the
-    // previous transactions ride along. 6 must REFUSE and 7 must sign, which is
-    // the whole blind-signing argument on glass: the device is not asking the
-    // owner to take a coordinator's word for the fee, it is asking the
-    // coordinator for the four hundred bytes that settle it.
-    //
-    // 6 is also the one refusal on this card an honest coordinator can trip, so
-    // it is the one whose panel has to name the fix rather than the fault.
+    // previous transactions ride along. 6 must WARN, with the fee marked
+    // unverified and a row to accept before the slide arms, and 7 must sign
+    // with nothing to accept: the four hundred bytes of proof are what settle
+    // the fee. 6 is the shape BlueWallet and Sparrow over QR send.
     rc |= emit_nin(d, "06-unproven-2in.psbt", 2, 100000, 150000, 48000, 1,
-                   NIN_OMIT,  "STOP: amounts not proven");
+                   NIN_OMIT,  "CAUTION: amounts not verified");
     rc |= emit_nin(d, "07-proven-2in.psbt",   2, 100000, 150000, 48000, 1,
                    NIN_PROVE, "READY: same tx, proof attached");
 

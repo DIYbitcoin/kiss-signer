@@ -566,9 +566,9 @@ static const char *tr_reason(const char *r)
         {"input's previous transaction does not match", STR_P_PREV_MISMATCH},
         {"legacy input needs its full previous transaction", STR_P_LEGACY_PREV},
         {"input amount unverifiable", STR_P_AMT_UNVERIFIED},
-        // Short, like every other verdict here. The sentence that says what to
-        // do about it is a body, not a headline: see stop_body().
-        {"input amounts not proven", STR_S_C_UNPROVEN},
+        // Two inputs naming one coin: no node accepts it, and nothing the
+        // owner can do on the device fixes it.
+        {"input spends the same coin twice", STR_P_MALFORMED_TX},
         {"input amount over 21M BTC (corrupt)", STR_P_AMT_HUGE_IN},
         {"input script does not re-derive", STR_P_IN_NO_DERIVE},
         // Its sibling: both verdicts come out of the same rederive_matches
@@ -665,8 +665,7 @@ static const char *tr_reason(const char *r)
 // draws them, so verify_screen answers that one itself.
 static const char *stop_body(const char *r)
 {
-    if (strcmp(r, "input amounts not proven") == 0 ||
-        strcmp(r, "legacy input needs its full previous transaction") == 0 ||
+    if (strcmp(r, "legacy input needs its full previous transaction") == 0 ||
         strcmp(r, "input amount unverifiable") == 0)
         return tr(STR_S_WHY_UNPROVEN);
     if (strcmp(r, "wrong network: mainnet transaction") == 0 ||
@@ -938,7 +937,9 @@ static void done_summary(int y)
     // two amounts ran together into one line.
     struct { const char *icon; int str; uint64_t sats; int x; } cells[2] = {
         { LV_SYMBOL_DOWNLOAD, STR_S_SENDING_CAP, s_sum.send_sats, SX(20) },
-        { LV_SYMBOL_CUT,      STR_S_FEE,         s_sum.fee_sats,  SX(400) },
+        { LV_SYMBOL_CUT,      (s_sum.caution_flags & WPSBT_C_UNVERIFIED_AMT)
+                              ? STR_S_FEE_UNVERIFIED : STR_S_FEE,
+                                                 s_sum.fee_sats,  SX(400) },
     };
     // Both figures step down the ladder together until each fits its half,
     // on every board. It was one rung and on the 3.5in only, so elsewhere a
@@ -2706,10 +2707,11 @@ static void caution_help_cb(lv_event_t *e)
         } \
         icons[ni++] = (icon_); \
     } while (0)
-    // Unproven input amounts used to lead this card. They are a STOP now: every
-    // reason left here argues about a number the screen behind can show, and
-    // that one argued about whether the number was knowable at all, which is not
-    // something to hand an owner as a checkbox. See kiss_psbt.c.
+    // Unverified input amounts lead, as their row does: the fee line under
+    // it is the number this one puts in doubt. See kiss_psbt.c.
+    if (f & WPSBT_C_UNVERIFIED_AMT)
+        BODY_ADD(LV_SYMBOL_WARNING, "%s%s", o ? "\n" : "",
+                 tr(STR_S_WHY_UNVERIFIED));
     // A send to self has no "what you send" for the fee to be a slice of: the
     // bare percentage on its row is a share of the inputs, and this says so.
     if (f & WPSBT_C_HIGHFEE)
@@ -3073,10 +3075,11 @@ static void verify_gesture_cb(lv_event_t *e)
 static uint16_t caution_rows(uint16_t f, const char **parts, uint16_t *bits, int cap)
 {
     int n = 0;
-    // The fee leads. An "amounts not proven" row used to sit above it, because it
-    // was the one reason that put the fee row's own number in doubt -- a row that
-    // says "the figure below may be wrong" is a refusal wearing a checkbox, and
-    // it is one now.
+    // Unverified input amounts lead, above the fee, because they are the one
+    // reason that puts the fee row's own number in doubt. First also means the
+    // row cap can never drop it, so the gate always asks for it.
+    if (n < cap && (f & WPSBT_C_UNVERIFIED_AMT))
+        { bits[n] = WPSBT_C_UNVERIFIED_AMT; parts[n++] = tr(STR_S_C_UNPROVEN); }
     // The claim, and the NUMBER that made it a claim. "high fee" on its own
     // asks the reader to take the device's word for it, and the figure it was
     // judged on was a tab away on DETAILS -- so the one screen that flags the
@@ -3188,9 +3191,8 @@ static void repaint_cautions(void)
     cautions_screen();
 }
 
-static void row_ack_cb(lv_event_t *e)
+static void ack_bit(uint16_t bit)
 {
-    uint16_t bit = (uint16_t)(uintptr_t)lv_event_get_user_data(e);
     s_ack_flags |= bit;
     s_ack_t0 = lv_tick_get();               // arm the seam, same as the old gate
     if ((s_ack_flags & caution_all_bits(s_sum.caution_flags))
@@ -3198,6 +3200,32 @@ static void row_ack_cb(lv_event_t *e)
         s_ack = true;
     if (s_on_cautions) repaint_cautions();  // this row goes green, and
     else               repaint_verify();    // HOLD TO SIGN lights when all are in
+}
+
+static void unverified_ack_ok(void) { ack_bit(WPSBT_C_UNVERIFIED_AMT); }
+
+static void row_ack_cb(lv_event_t *e)
+{
+    uint16_t bit = (uint16_t)(uintptr_t)lv_event_get_user_data(e);
+    // The unverified-amounts row is the one acceptance whose consequence is
+    // not on the screen behind it: the fee shown may not be the fee paid. So
+    // its I UNDERSTAND opens that sentence, and only the card's own I
+    // UNDERSTAND accepts it. A tap anywhere else closes the card and leaves
+    // the row open, so the slide cannot arm without the sentence on glass.
+    if ((bit & WPSBT_C_UNVERIFIED_AMT) && !(s_ack_flags & WPSBT_C_UNVERIFIED_AMT)) {
+        wt_explain_t x = {
+            .title  = tr(STR_S_C_UNPROVEN),
+            .icon   = LV_SYMBOL_WARNING,
+            .body   = tr(STR_S_WHY_UNVERIFIED),
+            .ok_txt = tr(STR_C_I_UNDERSTAND),
+            .sev    = WT_SEV_WARN,
+            .mode   = WT_BODY_PROSE,
+            .on_ok  = unverified_ack_ok,
+        };
+        wt_explain_open(s_scr, &x);
+        return;
+    }
+    ack_bit(bit);
 }
 
 static void cautions_open_cb(lv_event_t *e)
@@ -4318,7 +4346,11 @@ static void verify_screen(lv_obj_t *parent)
         // not hold the worst case and -Wformat-truncation said so -- on the
         // device compiler, which is the only lane that implements it.
         char fbuf[80], cbuf[104], rbuf[104];
-        snprintf(fbuf, sizeof fbuf, "%s", tr(STR_S_FEE));
+        // The fee says UNVERIFIED for as long as some input amount is only
+        // claimed: the caution row is accepted once, this stays on the glass.
+        const bool fee_unv = (s_sum.caution_flags & WPSBT_C_UNVERIFIED_AMT) != 0;
+        snprintf(fbuf, sizeof fbuf, "%s",
+                 tr(fee_unv ? STR_S_FEE_UNVERIFIED : STR_S_FEE));
         // The change strand does NOT name its address index. It did, on every
         // transaction, so an ordinary spend carried "#0" beside the word
         // CHANGE -- a number that means nothing until it means everything.
@@ -4399,7 +4431,8 @@ static void verify_screen(lv_obj_t *parent)
                                           // The strand is already as thick as
                                           // its share; amber is what says that
                                           // share is the thing being flagged.
-                                          .flagged = (s_sum.caution_flags
+                                          .flagged = fee_unv ||
+                                                     (s_sum.caution_flags
                                                       & WPSBT_C_HIGHFEE) != 0 };
         for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS
                         && n_out < WT_BUNDLE_MAX; i++) {

@@ -163,15 +163,10 @@ def compare(psbt_src, sign_src):
     return raised, shown, missing, orphan
 
 
-# A reason kiss_psbt.c does not raise and tr_reason maps anyway. There is one:
-# the caution path seeds s->reason with its own wording, and this single entry
-# is how the verify screen names the unproven-input refusal. Everything else in
-# the MAP has a stop() behind it.
-ORPHAN_ALLOW = {
-    "input amounts not proven":
-        "raised by caution(), mapped here so the refusal and the caution "
-        "share one string",
-}
+# A reason kiss_psbt.c does not raise and tr_reason maps anyway. There are
+# none now: the one that was here named a refusal that is a caution today, and
+# a caution's reason never reaches the refusal screen.
+ORPHAN_ALLOW = {}
 
 SELF_MISSING = "a reason nothing translates"
 SELF_MAPPED = "sighash is not ALL"

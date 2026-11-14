@@ -8049,6 +8049,16 @@ static void explain_close_cb(lv_event_t *e)
     lv_obj_delete_async((lv_obj_t *)lv_event_get_user_data(e));
 }
 
+// The action of a card that carries on_ok: closed first, so a repaint the
+// callback queues lands after the card is gone.
+static void explain_ok_cb(lv_event_t *e)
+{
+    lv_obj_t *ovl = (lv_obj_t *)lv_event_get_user_data(e);
+    void (*fn)(void) = (void (*)(void))(uintptr_t)lv_obj_get_user_data(ovl);
+    lv_obj_delete_async(ovl);
+    if (fn) fn();
+}
+
 const char *wt_split_colon(const char *line, char *head, size_t head_len)
 {
     if (!line || !head || head_len == 0) return NULL;
@@ -9183,9 +9193,11 @@ lv_obj_t *wt_explain_open(lv_obj_t *parent, const wt_explain_t *e)
     // 552..752: the corner, like every other way off a screen. It was centred
     // at 300, which matched neither the old rule nor the new one -- and this is
     // the most opened bar in the app, behind all ten explainers and every "?".
+    if (e->on_ok) lv_obj_set_user_data(ovl, (void *)(uintptr_t)e->on_ok);
     lv_obj_t *ok = wt_arrow_action(ovl, e->ok_txt, true, false, SX(552),
                                    WT_ACTION_Y, SX(200), true,
-                                   explain_close_cb, ovl);
+                                   e->on_ok ? explain_ok_cb : explain_close_cb,
+                                   ovl);
     lv_obj_remove_flag(ok, LV_OBJ_FLAG_IGNORE_LAYOUT);
     wt_card_intro(ovl);
     return ovl;
