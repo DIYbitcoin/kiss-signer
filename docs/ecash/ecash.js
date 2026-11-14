@@ -244,9 +244,9 @@ let camStream = null, camWant = null;
 async function scan(want) {
   camWant = want;
   $('cam-card').classList.remove('hidden');
-  // The camera card is at the bottom of the page: bring it into view, or the
-  // preview runs where nobody can see it and aiming is guesswork.
-  $('cam-card').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  // On a phone the panel is above the steps: bring the preview into view, or
+  // it runs where nobody can see it and aiming is guesswork.
+  $('cam-card').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   if (!camStream) {
     camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
     const v = $('cam');
@@ -333,4 +333,32 @@ $('reply-scan').onclick = guard('send-msg', () => scan(guard('send-msg', submitR
 $('req-cancel').onclick = () => { pending = null; stopFrames(); stopCam(); $('req-box').classList.add('hidden'); msg('send-msg', ''); };
 $('cam-stop').onclick = stopCam;
 drawQR($('key-qr'), frames(KEY_REQUEST)[0]);
+
+// The right hand panel follows the steps: each of its cards shows while the
+// step it belongs to is open, so no toggle elsewhere has to know it exists.
+// The camera takes the panel when it is on, since by then the signer has
+// already read whatever QR was there.
+function syncStage() {
+  const on = (id) => !$(id).classList.contains('hidden');
+  const cam = on('cam-card');
+  const show = {
+    'st-key': on('pair-card') && !cam,
+    'st-req': on('req-box') && on('send-card') && !cam,
+    'st-token': on('token-box') && on('send-card') && !cam,
+  };
+  let opened = null;
+  for (const [id, v] of Object.entries(show)) {
+    if (v && $(id).classList.contains('hidden')) opened = id;
+    $(id).classList.toggle('hidden', !v);
+  }
+  $('st-idle').classList.toggle('hidden', cam || Object.values(show).some(Boolean));
+  // On a phone the panel sits above the steps, out of sight of the button
+  // that filled it: bring a new QR to the screen.
+  if (opened && narrow.matches) $(opened).scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+const narrow = matchMedia('(max-width: 899px)');
+const stageWatch = new MutationObserver(syncStage);
+for (const id of ['pair-card', 'send-card', 'req-box', 'token-box', 'cam-card'])
+  stageWatch.observe($(id), { attributes: true, attributeFilter: ['class'] });
 render();
+syncStage();

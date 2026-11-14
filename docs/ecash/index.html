@@ -16,7 +16,22 @@
       .topbar { display: flex; align-items: center; gap: 9px; padding: 13px 16px;
         border-bottom: 1px solid #1e2531; font-size: .76rem; font-weight: 700; letter-spacing: .18em; }
       .topbar .dot { width: 9px; height: 9px; border-radius: 50%; background: #f2b84b; }
-      main { max-width: 760px; margin: 0 auto; padding: 24px 16px 60px; }
+      main { max-width: 1120px; margin: 0 auto; padding: 24px 16px 60px; }
+      /* Two columns on a wide screen: the steps on the left, and on the right
+         one panel for whatever the signer or the camera has to see, which
+         stays in place while the steps scroll. One column on a phone, with
+         the panel first so a QR is never below the fold. */
+      .layout { display: grid; gap: 0 22px; }
+      .stage { min-width: 0; }
+      @media (min-width: 900px) {
+        .layout { grid-template-columns: minmax(0, 1fr) 380px; }
+        .steps { grid-column: 1; grid-row: 1; }
+        .stage { grid-column: 2; grid-row: 1; position: sticky; top: 16px; align-self: start;
+          max-height: calc(100vh - 32px); overflow: auto; }
+      }
+      @media (max-width: 899px) { #st-idle { display: none; } }
+      .stage .card { margin-top: 16px; }
+      .stage .cap { margin: 0 0 4px; font-size: .9rem; }
       h1 { font-size: 1.8rem; margin: 0 0 4px; letter-spacing: -.02em; }
       h2 { font-size: .95rem; margin: 0 0 10px; letter-spacing: .06em; color: #7a869c; text-transform: uppercase; }
       p { margin: 8px 0; }
@@ -100,6 +115,36 @@
   <body>
     <header class="topbar"><span class="dot"></span>KISS-SIGNER ECASH VAULT</header>
     <main>
+      <div class="layout">
+      <aside class="stage" id="stage">
+        <section class="card" id="st-idle">
+          <h2>Signer view</h2>
+          <p class="mut">QR codes for your signer and the camera show here.</p>
+        </section>
+        <section class="card warn hidden" id="st-key">
+          <h2>Pair</h2>
+          <p class="cap">On the signer, tap SIGN and scan this.</p>
+          <canvas class="qr" id="key-qr"></canvas>
+        </section>
+        <section class="card warn hidden" id="st-req">
+          <h2>Spend request</h2>
+          <p class="cap">On the signer, tap SIGN and scan this. It moves: keep it in view.</p>
+          <canvas class="qr" id="req-qr"></canvas>
+          <p class="ctr mut" id="req-frame"></p>
+        </section>
+        <section class="card hidden" id="st-token">
+          <h2>Token</h2>
+          <p class="cap ok">Sent. Give this to whoever you are paying.</p>
+          <canvas class="qr" id="token-qr"></canvas>
+        </section>
+        <section class="card hidden" id="cam-card">
+          <h2>Camera</h2>
+          <p class="cap">Hold the signer's QR up to the camera.</p>
+          <video id="cam" playsinline muted></video>
+          <div class="row"><button class="ghost" id="cam-stop">Stop camera</button></div>
+        </section>
+      </aside>
+      <div class="steps">
       <h1>Ecash vault</h1>
       <p class="mut">This page holds Cashu ecash locked to your KISS Signer. It
         cannot spend any of it: every spend is a QR your signer checks, shows
@@ -107,9 +152,8 @@
 
       <section class="card warn" id="pair-card">
         <h2>1. Pair your signer</h2>
-        <p>On the signer, tap SIGN and scan this code. The signer shows its
-          ecash key as a QR: scan that here with Scan, or paste it.</p>
-        <canvas class="qr" id="key-qr"></canvas>
+        <p>On the signer, tap SIGN and scan the pairing code. The signer shows
+          its ecash key as a QR: tap Scan and show it to the camera, or paste it.</p>
         <textarea id="xpub-in" placeholder="[fingerprint/129373h/10h/0h/0h]xpub..."></textarea>
         <div class="row"><button id="pair-btn">Pair</button><button class="ghost" id="pair-scan">Scan</button></div>
         <p id="pair-msg" class="mut"></p>
@@ -141,25 +185,16 @@
         <div class="row"><input type="number" id="send-amt" value="21" min="1"><button id="send-btn">Make spend request</button></div>
         <p id="send-msg" class="mut"></p>
         <div id="req-box" class="hidden">
-          <p>Scan this with your signer. It is moving, keep it in view.</p>
-          <canvas class="qr" id="req-qr"></canvas>
-          <p class="ctr mut" id="req-frame"></p>
+          <p>Scan the spend request with your signer and check what it shows.</p>
           <details><summary class="mut">Request as text</summary><textarea id="req-text" readonly></textarea></details>
           <p>Then show the signer's answer to this camera, or paste it.</p>
           <textarea id="reply-in" placeholder='{"v":1,"hash":"...","sig":"..."}'></textarea>
           <div class="row"><button id="reply-btn">Submit</button><button class="ghost" id="reply-scan">Scan answer</button><button class="ghost" id="req-cancel">Cancel</button></div>
         </div>
         <div id="token-box" class="hidden">
-          <p class="ok">Sent. Give this token to whoever you are paying.</p>
-          <canvas class="qr" id="token-qr"></canvas>
-          <textarea id="token-out" readonly style="margin-top:14px"></textarea>
+          <p class="ok">Sent. Give this token to whoever you are paying: scan its QR, or copy it.</p>
+          <textarea id="token-out" readonly></textarea>
         </div>
-      </section>
-
-      <section class="card hidden" id="cam-card">
-        <h2>Camera</h2>
-        <video id="cam" playsinline muted></video>
-        <div class="row"><button class="ghost" id="cam-stop">Stop camera</button></div>
       </section>
 
       <p class="mut" style="margin-top:22px">What this page can and cannot do: it
@@ -168,6 +203,8 @@
         through this page on their way out, and the signer shows you how many.
         The mint holds the bitcoin behind all of it. Format:
         <a href="../specs/ecash-spend-request.md">ecash spend request</a>.</p>
+      </div>
+      </div>
     </main>
     <script type="module" src="ecash.js"></script>
   </body>
