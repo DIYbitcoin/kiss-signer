@@ -112,6 +112,8 @@
   "G_FW_OLDER_LAMP": "MÁS ANTIGUA",
   "G_FW_ON_CARD": "VERSIÓN EN LA TARJETA",
   "G_FW_RESTART": "REINICIAR",
+  "G_FW_RETIRED_B": "una actualización de seguridad retiró esta versión. este dispositivo no volverá a iniciarla.",
+  "G_FW_RETIRED_H": "versión retirada",
   "G_FW_RISK_B": "un minuto, conectado",
   "G_FW_RISK_H": "CORRIENTE",
   "G_FW_ROW_FILE": "ARCHIVO EN LA TARJETA",

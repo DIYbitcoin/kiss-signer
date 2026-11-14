@@ -136,12 +136,49 @@ Pass, each on a card: that image installs; the beta's signed image is refused;
 an unsigned image is refused; pulling power mid install leaves the previous
 firmware booting.
 
-B8. Last, because it can end the board: a cable write of a modified app. Only
-run it once B1 to B7 are recorded. Pass: the board never boots the modified
+B8. Retiring a release. This burns one step of the anti rollback counter on
+this board for good, so it runs here only, after B7, and only when the owner
+says so. `SECURE_VERSION` and `VERSION` in the repo stay as they are: both
+changes below are for this one build and are put back straight after it.
+
+The test image needs a firmware version of its own as well as the higher
+secure version. With `VERSION` unchanged it carries the same version as the
+B7 image, the updater calls it already running, and nothing installs. So the
+third number of `VERSION` goes up by one (0.1.0-beta12 becomes
+0.1.1-beta12), which makes it newer than B7 whatever the prerelease tail is.
+
+Keep the B7 image (secure version 0) on a card as the old image. Then:
+
+```bash
+python3 -c "import re; v=open('VERSION').read().strip(); open('VERSION','w').write(re.sub(r'^(\d+)\.(\d+)\.(\d+)', lambda m: '%s.%s.%d' % (m[1], m[2], int(m[3]) + 1), v) + '\n')"
+echo 1 > SECURE_VERSION
+ALLOW_DIRTY=1 KISS_ENC_UPDATE=1 bash tools/build_encrypted_release.sh
+git checkout VERSION SECURE_VERSION
+```
+
+`ALLOW_DIRTY=1` is there only because the two edits above leave the tree
+changed; start from a clean, committed tree so they are the only changes.
+
+The build must print `anti rollback: secure version 1 (permanent once
+booted)` and declare the raised version; `git status` must show neither file
+changed afterwards. Install it from a card, restart, and let it reach the home screen:
+the counter burns when the new firmware confirms itself there, not before.
+Power cycle once more and record that it still boots.
+
+Pass, each recorded: with the old image on the card, Firmware says "retired
+release" and offers no install, where before this step it offered the same
+file as a downgrade; the secure version 1 image itself is reported as
+already running; and the board still boots after the power cycle. What this
+cannot show is the bootloader refusing an old image already in flash, since
+secure download mode gives no way to put one there; the updater refusal and
+B4's secure boot result are what stand in for it.
+
+B9. Last, because it can end the board: a cable write of a modified app. Only
+run it once B1 to B8 are recorded. Pass: the board never boots the modified
 image. Record what esptool and the board print.
 
 ## What this does not test
 
 Glitching, decapping and side channels; the panic paths (the build asserts the
-settings, nothing here crashes the board on purpose); and anti rollback past
-secure version 0, which is its own device test when a release raises it.
+settings, nothing here crashes the board on purpose); and the bootloader's own
+anti rollback refusal of an image already in flash (see B8).

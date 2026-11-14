@@ -112,6 +112,8 @@
   "G_FW_OLDER_LAMP": "CŨ HƠN",
   "G_FW_ON_CARD": "PHIÊN BẢN TRÊN THẺ",
   "G_FW_RESTART": "KHỞI ĐỘNG LẠI",
+  "G_FW_RETIRED_B": "một bản cập nhật bảo mật đã thu hồi bản này. thiết bị này sẽ không bao giờ khởi động nó nữa.",
+  "G_FW_RETIRED_H": "bản đã thu hồi",
   "G_FW_RISK_B": "một phút, giữ cắm điện",
   "G_FW_RISK_H": "NGUỒN",
   "G_FW_ROW_FILE": "TỆP TRÊN THẺ",

@@ -112,6 +112,8 @@
   "G_FW_OLDER_LAMP": "更旧",
   "G_FW_ON_CARD": "卡上的版本",
   "G_FW_RESTART": "重启",
+  "G_FW_RETIRED_B": "安全更新已停用此版本。此设备不会再启动它。",
+  "G_FW_RETIRED_H": "已停用的版本",
   "G_FW_RISK_B": "一分钟，电别停",
   "G_FW_RISK_H": "电",
   "G_FW_ROW_FILE": "卡上的文件",

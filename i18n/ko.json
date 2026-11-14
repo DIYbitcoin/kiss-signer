@@ -112,6 +112,8 @@
   "G_FW_OLDER_LAMP": "더 오래됨",
   "G_FW_ON_CARD": "카드에 있는 버전",
   "G_FW_RESTART": "재시작",
+  "G_FW_RETIRED_B": "보안 업데이트로 이 버전은 중단되었습니다. 이 기기는 다시는 이 버전을 시작하지 않습니다.",
+  "G_FW_RETIRED_H": "중단된 버전",
   "G_FW_RISK_B": "일 분 정도, 뽑지 마세요",
   "G_FW_RISK_H": "전원",
   "G_FW_ROW_FILE": "카드의 파일",

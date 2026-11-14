@@ -490,6 +490,7 @@ static void result_screen(int rc)
              : rc == WFW_ERR_CARD_GONE   ? tr(STR_G_FW_FAIL_CARD_B)
              : rc == WFW_ERR_UNSIGNED    ? tr(STR_G_FW_UNSIGNED_B)
              : rc == WFW_ERR_WRONG_BOARD ? tr(STR_G_FW_WRONG_B)
+             : rc == WFW_ERR_RETIRED     ? tr(STR_G_FW_RETIRED_B)
              :                             tr(STR_G_FW_FAIL_WRITE_B);
     }
 
@@ -874,6 +875,7 @@ static void nothing_to_install(int rc)
     case WFW_ERR_UNSIGNED: h = tr(STR_G_FW_UNSIGNED_H); b = tr(STR_G_FW_UNSIGNED_B); break;
     case WFW_ERR_SAME:     h = tr(STR_G_FW_SAME_H);     b = tr(STR_G_FW_SAME_B);     break;
     case WFW_ERR_WRONG_BOARD: h = tr(STR_G_FW_WRONG_H); b = tr(STR_G_FW_WRONG_B);    break;
+    case WFW_ERR_RETIRED:  h = tr(STR_G_FW_RETIRED_H);  b = tr(STR_G_FW_RETIRED_B);  break;
     default:               h = tr(STR_G_FW_BAD_H);      b = tr(STR_G_FW_BAD_B);      break;
     }
     if (rc == WFW_ERR_SAME) {

@@ -64,6 +64,13 @@ enum {
     // would land in the slot the next power on runs, before either signature
     // has been asked about it. Refused until the device has restarted.
     WFW_ERR_RESTART = -13,
+    // A release this board has retired. Once a firmware with a higher anti
+    // rollback secure version has booted, the eFuse counter is burned and the
+    // bootloader refuses every image below it, correctly signed or not. Such
+    // an image used to be offered as an ordinary downgrade, written in full,
+    // and then fail at the very end as a write error. It is refused at the
+    // scan, and again on the bytes install is about to write.
+    WFW_ERR_RETIRED = -14,
 };
 
 typedef struct {
@@ -73,6 +80,7 @@ typedef struct {
     size_t size;        // bytes of image on the card
     size_t slot;        // bytes the receiving slot holds
     int    cmp;         // version vs running: <0 older, 0 same, >0 newer
+    uint32_t secure_version;  // the descriptor's anti rollback secure version
     int    status;      // WFW_OK when installable, otherwise why not
     int    examined;    // images whose descriptor was actually read
     int    on_card;     // .bin files the card holds: > examined means a window
@@ -120,6 +128,15 @@ int kiss_fw_version_cmp(const char *a, const char *b);
 int kiss_fw_desc_parse(const uint8_t *hdr, size_t len,
                          char *ver, size_t vn, char *proj, size_t pn);
 
+// The anti rollback secure version from the same descriptor. Returns 0, or
+// WFW_ERR_UNREADABLE when the descriptor is not there.
+int kiss_fw_desc_secure_version(const uint8_t *hdr, size_t len, uint32_t *sv);
+
+// True when this board would boot an image carrying secure version `sv`: on a
+// board whose bootloader enforces anti rollback, sv must be at least the
+// counter burned in eFuse. Always true on a build without anti rollback.
+bool kiss_fw_secure_version_ok(uint32_t sv);
+
 // Write the image to the slot that is not running. Reports 0..100 as it goes;
 // the callback runs on the caller's task, so the UI drives its own redraw.
 // Returns WFW_OK, and the caller reboots. Nothing is made bootable unless the
@@ -164,3 +181,6 @@ void kiss_fw_mark_valid(void);
 // would, so each test starts from a freshly booted device.
 void kiss_fw_test_set_available(int rc);
 void kiss_fw_test_set_install(int rc, int steps);
+// The eFuse anti rollback counter the sim pretends is burned. 0, the default,
+// accepts every image, as an unburned board does.
+void kiss_fw_test_set_min_secure_version(uint32_t v);

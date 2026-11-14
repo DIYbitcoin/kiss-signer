@@ -383,6 +383,53 @@ int test_fw(void)
     kiss_fw_test_set_install(WFW_ERR_UNSIGNED, 0);
     ok("a restart clears the pending mark", !kiss_fw_restart_pending());
 
+    // Anti rollback. The descriptor's secure version is read, and an image
+    // below the counter the board has burned is refused at the scan and at
+    // install, instead of being offered as a downgrade and failing at the end
+    // of the write. Same or above the counter is judged as before.
+    {
+        uint32_t sv = 99;
+        mk_image_head(big, sizeof big, 0xABCD5432u, "99.0.0", me);
+        big[DESC_OFF + 4] = 2;
+        ok("secure version parses",
+           kiss_fw_desc_secure_version(big, sizeof big, &sv) == 0 && sv == 2);
+        ok("secure version needs the descriptor",
+           kiss_fw_desc_secure_version(big, 8, &sv) == WFW_ERR_UNREADABLE);
+
+        kiss_fw_test_set_min_secure_version(2);
+        wipe_card();
+        mk_image_head(big, sizeof big, 0xABCD5432u, "99.0.0", me);
+        big[DESC_OFF + 4] = 1;
+        put("fw-new.bin", big, sizeof big);
+        ok("image below the burned counter is retired",
+           kiss_fw_scan(&got) == WFW_ERR_RETIRED && got.secure_version == 1);
+        kiss_fw_test_set_available(WFW_OK);
+        kiss_fw_test_set_install(WFW_OK, 0);
+        ok("install refuses a retired image",
+           kiss_fw_install(&got, NULL, NULL) == WFW_ERR_RETIRED &&
+           !kiss_fw_restart_pending());
+
+        wipe_card();
+        mk_image_head(big, sizeof big, 0xABCD5432u, "0.0.1", me);
+        big[DESC_OFF + 4] = 2;
+        put("fw-old.bin", big, sizeof big);
+        ok("older image at the counter is still an ordinary downgrade",
+           kiss_fw_scan(&got) == WFW_ERR_OLDER);
+
+        wipe_card();
+        mk_image_head(big, sizeof big, 0xABCD5432u, "99.0.0", me);
+        big[DESC_OFF + 4] = 3;
+        put("fw-new.bin", big, sizeof big);
+        ok("image above the counter is offered",
+           kiss_fw_scan(&got) == WFW_OK && got.secure_version == 3);
+        ok("install lets an image above the counter through",
+           kiss_fw_install(&got, NULL, NULL) == WFW_OK);
+
+        kiss_fw_test_set_min_secure_version(0);       // leave the seams as found
+        kiss_fw_test_set_available(WFW_ERR_UNSIGNED);
+        kiss_fw_test_set_install(WFW_ERR_UNSIGNED, 0);
+    }
+
     // Too big outranks the version: it is a fact about this device.
     wipe_card();
     {

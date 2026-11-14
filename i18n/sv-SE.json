@@ -112,6 +112,8 @@
   "G_FW_OLDER_LAMP": "ÄLDRE",
   "G_FW_ON_CARD": "VERSION PÅ KORTET",
   "G_FW_RESTART": "STARTA OM",
+  "G_FW_RETIRED_B": "en säkerhetsuppdatering har dragit in den här versionen. enheten startar den aldrig igen.",
+  "G_FW_RETIRED_H": "indragen version",
   "G_FW_RISK_B": "en minut, håll den inkopplad",
   "G_FW_RISK_H": "STRÖM",
   "G_FW_ROW_FILE": "FILEN PÅ KORTET",

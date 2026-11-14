@@ -112,6 +112,8 @@
   "G_FW_OLDER_LAMP": "ÄLTER",
   "G_FW_ON_CARD": "VERSION AUF DER KARTE",
   "G_FW_RESTART": "NEU STARTEN",
+  "G_FW_RETIRED_B": "ein Sicherheitsupdate hat diese Version ausgemustert. dieses Gerät startet sie nie wieder.",
+  "G_FW_RETIRED_H": "ausgemusterte Version",
   "G_FW_RISK_B": "eine Minute, angesteckt",
   "G_FW_RISK_H": "STROM",
   "G_FW_ROW_FILE": "DATEI AUF DER KARTE",

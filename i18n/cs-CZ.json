@@ -112,6 +112,8 @@
   "G_FW_OLDER_LAMP": "STARŠÍ",
   "G_FW_ON_CARD": "VERZE NA KARTĚ",
   "G_FW_RESTART": "RESTARTOVAT",
+  "G_FW_RETIRED_B": "bezpečnostní aktualizace toto vydání vyřadila. toto zařízení ho už nikdy nespustí.",
+  "G_FW_RETIRED_H": "vyřazené vydání",
   "G_FW_RISK_B": "minuta, nechte zapojené",
   "G_FW_RISK_H": "NAPÁJENÍ",
   "G_FW_ROW_FILE": "SOUBOR NA KARTĚ",

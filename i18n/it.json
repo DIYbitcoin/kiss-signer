@@ -112,6 +112,8 @@
   "G_FW_OLDER_LAMP": "PIÙ VECCHIA",
   "G_FW_ON_CARD": "VERSIONE SULLA SCHEDA",
   "G_FW_RESTART": "RIAVVIA",
+  "G_FW_RETIRED_B": "un aggiornamento di sicurezza ha ritirato questa versione. questo dispositivo non la avvierà mai più.",
+  "G_FW_RETIRED_H": "versione ritirata",
   "G_FW_RISK_B": "un minuto, collegato",
   "G_FW_RISK_H": "ALIMENTAZIONE",
   "G_FW_ROW_FILE": "FILE SULLA SCHEDA",

@@ -27,6 +27,7 @@
 #include "esp_ota_ops.h"
 #include "esp_partition.h"
 #include "esp_secure_boot.h"   // signature blocks of the RUNNING app
+#include "esp_efuse.h"         // the anti rollback counter
 static const char *TAG = "kissfw";
 #endif
 
@@ -37,6 +38,7 @@ static const char *TAG = "kissfw";
 // a file off a card, not a struct this build produced.
 #define DESC_OFF        32
 #define DESC_MAGIC      0xABCD5432u
+#define DESC_SECVER_OFF (DESC_OFF + 4)
 #define DESC_VER_OFF    (DESC_OFF + 16)
 #define DESC_PROJ_OFF   (DESC_OFF + 48)
 #define DESC_FIELD_LEN  32
@@ -105,6 +107,21 @@ int kiss_fw_version_cmp(const char *a, const char *b)
 }
 
 // ---- image descriptor ------------------------------------------------------
+
+static uint32_t rd32(const uint8_t *p)
+{
+    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) |
+           ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+}
+
+int kiss_fw_desc_secure_version(const uint8_t *hdr, size_t len, uint32_t *sv)
+{
+    if (sv) *sv = 0;
+    if (!hdr || len < WFW_DESC_MIN || rd32(hdr + DESC_OFF) != DESC_MAGIC)
+        return WFW_ERR_UNREADABLE;
+    if (sv) *sv = rd32(hdr + DESC_SECVER_OFF);
+    return 0;
+}
 
 static void copy_field(char *dst, size_t dn, const uint8_t *src)
 {
@@ -184,7 +201,9 @@ bool kiss_fw_restart_pending(void) { return s_restart_pending; }
 static int s_test_avail = WFW_ERR_UNSIGNED;
 static int s_test_install = WFW_ERR_UNSIGNED;
 static int s_test_steps;
+static uint32_t s_test_min_sv;
 void kiss_fw_test_set_available(int rc) { s_test_avail = rc; }
+void kiss_fw_test_set_min_secure_version(uint32_t v) { s_test_min_sv = v; }
 void kiss_fw_test_set_install(int rc, int steps)
 {
     s_test_install = rc;
@@ -192,6 +211,21 @@ void kiss_fw_test_set_install(int rc, int steps)
     s_restart_pending = false;
 }
 #endif
+
+bool kiss_fw_secure_version_ok(uint32_t sv)
+{
+#if defined(ESP_PLATFORM) && defined(CONFIG_BOOTLOADER_APP_ANTI_ROLLBACK)
+    // The same question the bootloader asks at the next boot, asked of the
+    // same eFuse field, before anything is erased.
+    return esp_efuse_check_secure_version(sv);
+#elif defined(ESP_PLATFORM)
+    // No counter is enforced, so no image is retired by one.
+    (void)sv;
+    return true;
+#else
+    return sv >= s_test_min_sv;
+#endif
+}
 
 int kiss_fw_available(void)
 {
@@ -314,6 +348,7 @@ int kiss_fw_scan(wfw_image_t *out)
     // many are there.
     int best = -1, wrong = -1;
     size_t blen = 0;
+    uint32_t bsv = 0;
     char bver[WFW_VER_LEN] = {0}, bproj[WFW_VER_LEN] = {0};
     char wproj[WFW_VER_LEN] = {0};
     for (int i = 0; i < n; i++) {
@@ -349,6 +384,7 @@ int kiss_fw_scan(wfw_image_t *out)
 
         best = i;
         blen = len;
+        kiss_fw_desc_secure_version(hdr, got, &bsv);
         snprintf(bver,  sizeof bver,  "%s", ver);
         snprintf(bproj, sizeof bproj, "%s", proj);
     }
@@ -379,6 +415,7 @@ int kiss_fw_scan(wfw_image_t *out)
     snprintf(out->version, sizeof out->version, "%s", bver);
     snprintf(out->project, sizeof out->project, "%s", bproj);
     out->size = blen;
+    out->secure_version = bsv;
     out->cmp = kiss_fw_version_cmp(bver, kiss_fw_running_version());
 
     // Order matters. Too big is a fact about this device and outranks what the
@@ -394,6 +431,9 @@ int kiss_fw_scan(wfw_image_t *out)
                        ? blen - KISS_PQSIG_TRAILER_LEN : 0;
     if (iblen == 0)                     out->status = WFW_ERR_UNREADABLE;
     else if (out->slot && iblen > out->slot) out->status = WFW_ERR_TOO_BIG;
+    // Retired outranks same and older: this board will never boot it, so
+    // offering it behind a downgrade warning would offer a write that fails.
+    else if (!kiss_fw_secure_version_ok(bsv)) out->status = WFW_ERR_RETIRED;
     else if (out->cmp == 0)            out->status = WFW_ERR_SAME;
     else if (out->cmp < 0)             out->status = WFW_ERR_OLDER;
     else                               out->status = WFW_OK;
@@ -429,6 +469,9 @@ int kiss_fw_install(const wfw_image_t *img, wfw_progress_fn cb, void *ud)
     // next power on starts, on a screen saying nothing was made bootable.
     // Above the sim seam, so the host tests reach it.
     if (s_restart_pending) return WFW_ERR_RESTART;
+    // Retired by the anti rollback counter. Above the sim seam, so the host
+    // tests reach it; the card's own bytes are asked again below.
+    if (!kiss_fw_secure_version_ok(img->secure_version)) return WFW_ERR_RETIRED;
 
 #ifndef ESP_PLATFORM
     // No flash to write and no key to check with, so the outcome is whatever
@@ -491,12 +534,16 @@ int kiss_fw_install(const wfw_image_t *img, wfw_progress_fn cb, void *ud)
     // wrong file.
     {
         char ver[WFW_VER_LEN], proj[WFW_VER_LEN];
+        uint32_t sv = 0;
         int why = WFW_OK;
         if (kiss_fw_desc_parse(buf, first, ver, sizeof ver,
-                                 proj, sizeof proj) != 0)
+                                 proj, sizeof proj) != 0 ||
+            kiss_fw_desc_secure_version(buf, first, &sv) != 0)
             why = WFW_ERR_CARD_GONE;
         else if (!this_board(proj))
             why = WFW_ERR_WRONG_BOARD;
+        else if (!kiss_fw_secure_version_ok(sv))
+            why = WFW_ERR_RETIRED;
         else if (strcmp(ver, img->version) != 0 || strcmp(proj, img->project) != 0)
             why = WFW_ERR_CARD_GONE;
         if (why != WFW_OK) {

@@ -112,6 +112,8 @@
   "G_FW_OLDER_LAMP": "PLUS ANCIEN",
   "G_FW_ON_CARD": "VERSION SUR LA CARTE",
   "G_FW_RESTART": "REDÉMARRER",
+  "G_FW_RETIRED_B": "une mise à jour de sécurité a retiré cette version. cet appareil ne la démarrera plus jamais.",
+  "G_FW_RETIRED_H": "version retirée",
   "G_FW_RISK_B": "une minute, gardez branché",
   "G_FW_RISK_H": "ALIMENTATION",
   "G_FW_ROW_FILE": "FICHIER SUR LA CARTE",

@@ -112,6 +112,8 @@
   "G_FW_OLDER_LAMP": "ÆLDRE",
   "G_FW_ON_CARD": "VERSION PÅ KORTET",
   "G_FW_RESTART": "GENSTART",
+  "G_FW_RETIRED_B": "en sikkerhedsopdatering har udfaset denne udgave. enheden starter den aldrig igen.",
+  "G_FW_RETIRED_H": "udfaset udgave",
   "G_FW_RISK_B": "et minut, lad den sidde i",
   "G_FW_RISK_H": "STRØM",
   "G_FW_ROW_FILE": "FILEN PÅ KORTET",
