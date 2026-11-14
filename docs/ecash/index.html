@@ -137,6 +137,11 @@
           <p class="cap ok">Sent. Give this to whoever you are paying.</p>
           <canvas class="qr" id="token-qr"></canvas>
         </section>
+        <section class="card hidden" id="st-jar">
+          <h2>Tip jar</h2>
+          <p class="cap">Pay from any Cashu wallet. Tips arrive locked to your signer.</p>
+          <canvas class="qr" id="jar-qr"></canvas>
+        </section>
         <section class="card hidden" id="cam-card">
           <h2>Camera</h2>
           <p class="cap">Hold the signer's QR up to the camera.</p>
@@ -195,6 +200,21 @@
           <p class="ok">Sent. Give this token to whoever you are paying: scan its QR, or copy it.</p>
           <textarea id="token-out" readonly></textarea>
         </div>
+      </section>
+
+      <section class="card hidden" id="jar-card">
+        <h2>4. Tip jar</h2>
+        <p class="mut">A payment request to print or post. Anyone pays it from a
+          Cashu wallet, and their wallet locks the tip to your signer, so a
+          hacked phone or server holding the tips cannot spend them. Paste each
+          tip into Receive: a locked one is kept as it is, an unlocked one is
+          swapped into your vault.</p>
+        <div class="row"><button id="jar-btn">Show tip jar</button></div>
+        <div id="jar-box" class="hidden">
+          <textarea id="jar-text" readonly></textarea>
+          <div class="row"><button class="ghost" id="jar-hide">Hide</button></div>
+        </div>
+        <p id="jar-msg" class="mut"></p>
       </section>
 
       <p class="mut" style="margin-top:22px">What this page can and cannot do: it

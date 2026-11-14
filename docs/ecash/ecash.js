@@ -5,7 +5,8 @@
 // cannot spend anything. The only bearer ecash it ever holds is a payment on
 // its way out, which the signer has already shown the owner.
 import { blindMessage, unblindSignature, pointFromHex, createP2PKsecret,
-  getEncodedToken, getDecodedToken } from './vendor/cashu-cashu-ts/lib/cashu-ts.es.js';
+  getEncodedToken, getDecodedToken, hashToCurve, hasValidDleq,
+  PaymentRequest } from './vendor/cashu-cashu-ts/lib/cashu-ts.es.js';
 import { HDKey } from '@scure/bip32';
 import { sha256 } from '@noble/hashes/sha2.js';
 
@@ -102,12 +103,81 @@ async function mintTest() {
   msg('recv-msg', `${amount} sat locked to signer key ${counter}.`, 'ok');
 }
 
+// ---- tip jar ----
+// One printable NUT-18 payment request whose nut10 field asks the payer's
+// wallet to lock the tip to one key of the signer, SIG_ALL, nothing else.
+// Every tip shares that key, which is what lets one spend take them all
+// (NUT-11 wants every SIG_ALL input on the same key); the cost is that the
+// mint can link the tips to each other.
+function jarRequest() {
+  if (!st.jar) { st.jar = { counter: nextCounter() }; save(); }
+  const pr = new PaymentRequest(undefined, `kiss${st.fp}`, undefined, 'sat', [MINT],
+    'tips to a KISS Signer vault', false,
+    { kind: 'P2PK', data: pubAt(st.jar.counter), tags: SIGALL });
+  return pr.toEncodedRequest();
+}
+function showJar() {
+  const creq = jarRequest();
+  const t = $('jar-text');
+  t.value = creq;
+  drawQR($('jar-qr'), creq);
+  $('jar-box').classList.remove('hidden');
+  t.style.height = 'auto';
+  t.style.height = t.scrollHeight + 2 + 'px';
+}
+
+// A lock the signer will sign for: exactly ["P2PK",{nonce,data,tags}] with
+// data the jar key and tags [["sigflag","SIG_ALL"]], written without spaces
+// or escapes, since the signer refuses anything else and a tip it refuses
+// is a tip nobody can spend.
+function jarLocked(secret) {
+  if (!st.jar || secret.includes('\\')) return false;
+  let v;
+  try { v = JSON.parse(secret); } catch { return false; }
+  if (!Array.isArray(v) || v.length !== 2 || v[0] !== 'P2PK' || JSON.stringify(v) !== secret) return false;
+  const o = v[1];
+  return o && typeof o === 'object' && Object.keys(o).sort().join() === 'data,nonce,tags' &&
+    typeof o.nonce === 'string' && o.nonce.length > 0 && o.data === pubAt(st.jar.counter) &&
+    JSON.stringify(o.tags) === JSON.stringify(SIGALL);
+}
+
+// A tip that came locked is kept as it is, with no swap: the payer cannot
+// take it back, since only the signer can spend it. Two things are checked
+// first, because the page cannot spend it to find out later: the mint's own
+// proof that it signed each one (NUT-12 DLEQ), and that the mint has not
+// seen any of them spent (NUT-07).
+async function keepLockedTip(proofs) {
+  for (const p of proofs) {
+    if (st.proofs.some((q) => q.secret === p.secret)) throw new Error('that tip is already in the vault');
+    if (p.id !== keyset.id || !p.dleq || !hasValidDleq(p, { id: keyset.id, keys: keyset.keys }))
+      throw new Error('that tip carries no proof the mint signed it; ask the sender to send it again');
+  }
+  const Ys = proofs.map((p) => hashToCurve(enc(p.secret)).toHex(true));
+  const states = (await api('/v1/checkstate', { Ys })).states;
+  if (states.length !== Ys.length || states.some((x) => x.state !== 'UNSPENT'))
+    throw new Error('the mint says part of that tip is already spent');
+  st.proofs.push(...proofs.map((p) => ({ amount: p.amount, id: p.id, secret: p.secret, C: p.C, counter: st.jar.counter })));
+  $('token-in').value = '';
+  save();
+  const total = proofs.reduce((s, p) => s + p.amount, 0);
+  msg('recv-msg', `${total} sat tip arrived locked to your signer; kept as it is, no fee.`, 'ok');
+}
+
 async function receiveToken() {
   await ks();
   const tok = getDecodedToken($('token-in').value.trim(), keyset.ids);
   if (tok.mint.replace(/\/$/, '') !== MINT) throw new Error(`that token is from ${tok.mint}; this page uses ${MINT}`);
   // cashu-ts decodes amounts as objects; the mint wants plain integers
-  tok.proofs = tok.proofs.map((p) => ({ amount: Number(String(p.amount)), id: p.id, secret: p.secret, C: p.C }));
+  tok.proofs = tok.proofs.map((p) => ({ amount: Number(String(p.amount)), id: p.id, secret: p.secret, C: p.C, dleq: p.dleq }));
+  const locked = tok.proofs.filter((p) => p.secret.startsWith('['));
+  if (locked.length) {
+    if (locked.length !== tok.proofs.length || !locked.every((p) => jarLocked(p.secret)))
+      throw new Error('that token is locked to something other than your tip jar, so this page cannot take it');
+    return keepLockedTip(tok.proofs);
+  }
+  // Unlocked: whoever holds the string can spend it, so swap it now into
+  // ecash locked to the signer.
+  tok.proofs = tok.proofs.map(({ dleq, ...p }) => p);
   const total = tok.proofs.reduce((s, p) => s + p.amount, 0);
   const keep = total - fee(tok.proofs.length);
   if (keep <= 0) throw new Error('that token is smaller than the mint fee');
@@ -116,7 +186,7 @@ async function receiveToken() {
   st.proofs.push(...outs.map((o, i) => ({ ...unblind(o, r.signatures[i]), counter })));
   $('token-in').value = '';
   save();
-  msg('recv-msg', `${keep} sat locked to signer key ${counter} (mint fee ${total - keep}).`, 'ok');
+  msg('recv-msg', `${keep} sat arrived unlocked and is now locked to signer key ${counter} (mint fee ${total - keep}).`, 'ok');
 }
 
 // ---- send ----
@@ -304,7 +374,7 @@ function msg(id, text, cls) {
 }
 function render() {
   const paired = !!st;
-  for (const id of ['vault-card', 'recv-card', 'send-card']) $(id).classList.toggle('hidden', !paired);
+  for (const id of ['vault-card', 'recv-card', 'send-card', 'jar-card']) $(id).classList.toggle('hidden', !paired);
   $('pair-card').classList.toggle('hidden', paired);
   if (!paired) return;
   $('bal').textContent = st.proofs.reduce((s, p) => s + p.amount, 0);
@@ -332,6 +402,8 @@ $('reply-btn').onclick = guard('send-msg', () => submitReply($('reply-in').value
 $('reply-scan').onclick = guard('send-msg', () => scan(guard('send-msg', submitReply)));
 $('req-cancel').onclick = () => { pending = null; stopFrames(); stopCam(); $('req-box').classList.add('hidden'); msg('send-msg', ''); };
 $('cam-stop').onclick = stopCam;
+$('jar-btn').onclick = guard('jar-msg', showJar);
+$('jar-hide').onclick = () => $('jar-box').classList.add('hidden');
 drawQR($('key-qr'), frames(KEY_REQUEST)[0]);
 
 // The right hand panel follows the steps: each of its cards shows while the
@@ -345,6 +417,7 @@ function syncStage() {
     'st-key': on('pair-card') && !cam,
     'st-req': on('req-box') && on('send-card') && !cam,
     'st-token': on('token-box') && on('send-card') && !cam,
+    'st-jar': on('jar-box') && on('jar-card') && !cam,
   };
   let opened = null;
   for (const [id, v] of Object.entries(show)) {
@@ -358,7 +431,7 @@ function syncStage() {
 }
 const narrow = matchMedia('(max-width: 899px)');
 const stageWatch = new MutationObserver(syncStage);
-for (const id of ['pair-card', 'send-card', 'req-box', 'token-box', 'cam-card'])
+for (const id of ['pair-card', 'send-card', 'req-box', 'token-box', 'cam-card', 'jar-card', 'jar-box'])
   stageWatch.observe($(id), { attributes: true, attributeFilter: ['class'] });
 render();
 syncStage();
