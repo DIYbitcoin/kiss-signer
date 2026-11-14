@@ -121,6 +121,7 @@ function showJar() {
   const t = $('jar-text');
   t.value = creq;
   drawQR($('jar-qr'), creq);
+  drawQR($('jar-qr-inline'), creq);
   $('jar-box').classList.remove('hidden');
   t.style.height = 'auto';
   t.style.height = t.scrollHeight + 2 + 'px';
@@ -427,7 +428,7 @@ function syncStage() {
   $('st-idle').classList.toggle('hidden', cam || Object.values(show).some(Boolean));
   // On a phone the panel sits above the steps, out of sight of the button
   // that filled it: bring a new QR to the screen.
-  if (opened && narrow.matches) $(opened).scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (opened && opened !== 'st-jar' && narrow.matches) $(opened).scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 const narrow = matchMedia('(max-width: 899px)');
 const stageWatch = new MutationObserver(syncStage);

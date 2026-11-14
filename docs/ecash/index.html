@@ -29,7 +29,13 @@
         .stage { grid-column: 2; grid-row: 1; position: sticky; top: 16px; align-self: start;
           max-height: calc(100vh - 32px); overflow: auto; }
       }
-      @media (max-width: 899px) { #st-idle { display: none; } }
+      /* On a phone the tip jar QR stays in its own card, beside the text the
+         owner copies, instead of jumping to the panel at the top. */
+      #jar-qr-inline { display: none; }
+      @media (max-width: 899px) {
+        #st-idle, #st-jar { display: none; }
+        #jar-qr-inline { display: block; }
+      }
       .stage .card { margin-top: 16px; }
       .stage .cap { margin: 0 0 4px; font-size: .9rem; }
       h1 { font-size: 1.8rem; margin: 0 0 4px; letter-spacing: -.02em; }
@@ -211,7 +217,8 @@
           swapped into your vault.</p>
         <div class="row"><button id="jar-btn">Show tip jar</button></div>
         <div id="jar-box" class="hidden">
-          <textarea id="jar-text" readonly></textarea>
+          <canvas class="qr" id="jar-qr-inline"></canvas>
+          <textarea id="jar-text" readonly style="margin-top:14px"></textarea>
           <div class="row"><button class="ghost" id="jar-hide">Hide</button></div>
         </div>
         <p id="jar-msg" class="mut"></p>
