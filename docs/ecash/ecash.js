@@ -190,7 +190,11 @@ async function submitReply(text) {
   save();
   $('req-box').classList.add('hidden');
   $('token-box').classList.remove('hidden');
-  $('token-out').value = token;
+  const out = $('token-out');
+  out.value = token;
+  // Tall enough for the whole token: a scrolled box hid its first lines.
+  out.style.height = 'auto';
+  out.style.height = out.scrollHeight + 2 + 'px';
   drawQR($('token-qr'), token);
   msg('send-msg', '');
 }
