@@ -28,6 +28,7 @@ The shelf:
 | [sd-seed-storage.md](sd-seed-storage.md) | keys held on the card instead of in NVS |
 | [setup-module-split.md](setup-module-split.md) | splitting kiss_setup.c: deferred, and what would make it worth doing |
 | [ecash-spend-request.md](ecash-spend-request.md) | how the signer checks and signs a Cashu ecash spend it never holds |
+| [nut-xx-offline-signer.md](nut-xx-offline-signer.md) | draft proposal to the Cashu specs: the same checks as an extension of the shared SIG_ALL signing package |
 | [signature-fingerprint.md](signature-fingerprint.md) | the short code that identifies a signature |
 | [tap-entropy.md](tap-entropy.md) | entropy from a finger, and what it is worth |
 | [verifiable-determinism.md](verifiable-determinism.md) | signatures a compromised signer cannot fake |
