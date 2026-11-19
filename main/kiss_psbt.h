@@ -67,10 +67,23 @@ typedef enum {
 // their money is gone until somebody thinks to rescan deeply.
 //
 // A signer cannot know the real window: that is last_used + gap, and last_used
-// lives in the coordinator. So the bar is a blunt one, set where it can only
-// ever mean "nothing chose this". A coordinator burns roughly one change index
-// per transaction, so a thousand is a decade of daily spends -- a real wallet
-// does not arrive here, and a hidden one has to pass through.
+// lives in the coordinator. What it has is the coins being spent: one spent
+// from change address 1400 is a hint the change chain was used that far. So
+// the bar is this many addresses past the LOWEST index among this signer's own
+// verified inputs ON THE SAME CHAIN as the output (script type and branch, the
+// per-output gap_floor), and simply this many when that chain has none. An
+// input with no previous transaction behind it counts as index 0: its script
+// is only the coordinator's word, so it may lower a floor but never raise one. Each
+// chain is scanned on its own, so a receive coin at 1400 says nothing about
+// the change chain. The lowest, not the highest: one far input must not widen
+// the window for the rest. It stays a hint, not proof of a scan: a coin
+// someone else parked far out on that chain and that the coordinator chose
+// to spend still widens it. A thousand is also what Bitcoin Core watches by
+// default (its keypool), so "rescan with Core" finds anything under the bar.
+//
+// Counting from zero, as this did first, warned on every spend of a busy
+// wallet past address 1000 (a shop burns a receive index per invoice), and a
+// warning on every spend is one the owner learns to tap past.
 //
 // It is deliberately a CAUTION and not a STOP. Every STOP in this file is a
 // coin that leaves and does not come back; this one comes back the moment
@@ -109,6 +122,9 @@ typedef struct {
     // needed it, which is exactly why no screen could show WHERE change went --
     // the amount was on the glass and the address it landed on was not.
     uint32_t index;
+    // Index at which this change output is past the scan window: the lowest
+    // index among our verified inputs on the same chain, plus WPSBT_GAP_INDEX.
+    uint32_t gap_floor;
 } wpsbt_out_t;
 
 typedef struct {

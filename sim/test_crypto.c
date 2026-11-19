@@ -274,12 +274,15 @@ static void build_spk(int script, const uint8_t pub[33], uint8_t *out, size_t *l
 }
 
 // A 1-in (ours) 2-out (external 60k + change 39k) PSBT for the given script
-// type. chg_index is the change output's address index -- 0 for every ordinary
-// case; the gap-limit tests are the only callers that pass anything else.
-static size_t mk_typed_psbt(int script, uint32_t purpose, uint32_t chg_index,
-                            uint8_t *out, size_t cap) {
+// type. The input sits at in_branch/in_index and the change at 1/chg_index --
+// 0/0 and 1/0 for every ordinary case; the gap-limit tests are the only
+// callers that pass anything else. prove attaches the previous transaction to
+// a segwit input too (legacy always has it).
+static size_t mk_typed_psbt_at(int script, uint32_t purpose, uint32_t in_branch,
+                               uint32_t in_index, uint32_t chg_index, int prove,
+                               uint8_t *out, size_t cap) {
     struct ext_key kin, kchg;
-    derive5(purpose, 0, 0, &kin);
+    derive5(purpose, in_branch, in_index, &kin);
     derive5(purpose, 1, chg_index, &kchg);
     uint8_t in_spk[25], chg_spk[25];
     size_t in_len = 0, chg_len = 0;
@@ -290,7 +293,7 @@ static size_t mk_typed_psbt(int script, uint32_t purpose, uint32_t chg_index,
 
     struct wally_tx *prev = NULL;
     uint8_t txid[32];
-    if (script == WSCRIPT_LEGACY) {          // legacy needs the real prev-tx txid
+    if (script == WSCRIPT_LEGACY || prove) { // legacy needs the real prev-tx txid
         wally_tx_init_alloc(2, 0, 1, 1, &prev);
         uint8_t dt[32]; memset(dt, 0xBB, 32);
         wally_tx_add_raw_input(prev, dt, 32, 0, 0xFFFFFFFF, NULL, 0, NULL, 0);
@@ -310,10 +313,11 @@ static size_t mk_typed_psbt(int script, uint32_t purpose, uint32_t chg_index,
     wally_psbt_init_alloc(0, 1, 2, 1, 0, &p);
     wally_psbt_set_global_tx(p, tx);
 
-    if (script == WSCRIPT_LEGACY) {
+    if (prev) {
         wally_psbt_set_input_utxo(p, 0, prev);
         wally_tx_free(prev);
-    } else {
+    }
+    if (script != WSCRIPT_LEGACY) {
         struct wally_tx_output *u = NULL;
         wally_tx_output_init_alloc(100000, in_spk, in_len, &u);
         wally_psbt_set_input_witness_utxo(p, 0, u);
@@ -326,7 +330,7 @@ static size_t mk_typed_psbt(int script, uint32_t purpose, uint32_t chg_index,
         }
     }
 
-    const uint32_t pin[5] = {H + purpose, H, H, 0, 0},
+    const uint32_t pin[5] = {H + purpose, H, H, in_branch, in_index},
                    pchg[5] = {H + purpose, H, H, 1, chg_index};
     struct wally_map *m = NULL;
     wally_map_keypath_public_key_init_alloc(1, &m);
@@ -345,6 +349,11 @@ static size_t mk_typed_psbt(int script, uint32_t purpose, uint32_t chg_index,
     wally_bzero(&kin, sizeof kin);
     wally_bzero(&kchg, sizeof kchg);
     return wr;
+}
+
+static size_t mk_typed_psbt(int script, uint32_t purpose, uint32_t chg_index,
+                            uint8_t *out, size_t cap) {
+    return mk_typed_psbt_at(script, purpose, 0, 0, chg_index, 0, out, cap);
 }
 
 // Native-segwit 1-in PSBT with explicit values: input `in_val` (ours, 84h/0/0),
@@ -1544,6 +1553,56 @@ int main(int argc, char **argv) {
     // reason this is a caution and not a refusal.
     chkb("gap: 99999 is still change", sum.outs[1].is_change);
     chkb("gap: 99999 index reported", sum.outs[1].index == 99999);
+    kiss_psbt_free();
+
+    // A busy wallet: the coin being spent is change from address 1400, so
+    // the change chain has been used that far and change at 1500 is ordinary.
+    // The bar counts from the lowest input on the same chain, not from zero.
+    pl = mk_typed_psbt_at(WSCRIPT_NATIVE, 84, 1, 1400, 1500, 1, pb, sizeof pb);
+    chki("gap busy: loads", kiss_psbt_load(pb, pl, &sum), 0);
+    chki("gap busy: floor is input + bar", (int)sum.outs[1].gap_floor,
+         1400 + WPSBT_GAP_INDEX);
+    chki("gap busy: change near the input is READY", sum.status, WPSBT_READY);
+    chki("gap busy: raises nothing", sum.caution_flags, 0);
+    kiss_psbt_free();
+
+    pl = mk_typed_psbt_at(WSCRIPT_NATIVE, 84, 1, 1400,
+                          1400 + WPSBT_GAP_INDEX - 1, 1,
+                          pb, sizeof pb);
+    chki("gap busy: under the bar loads", kiss_psbt_load(pb, pl, &sum), 0);
+    chki("gap busy: under the bar raises nothing", sum.caution_flags, 0);
+    kiss_psbt_free();
+
+    pl = mk_typed_psbt_at(WSCRIPT_NATIVE, 84, 1, 1400,
+                          1400 + WPSBT_GAP_INDEX, 1,
+                          pb, sizeof pb);
+    chki("gap busy: at the bar loads", kiss_psbt_load(pb, pl, &sum), 0);
+    chki("gap busy: at the bar CAUTIONs", sum.status, WPSBT_CAUTION);
+    chkb("gap busy: at the bar flags gap-change",
+         (sum.caution_flags & WPSBT_C_GAP_CHANGE) != 0);
+    kiss_psbt_free();
+
+    // The same busy spend with only a witness_utxo behind the input: nothing
+    // binds that script to the coin being spent, so it cannot raise the floor
+    // and the change at 1500 is past the bar of 1000.
+    pl = mk_typed_psbt_at(WSCRIPT_NATIVE, 84, 1, 1400, 1500, 0, pb, sizeof pb);
+    chki("gap unproven: loads", kiss_psbt_load(pb, pl, &sum), 0);
+    chki("gap unproven: floor is the bar alone", (int)sum.outs[1].gap_floor,
+         WPSBT_GAP_INDEX);
+    chkb("gap unproven: flags gap-change",
+         (sum.caution_flags & WPSBT_C_GAP_CHANGE) != 0);
+    kiss_psbt_free();
+
+    // The chains are scanned apart: a shop's RECEIVE coin at 1400 says
+    // nothing about how far its change chain was looked at, so change at
+    // 1/1500 is past the bar of a change chain with no input on it.
+    pl = mk_typed_psbt_at(WSCRIPT_NATIVE, 84, 0, 1400, 1500, 1, pb, sizeof pb);
+    chki("gap other chain: loads", kiss_psbt_load(pb, pl, &sum), 0);
+    chki("gap other chain: floor is the bar alone",
+         (int)sum.outs[1].gap_floor, WPSBT_GAP_INDEX);
+    chki("gap other chain: CAUTIONs", sum.status, WPSBT_CAUTION);
+    chkb("gap other chain: flags gap-change",
+         (sum.caution_flags & WPSBT_C_GAP_CHANGE) != 0);
     kiss_psbt_free();
 
     // ---- BIP370: a signed PSBTv2 must stop saying it is modifiable ----

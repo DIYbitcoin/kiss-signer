@@ -253,6 +253,9 @@ static uint32_t path_purpose_for_coin(const uint32_t *path, size_t len, uint32_t
     return purpose;
 }
 
+// Row of a supported purpose in the per-chain gap table.
+static int gap_chain(uint32_t purpose) { return purpose == 44 ? 0 : purpose == 49 ? 1 : 2; }
+
 // Purpose of a path on THIS network, or 0 if it isn't one of ours here.
 static uint32_t our_purpose(const uint32_t *path, size_t len)
 {
@@ -1526,6 +1529,12 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
     // stack for a question a 64-bit key settles.
     uint64_t seen[WPSBT_ADDR_TRACK];
     uint32_t nseen = 0;
+    // Lowest address index among inputs that re-derived, per chain: script
+    // type (44/49/84) by branch (receive/change). Chains are scanned apart,
+    // so a coin at receive 1400 says nothing about the change chain. See
+    // WPSBT_GAP_INDEX.
+    uint32_t low_in[3][2] = {{UINT32_MAX, UINT32_MAX}, {UINT32_MAX, UINT32_MAX},
+                             {UINT32_MAX, UINT32_MAX}};
     bool     lock_enforced = false;   // some input leaves the locktime live
     for (size_t i = 0; i < s_psbt->num_inputs && i < rv_n_in(tx); i++) {
         const struct wally_psbt_input *in = &s_psbt->inputs[i];
@@ -1739,6 +1748,17 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
             stop(s, "input derivation pubkey does not match");
         else if (match != 0)
             stop(s, "input script does not re-derive");
+        else {
+            // our_purpose proved the path is 5 long and path[3] is 0 or 1.
+            // Only a coin bound to its outpoint by the previous transaction
+            // may raise the floor. A bare witness_utxo is the coordinator's
+            // word about the script, and BIP143 binds only the input being
+            // signed, so it counts as index 0: it can lower a floor, never
+            // raise one.
+            const uint32_t at = proven ? path[4] : 0;
+            uint32_t *lo = &low_in[gap_chain(purpose)][path[3]];
+            if (at < *lo) *lo = at;
+        }
     }
     // detected type for the UI: one uniform purpose, or 0 when inputs mix types
     s->purpose = (n44 && !n49 && !n84) ? 44
@@ -1875,7 +1895,11 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s)
                 // Change parked past every scanner's window. Its own `if`, not
                 // folded into the pair below: an output can be both dust AND
                 // out of reach, and those are different sentences.
-                if (path[4] >= WPSBT_GAP_INDEX)
+                // our_purpose refuses a hardened index, so this cannot wrap.
+                const uint32_t lo =
+                    low_in[gap_chain(our_purpose(path, path_len))][path[3]];
+                so->gap_floor = (lo == UINT32_MAX ? 0 : lo) + WPSBT_GAP_INDEX;
+                if (path[4] >= so->gap_floor)
                     caution(s, WPSBT_C_GAP_CHANGE, "change past the scan window");
                 // a tiny change output fragments your coins (privacy); below the
                 // standardness dust floor it is also likely a coordinator slip

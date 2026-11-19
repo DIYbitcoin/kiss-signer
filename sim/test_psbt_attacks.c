@@ -407,10 +407,9 @@ static void test_extra_derivations(void)
     }
 
     // Change parked far out, with a forged input derivation riding along to
-    // widen whatever range a signer infers from the inputs. This signer
-    // infers none -- the gap bar is fixed -- so the far change must still be
-    // flagged, never passed off as ordinary change. The forged entry refuses
-    // the whole thing now; without it the gap caution is what fires.
+    // widen whatever range a signer infers from the inputs. The bar counts
+    // from this signer's own verified inputs, and a forged entry is not one:
+    // it refuses the whole thing now; without it the gap caution is what fires.
     {
         uint8_t far_spk[22];
         p2wpkh(kfar.pub_key, far_spk);
@@ -436,6 +435,53 @@ static void test_extra_derivations(void)
                      ok && s.status == WPSBT_CAUTION && (s.caution_flags & WPSBT_C_GAP_CHANGE));
             kiss_psbt_free();
         }
+    }
+    // The same widening with a REAL derivation: a second input that is
+    // genuinely ours at 0/99999, with a previous transaction made up to match
+    // (so it counts as proven; the coin need not exist), beside the owner's
+    // real coin at 0/0, paying
+    // back to the owner's own receive address 0/100000. It re-derives, so it
+    // is not refused; the bar must still count from the lowest input on that
+    // chain, or this one invented coin would hide the output from the warning.
+    {
+        struct ext_key khigh, kfarrx;
+        const uint32_t P_HIGH[5]   = {H + 84, H, H, 0, 99999};
+        const uint32_t P_FARRX[5]  = {H + 84, H, H, 0, 100000};
+        derive(P_HIGH, 5, &khigh);
+        derive(P_FARRX, 5, &kfarrx);
+        uint8_t high_spk[22], far_spk[22], txid2[32];
+        p2wpkh(khigh.pub_key, high_spk);
+        p2wpkh(kfarrx.pub_key, far_spk);
+        struct wally_tx *prev2 = NULL;
+        uint8_t dummy2[32];
+        memset(dummy2, 0xCC, 32);
+        wally_tx_init_alloc(2, 0, 1, 1, &prev2);
+        wally_tx_add_raw_input(prev2, dummy2, 32, 0, 0xFFFFFFFF, NULL, 0, NULL, 0);
+        wally_tx_add_raw_output(prev2, 1000, high_spk, 22, 0);
+        wally_tx_get_txid(prev2, txid2, 32);
+        struct wally_psbt *p = base_psbt();
+        struct wally_tx_input *ti = NULL;
+        wally_tx_input_init_alloc(txid2, 32, 0, 0xFFFFFFFD, NULL, 0, NULL, &ti);
+        int added = wally_psbt_add_tx_input_at(p, 1, 0, ti) == WALLY_OK;
+        wally_tx_input_free(ti);
+        wally_psbt_set_input_utxo(p, 1, prev2);
+        wally_tx_free(prev2);
+        struct wally_tx_output *u = NULL;
+        wally_tx_output_init_alloc(1000, high_spk, 22, &u);
+        wally_psbt_set_input_witness_utxo(p, 1, u);
+        wally_tx_output_free(u);
+        kp1(p, 0, 1, khigh.pub_key, a_fp, P_HIGH);
+        wally_tx_set_output_script(p->tx, 1, far_spk, 22);
+        kp1(p, 1, 1, kfarrx.pub_key, a_fp, P_FARRX);
+        pl = ser(p, pb, sizeof pb);
+        int ok = added && kiss_psbt_load(pb, pl, &s) == 0;
+        chkb("far self-send + real far input: floor from the lowest input",
+             ok && s.outs[1].gap_floor == WPSBT_GAP_INDEX);
+        chkb("far self-send + real far input: gap caution still fires",
+             ok && (s.caution_flags & WPSBT_C_GAP_CHANGE) != 0);
+        kiss_psbt_free();
+        wally_bzero(&khigh, sizeof khigh);
+        wally_bzero(&kfarrx, sizeof kfarrx);
     }
     wally_bzero(&kin, sizeof kin);
     wally_bzero(&kchg, sizeof kchg);

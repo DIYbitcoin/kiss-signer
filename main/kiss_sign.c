@@ -3144,7 +3144,7 @@ static uint16_t caution_rows(uint16_t f, const char **parts, uint16_t *bits, int
         static char g[64];
         uint32_t idx = 0;
         for (int i = 0; i < (int)s_sum.n_out && i < WPSBT_MAX_OUTS; i++)
-            if (s_sum.outs[i].is_change && s_sum.outs[i].index >= WPSBT_GAP_INDEX)
+            if (s_sum.outs[i].is_change && s_sum.outs[i].index >= s_sum.outs[i].gap_floor)
                 { idx = s_sum.outs[i].index; break; }
         snprintf(g, sizeof g, tr(STR_S_C_GAPCH), (unsigned)idx);
         bits[n] = WPSBT_C_GAP_CHANGE;    parts[n++] = g;
@@ -4444,7 +4444,7 @@ static void verify_screen(lv_obj_t *parent)
             const uint64_t cv = s_sum.outs[i].sats;
             const bool ch_bad =
                 ((s_sum.caution_flags & WPSBT_C_GAP_CHANGE)
-                 && s_sum.outs[i].index >= WPSBT_GAP_INDEX) ||
+                 && s_sum.outs[i].index >= s_sum.outs[i].gap_floor) ||
                 ((s_sum.caution_flags & (WPSBT_C_DUST_CHANGE | WPSBT_C_SMALL_CHANGE))
                  && cv > 0 && cv < WPSBT_PRIVACY_SATS);
             out[n_out++] = (wt_strand_t){ .sats  = cv,

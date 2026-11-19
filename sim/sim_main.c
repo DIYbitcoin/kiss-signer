@@ -1008,6 +1008,7 @@ int kiss_psbt_load(const uint8_t *bytes, size_t len, wpsbt_summary_t *s) {
     s->fee_rate_x10 = 570;
     s->status = WPSBT_CAUTION;
     s->outs[1].index = 99999;            // change parked past the scan window
+    s->outs[1].gap_floor = WPSBT_GAP_INDEX;  // no change inputs below it
     // A locktime, on the most crowded header the walk reaches: signed
     // badge, network, caution count. This is the frame that says whether the
     // badge stands down instead of landing on the title.
