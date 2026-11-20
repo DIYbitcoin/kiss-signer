@@ -392,3 +392,10 @@ int kiss_psbt_sig_fingerprint(const uint8_t *signed_psbt, size_t len,
 
 // Drop the held PSBT (call when leaving the sign flow).
 void kiss_psbt_free(void);
+
+#ifdef KISS_PSBT_TEST_HOOKS
+// Test builds only (sim/build_test.sh): the PSBT the load gate admitted, so a
+// test can bend it AFTER that gate and show signing holds its own line.
+struct wally_psbt;
+struct wally_psbt *kiss_psbt_test_loaded(void);
+#endif

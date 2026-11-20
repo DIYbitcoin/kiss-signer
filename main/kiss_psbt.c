@@ -2254,6 +2254,64 @@ static int sign_with_card(void)
     return 0;
 }
 
+// The same steps with the seed in RAM, and the master never reaches the
+// signer. Handing libwally the master lets the PSBT's own keypath choose
+// which key gets made, so the only thing keeping it to our addresses was the
+// load gate. Here each input of ours gets the one private key at its path,
+// and only after that path passes the same standard address check load used.
+// The key is checked against the input's own public key and its chain code is
+// wiped before signing, so nothing that can make another key is held while a
+// signature is made. Another signer's inputs and silent payment spends are
+// skipped: none of our ECDSA signatures belongs on them.
+static int sign_with_master(const struct ext_key *master)
+{
+    const struct wally_tx *tx = psbt_tx();
+    uint8_t fp[4];
+    if (!tx || kiss_session_fingerprint(fp) != 0)
+        return -2;
+    for (size_t i = 0; i < s_psbt->num_inputs; i++) {
+        if (i < WPSBT_MAX_INS && (s_sh.foreign[i] || s_sp_in.present[i]))
+            continue;
+        const struct wally_psbt_input *in = &s_psbt->inputs[i];
+        uint32_t path[8];
+        size_t path_len = 8, dl = 0;
+        const struct wally_map_item *kp = NULL;
+        struct ext_key k;
+        uint8_t priv[EC_PRIVATE_KEY_LEN], h[32], sig[EC_SIGNATURE_LEN];
+        uint8_t der[EC_SIGNATURE_DER_MAX_LEN + 1];
+        if (our_keypath(&in->keypaths, fp, path, &path_len, &kp) != 1 || !kp ||
+            kp->key_len != EC_PUBLIC_KEY_LEN || !our_purpose(path, path_len) ||
+            input_sighash(i, tx, h) != 0)
+            return -2;
+        if (bip32_key_from_parent_path(master, path, path_len,
+                                       BIP32_FLAG_KEY_PRIVATE, &k) != WALLY_OK) {
+            wally_bzero(&k, sizeof k);
+            return -2;
+        }
+        const bool match = memcmp(k.pub_key, kp->key, EC_PUBLIC_KEY_LEN) == 0;
+        memcpy(priv, k.priv_key + 1, sizeof priv);
+        wally_bzero(&k, sizeof k);
+        int rc = match &&
+                 wally_ec_sig_from_bytes(priv, sizeof priv, h, sizeof h,
+                                         EC_FLAG_ECDSA | EC_FLAG_GRIND_R,
+                                         sig, sizeof sig) == WALLY_OK &&
+                 wally_ec_sig_to_der(sig, sizeof sig, der, sizeof der - 1, &dl) == WALLY_OK
+                 ? 0 : -2;
+        wally_bzero(priv, sizeof priv);
+        wally_bzero(sig, sizeof sig);
+        if (rc == 0) {
+            der[dl++] = (uint8_t)(in->sighash ? in->sighash : WALLY_SIGHASH_ALL);
+            if (wally_psbt_add_input_signature(s_psbt, i, kp->key, kp->key_len,
+                                               der, dl) != WALLY_OK)
+                rc = -2;
+        }
+        wally_bzero(der, sizeof der);
+        if (rc != 0)
+            return rc;
+    }
+    return 0;
+}
+
 int kiss_psbt_sign(uint8_t *out, size_t out_len, size_t *written)
 {
     const struct ext_key *master = kiss_session_master();   // NULL on a card
@@ -2284,17 +2342,18 @@ int kiss_psbt_sign(uint8_t *out, size_t out_len, size_t *written)
         if (rc != 0)
             return rc;
     } else {
-        if (wally_psbt_sign_bip32(s_psbt, master, EC_FLAG_GRIND_R) != WALLY_OK)
-            return -2;
+        int rc = sign_with_master(master);
+        if (rc != 0)
+            return rc;
         if (sign_sp_spends(master) != 0)
             return -5;
     }
     if (our_sigs_verify() != 0)
         return -7;
-    // Never a signature of ours on an input that is not ours. libwally signs
-    // only where a derivation of this seed matches, and a foreign input has
-    // none, so this cannot fire. It is checked because "never signed" is the
-    // one promise a shared send makes about those inputs.
+    // Never a signature of ours on an input that is not ours. Both signing
+    // paths skip or refuse an input with no keypath of ours, so this cannot
+    // fire. It is checked because "never signed" is the one promise a shared
+    // send makes about those inputs.
     for (size_t i = 0; i < s_psbt->num_inputs && i < WPSBT_MAX_INS; i++)
         if (s_sh.foreign[i] && foreign_sig_count(i) != fsigs[i])
             return -7;
@@ -2303,10 +2362,10 @@ int kiss_psbt_sign(uint8_t *out, size_t out_len, size_t *written)
     // above accepts nothing but sighash 0 or ALL, so both bits are always due
     // to be cleared here and zero is the whole answer.
     //
-    // wally 1.6.0 clears these for every signature it stores, on the
-    // wally_psbt_sign_bip32 path and the card's wally_psbt_add_input_signature
-    // path alike. 1.5.4 missed the first, so a signed PSBTv2 left here still
-    // saying TX_MODIFIABLE=0x03 -- telling the next coordinator it may still
+    // wally 1.6.0 clears these for every signature it stores, through
+    // wally_psbt_sign_bip32 and through wally_psbt_add_input_signature, the
+    // call both of our signing paths now use. 1.5.4 missed the first, so a
+    // signed PSBTv2 left here still saying TX_MODIFIABLE=0x03 -- telling the next coordinator it may still
     // add inputs and outputs, over a signature that any such edit would
     // silently invalidate. The call stays so that answer never rests on the
     // vendored version. sp_fill already made this call for silent payments;
@@ -2576,6 +2635,16 @@ bool kiss_psbt_held(void)
 {
     return s_psbt != NULL;
 }
+
+#ifdef KISS_PSBT_TEST_HOOKS
+#ifdef ESP_PLATFORM
+#error "KISS_PSBT_TEST_HOOKS hands out the PSBT after the load gate; never in firmware"
+#endif
+struct wally_psbt *kiss_psbt_test_loaded(void)
+{
+    return s_psbt;
+}
+#endif
 
 void kiss_psbt_free(void)
 {

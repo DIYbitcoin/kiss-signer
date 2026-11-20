@@ -21,6 +21,7 @@ clang $KISS_BOARD_CFLAGS ${KISS_WERROR:+-Werror} -O1 -Wall -Wextra -Wno-unused-p
   -DUR_ALLOC_FAIL_TEST=1 \
   -DPQ_SHA256_COMPRESS_HOOK=1 \
   -DKISS_SP_TEST_HOOKS=1 \
+  -DKISS_PSBT_TEST_HOOKS=1 \
   -DKISS_ROOT="\"$PWD\"" \
   -DKISS_VERSION_STR="\"$VER\"" \
   -I"$WALLY" \

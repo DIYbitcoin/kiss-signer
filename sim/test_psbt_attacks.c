@@ -560,6 +560,34 @@ static void test_false_fingerprints(void)
     wally_bzero(&kchg, sizeof kchg);
 }
 
+// The signing step holds its own line. Load admits only our standard
+// addresses, but a signer handed the master key would sign wherever the
+// PSBT's keypath points, so the load gate was the one thing between a
+// coordinator and a signature at any path this seed can reach. Here the
+// input is bent AFTER load to account 7, outside the wallet, with the public
+// key that path really derives: nothing may come out signed.
+static void test_sign_rechecks_path(void)
+{
+    static const uint32_t P_FAR[5] = {H + 84, H, H + 7, 0, 0};
+    wpsbt_summary_t sum;
+    size_t pl = ser(base_psbt(), pb, sizeof pb);
+    chkb("sign path: base loads READY",
+         kiss_psbt_load(pb, pl, &sum) == 0 && sum.status == WPSBT_READY);
+    struct wally_psbt *p = kiss_psbt_test_loaded();
+    struct ext_key kfar;
+    derive(P_FAR, 5, &kfar);
+    if (p)
+        kp1(p, 0, 0, kfar.pub_key, a_fp, P_FAR);
+    size_t sw = 0, idx = 0;
+    chkb("sign path: account outside the wallet signs nothing",
+         p && kiss_psbt_sign(sb, sizeof sb, &sw) != 0);
+    chkb("sign path: no signature under that key",
+         p && wally_map_find(&p->inputs[0].signatures, kfar.pub_key, 33,
+                             &idx) == WALLY_OK && idx == 0);
+    wally_bzero(&kfar, sizeof kfar);
+    kiss_psbt_free();
+}
+
 int test_psbt_attacks(void)
 {
     fails = 0;
@@ -583,6 +611,7 @@ int test_psbt_attacks(void)
     test_presigned();
     test_extra_derivations();
     test_false_fingerprints();
+    test_sign_rechecks_path();
     wally_bzero(&a_master, sizeof a_master);
     return fails;
 }
