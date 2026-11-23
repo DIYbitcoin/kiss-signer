@@ -1,0 +1,50 @@
+{
+  "_about": "Every board, one entry each. tools/gen_boards.py writes the install page's board list from this file. It labels boards only: what can be flashed is decided by the signed installer/release.json, and a release board missing here fails the check. 'build' is release or test. 'carries' says what the board has, so a page can tell which features it gets.",
+  "boards": [
+    {
+      "id": "guition",
+      "name": "Guition 4.3in",
+      "model": "JC4880P443C",
+      "screen": [800, 480],
+      "chips": "v1.x",
+      "build": "release",
+      "carries": { "camera": true, "microsd": true, "battery": false }
+    },
+    {
+      "id": "ws35",
+      "name": "Waveshare 3.5in",
+      "model": "ESP32-P4-WIFI6-Touch-LCD-3.5",
+      "screen": [480, 320],
+      "chips": "v1.x",
+      "build": "release",
+      "carries": { "camera": true, "microsd": true, "battery": true }
+    },
+    {
+      "id": "jc1060",
+      "name": "Guition 7in",
+      "model": "JC1060P470C",
+      "screen": [1024, 600],
+      "chips": "v1.x",
+      "build": "release",
+      "carries": { "camera": true, "microsd": true, "battery": false }
+    },
+    {
+      "id": "ws43",
+      "name": "Waveshare 4.3in",
+      "model": "ESP32-P4-WiFi6-Touch-LCD-4.3",
+      "screen": [480, 800],
+      "chips": "v1.x and v3.x",
+      "build": "test",
+      "carries": { "camera": true, "microsd": true, "battery": false }
+    },
+    {
+      "id": "ws5",
+      "name": "Waveshare 5in",
+      "model": "ESP32-P4-WiFi6-Touch-LCD-5",
+      "screen": [720, 1280],
+      "chips": "v1.x and v3.x",
+      "build": "test",
+      "carries": { "camera": true, "microsd": true, "battery": false }
+    }
+  ]
+}

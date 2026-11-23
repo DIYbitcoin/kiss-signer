@@ -92,6 +92,7 @@ jobs:
         run: |
           python3 tools/check_links.py --selftest
           python3 tools/check_links.py
+          python3 tools/gen_boards.py --check
 
       # tr_reason ends `return r;`, so a refusal it has no entry for shows
       # the C string itself -- developer English, in all 21 locales, on the
