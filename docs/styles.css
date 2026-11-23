@@ -1944,6 +1944,9 @@ button {
 
 @media (max-width: 900px) {
   .theatre.is-hero { grid-template-columns: minmax(0, 1fr); }
+  /* On a phone the install card comes first; the device waits below it. */
+  .install-shell .install-card { order: 1; }
+  .install-shell .install-hero { order: 2; }
 }
 
 /* ---- the install card: port help and progress marks ----------------------- */
