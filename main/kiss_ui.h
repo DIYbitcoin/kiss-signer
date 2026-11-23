@@ -85,6 +85,27 @@ void kiss_ui_forget_fp(void);
 // whatever s_pass holds, and after a wipe that is an empty passphrase under
 // a stale fingerprint.
 void kiss_ui_idle_wipe(void);
+// The lock closes every login screen a session opened: a keyboard a screen
+// of the session borrowed (through the kiss_ui_session_* openers below) and
+// the ADD A PASSPHRASE flow, with the warning its SCAN button puts up.
+// Entries wiped, callbacks dropped, none of them called. The idle close took
+// the session away and left these standing over the locked device with a
+// live CANCEL, which reopened backup screens and Settings with nobody logged
+// in. Who opened a screen decides, not whether a session happens to be live:
+// the login of a setup or a restore is never closed here, because its
+// teardown discards a staged seed. Nor is the commit-failed RECOVER screen,
+// which may hold the last copy of a seed.
+void kiss_ui_session_close(void);
+// kiss_ui_kef_pass_open and kiss_ui_verify_pass_open for a screen of an open
+// session, so the lock knows the keyboard is the session's to close.
+void kiss_ui_session_kef_pass_open(bool create,
+                                   int (*on_check)(const char *pass, size_t len),
+                                   void (*on_done)(void),
+                                   void (*on_cancel)(void));
+void kiss_ui_session_verify_pass_open(int (*on_check)(const char *pass,
+                                                      size_t len),
+                                      void (*on_done)(void),
+                                      void (*on_cancel)(void));
 
 // Register the LVGL pointer indev if not yet present (the setup wizard can run
 // before the first login and needs touch too).

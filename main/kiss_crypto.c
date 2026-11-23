@@ -532,6 +532,8 @@ int kiss_session_passphrase_check(const char *passphrase,
     return rc;
 }
 
+int kiss_session_live(void) { return s_session ? 1 : 0; }
+
 uint32_t kiss_session_generation(void) { return s_session_gen; }
 
 const struct ext_key *kiss_session_master(void)

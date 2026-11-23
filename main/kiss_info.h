@@ -34,7 +34,10 @@ lv_obj_t *kiss_info_help_card_open(lv_obj_t *parent, const char *title,
 // The backup page it opens carries the ENCRYPTED BACKUP row too: consent, a
 // password typed twice, then the keys as a KEF envelope — a locked QR and
 // optionally a .kef file on the card.
-void kiss_info_open_words(lv_obj_t *parent, void (*done_cb)(void));
+// session: opened by a screen of the open session (Settings), false for
+// RECOVER. The backup check offered there takes it on.
+void kiss_info_open_words(lv_obj_t *parent, void (*done_cb)(void),
+                          bool session);
 // RECEIVE's SILENT tab opens the same scan key consent gate and reveal that
 // live on KEYS' COORDINATOR WALLET tab; done_cb returns to RECEIVE when the
 // owner leaves. One flow, two doors — never a second consent to keep in sync.

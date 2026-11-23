@@ -1967,6 +1967,20 @@ static void kiss_lock(void) {            // back to the game cover (tap the KISS
   s_home_swallow = false;
   s_real_pending = false;
   if (s_fp_card) { lv_obj_delete(s_fp_card); s_fp_card = NULL; }
+  // Everything this session opened goes with it: a borrowed keyboard, ADD A
+  // PASSPHRASE, the backup check from Settings, the ways in wizards. Each
+  // holds a callback back into Settings, and left standing over the locked
+  // signer that callback was a way to the seed words with nobody logged in.
+  //
+  // Here and not as closes in SCREENS: every way to lock ends in this
+  // function, and those rows cannot own a close, because the same screens
+  // run in setup and restore, where the deadline must wipe the entry and
+  // take nothing else. Each close below asks who opened its screen and
+  // leaves a setup's alone.
+  kiss_ui_session_close();
+  kiss_setup_lock_close();
+  kiss_duress_ui_lock_close();
+  kiss_word_ui_lock_close();
   bool card = kiss_session_card();
   kiss_session_close();                  // locked: no key material stays in RAM
   if (card) kiss_cardtask_cancel();      // and the card is powered down
@@ -2597,6 +2611,10 @@ static const struct {
   // empty-passphrase keys beneath the stale fingerprint.
   { kiss_ui_login_deadline_active, NULL,         true,  true,  120000, false, false, kiss_ui_idle_wipe },
   { kiss_setup_active,     NULL,                  true,  true,  0,      false, false, NULL },
+  // The same wizard when Settings opened it (the backup check): typing words
+  // still holds the lock off, but no longer for ever. Five minutes, like the
+  // two ways in wizards below, then the lock takes it.
+  { kiss_setup_session_active, NULL,              true,  true,  300000, true,  false, kiss_setup_lock_close },
   { kiss_duress_ui_active, NULL,                  true,  true,  300000, true,  false, kiss_duress_ui_lock_close },
   { kiss_word_ui_active,   NULL,                  true,  true,  300000, true,  false, kiss_word_ui_lock_close },
   // The commit-failed RECOVER screen, and the words screen it opens. Same
@@ -3454,6 +3472,7 @@ static bool s_storage_blocked;
 // so a frame proves nothing a needle can read, which is exactly how CANCEL
 // starting a game survived every gate this project has.
 int kiss_game_state_for_test(void) { return s_state; }
+bool kiss_home_on_for_test(void) { return s_home_on; }
 #endif
 
 void build_game(void) {  // non-static: the simulator harness calls this too

@@ -157,7 +157,19 @@ int kiss_seed_store(const char *m) {
   s_sim_has_seed = 1;
   return 0;
 }
+// One-shot read failure: an SD wallet whose card has gone, at the moment a
+// screen asks for the seed words.
+static int s_sim_load_fail;
+// What a backup check's caller saw, read inside its own return callback.
+static int s_sim_nsv_called, s_sim_nsv_ok, s_sim_nsv_full;
+static void sim_no_seed_verify_done(void)
+{
+  s_sim_nsv_called = 1;
+  s_sim_nsv_ok = kiss_setup_verify_succeeded();
+  s_sim_nsv_full = kiss_setup_verify_full();
+}
 int kiss_seed_load(char *out, size_t n) {
+  if (s_sim_load_fail) { s_sim_load_fail = 0; return WSEED_ERR_SD_MISSING; }
   if (s_sim_has_pending) { snprintf(out, n, "%s", s_sim_pending); return 0; }
   if (s_sim_mode == WSEED_MODE_SD && !s_sim_sd_present)
     return WSEED_ERR_SD_MISSING;
@@ -673,6 +685,7 @@ int kiss_session_passphrase_check(const char *passphrase, unsigned char fp[4]) {
   if (strcmp(passphrase, s_sim_sess_pass) != 0) return 4;
   return kiss_fingerprint(NULL, fp);
 }
+int kiss_session_live(void) { return s_sim_live; }
 // The refusal switch: a locked session refuses every derivation at once. The
 // refusal renders were introduced by fixes to five screens that used to encode
 // the failure string into their QRs; without this switch the sim derives
@@ -6276,6 +6289,36 @@ int main(void) {
   // this is a layout no gate has ever measured. kiss_ui_forget_fp is the same
   // call locking performs, so the state is a real one and not a test fiction.
   tap_str(STR_C_DONE, 3, 6);     // DONE -> Settings
+  // The check, asked for again, with the seed words out of reach (an SD
+  // wallet whose card has gone). Nothing was typed, so nothing may be
+  // verified: the answer the CALLER reads, inside its own return, must not
+  // be the one just above. Read there and not after, because that is when
+  // Settings decides whether to mark the paper.
+  {
+    s_sim_load_fail = 1;
+    s_sim_nsv_called = 0;
+    kiss_setup_open_verify(lv_screen_active(), sim_no_seed_verify_done, true,
+                           true);
+    pump(4);
+    if (!s_sim_nsv_called) {
+      printf("FAIL: verify/no seed: the caller was never answered\n");
+      g_walk_fails++;
+    } else if (s_sim_nsv_ok || s_sim_nsv_full) {
+      printf("FAIL: verify/no seed: the caller was handed an earlier check's success\n");
+      g_walk_fails++;
+    }
+    if (kiss_setup_active()) {
+      printf("FAIL: verify/no seed: a check opened with nothing to check\n");
+      g_walk_fails++;
+      extern void kiss_setup_close_for_test(void);
+      kiss_setup_close_for_test();
+      pump(4);
+    }
+    if (kiss_setup_verify_succeeded() || kiss_setup_verify_full()) {
+      printf("FAIL: verify/no seed: an earlier check's success was handed back\n");
+      g_walk_fails++;
+    }
+  }
   // HELD, and put back below. kiss_ui_forget_fp() is a real state and the two
   // frames under it are worth having -- but it was never undone, so every
   // screen the walk opened after this one ran with NO KEYS OPEN, for the life
@@ -6495,7 +6538,219 @@ int main(void) {
                 tr(STR_I_PPK_T));
   tap_str(STR_C_BACK, 3, 8);                        // BACK -> the backup page
 
-  tap_str(STR_C_BACK, 3, 8);                        // BACK -> Settings
+  // The idle lock takes a borrowed keyboard with it. The passphrase has been
+  // checked and is waiting to be sealed, the QR's password is half typed, and
+  // nobody touches the signer for two minutes: the session closes, and so
+  // must the keyboard. Left standing over the locked signer, its CANCEL
+  // reopened the backup screens with nobody logged in.
+  words_tab(WORDS_ENC);
+  words_row(1);                                     // PASSPHRASE: its own record, no stop
+  slide_fire(STR_I_KEF_MAKE_BTN);                   // -> type the passphrase
+  type_pass9();
+  touch(725, 430); pump(3); release(); pump(8);     // OK -> the QR's password
+  touch(664, 278); pump(3); release(); pump(3);     // k
+  if (!kiss_ui_active()) {
+    printf("FAIL: idle/borrowed: the QR password keyboard is not up\n");
+    g_walk_fails++;
+  }
+  pump(8200);                                       // 131s > 120s, untouched
+  save("/tmp/sim_ppk_idle_lock.ppm");               // the game menu, nothing over it
+  if (kiss_ui_active()) {
+    printf("FAIL: idle/borrowed: the lock left the borrowed keyboard up\n");
+    g_walk_fails++;
+    touch(200, 430); pump(3); release(); pump(8);   // CANCEL, so the walk goes on
+  }
+  if (kiss_info_active() || kiss_settings_active()) {
+    printf("FAIL: idle/borrowed: a backup screen is open on a locked signer\n");
+    g_walk_fails++;
+  }
+  must_not_show("idle/borrowed: no backup screen after the lock",
+                tr(STR_I_PPK_T));
+  // Back in, the way an owner comes back: the cover word, the passphrase.
+  touch(6, 470); pump(2); release(); pump(6);
+  pump(200);
+  draw_cover_underlined();
+  type_pass9();
+  touch(725, 430); pump(3); release(); pump(25);    // OK -> fingerprint
+  tap_str(STR_L_TAP_TO_OPEN, 3, 12);                // TAP TO OPEN -> home
+  pump(120);
+
+  // The same lock, under the two other flows a session opens that end in a
+  // return to Settings. Both used to outlive it: the wizard and the keyboard
+  // stayed on the glass over the locked signer, and finishing or cancelling
+  // them reopened Settings, one row away from the seed words, with nobody
+  // logged in.
+  //
+  // The backup rehearsal from Settings first, at its passphrase leg: the words
+  // matched, the keyboard is asking for the passphrase, and the wizard under
+  // it holds the way back to the seed words page.
+  touch(670, 240); pump(3); release(); pump(8);     // Settings tile
+  set_tab(SET_BACKUP);
+  def_row(2, 0);                                    // Recovery words -> backup page
+  words_tab(WORDS_PAPER);                           // the page reopens on the last tab
+  words_row(0);                                     // Check my copy -> intro
+  tap_str(STR_W_TYPE_MY_WORDS, 3, 6);               // TYPE MY WORDS -> keypad
+  for (int i = 0; i < 11; i++) {                    // 11x abandon
+    touch(44, 314); pump(3); release(); pump(3);
+    touch(450, 374); pump(3); release(); pump(3);
+    touch(55, 182); pump(3); release(); pump(3);
+  }
+  touch(44, 314); pump(3); release(); pump(3);      // a
+  touch(450, 374); pump(3); release(); pump(3);     // b
+  touch(664, 254); pump(3); release(); pump(3);     // o -> "abo"
+  touch(55, 182); pump(3); release(); pump(6);      // accept "about" -> the words match
+  must_show("idle/rehearsal: at the passphrase leg", tr(STR_L_VERIFY_PASS));
+  pump(8200);                                       // 131s > 120s, untouched
+  if (kiss_ui_active()) {
+    printf("FAIL: idle/rehearsal: the lock left the keyboard up\n");
+    g_walk_fails++;
+  }
+  if (kiss_setup_active()) {
+    printf("FAIL: idle/rehearsal: the lock left the rehearsal wizard up\n");
+    g_walk_fails++;
+    extern void kiss_setup_close_for_test(void);
+    kiss_setup_close_for_test();
+    pump(8);
+  }
+  if (kiss_info_active() || kiss_settings_active()) {
+    printf("FAIL: idle/rehearsal: a backup screen is open on a locked signer\n");
+    g_walk_fails++;
+  }
+  touch(6, 470); pump(2); release(); pump(6);
+  pump(200);
+  draw_cover_underlined();
+  type_pass9();
+  touch(725, 430); pump(3); release(); pump(25);    // OK -> fingerprint
+  tap_str(STR_L_TAP_TO_OPEN, 3, 12);                // TAP TO OPEN -> home
+  pump(120);
+
+  // The same check, abandoned earlier: three words typed and nobody comes
+  // back. Typing seed words takes minutes, so the wizard holds the lock off,
+  // and with nothing else on a clock the signer never locked at all, with
+  // CANCEL one tap from the seed words page. Opened from Settings it now has
+  // the five minutes the other wizards a session opens have.
+  touch(670, 240); pump(3); release(); pump(8);     // Settings tile
+  set_tab(SET_BACKUP);
+  def_row(2, 0);                                    // Recovery words -> backup page
+  words_tab(WORDS_PAPER);
+  words_row(0);                                     // Check my copy -> intro
+  tap_str(STR_W_TYPE_MY_WORDS, 3, 6);               // TYPE MY WORDS -> keypad
+  for (int i = 0; i < 3; i++) {                     // 3x abandon
+    touch(44, 314); pump(3); release(); pump(3);
+    touch(450, 374); pump(3); release(); pump(3);
+    touch(55, 182); pump(3); release(); pump(3);
+  }
+  if (!kiss_setup_active()) {
+    printf("FAIL: idle/rehearsal words: the check is not up\n");
+    g_walk_fails++;
+  }
+  pump(19200);                                      // 307s > 300s, untouched
+  if (kiss_setup_active()) {
+    printf("FAIL: idle/rehearsal words: the check held the signer unlocked\n");
+    g_walk_fails++;
+    extern void kiss_setup_close_for_test(void);
+    kiss_setup_close_for_test();
+    pump(8);
+  }
+  if (kiss_info_active() || kiss_settings_active()) {
+    printf("FAIL: idle/rehearsal words: a backup screen is open on a locked signer\n");
+    g_walk_fails++;
+  }
+  touch(6, 470); pump(2); release(); pump(6);
+  pump(200);
+  draw_cover_underlined();
+  type_pass9();
+  touch(725, 430); pump(3); release(); pump(25);    // OK -> fingerprint
+  tap_str(STR_L_TAP_TO_OPEN, 3, 12);                // TAP TO OPEN -> home
+  pump(120);
+
+  // ADD A PASSPHRASE, opened the way the ways in page opens it: the setup
+  // keyboard, with Settings as its return. Taken as far as the warning its
+  // SCAN button puts up, which is a screen of its own beside the keyboard.
+  {
+    extern void kiss_settings_sim_reopen(void);
+    kiss_login_open_add_later(kiss_settings_sim_reopen);
+    pump(20);
+    if (!kiss_ui_active()) {
+      printf("FAIL: idle/add-later: the passphrase screen is not up\n");
+      g_walk_fails++;
+    }
+    tap_str(STR_L_PP_TYPE_IT, 3, 10);               // intro -> the keyboard
+    touch(596, 38); pump(3); release(); pump(6);    // SCAN -> its warning
+    must_show("idle/add-later: the scan warning is up", tr(STR_L_SCAN_WARN_T));
+    // The same spot again, on the warning's own head. It must land on the
+    // warning: it used to fall through to the SCAN key and stack a second
+    // warning that nothing closed.
+    touch(596, 38); pump(3); release(); pump(6);
+    pump(8200);                                     // 131s > 120s, untouched
+    must_not_show("idle/add-later: the scan warning went with the lock",
+                  tr(STR_L_SCAN_WARN_T));
+    if (kiss_ui_active()) {
+      printf("FAIL: idle/add-later: the lock left the passphrase flow up\n");
+      g_walk_fails++;
+    }
+    // ...and Settings itself answers nobody: whatever callback survives a
+    // lock some other way, this door stays shut until a login.
+    kiss_settings_sim_reopen();
+    pump(8);
+    if (kiss_settings_active()) {
+      printf("FAIL: idle/add-later: Settings opened with nobody logged in\n");
+      g_walk_fails++;
+    }
+    must_not_show("idle/add-later: no Settings on a locked signer",
+                  tr(STR_I_TAB_BACKUP));
+  }
+  touch(6, 470); pump(2); release(); pump(6);
+  pump(200);
+  draw_cover_underlined();
+  type_pass9();
+  touch(725, 430); pump(3); release(); pump(25);    // OK -> fingerprint
+  tap_str(STR_L_TAP_TO_OPEN, 3, 12);                // TAP TO OPEN -> home
+  pump(120);
+
+  // ADD A PASSPHRASE taken to its end: the passphrase twice, the new keys
+  // open, and the warning offers VERIFY FULL BACKUP. That check belongs to
+  // the session too, and it used to be the one thing the lock left: its
+  // typed words, and a comparison against the stored seed, on a locked
+  // signer.
+  {
+    extern void kiss_settings_sim_reopen(void);
+    kiss_login_open_add_later(kiss_settings_sim_reopen);
+    pump(20);
+    tap_str(STR_L_PP_TYPE_IT, 3, 10);               // intro -> the keyboard
+    type_pass9();
+    touch(725, 430); pump(3); release(); pump(6);   // OK -> TYPE IT AGAIN
+    type_pass9();
+    touch(725, 430); pump(3); release(); pump(25);  // OK -> fingerprint
+    tap_str(STR_L_TAP_TO_OPEN, 3, 30);              // the new keys open -> warning
+    tap_str(STR_L_VERIFY_FULL_BACKUP, 3, 6);        // warning -> the check
+    tap_str(STR_W_TYPE_MY_WORDS, 3, 6);             // intro -> recovery keyboard
+    for (int i = 0; i < 3; i++) {                   // 3x abandon
+      touch(44, 314); pump(3); release(); pump(3);
+      touch(450, 374); pump(3); release(); pump(3);
+      touch(55, 182); pump(3); release(); pump(3);
+    }
+    if (!kiss_setup_active()) {
+      printf("FAIL: idle/add-later check: the check is not up\n");
+      g_walk_fails++;
+    }
+    pump(19200);                                    // 307s, untouched
+    if (kiss_setup_active() || kiss_ui_active()) {
+      printf("FAIL: idle/add-later check: the lock left the check up\n");
+      g_walk_fails++;
+      extern void kiss_setup_close_for_test(void);
+      kiss_setup_close_for_test();
+      pump(8);
+    }
+  }
+  touch(6, 470); pump(2); release(); pump(6);
+  pump(200);
+  draw_cover_underlined();
+  type_pass9();
+  touch(725, 430); pump(3); release(); pump(25);    // OK -> fingerprint
+  tap_str(STR_L_TAP_TO_OPEN, 3, 12);                // TAP TO OPEN -> home
+  pump(120);
+  touch(670, 240); pump(3); release(); pump(8);     // Settings tile
 
   // FIRMWARE and LANGUAGE are rows on the DEVICE tab now, not header pills.
   // What this proves is the ROUTE: Settings tears itself down before handing
@@ -6960,7 +7215,17 @@ int main(void) {
   // testing the restore-specific exit below.
   tap_str(STR_L_VERIFY_FULL_BACKUP, 3, 6);          // warning -> rehearsal intro
   tap_str(STR_W_TYPE_MY_WORDS, 3, 6);               // intro -> recovery keyboard
-  for (size_t i = 0; i < sizeof SIM_12_PREFIXES / sizeof SIM_12_PREFIXES[0]; i++)
+  // First setup's own check, left in the middle of the words for longer than
+  // every deadline a session's check has. It must still be there, with the
+  // words typed so far: this one belongs to setup, not to a session, and
+  // nothing may lock it away.
+  for (size_t i = 0; i < 3; i++) restore_word(SIM_12_PREFIXES[i]);
+  pump(19200);                                      // 307s, untouched
+  if (!kiss_setup_active()) {
+    printf("FAIL: setup/the check of first setup was taken by a deadline\n");
+    g_walk_fails++;
+  }
+  for (size_t i = 3; i < sizeof SIM_12_PREFIXES / sizeof SIM_12_PREFIXES[0]; i++)
     restore_word(SIM_12_PREFIXES[i]);
   pump(4);
   tap_str(STR_C_DONE, 3, 8);                        // words matched -> exact passphrase
@@ -7963,7 +8228,25 @@ int main(void) {
   // three keys (W_CREATE_NEW, W_NEW_T, W_CHOOSE_NEW) and matches any label
   // carrying those words on any screen.
   if (!act_for(STR_W_CHOOSE_NEW, "erased offers")) { /* counted */ }
-  tap_str(STR_C_OK, 3, 130);   // OK -> menu
+  // NEW SEED WORDS, and the wizard must find what a cold boot gives it: no
+  // home behind it. With the home still marked on, a lock during the new
+  // setup ran over a wizard it does not own, and once the new keys opened
+  // it could take the unfinished setup down with them.
+  {
+    extern bool kiss_home_on_for_test(void);        // main.c
+    extern void kiss_setup_close_for_test(void);    // kiss_setup.c
+    tap_str(STR_W_CHOOSE_NEW, 3, 30);
+    if (!kiss_setup_active()) {
+      printf("FAIL: erase/new: NEW SEED WORDS did not open the wizard\n");
+      g_walk_fails++;
+    }
+    if (kiss_home_on_for_test()) {
+      printf("FAIL: erase/new: the wizard runs with the home still on\n");
+      g_walk_fails++;
+    }
+    kiss_setup_close_for_test();
+    pump(130);
+  }
   save("/tmp/sim_wiped_menu.ppm");                  // must be the game MENU
 
   // ---- the trap: backing out of setup on a signer with no keys ----
@@ -8527,11 +8810,17 @@ int main(void) {
   // with the image already on the card -- and because writing the fixture up
   // there would put the dot on every settings frame in the walk instead of
   // this one.
+  //
+  // Settings opens for a live session and for nothing else, and this tail of
+  // the walk runs locked, so the stop opens one for the photograph and closes
+  // it again.
+  kiss_session_open("aaaaaaaaa");
   kiss_settings_open(lv_screen_active());
   pump(50);
   set_tab(SET_DEVICE);
   save("/tmp/sim_settings_fw_waiting.ppm");   // DEVICE dot + the chip counting it
   tap_str(STR_C_BACK, 3, 20);
+  kiss_session_close();
 
   // 3b. a card holding more images than the scan opens.
   //

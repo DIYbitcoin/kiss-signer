@@ -1393,7 +1393,7 @@ static void words_cb(lv_event_t *e)
     (void)e;
     lv_obj_t *parent = s_parent;
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
-    kiss_info_open_words(parent, settings_after_words);
+    kiss_info_open_words(parent, settings_after_words, true);
 }
 
 // Wipe: erase the seed and go back to being just a game. One tap on the row
@@ -1407,6 +1407,11 @@ static void wiped_new_cb(lv_event_t *e)
 {
     (void)e;
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
+    // The home goes first, as OK takes it: the session is already closed, and
+    // the wizard must find what a cold boot gives it. With the home still
+    // marked on, every idle deadline inside the new setup ran the lock over a
+    // wizard it does not own, and once the new keys opened, over them too.
+    kiss_wiped_lock();
     kiss_begin_setup();
 }
 
@@ -2616,6 +2621,11 @@ static void settings_back_cb(lv_event_t *e)
 
 void kiss_settings_open(lv_obj_t *parent)
 {
+    // Settings is a page of an open session and of nothing else: the seed
+    // words are one row in. A callback that outlived a lock must find this
+    // door shut, whichever screen it came from.
+    if (!kiss_session_live()) return;
+
     s_fw_waiting = -1;          // one card scan per visit; see fw_update_waiting
 
     if (s_scr) return;

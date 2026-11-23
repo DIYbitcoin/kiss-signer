@@ -178,8 +178,17 @@ static void wipe_state(void)
 
 static void card_stop(void);
 
+// Opened by a screen of an open session (the backup check from Settings, or
+// the one ADD A PASSPHRASE offers), not by setup or RECOVER. Only then is the
+// wizard the lock's to close, and only then does it run on a clock. The
+// caller says which, at creation; see kiss_setup_open_verify.
+static bool s_session_owned;
+
+bool kiss_setup_session_active(void) { return s_scr != NULL && s_session_owned; }
+
 static void close_all(void)
 {
+    s_session_owned = false;
     wipe_state();
     card_stop();
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
@@ -451,8 +460,13 @@ static void verify_finish(void)
         if (s_verify_pass && kiss_fp_known(held) &&
             kiss_rehearse_after_words(kiss_session_decoy()) ==
                 KISS_REHEARSE_NEED_PASSPHRASE) {
-            kiss_ui_verify_pass_open(verify_pass_check, verify_pass_done,
-                                     verify_pass_cancel);
+            if (s_session_owned)
+                kiss_ui_session_verify_pass_open(verify_pass_check,
+                                                 verify_pass_done,
+                                                 verify_pass_cancel);
+            else
+                kiss_ui_verify_pass_open(verify_pass_check, verify_pass_done,
+                                         verify_pass_cancel);
             return;
         }
         verify_ok_screen();
@@ -4608,6 +4622,7 @@ void kiss_setup_open_load(lv_obj_t *parent, void (*done_cb)(void))
     s_done = done_cb;
     s_restore = true;
     s_verify = false;
+    s_session_owned = false;      // before any login: never the lock's
     s_load = true;
     wipe_state();
     load_screen();
@@ -4622,6 +4637,7 @@ void kiss_setup_open_sd_missing(lv_obj_t *parent, int reason,
     s_done = done_cb;
     s_restore = false;
     s_verify = false;
+    s_session_owned = false;      // before any login: never the lock's
     s_load = false;
     wipe_state();
     sd_problem_screen(reason);
@@ -4636,6 +4652,20 @@ void kiss_setup_open_sd_missing(lv_obj_t *parent, int reason,
 void kiss_setup_close_for_test(void) { close_all(); }
 #endif
 
+// The lock's close, the shape kiss_duress_ui_lock_close has: drop the screen
+// AND the done callback, wipe what was typed and any backup waiting for its
+// password. Only for a wizard a session opened (session_owned at
+// kiss_setup_open_verify); a setup or a restore is left alone. Its
+// done callback leads back to the seed words page, and fired on a locked
+// signer that was a way to the words with nobody logged in.
+void kiss_setup_lock_close(void)
+{
+    if (!s_scr || !s_session_owned) return;
+    s_done = NULL;
+    kef_wipe_env();
+    close_all();
+}
+
 void kiss_setup_open(lv_obj_t *parent, void (*done_cb)(void))
 {
     if (s_scr) return;
@@ -4644,29 +4674,42 @@ void kiss_setup_open(lv_obj_t *parent, void (*done_cb)(void))
     s_done = done_cb;
     s_restore = false;
     s_verify = false;
+    s_session_owned = false;      // a setup: never the lock's
     wipe_state();
     choose_screen();
 }
 
 void kiss_setup_open_verify(lv_obj_t *parent, void (*done_cb)(void),
-                            bool with_pass)
+                            bool with_pass, bool session_owned)
 {
-    if (s_scr) return;
+    if (s_scr) return;                 // refused: nothing here is relabelled
     kiss_ui_ensure_indev();
+    // This request's answer starts at "not verified", before anything can
+    // fail: a seed read that fails below calls done_cb, and the caller reads
+    // these two to decide whether to mark the paper as checked. Left as the
+    // last check set them, a card that had gone handed back an earlier
+    // success for words nobody typed.
+    s_verify_ok = false;
+    s_verify_full = false;
+    // The seed first: with nothing to check no wizard is made, and nothing
+    // of this request (its owner, its return) is left behind for the next.
+    char words[WSEED_MAX_MNEMONIC];
+    if (kiss_seed_load(words, sizeof words) != 0) {   // no seed: nothing to check
+        s_verify = false;
+        s_session_owned = false;
+        s_done = NULL;
+        if (done_cb) done_cb();
+        return;
+    }
     s_parent = parent;
     s_done = done_cb;
     s_restore = true;                  // reuse the restore word-entry keypad
     s_verify = true;
+    s_session_owned = session_owned;
     s_verify_ok = false;
     s_verify_pass = with_pass;
     s_verify_full = false;
     wipe_state();
-    char words[WSEED_MAX_MNEMONIC];
-    if (kiss_seed_load(words, sizeof words) != 0) {   // no seed: nothing to check
-        s_verify = false;
-        if (done_cb) done_cb();
-        return;
-    }
     int n = 1;                                          // fix the entry length to the
     for (char *p = words; *p; p++) if (*p == ' ') n++;  // stored seed's word count
     kiss_wipe(words, sizeof words);

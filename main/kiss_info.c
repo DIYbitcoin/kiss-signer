@@ -33,6 +33,9 @@
 static lv_obj_t *s_scr;                 // whichever wallet-section screen is up
 static lv_obj_t *s_parent;
 static void (*s_words_done)(void);
+// The words page was opened by a screen of the open session (KEYS, Settings),
+// not by RECOVER. The check it offers inherits it. See kiss_setup.h.
+static bool s_words_session;
 // Where the scan key reveal goes home to. NULL is KEYS, its own page; RECEIVE's
 // SILENT tab sets it, the same shape s_words_done gives the backup grid. ONE
 // flow either way -- the second door opens the same gate, never a copy of it.
@@ -1670,7 +1673,8 @@ static void verify_copy_cb(lv_event_t *e)
 {
     (void)e;
     swap_screen();                       // drop this screen (async: safe mid-event)
-    kiss_setup_open_verify(s_parent, winfo_after_verify, true);
+    kiss_setup_open_verify(s_parent, winfo_after_verify, true,
+                           s_words_session);
 }
 
 // ---- RECOVERY WORDS: two groups, PAPER and ENCRYPTED --------------------
@@ -2090,8 +2094,8 @@ static void kef_warn_reopen(void) { kef_warn_screen(NULL); }
 static void kef_make(void *ud)
 {
     (void)ud;
-    kiss_ui_kef_pass_open(true, kef_check_cb, kef_show_screen,
-                          kef_warn_reopen);
+    kiss_ui_session_kef_pass_open(true, kef_check_cb, kef_show_screen,
+                                  kef_warn_reopen);
 }
 
 static void kef_warn_screen(lv_event_t *e)
@@ -2254,13 +2258,15 @@ static void ppk_reopen(void) { kef_wipe(); ppk_warn_screen(NULL); }
 
 static void ppk_pass_done(void)
 {
-    kiss_ui_kef_pass_open(true, ppk_seal_cb, ppk_show_screen, ppk_reopen);
+    kiss_ui_session_kef_pass_open(true, ppk_seal_cb, ppk_show_screen,
+                                  ppk_reopen);
 }
 
 static void ppk_make(void *ud)
 {
     (void)ud;
-    kiss_ui_verify_pass_open(ppk_pass_check, ppk_pass_done, ppk_reopen);
+    kiss_ui_session_verify_pass_open(ppk_pass_check, ppk_pass_done,
+                                     ppk_reopen);
 }
 
 static void ppk_warn_screen(lv_event_t *e)
@@ -2638,6 +2644,7 @@ void kiss_info_open(lv_obj_t *parent)
     if (s_scr) return;
     s_parent = parent;
     s_words_done = NULL;
+    s_words_session = true;
     s_scan_key_done = NULL;
     s_pair_fmt = 0;
     // A fresh entry lands on tab 1. The context keeps its tab across a screen
@@ -2658,11 +2665,13 @@ void kiss_info_open(lv_obj_t *parent)
     info_screen();
 }
 
-void kiss_info_open_words(lv_obj_t *parent, void (*done_cb)(void))
+void kiss_info_open_words(lv_obj_t *parent, void (*done_cb)(void),
+                          bool session)
 {
     if (s_scr) return;
     s_parent = parent;
     s_words_done = done_cb;
+    s_words_session = session;
     words_warn_screen(NULL);
 }
 

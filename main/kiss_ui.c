@@ -107,6 +107,13 @@ static bool s_kef_pass;
 // most card PINs are digits. The card counts the tries, not this screen.
 static bool s_card_pin;
 static bool s_kef_create;
+// The keyboard was borrowed by a screen of an OPEN SESSION (kiss_info, the
+// backup check from Settings), as opposed to one of setup or restore. Set by
+// the kiss_ui_session_* openers; read by kiss_ui_session_close.
+static bool s_session_flow;
+// The warning SCAN puts up. A screen of its own beside the keyboard, so the
+// keyboard's teardown has to know it is there.
+static lv_obj_t *s_scan_warn;
 static bool s_kef_first_done;
 static char s_kef_first[PASS_MAX + 1];
 static int (*s_kef_check_cb)(const char *pass, size_t len);
@@ -748,6 +755,8 @@ static void wipe_and_close(void) {
   s_kef_pass = false;
   s_card_pin = false;
   s_kef_create = false;
+  s_session_flow = false;
+  if (s_scan_warn) { lv_obj_delete_async(s_scan_warn); s_scan_warn = NULL; }
   s_kef_first_done = false;
   kiss_wipe(s_kef_first, sizeof s_kef_first);
   s_kef_check_cb = NULL;
@@ -1135,7 +1144,7 @@ static void recover_words_cb(lv_event_t *e)
     s_words_from_recov = true;
     // kiss_seed_load answers from the staging while it is held, so this is the
     // ordinary words screen reading the copy that has not reached flash.
-    kiss_info_open_words(lv_screen_active(), recover_words_done);
+    kiss_info_open_words(lv_screen_active(), recover_words_done, false);
 }
 
 #ifndef ESP_PLATFORM
@@ -1538,8 +1547,11 @@ static void setup_warn_verify_cb(lv_event_t *e)
 {
   (void)e;
   if (s_warnscr) { lv_obj_delete_async(s_warnscr); s_warnscr = NULL; }
+  // This flow runs its own passphrase leg. The check belongs to whoever owns
+  // this warning: first setup, or ADD A PASSPHRASE inside an open session,
+  // where the lock must take it with the rest.
   kiss_setup_open_verify(lv_screen_active(), setup_warn_words_done,
-                         false);   // this flow runs its own passphrase leg
+                         false, s_pass_later);
 }
 
 #if KISS_NARROW
@@ -2544,22 +2556,37 @@ static void pp_scan_text_cb(const char *txt, size_t len) {
 
 static void pp_scan_cancel_cb(void) { }     // the keyboard was never torn down
 
+// Each close clears the handle only when it is closing the warning the handle
+// names, so a stale event can never leave a live warning unnamed.
+static void pp_scan_warn_drop(lv_obj_t *w) {
+  lv_obj_delete_async(w);
+  if (s_scan_warn == w) s_scan_warn = NULL;
+}
+
 static void pp_scan_go_cb(lv_event_t *e) {
-  lv_obj_delete_async((lv_obj_t *)lv_event_get_user_data(e));
+  pp_scan_warn_drop((lv_obj_t *)lv_event_get_user_data(e));
   kiss_scan_open_raw(lv_screen_active(), KISS_SCAN_TASK_PASS,
                      pp_scan_text_cb, pp_scan_cancel_cb);
 }
 
 static void pp_scan_back_cb(lv_event_t *e) {
-  lv_obj_delete_async((lv_obj_t *)lv_event_get_user_data(e));
+  pp_scan_warn_drop((lv_obj_t *)lv_event_get_user_data(e));
 }
 
 static void pp_scan_warn_cb(lv_event_t *e) {
   (void)e;
+  // One at a time. A tap on the warning's empty head used to fall through to
+  // the SCAN key under it and stack a second warning, which the lock's
+  // teardown never knew about.
+  if (s_scan_warn) return;
   lv_obj_t *scr = wt_screen(lv_screen_active(), tr(STR_L_SCAN_WARN_T),
                             tr(STR_L_SCAN_WARN_S));
   wt_chrome_head(scr);                  // the head every other page wears
   lv_obj_move_foreground(scr);
+  // And modal: it takes every touch that lands on it, so nothing reaches the
+  // keyboard underneath while it is up.
+  lv_obj_add_flag(scr, LV_OBJ_FLAG_CLICKABLE);
+  s_scan_warn = scr;
   // Keep the disclosure and the seed-word risk in separate labelled rows.
   const char *body = tr(STR_L_SCAN_WARN_B);
   const char *split = strstr(body, "\n\n");
@@ -2951,29 +2978,19 @@ void kiss_login_open(void (*unlocked_cb)(void)) {
 // session, and the caller's on_check is the only thing that decides. What it
 // checks is kiss_session_prepare beside the live session, so a wrong answer
 // keeps the keyboard up and changes nothing.
-void kiss_ui_verify_pass_open(int (*on_check)(const char *pass, size_t len),
-                              void (*on_done)(void), void (*on_cancel)(void))
-{
-  s_kef_pass = true;
-  kiss_ui_kef_pass_open(false, on_check, on_done, on_cancel);
-  if (!kiss_ui_active()) s_kef_pass = false;   // refused: leave no mode behind
-}
-
-void kiss_ui_card_pin_open(int (*on_check)(const char *pin, size_t len),
-                           void (*on_done)(void), void (*on_cancel)(void))
-{
-  s_card_pin = true;
-  kiss_ui_kef_pass_open(false, on_check, on_done, on_cancel);
-  if (!kiss_ui_active()) { s_card_pin = false; return; }
-  kb_plane(s_kb, MAP_SYM);
-}
-
-void kiss_ui_kef_pass_open(bool create,
-                           int (*on_check)(const char *pass, size_t len),
-                           void (*on_done)(void), void (*on_cancel)(void))
+// Every borrowed keyboard opens through here. Refused while any login screen
+// is up, and a refused open changes nothing: no mode flag and no ownership is
+// set on somebody else's keyboard.
+static void kef_pass_open(bool create, bool pass_mode, bool pin_mode,
+                          bool session,
+                          int (*on_check)(const char *pass, size_t len),
+                          void (*on_done)(void), void (*on_cancel)(void))
 {
   if (kiss_ui_active()) return;
   s_kef_mode = true;
+  s_kef_pass = pass_mode;
+  s_card_pin = pin_mode;
+  s_session_flow = session;
   s_kef_create = create;
   s_kef_first_done = false;
   s_kef_first[0] = 0;
@@ -2981,6 +2998,61 @@ void kiss_ui_kef_pass_open(bool create,
   s_kef_done_cb = on_done;
   s_kef_cancel_cb = on_cancel;
   kiss_login_open(NULL);
+}
+
+void kiss_ui_verify_pass_open(int (*on_check)(const char *pass, size_t len),
+                              void (*on_done)(void), void (*on_cancel)(void))
+{
+  kef_pass_open(false, true, false, false, on_check, on_done, on_cancel);
+}
+
+void kiss_ui_card_pin_open(int (*on_check)(const char *pin, size_t len),
+                           void (*on_done)(void), void (*on_cancel)(void))
+{
+  bool was_up = kiss_ui_active();
+  kef_pass_open(false, false, true, false, on_check, on_done, on_cancel);
+  if (!was_up && kiss_ui_active()) kb_plane(s_kb, MAP_SYM);
+}
+
+void kiss_ui_session_kef_pass_open(bool create,
+                                   int (*on_check)(const char *pass, size_t len),
+                                   void (*on_done)(void),
+                                   void (*on_cancel)(void))
+{
+  kef_pass_open(create, false, false, true, on_check, on_done, on_cancel);
+}
+
+void kiss_ui_session_verify_pass_open(int (*on_check)(const char *pass,
+                                                      size_t len),
+                                      void (*on_done)(void),
+                                      void (*on_cancel)(void))
+{
+  kef_pass_open(false, true, false, true, on_check, on_done, on_cancel);
+}
+
+void kiss_ui_kef_pass_open(bool create,
+                           int (*on_check)(const char *pass, size_t len),
+                           void (*on_done)(void), void (*on_cancel)(void))
+{
+  kef_pass_open(create, false, false, false, on_check, on_done, on_cancel);
+}
+
+// See kiss_ui.h. wipe_and_close is CANCEL's own teardown without the callback:
+// the screen that would have received it is already gone. The passphrase
+// intro and the STOP screen are not its to delete, so they go here.
+//
+// Only what a session opened: ADD A PASSPHRASE, or a keyboard borrowed
+// through a kiss_ui_session_* opener. The login of a setup or a restore is
+// never this function's, whatever is live when the lock comes: its teardown
+// discards a staged seed.
+void kiss_ui_session_close(void) {
+  if (kiss_ui_recover_active()) return;
+  if (!s_pass_later && !s_session_flow) return;
+  if (s_pp_intro) { lv_obj_delete_async(s_pp_intro); s_pp_intro = NULL; }
+  if (s_errscr)   { lv_obj_delete_async(s_errscr);   s_errscr = NULL; }
+  s_setup_next_cb = NULL;
+  s_unlocked_cb = NULL;
+  wipe_and_close();
 }
 
 // ---- build identity (shared: Settings footer + wallet home corner) ----

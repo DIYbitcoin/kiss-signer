@@ -2537,6 +2537,7 @@ int main(int argc, char **argv) {
         uint8_t bare[4] = {0}, got[4];
         chki("ppcheck: the seed's own fingerprint", kiss_fingerprint(NULL, bare), 0);
         chki("ppcheck: passphrase session opens", kiss_session_open("kiss"), 0);
+        chkb("ppcheck: a session is live", kiss_session_live() == 1);
         memset(got, 0xEE, sizeof got);
         chki("ppcheck: the session's own passphrase passes",
              kiss_session_passphrase_check("kiss", got), 0);
@@ -2562,6 +2563,7 @@ int main(int argc, char **argv) {
              kiss_session_passphrase_check("kiss", got) != 0);
         uint32_t gen = kiss_session_generation();
         kiss_session_close();
+        chkb("ppcheck: nothing is live after a lock", kiss_session_live() == 0);
         memset(got, 0xEE, sizeof got);
         chkb("ppcheck: with no session open nothing passes",
              kiss_session_passphrase_check("kiss", got) != 0

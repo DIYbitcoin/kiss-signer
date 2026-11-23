@@ -7,6 +7,12 @@
 
 void kiss_setup_open(lv_obj_t *parent, void (*done_cb)(void));
 bool kiss_setup_active(void);
+// The lock takes a wizard a session opened: screen gone, done callback
+// dropped and never called, typed words wiped. A setup or a restore is left
+// alone. See kiss_setup.c.
+void kiss_setup_lock_close(void);
+// True while a check a session opened (session_owned) is up.
+bool kiss_setup_session_active(void);
 
 // Verify an EXISTING backup: type the stored wallet's words from paper and the
 // device confirms they match, without revealing them. Reuses the restore
@@ -19,8 +25,13 @@ bool kiss_setup_active(void);
 // screen then prints a fingerprint the checked words cannot reproduce on
 // their own. The setup rehearsal passes false because kiss_ui.c runs its own
 // passphrase leg after its warning screen.
+//
+// `session_owned`: a screen of the OPEN SESSION opened it (Settings, or the
+// check ADD A PASSPHRASE offers), so the lock takes it and it locks after five
+// untouched minutes. False for first setup and for RECOVER, whose staged seed
+// may be the last copy. Set only when the wizard is actually created.
 void kiss_setup_open_verify(lv_obj_t *parent, void (*done_cb)(void),
-                            bool with_pass);
+                            bool with_pass, bool session_owned);
 
 // True when the most recent open_verify(with_pass) also proved the passphrase:
 // the words AND the passphrase together rederived the fingerprint on screen.

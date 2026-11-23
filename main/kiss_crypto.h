@@ -223,6 +223,8 @@ int kiss_session_prepared_fingerprint(uint8_t out[4]);
 // session, a card session, another key. The open session is not touched.
 int kiss_session_passphrase_check(const char *passphrase,
                                   uint8_t seed_fp_out[4]);
+// 1 while a session is open (seed or card), 0 when locked.
+int kiss_session_live(void);
 // BIP84 mainnet address at m/84h/0h/0h/<change>/<index> (native segwit, bc1q...)
 int kiss_session_address(int change, uint32_t index, char *out, size_t out_len);
 
