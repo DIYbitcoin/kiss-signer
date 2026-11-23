@@ -30,8 +30,10 @@ def label(b):
     w, h = b["screen"]
     # "an 800", "a 1024": the article follows how the number is said.
     article = "an" if str(w)[0] == "8" or str(w).startswith("11") or str(w).startswith("18") else "a"
-    return (f'<b>{b["name"]}</b>, the {b["model"]}, with {article} {w} by {h} screen. '
-            f'This release is for {b["chips"]} chips only.')
+    text = f'<b>{b["name"]}</b>, the {b["model"]}, with {article} {w} by {h} screen.'
+    if b.get("chips_note"):
+        text += f' This release is for {b["chips"]} chips only.'
+    return text
 
 
 def maker_list(boards):
@@ -49,9 +51,14 @@ def maker_list(boards):
 
 def render(boards):
     out = []
-    for b in boards:
-        if b["build"] != "release":
-            continue
+    release = [b for b in boards if b["build"] == "release"]
+    # The chip rule is said once when every release board shares it, and on
+    # each row only when they differ.
+    chips = {b["chips"] for b in release}
+    if len(chips) == 1:
+        out.append(f'{INDENT}<p class="hint">This release is for {chips.pop()} chips only.</p>')
+    for b in release:
+        b = dict(b, chips_note=len({r["chips"] for r in release}) > 1)
         out += [
             f'{INDENT}<label class="ack-row">',
             f'{INDENT}  <input type="radio" name="board" value="{b["id"]}">',
