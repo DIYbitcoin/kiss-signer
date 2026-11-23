@@ -124,6 +124,24 @@ int kef_sniff(const uint8_t *buf, size_t len)
     return kef_parse(buf, len, &e) == 0 ? 1 : 0;
 }
 
+int kef_is_passphrase(const uint8_t *buf, size_t len)
+{
+    // The exact shape kiss_kef_seal_pass writes and nothing wider: version
+    // 20, the tag, eight uppercase hex characters. A seed backup another tool
+    // made under a name its owner chose must not be refused for starting
+    // with the same word.
+    kef_env_t e;
+    if (kef_parse(buf, len, &e) != 0) return 0;
+    if (e.version != KEF_VERSION_AES_GCM || e.id_len != KEF_PASS_ID_LEN ||
+        memcmp(e.id, KEF_PASS_TAG, KEF_PASS_TAG_LEN) != 0)
+        return 0;
+    for (size_t i = KEF_PASS_TAG_LEN; i < KEF_PASS_ID_LEN; i++) {
+        uint8_t ch = e.id[i];
+        if (!((ch >= '0' && ch <= '9') || (ch >= 'A' && ch <= 'F'))) return 0;
+    }
+    return 1;
+}
+
 size_t kef_emit_header(uint8_t *out, size_t cap, const uint8_t *id,
                        size_t id_len, uint8_t version, uint32_t iter_raw)
 {

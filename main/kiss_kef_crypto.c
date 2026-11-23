@@ -498,3 +498,18 @@ int kiss_kef_seal_seed(const char *mnemonic, const char *password,
     if (rc != 0 && id_hex_out) id_hex_out[0] = 0;
     return rc == 0 ? 0 : -1;
 }
+
+int kiss_kef_seal_pass(const uint8_t seed_fp[4],
+                       const char *password, size_t pass_len,
+                       const char *passphrase, size_t pp_len,
+                       uint8_t *out, size_t out_cap, size_t *out_len)
+{
+    if (out_len) *out_len = 0;
+    if (!seed_fp || !passphrase || pp_len == 0) return -1;
+    char id[KEF_PASS_ID_LEN + 1];
+    snprintf(id, sizeof id, KEF_PASS_TAG "%02X%02X%02X%02X",
+             seed_fp[0], seed_fp[1], seed_fp[2], seed_fp[3]);
+    return kiss_kef_seal((const uint8_t *)id, KEF_PASS_ID_LEN, password,
+                         pass_len, (const uint8_t *)passphrase, pp_len,
+                         out, out_cap, out_len);
+}

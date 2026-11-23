@@ -38,6 +38,28 @@ It does **not** defend against:
 - **Supply chain compromise of the device itself.**
 - **An attacker who has both your recovery words and your passphrase.**
 
+### What the camera may bring in
+
+A secret a camera can read is a secret a photo can take, so nothing readable
+should be lying around:
+
+- **Seed words** come in by typing, or as an encrypted backup (a QR or a
+  `.kef` file) with its password. A plain seed QR is refused, whether a
+  SeedQR, a CompactSeedQR or a QR of the words as text, and the signer never
+  writes one. The paper with the seed words is typed in once and then stored
+  out of reach.
+- **A passphrase** comes in by typing, or as an encrypted QR with its
+  password. A plain passphrase QR is still read, behind a warning, because
+  other signers make them. The encrypted passphrase QR says in its name
+  that it holds a passphrase, and restore refuses it: a passphrase of 16 or
+  32 characters would otherwise load as seed words nobody chose.
+- **One or the other.** For a set of keys the signer encrypts the seed words
+  or the passphrase, not both, because both means two passwords to keep.
+  Asking for the second one stops once and offers to switch. The signer
+  remembers which one it made only where its storage is encrypted; on a
+  normal beta it knows until the power goes, and in AMNESIC mode it keeps no
+  record at all, so there the rule is carried by the words on the screen.
+
 **One key is one key.** Everything above assumes the wallet lives behind this
 device alone. A signer can prove its randomness, pin its nonces and re-derive
 every output, and none of that saves an owner from a lost paper backup or a

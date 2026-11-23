@@ -98,6 +98,55 @@ int test_backup_layer(void) {
 
     kiss_backup_forget();
 
+    // Which secret this signer encrypted for a set of keys: the seed words or
+    // the passphrase, one or the other. Encrypted flash, so it is stored.
+    kiss_seed_test_set_flash_encrypted(1);
+    bchk("locked: nothing recorded to begin with",
+         kiss_backup_locked(fp_a) == KISS_LOCKED_NONE);
+    kiss_backup_set_locked(fp_a, KISS_LOCKED_SEED);
+    bchk("locked: the seed words are recorded",
+         kiss_backup_locked(fp_a) == KISS_LOCKED_SEED);
+    bchk("locked: other keys have their own record",
+         kiss_backup_locked(fp_b) == KISS_LOCKED_NONE);
+    kiss_backup_set_locked(fp_a, KISS_LOCKED_PASS);
+    bchk("locked: a switch moves the record, it never holds both",
+         kiss_backup_locked(fp_a) == KISS_LOCKED_PASS);
+    kiss_backup_set_locked(fp_a, 7);
+    bchk("locked: a value that is neither is ignored",
+         kiss_backup_locked(fp_a) == KISS_LOCKED_PASS);
+    bchk("locked: the paper check mark is a separate record",
+         !kiss_backup_checked(fp_a));
+    kiss_backup_forget();
+    bchk("locked: forget erases it with the keys",
+         kiss_backup_locked(fp_a) == KISS_LOCKED_NONE);
+
+    // Flash not encrypted (every board today): the session knows, storage
+    // does not, so a restart forgets it.
+    kiss_seed_test_set_flash_encrypted(0);
+    kiss_backup_set_locked(fp_a, KISS_LOCKED_SEED);
+    bchk("locked: unencrypted flash keeps it for the session",
+         kiss_backup_locked(fp_a) == KISS_LOCKED_SEED);
+    kiss_seed_test_set_flash_encrypted(1);
+    bchk("locked: unencrypted flash wrote nothing to storage",
+         kiss_backup_locked(fp_a) == KISS_LOCKED_NONE);
+    kiss_backup_forget();
+
+    // AMNESIC keeps none at all: nothing is recorded there, and a record
+    // made before the move to AMNESIC is not answered there either.
+    kiss_seed_test_set_flash_encrypted(0);
+    kiss_backup_set_locked(fp_a, KISS_LOCKED_SEED);
+    bchk("locked: switch to AMNESIC",
+         kiss_seed_set_mode(WSEED_MODE_AMNESIC) == 0);
+    bchk("locked: AMNESIC does not answer a record made before it",
+         kiss_backup_locked(fp_a) == KISS_LOCKED_NONE);
+    kiss_backup_set_locked(fp_b, KISS_LOCKED_PASS);
+    bchk("locked: AMNESIC records nothing",
+         kiss_backup_locked(fp_b) == KISS_LOCKED_NONE);
+    bchk("locked: back to KEEP", kiss_seed_set_mode(WSEED_MODE_KEEP) == 0);
+    bchk("locked: nothing made in AMNESIC is there afterwards",
+         kiss_backup_locked(fp_b) == KISS_LOCKED_NONE);
+    kiss_backup_forget();
+
     // One reader, three states. The storage gate is DERIVED from the lock
     // state, so the note that says "encrypted" and the corner that says
     // "locked" can never disagree about the same fuses.

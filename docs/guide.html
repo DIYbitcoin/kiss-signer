@@ -2170,7 +2170,12 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           <li>
             <strong>Passphrase:</strong> in your head and on a second paper,
             or a QR you guard the same way. Never stored on the signer or a
-            card, in any mode.
+            card, in any mode. If you keep the seed words on plain paper, the
+            passphrase can be an encrypted QR instead, made under
+            <strong>SETTINGS &rarr; BACKUP &rarr; SEED WORDS &rarr;
+            ENCRYPTED</strong>: at login, scan it and type its password.
+            Encrypt the seed words or the passphrase, one or the other, since
+            both means two passwords to keep.
           </li>
           <li>
             <strong>Encrypted backup</strong>, optional: an extra copy of the

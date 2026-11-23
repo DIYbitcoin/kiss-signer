@@ -596,6 +596,128 @@ static void test_armor(void)
                      &n) == -1);
 }
 
+// ---- an encrypted passphrase QR: the passphrase is the plaintext ---------
+// The ID is the keys' fingerprint as text, the way the Keys page writes it.
+static void test_passphrase_envelope(void)
+{
+    static const char PP[] = "correct horse battery staple";
+    static const uint8_t SFP[4] = { 0xEC, 0x5A, 0x45, 0x95 };
+    const size_t pl = sizeof PP - 1;
+    uint8_t env[KEF_MAX_ENV], out[KEF_MAX_ENV];
+    size_t elen = 0, n = 0;
+    dchk("passphrase: seals",
+         kiss_kef_seal_pass(SFP, "qr password", 11, PP, pl, env, sizeof env,
+                            &elen) == 0);
+    dchk("passphrase: the envelope routes as encrypted",
+         kef_sniff(env, elen) == 1);
+    dchk("passphrase: the envelope says it holds a passphrase",
+         kef_is_passphrase(env, elen) == 1);
+    kef_env_t e;
+    dchk("passphrase: its name is the tag and the seed's fingerprint",
+         kef_parse(env, elen, &e) == 0 && e.id_len == KEF_PASS_ID_LEN
+         && memcmp(e.id, "PASSPHRASE EC5A4595", KEF_PASS_ID_LEN) == 0);
+    int leak = 0;
+    for (size_t i = 0; i + pl <= elen; i++)
+        if (memcmp(env + i, PP, pl) == 0) leak = 1;
+    dchk("passphrase: the envelope does not carry it in the clear", !leak);
+    dchk("passphrase: its password opens it",
+         kiss_kef_open("qr password", 11, env, elen, out, sizeof out, &n) == 0
+         && n == pl && memcmp(out, PP, pl) == 0);
+    memset(out, 0xEE, sizeof out);
+    n = 99;
+    dchk("passphrase: a wrong password opens nothing",
+         kiss_kef_open("qr passwore", 11, env, elen, out, sizeof out, &n) != 0
+         && n == 0 && out[0] == 0);
+    env[elen - 1] ^= 1;
+    dchk("passphrase: a changed envelope opens nothing",
+         kiss_kef_open("qr password", 11, env, elen, out, sizeof out, &n)
+         != 0);
+    env[elen - 1] ^= 1;
+
+    // The tag cannot be cut off to pass the envelope as a seed backup: the
+    // name is the key derivation's salt, so the same bytes under the bare
+    // fingerprint open with no password.
+    {
+        uint8_t cut[KEF_MAX_ENV];
+        size_t h = kef_emit_header(cut, sizeof cut, e.id + KEF_PASS_TAG_LEN,
+                                   8, e.version, e.iter_raw);
+        memcpy(cut + h, e.payload, e.payload_len);
+        size_t clen = h + e.payload_len;
+        dchk("passphrase: with the tag cut off it reads as a seed backup",
+             kef_sniff(cut, clen) == 1 && kef_is_passphrase(cut, clen) == 0);
+        dchk("passphrase: and then its password opens nothing",
+             kiss_kef_open("qr password", 11, cut, clen, out, sizeof out, &n)
+             != 0 && n == 0);
+    }
+
+    // Every length the keyboard can type makes a QR this signer reads back:
+    // routed as encrypted, marked as a passphrase, opened to the same text.
+    // Under a bare eight character name a three character passphrase sealed
+    // to exactly 32 bytes, which kef_sniff refuses outright.
+    char longest[129];
+    memset(longest, 'x', 128);
+    longest[128] = 0;
+    int routed = 1, marked = 1, same = 1;
+    for (size_t l = 1; l <= 128; l++) {
+        if (kiss_kef_seal_pass(SFP, "pw", 2, longest, l, env, sizeof env,
+                               &elen) != 0) { routed = marked = same = 0; break; }
+        if (elen != 40 + l || !kef_sniff(env, elen)) routed = 0;
+        if (!kef_is_passphrase(env, elen)) marked = 0;
+        if (l == 1 || l == 3 || l == 16 || l == 32 || l == 128)
+            if (kiss_kef_open("pw", 2, env, elen, out, sizeof out, &n) != 0
+                || n != l || memcmp(out, longest, l) != 0) same = 0;
+    }
+    dchk("passphrase: 1 to 128 characters all route as encrypted", routed);
+    dchk("passphrase: 1 to 128 characters all say passphrase", marked);
+    dchk("passphrase: 1, 3, 16, 32 and 128 characters open to the same text",
+         same);
+    dchk("passphrase: an empty one is refused",
+         kiss_kef_seal_pass(SFP, "pw", 2, "", 0, env, sizeof env, &elen) != 0
+         && elen == 0);
+
+    // Why restore asks kef_is_passphrase before it asks for a password: a
+    // passphrase of 16 characters is, to the seed reader, 16 bytes of
+    // entropy. Opened as a backup it would load as seed words nobody chose.
+    {
+        char words[WSEED_MAX_MNEMONIC];
+        dchk("passphrase: 16 characters read as seed entropy, hence the tag",
+             kiss_seed_from_plaintext("sixteen chars ok", 16, words,
+                                      sizeof words) == 0);
+    }
+
+    // A seed backup, and another tool's envelope, do not say passphrase.
+    uint8_t ent[16] = { 7 };
+    dchk("passphrase: a seed backup does not say passphrase",
+         kiss_kef_seal((const uint8_t *)"EC5A4595", 8, "pw", 2, ent, 16, env,
+                       sizeof env, &elen) == 0
+         && kef_is_passphrase(env, elen) == 0);
+    dchk("passphrase: nor does a shorter name that starts the same",
+         kiss_kef_seal((const uint8_t *)"PASSPHRASE", 10, "pw", 2, ent, 16,
+                       env, sizeof env, &elen) == 0
+         && kef_is_passphrase(env, elen) == 0);
+    // Another tool's seed backup, under a name its owner chose: only the
+    // exact shape this signer writes is refused at restore.
+    dchk("passphrase: nor a longer name that starts the same",
+         kiss_kef_seal((const uint8_t *)"PASSPHRASE 73C5DA0A x", 21, "pw", 2,
+                       ent, 16, env, sizeof env, &elen) == 0
+         && kef_is_passphrase(env, elen) == 0);
+    dchk("passphrase: nor the same length without a fingerprint after it",
+         kiss_kef_seal((const uint8_t *)"PASSPHRASE of mine!", 19, "pw", 2,
+                       ent, 16, env, sizeof env, &elen) == 0
+         && kef_is_passphrase(env, elen) == 0);
+    dchk("passphrase: nor lower case hex",
+         kiss_kef_seal((const uint8_t *)"PASSPHRASE 73c5da0a", 19, "pw", 2,
+                       ent, 16, env, sizeof env, &elen) == 0
+         && kef_is_passphrase(env, elen) == 0);
+    dchk("passphrase: nor the same name under another version",
+         kiss_kef_seal((const uint8_t *)"PASSPHRASE 73C5DA0A", 19, "pw", 2,
+                       ent, 16, env, sizeof env, &elen) == 0
+         && kef_is_passphrase(env, elen) == 1
+         && (env[1 + 19] = 15, kef_is_passphrase(env, elen) == 0));
+    dchk("passphrase: bytes that are no envelope do not say passphrase",
+         kef_is_passphrase((const uint8_t *)"PASSPHRASE 00000000", 19) == 0);
+}
+
 int test_kef(void)
 {
     dfails = 0;
@@ -606,6 +728,7 @@ int test_kef(void)
     test_roundtrip();
     test_sniff();
     test_seal_seed();
+    test_passphrase_envelope();
     test_armor();
     return dfails;
 }

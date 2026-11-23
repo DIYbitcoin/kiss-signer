@@ -4158,6 +4158,8 @@ static void kef_cancel_cb(void)
 // sit on an LVGL event stack carrying a KEF_MAX_ENV buffer of their own.
 static uint8_t s_kef_unarm[KEF_MAX_ENV];
 
+static void qr_bad_screen(void);
+
 static int kef_route(const uint8_t *data, size_t len)
 {
     // One place for both doors: a Krux envelope wears base43 out of a QR and
@@ -4170,6 +4172,16 @@ static int kef_route(const uint8_t *data, size_t len)
         len  = un_len;
     }
     if (!kef_sniff(data, len)) return 0;
+    // An encrypted PASSPHRASE this signer made (kiss_kef.h, KEF_PASS_TAG). It
+    // is an envelope and it opens, and a passphrase of 16 or 32 characters is
+    // the shape of seed entropy: with its password it would load as seed
+    // words nobody chose, and the owner would receive to keys no backup
+    // names. Refused by its name, before a password is asked for.
+    if (kef_is_passphrase(data, len)) {
+        kiss_wipe(s_kef_unarm, sizeof s_kef_unarm);
+        qr_bad_screen();
+        return 1;
+    }
     kef_env_t e;
     if (len <= sizeof s_kef_env && kef_parse(data, len, &e) == 0
         && kef_can_open(e.version)

@@ -71,6 +71,27 @@ static void persistent_wipe(void)
     nvs_close(h);
 }
 
+static int persistent_get(const char *key)
+{
+    nvs_handle_t h;
+    if (nvs_open("kissb", NVS_READONLY, &h) != ESP_OK)
+        return 0;
+    uint8_t v = 0;
+    if (nvs_get_u8(h, key, &v) != ESP_OK) v = 0;
+    nvs_close(h);
+    return v;
+}
+
+static void persistent_set(const char *key, int v)
+{
+    nvs_handle_t h;
+    if (nvs_open("kissb", NVS_READWRITE, &h) != ESP_OK)
+        return;
+    if (nvs_set_u8(h, key, (uint8_t)v) == ESP_OK)
+        nvs_commit(h);
+    nvs_close(h);
+}
+
 #else   // host (sim + desktop tests): RAM table
 
 static char s_persistent[BMAX][16];
@@ -86,10 +107,34 @@ static void persistent_add(const char *key)
     tab_add(s_persistent, &s_persistent_n, key);
 }
 
+static char    s_plock_key[BMAX][16];
+static uint8_t s_plock_val[BMAX];
+static int     s_plock_n;
+
 static void persistent_wipe(void)
 {
     memset(s_persistent, 0, sizeof s_persistent);
     s_persistent_n = 0;
+    memset(s_plock_key, 0, sizeof s_plock_key);
+    memset(s_plock_val, 0, sizeof s_plock_val);
+    s_plock_n = 0;
+}
+
+static int persistent_get(const char *key)
+{
+    for (int i = 0; i < s_plock_n; i++)
+        if (strcmp(s_plock_key[i], key) == 0)
+            return s_plock_val[i];
+    return 0;
+}
+
+static void persistent_set(const char *key, int v)
+{
+    for (int i = 0; i < s_plock_n; i++)
+        if (strcmp(s_plock_key[i], key) == 0) { s_plock_val[i] = (uint8_t)v; return; }
+    if (s_plock_n >= BMAX) return;
+    snprintf(s_plock_key[s_plock_n], 16, "%s", key);
+    s_plock_val[s_plock_n++] = (uint8_t)v;
 }
 
 #endif
@@ -122,9 +167,68 @@ void kiss_backup_mark(const uint8_t fp[4])
         persistent_add(key);
 }
 
+// ---- which secret was locked (see kiss_backup.h) ----
+// key = "<fp8hex>L", nine of NVS's fifteen characters, beside the eight
+// character key of the paper flag for the same keys.
+static char    s_lock_key[BMAX][16];
+static uint8_t s_lock_val[BMAX];
+static int     s_lock_n;
+
+static void lock_key(const uint8_t fp[4], char out[16])
+{
+    snprintf(out, 16, "%02x%02x%02x%02xL", fp[0], fp[1], fp[2], fp[3]);
+}
+
+static bool lock_mode_records(void)
+{
+    int m = kiss_seed_mode();
+    return m == WSEED_MODE_KEEP || m == WSEED_MODE_SD;
+}
+
+int kiss_backup_locked(const uint8_t fp[4])
+{
+    // AMNESIC keeps none, not even for the session: a signer that holds no
+    // seed between sessions has no business remembering what it made for one.
+    // Asked as "a mode that keeps a seed", so a mode byte that can not be
+    // read answers the same way.
+    if (!lock_mode_records())
+        return KISS_LOCKED_NONE;
+    char key[16];
+    lock_key(fp, key);
+    if (may_persist())
+        return persistent_get(key);
+    for (int i = 0; i < s_lock_n; i++)
+        if (strcmp(s_lock_key[i], key) == 0)
+            return s_lock_val[i];
+    return KISS_LOCKED_NONE;
+}
+
+void kiss_backup_set_locked(const uint8_t fp[4], int which)
+{
+    if (which != KISS_LOCKED_SEED && which != KISS_LOCKED_PASS)
+        return;
+    if (!lock_mode_records())
+        return;
+    char key[16];
+    lock_key(fp, key);
+    int at = -1;
+    for (int i = 0; i < s_lock_n; i++)
+        if (strcmp(s_lock_key[i], key) == 0) at = i;
+    if (at < 0 && s_lock_n < BMAX) {
+        at = s_lock_n++;
+        snprintf(s_lock_key[at], 16, "%s", key);
+    }
+    if (at >= 0) s_lock_val[at] = (uint8_t)which;
+    if (may_persist())
+        persistent_set(key, which);
+}
+
 void kiss_backup_forget(void)
 {
     persistent_wipe();
     memset(s_session, 0, sizeof s_session);
     s_session_n = 0;
+    memset(s_lock_key, 0, sizeof s_lock_key);
+    memset(s_lock_val, 0, sizeof s_lock_val);
+    s_lock_n = 0;
 }

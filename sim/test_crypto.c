@@ -2528,6 +2528,49 @@ int main(int argc, char **argv) {
             "bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu");
     }
 
+    // ---- a passphrase checked against the open session is checked against
+    // the WHOLE key, and the seed's own fingerprint comes out of the same read
+    // of the seed. The encrypted passphrase QR puts what was typed on paper as
+    // "the passphrase for these keys" under that fingerprint, and a four byte
+    // fingerprint can be shared by two passphrases.
+    {
+        uint8_t bare[4] = {0}, got[4];
+        chki("ppcheck: the seed's own fingerprint", kiss_fingerprint(NULL, bare), 0);
+        chki("ppcheck: passphrase session opens", kiss_session_open("kiss"), 0);
+        memset(got, 0xEE, sizeof got);
+        chki("ppcheck: the session's own passphrase passes",
+             kiss_session_passphrase_check("kiss", got), 0);
+        chkb("ppcheck: and names the seed, not the passphrase keys",
+             memcmp(got, bare, 4) == 0);
+        uint8_t sess[4] = {0};
+        chki("ppcheck: session fingerprint", kiss_session_fingerprint(sess), 0);
+        chkb("ppcheck: the two fingerprints differ", memcmp(sess, bare, 4) != 0);
+        memset(got, 0xEE, sizeof got);
+        chkb("ppcheck: a near miss is refused",
+             kiss_session_passphrase_check("kisS", got) != 0);
+        chkb("ppcheck: a refusal names nothing",
+             (got[0] | got[1] | got[2] | got[3]) == 0);
+        chkb("ppcheck: an empty passphrase is refused",
+             kiss_session_passphrase_check("", got) != 0);
+        chkb("ppcheck: no passphrase is refused",
+             kiss_session_passphrase_check(NULL, got) != 0);
+        chki("ppcheck: the check left the session as it was",
+             kiss_session_fingerprint(got), 0);
+        chkb("ppcheck: same keys after the check", memcmp(got, sess, 4) == 0);
+        chki("ppcheck: decoy session opens", kiss_session_open(NULL), 0);
+        chkb("ppcheck: another session's passphrase is refused",
+             kiss_session_passphrase_check("kiss", got) != 0);
+        uint32_t gen = kiss_session_generation();
+        kiss_session_close();
+        memset(got, 0xEE, sizeof got);
+        chkb("ppcheck: with no session open nothing passes",
+             kiss_session_passphrase_check("kiss", got) != 0
+             && (got[0] | got[1] | got[2] | got[3]) == 0);
+        chkb("ppcheck: a lock changes the session count",
+             kiss_session_generation() != gen);
+        chki("ppcheck: reopen for the rest", kiss_session_open(NULL), 0);
+    }
+
     // optional: also emit device-test PSBT files (argv[1] = target dir, e.g. the
     // SD card). kiss-pay.psbt verifies READY + signs; kiss-stop.psbt must STOP.
     if (argc > 1) {

@@ -30,5 +30,21 @@ bool kiss_backup_checked(const uint8_t fp[4]);
 // Record that it has. Persists on device, except in AMNESIC mode.
 void kiss_backup_mark(const uint8_t fp[4]);
 
+// Which secret of these keys this signer has locked into an encrypted QR:
+// the seed words (the encrypted backup) or the passphrase. One or the other
+// is the rule, because each locked QR has its own password and two of them
+// are two passwords to keep, and this is what lets the screens say so at
+// the moment the second one is asked for.
+//
+// It records what this signer MADE, never what still exists: the paper may
+// have been destroyed, or made on another device. So it is never shown as a
+// state, only used to stop once and ask. Same store and the same erase as
+// the flag above. On flash that is not encrypted it lives in RAM until the
+// power goes, across a lock. In AMNESIC mode there is none at all: nothing
+// is recorded and nothing is answered.
+enum { KISS_LOCKED_NONE = 0, KISS_LOCKED_SEED = 1, KISS_LOCKED_PASS = 2 };
+int  kiss_backup_locked(const uint8_t fp[4]);
+void kiss_backup_set_locked(const uint8_t fp[4], int which);
+
 // Forget everything (seed wipe, wallet replacement, or test reset).
 void kiss_backup_forget(void);

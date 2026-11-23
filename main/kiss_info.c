@@ -48,6 +48,8 @@ static lv_obj_t *s_pair_rung[PAIR_RUNGS], *s_pair_tail, *s_pair_locked;
 static void info_screen(void);
 static void kef_warn_screen(lv_event_t *e);
 static void kef_wipe(void);
+static void kef_row_cb(lv_event_t *e);
+static void ppk_row_cb(lv_event_t *e);
 static void sp_key_wipe(void);   // the exported scan key, out of the label's heap
 
 // RECOVERY WORDS is a tabbed page; this is its two-lane group state. Declared
@@ -1822,53 +1824,38 @@ static void wtab_enc(void)
     // change, so there is nothing to branch on.
     const char *ksub = tr(STR_I_ROW_KEF_SUB);
 
+    // With a passphrase there are two secrets and so two rows, each named for
+    // what it locks, and the group's note says the rule between them. The
+    // CONTENTS row gives its place to the second one: what it said ("seed
+    // words. not your passphrase") is now the first row's own name.
+    if (pp) {
+        wt_row_wide(w_pane, WT_WIDE_Y(0), &(wt_wide_t){
+            .label = tr(STR_T_SEED_CAP),   // the short caption forms: the
+            .sub   = ksub,                 // long ones are cut in five languages
+            .kind  = WT_WIDE_OPEN,
+            .cb    = kef_row_cb,
+        });
+        wt_row_wide(w_pane, WT_WIDE_Y(1), &(wt_wide_t){
+            .label = tr(STR_T_PASS_CAP),
+            .sub   = tr(STR_I_PPK_ROW_SUB),
+            .kind  = WT_WIDE_OPEN,
+            .cb    = ppk_row_cb,
+        });
+        wt_group_note(w_pane, 2, tr_sym(WT_ICON_LOCK, STR_I_LOCK_ONE_NOTE));
+        return;
+    }
+
     wt_row_wide(w_pane, WT_WIDE_Y(0), &(wt_wide_t){
         .label = tr(STR_I_WROW_KEF),
         .sub   = ksub,
         .kind  = WT_WIDE_OPEN,
-        .cb    = kef_warn_screen,
+        .cb    = kef_row_cb,
     });
 
-    // What is in it, before the owner taps the row above. The consent screen
-    // states this too, but as one of two blocks weighted the same as the
-    // reassuring one -- and the thing that bites is that this QR rebuilds
-    // DIFFERENT keys on its own. It leads here.
-    //
-    // NO VALUE GLYPH, no vcol, no severity. This row DESCRIBES a format; it
-    // does not report a state, and this device's green tick means one thing --
-    // kiss_theme.h calls it "a state already satisfied", and every other tick
-    // in the product obeys that: paper verified, the sealed file present, the
-    // storage mode you are on. It came back from the bench read exactly the
-    // way the grammar says to read it: "misleading, making it seem like one was
-    // already set."
-    //
-    // It could not have been true either way. There is no record anywhere that
-    // an encrypted backup was ever made -- no NVS key, no counter, and
-    // kef_wipe() clears the session copy on every exit -- so even "you made one
-    // two minutes ago" is unknowable here. Counting .kef files means mounting
-    // the card inside a tab animation, and answers about whatever card is in
-    // the slot rather than about this signer.
-    //
-    // The firmware screen had this same bug and its fix is the rule: the label
-    // IS the claim, so there is no value beside it and no severity colour. A
-    // tick is a result. WT_WIDE_OPEN with no callback keeps it in full ink with
-    // no chevron and no tap; the amber is on the sub alone, where it is a
-    // caution about CONTENT rather than a claim about state.
-    // THE ANSWER, not the question. This read I_KEF_PP_H -- "what is in
-    // it" -- which is a HEADING: it and I_KEF_W2_H ("if you lose it") are
-    // the two heads of a block whose bodies were deleted, and both were left
-    // wired up. So the row an owner opens to find out what is in the envelope
-    // asked them the question back, and did it only on a signer WITH a
-    // passphrase, which is the case where the answer matters.
-    //
-    // I_KEF_WARN_S_PP is that answer, already written and already in 21
-    // locales -- it was sitting on the orphan backlog. The fact it carries is
-    // the one that bites: this QR holds the words and NOT the passphrase, so
-    // on its own it rebuilds different keys.
     wt_row_wide(w_pane, WT_WIDE_Y(1), &(wt_wide_t){
         .label   = tr(STR_I_WROW_HOLDS),
-        .sub     = tr(pp ? STR_I_KEF_WARN_S_PP : STR_I_KEF_WARN_S),
-        .sub_col = pp ? WT_WARN : WT_MUT,
+        .sub     = tr(STR_I_KEF_WARN_S),
+        .sub_col = WT_MUT,
         .kind    = WT_WIDE_OPEN,
     });
 
@@ -1955,6 +1942,19 @@ static uint8_t   s_kef_env[KEF_MAX_ENV];
 static size_t    s_kef_env_len;
 static char      s_kef_id[9];
 static lv_obj_t *s_kef_sd_chip;
+// The passphrase, for the few seconds between being typed (and checked
+// against the open keys) and being locked into its own envelope below. It is
+// never anywhere else: not in flash, not on the card, not in a log.
+#define PPK_MAX 128
+static char      s_ppk_pass[PPK_MAX + 1];
+static size_t    s_ppk_len;
+// Taken at the moment the passphrase is checked, and held to at the seal: the
+// seed's own fingerprint (the QR's printed name) and which session was open.
+// Reading either again at the seal would name the QR after whatever seed is
+// in reach by then, and seal under a session that is no longer the one the
+// passphrase was checked against.
+static uint8_t   s_ppk_seed_fp[4];
+static uint32_t  s_ppk_gen;
 
 static void kef_wipe(void)
 {
@@ -1962,6 +1962,10 @@ static void kef_wipe(void)
     s_kef_env_len = 0;
     memset(s_kef_id, 0, sizeof s_kef_id);
     s_kef_sd_chip = NULL;
+    kiss_wipe(s_ppk_pass, sizeof s_ppk_pass);
+    s_ppk_len = 0;
+    memset(s_ppk_seed_fp, 0, sizeof s_ppk_seed_fp);
+    s_ppk_gen = 0;
 }
 
 static void kef_finish_cb(lv_event_t *e)
@@ -1981,6 +1985,12 @@ static int kef_check_cb(const char *pass, size_t len)
                                 &s_kef_env_len, s_kef_id);
     kiss_wipe(words, sizeof words);
     if (rc != 0) kef_wipe();
+    else {
+        // What this signer locked for these keys: see kiss_backup.h.
+        uint8_t fp[4];
+        kiss_ui_last_fp(fp);
+        if (kiss_fp_known(fp)) kiss_backup_set_locked(fp, KISS_LOCKED_SEED);
+    }
     return rc;
 }
 
@@ -2142,6 +2152,201 @@ static void kef_warn_screen(lv_event_t *e)
     wt_slide_rule(s_scr, tr(STR_I_KEF_MAKE_BTN), tr(STR_G_FW_KEEP_HOLDING),
                   WT_ACT_X, WT_ACTION_Y_SLIDE, SX(330), kef_make, NULL);
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, SX(592), WT_ACTION_Y, SX(160), true, kef_finish_cb, NULL);
+}
+
+// ---- ENCRYPTED PASSPHRASE: consent -> the passphrase -> password -> QR ----
+// The seed backup's twin for the other secret, and the other half of a rule:
+// an encrypted QR may lie around, because it is nothing without its password,
+// but ONE of the two is enough. Plain seed words on paper stored away and
+// the passphrase locked here; or the seed words locked above and the
+// passphrase stored somewhere else. Both locked is two passwords to keep.
+//
+// The passphrase is wiped at login by design, so it has to be typed again,
+// and what is typed must rebuild the keys that are open: a typo locked into
+// a QR would be a backup of nothing, found out on the day it is needed.
+//
+// QR only. Login reads a passphrase from the camera and from nowhere else,
+// so a file on the card would be a second copy with no reader.
+static void ppk_warn_screen(lv_event_t *e);
+
+static int ppk_pass_check(const char *pass, size_t len)
+{
+    if (len == 0 || len > PPK_MAX) return -1;
+    // The whole key, not its fingerprint: four bytes can be shared by two
+    // passphrases, and the one typed here is about to go on paper as the one
+    // for these keys. The seed's own fingerprint comes out of the same read
+    // of the seed, so the name on the QR is the name of the seed that was
+    // checked and of no other.
+    uint8_t sfp[4];
+    if (kiss_session_passphrase_check(pass, sfp) != 0) return -1;
+    memcpy(s_ppk_pass, pass, len);
+    s_ppk_pass[len] = 0;
+    s_ppk_len = len;
+    memcpy(s_ppk_seed_fp, sfp, sizeof s_ppk_seed_fp);
+    kiss_wipe(sfp, sizeof sfp);
+    s_ppk_gen = kiss_session_generation();
+    return 0;
+}
+
+// Runs on the keyboard's OK with the confirmed QR password.
+static int ppk_seal_cb(const char *pw, size_t len)
+{
+    // Nothing checked, or the session it was checked against has gone (a lock
+    // and a new login in between): there is nothing here to seal.
+    if (!s_ppk_len || kiss_session_generation() != s_ppk_gen) {
+        kef_wipe();
+        return -1;
+    }
+    // The envelope's visible name is the SEED's fingerprint, the one the seed
+    // backup carries (kiss_kef_seal_seed), and never the fingerprint of the
+    // keys this passphrase opens. The name is printed in the clear on a paper
+    // that may lie around: the passphrase keys' own fingerprint there would
+    // tell a finder which keys exist and hand anyone holding the seed words a
+    // way to test passphrase guesses without the QR's password. Taken when
+    // the passphrase was checked (ppk_pass_check), not read again here.
+    snprintf(s_kef_id, sizeof s_kef_id, "%02X%02X%02X%02X",
+             s_ppk_seed_fp[0], s_ppk_seed_fp[1], s_ppk_seed_fp[2],
+             s_ppk_seed_fp[3]);
+    int rc = kiss_kef_seal_pass(s_ppk_seed_fp, pw, len, s_ppk_pass, s_ppk_len,
+                                s_kef_env, sizeof s_kef_env, &s_kef_env_len);
+    if (rc != 0) {
+        // The passphrase stays for the retry the keyboard offers; it leaves
+        // with CANCEL, BACK and the lock like everything else here.
+        kiss_wipe(s_kef_env, sizeof s_kef_env);
+        s_kef_env_len = 0;
+        return -1;
+    }
+    kiss_wipe(s_ppk_pass, sizeof s_ppk_pass);   // sealed: it is done
+    s_ppk_len = 0;
+    uint8_t fp[4];
+    kiss_ui_last_fp(fp);
+    if (kiss_fp_known(fp)) kiss_backup_set_locked(fp, KISS_LOCKED_PASS);
+    return 0;
+}
+
+static void ppk_show_screen(void)
+{
+    swap_screen();
+    s_scr = wt_screen(s_parent, tr(STR_I_PPK_T), NULL);
+    wt_chrome_head(s_scr);
+    {
+        char trail[96];
+        snprintf(trail, sizeof trail, "%s / %s", tr(STR_G_T),
+                 tr(STR_I_WTAB_ENC));
+        wt_trail(s_scr, WT_ICON_LOCK, trail, false);
+    }
+    s_kef_sd_chip = NULL;
+
+    lv_obj_t *qr = NULL;
+    wt_qr_card(s_scr, &qr, SX(48), KEF_QR_Y, KEF_QR_CARD, KEF_QR_PX);
+    if (qr) wt_qr_update(qr, s_kef_env, (uint32_t)s_kef_env_len);
+
+    lv_obj_t *card = wt_value_card(s_scr, tr(STR_D_FINGERPRINT), s_kef_id,
+                                   SX(400), SY(96), SX(352), true);
+    lv_obj_update_layout(card);
+    int below = SY(96) + lv_obj_get_height(card) + SY(12);
+    wt_note(s_scr, tr(STR_I_PPK_SHOW_NOTE), SX(400), below, SX(352), SY(332) - below);
+
+    wt_arrow_action(s_scr, tr(STR_C_DONE), true, true, SX(592), WT_ACTION_Y, SX(160), true, kef_finish_cb, NULL);
+}
+
+static void ppk_reopen(void) { kef_wipe(); ppk_warn_screen(NULL); }
+
+static void ppk_pass_done(void)
+{
+    kiss_ui_kef_pass_open(true, ppk_seal_cb, ppk_show_screen, ppk_reopen);
+}
+
+static void ppk_make(void *ud)
+{
+    (void)ud;
+    kiss_ui_verify_pass_open(ppk_pass_check, ppk_pass_done, ppk_reopen);
+}
+
+static void ppk_warn_screen(lv_event_t *e)
+{
+    (void)e;
+    swap_screen();
+    s_scr = wt_screen(s_parent, tr(STR_I_PPK_T), NULL);
+    wt_chrome_head(s_scr);
+    {
+        char trail[96];
+        snprintf(trail, sizeof trail, "%s / %s", tr(STR_G_T),
+                 tr(STR_I_WTAB_ENC));
+        wt_trail(s_scr, WT_ICON_LOCK, trail, false);
+    }
+    // The seed backup's shape, fact for fact, so the two read as one pair.
+    const wt_fact_t facts[1] = {
+        { .cap = tr(STR_I_KEF_F1_C), .val = tr(STR_I_PPK_F1_V),
+          .icon = WT_ICON_SECRET },
+    };
+    wt_explain_to(s_scr, tr(STR_I_PPK_HEAD), tr(STR_I_PPK_EXP_B), facts, 1,
+                  WT_ACTION_Y_SLIDE);
+    wt_slide_rule(s_scr, tr(STR_I_KEF_MAKE_BTN), tr(STR_G_FW_KEEP_HOLDING),
+                  WT_ACT_X, WT_ACTION_Y_SLIDE, SX(330), ppk_make, NULL);
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, SX(592), WT_ACTION_Y, SX(160), true, kef_finish_cb, NULL);
+}
+
+// ---- ONE OR THE OTHER: the stop when the second one is asked for ----
+// It stops once and offers the switch. It never blocks: the record says what
+// this signer made, and the owner may have destroyed that paper since.
+static void lock_switch_go(void *ud)
+{
+    if ((int)(intptr_t)ud == KISS_LOCKED_SEED) kef_warn_screen(NULL);
+    else                                       ppk_warn_screen(NULL);
+}
+
+// want: the one being asked for now. The other is the one already locked.
+static void lock_stop_screen(int want)
+{
+    swap_screen();
+    s_scr = wt_screen(s_parent,
+                      tr(want == KISS_LOCKED_SEED ? STR_I_ROW_KEF : STR_I_PPK_T),
+                      NULL);
+    wt_chrome_head(s_scr);
+    {
+        char trail[96];
+        snprintf(trail, sizeof trail, "%s / %s", tr(STR_G_T),
+                 tr(STR_I_WTAB_ENC));
+        wt_trail(s_scr, WT_ICON_LOCK, trail, false);
+    }
+    const wt_fact_t facts[1] = {
+        { .cap = tr(STR_I_WTAB_ENC),
+          .val = tr(want == KISS_LOCKED_SEED ? STR_D_PASSPHRASE : STR_D_WORDS),
+          .icon = WT_ICON_LOCK },
+    };
+    wt_explain_to(s_scr, tr(STR_I_LOCK_STOP_HEAD),
+                  tr(STR_I_LOCK_STOP_B), facts, 1, WT_ACTION_Y_SLIDE);
+    wt_slide_rule(s_scr, tr(STR_I_LOCK_SWITCH_BTN), tr(STR_G_FW_KEEP_HOLDING),
+                  WT_ACT_X, WT_ACTION_Y_SLIDE, SX(330), lock_switch_go,
+                  (void *)(intptr_t)want);
+    wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, SX(592), WT_ACTION_Y, SX(160), true, kef_finish_cb, NULL);
+}
+
+// The two rows of the ENCRYPTED group open through these: the explainer, or
+// the stop first when this signer already locked the other one for these keys.
+static void kef_row_cb(lv_event_t *e)
+{
+    (void)e;
+    uint8_t fp[4];
+    kiss_ui_last_fp(fp);
+    if (kiss_fp_known(fp) && kiss_backup_locked(fp) == KISS_LOCKED_PASS) {
+        lock_stop_screen(KISS_LOCKED_SEED);
+        return;
+    }
+    kef_warn_screen(NULL);
+}
+
+static void ppk_row_cb(lv_event_t *e)
+{
+    (void)e;
+    uint8_t fp[4];
+    kiss_ui_last_fp(fp);
+    if (kiss_fp_known(fp) && kiss_backup_locked(fp) == KISS_LOCKED_SEED) {
+        lock_stop_screen(KISS_LOCKED_PASS);
+        return;
+    }
+    ppk_warn_screen(NULL);
 }
 
 // ---- the section home: facts + actions ----

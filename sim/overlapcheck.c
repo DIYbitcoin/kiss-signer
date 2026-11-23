@@ -998,7 +998,6 @@ static const char *OC_SLACK_BACKLOG[] = {
     "only this signer",
     "opens real keys",
     "scans for payments",
-    "seed words. not your passphrase",
     "show this QR to it",
     NULL,
 };
@@ -1044,7 +1043,6 @@ static const char *OC_PORT_BACKLOG[] = {
     // now, and the whole point of measuring early is to make that a CHOICE.
     "compare lit characters",
     "how your keys were made",
-    "seed words. not your passphrase",
     NULL,
 };
 static bool s_port_hit[sizeof OC_PORT_BACKLOG / sizeof OC_PORT_BACKLOG[0]];

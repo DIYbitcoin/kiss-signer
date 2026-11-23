@@ -518,6 +518,32 @@ int kiss_kef_seal_seed(const char *mnemonic, const char *password,
   *out_len = h + 32;                    // iv12 + ct16 + tag4 shaped payload
   return 0;
 }
+// The general seal (the encrypted passphrase QR uses it): same faked cipher,
+// real header, the caller's own ID.
+int kiss_kef_seal(const uint8_t *id, size_t id_len, const char *password,
+                  size_t pass_len, const uint8_t *plain, size_t plain_len,
+                  uint8_t *out, size_t out_cap, size_t *out_len) {
+  (void)password; (void)pass_len; (void)plain; (void)plain_len;
+  size_t h = kef_emit_header(out, out_cap, id, id_len, KEF_VERSION_AES_GCM,
+                             KEF_ITER_STORED);
+  if (!h || h + 32 > out_cap) return -1;
+  for (int i = 0; i < 32; i++) out[h + i] = (uint8_t)(0xa5 ^ i);
+  *out_len = h + 32;
+  return 0;
+}
+// The passphrase envelope: the real name (tag and seed fingerprint), so the
+// restore router meets the same header a device made one carries.
+int kiss_kef_seal_pass(const uint8_t seed_fp[4], const char *password,
+                       size_t pass_len, const char *passphrase, size_t pp_len,
+                       uint8_t *out, size_t out_cap, size_t *out_len) {
+  (void)passphrase;
+  if (!pp_len) return -1;
+  char id[KEF_PASS_ID_LEN + 1];
+  snprintf(id, sizeof id, KEF_PASS_TAG "%02X%02X%02X%02X",
+           seed_fp[0], seed_fp[1], seed_fp[2], seed_fp[3]);
+  return kiss_kef_seal((const uint8_t *)id, KEF_PASS_ID_LEN, password,
+                       pass_len, NULL, 0, out, out_cap, out_len);
+}
 int kiss_kef_open(const char *password, size_t pass_len, const uint8_t *env,
                   size_t env_len, uint8_t *plain, size_t plain_cap,
                   size_t *plain_len) {
@@ -593,7 +619,12 @@ int kiss_session_prepare(const char *passphrase) {
   snprintf(s_sim_prep_pass, sizeof s_sim_prep_pass, "%s", passphrase ? passphrase : "");
   return 0;
 }
+static uint32_t s_sim_gen;
+static int s_sim_live;
+uint32_t kiss_session_generation(void) { return s_sim_gen; }
 int kiss_session_activate_prepared(void) {
+  s_sim_gen++;
+  s_sim_live = 1;
   s_sim_decoy = s_sim_prepared_decoy;
   memcpy(s_sim_sess_pass, s_sim_prep_pass, sizeof s_sim_sess_pass);
   return 0;
@@ -604,6 +635,8 @@ int kiss_session_open(const char *passphrase) {
   return rc == 0 ? kiss_session_activate_prepared() : rc;
 }
 void kiss_session_close(void) {
+  s_sim_gen++;
+  s_sim_live = 0;
   s_sim_decoy = 0;
   s_sim_card = 0;
   kiss_seed_forget();          // real kiss_crypto.c does the same on lock
@@ -613,6 +646,7 @@ int kiss_session_decoy(void) { return s_sim_decoy; }
 // passphrase, the fake fingerprint of the empty one, and every private-key
 // door refused the way kiss_crypto.c refuses them.
 int kiss_session_open_card(void) {
+  s_sim_live = 1;
   s_sim_card = 1;
   s_sim_decoy = 0;
   s_sim_sess_pass[0] = 0;
@@ -630,6 +664,14 @@ int kiss_session_fingerprint(unsigned char out[4]) {
 // produces a different real one.
 int kiss_session_prepared_fingerprint(unsigned char out[4]) {
   return kiss_fingerprint(s_sim_prep_pass, out);
+}
+// The whole key compared, which here is the whole remembered passphrase, and
+// the seed's own fingerprint with it.
+int kiss_session_passphrase_check(const char *passphrase, unsigned char fp[4]) {
+  memset(fp, 0, 4);
+  if (!s_sim_live || s_sim_card || !passphrase || !passphrase[0]) return 1;
+  if (strcmp(passphrase, s_sim_sess_pass) != 0) return 4;
+  return kiss_fingerprint(NULL, fp);
 }
 // The refusal switch: a locked session refuses every derivation at once. The
 // refusal renders were introduced by fixes to five screens that used to encode
@@ -6172,17 +6214,18 @@ int main(void) {
   // note and the SHOW THEM sub, which were the two strings this pass removed
   // -- a needle pointed at copy is a needle that dies when the copy is cut,
   // and a swipe test that cannot fail is a swipe test that proves nothing.
-  must_show("words/swipe to encrypted", tr(STR_I_WROW_HOLDS));
+  must_show("words/swipe to encrypted", tr(STR_I_PPK_ROW_SUB));
   save("/tmp/sim_words_enc.ppm");                  // what it holds, and whose
   for (int i = 0; i <= 8; i++) { touch(300 + i * 14, 250); pump(3); }
   release(); pump(50);                             // swipe back -> PAPER
   // By the ABSENCE of the other tab's row name, not the presence of this
   // one. CHECK MY COPY and VERIFY BACKUP are one string in Polish -- the row
   // and the title of the screen it opens, which is fair in Polish and fatal
-  // to a needle. CONTENTS is unique in all 21 and belongs to the tab we just
+  // to a needle. The PASSPHRASE row's sub (this session has a passphrase, so
+  // that row stands where CONTENTS does without one) belongs to the tab we just
   // left, so its going is what the swipe has to prove. It can still fail: the
   // must_show above put it on screen two lines ago.
-  must_not_show("words/swipe back to paper", tr(STR_I_WROW_HOLDS));
+  must_not_show("words/swipe back to paper", tr(STR_I_PPK_ROW_SUB));
   // VERIFY MY COPY: type the stored dev mnemonic (11x abandon + about).
   // 'abandon' = 'a','b' -> suggestion[0]; 'about' = 'a','b','o' -> suggestion[0].
   words_row(0);                         // Check my copy -> intro
@@ -6355,7 +6398,8 @@ int main(void) {
   // a string nothing draws cannot fail.
   must_not_show("kef/no passphrase says nothing about one",
                 tr(STR_I_KEF_F1_V));
-  kiss_session_open("x");                           // back to the truth
+  kiss_session_open("aaaaaaaaa");                   // back to the truth: the
+                                                    // nine the walk logs in with
   tap_str(STR_C_BACK, 3, 8);
   words_tab(WORDS_ENC);
   words_row(0);
@@ -6392,6 +6436,65 @@ int main(void) {
   save("/tmp/sim_kef_sd.ppm");
   must_show("kef sd verdict", tr(STR_S_SAVED_NOTE));
   tap_str(STR_C_DONE, 3, 8);                        // DONE -> the backup page
+
+  // One or the other. These keys use a passphrase, so the group has a row
+  // for each secret, and the seed words were encrypted a moment ago: asking
+  // for the passphrase now stops once and offers the switch.
+  words_tab(WORDS_ENC);
+  save("/tmp/sim_enc_rows.ppm");
+  must_show("enc/the rule between the two rows", tr(STR_I_LOCK_ONE_NOTE));
+  must_show("enc/the passphrase row", tr(STR_I_PPK_ROW_SUB));
+  words_row(1);                                     // PASSPHRASE -> the stop
+  save("/tmp/sim_lock_stop.ppm");
+  must_show("lock stop/says one or the other",
+            tr(STR_I_LOCK_STOP_HEAD));
+  must_show("lock stop/on the way to the passphrase QR", tr(STR_I_PPK_T));
+  tap_str(STR_C_BACK, 3, 8);                        // BACK changes nothing
+  words_tab(WORDS_ENC);
+  words_row(1);
+  slide_fire(STR_I_LOCK_SWITCH_BTN);                // SWITCH -> the explainer
+  save("/tmp/sim_ppk_warn.ppm");
+  must_show("ppk/passphrase only", tr(STR_I_PPK_F1_V));
+  slide_fire(STR_I_KEF_MAKE_BTN);                   // -> type the passphrase
+  save("/tmp/sim_ppk_verify.ppm");
+  // A passphrase that opens other keys is refused here, so a typo can never
+  // be encrypted into the QR.
+  touch(664, 278); pump(3); release(); pump(3);     // k
+  touch(725, 430); pump(3); release(); pump(6);     // OK -> refused
+  save("/tmp/sim_ppk_verify_bad.ppm");
+  must_show("ppk/a wrong passphrase is refused", tr(STR_L_BACKUP_PASS_BAD));
+  type_pass9();                                     // the session's own
+  touch(725, 430); pump(3); release(); pump(8);     // OK -> the QR's password
+  save("/tmp/sim_ppk_pass.ppm");
+  for (int i = 0; i < 3; i++) {
+    touch(664, 278); pump(3); release(); pump(3);   // k
+    touch(201, 202); pump(3); release(); pump(3);   // e
+    touch(312, 278); pump(3); release(); pump(3);   // f
+  }
+  touch(725, 430); pump(3); release(); pump(6);     // OK -> TYPE AGAIN
+  for (int i = 0; i < 3; i++) {
+    touch(664, 278); pump(3); release(); pump(3);   // k
+    touch(201, 202); pump(3); release(); pump(3);   // e
+    touch(312, 278); pump(3); release(); pump(3);   // f
+  }
+  touch(725, 430); pump(3); release(); pump(8);     // OK -> seal -> the QR
+  save("/tmp/sim_ppk_qr.ppm");
+  must_show("ppk/the QR screen", tr(STR_I_PPK_T));
+  // Its label is the SEED's fingerprint, the one the seed backup carries, and
+  // not the fingerprint of the keys the passphrase opens.
+  must_show("ppk/the label names the seed, not the passphrase keys",
+            "73C5DA0A");
+  tap_str(STR_C_DONE, 3, 8);                        // DONE -> the backup page
+  // ...and the record moved with it: the seed words are the second one now.
+  words_tab(WORDS_ENC);
+  words_row(0);                                     // SEED WORDS -> the stop
+  save("/tmp/sim_lock_stop_seed.ppm");
+  must_show("lock stop/the record moved on the switch",
+            tr(STR_I_LOCK_STOP_HEAD));
+  must_not_show("lock stop/this one is on the way to the seed backup",
+                tr(STR_I_PPK_T));
+  tap_str(STR_C_BACK, 3, 8);                        // BACK -> the backup page
+
   tap_str(STR_C_BACK, 3, 8);                        // BACK -> Settings
 
   // FIRMWARE and LANGUAGE are rows on the DEVICE tab now, not header pills.
@@ -7941,6 +8044,32 @@ int main(void) {
   save("/tmp/sim_amnesic_qrbad.ppm");               // NOT A SEED QR, nothing loaded
   must_show("non seed QR refused", tr(STR_W_QRBAD_T));
   tap_str(STR_C_TRY_AGAIN, 3, 6);     // TRY AGAIN -> load screen
+
+  // An encrypted PASSPHRASE scanned where a seed backup is expected. It is a
+  // well formed envelope this signer can open, and a passphrase of 16 or 32
+  // characters is the shape of seed entropy, so with its password it would
+  // load as seed words nobody chose. Refused by its name, before a password
+  // is asked for.
+  tap_str(STR_W_SCAN_KEF_QR, 3, 6);                 // SCAN MY BACKUP
+  {
+    uint8_t fx[96];
+    size_t h = kef_emit_header(fx, sizeof fx,
+                               (const uint8_t *)KEF_PASS_TAG "73C5DA0A",
+                               KEF_PASS_ID_LEN, KEF_VERSION_AES_GCM,
+                               KEF_ITER_STORED);
+    for (int i = 0; i < 32; i++) fx[h + i] = (uint8_t)(0xa5 ^ i);  // iv12+ct16+tag4
+    kiss_scan_inject((const char *)fx, h + 32);
+  }
+  pump(6);
+  if (kiss_ui_active()) {
+    printf("FAIL: restore: a passphrase QR was offered a password prompt\n");
+    g_walk_fails++;
+    touch(200, 430); pump(3); release(); pump(8);   // CANCEL, so the walk goes on
+  } else {
+    must_show("restore: a passphrase QR is not a seed backup",
+              tr(STR_W_QRBAD_T));
+    tap_str(STR_C_TRY_AGAIN, 3, 6);   // TRY AGAIN -> load screen
+  }
 
   // An encrypted backup in a mode this signer refuses: recognized as KEF and
   // refused BEFORE any password is asked for. Version 16 is CTR with the

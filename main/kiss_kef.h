@@ -88,6 +88,27 @@ int kef_can_open(uint8_t version);
 // < 0x20, so no seed QR shape can ever sniff as KEF (pinned by tests).
 int kef_sniff(const uint8_t *buf, size_t len);
 
+// The ID this signer gives an encrypted PASSPHRASE: this tag, then the seed's
+// fingerprint as eight hex characters. The tag does two jobs.
+//   - It says what is inside. An envelope has no field for that, and a
+//     passphrase of 16 or 32 characters is the same shape as seed entropy, so
+//     restore would open one with its password and load the passphrase AS a
+//     seed. kef_is_passphrase lets restore refuse it before a password is
+//     asked for. The ID is the key derivation's salt, so cutting the tag off
+//     leaves an envelope no password opens.
+//   - It keeps every such envelope above 32 bytes. kef_sniff refuses 16 and
+//     32 outright, and with a bare eight character ID a three character
+//     passphrase sealed to exactly 32: a QR this signer made and could not
+//     read back.
+// It is printed in the clear. It tells a finder that a passphrase exists for
+// that seed, which the envelope's length already tells in nearly every case.
+#define KEF_PASS_TAG        "PASSPHRASE "
+#define KEF_PASS_TAG_LEN    11
+#define KEF_PASS_ID_LEN     (KEF_PASS_TAG_LEN + 8)
+// 1 = a version 20 envelope whose ID is exactly the tag and eight uppercase
+// hex characters; 0 = anything else.
+int kef_is_passphrase(const uint8_t *buf, size_t len);
+
 // Writes the 5+id_len byte header. Returns its length, or 0 if it does not
 // fit or id_len > KEF_ID_MAX. iter_raw is written as stored form, verbatim.
 size_t kef_emit_header(uint8_t *out, size_t cap, const uint8_t *id,
@@ -122,6 +143,15 @@ int kiss_kef_open(const char *password, size_t pass_len,
 int kiss_kef_seal_seed(const char *mnemonic, const char *password,
                        size_t pass_len, uint8_t *out, size_t out_cap,
                        size_t *out_len, char id_hex_out[9]);
+
+// The other envelope the UI makes: a passphrase, under the ID described at
+// KEF_PASS_TAG. seed_fp is the fingerprint of the seed with NO passphrase,
+// the one the seed backup is named by, never the fingerprint of the keys the
+// passphrase opens. Refuses an empty passphrase.
+int kiss_kef_seal_pass(const uint8_t seed_fp[4],
+                       const char *password, size_t pass_len,
+                       const char *passphrase, size_t pp_len,
+                       uint8_t *out, size_t out_cap, size_t *out_len);
 
 #ifndef ESP_PLATFORM
 // Host tests only: pin the next seal's IV so golden vectors reproduce, and

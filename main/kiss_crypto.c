@@ -476,6 +476,62 @@ int kiss_session_prepared_fingerprint(uint8_t out[4])
     return 0;
 }
 
+int kiss_session_passphrase_check(const char *passphrase,
+                                  uint8_t seed_fp_out[4])
+{
+    if (seed_fp_out)
+        memset(seed_fp_out, 0, 4);
+    if (!seed_fp_out || !passphrase || !passphrase[0])
+        return 1;
+    if (!s_session || s_session_card)
+        return 1;
+    if (wally_init(0) != WALLY_OK)
+        return 1;
+
+    char words[WSEED_MAX_MNEMONIC];
+    if (kiss_seed_load(words, sizeof words) != 0)
+        return 2;
+
+    // single exit below: everything derived here is wiped on every path
+    uint8_t seed[BIP39_SEED_LEN_512];
+    size_t seed_len = 0;
+    struct ext_key with = {0}, bare = {0};
+    uint8_t fp[BIP32_KEY_FINGERPRINT_LEN];
+    int rc = 0;
+
+    if (bip39_mnemonic_to_seed(words, passphrase, seed, sizeof seed,
+                               &seed_len) != WALLY_OK ||
+        seed_len != sizeof seed ||
+        bip32_key_from_seed(seed, sizeof seed, BIP32_VER_MAIN_PRIVATE, 0,
+                            &with) != WALLY_OK)
+        rc = 3;
+    seed_len = 0;
+    if (rc == 0 &&
+        (bip39_mnemonic_to_seed(words, NULL, seed, sizeof seed,
+                                &seed_len) != WALLY_OK ||
+         seed_len != sizeof seed ||
+         bip32_key_from_seed(seed, sizeof seed, BIP32_VER_MAIN_PRIVATE, 0,
+                             &bare) != WALLY_OK))
+        rc = 3;
+    wally_bzero(words, sizeof words);
+    wally_bzero(seed, sizeof seed);
+
+    if (rc == 0 &&
+        (memcmp(with.pub_key, s_master.pub_key, sizeof s_master.pub_key) != 0 ||
+         memcmp(with.chain_code, s_master.chain_code,
+                sizeof s_master.chain_code) != 0))
+        rc = 4;
+    if (rc == 0 &&
+        bip32_key_get_fingerprint(&bare, fp, sizeof fp) != WALLY_OK)
+        rc = 5;
+    if (rc == 0)
+        memcpy(seed_fp_out, fp, 4);
+
+    wally_bzero(&with, sizeof with);
+    wally_bzero(&bare, sizeof bare);
+    return rc;
+}
+
 uint32_t kiss_session_generation(void) { return s_session_gen; }
 
 const struct ext_key *kiss_session_master(void)

@@ -213,6 +213,16 @@ int kiss_session_fingerprint(uint8_t out[4]);
 // answer cannot leave the device holding different keys than it started with.
 // 0 on success, non-zero with nothing prepared.
 int kiss_session_prepared_fingerprint(uint8_t out[4]);
+// Is this the passphrase of the keys that are open, and which seed is it for?
+// One read of the stored seed answers both, so the two answers can not be
+// about two different seeds (a card can hand over one backup now and another
+// a moment later). 0 = the passphrase derives the open session's WHOLE key,
+// public key and chain code, not the four byte fingerprint two passphrases
+// can share; seed_fp_out is then the fingerprint of that same seed with no
+// passphrase. Non-zero otherwise, seed_fp_out zeroed: an empty passphrase, no
+// session, a card session, another key. The open session is not touched.
+int kiss_session_passphrase_check(const char *passphrase,
+                                  uint8_t seed_fp_out[4]);
 // BIP84 mainnet address at m/84h/0h/0h/<change>/<index> (native segwit, bc1q...)
 int kiss_session_address(int change, uint32_t index, char *out, size_t out_len);
 
