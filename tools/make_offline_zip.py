@@ -96,6 +96,8 @@ SITE_REQUIRED = [
     # list and the script that plays it on the simulator build listed below
     "tours.js",
     "live.js",
+    # folds the long part of each guide topic under More
+    "fold.js",
     # the 329 byte stub, so /installer/ does not render a directory listing
     "installer/index.html",
     "installer/release.json",

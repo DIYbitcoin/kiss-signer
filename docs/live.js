@@ -732,7 +732,17 @@
   select(first);
   setTag("idle");
 
-  return { host: host, topic: onTopic, selfTest: selfTest };
+  // Open one demo by name and play it, for the "Watch it" links on the
+  // other topics.
+  function pick(name) {
+    TOURS.forEach(function (t) {
+      if (t.id !== name) return;
+      select(t, true);
+      if (!t.plain && !still.matches) play(t);
+    });
+  }
+
+  return { host: host, topic: onTopic, selfTest: selfTest, pick: pick };
   }
 
   // A browser holding an older copy of styles.css than this script gets the
@@ -759,6 +769,15 @@
   });
 
   styleCheck();
+
+  // "Watch it" links on the Docs topics: go to See it work and play that demo.
+  document.addEventListener("click", function (e) {
+    var a = e.target.closest && e.target.closest("a[data-demo]");
+    if (!a) return;
+    theatres.forEach(function (t) {
+      if (t.host.id === "tour") setTimeout(function () { t.pick(a.dataset.demo); }, 60);
+    });
+  });
 
   // Called by the guide with the topic it is showing.
   window.__live = function (id, opened) {

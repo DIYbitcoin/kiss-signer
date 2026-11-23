@@ -2002,3 +2002,40 @@ button {
 .th-rec.is-on::before { content: "\25cf\00a0"; }
 .th-rec.is-on::after { content: ""; }
 .th-rec[hidden] { display: none; }
+
+
+/* ---- short topics: the long part of a topic folds under More -------------- */
+details.more { margin: 16px 0 0; }
+details.more > summary {
+  display: inline-block;
+  color: var(--accent);
+  font-size: 0.74rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  list-style: none;
+}
+details.more > summary::-webkit-details-marker { display: none; }
+details.more > summary::before { content: "[\00a0"; }
+details.more > summary::after { content: "\00a0\2193\00a0]"; }
+details.more[open] > summary::after { content: "\00a0\2191\00a0]"; }
+details.more[open] > summary { margin-bottom: 8px; }
+
+/* "Watch it": links to the matching demos on See it work. */
+.watch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+  margin: 10px 0 0;
+  font-size: 0.78rem;
+}
+.watch span { color: var(--dim); letter-spacing: 0.12em; text-transform: uppercase; font-size: 0.7rem; }
+.watch a { color: var(--accent); text-decoration: none; }
+.watch a::after { content: " \2192"; }
+.watch a:hover { color: var(--ink); }
+
+@media print {
+  details.more > summary { display: none; }
+  .watch { display: none; }
+}
