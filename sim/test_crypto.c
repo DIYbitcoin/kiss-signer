@@ -2573,6 +2573,43 @@ int main(int argc, char **argv) {
         chki("ppcheck: reopen for the rest", kiss_session_open(NULL), 0);
     }
 
+    // ---- typed seed words checked against the open session, not against
+    // whatever the storage hands over. An SD card can hold an older wallet
+    // file this signer sealed, so "the typed words equal the stored words"
+    // says nothing about the keys that are open, and the paper check marks
+    // the open keys' fingerprint.
+    {
+        const char *mine = "abandon abandon abandon abandon abandon abandon "
+                           "abandon abandon abandon abandon abandon about";
+        const char *other = "legal winner thank year wave sausage worth "
+                            "useful legal winner thank yellow";
+        chki("wcheck: passphrase session opens", kiss_session_open("kiss"), 0);
+        chki("wcheck: the open keys' words and passphrase pass",
+             kiss_session_words_check(mine, "kiss"), 0);
+        chkb("wcheck: another seed's words are refused",
+             kiss_session_words_check(other, "kiss") != 0);
+        chkb("wcheck: the right words with a near miss are refused",
+             kiss_session_words_check(mine, "kisS") != 0);
+        chkb("wcheck: the right words with no passphrase are refused",
+             kiss_session_words_check(mine, NULL) != 0);
+        chkb("wcheck: no words are refused",
+             kiss_session_words_check(NULL, "kiss") != 0);
+        chki("wcheck: decoy session opens", kiss_session_open(NULL), 0);
+        chki("wcheck: the decoy's words pass with no passphrase",
+             kiss_session_words_check(mine, NULL), 0);
+        chki("wcheck: an empty passphrase is no passphrase",
+             kiss_session_words_check(mine, ""), 0);
+        chkb("wcheck: another seed's words are refused by the decoy",
+             kiss_session_words_check(other, NULL) != 0);
+        chkb("wcheck: a passphrase does not open the decoy",
+             kiss_session_words_check(mine, "kiss") != 0);
+        kiss_session_close();
+        chkb("wcheck: with no session open nothing passes",
+             kiss_session_words_check(mine, NULL) != 0 &&
+             kiss_session_words_check(mine, "kiss") != 0);
+        chki("wcheck: reopen for the rest", kiss_session_open(NULL), 0);
+    }
+
     // optional: also emit device-test PSBT files (argv[1] = target dir, e.g. the
     // SD card). kiss-pay.psbt verifies READY + signs; kiss-stop.psbt must STOP.
     if (argc > 1) {

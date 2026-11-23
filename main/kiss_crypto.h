@@ -223,6 +223,12 @@ int kiss_session_prepared_fingerprint(uint8_t out[4]);
 // session, a card session, another key. The open session is not touched.
 int kiss_session_passphrase_check(const char *passphrase,
                                   uint8_t seed_fp_out[4]);
+// Do these typed seed words, with this passphrase (NULL or "" for none),
+// derive the open session's WHOLE key, public key and chain code? 0 = yes.
+// Non-zero otherwise: no session, a card session, no words, another key.
+// Nothing is read from storage, because a card can hold an older wallet file
+// this signer sealed, and the open session is not touched.
+int kiss_session_words_check(const char *mnemonic, const char *passphrase);
 // 1 while a session is open (seed or card), 0 when locked.
 int kiss_session_live(void);
 // BIP84 mainnet address at m/84h/0h/0h/<change>/<index> (native segwit, bc1q...)

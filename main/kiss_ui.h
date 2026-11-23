@@ -61,6 +61,11 @@ bool kiss_ui_login_deadline_active(void);
 
 // Fingerprint of the most recently unlocked wallet (4 bytes).
 void kiss_ui_last_fp(uint8_t out[4]);
+// The open session's own fingerprint, and only when it is the one shown as
+// the open keys (kiss_ui_last_fp). True and filled when both agree; false and
+// zeroed with no session, a failed lookup or two different keys. What a
+// backup check prints and marks: the key it compared, never a cached copy.
+bool kiss_ui_live_fp(uint8_t out[4]);
 // True after the words + exact passphrase were rehearsed in THIS session
 // (BACKUP VERIFY flow). The setup warning screen asks this one: it is deciding
 // whether to let the owner walk away, so an older answer will not do.

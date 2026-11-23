@@ -40,6 +40,7 @@ void kiss_begin_setup(void);  // main.c: the REPLACE WALLET door into the wizard
 #include "kiss_word_ui.h"
 #include "kiss_theme.h"   // SIM_ACCENT picks the theme the walk renders in
 #include "kiss_ui.h"
+#include "kiss_backup.h"
 #include "kiss_usage.h"      // the reuse guard, so the walk can light the USED lamp
 
 // The canvas is the board's: 800x480 on the Guition (the device reaches it via
@@ -626,9 +627,14 @@ static int s_sim_decoy;
 static int s_sim_card;
 static int s_sim_prepared_decoy;
 static char s_sim_prep_pass[64], s_sim_sess_pass[64];
+// ...and the seed words it was opened from, the way the device's key is a
+// function of both: the backup check compares typed words against these.
+static char s_sim_prep_words[256], s_sim_sess_words[256];
 int kiss_session_prepare(const char *passphrase) {
   s_sim_prepared_decoy = !(passphrase && passphrase[0]);
   snprintf(s_sim_prep_pass, sizeof s_sim_prep_pass, "%s", passphrase ? passphrase : "");
+  snprintf(s_sim_prep_words, sizeof s_sim_prep_words, "%s",
+           s_sim_has_pending ? s_sim_pending : s_sim_has_seed ? s_sim_seed : "");
   return 0;
 }
 static uint32_t s_sim_gen;
@@ -639,6 +645,7 @@ int kiss_session_activate_prepared(void) {
   s_sim_live = 1;
   s_sim_decoy = s_sim_prepared_decoy;
   memcpy(s_sim_sess_pass, s_sim_prep_pass, sizeof s_sim_sess_pass);
+  memcpy(s_sim_sess_words, s_sim_prep_words, sizeof s_sim_sess_words);
   return 0;
 }
 void kiss_session_discard_prepared(void) { s_sim_prepared_decoy = 0; }
@@ -662,6 +669,7 @@ int kiss_session_open_card(void) {
   s_sim_card = 1;
   s_sim_decoy = 0;
   s_sim_sess_pass[0] = 0;
+  s_sim_sess_words[0] = 0;
   return 0;
 }
 int kiss_session_card(void) { return s_sim_card; }
@@ -684,6 +692,13 @@ int kiss_session_passphrase_check(const char *passphrase, unsigned char fp[4]) {
   if (!s_sim_live || s_sim_card || !passphrase || !passphrase[0]) return 1;
   if (strcmp(passphrase, s_sim_sess_pass) != 0) return 4;
   return kiss_fingerprint(NULL, fp);
+}
+// Typed words and a passphrase against the whole open key: here the key is
+// the remembered words and passphrase, so it is both compared.
+int kiss_session_words_check(const char *words, const char *passphrase) {
+  if (!s_sim_live || s_sim_card || !words || !s_sim_sess_words[0]) return 1;
+  if (strcmp(words, s_sim_sess_words) != 0) return 4;
+  return strcmp(passphrase ? passphrase : "", s_sim_sess_pass) == 0 ? 0 : 4;
 }
 int kiss_session_live(void) { return s_sim_live; }
 // The refusal switch: a locked session refuses every derivation at once. The
@@ -6318,6 +6333,108 @@ int main(void) {
       printf("FAIL: verify/no seed: an earlier check's success was handed back\n");
       g_walk_fails++;
     }
+  }
+  // The paper of ANOTHER wallet. The keys open with no passphrase are one
+  // seed, and the card hands over an older wallet file this signer sealed
+  // (an SD to SD replacement keeps the sealing key). Its paper matches that
+  // file word for word, and that must not mark the open keys' paper checked.
+  {
+    uint8_t held_fp[4], other_fp[4] = { 0x5A, 0x1E, 0x0F, 0x11 };
+    char held_seed[sizeof s_sim_seed];
+    memcpy(held_seed, s_sim_seed, sizeof held_seed);
+    kiss_ui_last_fp(held_fp);
+    snprintf(s_sim_seed, sizeof s_sim_seed, "%s",
+             "zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo zoo wrong");
+    kiss_session_open("");                          // the open keys: no passphrase
+    memcpy(s_sim_seed, held_seed, sizeof s_sim_seed);   // the card's older file
+    kiss_ui_set_last_fp(other_fp);
+    if (kiss_backup_checked(other_fp)) {
+      printf("FAIL: verify/another wallet: the fixture is already marked\n");
+      g_walk_fails++;
+    }
+    set_tab(SET_BACKUP);
+    def_row(2, 0);                                  // Recovery words
+    words_row(0);                                   // Check my copy -> intro
+    tap_str(STR_W_TYPE_MY_WORDS, 3, 6);             // TYPE MY WORDS -> keypad
+    for (int i = 0; i < 11; i++) {                  // the older file's words
+      touch(44, 314); pump(3); release(); pump(3);
+      touch(450, 374); pump(3); release(); pump(3);
+      touch(55, 182); pump(3); release(); pump(3);
+    }
+    touch(44, 314); pump(3); release(); pump(3);    // a
+    touch(450, 374); pump(3); release(); pump(3);   // b
+    touch(664, 254); pump(3); release(); pump(3);   // o
+    touch(55, 182); pump(3); release(); pump(6);    // accept "about"
+    save("/tmp/sim_verify_other_wallet.ppm");
+    must_not_show("verify/another wallet is not verified",
+                  tr(STR_L_BACKUP_VERIFIED));
+    must_show("verify/another wallet does not match", tr(STR_W_VBAD_T));
+    tap_str(STR_C_DONE, 3, 6);                      // DONE -> Settings
+    if (kiss_backup_checked(other_fp)) {
+      printf("FAIL: verify/another wallet: its paper marked the open keys\n");
+      g_walk_fails++;
+    }
+    kiss_session_open("aaaaaaaaa");                 // back to the nine
+    kiss_ui_set_last_fp(held_fp);
+  }
+  // The right paper, but the fingerprint the screens show is not the open
+  // keys' (login previewed one card read and opened another). The check
+  // compares the typed words with the open key, so the open key is what it
+  // may print and mark, never the cached copy.
+  //
+  // Twice: first with the two ids apart (no id printed, nothing marked), then
+  // with them agreeing (the live id printed and marked), so the stop fails
+  // whichever way the rule breaks.
+  {
+    uint8_t held_fp[4], live_fp[4] = {0};
+    uint8_t shown_fp[4] = { 0x5A, 0x1E, 0x0F, 0x12 };
+    char live_hex[16];
+    kiss_ui_last_fp(held_fp);
+    kiss_session_open("");                          // these words, no passphrase
+    (void)kiss_session_fingerprint(live_fp);
+    snprintf(live_hex, sizeof live_hex, "%02X%02X%02X%02X",
+             live_fp[0], live_fp[1], live_fp[2], live_fp[3]);
+    if (kiss_backup_checked(shown_fp) || kiss_backup_checked(live_fp)) {
+      printf("FAIL: verify/cached id: the fixture is already marked\n");
+      g_walk_fails++;
+    }
+    for (int agree = 0; agree < 2; agree++) {
+      kiss_ui_set_last_fp(agree ? live_fp : shown_fp);
+      set_tab(SET_BACKUP);
+      def_row(2, 0);                                // Recovery words
+      words_row(0);                                 // Check my copy -> intro
+      tap_str(STR_W_TYPE_MY_WORDS, 3, 6);           // TYPE MY WORDS -> keypad
+      for (int i = 0; i < 11; i++) {                // the open keys' words
+        touch(44, 314); pump(3); release(); pump(3);
+        touch(450, 374); pump(3); release(); pump(3);
+        touch(55, 182); pump(3); release(); pump(3);
+      }
+      touch(44, 314); pump(3); release(); pump(3);  // a
+      touch(450, 374); pump(3); release(); pump(3); // b
+      touch(664, 254); pump(3); release(); pump(3); // o
+      touch(55, 182); pump(3); release(); pump(6);  // accept "about"
+      must_show("verify/cached id: the words verify",
+                tr(STR_L_BACKUP_VERIFIED));
+      if (agree) {
+        must_show("verify/cached id: the live id is printed", live_hex);
+      } else {
+        must_not_show("verify/cached id: no id is printed", tr(STR_L_FP_CAP));
+        must_not_show("verify/cached id: the cached id is not printed",
+                      "5A1E0F12");
+      }
+      tap_str(STR_C_DONE, 3, 6);                    // DONE -> Settings
+      if (!agree && (kiss_backup_checked(shown_fp) ||
+                     kiss_backup_checked(live_fp))) {
+        printf("FAIL: verify/cached id: marked while the ids disagree\n");
+        g_walk_fails++;
+      }
+      if (agree && !kiss_backup_checked(live_fp)) {
+        printf("FAIL: verify/cached id: the checked live id was not marked\n");
+        g_walk_fails++;
+      }
+    }
+    kiss_session_open("aaaaaaaaa");                 // back to the nine
+    kiss_ui_set_last_fp(held_fp);
   }
   // HELD, and put back below. kiss_ui_forget_fp() is a real state and the two
   // frames under it are worth having -- but it was never undone, so every

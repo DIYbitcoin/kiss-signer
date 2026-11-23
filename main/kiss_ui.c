@@ -1431,6 +1431,16 @@ void kiss_ui_idle_wipe(void) {
 
 void kiss_ui_last_fp(uint8_t out[4]) { memcpy(out, s_last_fp, 4); }
 
+bool kiss_ui_live_fp(uint8_t out[4])
+{
+  uint8_t sfp[4] = {0};
+  bool ok = kiss_session_fingerprint(sfp) == 0 && kiss_fp_known(s_last_fp) &&
+            memcmp(sfp, s_last_fp, sizeof sfp) == 0;
+  if (ok) memcpy(out, sfp, sizeof sfp);
+  else    memset(out, 0, sizeof sfp);
+  return ok;
+}
+
 // "rehearsed during THIS setup", which is the question the setup warning screen
 // asks: it is deciding whether to let the owner walk away, so a check done on a
 // previous boot is not an answer.

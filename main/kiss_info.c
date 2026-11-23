@@ -1658,13 +1658,18 @@ static void winfo_after_verify(void)
     // rederive the fingerprint before this route claims anything. So the
     // condition is "the words were the whole backup, OR the passphrase proved
     // it too" -- and the half check still cannot turn the chip green.
-    if (kiss_setup_verify_succeeded() &&
+    //
+    // ...and only on the session the check was made against: the check
+    // compared the typed words with these keys, and a lock in between ends
+    // them, so a mark after that would name keys nobody checked.
+    if (kiss_setup_verify_succeeded() && kiss_session_live() &&
+        kiss_setup_verify_generation() == kiss_session_generation() &&
         (kiss_setup_verify_full() ||
          kiss_rehearse_after_words(kiss_session_decoy()) ==
              KISS_REHEARSE_VERIFIED)) {
         uint8_t fp[4];
-        kiss_ui_last_fp(fp);
-        kiss_backup_mark(fp);
+        if (kiss_ui_live_fp(fp))         // the key compared, not a cached copy
+            kiss_backup_mark(fp);
     }
     words_finish();
 }

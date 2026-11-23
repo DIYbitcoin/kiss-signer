@@ -34,12 +34,17 @@ void kiss_setup_open_verify(lv_obj_t *parent, void (*done_cb)(void),
                             bool with_pass, bool session_owned);
 
 // True when the most recent open_verify(with_pass) also proved the passphrase:
-// the words AND the passphrase together rederived the fingerprint on screen.
+// the typed words AND the passphrase together derive the open session's key.
 bool kiss_setup_verify_full(void);
 
 // Result of the most recently completed/cancelled open_verify flow. Reset to
-// false each time verification opens; true only after every word matched.
+// false each time verification opens; true only after every word matched, and
+// for keys with no passphrase only when the typed words derive the open key.
 bool kiss_setup_verify_succeeded(void);
+
+// kiss_session_generation() when the most recent open_verify began. A caller
+// that marks the paper checked does so only while this is still the session.
+uint32_t kiss_setup_verify_generation(void);
 
 // AMNESIC mode's per-session load. Nothing is stored on this device, so every
 // power-on starts here: type the words, or open an encrypted backup. The

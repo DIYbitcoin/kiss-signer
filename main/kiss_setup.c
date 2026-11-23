@@ -70,6 +70,10 @@ static bool s_verify;           // reuse the restore keypad to CHECK the paper b
 static bool s_verify_ok;        // result returned to the caller after this check
 static bool s_verify_pass;      // ...and the passphrase leg was asked for
 static bool s_verify_full;      // ...and it passed: words AND passphrase
+static uint32_t s_verify_gen;   // the session the check was opened in
+// The typed words, kept only while the passphrase leg needs them: that leg
+// derives from what was typed, never from storage. Wiped by verify_words_wipe.
+static char s_vwords[WSEED_MAX_MNEMONIC];
 static bool s_load;             // AMNESIC per-session load, not first-boot setup
 static int s_sd_problem;         // WSEED_ERR_* shown by the missing-card gate
 
@@ -156,6 +160,9 @@ bool kiss_setup_active(void) { return s_scr != NULL; }
 
 bool kiss_setup_verify_succeeded(void) { return s_verify_ok; }
 bool kiss_setup_verify_full(void)      { return s_verify_full; }
+uint32_t kiss_setup_verify_generation(void) { return s_verify_gen; }
+
+static void verify_words_wipe(void) { kiss_wipe(s_vwords, sizeof s_vwords); }
 
 static void wipe_state(void)
 {
@@ -190,6 +197,7 @@ static void close_all(void)
 {
     s_session_owned = false;
     wipe_state();
+    verify_words_wipe();
     card_stop();
     if (s_scr) { lv_obj_delete_async(s_scr); s_scr = NULL; }
 }
@@ -404,51 +412,59 @@ static void verify_retry_cb(lv_event_t *e) { (void)e; restore_screen(); }
 // halves of the screen contradicted each other and the half they copy onto
 // paper was the unproven one.
 //
-// So it is asked for, fresh, and it has to rederive the same four bytes. The
-// derivation goes BESIDE the live session (kiss_session_prepare ->
-// kiss_session_prepared_fingerprint -> discard), so a wrong answer cannot
-// leave the device holding keys the owner did not open -- which is the only
-// reason this is safe to offer somewhere an owner arrives already unlocked.
+// So it is asked for, fresh, and the typed words with it have to derive the
+// open session's whole key (kiss_session_words_check). The words are the ones
+// just typed, not a fresh read of the seed: a card can hold an older wallet
+// file this signer sealed, and its paper is not this session's paper. The
+// derivation goes beside the live session, so a wrong answer cannot leave the
+// device holding keys the owner did not open.
 //
-// Nothing is stored. The comparison is between two fingerprints, and the
-// passphrase is wiped with the keyboard.
+// Nothing is stored. The typed words are wiped when this leg ends, and the
+// passphrase with the keyboard.
 static void verify_ok_screen(void);
 
 static int verify_pass_check(const char *pass, size_t len)
 {
     (void)len;
-    uint8_t got[4] = {0}, want[4] = {0};
-    kiss_ui_last_fp(want);
-    int rc = kiss_session_prepare(pass);
-    if (rc == 0) rc = kiss_session_prepared_fingerprint(got);
-    kiss_session_discard_prepared();
-    if (rc != 0) return -1;
-    // kiss_rehearse_pass_ok, not memcmp: a zeroed `want` must never verify,
-    // and that decision lives where kisstest can reach it.
-    return kiss_rehearse_pass_ok(got, want) ? 0 : -1;
+    if (!s_vwords[0] || kiss_session_generation() != s_verify_gen) return -1;
+    return kiss_session_words_check(s_vwords, pass) == 0 ? 0 : -1;
 }
 
 static void verify_pass_done(void)
 {
+    verify_words_wipe();
     s_verify_full = true;
     verify_ok_screen();
 }
 
 // CANCEL is not a failure. The words matched and that is worth saying; the
 // screen simply keeps the subtitle admitting the passphrase was not checked.
-static void verify_pass_cancel(void) { verify_ok_screen(); }
+static void verify_pass_cancel(void)
+{
+    verify_words_wipe();
+    verify_ok_screen();
+}
 
 static void verify_finish(void)
 {
     char typed[WSEED_MAX_MNEMONIC], stored[WSEED_MAX_MNEMONIC];
     join_words(typed, sizeof typed);
-    int mism = kiss_seed_load(stored, sizeof stored) == 0
-             ? kiss_seed_diff_word(typed, stored) : 0;
-    kiss_wipe(typed, sizeof typed);
+    const bool loaded = kiss_seed_load(stored, sizeof stored) == 0;
+    int mism = loaded ? kiss_seed_diff_word(typed, stored) : -1;
     kiss_wipe(stored, sizeof stored);
     wipe_state();                       // the entered words never linger
+    // The stored words name a mismatched word; the open keys decide a match.
+    // A card can hold an older wallet file this signer sealed, and its paper
+    // matches that file word for word. With no passphrase the typed words
+    // are the whole key, so they must derive the open one; with a passphrase
+    // the leg below derives from the typed words and the passphrase.
+    const bool pp_needed = kiss_rehearse_after_words(kiss_session_decoy()) ==
+                           KISS_REHEARSE_NEED_PASSPHRASE;
+    bool match = loaded && mism < 0;
+    if (match && !pp_needed)
+        match = kiss_session_words_check(typed, NULL) == 0;
 
-    if (mism < 0) {
+    if (match) {
         s_verify_ok = true;
         // A wallet with NO passphrase has nothing left to prove -- the words
         // ARE the whole backup, and asking anyway is the unanswerable prompt
@@ -461,9 +477,9 @@ static void verify_finish(void)
         // arrived at from the other side.
         uint8_t held[4];
         kiss_ui_last_fp(held);
-        if (s_verify_pass && kiss_fp_known(held) &&
-            kiss_rehearse_after_words(kiss_session_decoy()) ==
-                KISS_REHEARSE_NEED_PASSPHRASE) {
+        if (s_verify_pass && kiss_fp_known(held) && pp_needed) {
+            snprintf(s_vwords, sizeof s_vwords, "%s", typed);
+            kiss_wipe(typed, sizeof typed);
             if (s_session_owned)
                 kiss_ui_session_verify_pass_open(verify_pass_check,
                                                  verify_pass_done,
@@ -473,16 +489,23 @@ static void verify_finish(void)
                                          verify_pass_cancel);
             return;
         }
+        kiss_wipe(typed, sizeof typed);
         verify_ok_screen();
         return;
     }
+    kiss_wipe(typed, sizeof typed);
 
     {
-        char buf[128];   // Cyrillic runs 2 bytes/char: 48 truncated every ru render
-        snprintf(buf, sizeof buf, tr(STR_W_VBAD_FMT), mism + 1);
         mk_screen(tr(STR_W_VBAD_T), tr(STR_W_VBAD_S));
-        mk_lbl(buf, SX(48), SY(150), wt_font28(), STOP_COL);
-        wt_body_para(s_scr, tr(STR_W_VBAD_B), SY(206));
+        // Only a word that differs from the stored words is named. A seed
+        // that could not be read, or words that match a file but not the
+        // open keys, have no word to point at.
+        if (mism >= 0) {
+            char buf[128];   // Cyrillic runs 2 bytes/char: 48 truncated every ru render
+            snprintf(buf, sizeof buf, tr(STR_W_VBAD_FMT), mism + 1);
+            mk_lbl(buf, SX(48), SY(150), wt_font28(), STOP_COL);
+        }
+        wt_body_para(s_scr, tr(STR_W_VBAD_B), mism >= 0 ? SY(206) : SY(150));
         // Typing them again is what this screen is for; DONE is the way out.
         wt_arrow_action(s_scr, tr(STR_C_DONE), true, false, WT_EXIT_X,
                         WT_ACTION_Y, SX(140), true, verify_exit_cb, NULL);
@@ -529,8 +552,7 @@ static void verify_ok_screen(void)
         // keypad. The paper is in their hand and a pen is next to it. Both ways
         // in reach this: the setup rehearsal, and WALLET > VERIFY BACKUP later.
         uint8_t fp[4];
-        kiss_ui_last_fp(fp);
-        const bool fp_known = kiss_fp_known(fp);
+        const bool fp_known = kiss_ui_live_fp(fp);
 
         // Body height follows: 58 is two lines of font23 and leaves the block
         // below its room. (A real fingerprint of 00000000 exists with
@@ -4664,6 +4686,9 @@ void kiss_setup_close_for_test(void) { close_all(); }
 // signer that was a way to the words with nobody logged in.
 void kiss_setup_lock_close(void)
 {
+    // The typed words of a passphrase leg go on every lock: after one, the
+    // leg can only refuse (the session it checks against has ended).
+    verify_words_wipe();
     if (!s_scr || !s_session_owned) return;
     s_done = NULL;
     kef_wipe_env();
@@ -4713,7 +4738,9 @@ void kiss_setup_open_verify(lv_obj_t *parent, void (*done_cb)(void),
     s_verify_ok = false;
     s_verify_pass = with_pass;
     s_verify_full = false;
+    s_verify_gen = kiss_session_generation();
     wipe_state();
+    verify_words_wipe();
     int n = 1;                                          // fix the entry length to the
     for (char *p = words; *p; p++) if (*p == ' ') n++;  // stored seed's word count
     kiss_wipe(words, sizeof words);

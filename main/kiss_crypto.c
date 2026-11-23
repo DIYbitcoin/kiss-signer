@@ -532,6 +532,36 @@ int kiss_session_passphrase_check(const char *passphrase,
     return rc;
 }
 
+int kiss_session_words_check(const char *mnemonic, const char *passphrase)
+{
+    if (passphrase && !passphrase[0])
+        passphrase = NULL;                 // empty = no passphrase (BIP39)
+    if (!mnemonic || !mnemonic[0] || !s_session || s_session_card)
+        return 1;
+    if (wally_init(0) != WALLY_OK)
+        return 1;
+
+    // single exit below: everything derived here is wiped on every path
+    uint8_t seed[BIP39_SEED_LEN_512];
+    size_t seed_len = 0;
+    struct ext_key key = {0};
+    int rc = 0;
+    if (bip39_mnemonic_to_seed(mnemonic, passphrase, seed, sizeof seed,
+                               &seed_len) != WALLY_OK ||
+        seed_len != sizeof seed ||
+        bip32_key_from_seed(seed, sizeof seed, BIP32_VER_MAIN_PRIVATE, 0,
+                            &key) != WALLY_OK)
+        rc = 3;
+    wally_bzero(seed, sizeof seed);
+    if (rc == 0 &&
+        (memcmp(key.pub_key, s_master.pub_key, sizeof s_master.pub_key) != 0 ||
+         memcmp(key.chain_code, s_master.chain_code,
+                sizeof s_master.chain_code) != 0))
+        rc = 4;
+    wally_bzero(&key, sizeof key);
+    return rc;
+}
+
 int kiss_session_live(void) { return s_session ? 1 : 0; }
 
 uint32_t kiss_session_generation(void) { return s_session_gen; }
