@@ -1946,6 +1946,41 @@ button {
   .theatre.is-hero { grid-template-columns: minmax(0, 1fr); }
 }
 
+/* ---- the install card: port help and progress marks ----------------------- */
+/* Opening the fold must not push the other two steps' text down the card. */
+.install-steps li { align-content: start; }
+
+.port-help { grid-column: 2; margin-top: 8px; color: var(--muted); font-size: 0.82rem; }
+.port-help summary {
+  color: var(--accent);
+  cursor: pointer;
+  letter-spacing: 0.02em;
+}
+.port-help p { margin: 6px 0 0; }
+
+.card-progress {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 8px 0 0;
+}
+.card-progress span {
+  white-space: nowrap;
+  padding: 3px 7px;
+  border: 1px solid var(--control);
+  border-radius: 9px;
+  color: var(--dim);
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition: color 220ms ease, border-color 220ms ease;
+}
+.card-progress span::before { content: "\00b7\00a0"; }
+.card-progress span.on { color: var(--green); border-color: var(--green); }
+.card-progress span.on::before { content: "\2713\00a0"; }
+
+
 /* Save a demo as a video: an arrow link, like the site's other links. */
 .th-rec {
   justify-self: start;

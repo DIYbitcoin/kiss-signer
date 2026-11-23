@@ -95,10 +95,23 @@
           <li>
             <h3>Plug it in</h3>
             <p>A USB-C to USB-C cable, from a desktop. Chrome or Brave. A USB-A to USB-C cable does not work.</p>
+            <details class="port-help">
+              <summary>Port not showing?</summary>
+              <p>Use a USB-C to USB-C cable. A USB-A to USB-C cable does not work, and a cable made only for charging shows no port either.</p>
+              <p>Use Chrome or Brave on a desktop.</p>
+              <p>Close any other tab or program that has the board open, then unplug it and plug it back in.</p>
+            </details>
           </li>
           <li>
             <h3>Install</h3>
             <p>Choose your board, tick the box, press the button, pick the port. About a minute.</p>
+            <!-- What this page can see for itself, lit as it happens. card.js
+                 only reads what app.js has already put on the page. -->
+            <p class="card-progress" aria-live="polite">
+              <span data-done="board">Board</span>
+              <span data-done="file">File checked</span>
+              <span data-done="box">Box ticked</span>
+            </p>
           </li>
           <li>
             <h3>Power cycle</h3>
@@ -225,6 +238,7 @@
 
     <script src="tours.js"></script>
     <script src="live.js"></script>
+    <script src="card.js"></script>
     <script src="app.js"></script>
   </body>
 </html>
