@@ -231,6 +231,9 @@ static void mk_screen(const char *title, const char *sub)
     widgets_drop();
     s_scr = wt_screen(s_parent, title, sub);
     wt_chrome_head(s_scr);
+    // A wizard page takes every touch that lands on it: whatever is under it
+    // (a login, a screen of the session) is not the owner's to tap through.
+    lv_obj_add_flag(s_scr, LV_OBJ_FLAG_CLICKABLE);
 }
 
 // wt_screen's subtitle is deliberately one line: it has to land clear of the
@@ -245,6 +248,7 @@ static void mk_screen2(const char *title, const char *sub)
     widgets_drop();
     s_scr = wt_screen(s_parent, title, NULL);
     wt_chrome_head(s_scr);
+    lv_obj_add_flag(s_scr, LV_OBJ_FLAG_CLICKABLE);   // see mk_screen
     // The quiz puts its round counter at x=500 on the title's own row, so the
     // title gets 436 rather than the full 704. Without this the Italian and
     // Scandinavian titles ran straight through "spot check 1 of 3" -- and the

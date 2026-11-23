@@ -7214,6 +7214,11 @@ int main(void) {
   // fingerprint; this also leaves the warning in its verified state before
   // testing the restore-specific exit below.
   tap_str(STR_L_VERIFY_FULL_BACKUP, 3, 6);          // warning -> rehearsal intro
+  // The fingerprint screen is done once its TAP TO OPEN has opened the keys.
+  // It used to stay under the warning and under this check with the button
+  // live, so a tap through the check opened keys a second time.
+  must_not_show("setup/the fingerprint screen is retired",
+                tr(STR_L_TAP_TO_OPEN));
   tap_str(STR_W_TYPE_MY_WORDS, 3, 6);               // intro -> recovery keyboard
   // First setup's own check, left in the middle of the words for longer than
   // every deadline a session's check has. It must still be there, with the

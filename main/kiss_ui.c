@@ -1282,7 +1282,9 @@ static void setup_fail_screen(const char *why, int rc) {
 }
 
 static void fp_tap_cb(lv_event_t *e) {
-  (void)e;
+  // A tap that reaches a fingerprint screen already retired does nothing.
+  // The RECOVER retry calls in with no event and no screen, on purpose.
+  if (e && !s_fpscr) return;
   void (*cb)(void) = s_unlocked_cb;
   // Fingerprint derivation already proved the staged words + passphrase. Keep
   // the old unlocked session completely untouched until the replacement is
@@ -1356,6 +1358,13 @@ static void fp_tap_cb(lv_event_t *e) {
   // wipe_and_close: scrub it here, where the buffer dies, not when the screen
   // finally does.
   login_scrub_rendered();
+  // The fingerprint screen has done its one job, so it goes now. It used to
+  // stay under the warning and under the backup check the warning offers,
+  // with TAP TO OPEN live: a tap through the check opened keys a second time,
+  // with the passphrase already wiped, and named them with the fingerprint
+  // shown for the first. And the two minute wipe, finding it, uncovered the
+  // keyboard behind the check.
+  if (s_fpscr) { lv_obj_delete_async(s_fpscr); s_fpscr = NULL; }
   if (s_setup_mode) {          // one last screen: what the passphrase really is
     setup_warn_screen();       // (its OK button finishes the unlock)
     return;
