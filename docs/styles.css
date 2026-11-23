@@ -1608,3 +1608,248 @@ button {
   color: var(--ink);
   font-weight: 500;
 }
+
+
+/* ---- the theatre: one live device and the demos that play on it ----------
+   Built by live.js inside the guide's Features topic. Every colour, corner and
+   size here is one the site already uses; the device frame is the Simulator
+   page's. The tabs wear brackets the way the device marks its own open tab. */
+.theatre {
+  position: relative;
+  display: grid;
+  gap: 14px;
+  margin: 4px 0 28px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+
+/* Two even rows of four on a wide screen, rows of two on a phone. */
+.th-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+@media (max-width: 600px) {
+  .th-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.th-tabs[hidden] { display: none; }
+
+.th-tab {
+  border: 1px solid transparent;
+  border-radius: 9px;
+  padding: 7px 3px;
+  white-space: nowrap;
+  text-align: center;
+  background: none;
+  color: var(--dim);
+  font: inherit;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.th-tab::before { content: "[\00a0"; visibility: hidden; }
+.th-tab::after { content: "\00a0]"; visibility: hidden; }
+.th-tab:hover { color: var(--ink); }
+.th-tab[aria-selected="true"] {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+.th-tab[aria-selected="true"]::before,
+.th-tab[aria-selected="true"]::after { visibility: visible; }
+
+.th-device {
+  position: relative;
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #05070b;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.55);
+  transition: border-color 220ms ease;
+}
+.th-device.is-live { border-color: var(--green); }
+.is-plain .th-device { display: none; }
+
+.th-screen {
+  position: relative;
+  aspect-ratio: 800 / 480;
+  overflow: hidden;
+  border-radius: 6px;
+  background: #000;
+  cursor: pointer;
+}
+.th-poster,
+.th-screen canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.th-screen canvas { touch-action: none; }
+.th-poster[hidden],
+.th-screen canvas[hidden] { display: none; }
+
+/* Where the page's finger is. A ring that fades for a tap, and stays for a
+   stroke or a slide. */
+.th-finger {
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  margin: -17px 0 0 -17px;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+}
+.th-finger.tap { animation: thTap 420ms ease-out; }
+.th-finger.draw { opacity: 0.9; }
+@keyframes thTap {
+  from { opacity: 0.95; transform: scale(0.5); }
+  to { opacity: 0; transform: scale(1.25); }
+}
+
+.th-tag {
+  position: absolute;
+  left: 50%;
+  bottom: -13px;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 1px solid var(--control);
+  border-radius: 9px;
+  background: var(--panel);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.64rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.th-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dim); }
+.th-tag.is-loading { border-color: var(--amber); color: var(--amber); }
+.th-tag.is-loading .th-dot { background: var(--amber); }
+.th-tag.is-live { border-color: var(--green); color: var(--green); cursor: default; }
+.th-tag.is-live .th-dot { background: var(--green); }
+
+.th-side { display: grid; gap: 10px; }
+
+.th-title {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+/* The block that follows every title on the device, as in SIGN. */
+.th-title::after {
+  content: "";
+  display: inline-block;
+  width: 0.5em;
+  height: 0.95em;
+  margin-left: 0.45em;
+  background: var(--accent);
+  vertical-align: -0.1em;
+}
+
+.th-lead { margin: 0; color: var(--muted); }
+.th-lead:empty { display: none; }
+.on-tour .docs-toc { display: none; }
+/* ...and the device takes the room the column leaves. */
+.on-tour .docs-body { max-width: 1040px; }
+
+.th-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+  counter-reset: th;
+}
+.th-steps li {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 1px 12px;
+  padding: 8px 10px;
+  border-left: 2px solid var(--line);
+  color: var(--dim);
+  counter-increment: th;
+  transition: border-color 220ms ease, background 220ms ease, color 220ms ease;
+}
+.th-steps li::before {
+  content: counter(th);
+  grid-row: 1 / span 2;
+  align-self: start;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--control);
+  border-radius: 50%;
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-size: 0.68rem;
+}
+.th-steps strong { font-weight: 500; color: var(--muted); }
+.th-steps span { font-size: 0.92em; }
+.th-steps li.on { border-left-color: var(--accent); background: var(--accent-bg); color: var(--muted); }
+.th-steps li.on strong { color: var(--ink); }
+.th-steps li.done::before { content: "\2713"; border-color: var(--green); color: var(--green); }
+
+.th-sha {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--key);
+  color: var(--dim);
+  font-size: 0.74rem;
+  overflow-wrap: anywhere;
+}
+.th-sha p { margin: 0; }
+.th-sha b { color: var(--ink); font-weight: 500; }
+
+.th-limits { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.th-limits li { display: grid; gap: 2px; padding: 10px 12px; border-left: 2px solid var(--amber); color: var(--muted); }
+.th-limits strong { color: var(--ink); font-weight: 500; }
+
+.th-note { margin: 0; color: var(--muted); }
+.th-note:empty { display: none; }
+.th-safe { margin: 0; color: var(--dim); font-size: 0.78rem; }
+.th-safe strong { color: var(--accent); font-weight: 500; }
+
+.th-selftest { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.th-selftest figure { margin: 0; }
+.th-selftest canvas { width: 100%; height: auto; display: block; border: 1px solid var(--line); }
+.th-selftest figcaption { color: var(--muted); font-size: 0.72rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .th-finger.tap { animation: none; }
+}
+
+@media print {
+  .theatre { display: none; }
+}
+
+
+/* Save a demo as a video: an arrow link, like the site's other links. */
+.th-rec {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+.th-rec::after { content: " \2192"; }
+.th-rec:hover { color: var(--ink); }
+.th-rec.is-on { color: var(--red); }
+.th-rec.is-on::before { content: "\25cf\00a0"; }
+.th-rec.is-on::after { content: ""; }
+.th-rec[hidden] { display: none; }

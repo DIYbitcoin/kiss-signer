@@ -1426,6 +1426,7 @@
               <span>Understand</span>
               <svg class="rail-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
             </summary>
+            <a href="#tour">See it work</a>
             <a href="#how">How it works</a>
             <a href="#features">Features</a>
             <a href="#hardware">Hardware</a>
@@ -1468,6 +1469,15 @@
         <header class="docs-head">
           <h1>Documentation</h1>
         </header>
+<!-- The first page of the Docs: the real firmware, running in the page, doing
+     what the rest of the Docs explain. live.js builds the device and its
+     demos here from tours.js; without scripts the page still says where to go. -->
+<section class="doc-card reveal" id="tour" aria-label="See it work">
+        <p class="eyebrow">00 / see it work</p>
+        <h2>KISS Signer, running in this page</h2>
+        <p class="lede">The real firmware, not a video. Pick a step, or tap the device.</p>
+      </section>
+
 <section class="doc-card reveal" id="how" aria-label="How it works">
         <p class="eyebrow">01 / start here</p>
         <h2>How signing works</h2>
@@ -2521,6 +2531,8 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
       </div>
 </main>
 
+    <script src="tours.js"></script>
+    <script src="live.js"></script>
     <script>
       const revealEls = document.querySelectorAll(".reveal");
       if ("IntersectionObserver" in window) {
@@ -3002,6 +3014,7 @@ esptool --chip esp32p4 -p &lt;port&gt; -b 460800 \
           }
           if (window.__urqr) window.__urqr(opened && target.id === "features");
           if (window.__derive) window.__derive(opened && target.id === "firstboot");
+          if (window.__live) window.__live(target.id, opened);
           if (window.__docsSeen) window.__docsSeen(target.id);
 
           /* the on-this-page column lists the topic you are on, so it is

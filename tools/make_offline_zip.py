@@ -92,6 +92,10 @@ SITE_REQUIRED = [
     "media/sign-verify.png",
     "media/audit-randomness.png",
     "media/setup-storage.png",
+    # the live demos on the guide's first topic and How it works: the demo
+    # list and the script that plays it on the simulator build listed below
+    "tours.js",
+    "live.js",
     # the 329 byte stub, so /installer/ does not render a directory listing
     "installer/index.html",
     "installer/release.json",
