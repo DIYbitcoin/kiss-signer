@@ -6570,6 +6570,29 @@ int main(void) {
   touch(6, 470); pump(2); release(); pump(6);
   pump(200);
   draw_cover_underlined();
+  // The ordinary login, with the QR that was just being made: scanned, and
+  // left. The two minute wipe takes the envelope; the caption must go with
+  // it, or whoever comes back types the QR's password where a passphrase is
+  // wanted and opens other keys.
+  {
+    uint8_t fx[64];
+    size_t h = kef_emit_header(fx, sizeof fx, (const uint8_t *)"pp", 2,
+                               KEF_VERSION_AES_GCM, KEF_ITER_STORED);
+    for (int i = 0; i < 32; i++) fx[h + i] = (uint8_t)(0x3c ^ i);
+    touch(596, 38); pump(3); release(); pump(6);    // SCAN
+    tap_str(STR_L_SCAN_GO, 3, 6);
+    kiss_scan_inject((const char *)fx, h + 32); pump(6);
+    // The caption, not the grey prompt in the field: the prompt follows the
+    // field and went back on its own; the caption above it stayed.
+    must_show_exact("login kef/asks the QR password", tr(STR_L_KEF_PASS_OPEN));
+    pump(8200);                                     // 131s > 120s, untouched
+    must_not_show("login kef/the wipe takes the QR password caption",
+                  tr(STR_L_KEF_PASS_OPEN));
+    must_show("login kef/and the field asks for the passphrase",
+              tr(STR_L_TYPE_PROMPT));
+    must_show_exact("login kef/under the login's own caption",
+                    tr(STR_L_PASSPHRASE_CAP));
+  }
   type_pass9();
   touch(725, 430); pump(3); release(); pump(25);    // OK -> fingerprint
   tap_str(STR_L_TAP_TO_OPEN, 3, 12);                // TAP TO OPEN -> home

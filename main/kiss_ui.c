@@ -1385,8 +1385,15 @@ static void fp_back_cb(lv_event_t *e) {
 // half made. Deliberately NOT wipe_and_close: that path discards the staged
 // seed under s_setup_mode, and on the commit-failed branch the staging is the
 // last copy of the wallet anywhere. This wipes buffers a re-type can replace.
+static void pp_kef_leave(void);
+
 void kiss_ui_idle_wipe(void) {
   if (!kiss_ui_active()) return;
+  // A scanned encrypted passphrase waiting for its QR's password: the caption
+  // asks for that password, and the wipe below turns the field back into a
+  // passphrase. Left as it was, whoever came back typed the QR's password as
+  // a passphrase and opened other keys. The caption goes back first.
+  if (s_pp_kef) pp_kef_leave();
   // The fingerprint screen is derived from the passphrase being wiped: TAP TO
   // OPEN there commits with `s_plen ? s_pass : NULL`, so leaving it standing
   // would commit the staged seed under an EMPTY passphrase beneath a stale
