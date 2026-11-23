@@ -83,6 +83,11 @@
         </figure>
       </section>
 
+      <!-- The big device. live.js builds a live one here from the first-run
+           demo in tours.js, with the game's sunset behind it; the small
+           picture above stays for a browser that runs no scripts. -->
+      <section class="install-hero" id="install-hero" aria-label="What you will see next"></section>
+
       <section class="install-card reveal framed" id="install" aria-label="Firmware install">
         <!-- Three moves, read left to right. Everything needed to flash is on
              this screen; the depth lives in Docs. -->
@@ -218,6 +223,8 @@
          away on the repo, which the header already links, and this page is
          one screen with one button on it. -->
 
+    <script src="tours.js"></script>
+    <script src="live.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

@@ -1835,6 +1835,117 @@ button {
 }
 
 
+/* ---- the Install page's big device, with the game's sunset behind it ------
+   A theatre with "is-hero": no panel of its own, the device on the left at a
+   size that can be read, the steps beside it. The sunset is drawn in the
+   colours of the game's own menu and hangs off the device, so it can never
+   reach the headline. It fades out once the device is showing the signer. */
+.hero:has(+ .install-hero .theatre) { grid-template-columns: minmax(0, 1fr); }
+.hero:has(+ .install-hero .theatre) .hero-device { display: none; }
+
+.theatre.is-hero {
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 18px 40px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.theatre.is-hero::after { display: none; }
+.theatre.is-hero .th-tabs { grid-column: 1 / -1; }
+
+.th-stage {
+  position: relative;
+  isolation: isolate;
+  padding: 0 0 28px;
+}
+
+.th-scene {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  transition: opacity 900ms ease;
+}
+.theatre.in-signer .th-scene { opacity: 0; }
+
+/* The horizon sits 78% of the way down the device. */
+.th-glow {
+  position: absolute;
+  left: -40px;
+  right: -40px;
+  bottom: 22%;
+  height: 120%;
+  background: linear-gradient(180deg,
+    rgba(37, 19, 73, 0) 0%,
+    rgba(37, 19, 73, 0.9) 30%,
+    #4f1f63 62%,
+    #8d2f66 82%,
+    #ff9a55 100%);
+  /* No hard sides: the sky thins out toward the page. */
+  -webkit-mask-image: radial-gradient(closest-side, #000 62%, transparent);
+  mask-image: radial-gradient(closest-side, #000 62%, transparent);
+  -webkit-mask-size: 100% 200%;
+  mask-size: 100% 200%;
+  -webkit-mask-position: 50% 0;
+  mask-position: 50% 0;
+}
+
+.th-sun {
+  position: absolute;
+  left: 50%;
+  top: 78%;
+  width: calc(100% + 64px);
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: linear-gradient(180deg, #ffe39a 0%, #ffb24d 30%, #ff7355 44%, #e0457e 50%);
+  /* The cut bands of the menu's sun, wider toward the water. */
+  -webkit-mask-image: linear-gradient(
+    #000 0 31%, transparent 31% 32.1%,
+    #000 32.1% 36.4%, transparent 36.4% 38%,
+    #000 38% 41.6%, transparent 41.6% 43.8%,
+    #000 43.8% 46.4%, transparent 46.4% 50%);
+  mask-image: linear-gradient(
+    #000 0 31%, transparent 31% 32.1%,
+    #000 32.1% 36.4%, transparent 36.4% 38%,
+    #000 38% 41.6%, transparent 41.6% 43.8%,
+    #000 43.8% 46.4%, transparent 46.4% 50%);
+}
+
+.th-sea {
+  position: absolute;
+  left: -40px;
+  right: -40px;
+  top: 78%;
+  bottom: 0;
+  overflow: hidden;
+  border-top: 1px solid rgba(255, 214, 160, 0.55);
+  background: linear-gradient(180deg, #0d2c38, var(--bg));
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
+}
+.th-sea::before {
+  content: "";
+  position: absolute;
+  inset: 0 -40% -20% -40%;
+  background-image:
+    linear-gradient(rgba(64, 214, 198, 0.4) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(64, 214, 198, 0.4) 1px, transparent 1px);
+  background-size: 100% 18px, 48px 100%;
+  transform: perspective(200px) rotateX(58deg);
+  transform-origin: 50% 0;
+  -webkit-mask-image: linear-gradient(#000, transparent 90%);
+  mask-image: linear-gradient(#000, transparent 90%);
+}
+
+.theatre.is-hero .th-device { margin-bottom: 0; }
+
+@media (max-width: 900px) {
+  .theatre.is-hero { grid-template-columns: minmax(0, 1fr); }
+}
+
 /* Save a demo as a video: an arrow link, like the site's other links. */
 .th-rec {
   justify-self: start;
