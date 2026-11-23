@@ -3718,8 +3718,11 @@ static void count_screen(void)
 // so both doors teach one shape.
 static void how_type_cb(lv_event_t *e) { (void)e; count_screen(); }
 
+// locked_first: the screen someone meets EVERY session (amnesic) leads with
+// the encrypted backup, the only way in that leaves nothing readable lying
+// around. The one time restore keeps typing first.
 static void how_rows(lv_event_cb_t type_cb, lv_event_cb_t scan_cb,
-                     lv_event_cb_t sd_cb)
+                     lv_event_cb_t sd_cb, bool locked_first)
 {
     static const char *const ICON[3] = {
         LV_SYMBOL_KEYBOARD, WT_ICON_QR, WT_ICON_SD
@@ -3731,16 +3734,20 @@ static void how_rows(lv_event_cb_t type_cb, lv_event_cb_t scan_cb,
                                  tr(STR_W_LOAD_SD_NOTE) };
     const lv_font_t *f = wt_row_sub_font(SUB, 3, WT_CHOICE_W, SETUP_CHOICE_H,
                                          true, true);
-    for (int i = 0; i < 3; i++)
-        wt_row_x(s_scr, ICON[i], tr(LBL[i]), SUB[i], f, NULL, NULL, WT_INK,
+    static const int8_t TYPE_FIRST[3] = { 0, 1, 2 }, LOCKED_FIRST[3] = { 1, 2, 0 };
+    const int8_t *ord = locked_first ? LOCKED_FIRST : TYPE_FIRST;
+    for (int i = 0; i < 3; i++) {
+        const int k = ord[i];
+        wt_row_x(s_scr, ICON[k], tr(LBL[k]), SUB[k], f, NULL, NULL, WT_INK,
                  false, WT_CHOICE_X, SETUP_CHOICE_Y(i), WT_CHOICE_W,
-                 SETUP_CHOICE_H, CB[i], NULL);
+                 SETUP_CHOICE_H, CB[k], NULL);
+    }
 }
 
 static void how_screen(void)
 {
     mk_screen(tr(STR_W_RESTORE_T), tr(STR_W_RESTORE_HOW_S));
-    how_rows(how_type_cb, restore_scan_cb, kef_sd_open_restore_cb);
+    how_rows(how_type_cb, restore_scan_cb, kef_sd_open_restore_cb, false);
     wt_arrow_action(s_scr, tr(STR_C_BACK), true, false, WT_BACK_X,
                     WT_ACTION_Y, SX(140), true, goto_choose_cb, NULL);
 }
@@ -4273,27 +4280,16 @@ static void qr_bad_screen(void)
 }
 
 // The scan screen owns the camera; it hands us the first decoded payload. An
-// encrypted backup goes to its password; a seed QR becomes the words; anything
-// else lands on the screen above with nothing loaded.
+// encrypted backup goes to its password. Anything else lands on the screen
+// above with nothing loaded, and that includes a plain seed QR (SeedQR,
+// CompactSeedQR, the words as text): seed words in a square any camera can
+// read are seed words left within reach, and whoever has them on paper can
+// type them in once. Only the encrypted backup comes in by camera.
 static void qr_text_cb(const char *txt, size_t len)
 {
     if (kef_route((const uint8_t *)txt, len))
-        return;                          // an encrypted backup, not a seed QR
-    char words[WSEED_MAX_MNEMONIC];
-    int rc = kiss_seed_from_qr(txt, len, words, sizeof words);
-    if (rc == 0)
-        rc = kiss_seed_stage(words);
-    kiss_wipe(words, sizeof words);      // a scanned mnemonic must not linger
-    if (rc != 0) { qr_bad_screen(); return; }
-    // Somebody else's draw, with nothing to say about it: write 0 rather than
-    // skip the write, or a note left by a seed made here BEFORE the import
-    // would describe a draw that has nothing to do with this one.
-    kiss_seed_set_entropy_note(WSEED_ENTQ_NONE);
-    kiss_seed_set_source(WSEED_SRC_QR);
-    void (*cb)(void) = s_done;           // straight on, the same as typing
-    s_load = false;
-    close_all();
-    if (cb) cb();
+        return;                          // an encrypted backup
+    qr_bad_screen();
 }
 
 static void qr_cancel_cb(void) { load_screen(); }
@@ -4330,7 +4326,7 @@ static void load_screen(void)
     mk_screen(tr(STR_W_LOAD_T), tr(STR_W_LOAD_S));
     // The restore chooser's three rows, so the two doors read the same: type
     // the words, scan a QR, or open a file on the card.
-    how_rows(load_type_cb, load_scan_cb, kef_sd_open_load_cb);
+    how_rows(load_type_cb, load_scan_cb, kef_sd_open_load_cb, true);
     wt_arrow_action(s_scr, tr(STR_W_CARD_BTN), false, false, WT_ACT_X,
                     WT_ACTION_Y, SX(320), false, card_open_cb, NULL);
     wt_arrow_action(s_scr, tr(STR_W_CREATE_NEW), false, false, SX(560),

@@ -1,6 +1,6 @@
 #!/bin/bash
-# Build the public practice page, docs/practice/index.html: the practice seed
-# and three testnet transactions as animated QR codes, for someone who has just
+# Build the public practice page, docs/practice/index.html: the practice seed's
+# words and three testnet transactions as animated QR codes, for someone who has just
 # built a KISS and wants to try signing in a minute with no coordinator.
 #
 # Everything on the page is made by this repository's own code:
@@ -51,12 +51,11 @@ for p in $PSBTS; do
   "$T/mk_qr_parts" "$T/$p.psbt" ur > "$T/$p.parts" 2> /dev/null
   "$T/mk_qr_matrix" < "$T/$p.parts" > "$T/$p.qr"
 done
-# The practice seed as a SeedQR: four digits per word, the wordlist index.
-# abandon is 0000 and about is 0003.
-printf '%s0003\n' "00000000000000000000000000000000000000000000" | "$T/mk_qr_matrix" > "$T/seed.qr"
+# The practice seed has no code. The signer does not read a plain seed QR,
+# so the page has people type its 12 words.
 
-# 5. every code read back by the device's QR decoder, UR reader and seed QR
-#    reader; the build stops here if one does not give back what made it
+# 5. every code read back by the device's QR decoder and UR reader; the build
+#    stops here if one does not give back what made it
 clang $CF $WI -Imain -Isim -Isim/shims -Icomponents/cUR/src \
   -Icomponents/k_quirc/include -Icomponents/k_quirc/src \
   "$WALLY/upstream/src/amalgamation/combined.c" \
@@ -68,7 +67,7 @@ clang $CF $WI -Imain -Isim -Isim/shims -Icomponents/cUR/src \
   components/k_quirc/src/*.c sim/practice_readback.c -o "$T/practice_readback"
 rb=""
 for p in $PSBTS; do rb="$rb $T/$p.qr $T/$p.psbt"; done
-KISS_SIM_TMP="$T" "$T/practice_readback" "$T/seed.qr" $rb
+KISS_SIM_TMP="$T" "$T/practice_readback" $rb
 
 # 6. the page
 mkdir -p docs/practice

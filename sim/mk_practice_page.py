@@ -4,7 +4,6 @@
 Reads, from the build folder:
   facts.jsonl        the device's own verdict and amounts for each transaction
   <name>.qr          one QR symbol per line: size, a space, the modules as 0/1
-  seed.qr            the practice seed's SeedQR
 Every QR is inlined as its module bits and drawn on a canvas by a few lines of
 script, so the page is one file with no library and no network request.
 Standard library only.
@@ -54,7 +53,7 @@ def main(build, dest):
     for line in (build / "facts.jsonl").read_text().splitlines():
         f = json.loads(line)
         facts[Path(f["file"]).stem] = f
-    data = {"seed": symbols(build / "seed.qr")[0]}
+    data = {}
     cards = []
     for stem, title, todo, want in TXS:
         f = facts[stem]
@@ -157,9 +156,8 @@ PAGE = """<!doctype html>
       <div class="card">
         <h2>Load the practice seed</h2>
         <p>On <b>SET UP THIS SIGNER</b>, choose <b>RESTORE SEED WORDS</b>, then
-          <b>SCAN A QR</b> and scan this code, or <b>TYPE MY SEED WORDS</b>
-          and type the 12 words below.</p>
-        <canvas class="qr" data-q="seed" width="330" height="330"></canvas>
+          <b>TYPE MY SEED WORDS</b> and type the 12 words below. The first
+          eleven are the same word.</p>
         <ol class="words">@@WORDS@@</ol>
       </div>
 

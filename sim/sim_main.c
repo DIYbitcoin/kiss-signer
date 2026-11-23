@@ -502,24 +502,6 @@ int kiss_seed_from_plaintext(const char *data, size_t len, char *out, size_t n) 
   }
   return -1;
 }
-// A seed QR off the camera: the digit SeedQR maps four digits to a word, and
-// the compact and plain text shapes are the plaintext reader's. Anything else
-// is the NOT A SEED QR path, as in the firmware.
-int kiss_seed_from_qr(const char *data, size_t len, char *out, size_t n) {
-  if (out && n) out[0] = 0;
-  if (!data || !out || len == 0) return -1;
-  if (len == 48 || len == 96) {
-    size_t i = 0;
-    while (i < len && data[i] >= '0' && data[i] <= '9') i++;
-    if (i == len) {
-      size_t o = 0;
-      for (size_t w = 0; w < len / 4 && o + 12 < n; w++)
-        o += (size_t)snprintf(out + o, n - o, "%s%s", w ? " " : "", SIM_WORDS[w % 24]);
-      return 0;
-    }
-  }
-  return kiss_seed_from_plaintext(data, len, out, n);
-}
 // KEF crypto seam. The envelope half (kiss_kef.c) is REAL in this build, so
 // the stub emits a header the same kef_parse the restore router runs will
 // accept; only the cipher is faked. Password "kef" is the one that opens.
@@ -7948,8 +7930,8 @@ int main(void) {
   touch(542, 250); pump(1); touch(482, 286); pump(1); touch(462, 272); pump(1); release(); pump(4);
   save("/tmp/sim_amnesic_load.ppm");                // LOAD YOUR WORDS
 
-  // A QR with no seed in it. The scan must land on NOT A SEED QR and stage
-  // nothing; the three seed QR shapes that do load are sim/test_seed.c's.
+  // A QR that is not an encrypted backup. The scan must land on NOT A SEED QR
+  // and stage nothing; a plain seed QR lands there too, by decision.
   // BY ITS WORDS. The x here was past the end of the Korean label, so the
   // tap fell on the row rather than its action and every later stop in this
   // flow photographed the chooser.

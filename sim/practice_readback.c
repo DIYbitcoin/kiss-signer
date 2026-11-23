@@ -4,13 +4,12 @@
 // Each symbol is drawn as a grey image (4 px a module, the 4 module quiet zone
 // the page draws) and handed to k_quirc, the device's QR decoder. The parts of
 // a transaction go through qrt_parser, the device's UR reader, and must rebuild
-// the PSBT byte for byte. The seed code goes through kiss_seed_from_qr, the
-// device's seed QR reader, and must give the practice seed's 12 words.
+// the PSBT byte for byte. The practice seed has no code: it is typed in.
 //
 // What this cannot see is the camera: glare, focus and a phone's own screen.
 // That is the device test.
 //
-// usage: practice_readback <seed.qr> (<name.qr> <name.psbt>)...
+// usage: practice_readback (<name.qr> <name.psbt>)...
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -53,27 +52,13 @@ static int next_symbol(FILE *f, uint8_t *out, size_t cap)
 
 int main(int argc, char **argv)
 {
-    if (argc < 2 || (argc - 2) % 2)
+    if (argc < 3 || (argc - 1) % 2)
         return 2;
     static uint8_t pay[8192], want[16384], back[16384];
     int bad = 0;
 
-    // the seed
-    FILE *f = fopen(argv[1], "r");
-    int l = f ? next_symbol(f, pay, sizeof pay) : -2;
-    if (f) fclose(f);
-    char words[512];
-    if (l < 0 || kiss_seed_from_qr((const char *)pay, (size_t)l, words, sizeof words) != 0 ||
-        strcmp(words, "abandon abandon abandon abandon abandon abandon "
-                      "abandon abandon abandon abandon abandon about") != 0) {
-        fprintf(stderr, "seed code: the device does not read back the practice seed\n");
-        bad = 1;
-    } else {
-        printf("seed code: read back as the practice seed\n");
-    }
-
     // the transactions
-    for (int a = 2; a < argc; a += 2) {
+    for (int a = 1; a < argc; a += 2) {
         FILE *p = fopen(argv[a + 1], "rb");
         size_t wn = p ? fread(want, 1, sizeof want, p) : 0;
         if (p) fclose(p);

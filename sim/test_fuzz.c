@@ -13,7 +13,7 @@
 //      UR parts                                    -> must not crash or complete
 //   4. kiss_psbt_load on base64 TEXT ("cHNidP")  -> the branch random binary
 //      never reaches; junk never READY, whitespace in real b64 still loads
-//   5. kiss_seed_from_plaintext and kiss_seed_from_qr on junk/digits/entropy
+//   5. kiss_seed_from_plaintext on junk/digits/entropy
 //      -> return 0 only for a mnemonic that validates; degenerate entropy
 //      refused, and an envelope's plaintext is never read as SeedQR digits
 //   6. kiss_address_validate on junk + flipped
@@ -729,7 +729,7 @@ int main(void)
              strcmp(so, MN) == 0);
 
         // The numeric SeedQR shape: 4 digits per wordlist index. It is what a
-        // camera reads (kiss_seed_from_qr), never what an opened envelope
+        // camera used to read, never what an opened envelope
         // holds, so this reader refuses it at either length whatever the
         // indices spell. Built from the good vector rather than the abandon
         // one so the refusal is about the shape, not the degenerate gate.
@@ -754,9 +754,6 @@ int main(void)
             chkb("plaintext: built a well formed 48 digit SeedQR", d == 48);
             chkb("plaintext: a well formed SeedQR is refused",
                  kiss_seed_from_plaintext(dg, 48, so, sizeof so) != 0);
-            chkb("seedqr: the same digits read off a camera",
-                 kiss_seed_from_qr(dg, 48, so, sizeof so) == 0 &&
-                 strcmp(so, GOOD) == 0);
         }
         static const char NUM[] =
             "000000000000000000000000000000000000000000000003";
@@ -796,7 +793,7 @@ int main(void)
         // random junk at every shape: bytes, printable, digit strings at the
         // numeric SeedQR lengths. Success is only legal with a validating
         // mnemonic (random 16/32-byte lengths ARE real entropy and
-        // legitimately pass), through either reader.
+        // legitimately pass).
         for (int i = 0; i < 2000; i++) {
             char jb[301];
             size_t n = 1 + rnd() % 300;
@@ -816,16 +813,6 @@ int main(void)
             }
             if (rc != 0 && so[0] != 0) {
                 printf("FAIL: plaintext rejection left bytes in out (iter %d)\n", i);
-                fails++;
-            }
-            memset(so, 0x5A, sizeof so);
-            rc = kiss_seed_from_qr(jb, n, so, sizeof so);
-            if (rc == 0 && kiss_seed_validate(so) != 0) {
-                printf("FAIL: seed QR junk accepted without a valid mnemonic (iter %d)\n", i);
-                fails++;
-            }
-            if (rc != 0 && so[0] != 0) {
-                printf("FAIL: seed QR rejection left bytes in out (iter %d)\n", i);
                 fails++;
             }
         }
