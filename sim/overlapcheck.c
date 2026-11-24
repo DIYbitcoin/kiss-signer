@@ -1025,7 +1025,7 @@ static const char *OC_PORT_BACKLOG[] = {
     // pair of ROWS, not a paragraph re-flowed. They get rebuilt with the rest
     // of that board's layout, and the point of naming them here is that the
     // list is now two long instead of unknown.
-    "this code comes from the signature itself.",
+    "this code only helps you compare.",
     "WRONG KEYS: another passphrase opens other keys.",
     // The five grids. Each is a list of labelled claims, and a list on a 320
     // wide board is ONE column, which is what makes them too tall rather than
@@ -1175,6 +1175,10 @@ static const char *OC_VOID_BACKLOG[] = {
     "sim_storage_sd_ok",
     "sim_wipe_fail",
     "sim_wiped",
+    // The two landed after the list and are the same kind: a fee that may be
+    // higher than shown, and paper that would not bring these keys back.
+    "sim_sign_unproven_card",
+    "sim_verify_other_seed",
 };
 static bool s_void_hit[sizeof OC_VOID_BACKLOG / sizeof OC_VOID_BACKLOG[0]];
 
