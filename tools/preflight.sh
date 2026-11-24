@@ -191,7 +191,8 @@ run "a board test that falls through" "python3 tools/check_board_switch.py --sel
 # it, which made it a check nobody could fail locally and CI failed for six
 # weeks. It asks git now, so it answers the same here as it does there.
 run "every link in the docs points at something" \
-    "python3 tools/check_links.py --selftest && python3 tools/check_links.py"
+    "python3 tools/check_links.py --selftest && python3 tools/check_links.py \
+     && python3 tools/gen_boards.py --check"
 run "a signature block the firmware would refuse" "python3 tools/check_sig_scheme.py --selftest"
 run "a burned board called fresh" "python3 tools/check_efuse_fresh.py --selftest"
 run "a release block that names what it never defined" \
@@ -291,6 +292,9 @@ run "screens no gate sees" "python3 tools/check_screen_coverage.py"
 run "the corner shortcut from a cold boot" \
     "for m in 1 2 3 4 5 6; do SIM_LANG=en KISS_COLD_CORNER=\$m \
        \"\$KISS_SIM_TMP/fruitsim\" || exit 1; done"
+# The shared send screens, in their own process for the same reason.
+run "the shared send screens" \
+    "SIM_LANG=en SIM_SHARED=1 \"\$KISS_SIM_TMP/fruitsim\" > \"\$KISS_SIM_TMP/sim_shared.log\""
 run "a walk tap that hits nothing" \
     "SIM_LANG=en \"\$KISS_SIM_TMP/fruitsim\" > \"\$KISS_SIM_TMP/sim_en.log\" \
      && python3 tools/check_sim_taps.py --selftest \

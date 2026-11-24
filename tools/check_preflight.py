@@ -43,6 +43,10 @@ SKIP = {
         "the interactive simulator needs libsdl2-dev, which CI installs and a "
         "working tree may not have; a missing SDL2 would fail preflight for "
         "everyone who never runs the interactive sim",
+    "tools/check_sim_qr.py":
+        "it reads the frames with zxing-cpp, which CI installs into a venv "
+        "from hash pinned wheels; preflight installs nothing, so a tree "
+        "without that venv would fail on the install, not on a QR",
 }
 
 TOKEN = re.compile(r"\b(?:tools|sim)/[A-Za-z0-9_]+\.(?:py|sh)\b")
