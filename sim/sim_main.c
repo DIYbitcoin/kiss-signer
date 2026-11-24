@@ -6349,7 +6349,7 @@ int main(void) {
     memcpy(s_sim_seed, held_seed, sizeof s_sim_seed);   // the card's older file
     kiss_ui_set_last_fp(other_fp);
     if (kiss_backup_checked(other_fp)) {
-      printf("FAIL: verify/another wallet: the fixture is already marked\n");
+      printf("FAIL: verify/other seed words: the fixture is already marked\n");
       g_walk_fails++;
     }
     set_tab(SET_BACKUP);
@@ -6365,13 +6365,13 @@ int main(void) {
     touch(450, 374); pump(3); release(); pump(3);   // b
     touch(664, 254); pump(3); release(); pump(3);   // o
     touch(55, 182); pump(3); release(); pump(6);    // accept "about"
-    save("/tmp/sim_verify_other_wallet.ppm");
-    must_not_show("verify/another wallet is not verified",
+    save("/tmp/sim_verify_other_seed.ppm");
+    must_not_show("verify/other seed words are not verified",
                   tr(STR_L_BACKUP_VERIFIED));
-    must_show("verify/another wallet does not match", tr(STR_W_VBAD_T));
+    must_show("verify/other seed words do not match", tr(STR_W_VBAD_T));
     tap_str(STR_C_DONE, 3, 6);                      // DONE -> Settings
     if (kiss_backup_checked(other_fp)) {
-      printf("FAIL: verify/another wallet: its paper marked the open keys\n");
+      printf("FAIL: verify/other seed words: its paper marked the open keys\n");
       g_walk_fails++;
     }
     kiss_session_open("aaaaaaaaa");                 // back to the nine
