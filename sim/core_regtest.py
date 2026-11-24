@@ -193,7 +193,9 @@ def main() -> int:
             check(decoded["tx"]["vin"][0]["txid"] == funding_txid,
                   "Core PSBT did not spend the regtest funding transaction")
             witness_utxo = decoded["inputs"][0].get("witness_utxo", {})
-            check(witness_utxo.get("scriptPubKey", "").startswith("0014"),
+            # decodepsbt gives scriptPubKey as an object; its hex is the script.
+            spk = witness_utxo.get("scriptPubKey", {}).get("hex", "")
+            check(spk.startswith("0014") and len(spk) == 44,
                   "Core PSBT input is not native SegWit P2WPKH")
             check(decoded["inputs"][0].get("non_witness_utxo"),
                   "Core PSBT omitted the full previous transaction needed to prove the input amount")
