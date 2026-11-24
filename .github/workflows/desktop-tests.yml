@@ -270,6 +270,10 @@ jobs:
               > /tmp/cold_corner_$m.log
             tail -2 /tmp/cold_corner_$m.log
           done
+          # The shared send screens, in their own process for the same reason.
+          timeout 120 env SIM_LANG=en SIM_SHARED=1 /tmp/fruitsim \
+            > /tmp/sim_shared.log
+          tail -1 /tmp/sim_shared.log
           for L in en; do
             echo "== SIM_LANG=$L =="
             timeout 300 env SIM_LANG=$L /tmp/fruitsim > /tmp/sim_$L.log

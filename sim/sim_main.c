@@ -3115,6 +3115,10 @@ static void shared_put(const char *name, const char *body)
 // on the glass: turn the page the way the MANY stop does.
 static void shared_read_to_end(void)
 {
+  // The slide ignores a press for SIGN_ARM_MS after the caution was accepted,
+  // and with every recipient already on the first page the loop below never
+  // pumps, so the grip landed inside that window and the slide never moved.
+  pump(40);
   for (int f = 0; f < 8 && !kiss_sign_test_armed(); f++) {
     for (int i = 0; i <= 8; i++) { touch(600 - i * 14, 250); pump(3); }
     release(); pump(40);
@@ -3139,23 +3143,23 @@ static int shared_walk(void)
   touch(130, 240); pump(3); release(); pump(6);     // Sign tile -> the page
   tap_str(STR_S_FROM_SD, 3, 30);                    // SD CARD tab -> the list
   touch(328, 150); pump(3); release(); pump(8);     // row 0 -> share only review
-  save("/tmp/sim_shared_only_verify.ppm");
+  save("/tmp/sim_shared_only_verify.ppm");   // own process: SIM_SHARED
   must_show("shared/share only row", tr(STR_S_C_SHARE_ONLY));
   must_show("shared/share only slide", tr(STR_S_HOLD_TO_SHARE));
   touch(753, 123); pump(3); release(); pump(30);    // "?" -> WHY FLAGGED
-  save("/tmp/sim_shared_only_why.ppm");
+  save("/tmp/sim_shared_only_why.ppm");   // own process: SIM_SHARED
   tap_str(STR_C_OK, 3, 6);
   tap_str_nth(STR_C_I_UNDERSTAND, 0, 3, 6);         // accept the row
-  save("/tmp/sim_shared_only_ack.ppm");
+  save("/tmp/sim_shared_only_ack.ppm");   // own process: SIM_SHARED
   shared_read_to_end();                             // the third output pages
-  save("/tmp/sim_shared_only_end.ppm");
+  save("/tmp/sim_shared_only_end.ppm");   // own process: SIM_SHARED
   slide_grip(STR_S_HOLD_TO_SHARE); slide_go(141);
-  save("/tmp/sim_shared_only_hold.ppm");
+  save("/tmp/sim_shared_only_hold.ppm");   // own process: SIM_SHARED
   slide_go(320); release(); pump(64);
-  save("/tmp/sim_shared_only_reveal.ppm");
+  save("/tmp/sim_shared_only_reveal.ppm");   // own process: SIM_SHARED
   pump(152);
   touch(400, 240); pump(3); release(); pump(20);    // end the arrival motion
-  save("/tmp/sim_shared_only_done.ppm");
+  save("/tmp/sim_shared_only_done.ppm");   // own process: SIM_SHARED
   must_show("shared/done title", tr(STR_S_SHARE_T));
   must_show("shared/done next step", tr(STR_S_SD_NEXT_SHARE));
   tap_str(STR_C_DONE, 3, 6);                        // DONE -> home
@@ -3185,7 +3189,7 @@ static int shared_walk(void)
   pump(45); release(); pump(120);
   pump(100);
   touch(400, 240); pump(3); release(); pump(20);    // end the arrival motion
-  save("/tmp/sim_shared_only_qr.ppm");
+  save("/tmp/sim_shared_only_qr.ppm");   // own process: SIM_SHARED
   must_show("shared/qr title", tr(STR_S_SHARE_T));
   must_show("shared/qr next step", tr(STR_S_QR_SUB_SHARE));
   tap_str(STR_C_DONE, 3, 6);
@@ -3194,11 +3198,11 @@ static int shared_walk(void)
   touch(130, 240); pump(3); release(); pump(6);
   tap_str(STR_S_FROM_SD, 3, 30);
   touch(328, 216); pump(3); release(); pump(8);     // row 1 -> complete review
-  save("/tmp/sim_shared_send_verify.ppm");
+  save("/tmp/sim_shared_send_verify.ppm");   // own process: SIM_SHARED
   must_show("shared/complete row", tr(STR_S_C_SHARED));
   must_show("shared/complete slide", tr(STR_S_HOLD_TO_SIGN));
   touch(753, 123); pump(3); release(); pump(30);
-  save("/tmp/sim_shared_send_why.ppm");
+  save("/tmp/sim_shared_send_why.ppm");   // own process: SIM_SHARED
   tap_str(STR_C_OK, 3, 6);
   printf("sim done\n");
   return g_walk_fails ? 1 : 0;
