@@ -520,7 +520,7 @@
   "S_C_SHARED": "shared send",
   "S_C_SHARE_ONLY": "share only, not signed",
   "S_WHY_SHARED": "SHARED SEND: some inputs are another signer's. they count in the fee and are never signed here.",
-  "S_WHY_SHARE_ONLY": "SHARE ONLY: this step only adds this signer's share. nothing is signed yet. the payment needs one more scan to be signed.",
+  "S_WHY_SHARE_ONLY": "SHARE ONLY: this step only adds this signer's share. nothing is signed yet. the transaction needs one more scan to be signed.",
   "S_SHARE_T": "SHARE ADDED",
   "S_SHARING": "ADDING SHARE...",
   "S_HOLD_TO_SHARE": "SLIDE TO ADD SHARE",

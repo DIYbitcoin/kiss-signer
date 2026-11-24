@@ -133,6 +133,9 @@ LONG_WORDS_OK = {
     "unencrypted", "verification", "denomination", "destination", "recovery",
     "information", "deniability", "manufacturer", "security", "internally",
     "everywhere", "everything", "animated",
+    # The fee row when an input amount could not be checked: the label has to
+    # say that, and "unverifiable" beside it is already on screen.
+    "unverified",
 }
 
 
