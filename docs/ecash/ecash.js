@@ -103,7 +103,7 @@ function wellFormed(v, strict) {
       if (!['mint', 'bearer', 'spend'].includes(r.kind) || typeof r.id !== 'string' || typeof r.rid !== 'string') return false;
       if (!Array.isArray(r.outs) || !r.outs.length || !r.outs.every(isOut)) return false;
       if (new Set(r.outs.map((o) => o.B_)).size !== r.outs.length || new Set(r.outs.map((o) => o.secret)).size !== r.outs.length) return false;
-      if (r.prev !== undefined && (!Array.isArray(r.prev) || !r.prev.every((x) => Array.isArray(x) && x.every(isOut)))) return false;
+      if (r.prev !== undefined && (!Array.isArray(r.prev) || !r.prev.every((x) => Array.isArray(x) && x.length > 0 && x.every(isOut)))) return false;
       if (r.inputs !== undefined && (!Array.isArray(r.inputs) || !r.inputs.every(isProof) || new Set(r.inputs.map((p) => p.secret)).size !== r.inputs.length)) return false;
       if (r.spends !== undefined && (!Array.isArray(r.spends) || r.spends.some((x) => typeof x !== 'string'))) return false;
       if (r.got !== undefined && (!r.got || typeof r.got !== 'object' || Array.isArray(r.got) || !Object.values(r.got).every((x) => x && isProof(x)))) return false;
@@ -494,6 +494,10 @@ const known = (s) => {
 // (unless already there or handed over), and its id is remembered.
 let lastPay = null;
 function finish(gen, rec, proofs, outs = rec.outs) {
+  // Settlement needs one distinct proof for every output, and at least one.
+  if (!outs.length || proofs.length !== outs.length || new Set(proofs.map((p) => p.secret)).size !== proofs.length ||
+      proofs.some((p, i) => p.secret !== outs[i].secret || p.amount !== outs[i].amount))
+    throw new Error('the proofs for this swap do not match its outputs; it is kept to try again');
   return commit(gen, (s) => {
     const where = ['pending', 'archive'].find((k) => s[k].some((r) => r.id === rec.id));
     if (!where) return null;
@@ -538,15 +542,21 @@ function note(gen, rec, why) {
 // until then.
 async function restored(gen, rec, outs = rec.outs) {
   const r = await api('/v1/restore', { outputs: outs.map(wire) });
+  if (!outs.length) return null;
   const rows = r.outputs, sigs = r.signatures || r.promises;
-  if (!Array.isArray(rows) || !Array.isArray(sigs) || rows.length !== sigs.length || rows.length > outs.length)
+  if (!Array.isArray(rows) || !Array.isArray(sigs) || rows.length !== sigs.length)
     throw new Error('the mint gave a malformed restore answer');
   // Each row on its own: one that names an output not asked about, or one
   // asked about twice, is ignored (and reported); every uniquely matched
   // row whose signature checks out is kept.
   const byB = new Map(outs.map((o) => [o.B_, o])), count = new Map();
   for (const row of rows) { const B = row && row.B_; count.set(B, (count.get(B) || 0) + 1); }
-  const got = { ...(rec.got || {}) };
+  // A proof kept from an earlier answer counts only if it is the proof of
+  // that very output: its secret, amount and keyset.
+  const fits = (o, p) => p && p.secret === o.secret && p.amount === o.amount && (!o.id || p.id === o.id);
+  const got = {};
+  for (const [B, p] of Object.entries(rec.got || {})) if (byB.has(B) && fits(byB.get(B), p)) got[B] = p;
+  for (const [B, p] of Object.entries(rec.got || {})) if (!byB.has(B)) got[B] = p;   // other output sets
   let added = 0, bad = null;
   for (let i = 0; i < rows.length; i++) {
     const B = rows[i] && rows[i].B_;
@@ -563,7 +573,7 @@ async function restored(gen, rec, outs = rec.outs) {
       });
     } catch { /* kept in this tab; asked again next time */ }
   }
-  if (outs.every((o) => got[o.B_])) return outs.map((o) => got[o.B_]);
+  if (outs.every((o) => got[o.B_] && fits(o, got[o.B_]))) return outs.map((o) => got[o.B_]);
   if (bad) throw bad;
   return null;
 }
@@ -805,25 +815,38 @@ function cleanProofs(list) {
 }
 // Each proof's keyset must be one of the mint's sat keysets, checked, not
 // past its final expiry, with a key for the proof's amount.
-async function checkDenoms(proofs) {
+// Each proof of a pasted token on its own (checklist rule 2): one whose
+// keyset the mint does not list yet, or calls expired, waits for the next
+// try; one with an amount its keyset does not issue, a C that is not a
+// curve point, or a DLEQ proof that does not hold, is left out and said;
+// the rest go on.
+async function sortPasted(proofs) {
+  const looked = new Map();   // one lookup per keyset
+  const ok = [], left = [];
+  let later = null;
   for (const p of proofs) {
-    const e = await keysOf(p.id);
-    if (expired(e)) throw new Error('that ecash is from a keyset the mint says it no longer redeems');
-    if (!(String(p.amount) in e.keys)) throw new Refusal('that ecash has an amount its keyset does not issue');
+    if (!looked.has(p.id)) looked.set(p.id, keysOf(p.id));
+    let e;
+    try { e = await looked.get(p.id); } catch (x) {
+      if (x instanceof Refusal) { left.push('a proof naming a keyset this mint does not use'); continue; }
+      later = later || x;
+      continue;
+    }
+    if (expired(e)) { later = later || new Error('the mint says that keyset no longer redeems; try again later'); continue; }
+    if (!(String(p.amount) in e.keys)) { left.push('a proof with an amount its keyset does not issue'); continue; }
+    try { p.C = pointFromHex(p.C).toHex(true); } catch { left.push('a proof whose signature is not a curve point'); continue; }
+    if (p.dleq && !hasValidDleq(p, { id: p.id, keys: e.keys })) { left.push('a proof whose proof of the mint\'s signature does not check out'); continue; }
+    ok.push(p);
   }
+  return { ok, left, later };
 }
-
-// Unlocked ecash is bearer cash, so it is swapped at once into ecash locked
-// to the signer. Pasted only: one sent over Nostr is refused (see onWrap).
 async function swapBearer(gen, proofs) {
-  await checkDenoms(proofs);
-  // A damaged signature is refused before anything is saved: each C must be
-  // a curve point, and a DLEQ proof, when the token carries one, must hold.
-  for (const p of proofs) {
-    try { p.C = pointFromHex(p.C).toHex(true); } catch { throw new Refusal('that token holds a signature that is not a curve point; ask the sender for it again'); }
-    if (p.dleq && !hasValidDleq(p, { id: p.id, keys: (await keysOf(p.id)).keys }))
-      throw new Refusal('that token\'s proof of the mint\'s signature does not check out; ask the sender for it again');
+  const sorted = await sortPasted(proofs);
+  if (!sorted.ok.length) {
+    if (sorted.later) throw sorted.later;
+    throw new Refusal(`nothing in that token could be received. Left out: ${[...new Set(sorted.left)].join('; ')}; ask the sender for it again.`);
   }
+  proofs = sorted.ok;
   // Each proof on its own: the ones the mint calls unspent are swapped, the
   // spent ones are left (and said), and if the mint has not answered for
   // some, those can be received by pasting the token again later.
@@ -836,13 +859,15 @@ async function swapBearer(gen, proofs) {
     if (waitSum) throw new Error('the mint has not said that token is unspent yet; try again in a moment');
     throw new Refusal('that token was already spent, so the mint will not take it');
   }
-  const extra = `${spentSum ? ` ${sats(spentSum)} of it was already spent and was left.` : ''}${waitSum ? ` The mint has not answered for ${sats(waitSum)} of it yet; paste the same token again in a moment for that part.` : ''}`;
+  const leftSaid = sorted.left.length ? ` Left out: ${[...new Set(sorted.left)].join('; ')}.` : '';
+  const laterSaid = sorted.later ? ` Part of it could not be checked yet (${why(sorted.later)}); receive the same token again later for that part.` : '';
+  const extra = `${spentSum ? ` ${sats(spentSum)} of it was already spent and was left.` : ''}${waitSum ? ` The mint has not answered for ${sats(waitSum)} of it yet; receive the same token again in a moment for that part.` : ''}${leftSaid}${laterSaid}`;
   const total = plain.reduce((s, p) => s + p.amount, 0);
   const keep = total - fee(plain);
   if (keep <= 0) throw new Refusal('that ecash is smaller than the mint fee');
   const outs = lockedOutputs(gen, keep);
   await runFresh(gen, startPending(gen, { kind: 'bearer', rid: 'in:' + listTag(plain.map((p) => JSON.stringify([p.amount, p.id, p.secret, p.C]))), inputs: plain, outs }));
-  return `${sats(keep)} arrived unlocked and is now locked to signer key ${outs[0].keep} (mint fee ${sats(total - keep)}).${extra}`;
+  return { said: `${sats(keep)} arrived unlocked and is now locked to signer key ${outs[0].keep} (mint fee ${sats(total - keep)}).${extra}`, skipped: !!(spentSum || waitSum || sorted.left.length || sorted.later) };
 }
 
 async function receiveToken() {
@@ -864,15 +889,26 @@ async function receiveToken() {
   }
   if (String(tok.mint || '').replace(/\/$/, '') !== MINT) throw new Refusal(`that token is from ${String(tok.mint || 'no mint')}; this page uses ${MINT}`);
   const proofs = cleanProofs(tok.proofs);
-  const locked = proofs.filter((p) => p.secret.trimStart().startsWith('['));   // the signer allows space before the lock
+  // Locked means a NUT-10 secret: a JSON array naming its kind. Anything
+  // else is bearer ecash.
+  const isLocked = (p) => { try { const v = JSON.parse(p.secret); return Array.isArray(v) && typeof v[0] === 'string'; } catch { return false; } };
+  const locked = proofs.filter(isLocked);
   if (locked.length && locked.length !== proofs.length)
     throw new Refusal('that token mixes locked and unlocked ecash; ask the sender to send them as two tokens');
-  let said;
+  let said, whole = true;
   if (locked.length) {
     if (!st.jar) throw new Refusal('that ecash is locked to something other than your tip jar, so this page cannot take it');
-    said = await keepLockedTip(gen, st.jar.counter, proofs, (t) => msg('recv-msg', t, 'ok')) || 'that tip is already in the vault.';
-  } else said = await swapBearer(gen, proofs);
-  if ($('token-in').value.trim() === text) $('token-in').value = '';
+    const r = await keepLockedTip(gen, st.jar.counter, proofs, (t) => msg('recv-msg', t, 'ok'));
+    said = (r && r.said) || 'that tip is already in the vault.';
+    whole = !r || !r.skipped;
+  } else {
+    const r = await swapBearer(gen, proofs);
+    said = r.said;
+    whole = !r.skipped;
+  }
+  // The box is cleared only when all of the token was handled, and only if
+  // it still holds the text that was received.
+  if (whole && $('token-in').value.trim() === text) $('token-in').value = '';
   msg('recv-msg', said, 'ok');
 }
 
@@ -960,9 +996,9 @@ async function onWrap(w, ev, attempt) {
     const pub = pubAt(st.xpub, w.counter);
     if (!proofs.some((p) => signerLock(pub, p.secret)))
       throw new Refusal('a tip came over Nostr without the lock the tip jar asks for, and was left; ask the sender to pay the tip jar again');
-    const said = await keepLockedTip(w.gen, w.counter, proofs, say);
+    const r = await keepLockedTip(w.gen, w.counter, proofs, say);
     markSeen(w, ev.id);
-    if (said) say(said);
+    if (r) say(r.said);
   } catch (e) {
     if (!live(w)) return;
     if (e instanceof Refusal) {
@@ -995,6 +1031,8 @@ async function keepLockedTip(gen, counter, proofs, progress) {
   const isKnown = known(st);
   const kept = [], left = [];
   let later = null;
+  const looked = new Map();   // one lookup per keyset for this receive, its result or its error
+  const look = (id) => { if (!looked.has(id)) looked.set(id, keysOf(id)); return looked.get(id); };
   for (const p of proofs) {
     if (!signerLock(pub, p.secret)) { left.push('a proof locked to something other than your tip jar'); continue; }
     if (isKnown(p.secret)) continue;
@@ -1006,7 +1044,7 @@ async function keepLockedTip(gen, counter, proofs, progress) {
         if (full.length !== 1) throw new Error(`keyset ${p.id} is not on the mint's list yet; it is looked up again shortly`);
         p.id = full[0];
       }
-      e = await keysOf(p.id);
+      e = await look(p.id);
     } catch (x) {   // a mint side problem waits for the next try, never final
       if (x instanceof Refusal) { left.push('a proof naming a keyset this mint does not use'); continue; }
       later = later || x;
@@ -1025,6 +1063,7 @@ async function keepLockedTip(gen, counter, proofs, progress) {
     if (left.length) throw new Refusal(`nothing in that could be kept.${leftSaid}`);
     return null;
   }
+  const skipped = left.length > 0;
   // Proofs the mint calls unspent join the vault. Ones it calls spent are
   // genuine (their DLEQ held) and locked to the signer, so only the signer
   // could have spent them: they are held apart, kept, and come back if the
@@ -1049,7 +1088,7 @@ async function keepLockedTip(gen, counter, proofs, progress) {
     if (said) progress(said);
     throw later || new Error('the mint has not confirmed part of the tip yet');
   }
-  return said || null;
+  return said ? { said, skipped } : null;
 }
 
 // ---- send ----
@@ -1373,9 +1412,16 @@ function stopCam() {
 // pairing id, so nothing started before it was forgotten can write to it.
 // A copy that cannot be read is left where it is, untouched, and never
 // copied or replaced; a storage read that fails stops the pairing.
+// Each copy carries a revision one above every copy of that signer before
+// it (not a clock time, which can go backward) and a fingerprint of its
+// contents; a copy identical to the newest one is not saved again.
+const snapOf = (v) => { const { gen, rev, snap, forgottenAt, ...rest } = v; return tag(JSON.stringify(rest)); };
 function keepCopy(v) {
-  const at = Date.now();
-  localStorage.setItem(`${FORGOTTEN}${v.xpub}:${at}:${rand32().slice(0, 8)}`, JSON.stringify({ ...v, forgottenAt: at }));
+  const { found, unread } = copiesOf(v.xpub);
+  const snap = snapOf(v);
+  if (found[0] && found[0].snap === snap && !unread.length) return;
+  const rev = Math.max(0, ...found.map((x) => Number(x.rev) || 0), ...unread.map((k) => Number(k.split(':').pop()) || 0)) + 1;
+  localStorage.setItem(`${FORGOTTEN}${v.xpub}:${rand32().slice(0, 8)}:${rev}`, JSON.stringify({ ...v, rev, snap, forgottenAt: Date.now() }));
 }
 function copiesOf(xpub) {
   const found = [], unread = [];
@@ -1391,7 +1437,7 @@ function copiesOf(xpub) {
     try { v = JSON.parse(raw); } catch { /* below */ }
     if (wellFormed(v) && v.xpub === xpub) found.push(v); else unread.push(k);
   }
-  return { found: found.sort((a, b) => (Number(b.forgottenAt) || 0) - (Number(a.forgottenAt) || 0)), unread };
+  return { found: found.sort((a, b) => (Number(b.rev) || 0) - (Number(a.rev) || 0) || (Number(b.forgottenAt) || 0) - (Number(a.forgottenAt) || 0)), unread };
 }
 function pair(text) {
   const t = text.trim();
@@ -1402,6 +1448,10 @@ function pair(text) {
   if (cur && cur.xpub === t) { tidy(); render(); return; }
   if (holds(cur)) throw new Refusal('this page still holds another signer\'s vault; forget it first');
   const { found, unread } = copiesOf(t);
+  // A copy that cannot be read might be the newest one: the owner decides
+  // before an older readable copy is brought back.
+  if (unread.length && found.length && !confirm(`This browser holds ${unread.length === 1 ? 'a copy' : `${unread.length} copies`} of this signer's forgotten vault that cannot be read, and might be newer. Bring back the newest copy that can be read anyway? (The unreadable one is kept, untouched.)`))
+    throw new Refusal('pairing stopped; nothing was changed');
   // Another signer's vault with no ecash can still hold a tip jar key or
   // payment history: it is kept, as Forget would keep it.
   if (cur) keepCopy(cur);
@@ -1409,7 +1459,7 @@ function pair(text) {
   clearSignerViews();
   let back = found[0] || null;
   if (back) {
-    const { forgottenAt, ...rest } = back;
+    const { forgottenAt, rev, snap, ...rest } = back;
     back = { ...rest, gen: rand32(), next: Number.isSafeInteger(rest.next) ? rest.next : 0,
       kpin: rest.kpin || {}, ...Object.fromEntries(LISTS.map((k) => [k, rest[k] || []])) };
     for (const x of [...back.outbox, ...back.sent]) x.key = x.key || 'tok:' + tag(x.token);
