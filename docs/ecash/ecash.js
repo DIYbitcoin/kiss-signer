@@ -34,8 +34,7 @@ import { schnorr } from '@noble/curves/secp256k1.js';
 
 const MINT = 'https://testnut.cashu.space';
 const STORE = 'kiss-ecash-v2';
-const OLD_STORE = 'kiss-ecash-v1';   // the earlier page's vault: never read, never touched
-const FORGOTTEN = `${STORE}-forgotten:`;   // + xpub: the vault as it was when forgotten
+const FORGOTTEN = `${STORE}-forgotten:`;   // + xpub + ':' + time: a vault as it was when forgotten
 const REQ_MAX = 4096;          // the signer's QR transport limit
 const FRAME_CHARS = 200;       // base64 characters per animated frame
 const SIGALL = [['sigflag', 'SIG_ALL']];
@@ -83,6 +82,7 @@ function load() {
 function wellFormed(v, strict) {
   if (!v || typeof v !== 'object' || Array.isArray(v) || typeof v.xpub !== 'string') return false;
   if (!/^\[[0-9a-f]{8}\/129373h\/10h\/0h\/0h\]xpub[1-9A-HJ-NP-Za-km-z]{100,112}$/.test(v.xpub)) return false;
+  try { HDKey.fromExtendedKey(v.xpub.slice(v.xpub.indexOf(']') + 1)); } catch { return false; }   // checksum
   if (strict && (!LISTS.every((k) => Array.isArray(v[k])) || !Number.isSafeInteger(v.next) || typeof v.gen !== 'string' || !v.kpin)) return false;
   for (const k of LISTS) {
     if (v[k] === undefined) continue;
@@ -92,7 +92,7 @@ function wellFormed(v, strict) {
   }
   // A signer key counter is a non hardened BIP 32 index: 0 to 2^31 - 1.
   const isCounter = (c) => Number.isSafeInteger(c) && c >= 0 && c < 2 ** 31;
-  const isProof = (p) => typeof p.secret === 'string' && typeof p.C === 'string' && typeof p.id === 'string' && Number.isSafeInteger(p.amount) && p.amount > 0;
+  const isProof = (p) => !!p && typeof p === 'object' && typeof p.secret === 'string' && typeof p.C === 'string' && typeof p.id === 'string' && Number.isSafeInteger(p.amount) && p.amount > 0;
   if ((v.proofs || []).some((p) => !isProof(p) || !isCounter(p.counter))) return false;
   if ((v.aside || []).some((p) => !isProof(p) || !isCounter(p.counter))) return false;
   const isOut = (o) => o && typeof o.B_ === 'string' && typeof o.secret === 'string' && typeof o.r === 'string' &&
@@ -102,8 +102,9 @@ function wellFormed(v, strict) {
     for (const r of v[k] || []) {
       if (!['mint', 'bearer', 'spend'].includes(r.kind) || typeof r.id !== 'string' || typeof r.rid !== 'string') return false;
       if (!Array.isArray(r.outs) || !r.outs.length || !r.outs.every(isOut)) return false;
+      if (new Set(r.outs.map((o) => o.B_)).size !== r.outs.length || new Set(r.outs.map((o) => o.secret)).size !== r.outs.length) return false;
       if (r.prev !== undefined && (!Array.isArray(r.prev) || !r.prev.every((x) => Array.isArray(x) && x.every(isOut)))) return false;
-      if (r.inputs !== undefined && (!Array.isArray(r.inputs) || !r.inputs.every(isProof))) return false;
+      if (r.inputs !== undefined && (!Array.isArray(r.inputs) || !r.inputs.every(isProof) || new Set(r.inputs.map((p) => p.secret)).size !== r.inputs.length)) return false;
       if (r.spends !== undefined && (!Array.isArray(r.spends) || r.spends.some((x) => typeof x !== 'string'))) return false;
       if (r.got !== undefined && (!r.got || typeof r.got !== 'object' || Array.isArray(r.got) || !Object.values(r.got).every((x) => x && isProof(x)))) return false;
     }
@@ -121,8 +122,6 @@ function wellFormed(v, strict) {
   if (v.next !== undefined && !(Number.isSafeInteger(v.next) && v.next >= 0 && v.next <= 2 ** 31)) return false;
   return true;
 }
-const readRaw = (key) => { try { return localStorage.getItem(key); } catch { return null; } };
-const parseVault = (raw) => { try { const v = JSON.parse(raw); return wellFormed(v) ? v : null; } catch { return null; } };
 function save(v) {
   if (!wellFormed(v, true)) throw new Error('this page was about to save a vault in a shape it could not read back, so nothing was saved; reload the page');
   try { localStorage.setItem(STORE, JSON.stringify(v)); } catch (e) {
@@ -503,12 +502,12 @@ function finish(gen, rec, proofs, outs = rec.outs) {
     s.proofs = s.proofs.filter((p) => !spentNow.has(p.secret));
     s.aside = s.aside.filter((p) => !spentNow.has(p.secret));
     s.spent = [...s.spent, ...[...spentNow].map(tag)];
-    const isKnown = known(s);
+    const isKnown = known(s), added = new Set();
     const pay = [];
     outs.forEach((o, i) => {
       const p = proofs[i];
       if (o.keep === null || o.keep === undefined) pay.push(p);
-      else if (!isKnown(p.secret)) s.proofs.push({ ...p, counter: o.keep });
+      else if (!isKnown(p.secret) && !added.has(p.secret)) { added.add(p.secret); s.proofs.push({ ...p, counter: o.keep }); }
     });
     if (pay.length) {
       const key = listTag(pay.map((p) => p.secret));
@@ -542,17 +541,16 @@ async function restored(gen, rec, outs = rec.outs) {
   const rows = r.outputs, sigs = r.signatures || r.promises;
   if (!Array.isArray(rows) || !Array.isArray(sigs) || rows.length !== sigs.length || rows.length > outs.length)
     throw new Error('the mint gave a malformed restore answer');
-  const byB = new Map(outs.map((o) => [o.B_, o])), seen = new Set();
-  for (const row of rows) {
-    const B = row && row.B_;
-    if (!byB.has(B) || seen.has(B)) throw new Error('the mint\'s restore answer names outputs it was not asked about');
-    seen.add(B);
-  }
-  // Each signature on its own: a bad one is not kept, the good ones are.
+  // Each row on its own: one that names an output not asked about, or one
+  // asked about twice, is ignored (and reported); every uniquely matched
+  // row whose signature checks out is kept.
+  const byB = new Map(outs.map((o) => [o.B_, o])), count = new Map();
+  for (const row of rows) { const B = row && row.B_; count.set(B, (count.get(B) || 0) + 1); }
   const got = { ...(rec.got || {}) };
   let added = 0, bad = null;
   for (let i = 0; i < rows.length; i++) {
-    const B = rows[i].B_;
+    const B = rows[i] && rows[i].B_;
+    if (!byB.has(B) || count.get(B) !== 1) { bad = bad || new Error('the mint\'s restore answer names outputs it was not asked about'); continue; }
     if (got[B]) continue;
     try { got[B] = await checkOne(byB.get(B), sigs[i]); added++; } catch (e) { bad = bad || e; }
   }
@@ -858,6 +856,8 @@ async function receiveToken() {
   if (String(tok.mint || '').replace(/\/$/, '') !== MINT) throw new Refusal(`that token is from ${String(tok.mint || 'no mint')}; this page uses ${MINT}`);
   const proofs = cleanProofs(tok.proofs);
   const locked = proofs.filter((p) => p.secret.trimStart().startsWith('['));   // the signer allows space before the lock
+  if (locked.length && locked.length !== proofs.length)
+    throw new Refusal('that token mixes locked and unlocked ecash; ask the sender to send them as two tokens');
   let said;
   if (locked.length) {
     if (!st.jar) throw new Refusal('that ecash is locked to something other than your tip jar, so this page cannot take it');
@@ -977,29 +977,31 @@ async function onWrap(w, ev, attempt) {
 // for some, those are tried again (an error after the others are kept).
 // Returns what was kept, or null when nothing in it was new.
 async function keepLockedTip(gen, counter, proofs, progress) {
-  // A wallet may name a keyset by its short id (the first 16 hex of a 01
-  // id): it is read as the full id the mint lists, so the tip is checked
-  // and kept under the id the mint uses.
+  // Each proof is judged on its own: a bad one is left out, one the mint
+  // cannot settle yet waits for the next try, and the good ones beside them
+  // are still kept. A wallet may name a keyset by its short id (the first
+  // 16 hex of a 01 id): it is read as the full id the mint lists.
   await ks();
-  for (const p of proofs) {
-    if (!/^01[0-9a-f]{14}$/.test(p.id)) continue;
-    let full = keyset.ids.filter((i) => i.startsWith(p.id));
-    if (full.length !== 1) { await ks(true); full = keyset.ids.filter((i) => i.startsWith(p.id)); }
-    if (full.length !== 1) throw new Error(`keyset ${p.id} is not on the mint's list yet; it is looked up again shortly`);
-    p.id = full[0];
-  }
-  // Each proof is judged on its own: a bad one is left out, and the good
-  // ones beside it are still kept.
   const pub = pubAt(st.xpub, counter);
   const isKnown = known(st);
   const kept = [], left = [];
+  let later = null;
   for (const p of proofs) {
     if (!signerLock(pub, p.secret)) { left.push('a proof locked to something other than your tip jar'); continue; }
     if (isKnown(p.secret)) continue;
     let e;
-    try { e = await keysOf(p.id); } catch (x) {   // a mint side problem is retried, never final
-      if (!(x instanceof Refusal)) throw x;
-      left.push('a proof naming a keyset this mint does not use'); continue;
+    try {
+      if (/^01[0-9a-f]{14}$/.test(p.id)) {
+        let full = keyset.ids.filter((i) => i.startsWith(p.id));
+        if (full.length !== 1) { await ks(true); full = keyset.ids.filter((i) => i.startsWith(p.id)); }
+        if (full.length !== 1) throw new Error(`keyset ${p.id} is not on the mint's list yet; it is looked up again shortly`);
+        p.id = full[0];
+      }
+      e = await keysOf(p.id);
+    } catch (x) {   // a mint side problem waits for the next try, never final
+      if (x instanceof Refusal) { left.push('a proof naming a keyset this mint does not use'); continue; }
+      later = later || x;
+      continue;
     }
     if (expired(e) || !(String(p.amount) in e.keys)) { left.push('a proof with an amount or keyset the mint does not redeem'); continue; }
     let C;
@@ -1009,6 +1011,7 @@ async function keepLockedTip(gen, counter, proofs, progress) {
   }
   const leftSaid = left.length ? ` Left out: ${[...new Set(left)].join('; ')}.` : '';
   if (!kept.length) {
+    if (later) throw later;
     if (left.length) throw new Refusal(`nothing in that could be kept.${leftSaid}`);
     return null;
   }
@@ -1032,9 +1035,9 @@ async function keepLockedTip(gen, counter, proofs, progress) {
   const total = added.reduce((t, p) => t + p.amount, 0), apartSum = apart.reduce((t, p) => t + p.amount, 0);
   let said = total ? `${sats(total)} arrived locked to your signer; kept as it is, no fee.${leftSaid}` : leftSaid.trim();
   if (apartSum) said += `${said ? ' ' : ''}${sats(apartSum)} of it the mint calls already spent; it is kept apart and comes back if the mint says otherwise.`;
-  if (waiting) {
+  if (waiting || later) {
     if (said) progress(said);
-    throw new Error('the mint has not confirmed part of the tip yet');
+    throw later || new Error('the mint has not confirmed part of the tip yet');
   }
   return said || null;
 }
@@ -1352,12 +1355,33 @@ function stopCam() {
 
 
 // ---- pairing ----
-// A new pairing never replaces a vault that still holds anything: that
-// takes Forget first, which asks. Forget keeps the vault, as it was, in one
-// slot per signer; pairing that signer again brings that copy back, always
-// the latest, with everything in it (ecash, unfinished swaps, payments,
-// history, tip jar). It comes back under a new pairing id, so nothing
-// started before it was forgotten can write to it.
+// A new pairing never replaces a vault that still holds ecash: that takes
+// Forget first, which asks. Forget, and pairing a different signer over a
+// vault with no ecash, keep the vault as it was under a new key of its own
+// (one per Forget, never written over). Pairing a signer again brings back
+// the newest readable copy for it, with everything in it, under a new
+// pairing id, so nothing started before it was forgotten can write to it.
+// A copy that cannot be read is left where it is, untouched, and never
+// copied or replaced; a storage read that fails stops the pairing.
+function keepCopy(v) {
+  localStorage.setItem(`${FORGOTTEN}${v.xpub}:${Date.now()}`, JSON.stringify({ ...v, forgottenAt: Date.now() }));
+}
+function copiesOf(xpub) {
+  const found = [], unread = [];
+  const keys = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) keys.push(localStorage.key(i));
+  } catch (e) { throw new Unreadable(`this browser would not let the page read its storage (${e.message || e})`); }
+  for (const k of keys) {
+    if (!k || (k !== FORGOTTEN + xpub && !k.startsWith(`${FORGOTTEN}${xpub}:`))) continue;
+    let raw;
+    try { raw = localStorage.getItem(k); } catch (e) { throw new Unreadable(`this browser would not let the page read its storage (${e.message || e})`); }
+    let v = null;
+    try { v = JSON.parse(raw); } catch { /* below */ }
+    if (wellFormed(v) && v.xpub === xpub) found.push(v); else unread.push(k);
+  }
+  return { found: found.sort((a, b) => (Number(b.forgottenAt) || 0) - (Number(a.forgottenAt) || 0)), unread };
+}
 function pair(text) {
   const t = text.trim();
   const m = /^\[([0-9a-f]{8})\/129373h\/10h\/0h\/0h\](xpub[1-9A-HJ-NP-Za-km-z]{100,112})$/.exec(t);
@@ -1366,41 +1390,31 @@ function pair(text) {
   const cur = load();
   if (cur && cur.xpub === t) { tidy(); render(); return; }
   if (holds(cur)) throw new Refusal('this page still holds another signer\'s vault; forget it first');
-  // Another signer's vault with no ecash in it can still hold a tip jar key
-  // or payment history: it goes to that signer's slot, as Forget would.
-  if (cur) localStorage.setItem(FORGOTTEN + cur.xpub, JSON.stringify(cur));
+  const { found, unread } = copiesOf(t);
+  // Another signer's vault with no ecash can still hold a tip jar key or
+  // payment history: it is kept, as Forget would keep it.
+  if (cur) keepCopy(cur);
   stopJar();
   clearSignerViews();
-  const raw = readRaw(FORGOTTEN + t);
-  let back = null;
-  let note = '';
-  if (raw !== null) {
-    try { back = JSON.parse(raw); } catch { /* below */ }
-    if (!wellFormed(back) || back.xpub !== t) {
-      // Kept under another name, never deleted, and the signer can still
-      // be paired with a new vault.
-      localStorage.setItem(`${FORGOTTEN}${t}:unreadable:${Date.now()}`, raw);
-      localStorage.removeItem(FORGOTTEN + t);
-      back = null;
-      note = 'This browser held a copy of this signer\'s forgotten vault that could not be read; it is kept, untouched, and a new vault was started.';
-    }
-  }
+  let back = found[0] || null;
   if (back) {
-    back = { ...back, gen: rand32(), next: Number.isSafeInteger(back.next) ? back.next : 0,
-      kpin: back.kpin || {}, ...Object.fromEntries(LISTS.map((k) => [k, back[k] || []])) };
+    const { forgottenAt, ...rest } = back;
+    back = { ...rest, gen: rand32(), next: Number.isSafeInteger(rest.next) ? rest.next : 0,
+      kpin: rest.kpin || {}, ...Object.fromEntries(LISTS.map((k) => [k, rest[k] || []])) };
     for (const x of [...back.outbox, ...back.sent]) x.key = x.key || 'tok:' + tag(x.token);
   }
   save(back || fresh(t, m[1]));
   tidy();
   render();
-  if (back) msg('recv-msg', 'This signer\'s vault, as it was when you forgot it, is back.', 'ok');
-  else if (note) msg('recv-msg', note, 'bad');
+  const notes = [];
+  if (back) notes.push('This signer\'s vault, as it was when you last forgot it, is back.');
+  if (unread.length) notes.push(`${unread.length === 1 ? 'A copy' : `${unread.length} copies`} of this signer's forgotten vault could not be read; ${unread.length === 1 ? 'it is' : 'they are'} kept in this browser, untouched.`);
+  if (notes.length) msg('recv-msg', notes.join(' '), unread.length ? 'bad' : 'ok');
   listenJar();
   recoverPending(st.gen).catch(() => { /* listed as unfinished */ });
 }
-// Forget keeps the vault in this signer's slot (the newest copy, which
-// already holds everything an earlier copy did) and refuses to touch a
-// vault it cannot read.
+// Forget keeps a copy of the vault (see above) and refuses to touch a vault
+// it cannot read.
 function forget() {
   let cur;
   try { cur = load(); } catch (e) {
@@ -1409,7 +1423,7 @@ function forget() {
   }
   if (holds(cur) && !confirm('This vault still holds ecash or unfinished swaps. Forget it anyway? Your signer can still spend its ecash, and pairing this signer again in this browser brings the vault back.')) return;
   try {
-    if (cur) localStorage.setItem(FORGOTTEN + cur.xpub, JSON.stringify(cur));
+    if (cur) keepCopy(cur);
     localStorage.removeItem(STORE);
   } catch (e) {
     alert(`Could not forget this vault in this browser (${e.message || e}). Nothing was removed.`);
