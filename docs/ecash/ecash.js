@@ -769,6 +769,9 @@ async function resume() {
     if (spent.length) {
       if (!unspent.length) throw new Refusal('all of that token was spent somewhere else; the swap stays set aside and is still looked for');
       const r = await swapBearer(gen, unspent);
+      // The set aside swap stays as a record (its outputs are still looked
+      // for), and says why it is there.
+      try { commit(gen, (s2) => { const o = s2.ops[id]; if (o && !o.done) o.note = 'part of its ecash was received separately and the rest on its own; kept only as a record'; }); } catch { /* shown as before */ }
       msg('recv-msg', `Part of that token was already spent, so the unspent rest was received on its own: ${r.said}`, 'ok');
       return;
     }
@@ -1616,7 +1619,7 @@ function render() {
   const apart = coins.filter((c) => c.apart);
   const parts = [];
   if (un.length) parts.push(`${un.length} unfinished swap${un.length > 1 ? 's' : ''}, kept and tried again on every load. Oldest: ${un[0][1].note || 'not finished yet'}`);
-  if (asideOps.length) parts.push(`${asideOps.length} set aside, still kept and looked for at the mint.`);
+  if (asideOps.length) parts.push(`${asideOps.length} set aside, still kept and looked for at the mint${asideOps[0][1].note ? ` (oldest: ${asideOps[0][1].note})` : ''}.`);
   if (apart.length) parts.push(`${sats(sum(apart))} held apart because the mint calls it spent; kept, and it comes back if the mint calls it unspent.`);
   if (balanceFailed) parts.push(`The balance could not be checked with the mint (${balanceFailed}); tap Try again.`);
   const pend = coins.filter((c) => !c.apart && mintPending.has(c.secret));
