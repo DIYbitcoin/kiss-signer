@@ -495,7 +495,20 @@ let lastPay = null;
 function payProofs(pay) {
   if (Array.isArray(pay.proofs)) return pay.proofs;
   if (!pay.token) return [];
-  try { return getDecodedToken(pay.token, keyset ? keyset.ids : []).proofs.map((p) => ({ ...p, amount: Number(String(p.amount)) })); } catch { return []; }
+  try { return decodeLoose(pay.token).proofs.map((p) => ({ ...p, amount: Number(String(p.amount)) })); } catch { return []; }
+}
+// A token decoded even when it names a short keyset id the page has not
+// loaded (yet): such an id is kept as it is.
+function decodeLoose(text) {
+  const ids = keyset ? [...keyset.ids] : [];
+  for (let tries = 0; tries < 8; tries++) {
+    try { return getDecodedToken(text, ids); } catch (e) {
+      const short = /short keyset id ([0-9a-f]+)/i.exec(e.message || '');
+      if (!short || ids.includes(short[1])) throw e;
+      ids.push(short[1]);
+    }
+  }
+  throw new Error('that token names too many keysets this page does not know');
 }
 function finish(gen, id, set, proofs) {
   if (!set.length || proofs.length !== set.length || !distinct(proofs.map((p) => p.secret)) ||
@@ -512,7 +525,7 @@ function finish(gen, id, set, proofs) {
       const ins = new Set(op.inputs.map((p) => p.secret));
       for (const pay of Object.values(s.pays)) {
         const pp = payProofs(pay);
-        if (!pay.redeemed && pp.length && pp.every((p) => ins.has(p.secret))) pay.redeemed = Date.now();
+        if (!pay.redeemed && pp.length && pp.every((p) => ins.has(p.secret))) { pay.redeemed = Date.now(); pay.token = ''; delete pay.proofs; }
       }
     }
     const pay = [];
@@ -580,8 +593,8 @@ async function checkSent(gen, id, set, sigs) {
   for (const sig of sigs) {
     let hit = false;
     for (const o of set) {
-      if (good[o.B_] || !sig || Number(String(sig.amount)) !== o.amount) continue;
-      try { good[o.B_] = await checkOne(o, sig); hit = true; break; } catch { /* not this output */ }
+      if (good[o.B_]) continue;
+      try { if (Number(String(sig && sig.amount)) !== o.amount) continue; good[o.B_] = await checkOne(o, sig); hit = true; break; } catch { /* not this output */ }
     }
     if (!hit) bad = bad || new Error('the mint\'s answer holds a signature that fits none of the outputs');
   }
@@ -708,7 +721,7 @@ async function checkBalanceNow(gen) {
   // Payments are asked about too, waiting or sent, until the mint says
   // every proof of one is spent: whoever redeemed it, it is then marked
   // redeemed and no longer offered to hand over.
-  const livePays = Object.values(st.pays).filter((p) => !p.redeemed);
+  const livePays = Object.values(st.pays).filter((p) => !isRedeemed(p));
   const ask = [...new Set([...Object.keys(st.coins).filter((x) => !held.has(x)), ...livePays.flatMap((p) => payProofs(p).map((q) => q.secret))])];
   const state = new Map();
   balanceFailed = null;
@@ -725,12 +738,20 @@ async function checkBalanceNow(gen) {
     return Object.values(s.coins).filter((c) => (state.get(c.secret) === 'SPENT' && !c.apart && !h.has(c.secret)) ||
       (state.get(c.secret) === 'UNSPENT' && c.apart));
   };
-  const redeemedNow = (s) => Object.entries(s.pays).filter(([, p]) => !p.redeemed &&
-    payProofs(p).length && payProofs(p).every((q) => state.get(q.secret) === 'SPENT')).map(([k]) => k);
-  if (!flips(st).length && !redeemedNow(st).length) { try { render(); } catch { /* shown next time */ } return; }
+  // Per proof: a payment all of whose proofs the mint calls spent is
+  // redeemed (its token, now worth nothing, is dropped; amount and dates
+  // stay); a waiting one partly spent keeps waiting with a token of its
+  // unspent proofs only.
+  const payChanges = (s) => Object.entries(s.pays).filter(([, p]) => !p.redeemed && payProofs(p).length &&
+    payProofs(p).some((q) => state.get(q.secret) === 'SPENT') && (!p.sent || payProofs(p).every((q) => state.get(q.secret) === 'SPENT'))).map(([k]) => k);
+  if (!flips(st).length && !payChanges(st).length) { try { render(); } catch { /* shown next time */ } return; }
   commit(gen, (s) => {
     for (const c of flips(s)) { if (c.apart) delete c.apart; else c.apart = true; }
-    for (const k of redeemedNow(s)) s.pays[k].redeemed = Date.now();
+    for (const k of payChanges(s)) {
+      const p = s.pays[k], left = payProofs(p).filter((q) => state.get(q.secret) !== 'SPENT');
+      if (!left.length) { p.redeemed = Date.now(); p.token = ''; delete p.proofs; }
+      else { p.proofs = left; p.token = getEncodedToken({ mint: MINT, unit: 'sat', proofs: left }); p.amount = sum(left); }
+    }
   });
 }
 // The owner's calls on the oldest unfinished operation: set it aside (its
@@ -768,9 +789,21 @@ async function resume() {
   for (const [id, op] of openOps(st).filter(([x, o]) => o.status === 'aside' && !inFlight.has(x))) {
     let why2 = null;
     if (op.kind !== 'mint') {
-      const states = await stateOf(op.inputs.map((p) => yOf(p.secret)));
-      if (states.some((x) => x === 'SPENT')) why2 = op.kind === 'spend' ? 'part of its ecash is already spent; make the spend again' : 'part of its token was received elsewhere; paste the token again to receive the rest';
-      else if (!states.every((x) => x === 'UNSPENT')) why2 = 'the mint has not settled all of its ecash yet';
+      let states;
+      try { states = await stateOf(op.inputs.map((p) => yOf(p.secret))); } catch (e) { reason = reason || why(e); continue; }
+      const spentIn = op.inputs.filter((p, i) => states[i] === 'SPENT'), rest = op.inputs.filter((p, i) => states[i] === 'UNSPENT');
+      if (spentIn.length && op.kind === 'spend') why2 = 'part of its ecash is already spent; make the spend again';
+      else if (!states.every((x) => x === 'UNSPENT' || x === 'SPENT')) why2 = 'the mint has not settled all of its ecash yet';
+      else if (spentIn.length && !rest.length) why2 = 'all of its token was received elsewhere; kept only as a record';
+      else if (spentIn.length) {
+        // Part was received elsewhere: the unspent rest of the saved inputs
+        // is received on its own (with the usual fee check), and this swap
+        // stays as a record.
+        const r = await swapBearer(gen, rest);
+        try { commit(gen, (s) => { const o = s.ops[id]; if (o && !o.done) o.note = 'part of its token was received elsewhere and the rest on its own; kept only as a record'; }); } catch { /* shown as before */ }
+        msg('recv-msg', `Part of that token was received elsewhere, so the rest was received on its own: ${r.said}`, 'ok');
+        return;
+      }
     }
     if (!why2) {
       const ok = commit(gen, (s) => {
@@ -936,16 +969,8 @@ async function receiveToken() {
   // id only the mint's current list resolves.
   // A short keyset id the mint does not list (yet) is kept as it is, so the
   // token still decodes and each of its proofs is judged on its own.
-  let tok = null;
-  const ids = [...keyset.ids];
-  for (let tries = 0; tries < 8 && !tok; tries++) {
-    try { tok = getDecodedToken(text, ids); } catch (e) {
-      const short = /short keyset id ([0-9a-f]+)/i.exec(e.message || '');
-      if (!short || ids.includes(short[1])) throw new Refusal('that is not a cashu token this page can read');
-      ids.push(short[1]);
-    }
-  }
-  if (!tok) throw new Refusal('that is not a cashu token this page can read');
+  let tok;
+  try { tok = decodeLoose(text); } catch { throw new Refusal('that is not a cashu token this page can read'); }
   if (String(tok.mint || '').replace(/\/$/, '') !== MINT) throw new Refusal(`that token is from ${String(tok.mint || 'no mint')}; this page uses ${MINT}`);
   const proofs = cleanProofs(tok.proofs);
   // Locked means a NUT-10 secret: a JSON array naming its kind. Anything
@@ -1325,7 +1350,10 @@ async function submitReply(text) {
 // the owner asks for the next one or starts a new spend, so a second tap
 // never lands on a payment that just appeared.
 let shownKey = null, shownToken = null, holdNext = false;
-const waitingPays = () => Object.entries((st && st.pays) || {}).filter(([, p]) => !p.sent && !p.redeemed).sort(([, a], [, b]) => a.at - b.at);
+// Redeemed: the mint said every proof is spent (gone is how an earlier
+// version wrote it).
+const isRedeemed = (p) => !!p.redeemed || p.gone === true;
+const waitingPays = () => Object.entries((st && st.pays) || {}).filter(([, p]) => !p.sent && !isRedeemed(p)).sort(([, a], [, b]) => a.at - b.at);
 function renderOutbox() {
   const ob = waitingPays();
   const has = (k) => ob.some(([key]) => key === k);
@@ -1356,10 +1384,10 @@ function renderOutbox() {
   $('next-box').classList.toggle('hidden', !waiting);
   $('token-next').classList.toggle('hidden', !!cur);
   const when = (p) => Math.max(p.sent || 0, p.redeemed || 0);
-  const sent = Object.values((st && st.pays) || {}).filter((p) => p.sent || p.redeemed).sort((a, b) => when(b) - when(a));
+  const sent = Object.values((st && st.pays) || {}).filter((p) => p.sent || isRedeemed(p)).sort((a, b) => when(b) - when(a));
   $('sent-box').classList.toggle('hidden', !sent.length);
   $('sent-count').textContent = sent.length;
-  $('sent-text').value = sent.map((x) => `${sats(x.amount)}, ${x.redeemed ? `redeemed ${new Date(x.redeemed).toLocaleString()}` : `marked sent ${new Date(x.sent).toLocaleString()}, not redeemed yet`}\n${x.token}`).join('\n\n');
+  $('sent-text').value = sent.map((x) => `${sats(x.amount)}, ${isRedeemed(x) ? `redeemed${x.redeemed ? ` ${new Date(x.redeemed).toLocaleString()}` : ''}` : `marked sent ${new Date(x.sent).toLocaleString()}, not redeemed yet`}${x.token && !isRedeemed(x) ? `\n${x.token}` : ''}`).join('\n\n');
 }
 function sentIt() {
   const key = $('token-done').dataset.key;
