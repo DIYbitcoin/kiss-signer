@@ -62,7 +62,8 @@ class Unreadable extends Error {}
 let st = null;
 let owner = false;
 // null only when there is no vault; a vault that is there but cannot be
-// read or parsed is an error, never "no vault".
+// read, parsed, or has a list of the wrong shape is an error, never "no
+// vault" and never repaired: nothing may write over it.
 function load() {
   let raw;
   try { raw = localStorage.getItem(STORE); } catch (e) {
@@ -71,13 +72,26 @@ function load() {
   if (raw === null) return null;
   let v = null;
   try { v = JSON.parse(raw); } catch { /* below */ }
-  if (v && typeof v === 'object' && typeof v.xpub === 'string') return v;
+  if (wellFormed(v)) return v;
   throw Object.assign(new Unreadable('the vault in this browser\'s storage cannot be read'), { raw });
 }
+// The shape every version of the vault has kept: an xpub, and each list,
+// when present, a list of the right kind of entries.
+function wellFormed(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v) || typeof v.xpub !== 'string') return false;
+  for (const k of LISTS) {
+    if (v[k] === undefined) continue;
+    if (!Array.isArray(v[k])) return false;
+    const want = ['done', 'spent', 'sentKeys'].includes(k) ? 'string' : 'object';
+    if (v[k].some((x) => typeof x !== want || x === null)) return false;
+  }
+  if (v.proofs && v.proofs.some((p) => typeof p.secret !== 'string' || typeof p.C !== 'string')) return false;
+  if (v.kpin !== undefined && (typeof v.kpin !== 'object' || v.kpin === null || Array.isArray(v.kpin))) return false;
+  if (v.next !== undefined && !Number.isSafeInteger(v.next)) return false;
+  return true;
+}
 const readRaw = (key) => { try { return localStorage.getItem(key); } catch { return null; } };
-const parseVault = (raw) => {
-  try { const v = JSON.parse(raw); return v && typeof v === 'object' && typeof v.xpub === 'string' ? v : null; } catch { return null; }
-};
+const parseVault = (raw) => { try { const v = JSON.parse(raw); return wellFormed(v) ? v : null; } catch { return null; } };
 function save(v) {
   try { localStorage.setItem(STORE, JSON.stringify(v)); } catch (e) {
     throw new Error(`could not save the vault in this browser (${e.message || e}); reload the page before doing anything else`);
@@ -102,32 +116,49 @@ window.addEventListener('storage', (e) => {
   render();
 });
 // Lists that only grow while the vault lives: spent proofs (tags), finished
-// operations (tags) and handed over payments (keys) are identities, kept
-// for good; sent keeps the last payment tokens to look at again.
+// operations and their output sets (tags) and handed over payments (keys)
+// are identities, kept for good; sent keeps the last payment tokens to look
+// at again.
 const LISTS = ['proofs', 'pending', 'archive', 'aside', 'outbox', 'sent', 'sentKeys', 'done', 'spent'];
 const fresh = (xpub, fp) => ({ xpub, fp, gen: rand32(), next: 0, kpin: {}, ...Object.fromEntries(LISTS.map((k) => [k, []])) });
 const holds = (v) => v && ['proofs', 'pending', 'archive', 'aside', 'outbox'].some((k) => (v[k] || []).length);
+const outsTag = (r) => 'o:' + listTag(r.outs.map((o) => o.B_));
+// Which v1 snapshot was last taken in, per signer.
+function readMarks() {
+  try { const m = JSON.parse(readRaw(MOVED)); return m && typeof m === 'object' && !Array.isArray(m) ? m : {}; } catch { return {}; }
+}
+function setMark(xpub, t) {
+  try { localStorage.setItem(MOVED, JSON.stringify({ ...readMarks(), [xpub]: t })); } catch { /* taken in again next time: every step of it is deduplicated */ }
+}
+// A payment's identity: the set of its proofs' secrets, read from its token
+// (the same key finish() gives it), or the token text if it cannot be read
+// yet.
+function payKey(token, ids) {
+  try { return listTag(getDecodedToken(token, ids).proofs.map((p) => p.secret)); } catch { return 'tok:' + tag(token); }
+}
 
 // Bring a stored vault up to this version, in one write. A vault kept by an
 // older page (v1) is taken in, never moved or deleted: v1 stays as it is,
-// and MOVED records which snapshot of it was taken. When an older page
-// writes v1 again later, what it added is merged in (rule 3 decides, and
-// nothing is taken away); a vault that was taken in and then forgotten is
-// not brought back from v1. Ecash that came from an older page is marked
-// unchecked: those pages kept no proof that the mint signed it.
+// and MOVED records, per signer, which snapshot of it was taken. When an
+// older page writes a new snapshot for the same signer later, everything
+// in it is taken in again (each list deduplicated, nothing taken away;
+// proofs an old tab spent meanwhile are caught by the check with the mint
+// on every load). A vault taken in and then forgotten is not brought back
+// from v1. Ecash that came from an older page is marked unchecked: those
+// pages kept no proof that the mint signed it.
 function tidy() {
   let cur = load();
   const rawOld = readRaw(OLD_STORE), old = rawOld && parseVault(rawOld);
-  const mark = readRaw(MOVED);
-  const oldNew = old && mark !== tag(rawOld);
+  const marks = readMarks();
   if (!cur) {
-    if (!old || mark) return;
+    if (!old || old.xpub in marks) return;
     cur = { xpub: old.xpub, fp: old.fp, next: 0 };
   }
   cur.gen = cur.gen || rand32();
-  for (const k of LISTS) cur[k] = Array.isArray(cur[k]) ? cur[k] : [];
-  cur.kpin = cur.kpin && typeof cur.kpin === 'object' ? cur.kpin : {};
-  if (oldNew && old.xpub === cur.xpub) takeOld(cur, old);
+  for (const k of LISTS) cur[k] = cur[k] || [];
+  cur.kpin = cur.kpin || {};
+  const merging = old && old.xpub === cur.xpub && marks[old.xpub] !== tag(rawOld);
+  if (merging) takeOld(cur, old);
   const seen = new Set(), pubs = new Map();
   cur.proofs = cur.proofs.filter((p) => !seen.has(p.secret) && seen.add(p.secret));
   for (const p of cur.proofs) {
@@ -136,40 +167,54 @@ function tidy() {
     if (!pubs.has(p.counter)) pubs.set(p.counter, pubAt(cur.xpub, p.counter));
     if (!signerLock(pubs.get(p.counter), p.secret)) p.bad = true;
   }
-  const rids = new Set();
+  // One record per set of outputs; records that share an id but not their
+  // outputs are all kept, since any of them may be the one the mint signed.
+  const sets = new Set();
   cur.pending = cur.pending.filter((r) => {
     if (!r.kind) {
       if (r.bearer) { r.kind = 'bearer'; r.inputs = r.bearer; delete r.bearer; }
       else r.kind = r.spends ? 'spend' : 'mint';
     }
     r.rid = r.rid || 'b:' + listTag(r.outs.map((o) => o.B_));
-    if (rids.has(r.rid)) return false;     // the same outputs twice: one record holds them all
-    rids.add(r.rid);
+    const k = outsTag(r);
+    if (sets.has(k)) return false;
+    sets.add(k);
     return true;
   });
   // Older formats: finished operations as raw ids, payments without a key.
-  cur.done = cur.done.map((d) => (/^[0-9a-f]{32}$/.test(d) ? d : tag(d)));
-  for (const x of [...cur.outbox, ...cur.sent]) x.key = x.key || 'tok:' + tag(x.token);
+  cur.done = [...new Set(cur.done.map((d) => (/^(o:)?[0-9a-f]{32}$/.test(d) ? d : tag(d))))];
+  const ids = [...new Set([...Object.keys(cur.kpin), ...cur.proofs.map((p) => p.id)])];
+  for (const x of [...cur.outbox, ...cur.sent]) if (!x.key || x.key.startsWith('tok:')) x.key = payKey(x.token, ids);
+  cur.sentKeys = [...new Set([...cur.sentKeys, ...cur.sent.map((x) => x.key)])];
   const toks = new Set();
-  cur.outbox = cur.outbox.filter((x) => !toks.has(x.token) && toks.add(x.token));
+  cur.outbox = cur.outbox.filter((x) => !toks.has(x.token) && !cur.sentKeys.includes(x.key) && toks.add(x.token));
   save(cur);
-  if (oldNew) { try { localStorage.setItem(MOVED, tag(rawOld)); } catch { /* merged again next time; rule 3 makes that harmless */ } }
+  if (merging) setMark(old.xpub, tag(rawOld));
   st = cur;
 }
-// What an older page's vault holds that this one does not: its proofs and
-// its pending records, added as unchecked; its key counter, so no key is
-// handed out twice; its tip jar, if this vault has none.
+// Everything an older page's vault holds that this one does not: proofs
+// (unchecked), pending and set aside records not already held or finished
+// (by their exact outputs), payments waiting or handed over, spent and
+// finished identities, the key counter (so no key is handed out twice) and
+// the tip jar if this vault has none.
 function takeOld(cur, old) {
   const isKnown = known(cur);
-  for (const p of Array.isArray(old.proofs) ? old.proofs : []) {
-    if (p && typeof p.secret === 'string' && !isKnown(p.secret)) cur.proofs.push({ ...p, unchecked: true });
+  for (const p of old.proofs || []) if (!isKnown(p.secret)) cur.proofs.push({ ...p, unchecked: true });
+  const have = new Set([...cur.pending, ...cur.archive].map(outsTag));
+  for (const list of ['pending', 'archive']) {
+    for (const r of old[list] || []) {
+      if (!Array.isArray(r.outs) || !r.outs.length) continue;
+      const k = outsTag(r);
+      if (have.has(k) || cur.done.includes(k)) continue;
+      have.add(k);
+      cur[list].push({ ...r });
+    }
   }
-  const have = new Set([...cur.pending, ...cur.archive].map((r) => listTag(r.outs.map((o) => o.B_))));
-  for (const r of Array.isArray(old.pending) ? old.pending : []) {
-    if (!r || !Array.isArray(r.outs) || !r.outs.length) continue;
-    const k = listTag(r.outs.map((o) => o.B_));
-    if (!have.has(k)) { have.add(k); cur.pending.push({ ...r }); }
+  const toks = new Set([...cur.outbox, ...cur.sent].map((x) => x.token));
+  for (const list of ['outbox', 'sent']) {
+    for (const x of old[list] || []) if (typeof x.token === 'string' && !toks.has(x.token)) { toks.add(x.token); cur[list].push({ ...x }); }
   }
+  for (const list of ['spent', 'done', 'sentKeys']) cur[list] = [...new Set([...cur[list], ...(old[list] || [])])];
   cur.next = Math.max(cur.next || 0, Number(old.next) || 0);
   if (!cur.jar && old.jar) cur.jar = old.jar;
 }
@@ -235,19 +280,24 @@ async function ks(refresh) {
 // vault also remembers each keyset's keys the first time it sees them and
 // refuses a later different set under the same id.
 const verified = new Map();
+const amountOrder = ([a], [b]) => (BigInt(a) < BigInt(b) ? -1 : BigInt(a) > BigInt(b) ? 1 : 0);
 async function keysFor(id, list = keyset && keyset.list) {
-  if (verified.has(id)) return verified.get(id);
+  if (verified.has(id)) return pinned(id, verified.get(id), list && list[id]);
   if (typeof id !== 'string' || !/^(00[0-9a-f]{14}|01[0-9a-f]{64})$/.test(id)) throw new Refusal(`keyset ${id} is not one this page can check`);
   if (!list || !list[id]) throw new Error(`keyset ${id} is not on the mint's list of sat keysets`);
   const k = ((await api(`/v1/keys/${id}`)).keysets || []).find((x) => x && x.id === id);
   if (!k || k.unit !== 'sat' || !k.keys || typeof k.keys !== 'object') throw new Error(`the mint has no sat keys for keyset ${id}`);
+  // Amounts are read as decimal strings (up to 2^64): the page only limits
+  // the amounts it actually uses, not the keyset as a whole.
   const amts = Object.keys(k.keys);
-  if (!amts.length || amts.some((a) => !/^[1-9][0-9]{0,15}$/.test(a) || !Number.isSafeInteger(Number(a))))
+  if (!amts.length || amts.some((a) => !/^[1-9][0-9]{0,19}$/.test(a) || BigInt(a) > 2n ** 64n))
     throw new Error(`the mint's keyset ${id} has amounts this page cannot read`);
-  if (new Set(Object.values(k.keys)).size !== amts.length) throw new Error(`the mint's keyset ${id} uses one key for two amounts`);
+  let pts;
+  try { pts = amts.map((a) => pointFromHex(k.keys[a]).toHex(true)); } catch { throw new Error(`the mint's keyset ${id} holds a key that is not a curve point`); }
+  if (new Set(pts).size !== amts.length) throw new Error(`the mint's keyset ${id} uses one key for two amounts`);
   if (id.startsWith('00')) {
-    const sorted = amts.map(Number).sort((a, b) => a - b);
-    if (sorted.some((a, i) => a !== 2 ** i)) throw new Error(`the mint's keyset ${id} has amounts its id cannot vouch for`);
+    const sorted = amts.map(BigInt).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+    if (sorted.some((a, i) => a !== 2n ** BigInt(i))) throw new Error(`the mint's keyset ${id} has amounts its id cannot vouch for`);
   }
   const meta = list[id];
   const fees = [...new Set([k.input_fee_ppk, meta.input_fee_ppk, 0])].filter((x) => x !== undefined);
@@ -261,27 +311,36 @@ async function keysFor(id, list = keyset && keyset.list) {
     } catch { /* try the next */ }
   }
   if (!found) throw new Error(`the mint's keys for keyset ${id} do not match its id`);
-  if (id.startsWith('00')) {
-    // Neither the fee nor the expiry is in a 00 id: take the list's word.
-    found.ppk = Number(meta.input_fee_ppk ?? k.input_fee_ppk) || 0;
-    found.expiry = Number(meta.final_expiry ?? k.final_expiry) || 0;
-  }
-  for (const v of Object.values(k.keys)) pointFromHex(v);
-  const pin = tag(JSON.stringify(Object.entries(k.keys).sort(([a], [b]) => Number(a) - Number(b))));
-  if (st && st.kpin && st.kpin[id] && st.kpin[id] !== pin) throw new Error(`the mint's keys for keyset ${id} changed since this vault first saw them`);
-  if (st && owner && st.kpin && !st.kpin[id]) { try { commit(st.gen, (s) => { s.kpin[id] = s.kpin[id] || pin; }); } catch { /* remembered next time */ } }
-  const e = { keys: k.keys, ...found };
+  const pin = tag(JSON.stringify(amts.map((a, i) => [a, pts[i]]).sort(amountOrder)));
+  const e = { keys: k.keys, pin, ...found };
   verified.set(id, e);
+  return pinned(id, e, meta);
+}
+// Every use of a keyset's keys, cached or not: they must match the keys
+// this vault first saw under that id. A 00 keyset's fee and expiry (which
+// its id does not commit to) follow the mint's current list.
+function pinned(id, e, meta) {
+  if (st && st.kpin && st.kpin[id] && st.kpin[id] !== e.pin) throw new Error(`the mint's keys for keyset ${id} changed since this vault first saw them`);
+  if (st && owner && st.kpin && !st.kpin[id]) { try { commit(st.gen, (s) => { s.kpin[id] = s.kpin[id] || e.pin; }); } catch { /* remembered next time */ } }
+  if (id.startsWith('00') && meta) {
+    e.ppk = Number(meta.input_fee_ppk) || 0;
+    e.expiry = Number(meta.final_expiry) || 0;
+  }
   return e;
 }
 const expired = (e) => e.expiry > 0 && e.expiry * 1000 <= Date.now();
-// Keys for a proof's keyset; a keyset not on the mint's list refreshes the
-// list once, and is refused if it is still not there.
+// Keys for a proof's keyset. One not on the mint's list refreshes the list;
+// it is refused only when a refresh really happened and it is still not
+// there (a refresh held back by the half minute limit is a retry, not a no).
 async function keysOf(id) {
   await ks();
   if (!keyset.list[id]) {
+    const before = keysetAt;
     await ks(true);
-    if (!keyset.list[id]) throw new Refusal(`ecash from keyset ${id}, which this mint does not list for sat`);
+    if (!keyset.list[id]) {
+      if (keysetAt === before) throw new Error(`keyset ${id} is not on the mint's list yet; it is looked up again shortly`);
+      throw new Refusal(`ecash from keyset ${id}, which this mint does not list for sat`);
+    }
   }
   return keysFor(id);
 }
@@ -419,8 +478,11 @@ function startPending(gen, rec) {
   });
   return rec;
 }
-const known = (s) => {
-  const have = new Set([...s.proofs, ...s.aside].map((p) => p.secret)), gone = new Set(s.spent);
+// Whether this vault already holds, holds apart, or has spent a proof. With
+// repair, a proof held only as unchecked (from an older page) does not
+// count, so a genuine copy with the mint's proof can replace it.
+const known = (s, repair) => {
+  const have = new Set([...s.proofs.filter((p) => !(repair && p.unchecked)), ...s.aside].map((p) => p.secret)), gone = new Set(s.spent);
   return (secret) => have.has(secret) || gone.has(tag(secret));
 };
 // Settle a record in one write: its spent inputs leave, its kept outputs
@@ -452,7 +514,7 @@ function finish(gen, rec, proofs) {
         lastPay = rec.id;
       }
     }
-    s.done = [...s.done, tag(rec.rid)];
+    s.done = [...s.done, tag(rec.rid), outsTag(rec)];
     return { pay };
   });
 }
@@ -535,19 +597,44 @@ async function recoverPending(gen) {
     if (!st || st.gen !== gen) return;
     try { if (await drive(gen, rec, 'aside')) msg('recv-msg', 'A swap that was set aside turned out finished; its ecash is back in the vault.', 'ok'); } catch { /* still set aside */ }
   }
-  // Proofs moved aside on the mint's word that they were spent: any it now
-  // calls unspent go back into the balance (an unfinished spend still
-  // holds them back from being picked twice).
-  if (st && st.gen === gen && st.aside.length) {
-    try {
-      const states = await stateOf(st.aside.map((p) => yOf(p.secret)));
-      const back = new Set(st.aside.filter((p, i) => states[i] === 'UNSPENT').map((p) => p.secret));
-      if (back.size) commit(gen, (s) => {
-        s.proofs.push(...s.aside.filter((p) => back.has(p.secret) && !s.proofs.some((q) => q.secret === p.secret)));
-        s.aside = s.aside.filter((p) => !back.has(p.secret));
-      });
-    } catch { /* looked at again next time */ }
-  }
+  await checkBalance(gen);
+}
+// On every load and every Try again, the vault's proofs and the ones held
+// apart are checked with the mint, each by its own secret (a snapshot
+// taken before asking, applied by secret inside the write). A proof the
+// mint calls spent moves apart, kept and never deleted, unless an
+// unfinished spend is using it: an older tab, or a swap the page set
+// aside, may have spent it. One held apart that the mint now calls unspent
+// comes back, unless this vault itself spent it.
+async function checkBalance(gen) {
+  if (!st || st.gen !== gen) return;
+  const busy = new Set(st.pending.flatMap((r) => r.spends || []));
+  const ask = [...st.proofs.filter((p) => !busy.has(p.secret)), ...st.aside].map((p) => p.secret);
+  if (!ask.length) return;
+  const state = new Map();
+  try {
+    for (let i = 0; i < ask.length; i += 100) {
+      const part = ask.slice(i, i + 100);
+      const res = await stateOf(part.map(yOf));
+      part.forEach((x, j) => state.set(x, res[j]));
+    }
+  } catch { return; /* checked again next time */ }
+  const moved = (s) => {
+    const gone = new Set(s.spent), held = new Set(s.pending.flatMap((r) => r.spends || []));
+    const have = new Set(s.proofs.map((p) => p.secret));
+    return {
+      out: s.proofs.filter((p) => state.get(p.secret) === 'SPENT' && !held.has(p.secret)),
+      back: s.aside.filter((p) => state.get(p.secret) === 'UNSPENT' && !gone.has(tag(p.secret)) && !have.has(p.secret)),
+    };
+  };
+  const first = moved(st);
+  if (!first.out.length && !first.back.length) return;
+  commit(gen, (s) => {
+    const { out, back } = moved(s);
+    const o = new Set(out.map((p) => p.secret)), b = new Set(back.map((p) => p.secret));
+    s.proofs = [...s.proofs.filter((p) => !o.has(p.secret)), ...back];
+    s.aside = [...s.aside.filter((p) => !b.has(p.secret)), ...out];
+  });
 }
 // The owner's call: send the oldest set aside record again, the same
 // record and outputs, exactly as before it was set aside.
@@ -798,7 +885,7 @@ async function keepLockedTip(gen, counter, proofs, progress) {
   if (!proofs.every((p) => signerLock(pub, p.secret)))
     throw new Refusal('that ecash is locked to something other than your tip jar, so this page cannot take it');
   await checkDenoms(proofs);
-  const isKnown = known(st);
+  const isKnown = known(st, true);
   const todo = proofs.filter((p) => !isKnown(p.secret));
   if (!todo.length) return null;
   const kept = [];
@@ -814,9 +901,10 @@ async function keepLockedTip(gen, counter, proofs, progress) {
   const waiting = states.filter((x) => x !== 'UNSPENT' && x !== 'SPENT').length;
   const added = good.length ? commit(gen, (s) => {
     if (!s.jar || s.jar.counter !== counter) throw new Refusal('the tip jar changed while this tip was checked');
-    const k = known(s);
+    const k = known(s, true);
     const add = good.filter((p) => !k(p.secret));
-    s.proofs.push(...add.map((p) => ({ ...p, counter })));
+    const fix = new Set(add.map((p) => p.secret));
+    s.proofs = [...s.proofs.filter((p) => !fix.has(p.secret)), ...add.map((p) => ({ ...p, counter }))];
     return add;
   }) : [];
   const total = added.reduce((t, p) => t + p.amount, 0);
@@ -873,7 +961,7 @@ function chooseInputs(amount) {
   };
   for (const [counter, all] of groupBy().entries()) {
     const ok = all.filter(usable);
-    const desc = [...ok].sort((a, b) => b.amount - a.amount), asc = [...desc].reverse();
+    const desc = [...ok].sort((a, b) => b.amount - a.amount || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)), asc = [...desc].reverse();
     add(counter, greedy(desc));
     add(counter, greedy(asc));
     const one = asc.find((p) => p.amount >= amount + fee([p]));
@@ -881,13 +969,16 @@ function chooseInputs(amount) {
     for (const cap of new Set(ok.map((p) => p.amount))) add(counter, greedy(desc.filter((p) => p.amount <= cap)));
     for (const take of search(amount, desc)) add(counter, take);
   }
-  return tries.sort((a, b) => a.proofs.length - b.proofs.length || a.total - b.total);
+  // Sets made only of checked ecash come first: ecash carried over unchecked
+  // from an older page is used only when checked ecash cannot cover it.
+  const old = (t) => (t.proofs.some((p) => p.unchecked) ? 1 : 0);
+  return tries.sort((a, b) => old(a) - old(b) || a.proofs.length - b.proofs.length || a.total - b.total);
 }
 // A bounded search over one key's proofs (largest first, at most 20,000
 // steps) for the sets that cover the payment with the fewest inputs plus
 // change pieces, which is what decides the request's size.
 function search(amount, desc) {
-  const denoms = Object.keys(keyset.keys).map(Number).sort((a, b) => b - a);
+  const denoms = Object.keys(keyset.keys).map(Number).filter(Number.isSafeInteger).sort((a, b) => b - a);
   const pieces = (n) => { let c = 0; for (const d of denoms) { c += Math.floor(n / d); n %= d; } return c; };
   const suffix = [];
   for (let i = desc.length - 1, t = 0; i >= 0; i--) suffix[i] = t += desc[i].amount;
@@ -907,7 +998,7 @@ function search(amount, desc) {
     visit(i + 1, total + desc[i].amount);
     take.pop();
     let j = i + 1;
-    while (j < desc.length && desc[j].amount === desc[i].amount) j++;   // leaving one out leaves out all of that amount here
+    while (j < desc.length && desc[j].amount === desc[i].amount && desc[j].id === desc[i].id) j++;   // leaving one out leaves out all of that amount and keyset here
     visit(j, total);
   };
   visit(0, 0);
@@ -956,6 +1047,7 @@ async function submitReply(text) {
   if (!openReq) throw new Refusal('no spend request open');
   let rep;
   try { rep = JSON.parse(text.trim()); } catch { throw new Refusal('that is not the signer\'s answer'); }
+  holdNext = false;
   if (!rep || rep.v !== 1 || rep.hash !== openReq.hash || !/^[0-9a-f]{128}$/.test(rep.sig || ''))
     throw new Refusal('that answer is for a different request');
   const { gen, outs, hash } = openReq;
@@ -983,10 +1075,13 @@ async function submitReply(text) {
 // "I've sent it" acts on the payment it was shown with, and the next
 // waiting payment is shown only on request, so a double tap cannot pass
 // over one. Payments handed over can be looked at again.
-let shownId = null, shownToken = null;
+// After "I've sent it", no payment opens by itself until the owner asks
+// for the next one or starts a new spend, so a second tap never lands on a
+// payment that just appeared.
+let shownId = null, shownToken = null, holdNext = false;
 function renderOutbox() {
   const ob = (st && st.outbox) || [];
-  if (lastPay && shownId === null && ob.some((x) => x.id === lastPay)) shownId = lastPay;
+  if (lastPay && shownId === null && !holdNext && ob.some((x) => x.id === lastPay)) shownId = lastPay;
   lastPay = null;
   if (shownId !== null && !ob.some((x) => x.id === shownId)) shownId = null;
   const cur = ob.find((x) => x.id === shownId);
@@ -1022,6 +1117,7 @@ function sentIt() {
   const id = $('token-done').dataset.id;
   if (!id || id !== shownId) return;
   shownId = null;
+  holdNext = true;
   commit(st.gen, (s) => {
     const x = s.outbox.find((y) => y.id === id);
     if (!x) return;
@@ -1031,6 +1127,7 @@ function sentIt() {
   });
 }
 function showNext() {
+  holdNext = false;
   const ob = st.outbox;
   if (ob.length) shownId = ob[0].id;
   renderOutbox();
@@ -1138,27 +1235,34 @@ function pair(text) {
   stopJar();
   clearSignerViews();
   // A vault forgotten earlier for this same signer is offered back first.
-  const back = forgottenFor(t);
-  const total = back ? (back.v.proofs || []).reduce((s, p) => s + (Number(p.amount) || 0), 0) : 0;
-  if (back && confirm(`This browser still holds the vault you forgot for this signer (${sats(total)}). Bring it back?`)) save(back.v);
-  else save(fresh(t, m[1]));
+  // Vaults forgotten earlier for this same signer that still hold anything
+  // are offered back, newest first. One brought back gets a new pairing id,
+  // so nothing started before it was forgotten can write to it; its own
+  // saved records are picked up by the recovery below.
+  let chosen = null;
+  for (const b of forgottenFor(t)) {
+    const total = (b.v.proofs || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+    if (confirm(`This browser still holds a vault for this signer that you forgot on ${new Date(b.at).toLocaleString()} (${sats(total)}). Bring it back?`)) { chosen = b.v; break; }
+  }
+  save(chosen ? { ...chosen, gen: rand32() } : fresh(t, m[1]));
   tidy();
   render();
   listenJar();
+  recoverPending(st.gen).catch(() => { /* listed as unfinished */ });
 }
-// The newest forgotten vault for this signer, if any (kept by Forget).
+// The forgotten vaults for this signer that hold anything, newest first
+// (kept by Forget).
 function forgottenFor(xpub) {
-  let best = null;
+  const found = [];
   try {
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
       if (!k || !k.startsWith(FORGOTTEN)) continue;
       const v = parseVault(localStorage.getItem(k));
-      const at = Number(k.slice(FORGOTTEN.length)) || 0;
-      if (v && v.xpub === xpub && (!best || at > best.at)) best = { at, v };
+      if (v && v.xpub === xpub && holds(v)) found.push({ at: Number(k.slice(FORGOTTEN.length)) || 0, v });
     }
   } catch { /* none offered */ }
-  return best;
+  return found.sort((a, b) => b.at - a.at);
 }
 // Forget keeps a copy of the vault in this browser (see forgottenFor), and
 // refuses to touch a vault it cannot read.
@@ -1172,6 +1276,8 @@ function forget() {
   try {
     if (cur) localStorage.setItem(`${FORGOTTEN}${Date.now()}`, JSON.stringify(cur));
     localStorage.removeItem(STORE);
+    const rawOld = readRaw(OLD_STORE), old = rawOld && parseVault(rawOld);
+    if (cur && old && old.xpub === cur.xpub) setMark(cur.xpub, tag(rawOld));
   } catch (e) {
     alert(`Could not forget this vault in this browser (${e.message || e}). Nothing was removed.`);
     return;
@@ -1207,7 +1313,9 @@ function render() {
   for (const id of ['vault-card', 'recv-card', 'send-card', 'jar-card']) $(id).classList.toggle('hidden', !paired);
   $('pair-card').classList.toggle('hidden', !owner || paired);
   if (!paired) return;
-  const bal = st.proofs.reduce((s, p) => s + p.amount, 0);
+  // The headline counts ecash the page has checked; ecash carried over from
+  // an older page is shown apart, beside its key.
+  const bal = st.proofs.filter((p) => !p.unchecked && !p.bad).reduce((s, p) => s + p.amount, 0);
   $('bal').textContent = bal;
   $('bal-unit').textContent = bal === 1 ? 'sat' : 'sats';
   $('mint-url').textContent = MINT;
@@ -1227,7 +1335,7 @@ function render() {
   const parts = [];
   if (un.length) parts.push(`${un.length} unfinished swap${un.length > 1 ? 's' : ''}, kept and tried again on every load. Oldest: ${un[0].note || 'not finished yet'}`);
   if (st.archive.length) parts.push(`${st.archive.length} set aside, still kept and looked for at the mint.`);
-  if (st.aside.length) parts.push(`${sats(sum(st.aside))} held apart because the mint called it spent while a swap was set aside; it comes back if the mint calls it unspent.`);
+  if (st.aside.length) parts.push(`${sats(sum(st.aside))} held apart because the mint calls it spent; kept, and it comes back if the mint calls it unspent.`);
   $('stuck-text').textContent = parts.join(' ');
   $('stuck-box').classList.toggle('hidden', !parts.length);
   $('stuck-aside').classList.toggle('hidden', !un.length);
@@ -1304,7 +1412,7 @@ function start() {
     blocked(`${e.message[0].toUpperCase()}${e.message.slice(1)}. Nothing was changed: the page will not replace or remove it. Its text is below, to copy somewhere safe.`);
     $('tab-raw').value = e.raw || '';
     $('tab-raw').classList.toggle('hidden', !e.raw);
-    return;
+    return false;
   }
   if (st && st.outbox.length) shownId = st.outbox[0].id;
   render();
@@ -1327,7 +1435,7 @@ function takeLock(tries) {
       else blocked('This vault is already open in another tab or window. Use that one, or close it and reload this page.');
       return undefined;
     }
-    try { start(); } catch (e) {
+    try { if (start() === false) release(); } catch (e) {
       release();
       blocked(`The vault could not start in this browser (${e.message || e}). Reload the page to try again.`);
     }

@@ -86,8 +86,20 @@ it again every time the page opens. Nothing is thrown away: **Set aside**
 stops the retries but keeps the record, the page still picks it up if
 the mint turns out to have finished it, and **Resume** sends it again.
 **Forget this signer** keeps a copy of the vault in the browser's
-storage, and pairing the same signer again offers it back. Payments you
-marked sent stay listed under the send step, to copy again.
+storage, and pairing the same signer again offers it back. The last 200
+payments you marked sent stay listed under the send step, to copy again.
+
+Each time it opens, the page also asks the mint which of its ecash is
+still unspent. Anything the mint calls spent is held apart, kept, and
+comes back if the mint later calls it unspent.
+
+A vault from an older version of this page is taken in when the new page
+first opens, and the old copy is left in place. Ecash from it is shown
+apart as not checked, because the older page kept no proof that the mint
+signed it, and a spend uses it only when checked ecash is not enough.
+
+Everything above lives in the browser's own storage, which has a size
+limit. If it ever fills up, the page says so and changes nothing.
 
 ## 4. Tip jar
 
