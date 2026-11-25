@@ -90,10 +90,14 @@ function wellFormed(v, strict) {
     const want = ['done', 'spent', 'sentKeys'].includes(k) ? 'string' : 'object';
     if (v[k].some((x) => typeof x !== want || x === null)) return false;
   }
+  // A signer key counter is a non hardened BIP 32 index: 0 to 2^31 - 1.
+  const isCounter = (c) => Number.isSafeInteger(c) && c >= 0 && c < 2 ** 31;
   const isProof = (p) => typeof p.secret === 'string' && typeof p.C === 'string' && typeof p.id === 'string' && Number.isSafeInteger(p.amount) && p.amount > 0;
-  if ((v.proofs || []).some((p) => !isProof(p) || !Number.isSafeInteger(p.counter))) return false;
-  if ((v.aside || []).some((p) => !isProof(p) || !Number.isSafeInteger(p.counter))) return false;
-  const isOut = (o) => o && typeof o.B_ === 'string' && typeof o.secret === 'string' && typeof o.r === 'string' && Number.isSafeInteger(o.amount);
+  if ((v.proofs || []).some((p) => !isProof(p) || !isCounter(p.counter))) return false;
+  if ((v.aside || []).some((p) => !isProof(p) || !isCounter(p.counter))) return false;
+  const isOut = (o) => o && typeof o.B_ === 'string' && typeof o.secret === 'string' && typeof o.r === 'string' &&
+    /^[0-9a-f]{1,64}$/.test(o.r) && Number.isSafeInteger(o.amount) && o.amount > 0 &&
+    (o.keep === null || o.keep === undefined || isCounter(o.keep)) && (o.id === undefined || typeof o.id === 'string');
   for (const k of ['pending', 'archive']) {
     for (const r of v[k] || []) {
       if (!['mint', 'bearer', 'spend'].includes(r.kind) || typeof r.id !== 'string' || typeof r.rid !== 'string') return false;
@@ -108,13 +112,13 @@ function wellFormed(v, strict) {
   if (strict && [...v.outbox, ...v.sent].some((x) => typeof x.key !== 'string')) return false;
   if (v.jar !== undefined) {
     const j = v.jar;
-    if (!j || typeof j !== 'object' || !Number.isSafeInteger(j.counter)) return false;
+    if (!j || typeof j !== 'object' || !isCounter(j.counter)) return false;
     if (j.nsk !== undefined && !/^[0-9a-f]{64}$/.test(j.nsk)) return false;
     if (j.seen !== undefined && (!Array.isArray(j.seen) || j.seen.some((x) => typeof x !== 'string'))) return false;
   }
   if (v.kpin && Object.values(v.kpin).some((x) => typeof x !== 'string')) return false;
   if (v.kpin !== undefined && (typeof v.kpin !== 'object' || v.kpin === null || Array.isArray(v.kpin))) return false;
-  if (v.next !== undefined && !Number.isSafeInteger(v.next)) return false;
+  if (v.next !== undefined && !(Number.isSafeInteger(v.next) && v.next >= 0 && v.next <= 2 ** 31)) return false;
   return true;
 }
 const readRaw = (key) => { try { return localStorage.getItem(key); } catch { return null; } };
@@ -433,8 +437,7 @@ function lockedOutputs(gen, amount) {
 // in order, each for the amount (and keyset) asked, each with the mint's
 // DLEQ proof that it signed this output's own B_ with the checked key of
 // that keyset for that amount. An answer that fails any of this saves
-// nothing.
-// One signature checked against the one output it is for.
+// nothing. checkOne checks one signature against the one output it is for.
 async function checkOne(o, s) {
   if (!s || typeof s.C_ !== 'string' || typeof s.id !== 'string' || Number(String(s.amount)) !== o.amount ||
       (o.id && s.id !== o.id) || !s.dleq || typeof s.dleq.e !== 'string' || typeof s.dleq.s !== 'string')
@@ -529,9 +532,6 @@ function note(gen, rec, why) {
     });
   } catch { /* vault gone */ }
 }
-// The mint's signatures on every output of a record (NUT-09 restore), null
-// when it signed none of them yet. Every row must be one of the record's
-// own outputs, once.
 // What the mint has signed of a set of outputs (NUT-09 restore). Every row
 // must be one of these outputs, once; each signature is checked on its own
 // and kept with the record (got, by B_), so answers that each cover part
@@ -857,7 +857,7 @@ async function receiveToken() {
   }
   if (String(tok.mint || '').replace(/\/$/, '') !== MINT) throw new Refusal(`that token is from ${String(tok.mint || 'no mint')}; this page uses ${MINT}`);
   const proofs = cleanProofs(tok.proofs);
-  const locked = proofs.filter((p) => p.secret.startsWith('['));
+  const locked = proofs.filter((p) => p.secret.trimStart().startsWith('['));   // the signer allows space before the lock
   let said;
   if (locked.length) {
     if (!st.jar) throw new Refusal('that ecash is locked to something other than your tip jar, so this page cannot take it');
@@ -977,6 +977,17 @@ async function onWrap(w, ev, attempt) {
 // for some, those are tried again (an error after the others are kept).
 // Returns what was kept, or null when nothing in it was new.
 async function keepLockedTip(gen, counter, proofs, progress) {
+  // A wallet may name a keyset by its short id (the first 16 hex of a 01
+  // id): it is read as the full id the mint lists, so the tip is checked
+  // and kept under the id the mint uses.
+  await ks();
+  for (const p of proofs) {
+    if (!/^01[0-9a-f]{14}$/.test(p.id)) continue;
+    let full = keyset.ids.filter((i) => i.startsWith(p.id));
+    if (full.length !== 1) { await ks(true); full = keyset.ids.filter((i) => i.startsWith(p.id)); }
+    if (full.length !== 1) throw new Error(`keyset ${p.id} is not on the mint's list yet; it is looked up again shortly`);
+    p.id = full[0];
+  }
   // Each proof is judged on its own: a bad one is left out, and the good
   // ones beside it are still kept.
   const pub = pubAt(st.xpub, counter);
@@ -1045,10 +1056,10 @@ function sigallHash(inputs, outs) {
 // first (least change), the one smallest proof that covers it alone, and
 // largest first among proofs no bigger than each amount the key holds
 // (which leaves a huge proof out when smaller ones suffice). makeRequest
-// takes the first that fits the signer's limits. Proofs the signer would
-// refuse, whose keyset's keys are not checked yet or expired, that the mint
-// last called pending, or that a pending spend
-// already uses, are left out.
+// takes the first that fits the signer's limits. Only spendable proofs
+// (below) whose keyset's keys are checked, and that no pending spend
+// already uses, are considered.
+//
 // Ecash a spend may use, and the headline counts: not refused by the
 // signer, its keyset not expired (when its keys have been read), and not
 // called pending by the mint at the last check.
