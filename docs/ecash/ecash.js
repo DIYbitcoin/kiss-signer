@@ -824,16 +824,25 @@ async function swapBearer(gen, proofs) {
     if (p.dleq && !hasValidDleq(p, { id: p.id, keys: (await keysOf(p.id)).keys }))
       throw new Refusal('that token\'s proof of the mint\'s signature does not check out; ask the sender for it again');
   }
-  const plain = proofs.map(({ dleq, ...p }) => p);
-  const states = await stateOf(plain.map((p) => yOf(p.secret)));
-  if (states.includes('SPENT')) throw new Refusal('part of that token was already spent, so the mint will not take it');
-  if (!states.every((x) => x === 'UNSPENT')) throw new Error('the mint has not said that token is unspent yet; try again in a moment');
+  // Each proof on its own: the ones the mint calls unspent are swapped, the
+  // spent ones are left (and said), and if the mint has not answered for
+  // some, those can be received by pasting the token again later.
+  const all = proofs.map(({ dleq, ...p }) => p);
+  const states = await stateOf(all.map((p) => yOf(p.secret)));
+  const plain = all.filter((p, i) => states[i] === 'UNSPENT');
+  const spentSum = all.filter((p, i) => states[i] === 'SPENT').reduce((t, p) => t + p.amount, 0);
+  const waitSum = all.filter((p, i) => states[i] !== 'UNSPENT' && states[i] !== 'SPENT').reduce((t, p) => t + p.amount, 0);
+  if (!plain.length) {
+    if (waitSum) throw new Error('the mint has not said that token is unspent yet; try again in a moment');
+    throw new Refusal('that token was already spent, so the mint will not take it');
+  }
+  const extra = `${spentSum ? ` ${sats(spentSum)} of it was already spent and was left.` : ''}${waitSum ? ` The mint has not answered for ${sats(waitSum)} of it yet; paste the same token again in a moment for that part.` : ''}`;
   const total = plain.reduce((s, p) => s + p.amount, 0);
   const keep = total - fee(plain);
   if (keep <= 0) throw new Refusal('that ecash is smaller than the mint fee');
   const outs = lockedOutputs(gen, keep);
   await runFresh(gen, startPending(gen, { kind: 'bearer', rid: 'in:' + listTag(plain.map((p) => JSON.stringify([p.amount, p.id, p.secret, p.C]))), inputs: plain, outs }));
-  return `${sats(keep)} arrived unlocked and is now locked to signer key ${outs[0].keep} (mint fee ${sats(total - keep)}).`;
+  return `${sats(keep)} arrived unlocked and is now locked to signer key ${outs[0].keep} (mint fee ${sats(total - keep)}).${extra}`;
 }
 
 async function receiveToken() {
@@ -1003,7 +1012,8 @@ async function keepLockedTip(gen, counter, proofs, progress) {
       later = later || x;
       continue;
     }
-    if (expired(e) || !(String(p.amount) in e.keys)) { left.push('a proof with an amount or keyset the mint does not redeem'); continue; }
+    if (!(String(p.amount) in e.keys)) { left.push('a proof with an amount its keyset does not issue'); continue; }
+    if (expired(e)) { later = later || new Error('the mint says that keyset no longer redeems; it is looked at again later'); continue; }
     let C;
     try { C = pointFromHex(p.C).toHex(true); } catch { left.push('a proof whose signature is not a curve point'); continue; }
     if (!p.dleq || !hasValidDleq(p, { id: p.id, keys: e.keys })) { left.push('a proof without the mint\'s proof that it signed it'); continue; }
@@ -1364,7 +1374,8 @@ function stopCam() {
 // A copy that cannot be read is left where it is, untouched, and never
 // copied or replaced; a storage read that fails stops the pairing.
 function keepCopy(v) {
-  localStorage.setItem(`${FORGOTTEN}${v.xpub}:${Date.now()}`, JSON.stringify({ ...v, forgottenAt: Date.now() }));
+  const at = Date.now();
+  localStorage.setItem(`${FORGOTTEN}${v.xpub}:${at}:${rand32().slice(0, 8)}`, JSON.stringify({ ...v, forgottenAt: at }));
 }
 function copiesOf(xpub) {
   const found = [], unread = [];
