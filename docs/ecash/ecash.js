@@ -82,6 +82,7 @@ function load() {
 // no action can save a vault the next load would refuse.
 function wellFormed(v, strict) {
   if (!v || typeof v !== 'object' || Array.isArray(v) || typeof v.xpub !== 'string') return false;
+  if (!/^\[[0-9a-f]{8}\/129373h\/10h\/0h\/0h\]xpub[1-9A-HJ-NP-Za-km-z]{100,112}$/.test(v.xpub)) return false;
   if (strict && (!LISTS.every((k) => Array.isArray(v[k])) || !Number.isSafeInteger(v.next) || typeof v.gen !== 'string' || !v.kpin)) return false;
   for (const k of LISTS) {
     if (v[k] === undefined) continue;
@@ -202,7 +203,8 @@ async function api(path, body, wait = TIMEOUT) {
   let j = null;
   try { j = JSON.parse(t); } catch { /* some mints answer errors in plain text */ }
   if (!r.ok) {
-    const e = new Error(`mint said: ${(j && (j.detail || j.error)) || t.slice(0, 200) || r.status}`);
+    const said = j && (j.detail || j.error);
+    const e = new Error(`mint said: ${(said && (typeof said === 'string' ? said : JSON.stringify(said)).slice(0, 200)) || t.slice(0, 200) || r.status}`);
     e.code = j && Number.isInteger(j.code) ? j.code : 0;
     throw e;
   }
@@ -351,7 +353,7 @@ async function stateOf(Ys) {
   const rows = (await api('/v1/checkstate', { Ys })).states;
   if (!Array.isArray(rows)) throw new Error('the mint gave a malformed answer');
   return Ys.map((y) => {
-    const m = rows.filter((x) => x && x.Y === y);
+    const m = rows.filter((x) => x && typeof x.Y === 'string' && x.Y.toLowerCase() === y);
     return m.length === 1 ? m[0].state : 'UNKNOWN';
   });
 }
@@ -853,7 +855,7 @@ async function receiveToken() {
       throw new Refusal('that is not a cashu token this page can read');
     }
   }
-  if (tok.mint.replace(/\/$/, '') !== MINT) throw new Refusal(`that token is from ${tok.mint}; this page uses ${MINT}`);
+  if (String(tok.mint || '').replace(/\/$/, '') !== MINT) throw new Refusal(`that token is from ${String(tok.mint || 'no mint')}; this page uses ${MINT}`);
   const proofs = cleanProofs(tok.proofs);
   const locked = proofs.filter((p) => p.secret.startsWith('['));
   let said;
@@ -1360,9 +1362,17 @@ function pair(text) {
   clearSignerViews();
   const raw = readRaw(FORGOTTEN + t);
   let back = null;
+  let note = '';
   if (raw !== null) {
     try { back = JSON.parse(raw); } catch { /* below */ }
-    if (!wellFormed(back) || back.xpub !== t) throw Object.assign(new Unreadable('the copy of this signer\'s forgotten vault cannot be read'), { raw });
+    if (!wellFormed(back) || back.xpub !== t) {
+      // Kept under another name, never deleted, and the signer can still
+      // be paired with a new vault.
+      localStorage.setItem(`${FORGOTTEN}${t}:unreadable:${Date.now()}`, raw);
+      localStorage.removeItem(FORGOTTEN + t);
+      back = null;
+      note = 'This browser held a copy of this signer\'s forgotten vault that could not be read; it is kept, untouched, and a new vault was started.';
+    }
   }
   if (back) {
     back = { ...back, gen: rand32(), next: Number.isSafeInteger(back.next) ? back.next : 0,
@@ -1373,6 +1383,7 @@ function pair(text) {
   tidy();
   render();
   if (back) msg('recv-msg', 'This signer\'s vault, as it was when you forgot it, is back.', 'ok');
+  else if (note) msg('recv-msg', note, 'bad');
   listenJar();
   recoverPending(st.gen).catch(() => { /* listed as unfinished */ });
 }
