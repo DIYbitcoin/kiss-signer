@@ -541,13 +541,18 @@ async function restored(gen, rec, outs = rec.outs) {
   if (!Array.isArray(rows) || !Array.isArray(sigs) || rows.length !== sigs.length || rows.length > outs.length)
     throw new Error('the mint gave a malformed restore answer');
   const byB = new Map(outs.map((o) => [o.B_, o])), seen = new Set();
-  const got = { ...(rec.got || {}) };
-  let added = 0;
-  for (let i = 0; i < rows.length; i++) {
-    const B = rows[i] && rows[i].B_;
+  for (const row of rows) {
+    const B = row && row.B_;
     if (!byB.has(B) || seen.has(B)) throw new Error('the mint\'s restore answer names outputs it was not asked about');
     seen.add(B);
-    if (!got[B]) { got[B] = await checkOne(byB.get(B), sigs[i]); added++; }
+  }
+  // Each signature on its own: a bad one is not kept, the good ones are.
+  const got = { ...(rec.got || {}) };
+  let added = 0, bad = null;
+  for (let i = 0; i < rows.length; i++) {
+    const B = rows[i].B_;
+    if (got[B]) continue;
+    try { got[B] = await checkOne(byB.get(B), sigs[i]); added++; } catch (e) { bad = bad || e; }
   }
   if (added) {
     rec.got = got;
@@ -558,7 +563,9 @@ async function restored(gen, rec, outs = rec.outs) {
       });
     } catch { /* kept in this tab; asked again next time */ }
   }
-  return outs.every((o) => got[o.B_]) ? outs.map((o) => got[o.B_]) : null;
+  if (outs.every((o) => got[o.B_])) return outs.map((o) => got[o.B_]);
+  if (bad) throw bad;
+  return null;
 }
 async function send(rec) {
   const outputs = rec.outs.map(wire);
@@ -1346,6 +1353,9 @@ function pair(text) {
   const cur = load();
   if (cur && cur.xpub === t) { tidy(); render(); return; }
   if (holds(cur)) throw new Refusal('this page still holds another signer\'s vault; forget it first');
+  // Another signer's vault with no ecash in it can still hold a tip jar key
+  // or payment history: it goes to that signer's slot, as Forget would.
+  if (cur) localStorage.setItem(FORGOTTEN + cur.xpub, JSON.stringify(cur));
   stopJar();
   clearSignerViews();
   const raw = readRaw(FORGOTTEN + t);
@@ -1354,8 +1364,12 @@ function pair(text) {
     try { back = JSON.parse(raw); } catch { /* below */ }
     if (!wellFormed(back) || back.xpub !== t) throw Object.assign(new Unreadable('the copy of this signer\'s forgotten vault cannot be read'), { raw });
   }
-  save(back ? { ...back, gen: rand32(), next: Number.isSafeInteger(back.next) ? back.next : 0,
-    kpin: back.kpin || {}, ...Object.fromEntries(LISTS.map((k) => [k, back[k] || []])) } : fresh(t, m[1]));
+  if (back) {
+    back = { ...back, gen: rand32(), next: Number.isSafeInteger(back.next) ? back.next : 0,
+      kpin: back.kpin || {}, ...Object.fromEntries(LISTS.map((k) => [k, back[k] || []])) };
+    for (const x of [...back.outbox, ...back.sent]) x.key = x.key || 'tok:' + tag(x.token);
+  }
+  save(back || fresh(t, m[1]));
   tidy();
   render();
   if (back) msg('recv-msg', 'This signer\'s vault, as it was when you forgot it, is back.', 'ok');
