@@ -109,7 +109,9 @@ function check(v) {
     (c.apart === undefined || c.apart === true))) return false;
   if (!isObj(v.spent) || !Object.values(v.spent).every((x) => x === 1)) return false;
   if (!isObj(v.pays) || !Object.values(v.pays).every((p) => isObj(p) && typeof p.token === 'string' && isAmount(p.amount) &&
-    Number.isSafeInteger(p.at) && (p.sent === undefined || Number.isSafeInteger(p.sent)))) return false;
+    Number.isSafeInteger(p.at) && (p.sent === undefined || Number.isSafeInteger(p.sent)) && (p.back === undefined || p.back === true) &&
+    (p.secrets === undefined || (Array.isArray(p.secrets) && p.secrets.every((x) => typeof x === 'string'))) &&
+    (p.token !== '' || p.sent !== undefined))) return false;
   if (!isObj(v.ops)) return false;
   for (const [id, o] of Object.entries(v.ops)) {
     if (!isObj(o) || !['mint', 'bearer', 'spend'].includes(o.kind) || typeof o.rid !== 'string' || id !== tag(o.rid)) return false;
@@ -466,6 +468,12 @@ function openOp(gen, op) {
     if (o && o.done) throw new Refusal('this page already did that; nothing more to do');
     if (o && o.status === 'aside') throw new Refusal('that is set aside in the vault; tap Resume there to send it again');
     if (o) throw new Refusal('that is already listed under unfinished in the vault');
+    // An input of another open operation is never taken by a second one: it
+    // is reserved in the same write that saves this one. (A set aside one
+    // lets its inputs go; its outputs are still looked for.)
+    const mine = new Set((op.inputs || []).map((p) => p.secret));
+    if (mine.size && openOps(s).some(([, x]) => x.status === 'open' && (x.inputs || []).some((p) => mine.has(p.secret))))
+      throw new Refusal('part of that is already being received or spent by an unfinished swap; it is tried again with Try again');
     s.ops[id] = { ...op, status: 'open', at: Date.now(), got: {} };
   });
   inFlight.add(id);   // being sent from here on, by the caller
@@ -491,12 +499,18 @@ function finish(gen, id, set, proofs) {
     const op = s.ops[id];
     if (!op || op.done) return null;
     if (op.kind === 'spend') for (const p of op.inputs) { delete s.coins[p.secret]; s.spent[tag(p.secret)] = 1; }
+    // A pasted token that was one of this vault's own waiting payments: the
+    // payment is taken back, so it is no longer offered to hand over.
+    if (op.kind === 'bearer') {
+      const ins = new Set(op.inputs.map((p) => p.secret));
+      for (const pay of Object.values(s.pays)) if (!pay.sent && (pay.secrets || []).some((x) => ins.has(x))) { pay.sent = Date.now(); pay.back = true; }
+    }
     const pay = [];
     set.forEach((o, i) => { if (o.keep === null) pay.push(proofs[i]); else credit(s, proofs[i], o.keep); });
     if (pay.length) {
       const key = listTag(pay.map((p) => p.secret));
       if (!s.pays[key]) {
-        s.pays[key] = { token: getEncodedToken({ mint: MINT, unit: 'sat', proofs: pay }), amount: sum(pay), at: Date.now() };
+        s.pays[key] = { token: getEncodedToken({ mint: MINT, unit: 'sat', proofs: pay }), amount: sum(pay), at: Date.now(), secrets: pay.map((p) => p.secret) };
         lastPay = key;
       }
     }
@@ -543,6 +557,23 @@ async function gather(gen, id, set) {
   if (bad) throw bad;
   return null;
 }
+// A send answer, checked signature by signature: every one that checks
+// out is kept with the operation at once (so a later restore that covers
+// only the rest can still finish it), and the set's proofs come back only
+// when all of them do.
+async function checkSent(gen, id, set, sigs) {
+  if (!Array.isArray(sigs) || sigs.length !== set.length) throw new Error('the mint answered for a different number of outputs');
+  const good = {}, proofs = [];
+  let bad = null;
+  for (let i = 0; i < set.length; i++) {
+    try { const p = await checkOne(set[i], sigs[i]); good[set[i].B_] = p; proofs.push(p); } catch (e) { bad = bad || e; }
+  }
+  if (Object.keys(good).length) {
+    try { commit(gen, (s) => { const o = s.ops[id]; if (o && !o.done) Object.assign(o.got, good); }); } catch { /* asked again next time */ }
+  }
+  if (bad) throw bad;
+  return proofs;
+}
 async function send(op, set) {
   const outputs = set.map(wire);
   if (op.kind === 'mint') return (await api('/v1/mint/bolt11', { quote: op.quote, outputs })).signatures;
@@ -572,7 +603,7 @@ async function settle(gen, id, mode) {
     op = cur && cur.gen === gen ? cur.ops[id] : null;
     if (!op || op.done || op.status !== 'open') throw new Refusal('the vault changed, so this was not sent');
     const set = op.sets[op.sets.length - 1];
-    try { return finish(gen, id, set, await checkPromises(set, await send(op, set))); } catch (e) {
+    try { return finish(gen, id, set, await checkSent(gen, id, set, await send(op, set))); } catch (e) {
       if (e.code === undefined) throw e;
       const proofs = await gather(gen, id, set);
       if (proofs) return finish(gen, id, set, proofs);
@@ -647,7 +678,7 @@ const busy = (s) => new Set(openOps(s).filter(([, o]) => o.kind === 'spend' && o
 // one held apart that it calls unspent comes back. A coin it calls pending
 // is not offered or counted until it says otherwise.
 const mintPending = new Set();
-let balanceRun = Promise.resolve();
+let balanceRun = Promise.resolve(), pendingTimer = null;
 function checkBalance(gen) {
   balanceRun = balanceRun.then(() => checkBalanceNow(gen), () => checkBalanceNow(gen));
   return balanceRun;
@@ -664,6 +695,7 @@ async function checkBalanceNow(gen) {
     part.forEach((x, j) => state.set(x, res[j]));
   }
   for (const [x, v] of state) { if (v === 'PENDING') mintPending.add(x); else if (v === 'UNSPENT' || v === 'SPENT') mintPending.delete(x); }
+  if (mintPending.size && !pendingTimer) pendingTimer = setTimeout(() => { pendingTimer = null; if (st && st.gen === gen) checkBalance(gen); }, 60000);
   const flips = (s) => {
     const h = busy(s);
     return Object.values(s.coins).filter((c) => (state.get(c.secret) === 'SPENT' && !c.apart && !h.has(c.secret)) ||
@@ -744,9 +776,12 @@ function cleanProofs(list) {
     if (typeof p.secret !== 'string' || typeof p.C !== 'string' || typeof p.id !== 'string') throw new Refusal('that ecash is malformed');
     return { amount, id: p.id, secret: p.secret, C: p.C, dleq: p.dleq };
   });
-  if (new Set(out.map((p) => p.secret)).size !== out.length) throw new Refusal('that ecash repeats a proof');
-  if (new Set(out.map((p) => p.id)).size > 4) throw new Refusal('that ecash comes from too many keysets');
-  return out;
+  // A proof given twice is taken once (the first copy); the rest is judged
+  // as usual.
+  const seen = new Set();
+  const once = out.filter((p) => !seen.has(p.secret) && seen.add(p.secret));
+  if (new Set(once.map((p) => p.id)).size > 4) throw new Refusal('that ecash comes from too many keysets');
+  return once;
 }
 // Each proof's keyset must be one of the mint's sat keysets, checked, not
 // past its final expiry, with a key for the proof's amount.
@@ -801,7 +836,7 @@ async function swapBearer(gen, proofs) {
   // A proof that an unfinished swap of this vault already takes in is not
   // swapped a second time: that swap is retried instead.
   const taking = new Map();
-  for (const [oid, o] of openOps(st)) if (o.kind === 'bearer') for (const p of o.inputs) taking.set(p.secret, oid);
+  for (const [oid, o] of openOps(st)) if (o.kind === 'bearer' && o.status === 'open') for (const p of o.inputs) taking.set(p.secret, oid);
   const already = new Set(proofs.filter((p) => taking.has(p.secret)).map((p) => taking.get(p.secret)));
   for (const oid of already) { if (!inFlight.has(oid) && st.ops[oid].status === 'open') { try { await settle(gen, oid, 'again'); } catch { /* listed as unfinished */ } } }
   const all = proofs.filter((p) => !taking.has(p.secret)).map(({ dleq, ...p }) => p);
@@ -933,9 +968,18 @@ function listenJar() {
   if (jarPool || !owner || !st || !st.jar || !st.jar.nsk) return;
   const { sk, pk } = jarKeys();
   const w = { gen: st.gen, counter: st.jar.counter, sk };
-  jarPool = new SimplePool();
-  jarPool.subscribe(RELAYS, { kinds: [1059], '#p': [pk] }, {
+  const pool = jarPool = new SimplePool();
+  pool.subscribe(RELAYS, { kinds: [1059], '#p': [pk] }, {
     onevent: (ev) => { jarQueue = jarQueue.then(() => onWrap(w, ev, 0)); },
+    // Every relay closed the subscription: not listening any more. It says
+    // so and connects again in a minute, for the pairing still open.
+    onclose: () => {
+      if (jarPool !== pool) return;
+      try { pool.close(RELAYS); } catch { /* already closed */ }
+      jarPool = null;
+      msg('jar-msg', 'Not connected to the tip relays; trying again in a minute.', 'bad');
+      setTimeout(() => { if (live(w)) listenJar(); }, 60000);
+    },
   });
   msg('jar-msg', 'Listening for tips over Nostr while this page is open.');
 }
@@ -1244,18 +1288,26 @@ function renderOutbox() {
   $('next-text').textContent = waiting ? `${waiting} payment${waiting > 1 ? 's' : ''} waiting to be handed over.` : '';
   $('next-box').classList.toggle('hidden', !waiting);
   $('token-next').classList.toggle('hidden', !!cur);
-  const sent = Object.values((st && st.pays) || {}).filter((p) => p.sent).sort((a, b) => b.sent - a.sent);
+  const sent = Object.values((st && st.pays) || {}).filter((p) => p.sent && p.token).sort((a, b) => b.sent - a.sent);
   $('sent-box').classList.toggle('hidden', !sent.length);
   $('sent-count').textContent = sent.length;
   $('sent-text').value = sent.slice(0, KEEP_SENT)
-    .map((x) => `${sats(x.amount)}, marked sent ${new Date(x.sent).toLocaleString()}\n${x.token}`).join('\n\n');
+    .map((x) => `${sats(x.amount)}, ${x.back ? 'taken back into the vault' : 'marked sent'} ${new Date(x.sent).toLocaleString()}\n${x.token}`).join('\n\n');
 }
 function sentIt() {
   const key = $('token-done').dataset.key;
   if (!key || key !== shownKey) return;
-  shownKey = null;
+  commit(st.gen, (s) => {
+    const x = s.pays[key];
+    if (x && !x.sent) x.sent = Date.now();
+    // Beyond the newest KEEP_SENT, a sent payment keeps only its identity
+    // and amount, so storage does not fill with old tokens.
+    const old = Object.values(s.pays).filter((p) => p.sent && p.token).sort((a, b) => b.sent - a.sent).slice(KEEP_SENT);
+    for (const p of old) { p.token = ''; delete p.secrets; }
+  });
+  shownKey = null;   // only once the save went through
   holdNext = true;
-  commit(st.gen, (s) => { const x = s.pays[key]; if (x && !x.sent) x.sent = Date.now(); });
+  renderOutbox();
 }
 function showNext() {
   holdNext = false;
@@ -1504,6 +1556,8 @@ function render() {
   if (un.length) parts.push(`${un.length} unfinished swap${un.length > 1 ? 's' : ''}, kept and tried again on every load. Oldest: ${un[0][1].note || 'not finished yet'}`);
   if (asideOps.length) parts.push(`${asideOps.length} set aside, still kept and looked for at the mint.`);
   if (apart.length) parts.push(`${sats(sum(apart))} held apart because the mint calls it spent; kept, and it comes back if the mint calls it unspent.`);
+  const pend = coins.filter((c) => !c.apart && mintPending.has(c.secret));
+  if (pend.length) parts.push(`${sats(sum(pend))} the mint calls pending, so it is not counted yet; it is checked again every minute.`);
   $('stuck-text').textContent = parts.join(' ');
   $('stuck-box').classList.toggle('hidden', !parts.length);
   $('stuck-aside').classList.toggle('hidden', !un.length);
