@@ -83,9 +83,11 @@ Before the page asks the mint for anything, it saves what it needs to
 finish. If the page closes, the network drops or the mint gives an answer
 that does not check out, the vault shows the swap as unfinished and tries
 it again every time the page opens. Nothing is thrown away: **Set aside**
-stops the retries but keeps the record, and the page still picks it up if
-the mint turns out to have finished it. **Forget this signer** also keeps
-a copy of the vault in the browser's storage.
+stops the retries but keeps the record, the page still picks it up if
+the mint turns out to have finished it, and **Resume** sends it again.
+**Forget this signer** keeps a copy of the vault in the browser's
+storage, and pairing the same signer again offers it back. Payments you
+marked sent stay listed under the send step, to copy again.
 
 ## 4. Tip jar
 

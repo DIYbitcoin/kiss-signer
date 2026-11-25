@@ -167,6 +167,7 @@
       <section class="card warn hidden" id="tab-card">
         <h2>Open in another tab</h2>
         <p id="tab-msg"></p>
+        <textarea id="tab-raw" class="hidden" readonly></textarea>
       </section>
 
       <section class="card warn hidden" id="pair-card">
@@ -188,7 +189,7 @@
         </div>
         <div id="stuck-box" class="hidden">
           <p class="bad" id="stuck-text"></p>
-          <div class="row"><button class="ghost" id="stuck-retry">Try again</button><button class="ghost" id="stuck-aside">Set aside</button></div>
+          <div class="row"><button class="ghost" id="stuck-retry">Try again</button><button class="ghost" id="stuck-aside">Set aside</button><button class="ghost" id="stuck-resume">Resume</button></div>
         </div>
         <div class="row"><button class="ghost" id="unpair">Forget this signer</button></div>
       </section>
@@ -219,6 +220,7 @@
           <textarea id="token-out" readonly></textarea>
           <div class="row"><button class="ghost" id="token-done">I've sent it</button></div>
         </div>
+        <details id="sent-box" class="hidden"><summary class="mut">Payments already handed over (<span id="sent-count">0</span>)</summary><textarea id="sent-text" readonly></textarea></details>
         <div id="next-box" class="hidden">
           <p class="mut" id="next-text"></p>
           <div class="row"><button class="ghost" id="token-next">Show next payment</button></div>
