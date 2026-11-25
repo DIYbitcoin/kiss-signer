@@ -74,6 +74,19 @@ Three ways in, all ending up locked to the signer:
 To stop instead, press **BACK** on the signer and **Cancel** on the page.
 Nothing was signed.
 
+The token stays on the page, even after a reload, until you tap **I've sent
+it**.
+
+## If something is interrupted
+
+Before the page asks the mint for anything, it saves what it needs to
+finish. If the page closes, the network drops or the mint gives an answer
+that does not check out, the vault shows the swap as unfinished and tries
+it again every time the page opens. Nothing is thrown away: **Set aside**
+stops the retries but keeps the record, and the page still picks it up if
+the mint turns out to have finished it. **Forget this signer** also keeps
+a copy of the vault in the browser's storage.
+
 ## 4. Tip jar
 
 The page can show a payment request (Cashu NUT-18) to print or post. Anyone

@@ -144,6 +144,7 @@
           <h2>Token</h2>
           <p class="cap ok">Sent. Give this to whoever you are paying.</p>
           <canvas class="qr" id="token-qr"></canvas>
+          <p class="cap mut hidden" id="token-qr-note">Too long for one QR code: copy the token text instead.</p>
         </section>
         <section class="card hidden" id="st-jar">
           <h2>Tip jar</h2>
@@ -185,6 +186,10 @@
           <span>Signer</span><span id="fp"></span>
           <span>Locked to</span><span id="groups"></span>
         </div>
+        <div id="stuck-box" class="hidden">
+          <p class="bad" id="stuck-text"></p>
+          <div class="row"><button class="ghost" id="stuck-retry">Try again</button><button class="ghost" id="stuck-aside">Set aside</button></div>
+        </div>
         <div class="row"><button class="ghost" id="unpair">Forget this signer</button></div>
       </section>
 
@@ -212,8 +217,11 @@
         <div id="token-box" class="hidden">
           <p class="ok">Sent. Give this token to whoever you are paying: scan its QR, or copy it.</p>
           <textarea id="token-out" readonly></textarea>
-          <p class="mut" id="token-more"></p>
           <div class="row"><button class="ghost" id="token-done">I've sent it</button></div>
+        </div>
+        <div id="next-box" class="hidden">
+          <p class="mut" id="next-text"></p>
+          <div class="row"><button class="ghost" id="token-next">Show next payment</button></div>
         </div>
       </section>
 

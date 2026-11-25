@@ -5,8 +5,24 @@
 // spend it. Bearer ecash passes through only on its way somewhere: a pasted
 // token until its swap into locked ecash finishes, and a payment the signer
 // approved until the owner has handed it over.
+//
+// Four rules hold everywhere below, whatever the mint, the network or a
+// sender does:
+//  1. Nothing is deleted that might still be worth something. A record of
+//     an operation sent to the mint leaves only when every output has a
+//     checked signature and the proofs are saved in the same write. The
+//     owner may set a record aside; it is still kept, and still picked up
+//     if the mint later shows it finished.
+//  2. Nothing is credited that the mint has not provably signed: a DLEQ
+//     proof (NUT-12) with keys whose keyset id is rebuilt from the keys
+//     themselves, on the page's own output or on a tip's own proof.
+//  3. Nothing is credited twice: a proof is added only if it is not held,
+//     set aside or already spent from this vault, checked inside the write.
+//  4. One writer: one tab holds the vault (Web Locks), under a storage key
+//     no older version of this page reads or writes, and every write is
+//     tied to the pairing it was started for.
 import { blindMessage, unblindSignature, pointFromHex, createP2PKsecret,
-  getEncodedToken, getDecodedToken, hashToCurve, hasValidDleq,
+  getEncodedToken, getDecodedToken, hashToCurve, hasValidDleq, deriveKeysetId,
   PaymentRequest } from './vendor/cashu-cashu-ts/lib/cashu-ts.es.js';
 import { SimplePool } from './vendor/nostr-tools/pool.js';
 import { unwrapEvent } from './vendor/nostr-tools/nip59.js';
@@ -16,30 +32,28 @@ import { HDKey } from '@scure/bip32';
 import { sha256 } from '@noble/hashes/sha2.js';
 
 const MINT = 'https://testnut.cashu.space';
-const STORE = 'kiss-ecash-v1';
+const STORE = 'kiss-ecash-v2';
+const OLD_STORE = 'kiss-ecash-v1';   // pages before the tab lock; moved once
 const REQ_MAX = 4096;          // the signer's QR transport limit
 const FRAME_CHARS = 200;       // base64 characters per animated frame
 const SIGALL = [['sigflag', 'SIG_ALL']];
+const KEEP = 50000;            // spent proofs and finished operations remembered
+const KEEP_SENT = 200;         // payments handed over, kept for reference
 
 const $ = (id) => document.getElementById(id);
 const enc = (s) => new TextEncoder().encode(s);
 const hex = (b) => Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
 const sats = (n) => `${n} ${n === 1 ? 'sat' : 'sats'}`;
 const rand32 = () => hex(crypto.getRandomValues(new Uint8Array(32)));
-const tag = (secret) => hex(sha256(enc(secret))).slice(0, 32);
+const tag = (s) => hex(sha256(enc(s))).slice(0, 32);
 const yOf = (secret) => hashToCurve(enc(secret)).toHex(true);
+const listTag = (secrets) => tag(JSON.stringify([...secrets].sort()));
 
 // A refusal is final: the input itself is wrong, and retrying cannot help.
 // Anything else (the mint or the network failing) may work the next time.
 class Refusal extends Error {}
 
 // ---- state ----
-// The vault is one JSON record in this browser's storage, and only one tab
-// at a time runs it (see the lock at the end of this file), so no other tab
-// can write between this one's read and its write. Every change goes
-// through commit(), which still rereads the record, refuses if the vault
-// was forgotten or paired again since the change began (each pairing gets
-// a new gen), and reports a failed write instead of carrying on.
 let st = null;
 let owner = false;
 function load() {
@@ -50,16 +64,17 @@ function save(v) {
     throw new Error(`could not save the vault in this browser (${e.message || e}); reload the page before doing anything else`);
   }
 }
+// Every change: reread, refuse if the vault was forgotten or paired again
+// since the change began (each pairing has its own gen), apply, write.
 function commit(gen, fn) {
   const cur = load();
   if (!cur || cur.gen !== gen) throw new Refusal('this vault was forgotten or replaced; reload the page');
   const out = fn(cur);
   save(cur);
   st = cur;
-  render();
+  try { render(); } catch (e) { console.error(e); }
   return out;
 }
-// Older copies of this page did not take the lock; follow what they write.
 window.addEventListener('storage', (e) => {
   if (e.key !== STORE || !owner) return;
   const was = st && st.gen;
@@ -67,16 +82,28 @@ window.addEventListener('storage', (e) => {
   if (!st || st.gen !== was) { stopJar(); clearSignerViews(); }
   render();
 });
+const LISTS = ['proofs', 'pending', 'archive', 'aside', 'outbox', 'sent', 'done', 'spent'];
+const fresh = (xpub, fp) => ({ xpub, fp, gen: rand32(), next: 0, ...Object.fromEntries(LISTS.map((k) => [k, []])) });
+const holds = (v) => v && ['proofs', 'pending', 'archive', 'aside', 'outbox'].some((k) => (v[k] || []).length);
 
-// Bring a stored vault up to this version of the page: fields it lacks,
-// one copy of each proof, C in the one spelling the signer reads, and a
-// mark on any proof the signer would refuse, so it is never picked for a
-// spend (its secret is kept as it is).
+// Bring a stored vault up to this version: move a vault from the old key
+// once, add missing lists, keep one copy of each proof with C in the one
+// spelling the signer reads, mark proofs the signer would refuse so they
+// are never picked for a spend (their secrets are kept as they are), and
+// give old pending records a kind and a stable id, one record per set of
+// outputs.
 function tidy() {
-  const cur = load();
-  if (!cur) return;
+  let cur = load();
+  if (!cur) {
+    let raw = null, old = null;
+    try { raw = localStorage.getItem(OLD_STORE); old = JSON.parse(raw); } catch { /* nothing to move */ }
+    if (!old || typeof old.xpub !== 'string') return;
+    cur = old;
+    save(cur);
+    try { localStorage.setItem(OLD_STORE + '-moved', raw); localStorage.removeItem(OLD_STORE); } catch { /* the copy under STORE is what counts */ }
+  }
   cur.gen = cur.gen || rand32();
-  for (const k of ['pending', 'outbox', 'done', 'spent', 'proofs']) cur[k] = cur[k] || [];
+  for (const k of LISTS) cur[k] = Array.isArray(cur[k]) ? cur[k] : [];
   const seen = new Set(), pubs = new Map();
   cur.proofs = cur.proofs.filter((p) => !seen.has(p.secret) && seen.add(p.secret));
   for (const p of cur.proofs) {
@@ -85,19 +112,24 @@ function tidy() {
     if (!pubs.has(p.counter)) pubs.set(p.counter, pubAt(cur.xpub, p.counter));
     if (!signerLock(pubs.get(p.counter), p.secret)) p.bad = true;
   }
-  for (const r of cur.pending) {
-    if (r.kind) continue;
-    // Records from before kinds: a bearer swap, a spend or a test mint.
-    if (r.bearer) { r.kind = 'bearer'; r.inputs = r.bearer; delete r.bearer; }
-    else r.kind = r.spends ? 'spend' : 'mint';
-  }
+  const rids = new Set();
+  cur.pending = cur.pending.filter((r) => {
+    if (!r.kind) {
+      if (r.bearer) { r.kind = 'bearer'; r.inputs = r.bearer; delete r.bearer; }
+      else r.kind = r.spends ? 'spend' : 'mint';
+    }
+    r.rid = r.rid || 'b:' + listTag(r.outs.map((o) => o.B_));
+    if (rids.has(r.rid)) return false;     // the same outputs twice: one record holds them all
+    rids.add(r.rid);
+    return true;
+  });
+  const toks = new Set();
+  cur.outbox = cur.outbox.filter((x) => !toks.has(x.token) && toks.add(x.token));
   save(cur);
   st = cur;
 }
 
 // ---- mint ----
-let keyset = null;
-const keyCache = new Map();
 // Mint errors carry the mint's code (0 when it gave none). An error with no
 // code at all means no answer came back: the request may or may not have
 // reached the mint.
@@ -105,40 +137,86 @@ async function api(path, body) {
   const r = await fetch(MINT + path, body ? { method: 'POST',
     headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : {});
   const t = await r.text();
-  let j = {};
+  let j = null;
   try { j = JSON.parse(t); } catch { /* some mints answer errors in plain text */ }
   if (!r.ok) {
-    const e = new Error(`mint said: ${j.detail || j.error || t.slice(0, 200) || r.status}`);
-    e.code = Number.isInteger(j.code) ? j.code : 0;
+    const e = new Error(`mint said: ${(j && (j.detail || j.error)) || t.slice(0, 200) || r.status}`);
+    e.code = j && Number.isInteger(j.code) ? j.code : 0;
     throw e;
   }
+  if (!j || typeof j !== 'object') throw new Error('the mint gave an answer that is not JSON');
   return j;
 }
-async function ks() {
-  if (keyset) return keyset;
+// The mint's sat keysets and its active one. Refreshed when a proof names
+// a keyset the list does not have, at most every half minute.
+let keyset = null, keysetAt = 0;
+async function ks(refresh) {
+  if (keyset && !(refresh && Date.now() - keysetAt > 30000)) return keyset;
+  if (!keyset) {
+    const info = await api('/v1/info');
+    if (!info.nuts || !info.nuts['12'] || !info.nuts['12'].supported || !info.nuts['9'] || !info.nuts['9'].supported)
+      throw new Refusal('this mint does not prove its signatures (NUT-12) or restore them (NUT-09), so this page cannot check what it hands back');
+  }
   const all = (await api('/v1/keysets')).keysets;
-  const k = all.find((x) => x.unit === 'sat' && x.active);
-  const keys = await keysFor(k.id);
-  const ppk = {};
-  for (const x of all) if (x.unit === 'sat') ppk[x.id] = x.input_fee_ppk || 0;
-  keyset = { id: k.id, keys, ids: all.map((x) => x.id), ppk };
+  if (!Array.isArray(all)) throw new Error('the mint gave a malformed keyset list');
+  const list = {};
+  for (const x of all) if (x && x.unit === 'sat' && typeof x.id === 'string') list[x.id] = x;
+  const act = Object.values(list).find((x) => x.active);
+  if (!act) throw new Error('the mint has no active sat keyset');
+  const k = await keysFor(act.id, list);
+  keyset = { id: act.id, keys: k.keys, list, ids: all.map((x) => x && x.id) };
+  keysetAt = Date.now();
   return keyset;
 }
-// The denomination keys of one keyset, active or not: a proof is unblinded
-// and checked with the keys of the keyset that issued it.
-async function keysFor(id) {
-  if (keyCache.has(id)) return keyCache.get(id);
-  const k = ((await api(`/v1/keys/${id}`)).keysets || []).find((x) => x.id === id);
-  if (!k || k.unit !== 'sat' || !k.keys) throw new Error(`the mint has no sat keys for keyset ${id}`);
-  keyCache.set(id, k.keys);
-  return k.keys;
+// The keys of one keyset, active or not, kept only once its id has been
+// rebuilt from them (with the unit, fee and expiry it commits to): a mint
+// cannot hand over other keys under a known id. A version 00 id commits to
+// the keys alone.
+const verified = new Map();
+async function keysFor(id, list = keyset && keyset.list) {
+  if (verified.has(id)) return verified.get(id);
+  if (typeof id !== 'string' || !/^(00[0-9a-f]{14}|01[0-9a-f]{64})$/.test(id)) throw new Refusal(`keyset ${id} is not one this page can check`);
+  const k = ((await api(`/v1/keys/${id}`)).keysets || []).find((x) => x && x.id === id);
+  if (!k || k.unit !== 'sat' || !k.keys || typeof k.keys !== 'object') throw new Error(`the mint has no sat keys for keyset ${id}`);
+  const meta = (list && list[id]) || {};
+  const fees = [...new Set([k.input_fee_ppk, meta.input_fee_ppk, 0])].filter((x) => x !== undefined);
+  const exps = [...new Set([k.final_expiry, meta.final_expiry, undefined])];
+  let found = null;
+  for (const ppk of fees) for (const expiry of exps) {
+    if (found) break;
+    try {
+      if (deriveKeysetId(k.keys, { unit: 'sat', input_fee_ppk: ppk || undefined, expiry: expiry || undefined, versionByte: parseInt(id.slice(0, 2), 16) }) === id)
+        found = { ppk: Number(ppk) || 0, expiry: Number(expiry) || 0 };
+    } catch { /* try the next */ }
+  }
+  if (!found) throw new Error(`the mint's keys for keyset ${id} do not match its id`);
+  if (id.startsWith('00')) found.ppk = Number(meta.input_fee_ppk || k.input_fee_ppk) || 0;
+  for (const v of Object.values(k.keys)) pointFromHex(v);
+  const e = { keys: k.keys, ...found };
+  verified.set(id, e);
+  return e;
+}
+const expired = (e) => e.expiry > 0 && e.expiry * 1000 <= Date.now();
+// Keys for a proof's keyset, refreshing the mint's list once if it is new.
+async function keysOf(id) {
+  try { return await keysFor(id); } catch (e) {
+    if (e instanceof Refusal || (keyset && keyset.list[id])) throw e;
+    await ks(true);
+    if (!keyset.list[id]) throw new Refusal(`ecash from keyset ${id}, which this mint does not list for sat`);
+    return keysFor(id);
+  }
+}
+// The keysets of everything in the vault, checked before a spend.
+async function vaultKeys() {
+  for (const id of new Set(st.proofs.map((p) => p.id))) { try { await keysOf(id); } catch { /* left out of spends */ } }
 }
 // The mint's input fee: each input's own keyset rate, summed, rounded up once.
 function fee(proofs) {
   let ppk = 0;
   for (const p of proofs) {
-    if (!(p.id in keyset.ppk)) throw new Refusal(`ecash from keyset ${p.id}, which this mint does not list for sat`);
-    ppk += keyset.ppk[p.id];
+    const e = verified.get(p.id);
+    if (!e) throw new Refusal(`ecash from keyset ${p.id}, whose keys this page has not checked`);
+    ppk += e.ppk;
   }
   return Math.ceil(ppk / 1000);
 }
@@ -146,7 +224,7 @@ const MAX_PROOFS = 64;          // per receive: more than any real token
 function split(amount) {
   if (!Number.isSafeInteger(amount) || amount <= 0) throw new Refusal('that amount is not a whole number of sats');
   const out = [];
-  const denoms = Object.keys(keyset.keys).map(Number).sort((a, b) => b - a);
+  const denoms = Object.keys(keyset.keys).map(Number).filter((d) => Number.isSafeInteger(d) && d > 0).sort((a, b) => b - a);
   for (const d of denoms) {
     const n = Math.floor(amount / d);
     if (out.length + n > MAX_PROOFS) throw new Refusal('that amount needs more pieces than this page makes at once');
@@ -211,155 +289,202 @@ function lockedOutputs(gen, amount) {
 }
 
 // The mint's signatures, checked before anything is saved: one per output,
-// in order, each for the amount and keyset asked, each with the mint's
-// NUT-12 proof that it signed this output's own B_ with that keyset's key
-// for that amount. A swap answer that fails any of this saves nothing.
+// in order, each for the amount (and keyset) asked, each with the mint's
+// DLEQ proof that it signed this output's own B_ with the checked key of
+// that keyset for that amount. An answer that fails any of this saves
+// nothing.
 async function checkPromises(outs, sigs) {
   if (!Array.isArray(sigs) || sigs.length !== outs.length) throw new Error('the mint answered for a different number of outputs');
   const proofs = [];
   for (let i = 0; i < outs.length; i++) {
-    const o = outs[i], s = sigs[i], id = o.id || keyset.id;
-    if (!s || typeof s.C_ !== 'string' || Number(String(s.amount)) !== o.amount || s.id !== id ||
-        !s.dleq || typeof s.dleq.e !== 'string' || typeof s.dleq.s !== 'string')
+    const o = outs[i], s = sigs[i];
+    if (!s || typeof s.C_ !== 'string' || typeof s.id !== 'string' || Number(String(s.amount)) !== o.amount ||
+        (o.id && s.id !== o.id) || !s.dleq || typeof s.dleq.e !== 'string' || typeof s.dleq.s !== 'string')
       throw new Error('the mint\'s answer does not match the outputs it was given');
-    const keys = await keysFor(id);
-    if (!(String(o.amount) in keys)) throw new Error(`keyset ${id} has no key for ${o.amount}`);
+    const { keys } = await keysOf(s.id);
+    if (!(String(o.amount) in keys)) throw new Error(`keyset ${s.id} has no key for ${o.amount}`);
     let p;
     try {
       const C = unblindSignature(pointFromHex(s.C_), BigInt('0x' + o.r), pointFromHex(keys[o.amount]));
-      p = { amount: o.amount, id, secret: o.secret, C: C.toHex(true) };
+      p = { amount: o.amount, id: s.id, secret: o.secret, C: C.toHex(true) };
     } catch { throw new Error('the mint\'s answer holds a point that is not on the curve'); }
-    if (!hasValidDleq({ ...p, dleq: { e: s.dleq.e, s: s.dleq.s, r: o.r } }, { id, keys }))
+    if (!hasValidDleq({ ...p, dleq: { e: s.dleq.e, s: s.dleq.s, r: o.r } }, { id: s.id, keys }))
       throw new Error('the mint\'s signature on an output did not check out');
     proofs.push(p);
   }
   return proofs;
 }
 
-// ---- operations in flight ----
+// ---- operations sent to the mint ----
 // Before any call that makes the mint sign outputs, the whole operation is
-// saved as a pending record: its outputs (secrets, blinding factors,
-// keyset, which key they belong to) and what it takes to send it again
-// (the quote, the inputs, the signed inputs of a spend). Each operation has
-// one record for life (rid: the quote, the inputs, or the signed hash), so
-// sending it twice cannot make two. A record is settled only when the
-// mint's signatures on every output have checked out, or when the mint has
-// shown the operation can never happen (its inputs are spent elsewhere, or
-// it refuses them for good while they are unspent). Anything less leaves
-// the record for the next try.
+// saved as a record: its outputs (secrets, blinding factors, keyset, which
+// signer key they belong to) and what it takes to send it again (the
+// quote, the inputs, the signed inputs of a spend). Each operation has one
+// id for life (rid: the quote, the input secrets, or the signed hash), so
+// it cannot get two records. Rule 1 above decides when a record leaves:
+// only in finish(), with every output checked. A record the mint has not
+// finished stays pending and is tried again: first by asking the mint what
+// it already signed (NUT-09 restore), then by sending the same request.
+// The owner sees it listed as unfinished and may set it aside, which stops
+// the sending but keeps the record, and its outputs are still looked for.
+const inFlight = new Set();
 function startPending(gen, rec) {
   rec.id = rand32();
+  rec.at = Date.now();
   commit(gen, (s) => {
-    if (s.done.includes(rec.rid)) throw new Refusal('this page already did that; nothing more to do');
-    if (s.pending.some((r) => r.rid === rec.rid)) throw new Refusal('that is already on its way to the mint');
+    if (s.done.includes(tag(rec.rid))) throw new Refusal('this page already did that; nothing more to do');
+    if (s.pending.some((r) => r.rid === rec.rid) || s.archive.some((r) => r.rid === rec.rid))
+      throw new Refusal('that is already listed under unfinished in the vault');
     s.pending.push(rec);
   });
   return rec;
 }
-// Settle a record: the spent inputs go, kept outputs join the vault, a
-// payment goes to the outbox, where it stays until the owner says it was
-// handed over, all in one write.
+const known = (s) => {
+  const have = new Set([...s.proofs, ...s.aside].map((p) => p.secret)), gone = new Set(s.spent);
+  return (secret) => have.has(secret) || gone.has(tag(secret));
+};
+// Settle a record in one write: its spent inputs leave, its kept outputs
+// join the vault (unless already known), a payment goes to the outbox
+// (unless already there or handed over), and its id is remembered.
+let lastPay = null;
 function finish(gen, rec, proofs) {
   return commit(gen, (s) => {
-    if (!s.pending.some((r) => r.id === rec.id)) return null;
-    s.pending = s.pending.filter((r) => r.id !== rec.id);
+    const where = ['pending', 'archive'].find((k) => s[k].some((r) => r.id === rec.id));
+    if (!where) return null;
+    s[where] = s[where].filter((r) => r.id !== rec.id);
     const spentNow = new Set(rec.spends || []);
     s.proofs = s.proofs.filter((p) => !spentNow.has(p.secret));
-    s.spent = [...s.spent, ...[...spentNow].map(tag)].slice(-4000);
-    const have = new Set(s.proofs.map((p) => p.secret)), gone = new Set(s.spent);
+    s.aside = s.aside.filter((p) => !spentNow.has(p.secret));
+    s.spent = [...s.spent, ...[...spentNow].map(tag)].slice(-KEEP);
+    const isKnown = known(s);
     const pay = [];
     rec.outs.forEach((o, i) => {
       const p = proofs[i];
       if (o.keep === null || o.keep === undefined) pay.push(p);
-      else if (!have.has(p.secret) && !gone.has(tag(p.secret))) s.proofs.push({ ...p, counter: o.keep });
+      else if (!isKnown(p.secret)) s.proofs.push({ ...p, counter: o.keep });
     });
-    if (pay.length) s.outbox.push({ id: rec.id, token: getEncodedToken({ mint: MINT, unit: 'sat', proofs: pay }) });
-    if (rec.rid) s.done = [...s.done, rec.rid].slice(-500);
+    if (pay.length) {
+      const key = listTag(pay.map((p) => p.secret));
+      if (!s.outbox.some((x) => x.key === key) && !s.sent.some((x) => x.key === key)) {
+        s.outbox.push({ id: rec.id, key, amount: pay.reduce((t, p) => t + p.amount, 0),
+          token: getEncodedToken({ mint: MINT, unit: 'sat', proofs: pay }) });
+        lastPay = rec.id;
+      }
+    }
+    s.done = [...s.done, tag(rec.rid)].slice(-KEEP);
     return { pay };
   });
 }
+// Why a record is still open, kept with it for the owner to see.
+function note(gen, rec, why) {
+  try {
+    commit(gen, (s) => {
+      const r = [...s.pending, ...s.archive].find((x) => x.id === rec.id);
+      if (r) { r.note = why; r.tries = (r.tries || 0) + 1; }
+    });
+  } catch { /* vault gone */ }
+}
 // The mint's signatures on every output of a record (NUT-09 restore), null
-// when it signed none of them yet.
+// when it signed none of them yet. Every row must be one of the record's
+// own outputs, once.
 async function restored(rec) {
   const r = await api('/v1/restore', { outputs: rec.outs.map(wire) });
   const outs = r.outputs, sigs = r.signatures || r.promises;
-  if (!Array.isArray(outs) || !Array.isArray(sigs) || outs.length !== sigs.length) throw new Error('the mint gave a malformed restore answer');
-  const byB = new Map();
-  outs.forEach((o, i) => { if (o && typeof o.B_ === 'string') byB.set(o.B_, sigs[i]); });
-  const found = rec.outs.filter((o) => byB.has(o.B_)).length;
-  if (found === 0) return null;
-  if (found !== rec.outs.length) throw new Error('the mint knows only part of an interrupted swap; it is kept to try again');
+  if (!Array.isArray(outs) || !Array.isArray(sigs) || outs.length !== sigs.length || outs.length > rec.outs.length)
+    throw new Error('the mint gave a malformed restore answer');
+  const mine = new Set(rec.outs.map((o) => o.B_)), byB = new Map();
+  outs.forEach((o, i) => {
+    if (!o || !mine.has(o.B_) || byB.has(o.B_)) throw new Error('the mint\'s restore answer names outputs it was not asked about');
+    byB.set(o.B_, sigs[i]);
+  });
+  if (byB.size === 0) return null;
+  if (byB.size !== rec.outs.length) throw new Error('the mint knows only part of this swap');
   return rec.outs.map((o) => byB.get(o.B_));
 }
 async function send(rec) {
   const outputs = rec.outs.map(wire);
   if (rec.kind === 'mint') {
-    if (!rec.quote) throw Object.assign(new Error('an old test mint record'), { code: 'old' });
+    if (!rec.quote) throw new Error('an old test mint record with no quote: it can only be restored');
     return (await api('/v1/mint/bolt11', { quote: rec.quote, outputs })).signatures;
   }
-  if (!rec.inputs) throw Object.assign(new Error('an old spend record'), { code: 'old' });
+  if (!rec.inputs) throw new Error('an old spend record without its signed inputs: it can only be restored');
   return (await api('/v1/swap', { inputs: rec.inputs, outputs })).signatures;
 }
-// The mint refused and signed nothing: settle the record only if the mint
-// shows it can never happen, otherwise keep it.
-const FINAL = new Set([10003, 11002, 11005, 11006, 11007, 11008, 12001, 12002, 'old']);
-async function refused(gen, rec, err) {
-  let why = null, gone = [];
-  if (rec.kind === 'mint') {
-    const q = rec.quote ? await api(`/v1/mint/quote/bolt11/${rec.quote}`) : null;
-    if (!q || ['UNPAID', 'ISSUED', 'EXPIRED'].includes(q.state)) why = 'the test mint will not issue it';
-  } else {
-    const secrets = rec.kind === 'spend' ? rec.spends : rec.inputs.map((p) => p.secret);
-    const states = await stateOf(secrets.map(yOf));
-    if (states.every((x) => x === 'SPENT')) {
-      const sigs = await restored(rec);     // spent by this very swap, signed since
-      if (sigs) return sigs;
-      why = 'that ecash was already spent somewhere else';
-      gone = secrets;
-    } else if (states.every((x) => x === 'UNSPENT') && FINAL.has(err.code)) why = `the mint refused it (${err.message})`;
-  }
-  if (!why) throw err;
-  commit(gen, (s) => {
-    s.pending = s.pending.filter((r) => r.id !== rec.id);
-    s.proofs = s.proofs.filter((p) => !gone.includes(p.secret));
-  });
-  throw new Refusal(why);
-}
-// Carry one record as far as the mint lets it. A fresh one is sent first; a
-// recovered one asks the mint what it already signed before sending again,
-// the same request each time.
-async function drive(rec, fresh) {
-  const gen = st.gen;
-  await ks();
-  let sigs = fresh ? null : await restored(rec);
-  if (!sigs) {
-    try { sigs = await send(rec); } catch (e) {
-      if (e.code === undefined) throw e;    // no answer: keep it
-      sigs = await restored(rec) || await refused(gen, rec, e);
+// Carry one record as far as the mint lets it. A fresh one is sent first;
+// one being recovered asks what the mint already signed before sending
+// again, the same request each time, and only while it is still pending in
+// the same vault. A set aside record is only ever restored, never sent.
+async function drive(gen, rec, mode) {
+  if (inFlight.has(rec.id)) throw new Error('already being sent');
+  inFlight.add(rec.id);
+  try {
+    await ks();
+    let sigs = mode === 'fresh' ? null : await restored(rec);
+    if (!sigs && mode === 'aside') return null;
+    if (!sigs) {
+      const cur = load();
+      if (!cur || cur.gen !== gen || !cur.pending.some((r) => r.id === rec.id)) throw new Refusal('the vault changed, so this was not sent');
+      try { sigs = await send(rec); } catch (e) {
+        if (e.code === undefined) throw e;
+        sigs = await restored(rec);
+        if (!sigs) throw e;
+      }
     }
-  }
-  return finish(gen, rec, await checkPromises(rec.outs, sigs));
+    return finish(gen, rec, await checkPromises(rec.outs, sigs));
+  } catch (e) {
+    if (mode !== 'aside') note(gen, rec, e.message || String(e));
+    throw e;
+  } finally { inFlight.delete(rec.id); }
 }
-const LATER = 'this page kept everything it needs and finishes it the next time it loads';
-async function recoverPending() {
+const why = (e) => String((e && e.message) || e).replace(/\.+$/, '');
+const KEPT = 'It is listed under unfinished in the vault, with everything needed to finish it; nothing was lost.';
+async function recoverPending(gen) {
   for (const rec of [...st.pending]) {
+    if (!st || st.gen !== gen) return;
     try {
-      if (await drive(rec, false)) msg('recv-msg', 'Finished a swap that was interrupted.', 'ok');
+      if (await drive(gen, rec, 'again')) msg('recv-msg', 'Finished a swap that was interrupted.', 'ok');
     } catch (e) {
-      msg('recv-msg', e instanceof Refusal ? `An interrupted swap was dropped: ${e.message}`
-        : `An interrupted swap is still waiting for the mint (${e.message || e}); ${LATER}.`, 'bad');
+      msg('recv-msg', `An unfinished swap is still not done (${why(e)}). ${KEPT}`, 'bad');
     }
   }
-}
-// Run a fresh operation; on anything but a final refusal, say it is kept.
-async function runFresh(rec) {
-  try { return await drive(rec, true); } catch (e) {
-    if (e instanceof Refusal) throw e;
-    throw new Error(`the mint did not finish (${e.message || e}); ${LATER}`);
+  for (const rec of [...st.archive]) {
+    if (!st || st.gen !== gen) return;
+    try { if (await drive(gen, rec, 'aside')) msg('recv-msg', 'A swap that was set aside turned out finished; its ecash is back in the vault.', 'ok'); } catch { /* still set aside */ }
   }
+}
+async function runFresh(gen, rec) {
+  try { return await drive(gen, rec, 'fresh'); } catch (e) {
+    throw new Error(`Not finished: ${why(e)}. ${KEPT}`);
+  }
+}
+// The owner's call on the oldest unfinished record: set it aside. Inputs
+// of a set aside spend that the mint says are spent move out of the
+// balance into the aside list, kept, never deleted.
+async function setAside() {
+  const gen = st.gen;
+  const rec = st.pending.find((r) => r.note && !inFlight.has(r.id));
+  if (!rec) return;
+  if (!confirm(`Set this unfinished swap aside?\n\n${rec.note}\n\nThe page stops sending it but keeps its record, and still picks it up if the mint shows it finished.`)) return;
+  let spentIn = [];
+  if (rec.kind === 'spend') {
+    try {
+      const states = await stateOf(rec.spends.map(yOf));
+      spentIn = rec.spends.filter((x, i) => states[i] === 'SPENT');
+    } catch { /* leave the inputs in the balance */ }
+  }
+  commit(gen, (s) => {
+    const r = s.pending.find((x) => x.id === rec.id);
+    if (!r) return;
+    s.pending = s.pending.filter((x) => x.id !== rec.id);
+    s.archive.push(r);
+    s.aside.push(...s.proofs.filter((p) => spentIn.includes(p.secret)));
+    s.proofs = s.proofs.filter((p) => !spentIn.includes(p.secret));
+  });
 }
 
 // ---- receive ----
+// The quote and its outputs are saved before waiting for payment, so
+// closing the page while it waits loses nothing.
 async function mintTest() {
   const amount = Number($('mint-amt').value);
   const gen = st.gen;
@@ -367,12 +492,15 @@ async function mintTest() {
   if (!Number.isSafeInteger(amount) || amount <= 0 || amount > 100000) throw new Refusal('ask for 1 to 100000 test sats');
   msg('recv-msg', 'Asking the test mint...');
   const q = await api('/v1/mint/quote/bolt11', { amount, unit: 'sat' });
+  if (typeof q.quote !== 'string' || !q.quote) throw new Error('the test mint gave no quote');
+  const outs = lockedOutputs(gen, amount);
+  const rec = startPending(gen, { kind: 'mint', rid: `q:${q.quote}`, quote: q.quote, outs });
   for (let i = 0; i < 30; i++) {
-    if ((await api(`/v1/mint/quote/bolt11/${q.quote}`)).state === 'PAID') break;
+    const s = await api(`/v1/mint/quote/bolt11/${encodeURIComponent(q.quote)}`);
+    if (s.state === 'PAID' || s.state === 'ISSUED') break;
     await new Promise((r) => setTimeout(r, 500));
   }
-  const outs = lockedOutputs(gen, amount);
-  await runFresh(startPending(gen, { kind: 'mint', rid: `q:${q.quote}`, quote: q.quote, outs }));
+  await runFresh(gen, rec);
   msg('recv-msg', `${sats(amount)} locked to signer key ${outs[0].keep}.`, 'ok');
 }
 
@@ -391,11 +519,13 @@ function cleanProofs(list) {
   if (new Set(out.map((p) => p.id)).size > 4) throw new Refusal('that ecash comes from too many keysets');
   return out;
 }
-// Each proof's amount must be one its keyset has a key for.
+// Each proof's keyset must be one of the mint's sat keysets, checked, not
+// past its final expiry, with a key for the proof's amount.
 async function checkDenoms(proofs) {
   for (const p of proofs) {
-    if (!(p.id in keyset.ppk)) throw new Refusal(`ecash from keyset ${p.id}, which this mint does not list for sat`);
-    if (!(String(p.amount) in await keysFor(p.id))) throw new Refusal('that ecash has an amount its keyset does not issue');
+    const e = await keysOf(p.id);
+    if (expired(e)) throw new Refusal('that ecash is from a keyset the mint no longer redeems');
+    if (!(String(p.amount) in e.keys)) throw new Refusal('that ecash has an amount its keyset does not issue');
   }
 }
 
@@ -404,12 +534,14 @@ async function checkDenoms(proofs) {
 async function swapBearer(gen, proofs) {
   await checkDenoms(proofs);
   const plain = proofs.map(({ dleq, ...p }) => p);
+  const states = await stateOf(plain.map((p) => yOf(p.secret)));
+  if (states.includes('SPENT')) throw new Refusal('part of that token was already spent, so the mint will not take it');
+  if (!states.every((x) => x === 'UNSPENT')) throw new Error('the mint has not said that token is unspent yet; try again in a moment');
   const total = plain.reduce((s, p) => s + p.amount, 0);
   const keep = total - fee(plain);
   if (keep <= 0) throw new Refusal('that ecash is smaller than the mint fee');
   const outs = lockedOutputs(gen, keep);
-  const rid = 'in:' + tag(plain.map((p) => p.secret).sort().join('\n'));
-  await runFresh(startPending(gen, { kind: 'bearer', rid, inputs: plain, outs }));
+  await runFresh(gen, startPending(gen, { kind: 'bearer', rid: 'in:' + listTag(plain.map((p) => p.secret)), inputs: plain, outs }));
   return `${sats(keep)} arrived unlocked and is now locked to signer key ${outs[0].keep} (mint fee ${sats(total - keep)}).`;
 }
 
@@ -423,7 +555,7 @@ async function receiveToken() {
   let said;
   if (locked.length) {
     if (!st.jar) throw new Refusal('that ecash is locked to something other than your tip jar, so this page cannot take it');
-    said = await keepLockedTip(gen, st.jar.counter, proofs) || 'that tip is already in the vault.';
+    said = await keepLockedTip(gen, st.jar.counter, proofs, (t) => msg('recv-msg', t, 'ok')) || 'that tip is already in the vault.';
   } else said = await swapBearer(gen, proofs);
   $('token-in').value = '';
   msg('recv-msg', said, 'ok');
@@ -475,8 +607,8 @@ function showJar() {
 
 // Gift wraps addressed to the jar key, all of them: NIP-17 backdates a wrap
 // by up to two days, so a time window would drop tips that arrived while the
-// page was closed. A wrap is marked handled only once its tip is kept or
-// refused for good; one that met a mint or network failure is tried again a
+// page was closed. A wrap is marked handled only once nothing in it is
+// left to try; one that met a mint or network failure is tried again a
 // little later, and the next time the page opens. The listener belongs to
 // one pairing and one jar key: forget the signer and it closes, and work it
 // started is refused if either changed meanwhile.
@@ -497,13 +629,14 @@ function stopJar() {
 }
 const markSeen = (w, id) => commit(w.gen, (s) => {
   if (!s.jar || s.jar.counter !== w.counter) return;
-  s.jar.seen = [...(s.jar.seen || []).filter((x) => x !== id), id].slice(-500);
+  s.jar.seen = [...(s.jar.seen || []).filter((x) => x !== id), id].slice(-2000);
 });
 const live = (w) => st && st.gen === w.gen && st.jar && st.jar.counter === w.counter;
 async function onWrap(w, ev, attempt) {
   if (!live(w) || (st.jar.seen || []).includes(ev.id)) return;
   let payload;
   try { payload = JSON.parse(unwrapEvent(ev, w.sk).content); } catch { return; }   // not for us, or not a tip
+  const say = (t) => msg('jar-msg', `Tip over Nostr: ${t}`, 'ok');
   try {
     await ks();
     if (!payload || typeof payload !== 'object') throw new Refusal('a Nostr message that is not a tip');
@@ -512,9 +645,9 @@ async function onWrap(w, ev, attempt) {
     const pub = pubAt(st.xpub, w.counter);
     if (!proofs.every((p) => signerLock(pub, p.secret)))
       throw new Refusal('a tip came over Nostr without the lock the tip jar asks for, and was left; ask the sender to pay the tip jar again');
-    const said = await keepLockedTip(w.gen, w.counter, proofs);
+    const said = await keepLockedTip(w.gen, w.counter, proofs, say);
     markSeen(w, ev.id);
-    if (said) msg('jar-msg', `Tip over Nostr: ${said}`, 'ok');
+    if (said) say(said);
   } catch (e) {
     if (!live(w)) return;
     if (e instanceof Refusal) {
@@ -529,41 +662,49 @@ async function onWrap(w, ev, attempt) {
 
 // A tip that came locked is kept as it is, with no swap: the payer cannot
 // take it back, since only the signer can spend it. Checked first, because
-// the page cannot spend it to find out later: the lock (above), the mint's
-// own proof that it signed each one (NUT-12 DLEQ, with the keys of the
-// keyset that issued it), and the mint's word that each one, matched by its
-// Y, is unspent (NUT-07). Proofs already in the vault, or spent from it,
-// are skipped, so the same tip delivered twice is kept once; null when
-// nothing in it is new. C is stored in the one spelling the signer reads:
-// compressed, lowercase. Only SPENT is a final no: a proof the mint calls
-// PENDING, or does not answer for, is tried again.
-async function keepLockedTip(gen, counter, proofs) {
+// the page cannot spend it to find out later: the lock (above), the keyset
+// (checked keys, not expired, a key for the amount), the mint's own proof
+// that it signed each one (DLEQ), and the mint's word, matched by Y, that
+// each one is unspent. Proofs already known to the vault are skipped, so a
+// tip delivered twice is kept once. Proofs the mint calls spent are left
+// out; the rest are kept. If the mint has not answered for some, those
+// are tried again (an error after the others are kept). Returns what was
+// kept, or null when nothing in it was new.
+async function keepLockedTip(gen, counter, proofs, progress) {
   const pub = pubAt(st.xpub, counter);
   if (!proofs.every((p) => signerLock(pub, p.secret)))
     throw new Refusal('that ecash is locked to something other than your tip jar, so this page cannot take it');
   await checkDenoms(proofs);
-  const known = (s) => (p) => s.proofs.some((q) => q.secret === p.secret) || s.spent.includes(tag(p.secret));
-  const fresh = proofs.filter((p) => !known(st)(p));
-  if (!fresh.length) return null;
+  const isKnown = known(st);
+  const todo = proofs.filter((p) => !isKnown(p.secret));
+  if (!todo.length) return null;
   const kept = [];
-  for (const p of fresh) {
-    const keys = await keysFor(p.id);
+  for (const p of todo) {
+    const { keys } = await keysOf(p.id);
     if (!p.dleq || !hasValidDleq(p, { id: p.id, keys }))
       throw new Refusal('that tip carries no proof the mint signed it; ask the sender to send it again');
     kept.push({ amount: p.amount, id: p.id, secret: p.secret, C: pointFromHex(p.C).toHex(true) });
   }
   const states = await stateOf(kept.map((p) => yOf(p.secret)));
-  if (states.includes('SPENT')) throw new Refusal('the mint says part of that tip is already spent');
-  if (!states.every((x) => x === 'UNSPENT')) throw new Error('the mint did not say every proof is unspent yet');
-  const added = commit(gen, (s) => {
+  const good = kept.filter((p, i) => states[i] === 'UNSPENT');
+  const spentSum = kept.filter((p, i) => states[i] === 'SPENT').reduce((t, p) => t + p.amount, 0);
+  const waiting = states.filter((x) => x !== 'UNSPENT' && x !== 'SPENT').length;
+  const added = good.length ? commit(gen, (s) => {
     if (!s.jar || s.jar.counter !== counter) throw new Refusal('the tip jar changed while this tip was checked');
-    const add = kept.filter((p) => !known(s)(p));
+    const k = known(s);
+    const add = good.filter((p) => !k(p.secret));
     s.proofs.push(...add.map((p) => ({ ...p, counter })));
     return add;
-  });
-  if (!added.length) return null;
-  const total = added.reduce((s, p) => s + p.amount, 0);
-  return `${sats(total)} arrived locked to your signer; kept as it is, no fee.`;
+  }) : [];
+  const total = added.reduce((t, p) => t + p.amount, 0);
+  let said = total ? `${sats(total)} arrived locked to your signer; kept as it is, no fee.` : '';
+  if (spentSum) said += `${said ? ' ' : ''}${sats(spentSum)} of it the mint says is already spent, so that part was left.`;
+  if (waiting) {
+    if (said) progress(said);
+    throw new Error('the mint has not confirmed part of the tip yet');
+  }
+  if (!total && spentSum) throw new Refusal('the mint says that tip is already spent');
+  return said || null;
 }
 
 // ---- send ----
@@ -580,15 +721,22 @@ function sigallHash(inputs, outs) {
 
 // SIG_ALL spends proofs that share one key. For each key, a few ways to
 // cover the payment and its fee: largest first (fewest inputs), smallest
-// first (least change), and the one smallest proof that covers it alone.
-// makeRequest takes the first that fits the signer's limits. Proofs the
-// signer would refuse, or that a pending spend already uses, are left out.
+// first (least change), the one smallest proof that covers it alone, and
+// largest first among proofs no bigger than each amount the key holds
+// (which leaves a huge proof out when smaller ones suffice). makeRequest
+// takes the first that fits the signer's limits. Proofs the signer would
+// refuse, whose keyset is unchecked or expired, or that a pending spend
+// already uses, are left out.
 function chooseInputs(amount) {
   const busy = new Set(st.pending.flatMap((r) => r.spends || []));
-  const tries = [];
+  const usable = (p) => !p.bad && !busy.has(p.secret) && verified.has(p.id) && !expired(verified.get(p.id));
+  const tries = [], seen = new Set();
   const add = (counter, take) => {
     const total = take.reduce((s, p) => s + p.amount, 0);
-    if (take.length && take.length <= MAX_IN && total >= amount + fee(take)) tries.push({ counter, proofs: take, total });
+    const key = take.map((p) => p.secret).sort().join('\n');
+    if (!take.length || take.length > MAX_IN || total < amount + fee(take) || seen.has(key)) return;
+    seen.add(key);
+    tries.push({ counter, proofs: take, total });
   };
   const greedy = (list) => {
     const take = [];
@@ -601,12 +749,13 @@ function chooseInputs(amount) {
     return take;
   };
   for (const [counter, all] of groupBy().entries()) {
-    const ok = all.filter((p) => !p.bad && !busy.has(p.secret));
+    const ok = all.filter(usable);
     const desc = [...ok].sort((a, b) => b.amount - a.amount), asc = [...desc].reverse();
     add(counter, greedy(desc));
     add(counter, greedy(asc));
     const one = asc.find((p) => p.amount >= amount + fee([p]));
     if (one) add(counter, [one]);
+    for (const cap of new Set(ok.map((p) => p.amount))) add(counter, greedy(desc.filter((p) => p.amount <= cap)));
   }
   return tries.sort((a, b) => a.proofs.length - b.proofs.length || a.total - b.total);
 }
@@ -614,6 +763,7 @@ function chooseInputs(amount) {
 async function makeRequest() {
   const gen = st.gen;
   await ks();
+  await vaultKeys();
   const amount = Number($('send-amt').value);
   if (!Number.isSafeInteger(amount) || amount <= 0) throw new Refusal('enter an amount');
   const tries = chooseInputs(amount);
@@ -652,7 +802,7 @@ async function submitReply(text) {
   if (!openReq) throw new Refusal('no spend request open');
   let rep;
   try { rep = JSON.parse(text.trim()); } catch { throw new Refusal('that is not the signer\'s answer'); }
-  if (rep.v !== 1 || rep.hash !== openReq.hash || !/^[0-9a-f]{128}$/.test(rep.sig || ''))
+  if (!rep || rep.v !== 1 || rep.hash !== openReq.hash || !/^[0-9a-f]{128}$/.test(rep.sig || ''))
     throw new Refusal('that answer is for a different request');
   const { gen, outs, hash } = openReq;
   const inputs = openReq.inputs.map((p, i) => {
@@ -666,40 +816,75 @@ async function submitReply(text) {
   $('req-box').classList.add('hidden');
   $('reply-in').value = '';
   msg('send-msg', 'Sending to the mint...');
-  await runFresh(rec);
+  await runFresh(gen, rec);
   msg('send-msg', '');
 }
 
-// The oldest payment not yet handed over. It stays, across reloads, until
-// the owner says it was sent.
-let shownToken = null;
-function showToken(token) {
-  shownToken = token;
-  $('token-box').classList.remove('hidden');
-  const out = $('token-out');
-  out.value = token;
-  // Tall enough for the whole token: a scrolled box hid its first lines.
-  out.style.height = 'auto';
-  out.style.height = out.scrollHeight + 2 + 'px';
-  drawQR($('token-qr'), token);
-}
+// ---- payments to hand over ----
+// A payment stays in the outbox, across reloads, until the owner says it
+// was sent. The token on screen and its QR are always the same payment:
+// the QR is cleared before a new one is drawn, and a token too long for
+// one QR shows as text only. "I've sent it" acts on the payment it was
+// shown with, and the next waiting payment is shown only on request, so a
+// double tap cannot pass over one.
+let shownId = null, shownToken = null;
 function renderOutbox() {
   const ob = (st && st.outbox) || [];
-  if (ob.length) {
-    if (shownToken !== ob[0].token) showToken(ob[0].token);
-    $('token-more').textContent = ob.length > 1 ? `${ob.length - 1} more payment${ob.length > 2 ? 's' : ''} after this one.` : '';
-  } else if (shownToken !== null) {
+  if (lastPay && ob.some((x) => x.id === lastPay)) { shownId = lastPay; lastPay = null; }
+  if (shownId !== null && !ob.some((x) => x.id === shownId)) shownId = null;
+  const cur = ob.find((x) => x.id === shownId);
+  if (cur) {
+    if (shownToken !== cur.token) {
+      shownToken = cur.token;
+      const out = $('token-out');
+      out.value = cur.token;
+      out.style.height = 'auto';
+      out.style.height = out.scrollHeight + 2 + 'px';
+      const fits = drawQR($('token-qr'), cur.token);
+      $('token-qr').classList.toggle('hidden', !fits);
+      $('token-qr-note').classList.toggle('hidden', fits);
+    }
+    $('token-done').dataset.id = cur.id;
+    $('token-box').classList.remove('hidden');
+  } else {
     shownToken = null;
+    $('token-done').dataset.id = '';
     $('token-box').classList.add('hidden');
   }
+  const waiting = ob.filter((x) => x.id !== shownId).length;
+  $('next-text').textContent = waiting ? `${waiting} payment${waiting > 1 ? 's' : ''} waiting to be handed over.` : '';
+  $('next-box').classList.toggle('hidden', !waiting);
+  $('token-next').classList.toggle('hidden', !!cur);
+}
+function sentIt() {
+  const id = $('token-done').dataset.id;
+  if (!id || id !== shownId) return;
+  shownId = null;
+  commit(st.gen, (s) => {
+    const x = s.outbox.find((y) => y.id === id);
+    if (!x) return;
+    s.outbox = s.outbox.filter((y) => y.id !== id);
+    s.sent = [...s.sent, { ...x, at: Date.now() }].slice(-KEEP_SENT);
+  });
+}
+function showNext() {
+  const ob = st.outbox;
+  if (ob.length) shownId = ob[0].id;
+  renderOutbox();
 }
 
 // ---- QR out ----
 let frameTimer = null;
+// Draws text as one QR code, or clears the canvas and returns false when
+// the text is too long for one: an older code is never left on screen.
 function drawQR(canvas, text) {
-  const q = qrcode(0, 'L');
-  q.addData(text, 'Byte');
-  q.make();
+  canvas.width = canvas.height = 0;
+  let q;
+  try {
+    q = qrcode(0, 'L');
+    q.addData(text, 'Byte');
+    q.make();
+  } catch { return false; }
   const n = q.getModuleCount(), pad = 4, px = 6;
   canvas.width = canvas.height = (n + 2 * pad) * px;
   const g = canvas.getContext('2d');
@@ -707,6 +892,7 @@ function drawQR(canvas, text) {
   g.fillStyle = '#000';
   for (let y = 0; y < n; y++) for (let x = 0; x < n; x++)
     if (q.isDark(y, x)) g.fillRect((x + pad) * px, (y + pad) * px, px, px);
+  return true;
 }
 // "pMofN <base64>" frames: the animated format the signer already reads. A
 // short request is still sent as "p1of1": the signer reads bare base64 only
@@ -778,7 +964,6 @@ function stopCam() {
 // ---- pairing ----
 // A new pairing never replaces a vault that still holds anything: that
 // takes Forget first, which asks.
-const holds = (v) => v && ((v.proofs || []).length || (v.pending || []).length || (v.outbox || []).length);
 function pair(text) {
   const t = text.trim();
   const m = /^\[([0-9a-f]{8})\/129373h\/10h\/0h\/0h\](xpub[1-9A-HJ-NP-Za-km-z]{100,112})$/.exec(t);
@@ -789,14 +974,17 @@ function pair(text) {
   if (holds(cur)) throw new Refusal('this page still holds another signer\'s vault; forget it first');
   stopJar();
   clearSignerViews();
-  save({ xpub: t, fp: m[1], gen: rand32(), next: 0, proofs: [], pending: [], outbox: [], done: [], spent: [] });
+  save(fresh(t, m[1]));
   tidy();
   render();
 }
 function forget() {
   const cur = load();
-  if (holds(cur) && !confirm('This vault still holds ecash. Forget it anyway? Your signer can still spend it, but this page will no longer know where it is.')) return;
-  try { localStorage.removeItem(STORE); } catch (e) {
+  if (holds(cur) && !confirm('This vault still holds ecash or unfinished swaps. Forget it anyway? Your signer can still spend its ecash, but this page will no longer know where it is.')) return;
+  try {
+    if (cur) localStorage.setItem(`${STORE}-forgotten-${Date.now()}`, JSON.stringify(cur));
+    localStorage.removeItem(STORE);
+  } catch (e) {
     alert(`Could not forget this vault in this browser (${e.message || e}). Nothing was removed.`);
     return;
   }
@@ -809,10 +997,10 @@ function forget() {
 function clearSignerViews() {
   openReq = null;
   stopFrames();
-  for (const id of ['req-box', 'jar-box', 'token-box']) $(id).classList.add('hidden');
+  for (const id of ['req-box', 'jar-box', 'token-box', 'next-box']) $(id).classList.add('hidden');
   for (const id of ['jar-qr', 'jar-qr-inline', 'req-qr', 'token-qr']) $(id).width = 0;
   for (const id of ['jar-text', 'req-text', 'token-out', 'reply-in']) $(id).value = '';
-  shownToken = null;
+  shownId = shownToken = null;
 }
 
 // ---- view ----
@@ -841,6 +1029,14 @@ function render() {
     return `key ${c}: ${ps.reduce((s, p) => s + p.amount, 0)}${bad ? ` (${bad} your signer cannot spend)` : ''}`;
   });
   $('groups').textContent = g.length ? g.join(', ') : 'nothing yet';
+  const un = st.pending.filter((r) => r.note);
+  const parts = [];
+  if (un.length) parts.push(`${un.length} unfinished swap${un.length > 1 ? 's' : ''}, kept and tried again on every load. Oldest: ${un[0].note}`);
+  if (st.archive.length) parts.push(`${st.archive.length} set aside, still kept and looked for at the mint.`);
+  $('stuck-text').textContent = parts.join(' ');
+  $('stuck-box').classList.toggle('hidden', !parts.length);
+  $('stuck-aside').classList.toggle('hidden', !un.length);
+  $('stuck-retry').classList.toggle('hidden', !un.length && !st.archive.length);
   renderOutbox();
 }
 
@@ -856,11 +1052,10 @@ $('send-btn').onclick = guard('send-msg', makeRequest);
 $('reply-btn').onclick = guard('send-msg', () => submitReply($('reply-in').value));
 $('reply-scan').onclick = guard('send-msg', () => scan(guard('send-msg', submitReply)));
 $('req-cancel').onclick = () => { openReq = null; stopFrames(); stopCam(); $('req-box').classList.add('hidden'); msg('send-msg', ''); };
-$('token-done').onclick = guard('send-msg', () => {
-  if (!st.outbox.length) return;
-  const id = st.outbox[0].id;
-  commit(st.gen, (s) => { s.outbox = s.outbox.filter((x) => x.id !== id); });
-});
+$('token-done').onclick = guard('send-msg', sentIt);
+$('token-next').onclick = guard('send-msg', showNext);
+$('stuck-retry').onclick = guard('recv-msg', () => recoverPending(st.gen));
+$('stuck-aside').onclick = guard('recv-msg', setAside);
 $('cam-stop').onclick = stopCam;
 $('jar-btn').onclick = guard('jar-msg', showJar);
 $('jar-hide').onclick = () => $('jar-box').classList.add('hidden');
@@ -900,30 +1095,39 @@ syncStage();
 // The vault runs in the one tab that holds this lock (Web Locks, shared by
 // every tab of this site), for as long as that tab is open. Another tab
 // shows only a note, so two copies of the page never act on one vault. A
-// reload can briefly overlap the closing page, hence the few retries.
+// reload can briefly overlap the closing page, hence the few retries. If
+// the page cannot start, it lets the lock go and says why.
 function start() {
   owner = true;
   $('tab-card').classList.add('hidden');
   tidy();
+  if (st && st.outbox.length) shownId = st.outbox[0].id;
   render();
   if (!st) return;
   listenJar();
-  recoverPending().catch((e) => msg('recv-msg', `An interrupted swap is still waiting for the mint (${e.message || e}); ${LATER}.`, 'bad'));
+  recoverPending(st.gen).catch((e) => msg('recv-msg', `An unfinished swap is still not done (${why(e)}). ${KEPT}`, 'bad'));
 }
 function blocked(text) {
+  owner = false;
   $('tab-msg').textContent = text;
   $('tab-card').classList.remove('hidden');
+  try { render(); } catch { /* the note is what matters */ }
 }
-async function takeLock(tries) {
-  const got = await new Promise((resolve) => {
-    navigator.locks.request('kiss-ecash-vault', { ifAvailable: true }, (lock) => {
-      resolve(!!lock);
-      return lock ? new Promise(() => {}) : undefined;   // held until the tab closes
-    });
-  });
-  if (got) return start();
-  if (tries > 0) return setTimeout(() => takeLock(tries - 1), 700);
-  blocked('This vault is already open in another tab or window. Use that one, or close it and reload this page.');
+function takeLock(tries) {
+  let release = null;
+  const held = new Promise((r) => { release = r; });
+  navigator.locks.request('kiss-ecash-vault', { ifAvailable: true }, (lock) => {
+    if (!lock) {
+      if (tries > 0) setTimeout(() => takeLock(tries - 1), 700);
+      else blocked('This vault is already open in another tab or window. Use that one, or close it and reload this page.');
+      return undefined;
+    }
+    try { start(); } catch (e) {
+      release();
+      blocked(`The vault could not start in this browser (${e.message || e}). Reload the page to try again.`);
+    }
+    return held;   // kept until the tab closes
+  }).catch((e) => blocked(`This browser would not let the vault take its tab lock (${e.message || e}). Open the page in Brave or Chrome.`));
 }
 if (navigator.locks && navigator.locks.request) takeLock(4);
 else blocked('This browser cannot keep two tabs of the vault apart. Open the page in Brave or Chrome.');
