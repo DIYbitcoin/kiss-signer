@@ -86,6 +86,9 @@ function wellFormed(v) {
     if (v[k].some((x) => typeof x !== want || x === null)) return false;
   }
   if (v.proofs && v.proofs.some((p) => typeof p.secret !== 'string' || typeof p.C !== 'string')) return false;
+  for (const k of ['pending', 'archive']) {
+    if (v[k] && v[k].some((r) => !Array.isArray(r.outs) || r.outs.some((o) => !o || typeof o.B_ !== 'string'))) return false;
+  }
   if (v.kpin !== undefined && (typeof v.kpin !== 'object' || v.kpin === null || Array.isArray(v.kpin))) return false;
   if (v.next !== undefined && !Number.isSafeInteger(v.next)) return false;
   return true;
@@ -587,6 +590,7 @@ const KEPT = 'It is listed under unfinished in the vault, with everything needed
 async function recoverPending(gen) {
   for (const rec of [...st.pending]) {
     if (!st || st.gen !== gen) return;
+    if (inFlight.has(rec.id)) continue;   // being sent right now
     try {
       if (await drive(gen, rec, 'again')) msg('recv-msg', 'Finished a swap that was interrupted.', 'ok');
     } catch (e) {
@@ -595,6 +599,7 @@ async function recoverPending(gen) {
   }
   for (const rec of [...st.archive]) {
     if (!st || st.gen !== gen) return;
+    if (inFlight.has(rec.id)) continue;
     try { if (await drive(gen, rec, 'aside')) msg('recv-msg', 'A swap that was set aside turned out finished; its ecash is back in the vault.', 'ok'); } catch { /* still set aside */ }
   }
   await checkBalance(gen);
@@ -757,7 +762,10 @@ async function receiveToken() {
   let tok;
   try { tok = getDecodedToken($('token-in').value.trim(), keyset.ids); } catch {
     await ks(true);
-    tok = getDecodedToken($('token-in').value.trim(), keyset.ids);
+    try { tok = getDecodedToken($('token-in').value.trim(), keyset.ids); } catch (e) {
+      if (/keyset/i.test(e.message || '')) throw new Error('that token names a keyset this mint does not list; if the mint just added it, try again in a minute');
+      throw new Refusal('that is not a cashu token this page can read');
+    }
   }
   if (tok.mint.replace(/\/$/, '') !== MINT) throw new Refusal(`that token is from ${tok.mint}; this page uses ${MINT}`);
   const proofs = cleanProofs(tok.proofs);
