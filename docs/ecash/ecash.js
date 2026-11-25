@@ -85,10 +85,27 @@ function wellFormed(v) {
     const want = ['done', 'spent', 'sentKeys'].includes(k) ? 'string' : 'object';
     if (v[k].some((x) => typeof x !== want || x === null)) return false;
   }
-  if (v.proofs && v.proofs.some((p) => typeof p.secret !== 'string' || typeof p.C !== 'string')) return false;
+  const isProof = (p) => typeof p.secret === 'string' && typeof p.C === 'string' && typeof p.id === 'string' && Number.isSafeInteger(p.amount) && p.amount > 0;
+  if ((v.proofs || []).some((p) => !isProof(p) || !Number.isSafeInteger(p.counter))) return false;
+  if ((v.aside || []).some((p) => !isProof(p))) return false;
+  const isOut = (o) => o && typeof o.B_ === 'string' && typeof o.secret === 'string' && typeof o.r === 'string' && Number.isSafeInteger(o.amount);
   for (const k of ['pending', 'archive']) {
-    if (v[k] && v[k].some((r) => !Array.isArray(r.outs) || r.outs.some((o) => !o || typeof o.B_ !== 'string'))) return false;
+    for (const r of v[k] || []) {
+      if (!['mint', 'bearer', 'spend'].includes(r.kind) || typeof r.id !== 'string' || typeof r.rid !== 'string') return false;
+      if (!Array.isArray(r.outs) || !r.outs.length || !r.outs.every(isOut)) return false;
+      if (r.prev !== undefined && (!Array.isArray(r.prev) || !r.prev.every((x) => Array.isArray(x) && x.every(isOut)))) return false;
+      if (r.inputs !== undefined && (!Array.isArray(r.inputs) || !r.inputs.every(isProof))) return false;
+      if (r.spends !== undefined && (!Array.isArray(r.spends) || r.spends.some((x) => typeof x !== 'string'))) return false;
+    }
   }
+  if ([...(v.outbox || []), ...(v.sent || [])].some((x) => typeof x.token !== 'string' || typeof x.id !== 'string')) return false;
+  if (v.jar !== undefined) {
+    const j = v.jar;
+    if (!j || typeof j !== 'object' || !Number.isSafeInteger(j.counter)) return false;
+    if (j.nsk !== undefined && !/^[0-9a-f]{64}$/.test(j.nsk)) return false;
+    if (j.seen !== undefined && (!Array.isArray(j.seen) || j.seen.some((x) => typeof x !== 'string'))) return false;
+  }
+  if (v.kpin && Object.values(v.kpin).some((x) => typeof x !== 'string')) return false;
   if (v.kpin !== undefined && (typeof v.kpin !== 'object' || v.kpin === null || Array.isArray(v.kpin))) return false;
   if (v.next !== undefined && !Number.isSafeInteger(v.next)) return false;
   return true;
@@ -144,7 +161,7 @@ function setMark(xpub, t) {
 // checking the mint's signature carries ok; any other is unchecked.
 function tidy() {
   let cur = load();
-  const rawOld = readRaw(OLD_STORE), old = rawOld && parseVault(rawOld);
+  const rawOld = readRaw(OLD_STORE), old = rawOld && parseOld(rawOld);
   const marks = readMarks();
   if (!cur) {
     if (!old || old.xpub in marks) return;
@@ -167,6 +184,23 @@ function tidy() {
   save(cur);
   if (merging) setMark(old.xpub, tag(rawOld));
   st = cur;
+}
+// The published older page's vault, read leniently: its own format, not
+// this page's. Proofs come out normalized (amount as a number), and any
+// entry that cannot be read is left behind in v1, untouched.
+function parseOld(raw) {
+  let v;
+  try { v = JSON.parse(raw); } catch { return null; }
+  if (!v || typeof v !== 'object' || typeof v.xpub !== 'string') return null;
+  const proofs = (Array.isArray(v.proofs) ? v.proofs : []).map((p) => {
+    if (!p || typeof p.secret !== 'string' || typeof p.C !== 'string' || typeof p.id !== 'string') return null;
+    const amount = Number(String(p.amount)), counter = Number(String(p.counter));
+    return Number.isSafeInteger(amount) && amount > 0 && Number.isSafeInteger(counter) && counter >= 0
+      ? { amount, id: p.id, secret: p.secret, C: p.C, counter } : null;
+  }).filter(Boolean);
+  const jar = v.jar && Number.isSafeInteger(Number(v.jar.counter)) ? { counter: Number(v.jar.counter),
+    ...(typeof v.jar.nsk === 'string' && /^[0-9a-f]{64}$/.test(v.jar.nsk) ? { nsk: v.jar.nsk } : {}), seen: [] } : undefined;
+  return { xpub: v.xpub, fp: typeof v.fp === 'string' ? v.fp : '', next: Number.isSafeInteger(v.next) ? v.next : 0, proofs, jar };
 }
 // What the published older page (v1) stores: proofs, the key counter and
 // the tip jar. Its proofs are added as unchecked (that page kept no proof
@@ -710,7 +744,8 @@ async function mintTest() {
   // Waiting for payment; any failure here is left to the mint request
   // below, which records it on the record.
   try {
-    for (let i = 0; i < 30; i++) {
+    const until = Date.now() + 20000;
+    for (let i = 0; i < 30 && Date.now() < until; i++) {
       const s = await api(`/v1/mint/quote/bolt11/${encodeURIComponent(q.quote)}`);
       if (s.state === 'PAID' || s.state === 'ISSUED') break;
       await new Promise((r) => setTimeout(r, 500));
@@ -898,10 +933,10 @@ async function onWrap(w, ev, attempt) {
 // (checked keys, not expired, a key for the amount), the mint's own proof
 // that it signed each one (DLEQ), and the mint's word, matched by Y, that
 // each one is unspent. Proofs already known to the vault are skipped, so a
-// tip delivered twice is kept once. Proofs the mint calls spent are left
-// out; the rest are kept. If the mint has not answered for some, those
-// are tried again (an error after the others are kept). Returns what was
-// kept, or null when nothing in it was new.
+// tip delivered twice is kept once. Proofs the mint calls spent are kept
+// apart (see below); the rest join the vault. If the mint has not answered
+// for some, those are tried again (an error after the others are kept).
+// Returns what was kept, or null when nothing in it was new.
 async function keepLockedTip(gen, counter, proofs, progress) {
   const pub = pubAt(st.xpub, counter);
   if (!proofs.every((p) => signerLock(pub, p.secret)))
