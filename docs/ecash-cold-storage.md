@@ -127,3 +127,23 @@ mint can tell the tips went to the same place.
 The QR codes follow the [ecash spend request](specs/ecash-spend-request.md)
 format, which also lists every field a dishonest page could forge and what
 the signer does about each one.
+
+## Known limits
+
+This is a test mint build. A review of the vault page against "can a normal
+user, or someone sending them ecash, lose ecash or have it counted twice"
+still lists these, to be fixed next:
+
+- A tip seen while the mint is down is not kept if the page closes before
+  the mint answers and the relays stop sending it again.
+- A tip whose lock is written over several lines, or that comes without
+  the mint's signature proof, is not handled the way the signer needs:
+  the first is kept but the signer cannot spend it, the second is refused.
+- Change of a single sat on its own key can cost its whole value in fees
+  to spend.
+- Receiving back part of a payment you made shows the whole payment as
+  waiting until the next balance check.
+- Two interrupted receives that share ecash, both set aside, can block
+  each other on Resume.
+- If the browser's storage is almost full, a finished spend can fail to
+  save until space is freed; it is kept and finished then.
