@@ -33,12 +33,14 @@ import { sha256 } from '@noble/hashes/sha2.js';
 
 const MINT = 'https://testnut.cashu.space';
 const STORE = 'kiss-ecash-v2';
-const OLD_STORE = 'kiss-ecash-v1';   // pages before the tab lock; moved once
+const OLD_STORE = 'kiss-ecash-v1';   // pages before the tab lock: read, never written
+const MOVED = 'kiss-ecash-moved';    // which v1 snapshot was last taken in; outlives Forget
+const FORGOTTEN = `${STORE}-forgotten-`;
 const REQ_MAX = 4096;          // the signer's QR transport limit
 const FRAME_CHARS = 200;       // base64 characters per animated frame
 const SIGALL = [['sigflag', 'SIG_ALL']];
-const KEEP = 50000;            // spent proofs and finished operations remembered
-const KEEP_SENT = 200;         // payments handed over, kept for reference
+const KEEP_SENT = 200;         // handed over payment tokens kept to look at again
+const TIMEOUT = 20000;         // a mint request with no answer by then is given up
 
 const $ = (id) => document.getElementById(id);
 const enc = (s) => new TextEncoder().encode(s);
@@ -52,13 +54,30 @@ const listTag = (secrets) => tag(JSON.stringify([...secrets].sort()));
 // A refusal is final: the input itself is wrong, and retrying cannot help.
 // Anything else (the mint or the network failing) may work the next time.
 class Refusal extends Error {}
+// The vault is in storage but cannot be read: nothing may replace or remove
+// it, and the page offers its raw text instead.
+class Unreadable extends Error {}
 
 // ---- state ----
 let st = null;
 let owner = false;
+// null only when there is no vault; a vault that is there but cannot be
+// read or parsed is an error, never "no vault".
 function load() {
-  try { return JSON.parse(localStorage.getItem(STORE)) || null; } catch { return null; }
+  let raw;
+  try { raw = localStorage.getItem(STORE); } catch (e) {
+    throw new Unreadable(`this browser would not let the page read its storage (${e.message || e})`);
+  }
+  if (raw === null) return null;
+  let v = null;
+  try { v = JSON.parse(raw); } catch { /* below */ }
+  if (v && typeof v === 'object' && typeof v.xpub === 'string') return v;
+  throw Object.assign(new Unreadable('the vault in this browser\'s storage cannot be read'), { raw });
 }
+const readRaw = (key) => { try { return localStorage.getItem(key); } catch { return null; } };
+const parseVault = (raw) => {
+  try { const v = JSON.parse(raw); return v && typeof v === 'object' && typeof v.xpub === 'string' ? v : null; } catch { return null; }
+};
 function save(v) {
   try { localStorage.setItem(STORE, JSON.stringify(v)); } catch (e) {
     throw new Error(`could not save the vault in this browser (${e.message || e}); reload the page before doing anything else`);
@@ -78,32 +97,37 @@ function commit(gen, fn) {
 window.addEventListener('storage', (e) => {
   if (e.key !== STORE || !owner) return;
   const was = st && st.gen;
-  st = load();
+  try { st = load(); } catch { st = null; }
   if (!st || st.gen !== was) { stopJar(); clearSignerViews(); }
   render();
 });
-const LISTS = ['proofs', 'pending', 'archive', 'aside', 'outbox', 'sent', 'done', 'spent'];
-const fresh = (xpub, fp) => ({ xpub, fp, gen: rand32(), next: 0, ...Object.fromEntries(LISTS.map((k) => [k, []])) });
+// Lists that only grow while the vault lives: spent proofs (tags), finished
+// operations (tags) and handed over payments (keys) are identities, kept
+// for good; sent keeps the last payment tokens to look at again.
+const LISTS = ['proofs', 'pending', 'archive', 'aside', 'outbox', 'sent', 'sentKeys', 'done', 'spent'];
+const fresh = (xpub, fp) => ({ xpub, fp, gen: rand32(), next: 0, kpin: {}, ...Object.fromEntries(LISTS.map((k) => [k, []])) });
 const holds = (v) => v && ['proofs', 'pending', 'archive', 'aside', 'outbox'].some((k) => (v[k] || []).length);
 
-// Bring a stored vault up to this version: move a vault from the old key
-// once, add missing lists, keep one copy of each proof with C in the one
-// spelling the signer reads, mark proofs the signer would refuse so they
-// are never picked for a spend (their secrets are kept as they are), and
-// give old pending records a kind and a stable id, one record per set of
-// outputs.
+// Bring a stored vault up to this version, in one write. A vault kept by an
+// older page (v1) is taken in, never moved or deleted: v1 stays as it is,
+// and MOVED records which snapshot of it was taken. When an older page
+// writes v1 again later, what it added is merged in (rule 3 decides, and
+// nothing is taken away); a vault that was taken in and then forgotten is
+// not brought back from v1. Ecash that came from an older page is marked
+// unchecked: those pages kept no proof that the mint signed it.
 function tidy() {
   let cur = load();
+  const rawOld = readRaw(OLD_STORE), old = rawOld && parseVault(rawOld);
+  const mark = readRaw(MOVED);
+  const oldNew = old && mark !== tag(rawOld);
   if (!cur) {
-    let raw = null, old = null;
-    try { raw = localStorage.getItem(OLD_STORE); old = JSON.parse(raw); } catch { /* nothing to move */ }
-    if (!old || typeof old.xpub !== 'string') return;
-    cur = old;
-    save(cur);
-    try { localStorage.setItem(OLD_STORE + '-moved', raw); localStorage.removeItem(OLD_STORE); } catch { /* the copy under STORE is what counts */ }
+    if (!old || mark) return;
+    cur = { xpub: old.xpub, fp: old.fp, next: 0 };
   }
   cur.gen = cur.gen || rand32();
   for (const k of LISTS) cur[k] = Array.isArray(cur[k]) ? cur[k] : [];
+  cur.kpin = cur.kpin && typeof cur.kpin === 'object' ? cur.kpin : {};
+  if (oldNew && old.xpub === cur.xpub) takeOld(cur, old);
   const seen = new Set(), pubs = new Map();
   cur.proofs = cur.proofs.filter((p) => !seen.has(p.secret) && seen.add(p.secret));
   for (const p of cur.proofs) {
@@ -123,10 +147,31 @@ function tidy() {
     rids.add(r.rid);
     return true;
   });
+  // Older formats: finished operations as raw ids, payments without a key.
+  cur.done = cur.done.map((d) => (/^[0-9a-f]{32}$/.test(d) ? d : tag(d)));
+  for (const x of [...cur.outbox, ...cur.sent]) x.key = x.key || 'tok:' + tag(x.token);
   const toks = new Set();
   cur.outbox = cur.outbox.filter((x) => !toks.has(x.token) && toks.add(x.token));
   save(cur);
+  if (oldNew) { try { localStorage.setItem(MOVED, tag(rawOld)); } catch { /* merged again next time; rule 3 makes that harmless */ } }
   st = cur;
+}
+// What an older page's vault holds that this one does not: its proofs and
+// its pending records, added as unchecked; its key counter, so no key is
+// handed out twice; its tip jar, if this vault has none.
+function takeOld(cur, old) {
+  const isKnown = known(cur);
+  for (const p of Array.isArray(old.proofs) ? old.proofs : []) {
+    if (p && typeof p.secret === 'string' && !isKnown(p.secret)) cur.proofs.push({ ...p, unchecked: true });
+  }
+  const have = new Set([...cur.pending, ...cur.archive].map((r) => listTag(r.outs.map((o) => o.B_))));
+  for (const r of Array.isArray(old.pending) ? old.pending : []) {
+    if (!r || !Array.isArray(r.outs) || !r.outs.length) continue;
+    const k = listTag(r.outs.map((o) => o.B_));
+    if (!have.has(k)) { have.add(k); cur.pending.push({ ...r }); }
+  }
+  cur.next = Math.max(cur.next || 0, Number(old.next) || 0);
+  if (!cur.jar && old.jar) cur.jar = old.jar;
 }
 
 // ---- mint ----
@@ -355,7 +400,7 @@ function finish(gen, rec, proofs) {
     const spentNow = new Set(rec.spends || []);
     s.proofs = s.proofs.filter((p) => !spentNow.has(p.secret));
     s.aside = s.aside.filter((p) => !spentNow.has(p.secret));
-    s.spent = [...s.spent, ...[...spentNow].map(tag)].slice(-KEEP);
+    s.spent = [...s.spent, ...[...spentNow].map(tag)];
     const isKnown = known(s);
     const pay = [];
     rec.outs.forEach((o, i) => {
@@ -371,7 +416,7 @@ function finish(gen, rec, proofs) {
         lastPay = rec.id;
       }
     }
-    s.done = [...s.done, tag(rec.rid)].slice(-KEEP);
+    s.done = [...s.done, tag(rec.rid)];
     return { pay };
   });
 }
