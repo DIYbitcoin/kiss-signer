@@ -15,6 +15,12 @@ your ecash, or a copy of its storage. The ecash is locked to keys made from
 your signer's seed words (Cashu NUT-11 and NUT-13), so without a signature
 from the signer it cannot be spent.
 
+That covers the ecash the vault keeps. Two kinds of ordinary (unlocked)
+ecash pass through the page for a moment, and a copy of its storage taken
+then could spend them: a token you paste in, until the mint has swapped it
+into locked ecash, and a payment you made, until the person you paid
+claims it.
+
 **Does not protect against:**
 
 - **The mint.** The mint holds the real bitcoin behind every bit of ecash. If
@@ -33,7 +39,8 @@ from the signer it cannot be spent.
 
 - A KISS Signer with seed words on it, unlocked to its home screen.
 - The vault page, [docs/ecash](ecash/index.html), in Brave or Chrome on a
-  computer or phone with a camera.
+  computer or phone with a camera. It runs in one tab at a time: a second
+  tab only says the vault is open elsewhere.
 
 ## 1. Pair
 

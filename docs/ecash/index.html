@@ -163,7 +163,12 @@
         cannot spend any of it: every spend is a QR your signer checks, shows
         you and signs. Test mint and fake sats only for now.</p>
 
-      <section class="card warn" id="pair-card">
+      <section class="card warn hidden" id="tab-card">
+        <h2>Open in another tab</h2>
+        <p id="tab-msg"></p>
+      </section>
+
+      <section class="card warn hidden" id="pair-card">
         <h2>1. Pair your signer</h2>
         <p>On the signer, tap SIGN and scan the pairing code. The signer shows
           its ecash key as a QR: tap Scan and show it to the camera, or paste it.</p>
@@ -207,6 +212,8 @@
         <div id="token-box" class="hidden">
           <p class="ok">Sent. Give this token to whoever you are paying: scan its QR, or copy it.</p>
           <textarea id="token-out" readonly></textarea>
+          <p class="mut" id="token-more"></p>
+          <div class="row"><button class="ghost" id="token-done">I've sent it</button></div>
         </div>
       </section>
 
