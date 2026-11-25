@@ -80,7 +80,9 @@ while it was closed. A tip someone sends as a token can be pasted into
   checks the mint's proof that it issued the tip and that none of it is spent.
   The sender cannot take it back.
 - A tip that arrived **unlocked**, because the sender's app ignored the
-  request, is swapped into locked ecash at once.
+  request, is refused if it came over Nostr, since anyone who copied the
+  page's storage could take it first. Pasted into **Receive**, it is
+  swapped into locked ecash at once.
 - A tip locked to anything else is refused.
 
 All tips share one key, so one spend can take them all. The cost is that the
