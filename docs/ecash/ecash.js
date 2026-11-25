@@ -678,7 +678,7 @@ const busy = (s) => new Set(openOps(s).filter(([, o]) => o.kind === 'spend' && o
 // one held apart that it calls unspent comes back. A coin it calls pending
 // is not offered or counted until it says otherwise.
 const mintPending = new Set();
-let balanceRun = Promise.resolve(), pendingTimer = null;
+let balanceRun = Promise.resolve(), pendingTimer = null, balanceFailed = null;
 function checkBalance(gen) {
   balanceRun = balanceRun.then(() => checkBalanceNow(gen), () => checkBalanceNow(gen));
   return balanceRun;
@@ -688,10 +688,11 @@ async function checkBalanceNow(gen) {
   const held = busy(st);
   const ask = Object.keys(st.coins).filter((x) => !held.has(x));
   const state = new Map();
+  balanceFailed = null;
   for (let i = 0; i < ask.length; i += 100) {
     const part = ask.slice(i, i + 100);
     let res;
-    try { res = await stateOf(part.map(yOf)); } catch { break; /* the rest is checked next time */ }
+    try { res = await stateOf(part.map(yOf)); } catch (e) { balanceFailed = why(e); break; /* the rest is checked next time */ }
     part.forEach((x, j) => state.set(x, res[j]));
   }
   for (const [x, v] of state) { if (v === 'PENDING') mintPending.add(x); else if (v === 'UNSPENT' || v === 'SPENT') mintPending.delete(x); }
@@ -1014,8 +1015,12 @@ async function onWrap(w, ev, attempt) {
       try { markSeen(w, ev.id); } catch { /* vault gone */ }
       msg('jar-msg', `A tip arrived over Nostr but was not kept: ${e.message || e}`, 'bad');
     } else {
-      msg('jar-msg', `A tip arrived over Nostr and is waiting for the mint (${e.message || e}); it is tried again.`, 'bad');
-      if (attempt < 10) setTimeout(() => { jarQueue = jarQueue.then(() => onWrap(w, ev, attempt + 1)); }, 30000);
+      if (attempt < 10) {
+        msg('jar-msg', `A tip arrived over Nostr and is waiting for the mint (${e.message || e}); it is tried again.`, 'bad');
+        setTimeout(() => { jarQueue = jarQueue.then(() => onWrap(w, ev, attempt + 1)); }, 30000);
+      } else {
+        msg('jar-msg', `A tip over Nostr is still waiting for the mint (${e.message || e}); it is tried again the next time this page opens.`, 'bad');
+      }
     }
   }
 }
@@ -1556,6 +1561,7 @@ function render() {
   if (un.length) parts.push(`${un.length} unfinished swap${un.length > 1 ? 's' : ''}, kept and tried again on every load. Oldest: ${un[0][1].note || 'not finished yet'}`);
   if (asideOps.length) parts.push(`${asideOps.length} set aside, still kept and looked for at the mint.`);
   if (apart.length) parts.push(`${sats(sum(apart))} held apart because the mint calls it spent; kept, and it comes back if the mint calls it unspent.`);
+  if (balanceFailed) parts.push(`The balance could not be checked with the mint (${balanceFailed}); tap Try again.`);
   const pend = coins.filter((c) => !c.apart && mintPending.has(c.secret));
   if (pend.length) parts.push(`${sats(sum(pend))} the mint calls pending, so it is not counted yet; it is checked again every minute.`);
   $('stuck-text').textContent = parts.join(' ');
