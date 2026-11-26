@@ -676,6 +676,13 @@ async function settle(gen, id, mode) {
       const proofs = await gather(gen, id, set);
       if (proofs) return finish(gen, id, set, proofs);
       if ([11002, 12001, 12002].includes(e.code)) await newSet(gen, id, e);
+      // A spend whose ecash the mint calls not its own, or already spent,
+      // can never go through: it is set aside (kept, still looked for), so
+      // it is not sent again on every load and its ecash is not held.
+      if ([10003, 11001].includes(e.code) && op.kind === 'spend') {
+        try { commit(gen, (s) => { const o = s.ops[id]; if (o && !o.done && o.status === 'open') o.status = 'aside'; }); } catch { /* tried again */ }
+        e.message += '; it was set aside, kept as a record';
+      }
       throw e;
     }
   } catch (e) {
@@ -1441,7 +1448,7 @@ async function makeRequest() {
 // small change joins ecash it can be spent with. (With no other ecash
 // anywhere, the inputs' key.)
 function changeKey(pick) {
-  const used = new Set(pick.proofs.map((p) => p.secret));
+  const used = new Set([...pick.proofs.map((p) => p.secret), ...busy(st)]);
   const left = new Map();
   for (const p of Object.values(st.coins)) {
     if (used.has(p.secret) || !spendable(p)) continue;
