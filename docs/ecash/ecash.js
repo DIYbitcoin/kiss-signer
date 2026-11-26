@@ -758,6 +758,9 @@ async function checkBalanceNow(gen) {
   // every proof of one is spent: whoever redeemed it, it is then marked
   // redeemed and no longer offered to hand over.
   const livePays = Object.values(st.pays).filter((p) => !isRedeemed(p));
+  // A payment an earlier version kept as a token only is read in full (with
+  // its keysets) so a part of it taken back can be cut from it.
+  if (livePays.some((p) => !Array.isArray(p.proofs))) { try { await ks(); } catch { /* the spent check below says why */ } }
   const ask = [...new Set([...Object.keys(st.coins).filter((x) => !held.has(x)), ...livePays.flatMap((p) => payProofs(p).map((q) => q.secret))])];
   const state = new Map();
   balanceFailed = null;
@@ -823,10 +826,12 @@ async function resume() {
       if (spentIn.length && op.kind === 'spend') why2 = 'part of its ecash is already spent; make the spend again';
       else if (!states.every((x) => x === 'UNSPENT' || x === 'SPENT')) why2 = 'the mint has not settled all of its ecash yet';
       else if (spentIn.length && !rest.length) why2 = 'all of its token was received elsewhere; kept only as a record';
-      else if (spentIn.length && openOps(st).some(([x, o]) => x !== id && (o.inputs || []).some((p) => rest.some((q) => q.secret === p.secret)))) {
-        // The rest is in another unfinished swap of its own: that one is
-        // resumed (it comes next in this loop, or is already open), and
-        // this one stays as a record.
+      else if (spentIn.length && openOps(st).some(([x, o]) => x !== id && o.kind === 'bearer' && o.inputs.length === rest.length &&
+        o.inputs.every((p) => rest.some((q) => q.secret === p.secret)))) {
+        // Exactly the rest is another unfinished swap of its own: that one
+        // is resumed (it comes next in this loop, or is already open), and
+        // this one stays as a record. Any other overlap receives the rest
+        // here.
         why2 = 'part of its token was received elsewhere and the rest is in another unfinished swap; kept only as a record';
         try { commit(gen, (s) => { const o = s.ops[id]; if (o && !o.done) o.note = why2; }); } catch { /* shown as before */ }
         reason = reason || why2;
@@ -904,7 +909,12 @@ function cleanProofs(list) {
     // bytes to the mint as other strings are: two of them would be one proof
     // credited twice.
     if (new TextDecoder().decode(enc(p.secret)) !== p.secret) throw new Refusal('that ecash holds a secret that is not well formed text');
-    return { amount, id: p.id, secret: p.secret, C: p.C, dleq: p.dleq };
+    // A DLEQ proof is only one written as one; a wallet may write a missing
+    // one as null, which is the same as none.
+    const d = p.dleq;
+    const dleq = d && typeof d === 'object' && typeof d.e === 'string' && typeof d.s === 'string' && typeof d.r === 'string'
+      ? { e: d.e, s: d.s, r: d.r } : undefined;
+    return { amount, id: p.id, secret: p.secret, C: p.C, ...(dleq ? { dleq } : {}) };
   });
   // Exact repeats are dropped; copies of one secret that differ are all
   // judged, and the first that checks out is the one kept.
@@ -919,7 +929,8 @@ function cleanProofs(list) {
 function conflicts(proofs) {
   const cs = new Map();
   for (const p of proofs) {
-    const c = String(p.C).toLowerCase();
+    let c;
+    try { c = pointFromHex(p.C).toHex(true); } catch { continue; }   // not a signature at all: left out on its own
     if (!cs.has(p.secret)) cs.set(p.secret, new Set());
     cs.get(p.secret).add(c);
   }
@@ -1117,7 +1128,7 @@ function listenJar() {
   // Tips saved earlier and not settled yet go first.
   for (const id of Object.keys(st.jar.inbox || {})) queueTip(() => settleTip(w, id, 0));
   pool.subscribe(RELAYS, { kinds: [1059], '#p': [pk] }, {
-    onevent: (ev) => queueTip(() => onWrap(w, ev)),
+    onevent: (ev) => { if (onWrap(w, ev)) queueTip(() => settleTip(w, ev.id, 0)); },
     // Every relay closed the subscription: not listening any more. It says
     // so and connects again in a minute, for the pairing still open.
     onclose: () => {
@@ -1141,17 +1152,20 @@ function stopJar() {
 // proofs locked to the jar go in (a copy of them can spend nothing), at
 // most INBOX tips; past that a new tip is left unseen for the relays to
 // deliver again later.
-const INBOX = 200;
+const INBOX = 1000;
 const markSeen = (w, id) => commit(w.gen, (s) => {
   if (!s.jar || s.jar.counter !== w.counter) return;
   s.jar.seen = [...(s.jar.seen || []).filter((x) => x !== id), id].slice(-2000);
   if (s.jar.inbox) delete s.jar.inbox[id];
 });
 const live = (w) => st && st.gen === w.gen && st.jar && st.jar.counter === w.counter;
-async function onWrap(w, ev) {
-  if (!live(w) || (st.jar.seen || []).includes(ev.id) || (st.jar.inbox && st.jar.inbox[ev.id])) return;
+// Runs as the event arrives, with no wait anywhere, so the tip is saved
+// before anything else can happen. True when it is in the inbox.
+function onWrap(w, ev) {
+  if (!live(w) || (st.jar.seen || []).includes(ev.id)) return false;
+  if (st.jar.inbox && st.jar.inbox[ev.id]) return true;
   let payload;
-  try { payload = JSON.parse(unwrapEvent(ev, w.sk).content); } catch { return; }   // not for us, or not a tip
+  try { payload = JSON.parse(unwrapEvent(ev, w.sk).content); } catch { return false; }   // not for us, or not a tip
   try {
     if (!payload || typeof payload !== 'object') throw new Refusal('a Nostr message that is not a tip');
     if (String(payload.mint || '').replace(/\/$/, '') !== MINT) throw new Refusal(`a tip from another mint (${payload.mint})`);
@@ -1169,16 +1183,16 @@ async function onWrap(w, ev) {
       s.jar.inbox[ev.id] = { at: Date.now(), proofs: proofs.filter((p) => signerLock(pub, p.secret)) };
       return true;
     });
-    if (!kept) { msg('jar-msg', 'A tip arrived over Nostr while many others still wait for the mint; it is picked up when the relays send it again.', 'bad'); return; }
+    if (!kept) { msg('jar-msg', `A tip arrived over Nostr while ${INBOX} others still wait for the mint; it is picked up when the relays send it again.`, 'bad'); return false; }
+    return true;
   } catch (e) {
-    if (!live(w)) return;
+    if (!live(w)) return false;
     if (e instanceof Refusal) {
       try { markSeen(w, ev.id); } catch { /* vault gone */ }
       msg('jar-msg', `A tip arrived over Nostr but was not kept: ${e.message || e}`, 'bad');
     } else msg('jar-msg', `A tip arrived over Nostr but could not be saved (${e.message || e}); it is picked up when the relays send it again.`, 'bad');
-    return;
+    return false;
   }
-  await settleTip(w, ev.id, 0);
 }
 // One tip from the inbox: kept, refused for good, or left in the inbox for
 // the next try (a few times while the page is open, and on every load).
@@ -1188,7 +1202,7 @@ async function settleTip(w, id, attempt) {
   if (!item) return;
   const say = (t) => msg('jar-msg', `Tip over Nostr: ${t}`, 'ok');
   try {
-    const r = await keepLockedTip(w.gen, w.counter, item.proofs.map((p) => ({ ...p })), say);
+    const r = await keepLockedTip(w.gen, w.counter, item.proofs.map((p) => ({ ...p })), say, id);
     markSeen(w, id);
     if (r) say(r.said);
   } catch (e) {
@@ -1215,7 +1229,7 @@ async function settleTip(w, id, attempt) {
 // apart (see below); the rest join the vault. If the mint has not answered
 // for some, those are tried again (an error after the others are kept).
 // Returns what was kept, or null when nothing in it was new.
-async function keepLockedTip(gen, counter, proofs, progress) {
+async function keepLockedTip(gen, counter, proofs, progress, inboxId) {
   // Each proof is judged on its own: a bad one is left out, one the mint
   // cannot settle yet waits for the next try, and the good ones beside them
   // are still kept. A wallet may name a keyset by its short id (the first
@@ -1233,7 +1247,10 @@ async function keepLockedTip(gen, counter, proofs, progress) {
       left.push({ why: p.secret.includes(pub) ? 'a proof locked to your tip jar in a way your signer cannot sign (line breaks or tabs in its lock)' : 'a proof locked to something other than your tip jar', secret: p.secret });
       continue;
     }
-    if (isKnown(p.secret) || taken.has(p.secret)) continue;
+    // A coin kept unverified is taken again when a copy with the mint's
+    // proof arrives: that copy settles it (see the write below).
+    const promote = !!(p.dleq && st.coins[p.secret] && st.coins[p.secret].unverified);
+    if ((isKnown(p.secret) && !promote) || taken.has(p.secret)) continue;
     let e;
     try {
       const r = await look(p.id);
@@ -1276,7 +1293,30 @@ async function keepLockedTip(gen, counter, proofs, progress) {
   const waiting = states.filter((x) => x !== 'UNSPENT' && x !== 'SPENT').length;
   const [added, apart] = good.length || held.length ? commit(gen, (s) => {
     if (!s.jar || s.jar.counter !== counter) throw new Refusal('the tip jar changed while this tip was checked');
-    return [good.filter((p) => credit(s, p, counter)), held.filter((p) => credit(s, p, counter, true))];
+    // A verified copy of a coin held unverified replaces it in place (its
+    // signature, keyset and amount are the ones the mint proved), unless an
+    // unfinished swap is using it right now.
+    const inUse = new Set(openOps(s).flatMap(([, o]) => (o.inputs || []).map((q) => q.secret)));
+    const promote = (p) => {
+      const c = s.coins[p.secret];
+      if (!c || !c.unverified || p.unverified || inUse.has(p.secret)) return false;
+      Object.assign(c, { amount: p.amount, id: p.id, C: p.C });
+      delete c.unverified;
+      return true;
+    };
+    const res = [good.filter((p) => promote(p) || credit(s, p, counter)), held.filter((p) => credit(s, p, counter, true))];
+    // The tip's saved copy goes in this same write, so the vault never
+    // has to hold both (see settleTip).
+    const box = inboxId && s.jar.inbox && s.jar.inbox[inboxId];
+    if (box) {
+      const done = new Set([...good, ...held].map((p) => p.secret));
+      box.proofs = box.proofs.filter((q) => !done.has(q.secret));
+      if (!box.proofs.length) {
+        delete s.jar.inbox[inboxId];
+        s.jar.seen = [...s.jar.seen.filter((x) => x !== inboxId), inboxId].slice(-2000);
+      }
+    }
+    return res;
   }) : [[], []];
   const total = sum(added.filter((p) => !p.unverified)), apartSum = sum(apart);
   const unv = sum(added.filter((p) => p.unverified));
@@ -1393,10 +1433,25 @@ async function makeRequest() {
   showRequest(gen, made, amount);
 }
 // The request for one choice of inputs: the payment's outputs, then change
-// locked back to the same signer key the inputs are on, so change of a sat
-// or two joins that key's other ecash instead of sitting alone on a key of
-// its own, where its own mint fee would eat it. Null when it does not fit
-// the signer's limits.
+// locked to a signer key that keeps other ecash (changeKey), so change of a
+// sat or two is never alone on a key, where its own mint fee would eat it.
+// Null when it does not fit the signer's limits.
+// The key change goes to: the inputs' own key if ecash stays on it after
+// this spend, otherwise the key holding the most other spendable ecash, so
+// small change joins ecash it can be spent with. (With no other ecash
+// anywhere, the inputs' key.)
+function changeKey(pick) {
+  const used = new Set(pick.proofs.map((p) => p.secret));
+  const left = new Map();
+  for (const p of Object.values(st.coins)) {
+    if (used.has(p.secret) || !spendable(p)) continue;
+    left.set(p.counter, (left.get(p.counter) || 0) + p.amount);
+  }
+  if (left.get(pick.counter)) return pick.counter;
+  let best = pick.counter, most = 0;
+  for (const [c, v] of left) if (v > most) { best = c; most = v; }
+  return best;
+}
 function buildRequest(pick, amount) {
   const change = pick.total - amount - fee(pick.proofs);
   let pay, back;
@@ -1404,7 +1459,7 @@ function buildRequest(pick, amount) {
   if (!pay.length && !back.length) return null;
   if (pay.length + back.length > MAX_OUT) return null;
   const outs = pay.map((a) => ({ ...blind(a, rand32()), keep: null }));
-  const cc = pick.counter;
+  const cc = changeKey(pick);
   for (const a of back) {
     const nonce = rand32();
     outs.push({ ...blind(a, changeSecret(pubAt(st.xpub, cc), nonce)), keep: cc, nonce });
@@ -1427,28 +1482,32 @@ function showRequest(gen, made, amount) {
     : `Checking ${sats(pick.total)} of unverified tips: nothing is sent, ${sats(change)} comes back to the vault, mint fee ${sats(fee(pick.proofs))}. Your signer will show 0 sending.`);
 }
 // Tips that came without the mint's proof are checked the one way that
-// proves them: a swap of only those proofs back to the vault, approved on
-// the signer like any spend (0 sending, all of it back). If the mint takes
-// it, what comes back is ordinary ecash; if not, nothing else was risked.
+// proves them: a swap back to the vault, approved on the signer like any
+// spend (0 sending, all of it back). One tip at a time, so a tip the mint
+// refuses holds up no other: one already in an unfinished swap (open or set
+// aside) is skipped, and Resume sends that one again. When a tip alone is
+// worth no more than the fee, ecash already verified on the same key joins
+// the swap to pay it. If the mint takes it, what comes back is ordinary
+// ecash; if not, the swap is refused as a whole and nothing was spent.
 async function checkUnverified() {
   const gen = st.gen;
   await ks();
   await vaultKeys();
-  const inUse = busy(st);
-  const groups = new Map();
-  for (const p of Object.values(st.coins)) {
-    if (!p.unverified || p.apart || mintPending.has(p.secret) || inUse.has(p.secret) || !verified.has(p.id) || expired(verified.get(p.id))) continue;
-    if (!groups.has(p.counter)) groups.set(p.counter, []);
-    groups.get(p.counter).push(p);
+  const inOps = new Set(openOps(st).flatMap(([, o]) => (o.inputs || []).map((p) => p.secret)));
+  const ready = (p) => !p.apart && !mintPending.has(p.secret) && !inOps.has(p.secret) && verified.has(p.id) && !expired(verified.get(p.id));
+  const tips = Object.values(st.coins).filter((p) => p.unverified && ready(p)).sort((a, b) => b.amount - a.amount);
+  for (const u of tips) {
+    const take = [u];
+    const extra = Object.values(st.coins).filter((p) => p.counter === u.counter && spendable(p) && ready(p)).sort((a, b) => a.amount - b.amount);
+    while (sum(take) <= fee(take) && extra.length && take.length < MAX_IN) take.push(extra.shift());
+    if (sum(take) <= fee(take)) continue;
+    const made = buildRequest({ counter: u.counter, proofs: take, total: sum(take) }, 0);
+    if (!made) continue;
+    showRequest(gen, made, 0);
+    msg('send-msg', `Checking a tip of ${sats(u.amount)} that came without the mint's proof${take.length > 1 ? `, with ${sats(sum(take) - u.amount)} of verified ecash to pay the fee` : ''}: nothing is sent, ${sats(made.change)} comes back to the vault, mint fee ${sats(fee(take))}. Your signer will show 0 sending.`);
+    return;
   }
-  for (const [counter, ps] of groups) {
-    const take = ps.sort((a, b) => b.amount - a.amount).slice(0, MAX_IN);
-    const pick = { counter, proofs: take, total: sum(take) };
-    if (pick.total <= fee(take)) continue;
-    const made = buildRequest(pick, 0);
-    if (made) { showRequest(gen, made, 0); return; }
-  }
-  throw new Refusal('no unverified tip can be checked right now (each is smaller than the mint fee, or its keyset is not checked yet)');
+  throw new Refusal(tips.length ? 'no unverified tip can be checked right now: each is worth no more than the mint fee and no verified ecash on its key can pay it' : 'every unverified tip is already in an unfinished swap, or its keyset is not checked yet; Resume sends a set aside one again');
 }
 
 async function submitReply(text) {

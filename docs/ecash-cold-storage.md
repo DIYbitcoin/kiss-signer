@@ -119,16 +119,18 @@ while it was closed. A tip someone sends as a token can be pasted into
   swapped into locked ecash at once.
 - A tip that arrived locked but without the mint's proof that it issued
   it (some apps leave that proof out) is kept but not counted. **Check
-  tips** in the vault swaps it back to the vault with your signer's
-  approval (the signer shows 0 sending); if the mint takes it, it counts.
+  tips** in the vault swaps it back to the vault, one tip at a time, with
+  your signer's approval (the signer shows 0 sending); if the mint takes
+  it, it counts. A copy of the same tip that does carry the proof settles
+  it at once.
 - A tip that arrived over Nostr while the mint was down is saved in the
   vault and checked again every time the page opens.
 - A tip locked to anything else, or locked in a way the signer cannot sign
   (line breaks in its lock), is refused.
 
 All tips share one key, so one spend can take them all, and change from a
-spend goes back to the key it was spent from, so a sat or two of change is
-never stranded on a key of its own. The cost is that the mint can tell
+spend goes to a key that still holds other ecash, so a sat or two of change
+is never stranded on a key of its own. The cost is that the mint can tell
 these went to the same place.
 
 ## How it works
