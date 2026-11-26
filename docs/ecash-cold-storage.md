@@ -117,12 +117,9 @@ while it was closed. A tip someone sends as a token can be pasted into
   request, is refused if it came over Nostr, since anyone who copied the
   page's storage could take it first. Pasted into **Receive**, it is
   swapped into locked ecash at once.
-- A tip that arrived locked but without the mint's proof that it issued
-  it (some apps leave that proof out) is kept but not counted. **Check
-  tips** in the vault swaps it back to the vault, one tip at a time, with
-  your signer's approval (the signer shows 0 sending); if the mint takes
-  it, it counts. A copy of the same tip that does carry the proof settles
-  it at once.
+- A tip that arrived locked but without the mint's proof that it issued it
+  is refused: the page cannot swap a locked tip to find out whether it is
+  real. Wallets built on cashu-ts, such as cashu.me, include that proof.
 - A tip that arrived over Nostr while the mint was down is saved in the
   vault and checked again every time the page opens.
 - A tip locked to anything else, or locked in a way the signer cannot sign
@@ -145,3 +142,6 @@ This is a test mint build, for trying the idea with fake sats only.
 
 - If the browser's storage is almost full, a finished spend can fail to
   save until space is freed; it is kept and finished then.
+- A tip from a wallet that leaves out the mint's proof that it issued it
+  is refused, and stays locked to your signer where this page cannot take
+  it in.
