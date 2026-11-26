@@ -86,8 +86,8 @@ it again every time the page opens. Nothing is thrown away: **Set aside**
 stops the retries but keeps the record, the page still picks it up if
 the mint turns out to have finished it, and **Resume** sends it again.
 **Forget this signer** keeps a copy of the vault in the browser's
-storage, and pairing the same signer again brings it back as it was. The last 200
-payments you marked sent stay listed under the send step, to copy again.
+storage, and pairing the same signer again brings it back as it was.
+Payments you marked sent stay listed under the send step, to copy again.
 
 Each time it opens, the page also asks the mint which of its ecash is
 still unspent. Anything the mint calls spent is held apart, kept, and
@@ -117,10 +117,19 @@ while it was closed. A tip someone sends as a token can be pasted into
   request, is refused if it came over Nostr, since anyone who copied the
   page's storage could take it first. Pasted into **Receive**, it is
   swapped into locked ecash at once.
-- A tip locked to anything else is refused.
+- A tip that arrived locked but without the mint's proof that it issued
+  it (some apps leave that proof out) is kept but not counted. **Check
+  tips** in the vault swaps it back to the vault with your signer's
+  approval (the signer shows 0 sending); if the mint takes it, it counts.
+- A tip that arrived over Nostr while the mint was down is saved in the
+  vault and checked again every time the page opens.
+- A tip locked to anything else, or locked in a way the signer cannot sign
+  (line breaks in its lock), is refused.
 
-All tips share one key, so one spend can take them all. The cost is that the
-mint can tell the tips went to the same place.
+All tips share one key, so one spend can take them all, and change from a
+spend goes back to the key it was spent from, so a sat or two of change is
+never stranded on a key of its own. The cost is that the mint can tell
+these went to the same place.
 
 ## How it works
 
@@ -130,20 +139,7 @@ the signer does about each one.
 
 ## Known limits
 
-This is a test mint build. A review of the vault page against "can a normal
-user, or someone sending them ecash, lose ecash or have it counted twice"
-still lists these, to be fixed next:
+This is a test mint build, for trying the idea with fake sats only.
 
-- A tip seen while the mint is down is not kept if the page closes before
-  the mint answers and the relays stop sending it again.
-- A tip whose lock is written over several lines, or that comes without
-  the mint's signature proof, is not handled the way the signer needs:
-  the first is kept but the signer cannot spend it, the second is refused.
-- Change of a single sat on its own key can cost its whole value in fees
-  to spend.
-- Receiving back part of a payment you made shows the whole payment as
-  waiting until the next balance check.
-- Two interrupted receives that share ecash, both set aside, can block
-  each other on Resume.
 - If the browser's storage is almost full, a finished spend can fail to
   save until space is freed; it is kept and finished then.
