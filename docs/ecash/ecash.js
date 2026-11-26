@@ -846,12 +846,15 @@ async function resume() {
         // is received on its own (with the usual fee check), and this swap
         // stays as a record.
         let r;
+        // If an open swap already holds part of the rest, swapBearer sends it
+        // again, so a refusal afterwards no longer means nothing was sent.
+        const retried = openOps(st).some(([, o]) => o.kind === 'bearer' && o.status === 'open' && o.inputs.some((p) => rest.some((q) => q.secret === p.secret)));
         try { r = await swapBearer(gen, rest); } catch (e) {
           // Refused before anything was sent (worth less than its fee, say):
           // said on this swap, and the next set aside swap still gets its
           // turn. Anything else may have reached the mint, so nothing more
           // is sent in this Resume.
-          if (!(e instanceof Refusal)) throw e;
+          if (!(e instanceof Refusal) || retried) throw e;
           why2 = `part of its token was received elsewhere and the rest could not be received now (${why(e)})`;
           try { commit(gen, (s) => { const o = s.ops[id]; if (o && !o.done) o.note = why2; }); } catch { /* shown as before */ }
           reason = reason || why2;
@@ -882,7 +885,7 @@ async function resume() {
           // set aside swap still gets its turn. No answer at all means the
           // mint may have done it: nothing more is sent until the next try
           // has asked about this one.
-          if (e.code === undefined) throw e;
+          if (!e.code) throw e;   // no code, or 0 (a gateway error): not a refusal
           reason = reason || why(e);
           continue;
         }
