@@ -845,7 +845,18 @@ async function resume() {
         // Part was received elsewhere: the unspent rest of the saved inputs
         // is received on its own (with the usual fee check), and this swap
         // stays as a record.
-        const r = await swapBearer(gen, rest);
+        let r;
+        try { r = await swapBearer(gen, rest); } catch (e) {
+          // Refused before anything was sent (worth less than its fee, say):
+          // said on this swap, and the next set aside swap still gets its
+          // turn. Anything else may have reached the mint, so nothing more
+          // is sent in this Resume.
+          if (!(e instanceof Refusal)) throw e;
+          why2 = `part of its token was received elsewhere and the rest could not be received now (${why(e)})`;
+          try { commit(gen, (s) => { const o = s.ops[id]; if (o && !o.done) o.note = why2; }); } catch { /* shown as before */ }
+          reason = reason || why2;
+          continue;
+        }
         try { commit(gen, (s) => { const o = s.ops[id]; if (o && !o.done) o.note = 'part of its token was received elsewhere and the rest on its own; kept only as a record'; }); } catch { /* shown as before */ }
         msg('recv-msg', `Part of that token was received elsewhere, so the rest was received on its own: ${r.said}`, 'ok');
         return;
@@ -867,9 +878,11 @@ async function resume() {
           if (await settle(gen, id, 'again')) msg('recv-msg', 'Finished the swap that was set aside.', 'ok');
           return;
         } catch (e) {
-          // Refused or not answered: if the mint refused it outright it is
-          // set aside again (see settle); either way the next set aside
-          // swap still gets its turn in this same Resume.
+          // The mint refused it outright (it answered with a code): the next
+          // set aside swap still gets its turn. No answer at all means the
+          // mint may have done it: nothing more is sent until the next try
+          // has asked about this one.
+          if (e.code === undefined) throw e;
           reason = reason || why(e);
           continue;
         }
