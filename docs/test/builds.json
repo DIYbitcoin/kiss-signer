@@ -35,46 +35,48 @@
     {
       "id": "ws43",
       "name": "Waveshare 4.3in",
-      "commit": "c9ce193f",
-      "built": "2026-10-09",
+      "commit": "b24b5362",
+      "built": "2026-11-28",
       "images": [
         {
-          "path": "firmware/kiss-test-c9ce193f-ws43-v1.bin",
+          "path": "firmware/kiss-test-b24b5362-ws43-v1.bin",
           "minChipRevision": 100,
           "maxChipRevision": 199,
-          "size": 5003040,
-          "sha256": "a9aa5ba1544c45b1c2d120b689b80dbcb7ea69dfed4d250135078d99778c39ed"
+          "size": 5254448,
+          "sha256": "bea87217439c86acc1e542a79deee158091335c4d4b011135896fdae1817c4d0"
         },
         {
-          "path": "firmware/kiss-test-c9ce193f-ws43-v3.bin",
+          "path": "firmware/kiss-test-b24b5362-ws43-v3.bin",
           "minChipRevision": 300,
           "maxChipRevision": 399,
-          "size": 5019520,
-          "sha256": "f603e52054e9f2ac40c4255a44b1870ee6efe525c044f3e44ce5326602e9ec72"
+          "size": 5270848,
+          "sha256": "83f584bbf85f73f9f2a632f875a29e035330ee149230baf9f7c1dbbb6968bb49"
         }
-      ]
+      ],
+      "note": "Shows the battery on the home screen when a cell is fitted."
     },
     {
       "id": "ws5",
       "name": "Waveshare 5in",
-      "commit": "ef3693ff",
-      "built": "2026-10-17",
+      "commit": "b24b5362",
+      "built": "2026-11-28",
       "images": [
         {
-          "path": "firmware/kiss-test-ef3693ff-ws5-v1.bin",
+          "path": "firmware/kiss-test-b24b5362-ws5-v1.bin",
           "minChipRevision": 100,
           "maxChipRevision": 199,
-          "size": 6511232,
-          "sha256": "ac7e9b9c561652c2047b9c8e0298992fc8b34ef10abcd088875b6c497c0df895"
+          "size": 6610688,
+          "sha256": "ce3e035087d5175b587c0960e6260711f0e27c610e23a619b06448dfda43a357"
         },
         {
-          "path": "firmware/kiss-test-ef3693ff-ws5-v3.bin",
+          "path": "firmware/kiss-test-b24b5362-ws5-v3.bin",
           "minChipRevision": 300,
           "maxChipRevision": 399,
-          "size": 6527088,
-          "sha256": "35c9babe9d7763165ca530749d719d9a18b85a2733c94b57275d241b3948f4f5"
+          "size": 6626544,
+          "sha256": "db1b543b6b8959ca466210bbd4c39ede7d36e902a14a8c6f6118a67626bbc638"
         }
-      ]
+      ],
+      "note": "Shows the battery on the home screen when a cell is fitted."
     }
   ]
 }
