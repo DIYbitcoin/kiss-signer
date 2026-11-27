@@ -71,10 +71,12 @@
 //                          and drops what was left of the last stroke, rather
 //                          than starting where the first game pass found the
 //                          finger
-//   KISS_PMIC              1 when a power chip on the shared I2C bus can say
-//                          whether a battery is fitted and how full it is
-//                          (the 3.5in's AXP2101); 0 where there is nothing
-//                          to ask, and the home shows no battery at all
+//   KISS_PMIC              1 when the board can say whether a battery is
+//                          fitted and how full it is: a power chip on the
+//                          shared I2C bus (the 3.5in's AXP2101), or the
+//                          cell's voltage on an ADC pin (the Waveshare 4.3in
+//                          and 5in, main/kiss_batt_adc.c); 0 where there is
+//                          nothing to ask, and the home shows no battery
 //   KISS_LV_EXTRA_POOL     bytes of a SECOND LVGL pool added at start, in the
 //                          large memory, over the 128 KB internal one every
 //                          board has (CONFIG_LV_MEM_SIZE_KILOBYTES, mirrored
@@ -200,7 +202,8 @@
 // its game pass is expected to be the longest of the four. A model, not a
 // measurement, until the glass has played it.
 #define KISS_BLADE_LANDING 1
-#define KISS_PMIC 0
+// No power chip, but the cell's voltage reaches GPIO20 (main/kiss_batt_adc.c).
+#define KISS_PMIC 1
 // The first canvas whose walk did not fit the 128 KB pool: with its own art
 // the overlap walk spun in a box shadow's draw at 100% CPU. The 4.3in peaks at
 // 84% of that pool and this canvas draws 2.4 times the pixels, so a second
@@ -227,10 +230,11 @@
 #define KISS_PANEL_SPI 0
 #define KISS_PANEL_SWROT 1
 #define KISS_CAM_ORIENT_LOG 1
-// The Guition's three: the same pixel count through the same flush, so the
-// same game pass, no power chip to ask, and a walk that fits the first pool.
+// The Guition's two: the same pixel count through the same flush, so the
+// same game pass, and a walk that fits the first pool. No power chip, but the
+// cell's voltage reaches GPIO20 as on the 5in (main/kiss_batt_adc.c).
 #define KISS_BLADE_LANDING 0
-#define KISS_PMIC 0
+#define KISS_PMIC 1
 #define KISS_LV_EXTRA_POOL 0
 #else
 #error "no arm for this board in main/kiss_board.h"

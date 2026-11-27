@@ -50,7 +50,8 @@ elseif(CONFIG_KISS_BOARD_JC1060)
     # One rung up needs four faces no other board has (kiss_theme.c's ladder).
     set(KISS_F_EXTRA "font_kiss_lat43.c" "font_kiss_mono26.c" "font_kiss_mono43.c" "font_kiss_num60.c")
 elseif(CONFIG_KISS_BOARD_WS5)
-    set(KISS_BOARD_SRC "board_ws5.c")
+    # The cell's voltage on GPIO20 (kiss_batt_adc.c), shared with the 4.3in.
+    set(KISS_BOARD_SRC "board_ws5.c" "kiss_batt_adc.c")
     # The same pictures drawn at 1280x720 by the same generators (--board
     # ws5), defining the same symbols.
     set(KISS_ART_SRCS "menu_img_ws5.c" "menu_logo_ws5.c" "gameover_img_ws5.c" "game_bg.c" "kiss_img_ws5.c")
@@ -67,7 +68,7 @@ elseif(CONFIG_KISS_BOARD_WS5)
     # rung from the top, and four faces of its own for the rest.
     set(KISS_F_EXTRA "font_kiss_lat43.c" "font_kiss_mono43.c" "font_kiss_lat54.c" "font_kiss_mono32.c" "font_kiss_mono54.c" "font_kiss_num76.c")
 elseif(CONFIG_KISS_BOARD_WS43)
-    set(KISS_BOARD_SRC "board_ws43.c")
+    set(KISS_BOARD_SRC "board_ws43.c" "kiss_batt_adc.c")
     # The Guition 4.3in's art, sprites and faces, file for file: the two boards
     # share a canvas, so nothing is drawn or baked for this one.
     set(KISS_ART_SRCS "menu_img.c" "menu_logo.c" "gameover_img.c" "game_bg.c" "kiss_img.c")
@@ -87,7 +88,7 @@ endif()
 idf_component_register(
     SRCS "main.c" ${KISS_BOARD_SRC} "kiss_touch.c" ${KISS_SPRITES_SRC} ${KISS_ART_SRCS} "kiss_art.c" "kiss_art_rle.c" "kiss_crypto.c" "kiss_ecash.c" "kiss_psbt.c" "kiss_cardwallet.c" "kiss_satochip.c" "kiss_satocard.c" "kiss_ccid.c" "kiss_usbcard.c" "kiss_cardtask.c" "kiss_sp.c" "kiss_ui.c" "kiss_theme.c" "kiss_terms.c" "kiss_info.c" "kiss_recv.c" "kiss_sign.c" "kiss_ecash_ui.c" "kiss_scan.c" "kiss_settings.c" "kiss_fw.c" "kiss_fw_ui.c" "kiss_pqsig.c" "kiss_setup.c" "kiss_duress.c" "kiss_gword.c" "kiss_coverword.c" "kiss_duress_ui.c" "kiss_word_ui.c" "kiss_seed.c" "kiss_seed_sd.c" "kiss_kef.c" "kiss_kef_crypto.c" "kiss_pbkdf2.c" "kiss_cryptobench.c" "kiss_usage.c" "kiss_payee.c" "kiss_backup.c" "kiss_tapent.c" "kiss_dice.c" "kiss_dice_q.c" "kiss_rngq.c" "kiss_rngaudit.c" "kiss_cards_q.c" "kiss_lastword.c" "kiss_rehearse.c" "i18n.c" "i18n_tables.c" ${KISS_F_LAT14} ${KISS_F_LAT23} "font_kiss_lat28.c" "font_kiss_lat34.c" ${KISS_F_MONO14} ${KISS_F_MONO18} ${KISS_F_MONO21} ${KISS_F_MONO23} "font_kiss_mono28.c" "font_kiss_mono34.c" "font_kiss_num48.c" "font_kiss_ja23.c" "font_kiss_ko23.c" "font_kiss_zh23.c" "flag_imgs.c" "font_kiss_ja14.c" "font_kiss_ja28.c" "font_kiss_ko14.c" "font_kiss_ko28.c" "font_kiss_zh14.c" "font_kiss_zh28.c" "qr_transport.c" "platform_sd.c" "camera_spike.c" "osd_text.c" "osd_strips.c" ${KISS_F_LAT18} "font_kiss_ja18.c" "font_kiss_ko18.c" "font_kiss_zh18.c" ${KISS_F_NUM28} ${KISS_F_EXTRA}
     INCLUDE_DIRS "."
-    REQUIRES usb esp_system spi_flash app_update esp_driver_gpio esp_driver_ledc esp_driver_i2c esp_lcd esp_lcd_st7701 esp_lcd_st7796 esp_lcd_jd9165 esp_lcd_hx8394 esp_lcd_touch esp_lcd_touch_gt911 esp_lcd_touch_ft5x06 esp_timer esp_driver_ppa esp_mm libwally-core esp_video fatfs sdmmc esp_driver_sdmmc cUR k_quirc slhdsa nvs_flash bootloader_support efuse
+    REQUIRES usb esp_system spi_flash app_update esp_driver_gpio esp_driver_ledc esp_driver_i2c esp_lcd esp_lcd_st7701 esp_lcd_st7796 esp_lcd_jd9165 esp_lcd_hx8394 esp_lcd_touch esp_lcd_touch_gt911 esp_lcd_touch_ft5x06 esp_timer esp_driver_ppa esp_mm libwally-core esp_video fatfs sdmmc esp_driver_sdmmc cUR k_quirc slhdsa nvs_flash bootloader_support efuse esp_adc
 )
 
 # THE LINT LANE. There is no separate one: this component is the only place in

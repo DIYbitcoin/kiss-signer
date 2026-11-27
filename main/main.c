@@ -1757,8 +1757,9 @@ static void sd_badge_sync(bool present) {
 #if KISS_PMIC
 // The battery, beside the SD badge on the build line: a mark for how full it
 // is, the percent, and the USB mark while the cable is in. Hidden until the
-// power chip says a cell is fitted, which is how the board ships, so a board
-// on USB alone shows nothing new. Amber at 15% and below while nothing is
+// board says a cell is fitted, which is how the board ships, so a board on
+// USB alone shows nothing new. The 4.3in and 5in read only the cell's
+// voltage, so they never show the USB mark. Amber at 15% and below while nothing is
 // charging it; a signature or an update that dies half way costs a restart,
 // not keys, so it warns and does not stop anything.
 //
