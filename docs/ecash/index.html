@@ -254,6 +254,23 @@
       </div>
       </div>
     </main>
+    <script>
+      // If the vault script cannot load or start in this browser, say so on
+      // the page instead of leaving it blank.
+      window.addEventListener('error', function (e) {
+        window.kissStartError = window.kissStartError || (e.message || (e.target && (e.target.src || e.target.href)) || 'a file did not load');
+      }, true);
+      setTimeout(function () {
+        var started = ['pair-card', 'vault-card', 'tab-card'].some(function (id) {
+          var el = document.getElementById(id);
+          return el && !el.classList.contains('hidden');
+        });
+        if (started) return;
+        document.getElementById('tab-msg').textContent = 'The vault could not start in this browser' +
+          (window.kissStartError ? ' (' + window.kissStartError + ')' : '') + '. Reload the page; if this stays, open it in Brave or Chrome.';
+        document.getElementById('tab-card').classList.remove('hidden');
+      }, 8000);
+    </script>
     <script type="module" src="ecash.js"></script>
   </body>
 </html>
