@@ -29,6 +29,12 @@ static const char *TAG = "batt";
 #define BAT_DIVIDER  3      // 200k over 100k
 #define BAT_SAMPLES  16     // the divider node is noisy; Kern averages 16 too
 #define BAT_NONE_MV  2500   // below this the pin is not following a cell
+// With no cell fitted and USB in, the charger may hold the BAT node near its
+// 4.2 V charge voltage, which reads as a full battery that is not there, and
+// nothing else on the board says whether a cell is fitted. So the badge waits
+// until the voltage has been below this once since boot, which only a cell
+// does: a full cell shows from about 90%, and a board with no cell never does.
+#define BAT_SEEN_MV  4100
 
 static adc_oneshot_unit_handle_t s_adc;
 static adc_cali_handle_t s_cali;
@@ -102,7 +108,9 @@ bool kiss_board_batt_read(kiss_batt_t *b) {
     logged = true;
     ESP_LOGI(TAG, "battery: %d mV on GPIO%d", mv, BAT_GPIO);
   }
-  b->present = s_mv_avg >= BAT_NONE_MV;
+  static bool seen;
+  if (s_mv_avg >= BAT_NONE_MV && s_mv_avg < BAT_SEEN_MV) seen = true;
+  b->present = seen && s_mv_avg >= BAT_NONE_MV;
   b->pct = b->present ? mv_to_pct(s_mv_avg) : 0;
   return true;
 }
