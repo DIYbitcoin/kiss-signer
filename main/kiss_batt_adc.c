@@ -15,7 +15,11 @@
 // sits in the boot path; an ADC that does not come up is dropped once.
 #include "kiss_board.h"
 
-#if KISS_PMIC && (defined(KISS_BOARD_WS43) || defined(KISS_BOARD_WS5))
+// main/CMakeLists.txt builds this file for the 4.3in and 5in only, and
+// kiss_board.h sets KISS_PMIC on both.
+#if !KISS_PMIC
+#error "kiss_batt_adc.c needs KISS_PMIC: main/CMakeLists.txt builds it for the wrong board"
+#endif
 
 #include <string.h>
 #include "esp_adc/adc_cali.h"
@@ -114,5 +118,3 @@ bool kiss_board_batt_read(kiss_batt_t *b) {
   b->pct = b->present ? mv_to_pct(s_mv_avg) : 0;
   return true;
 }
-
-#endif
