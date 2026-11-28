@@ -105,7 +105,7 @@
     </div>
 
     <div class="th-tabs sim-tabs" role="tablist" aria-label="Simulator controls">
-      <button class="th-tab" type="button" id="unlock" role="tab">Draw K, I, S, S</button>
+      <button class="th-tab" type="button" id="unlock" role="tab">Unlock</button>
       <button class="th-tab" type="button" data-panel="p-cam" role="tab">Webcam</button>
       <button class="th-tab" type="button" data-panel="p-card" role="tab">SD card</button>
       <button class="th-tab" type="button" id="full" role="tab">Fullscreen</button>
@@ -123,8 +123,8 @@
       <button id="refresh" class="th-tab" type="button">Refresh</button>
     </div>
 
-    <p class="th-safe">It starts on the game, locked, with the published test words inside.
-      Draw K, I, S, S on it, or use the tab. No camera here, so CAMERA AND TAPS is filled in for you.</p>
+    <p class="th-safe">It starts unlocked, with the published test words inside.
+      The kiss mark at the top left locks it, and the Unlock tab opens it again. No camera here, so CAMERA AND TAPS is filled in for you.</p>
   </div>
 
 </div>
@@ -169,13 +169,12 @@
       m.ccall('kiss_sim_set_lang', null, ['string'], [document.getElementById('lang').value]);
       m.ccall('kiss_sim_boot', null, [], []);
       placeLens();
-      // A signer with keys in it, so every tile works, then locked: it starts
-      // on the game, as a board that has been set up does. The kiss mark at
-      // the top left of the home screen is the lock.
+      // A signer with keys in it, so every tile works. It starts unlocked on
+      // the home screen: a visitor should not have to draw K, I, S, S to look
+      // around. The kiss mark at the top left still locks it, and the Unlock
+      // tab draws the word for them.
       m.ccall('kiss_sim_test_signer', null, [], []);
       run(2500);
-      press(60, 60);
-      run(1500);
       setTag('live');
       listCard();
       requestAnimationFrame(loop);
